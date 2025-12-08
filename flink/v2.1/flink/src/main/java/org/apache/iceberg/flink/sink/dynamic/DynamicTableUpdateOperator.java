@@ -42,6 +42,7 @@ class DynamicTableUpdateOperator
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
   private final TableCreator tableCreator;
+  private final boolean caseSensitive;
 
   private transient TableUpdater updater;
 
@@ -50,12 +51,14 @@ class DynamicTableUpdateOperator
       int cacheMaximumSize,
       long cacheRefreshMs,
       int inputSchemasPerTableCacheMaximumSize,
-      TableCreator tableCreator) {
+      TableCreator tableCreator,
+      boolean caseSensitive) {
     this.catalogLoader = catalogLoader;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCreator = tableCreator;
+    this.caseSensitive = caseSensitive;
   }
 
   @Override
@@ -65,8 +68,13 @@ class DynamicTableUpdateOperator
     this.updater =
         new TableUpdater(
             new TableMetadataCache(
-                catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize),
-            catalog);
+                catalog,
+                cacheMaximumSize,
+                cacheRefreshMs,
+                inputSchemasPerTableCacheMaximumSize,
+                caseSensitive),
+            catalog,
+            caseSensitive);
   }
 
   @Override
