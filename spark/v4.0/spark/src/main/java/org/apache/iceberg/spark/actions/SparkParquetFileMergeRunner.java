@@ -32,7 +32,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.parquet.ParquetFileMerger;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
@@ -71,8 +70,9 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
 
   @Override
   protected void doRewrite(String groupId, RewriteFileGroup group) {
-    // Early validation: check if requirements are met
-    if (!canMerge(group)) {
+    // Early validation: check if requirements are met and get schema
+    MessageType schema = canMergeAndGetSchema(group);
+    if (schema == null) {
       LOG.info(
           "Row-group merge requirements not met for group {}. Using standard Spark rewrite.",
           groupId);
@@ -86,7 +86,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
           "Merging {} Parquet files using row-group level merge (group: {})",
           group.rewrittenFiles().size(),
           groupId);
-      mergeParquetFilesDistributed(groupId, group);
+      mergeParquetFilesDistributed(groupId, group, schema);
     } catch (Exception e) {
       LOG.info(
           "Row-group merge failed for group {}, falling back to standard Spark rewrite: {}",
@@ -98,18 +98,47 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     }
   }
 
-  @VisibleForTesting
-  boolean canMerge(RewriteFileGroup group) {
-    return ParquetFileMerger.canMerge(group, table().sortOrder(), table().io());
+  /**
+   * Validates if a group can be merged and returns the Parquet schema if successful.
+   *
+   * <p>This method checks all requirements for row-group merging and returns the schema if all
+   * checks pass. The returned schema can be reused to avoid redundant file reads.
+   *
+   * @param group the file group to validate
+   * @return MessageType schema if files can be merged, null otherwise
+   */
+  private MessageType canMergeAndGetSchema(RewriteFileGroup group) {
+    // Check if group expects exactly one output file
+    if (group.expectedOutputFiles() != 1) {
+      return null;
+    }
+
+    // Check if table has a sort order
+    if (table().sortOrder().isSorted()) {
+      return null;
+    }
+
+    // Check for delete files
+    boolean hasDeletes = group.fileScanTasks().stream().anyMatch(task -> !task.deletes().isEmpty());
+    if (hasDeletes) {
+      return null;
+    }
+
+    // Validate Parquet-specific requirements and get schema
+    return ParquetFileMerger.canMergeAndGetSchema(
+        Lists.newArrayList(group.rewrittenFiles()), table().io(), group.maxOutputFileSize());
   }
 
   /**
    * Merges all input files in a group into a single output file.
    *
-   * <p>This method assumes the group has been validated by {@link #canMerge(RewriteFileGroup)} to
-   * have exactly one expected output file.
+   * <p>This method assumes the group has been validated by {@link
+   * #canMergeAndGetSchema(RewriteFileGroup)} to have exactly one expected output file.
+   *
+   * @param schema the Parquet schema obtained from validation, reused to avoid redundant file reads
    */
-  private void mergeParquetFilesDistributed(String groupId, RewriteFileGroup group) {
+  private void mergeParquetFilesDistributed(
+      String groupId, RewriteFileGroup group, MessageType schema) {
     PartitionSpec spec = table().specs().get(group.outputSpecId());
     StructLike partition = group.info().partition();
 
@@ -137,7 +166,13 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
             .map(
                 ignored ->
                     mergeFilesForTask(
-                        dataFiles, rowGroupSize, partition, spec, fileIO, serializableTable))
+                        dataFiles,
+                        rowGroupSize,
+                        partition,
+                        spec,
+                        fileIO,
+                        serializableTable,
+                        schema))
             .collect()
             .get(0);
 
@@ -156,9 +191,8 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
    * <p>IMPORTANT: OutputFileFactory is created here on the executor (not serialized from driver)
    * using TaskContext.taskAttemptId() to ensure unique filenames across task retry attempts.
    *
-   * <p>This method first validates and gets the schema using {@link
-   * ParquetFileMerger#canMergeAndGetMessageType}, then passes it to {@link
-   * ParquetFileMerger#mergeFiles} to avoid redundant file reads.
+   * @param schema the Parquet schema obtained from validation on the driver, reused to avoid
+   *     redundant file reads
    */
   private static DataFile mergeFilesForTask(
       List<DataFile> dataFiles,
@@ -166,18 +200,9 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
       StructLike partition,
       PartitionSpec spec,
       FileIO fileIO,
-      Table table)
+      Table table,
+      MessageType schema)
       throws IOException {
-    // Get schema and validate (this reads the first file once)
-    MessageType schema =
-        ParquetFileMerger.canMergeAndGetMessageType(
-            dataFiles, fileIO, Long.MAX_VALUE /* no size check here */);
-
-    if (schema == null) {
-      throw new IllegalArgumentException(
-          "Files cannot be merged - validation failed. This should have been caught by canMerge().");
-    }
-
     // Create OutputFileFactory on executor using Spark's TaskContext.taskAttemptId()
     // This ensures unique filenames across retry attempts (taskAttemptId changes on each retry)
     TaskContext sparkContext = TaskContext.get();
@@ -196,7 +221,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
     OutputFile outputFile = encryptedOutputFile.encryptingOutputFile();
 
     // Merge files and return DataFile with complete metadata
-    // Pass schema to avoid re-reading the first file
+    // Schema was already validated on the driver, so we can use it directly without re-reading
     return ParquetFileMerger.mergeFiles(
         dataFiles, fileIO, outputFile, schema, rowGroupSize, spec, partition);
   }

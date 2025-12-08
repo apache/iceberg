@@ -85,13 +85,13 @@ public class TestParquetFileMerger {
 
   @Test
   public void testCanMergeReturnsFalseForEmptyList() {
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(Collections.emptyList());
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(Collections.emptyList());
     assertThat(result).isNull();
   }
 
   @Test
   public void testCanMergeReturnsFalseForNullInput() {
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(null);
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(null);
     assertThat(result).isNull();
   }
 
@@ -106,7 +106,7 @@ public class TestParquetFileMerger {
     List<InputFile> inputFiles = Lists.newArrayList(inputFile);
 
     // Should return null because file is not valid Parquet
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(inputFiles);
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
     assertThat(result).isNull();
   }
 
@@ -134,7 +134,7 @@ public class TestParquetFileMerger {
     InputFile inputFile2 = Files.localInput(parquetFile2);
     List<InputFile> inputFiles = Arrays.asList(inputFile1, inputFile2);
 
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(inputFiles);
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
     assertThat(result).isNull();
   }
 
@@ -152,7 +152,7 @@ public class TestParquetFileMerger {
     InputFile inputFile2 = Files.localInput(parquetFile2);
     List<InputFile> inputFiles = Arrays.asList(inputFile1, inputFile2);
 
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(inputFiles);
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
     assertThat(result).isNotNull();
   }
 
@@ -166,7 +166,7 @@ public class TestParquetFileMerger {
     InputFile inputFile = Files.localInput(parquetFile);
     List<InputFile> inputFiles = Lists.newArrayList(inputFile);
 
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(inputFiles);
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
     assertThat(result).isNotNull();
   }
 
@@ -439,10 +439,10 @@ public class TestParquetFileMerger {
 
     List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1));
 
-    // canMergeAndGetMessageType should return null due to null values
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(inputFiles);
+    // canMergeAndGetSchema should return null due to null values
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
     assertThat(result)
-        .as("canMergeAndGetMessageType should return null for files with null row lineage values")
+        .as("canMergeAndGetSchema should return null for files with null row lineage values")
         .isNull();
   }
 
@@ -537,9 +537,9 @@ public class TestParquetFileMerger {
     // Validation should fail due to type mismatch
     List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
 
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(inputFiles);
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
     assertThat(result)
-        .as("canMergeAndGetMessageType should return null for same field name with different types")
+        .as("canMergeAndGetSchema should return null for same field name with different types")
         .isNull();
   }
 
@@ -583,7 +583,7 @@ public class TestParquetFileMerger {
     // Should succeed - compression doesn't affect schema compatibility
     List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
 
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(inputFiles);
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
     assertThat(result)
         .as("Files with different compression codecs should be mergeable")
         .isNotNull();
@@ -665,10 +665,8 @@ public class TestParquetFileMerger {
     List<InputFile> inputFiles =
         Arrays.asList(Files.localInput(validFile), Files.localInput(corruptedFile));
 
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(inputFiles);
-    assertThat(result)
-        .as("canMergeAndGetMessageType should return null for corrupted files")
-        .isNull();
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
+    assertThat(result).as("canMergeAndGetSchema should return null for corrupted files").isNull();
   }
 
   @Test
@@ -686,9 +684,9 @@ public class TestParquetFileMerger {
         Arrays.asList(Files.localInput(validFile), Files.localInput(nonExistentFile));
 
     // Should return null because non-existent file cannot be read
-    MessageType result = ParquetFileMerger.canMergeAndGetMessageType(inputFiles);
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
     assertThat(result)
-        .as("canMergeAndGetMessageType should return null when file doesn't exist")
+        .as("canMergeAndGetSchema should return null when file doesn't exist")
         .isNull();
   }
 
@@ -1046,7 +1044,7 @@ public class TestParquetFileMerger {
 
   /**
    * Helper method to call mergeFiles with schema validation. This gets the schema first using
-   * canMergeAndGetMessageType to avoid redundant file reads.
+   * canMergeAndGetSchema to avoid redundant file reads.
    */
   private DataFile mergeFilesHelper(
       List<DataFile> dataFiles,
@@ -1055,9 +1053,9 @@ public class TestParquetFileMerger {
       PartitionSpec spec,
       StructLike partition)
       throws IOException {
-    // Get schema using canMergeAndGetMessageType
+    // Get schema using canMergeAndGetSchema
     MessageType schema =
-        ParquetFileMerger.canMergeAndGetMessageType(
+        ParquetFileMerger.canMergeAndGetSchema(
             dataFiles, fileIO, Long.MAX_VALUE /* no size check */);
 
     if (schema == null) {

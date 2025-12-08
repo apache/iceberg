@@ -34,9 +34,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -122,54 +120,8 @@ public class ParquetFileMerger {
     // Utility class - prevent instantiation
   }
 
-  /**
-   * Validates if a RewriteFileGroup can use row-group level merging.
-   *
-   * <p>This method validates:
-   *
-   * <ul>
-   *   <li>Group must expect exactly 1 output file (ParquetFileMerger cannot split into multiple
-   *       files)
-   *   <li>Table must not have a sort order (no sorting or z-ordering)
-   *   <li>Files must not have delete files (checked via file scan tasks)
-   *   <li>All Parquet-specific requirements (via {@link #canMergeAndGetMessageType(List, FileIO,
-   *       long)})
-   * </ul>
-   *
-   * <p>This validation is useful for compaction operations in Spark, Flink, or other engines that
-   * need to determine if ParquetFileMerger can be used for a file group.
-   *
-   * @param group the file group to validate
-   * @param sortOrder the table's sort order
-   * @param fileIO FileIO to use for reading files
-   * @return true if row-group merging can be used, false otherwise
-   */
-  public static boolean canMerge(RewriteFileGroup group, SortOrder sortOrder, FileIO fileIO) {
-    // Check if group expects exactly one output file
-    // ParquetFileMerger only supports merging to a single output file
-    if (group.expectedOutputFiles() != 1) {
-      return false;
-    }
-
-    // Check if table has a sort order - row-group merge cannot preserve sort order
-    if (sortOrder.isSorted()) {
-      return false;
-    }
-
-    // Check for delete files via scan tasks - row-group merge cannot apply deletes
-    boolean hasDeletes = group.fileScanTasks().stream().anyMatch(task -> !task.deletes().isEmpty());
-    if (hasDeletes) {
-      return false;
-    }
-
-    // Delegate remaining validation to canMergeAndGetMessageType(List<DataFile>, FileIO, long)
-    return canMergeAndGetMessageType(
-            Lists.newArrayList(group.rewrittenFiles()), fileIO, group.maxOutputFileSize())
-        != null;
-  }
-
   @VisibleForTesting
-  static MessageType canMergeAndGetMessageType(List<InputFile> inputFiles) {
+  static MessageType canMergeAndGetSchema(List<InputFile> inputFiles) {
     try {
       if (inputFiles == null || inputFiles.isEmpty()) {
         return null;
@@ -215,8 +167,7 @@ public class ParquetFileMerger {
    * <p>This method validates:
    *
    * <ul>
-   *   <li>All Parquet-specific requirements (via {@link #canMergeAndGetMessageType(List)})
-   *   <li>No files have associated delete files
+   *   <li>All Parquet-specific requirements (via {@link #canMergeAndGetSchema(List)})
    *   <li>All files have the same partition spec
    *   <li>No files exceed the target output size (not splitting large files)
    * </ul>
@@ -230,42 +181,30 @@ public class ParquetFileMerger {
    * @param targetOutputSize Maximum size for output file (files larger than this cannot be merged)
    * @return MessageType schema if files can be merged, null otherwise
    */
-  public static MessageType canMergeAndGetMessageType(
+  public static MessageType canMergeAndGetSchema(
       List<DataFile> dataFiles, FileIO fileIO, long targetOutputSize) {
     if (dataFiles == null || dataFiles.isEmpty()) {
       return null;
     }
 
-    // Check for delete files - row-group merge cannot apply deletes
-    for (DataFile dataFile : dataFiles) {
-      List<Integer> equalityIds = dataFile.equalityFieldIds();
-      if (equalityIds != null && !equalityIds.isEmpty()) {
-        return null;
-      }
-    }
-
-    // Check partition spec consistency - all files must have the same spec
+    // Single loop to check partition spec consistency, file sizes, and build InputFile list
     int firstSpecId = dataFiles.get(0).specId();
-    for (int i = 1; i < dataFiles.size(); i++) {
-      if (dataFiles.get(i).specId() != firstSpecId) {
+    List<InputFile> inputFiles = Lists.newArrayListWithCapacity(dataFiles.size());
+    for (DataFile dataFile : dataFiles) {
+      // Check partition spec consistency - all files must have the same spec
+      if (dataFile.specId() != firstSpecId) {
         return null;
       }
-    }
 
-    // Check file sizes - don't merge if splitting large files
-    for (DataFile dataFile : dataFiles) {
+      // Check file sizes - don't merge if splitting large files
       if (dataFile.fileSizeInBytes() > targetOutputSize) {
         return null;
       }
-    }
 
-    // Validate Parquet-specific requirements
-    List<InputFile> inputFiles = Lists.newArrayListWithCapacity(dataFiles.size());
-    for (DataFile dataFile : dataFiles) {
       inputFiles.add(fileIO.newInputFile(dataFile.path().toString()));
     }
 
-    return canMergeAndGetMessageType(inputFiles);
+    return canMergeAndGetSchema(inputFiles);
   }
 
   /**
@@ -490,14 +429,14 @@ public class ParquetFileMerger {
    *   <li>_last_updated_sequence_number: data sequence number when row was last updated
    * </ul>
    *
-   * <p>The provided schema parameter should be obtained from {@link
-   * #canMergeAndGetMessageType(List, FileIO, long)} to avoid redundant file reads. All files must
-   * have compatible schemas (as validated by {@link #canMergeAndGetMessageType}).
+   * <p>The provided schema parameter should be obtained from {@link #canMergeAndGetSchema(List,
+   * FileIO, long)} to avoid redundant file reads. All files must have compatible schemas (as
+   * validated by {@link #canMergeAndGetSchema}).
    *
    * @param dataFiles List of Iceberg DataFiles to merge
    * @param fileIO FileIO to use for reading input files
    * @param outputFile Output file for the merged result (caller handles encryption if needed)
-   * @param schema Parquet schema from canMergeAndGetMessageType (avoids re-reading first file)
+   * @param schema Parquet schema from canMergeAndGetSchema (avoids re-reading first file)
    * @param rowGroupSize Target row group size in bytes
    * @param spec PartitionSpec for the output file
    * @param partition Partition data for the output file (null for unpartitioned tables)
