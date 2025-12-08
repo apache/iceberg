@@ -193,7 +193,7 @@ public class CommitterImpl implements Committer {
   private void startWorker() {
     if (null == this.worker) {
       LOG.info("Starting commit worker {}-{}", config.connectorName(), config.taskId());
-      SinkWriter sinkWriter = new SinkWriter(catalog, config);
+      SinkWriter sinkWriter = new SinkWriter(catalog, config, context.errantRecordReporter());
       worker = new Worker(config, clientFactory, sinkWriter, context);
       worker.start();
     }
