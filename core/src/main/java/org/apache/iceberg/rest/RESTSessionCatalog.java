@@ -132,7 +132,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .add(Endpoint.V1_REGISTER_TABLE)
           .add(Endpoint.V1_REPORT_METRICS)
           .add(Endpoint.V1_COMMIT_TRANSACTION)
-          .add(Endpoint.V1_TABLE_CREDENTIALS)
           .build();
 
   // these view endpoints must not be updated in order to maintain backwards compatibility with

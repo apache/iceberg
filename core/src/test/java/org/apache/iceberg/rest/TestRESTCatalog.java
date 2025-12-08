@@ -2904,7 +2904,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
 
-    catalog.createNamespace(TABLE.namespace());
+    if(requiresNamespaceCreate()) {
+        catalog.createNamespace(TABLE.namespace());
+    }
     catalog.createTable(TABLE, SCHEMA);
 
     List<Credential> credentials = catalog.loadTableCredentials(TABLE);
