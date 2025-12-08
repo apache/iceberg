@@ -63,17 +63,19 @@ subprojects {
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
 
+      String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+      String scalafmtConfigFile = null
       // Configure different scalafmt rules for specific Scala version
-      if (project.name.startsWith("iceberg-spark") && project.name.endsWith("2.13")) {
+      if (scalaVersion?.startsWith("2.12")) {
+        scalafmtConfigFile = "$rootDir/.baseline/scala/.scala212fmt.conf"
+      } else if (scalaVersion?.startsWith("2.13")) {
+        scalafmtConfigFile = "$rootDir/.baseline/scala/.scala213fmt.conf"
+      }
+
+      if (scalafmtConfigFile != null) {
         scala {
           target 'src/**/*.scala'
-          scalafmt("3.9.7").configFile("$rootDir/.baseline/scala/.scala213fmt.conf")
-          licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt", "package"
-        }
-      } else if (project.name.startsWith("iceberg-spark") && project.name.endsWith("2.12")) {
-        scala {
-          target 'src/**/*.scala'
-          scalafmt("3.9.7").configFile("$rootDir/.baseline/scala/.scala212fmt.conf")
+          scalafmt("3.9.7").configFile(scalafmtConfigFile)
           licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt", "package"
         }
       }
