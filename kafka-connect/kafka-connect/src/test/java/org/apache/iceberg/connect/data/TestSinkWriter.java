@@ -46,10 +46,12 @@ import org.apache.iceberg.types.Types;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.errors.DataException;
+import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 public class TestSinkWriter {
 
@@ -171,6 +173,11 @@ public class TestSinkWriter {
 
   private List<IcebergWriterResult> sinkWriterTest(
       Map<String, Object> value, IcebergSinkConfig config) {
+    return sinkWriterTest(value, config, null);
+  }
+
+  private List<IcebergWriterResult> sinkWriterTest(
+      Map<String, Object> value, IcebergSinkConfig config, ErrantRecordReporter reporter) {
     IcebergWriterResult writeResult =
         new IcebergWriterResult(
             TableIdentifier.parse(TABLE_NAME),
@@ -183,7 +190,7 @@ public class TestSinkWriter {
     IcebergWriterFactory writerFactory = mock(IcebergWriterFactory.class);
     when(writerFactory.createWriter(any(), any(), anyBoolean())).thenReturn(writer);
 
-    SinkWriter sinkWriter = new SinkWriter(catalog, config, null);
+    SinkWriter sinkWriter = new SinkWriter(catalog, config, reporter);
 
     // save a record
     Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
@@ -249,5 +256,28 @@ public class TestSinkWriter {
         .isInstanceOf(DataException.class)
         .hasMessage(
             "An error occurred converting record, topic: topic, partition, 1, offset: 100, record: {id=abc}");
+  }
+
+  @Test
+  public void testErrantRecordReporter() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.errorTolerance()).thenReturn(ErrorTolerance.ALL.toString());
+    when(config.errorDeadLetterQueueTopicNameConfig()).thenReturn("topic_dlq");
+
+    ErrantRecordReporter reporter = mock(ErrantRecordReporter.class);
+    when(reporter.report(any(), any()))
+        .then(
+            invocation -> {
+              return null;
+            });
+
+    Map<String, Object> badValue = ImmutableMap.of("id", "abc");
+    List<IcebergWriterResult> writerResults1 = sinkWriterTest(badValue, config, reporter);
+    assertThat(writerResults1.size()).isEqualTo(1);
+
+    // Verify report function was called once
+    Mockito.verify(reporter, Mockito.times(1)).report(any(), any());
   }
 }
