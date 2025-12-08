@@ -994,6 +994,27 @@ class PlanTask(BaseModel):
     )
 
 
+class ResidualFilter1(BaseModel):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter2(TrueExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter3(FalseExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: Optional[Dict[str, str]] = Field(
@@ -1166,6 +1187,27 @@ class SetExpression(BaseModel):
     type: ExpressionType
     term: Term
     values: List[PrimitiveTypeValue]
+
+
+class ResidualFilter6(SetExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter7(LiteralExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter8(UnaryExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
 
 
 class StructField(BaseModel):
@@ -1556,6 +1598,26 @@ class PlanTableScanRequest(BaseModel):
     )
 
 
+class ResidualFilter(BaseModel):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+    __root__: Union[
+        ResidualFilter2,
+        ResidualFilter3,
+        ResidualFilter4,
+        ResidualFilter5,
+        ResidualFilter6,
+        ResidualFilter7,
+        ResidualFilter8,
+    ] = Field(
+        ...,
+        description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
+    )
+
+
 class FileScanTask(BaseModel):
     data_file: DataFile = Field(..., alias='data-file')
     delete_file_references: Optional[List[int]] = Field(
@@ -1563,7 +1625,7 @@ class FileScanTask(BaseModel):
         alias='delete-file-references',
         description='A list of indices in the delete files array (0-based)',
     )
-    residual_filter: Optional[Expression] = Field(
+    residual_filter: Optional[ResidualFilter] = Field(
         None,
         alias='residual-filter',
         description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
@@ -1575,6 +1637,20 @@ class Schema(StructType):
     identifier_field_ids: Optional[List[int]] = Field(
         None, alias='identifier-field-ids'
     )
+
+
+class ResidualFilter4(AndOrExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter5(NotExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
 
 
 class CompletedPlanningResult(ScanTasks):
@@ -1620,6 +1696,7 @@ PlanTableScanResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
+ResidualFilter.update_forward_refs()
 CompletedPlanningResult.update_forward_refs()
 FetchScanTasksResult.update_forward_refs()
 CompletedPlanningWithIDResult.update_forward_refs()
