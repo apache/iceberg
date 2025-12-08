@@ -103,14 +103,13 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
 
   @FunctionalInterface
   public interface ReaderFunction<D> {
-    OrcRowReader<D> read(
-        Schema schema, TypeDescription messageType, Map<Integer, ?> constantValues);
+    OrcRowReader<D> read(Schema schema, TypeDescription messageType, Map<Integer, ?> idToConstant);
   }
 
   @FunctionalInterface
   public interface BatchReaderFunction<D> {
     OrcBatchReader<D> read(
-        Schema schema, TypeDescription messageType, Map<Integer, ?> constantValues);
+        Schema schema, TypeDescription messageType, Map<Integer, ?> idToConstant);
   }
 
   @FunctionalInterface
@@ -180,7 +179,7 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
 
     @Override
     public ReadBuilder<D, S> idToConstant(Map<Integer, ?> newIdToConstant) {
-      internal.constantValues(newIdToConstant.keySet());
+      internal.constantFieldIds(newIdToConstant.keySet());
       this.idToConstant = newIdToConstant;
       return this;
     }

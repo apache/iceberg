@@ -28,7 +28,7 @@ public class ArrowFormatModels {
         new ParquetFormatModel<>(
             ColumnarBatch.class,
             Object.class,
-            (schema, messageType, constantValues, properties) ->
+            (schema, messageType, idToConstant) ->
                 ArrowReader.VectorizedCombinedScanIterator.buildReader(
                     schema,
                     messageType, /* setArrowValidityVector */

@@ -56,6 +56,12 @@ public class SparkFormatModels {
             ColumnarBatch.class, StructType.class, VectorizedSparkParquetReaders::buildReader));
 
     FormatModelRegistry.register(
+        new ParquetFormatModel<>(
+            VectorizedSparkParquetReaders.CometColumnarBatch.class,
+            StructType.class,
+            VectorizedSparkParquetReaders::buildCometReader));
+
+    FormatModelRegistry.register(
         new ORCFormatModel<>(
             InternalRow.class,
             StructType.class,

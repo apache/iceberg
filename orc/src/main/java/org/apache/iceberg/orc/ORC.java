@@ -780,7 +780,7 @@ public class ORC {
       return this;
     }
 
-    ReadBuilder constantValues(Set<Integer> newConstantFieldIds) {
+    ReadBuilder constantFieldIds(Set<Integer> newConstantFieldIds) {
       this.constantFieldIds = newConstantFieldIds;
       return this;
     }
