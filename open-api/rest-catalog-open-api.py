@@ -1351,7 +1351,18 @@ class CommitTableRequest(BaseModel):
         None,
         description='Table identifier to update; must be present for CommitTransactionRequest',
     )
-    requirements: List[TableRequirement]
+    requirements: List[
+        Union[
+            AssertCreate,
+            AssertTableUUID,
+            AssertRefSnapshotId,
+            AssertLastAssignedFieldId,
+            AssertCurrentSchemaId,
+            AssertLastAssignedPartitionId,
+            AssertDefaultSpecId,
+            AssertDefaultSortOrderId,
+        ]
+    ]
     updates: List[TableUpdate]
 
 
