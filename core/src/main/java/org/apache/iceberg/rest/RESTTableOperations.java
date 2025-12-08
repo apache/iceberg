@@ -55,7 +55,8 @@ class RESTTableOperations implements TableOperations {
 
   private final RESTClient client;
   private final String path;
-  private final Supplier<Map<String, String>> headers;
+  private final Supplier<Map<String, String>> readHeaders;
+  private final Supplier<Map<String, String>> mutationHeaders;
   private final FileIO io;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
@@ -70,7 +71,16 @@ class RESTTableOperations implements TableOperations {
       FileIO io,
       TableMetadata current,
       Set<Endpoint> endpoints) {
-    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
+    this(
+        client,
+        path,
+        headers,
+        headers,
+        io,
+        UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        endpoints);
   }
 
   RESTTableOperations(
@@ -82,9 +92,43 @@ class RESTTableOperations implements TableOperations {
       List<MetadataUpdate> createChanges,
       TableMetadata current,
       Set<Endpoint> endpoints) {
+    this(client, path, headers, headers, io, updateType, createChanges, current, endpoints);
+  }
+
+  RESTTableOperations(
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaders,
+      FileIO io,
+      TableMetadata current,
+      Set<Endpoint> endpoints) {
+    this(
+        client,
+        path,
+        readHeaders,
+        mutationHeaders,
+        io,
+        UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        endpoints);
+  }
+
+  RESTTableOperations(
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaders,
+      FileIO io,
+      UpdateType updateType,
+      List<MetadataUpdate> createChanges,
+      TableMetadata current,
+      Set<Endpoint> endpoints) {
     this.client = client;
     this.path = path;
-    this.headers = headers;
+    this.readHeaders = readHeaders;
+    this.mutationHeaders = mutationHeaders;
     this.io = io;
     this.updateType = updateType;
     this.createChanges = createChanges;
@@ -106,7 +150,7 @@ class RESTTableOperations implements TableOperations {
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
+        client.get(path, LoadTableResponse.class, readHeaders, ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
@@ -159,7 +203,7 @@ class RESTTableOperations implements TableOperations {
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
     LoadTableResponse response;
     try {
-      response = client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+      response = client.post(path, request, LoadTableResponse.class, mutationHeaders, errorHandler);
     } catch (CommitStateUnknownException e) {
       // Lightweight reconciliation for snapshot-add-only updates on transient unknown commit state
       if (updateType == UpdateType.SIMPLE && reconcileOnSimpleUpdate(updates, e)) {

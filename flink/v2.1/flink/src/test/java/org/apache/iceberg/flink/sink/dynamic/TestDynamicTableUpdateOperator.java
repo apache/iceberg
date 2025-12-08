@@ -59,6 +59,7 @@ class TestDynamicTableUpdateOperator {
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
+            false,
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
@@ -92,6 +93,7 @@ class TestDynamicTableUpdateOperator {
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
+            false,
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
@@ -118,5 +120,85 @@ class TestDynamicTableUpdateOperator {
     DynamicRecordInternal output2 = operator.map(input);
     assertThat(output2).isEqualTo(output);
     assertThat(catalog.loadTable(table).schema().schemaId()).isEqualTo(output.schema().schemaId());
+  }
+
+  @Test
+  void testDynamicTableUpdateOperatorPreserveUnusedColumns() throws Exception {
+    int cacheMaximumSize = 10;
+    int cacheRefreshMs = 1000;
+    int inputSchemaCacheMaximumSize = 10;
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier table = TableIdentifier.of(TABLE);
+
+    DynamicTableUpdateOperator operator =
+        new DynamicTableUpdateOperator(
+            CATALOG_EXTENSION.catalogLoader(),
+            false, // dropUnusedColumns = false (default)
+            cacheMaximumSize,
+            cacheRefreshMs,
+            inputSchemaCacheMaximumSize,
+            TableCreator.DEFAULT);
+    operator.open(null);
+
+    catalog.createTable(table, SCHEMA2);
+
+    DynamicRecordInternal input =
+        new DynamicRecordInternal(
+            TABLE,
+            "branch",
+            SCHEMA1,
+            GenericRowData.of(1),
+            PartitionSpec.unpartitioned(),
+            42,
+            false,
+            Collections.emptySet());
+    DynamicRecordInternal output = operator.map(input);
+
+    Schema tableSchema = catalog.loadTable(table).schema();
+    assertThat(tableSchema.columns()).hasSize(2);
+    assertThat(tableSchema.findField("id")).isNotNull();
+    assertThat(tableSchema.findField("data")).isNotNull();
+    assertThat(tableSchema.findField("data").isOptional()).isTrue();
+    assertThat(input).isEqualTo(output);
+  }
+
+  @Test
+  void testDynamicTableUpdateOperatorDropUnusedColumns() throws Exception {
+    int cacheMaximumSize = 10;
+    int cacheRefreshMs = 1000;
+    int inputSchemaCacheMaximumSize = 10;
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier table = TableIdentifier.of(TABLE);
+
+    DynamicTableUpdateOperator operator =
+        new DynamicTableUpdateOperator(
+            CATALOG_EXTENSION.catalogLoader(),
+            // Drop unused columns
+            true,
+            cacheMaximumSize,
+            cacheRefreshMs,
+            inputSchemaCacheMaximumSize,
+            TableCreator.DEFAULT);
+    operator.open(null);
+
+    catalog.createTable(table, SCHEMA2);
+
+    DynamicRecordInternal input =
+        new DynamicRecordInternal(
+            TABLE,
+            "branch",
+            SCHEMA1,
+            GenericRowData.of(1),
+            PartitionSpec.unpartitioned(),
+            42,
+            false,
+            Collections.emptySet());
+    DynamicRecordInternal output = operator.map(input);
+
+    Schema tableSchema = catalog.loadTable(table).schema();
+    assertThat(tableSchema.columns()).hasSize(1);
+    assertThat(tableSchema.findField("id")).isNotNull();
+    assertThat(tableSchema.findField("data")).isNull();
+    assertThat(input).isEqualTo(output);
   }
 }

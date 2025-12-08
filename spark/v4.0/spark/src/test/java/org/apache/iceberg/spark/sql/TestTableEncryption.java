@@ -78,7 +78,7 @@ public class TestTableEncryption extends CatalogTestBase {
     sql(
         "CREATE TABLE %s (id bigint, data string, float float) USING iceberg "
             + "TBLPROPERTIES ( "
-            + "'encryption.key-id'='%s')",
+            + "'encryption.key-id'='%s', 'format-version'='3')",
         tableName, UnitestKMS.MASTER_KEY_NAME1);
 
     sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
@@ -167,6 +167,13 @@ public class TestTableEncryption extends CatalogTestBase {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s UNSET TBLPROPERTIES (`encryption.key-id`)", tableName))
         .hasMessageContaining("Cannot remove key in encrypted table");
+  }
+
+  @TestTemplate
+  public void testKeyAlter() {
+    assertThatThrownBy(
+            () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='abcd')", tableName))
+        .hasMessageContaining("Cannot modify key in encrypted table");
   }
 
   @TestTemplate

@@ -1,4 +1,3 @@
-#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,26 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
 
 ---
-name: Iceberg Question
-description: Questions around Apache Iceberg
-labels: ["question"]
-body:
-  - type: markdown
-    attributes:
-      value: |
-        Feel free to ask your question on [Slack](https://join.slack.com/t/apache-iceberg/shared_invite/zt-3kclosz6r-3heAW3d~_PHefmN2A_~cAg) as well.
+extends: default
 
-        Do **NOT** share any sensitive information like passwords, security tokens, private URLs etc.
-  - type: textarea
-    attributes:
-      label: Query engine
-      description: Which query engine (Flink, Spark, EMR, etc) are you using?
-  - type: textarea
-    attributes:
-      label: Question
-      description: What is your question?
-    validations:
-      required: true
+rules:
+  line-length:
+    max: 350
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: -1
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: -1

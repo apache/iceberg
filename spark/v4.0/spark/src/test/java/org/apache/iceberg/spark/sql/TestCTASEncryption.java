@@ -71,7 +71,7 @@ public class TestCTASEncryption extends CatalogTestBase {
     sql(
         "CREATE TABLE %s USING iceberg "
             + "TBLPROPERTIES ( "
-            + "'encryption.key-id'='%s')"
+            + "'encryption.key-id'='%s', 'format-version'='3')"
             + " AS SELECT * from %s",
         tableName, UnitestKMS.MASTER_KEY_NAME1, tableName + "1");
   }

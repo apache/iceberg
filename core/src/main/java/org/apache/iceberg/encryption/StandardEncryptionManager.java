@@ -194,18 +194,19 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   ByteBuffer encryptedByKey(String manifestListKeyID) {
-    EncryptedKey encryptedKey = encryptionKeys.get(manifestListKeyID);
-    if (encryptedKey == null) {
-      throw new IllegalStateException(
-          "Cannot find manifest list key metadata with id " + manifestListKeyID);
-    }
+    EncryptedKey encryptedKeyMetadata = encryptionKeys.get(manifestListKeyID);
 
-    if (encryptedKey.encryptedById().equals(tableKeyId)) {
-      throw new IllegalArgumentException(
-          manifestListKeyID + " is a key encryption key, not manifest list key metadata");
-    }
+    Preconditions.checkState(
+        encryptedKeyMetadata != null,
+        "Cannot find manifest list key metadata with id %s",
+        manifestListKeyID);
 
-    return unwrappedKeyCache().get(encryptedKey.encryptedById());
+    Preconditions.checkArgument(
+        !encryptedKeyMetadata.encryptedById().equals(tableKeyId),
+        "%s is a key encryption key, not manifest list key metadata",
+        manifestListKeyID);
+
+    return unwrappedKeyCache().get(encryptedKeyMetadata.encryptedById());
   }
 
   public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
