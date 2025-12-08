@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.catalog.CatalogObject;
+import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.CatalogObjectUuid;
 import org.apache.iceberg.rest.events.operations.OperationType;
@@ -37,18 +37,18 @@ public class TestQueryEventsRequestParser {
   void testToJson() {
     QueryEventsRequest request =
         ImmutableQueryEventsRequest.builder()
-            .pageToken("pt")
+            .continuationToken("pt")
             .pageSize(10)
             .afterTimestampMs(123L)
             .operationTypes(List.of(OperationType.CREATE_TABLE, OperationType.DROP_TABLE))
-            .catalogObjectsByName(List.of(CatalogObject.of("a", "b"), CatalogObject.of("c")))
+            .catalogObjectsByName(List.of(CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
             .catalogObjectsById(List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1"))
             .build();
 
     String expected =
-        "{\"page-token\":\"pt\",\"page-size\":10,\"after-timestamp-ms\":123,"
+        "{\"continuation-token\":\"pt\",\"page-size\":10,\"after-timestamp-ms\":123,"
             + "\"operation-types\":[\"create-table\",\"drop-table\"],"
             + "\"catalog-objects-by-name\":[\"a.b\",\"c\"],"
             + "\"catalog-objects-by-id\":[{\"uuid\":\"uuid1\",\"type\":\"table\"}],"
@@ -62,11 +62,11 @@ public class TestQueryEventsRequestParser {
   void testToJsonPretty() {
     QueryEventsRequest request =
         ImmutableQueryEventsRequest.builder()
-            .pageToken("pt")
+            .continuationToken("pt")
             .pageSize(10)
             .afterTimestampMs(123L)
             .operationTypes(List.of(OperationType.CREATE_TABLE, OperationType.DROP_TABLE))
-            .catalogObjectsByName(List.of(CatalogObject.of("a", "b"), CatalogObject.of("c")))
+            .catalogObjectsByName(List.of(CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
             .catalogObjectsById(List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1"))
@@ -74,7 +74,7 @@ public class TestQueryEventsRequestParser {
 
     String expected =
         "{\n"
-            + "  \"page-token\" : \"pt\",\n"
+            + "  \"continuation-token\" : \"pt\",\n"
             + "  \"page-size\" : 10,\n"
             + "  \"after-timestamp-ms\" : 123,\n"
             + "  \"operation-types\" : [ \"create-table\", \"drop-table\" ],\n"
@@ -110,17 +110,17 @@ public class TestQueryEventsRequestParser {
   void testFromJson() {
     QueryEventsRequest request =
         ImmutableQueryEventsRequest.builder()
-            .pageToken("pt")
+            .continuationToken("pt")
             .pageSize(10)
             .afterTimestampMs(123L)
             .operationTypes(List.of(OperationType.CREATE_TABLE, OperationType.DROP_TABLE))
-            .catalogObjectsByName(List.of(CatalogObject.of("a", "b"), CatalogObject.of("c")))
+            .catalogObjectsByName(List.of(CatalogObjectIdentifier.of("a", "b"), CatalogObjectIdentifier.of("c")))
             .catalogObjectsById(List.of(new CatalogObjectUuid("uuid1", CatalogObjectType.TABLE.type())))
             .objectTypes(List.of(CatalogObjectType.TABLE, CatalogObjectType.NAMESPACE))
             .customFilters(Map.of("k1", "v1", "k2", "v2"))
             .build();
     String json =
-        "{\"page-token\":\"pt\",\"page-size\":10,\"after-timestamp-ms\":123,"
+        "{\"continuation-token\":\"pt\",\"page-size\":10,\"after-timestamp-ms\":123,"
             + "\"operation-types\":[\"create-table\",\"drop-table\"],"
             + "\"catalog-objects-by-name\":[\"a.b\",\"c\"],"
             + "\"catalog-objects-by-id\":[{\"uuid\":\"uuid1\",\"type\":\"table\"}],"
@@ -139,9 +139,9 @@ public class TestQueryEventsRequestParser {
 
   @Test
   void testFromJsonWithInvalidProperties() {
-    String invalidPageToken = "{\"page-token\":123}";
+    String invalidContinuationToken = "{\"continuation-token\":123}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidPageToken));
+        .isThrownBy(() -> QueryEventsRequestParser.fromJson(invalidContinuationToken));
 
     String invalidPageSize = "{\"page-size\":\"x\"}";
     assertThatIllegalArgumentException()

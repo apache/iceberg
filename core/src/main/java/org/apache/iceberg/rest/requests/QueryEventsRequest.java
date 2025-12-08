@@ -21,7 +21,7 @@ package org.apache.iceberg.rest.requests;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
-import org.apache.iceberg.catalog.CatalogObject;
+import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.CatalogObjectUuid;
 import org.apache.iceberg.rest.RESTRequest;
@@ -32,7 +32,7 @@ import org.immutables.value.Value;
 @Value.Immutable
 public interface QueryEventsRequest extends RESTRequest {
   @Nullable
-  String pageToken();
+  String continuationToken();
 
   @Nullable
   Integer pageSize();
@@ -42,7 +42,7 @@ public interface QueryEventsRequest extends RESTRequest {
 
   List<OperationType> operationTypes();
 
-  List<CatalogObject> catalogObjectsByName();
+  List<CatalogObjectIdentifier> catalogObjectsByName();
 
   List<CatalogObjectUuid> catalogObjectsById();
 

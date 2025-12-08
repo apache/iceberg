@@ -68,13 +68,13 @@ import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ConfigResponseParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
-import org.apache.iceberg.rest.responses.EventsResponse;
-import org.apache.iceberg.rest.responses.EventsResponseParser;
+import org.apache.iceberg.rest.responses.QueryEventsResponse;
+import org.apache.iceberg.rest.responses.QueryEventsResponseParser;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponseParser;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponseParser;
-import org.apache.iceberg.rest.responses.ImmutableEventsResponse;
+import org.apache.iceberg.rest.responses.ImmutableQueryEventsResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
@@ -163,10 +163,10 @@ public class RESTSerializers {
         .addSerializer(ImmutableQueryEventsRequest.class, new QueryEventsRequestSerializer<>())
         .addDeserializer(QueryEventsRequest.class, new QueryEventsRequestDeSerializer<>())
         .addDeserializer(ImmutableQueryEventsRequest.class, new QueryEventsRequestDeSerializer<>())
-        .addSerializer(EventsResponse.class, new EventsResponseSerializer<>())
-        .addSerializer(ImmutableEventsResponse.class, new EventsResponseSerializer<>())
-        .addDeserializer(EventsResponse.class, new EventsResponseDeSerializer<>())
-        .addDeserializer(ImmutableEventsResponse.class, new EventsResponseDeSerializer<>());
+        .addSerializer(QueryEventsResponse.class, new EventsResponseSerializer<>())
+        .addSerializer(ImmutableQueryEventsResponse.class, new EventsResponseSerializer<>())
+        .addDeserializer(QueryEventsResponse.class, new EventsResponseDeSerializer<>())
+        .addDeserializer(ImmutableQueryEventsResponse.class, new EventsResponseDeSerializer<>());
 
     mapper.registerModule(module);
   }
@@ -629,19 +629,19 @@ public class RESTSerializers {
     }
   }
 
-  static class EventsResponseSerializer<T extends EventsResponse> extends JsonSerializer<T> {
+  static class EventsResponseSerializer<T extends QueryEventsResponse> extends JsonSerializer<T> {
     @Override
     public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
-      EventsResponseParser.toJson(request, gen);
+      QueryEventsResponseParser.toJson(request, gen);
     }
   }
 
-  static class EventsResponseDeSerializer<T extends EventsResponse> extends JsonDeserializer<T> {
+  static class EventsResponseDeSerializer<T extends QueryEventsResponse> extends JsonDeserializer<T> {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
-      return (T) EventsResponseParser.fromJson(jsonNode);
+      return (T) QueryEventsResponseParser.fromJson(jsonNode);
     }
   }
 

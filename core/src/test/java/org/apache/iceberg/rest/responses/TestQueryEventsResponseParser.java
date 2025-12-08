@@ -32,7 +32,7 @@ import org.apache.iceberg.rest.events.operations.ImmutableCreateNamespaceOperati
 import org.apache.iceberg.rest.events.operations.Operation;
 import org.junit.jupiter.api.Test;
 
-public class TestEventsResponseParser {
+public class TestQueryEventsResponseParser {
 
   private static Operation sampleOperation() {
     return ImmutableCreateNamespaceOperation.builder().namespace(Namespace.of("a", "b")).build();
@@ -42,7 +42,7 @@ public class TestEventsResponseParser {
     return ImmutableEvent.builder()
         .eventId("e-1")
         .requestId("r-1")
-        .eventCount(2)
+        .requestEventCount(2)
         .timestampMs(123L)
         .actor(Map.of("id", "user1"))
         .operation(sampleOperation())
@@ -51,8 +51,8 @@ public class TestEventsResponseParser {
 
   @Test
   void testToJson() {
-    EventsResponse response =
-        ImmutableEventsResponse.builder()
+    QueryEventsResponse response =
+        ImmutableQueryEventsResponse.builder()
             .nextPageToken("npt")
             .highestProcessedTimestampMs(5000L)
             .events(List.of(sampleEventWithActor()))
@@ -60,14 +60,14 @@ public class TestEventsResponseParser {
 
     String expected =
         "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":5000,\"events\":[{"
-            + "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
-    assertThat(EventsResponseParser.toJson(response)).isEqualTo(expected);
+            + "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
+    assertThat(QueryEventsResponseParser.toJson(response)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonPretty() {
-    EventsResponse response =
-        ImmutableEventsResponse.builder()
+    QueryEventsResponse response =
+        ImmutableQueryEventsResponse.builder()
             .nextPageToken("npt")
             .highestProcessedTimestampMs(5000L)
             .events(List.of(sampleEventWithActor()))
@@ -80,7 +80,7 @@ public class TestEventsResponseParser {
             + "  \"events\" : [ {\n"
             + "    \"event-id\" : \"e-1\",\n"
             + "    \"request-id\" : \"r-1\",\n"
-            + "    \"event-count\" : 2,\n"
+            + "    \"request-event-count\" : 2,\n"
             + "    \"timestamp-ms\" : 123,\n"
             + "    \"actor\" : {\n"
             + "      \"id\" : \"user1\"\n"
@@ -91,47 +91,51 @@ public class TestEventsResponseParser {
             + "    }\n"
             + "  } ]\n"
             + "}";
-    assertThat(EventsResponseParser.toJsonPretty(response)).isEqualTo(expected);
+    assertThat(QueryEventsResponseParser.toJsonPretty(response)).isEqualTo(expected);
   }
 
   @Test
   void testToJsonWithNullResponse() {
     assertThatNullPointerException()
-        .isThrownBy(() -> EventsResponseParser.toJson(null))
-        .withMessage("Invalid events response: null");
+        .isThrownBy(() -> QueryEventsResponseParser.toJson(null))
+        .withMessage("Invalid query events response: null");
   }
 
   @Test
   void testFromJson() {
-    EventsResponse response =
-        ImmutableEventsResponse.builder()
+    QueryEventsResponse response =
+        ImmutableQueryEventsResponse.builder()
             .nextPageToken("npt")
             .highestProcessedTimestampMs(5000L)
             .events(List.of(sampleEventWithActor()))
             .build();
     String json =
         "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":5000,\"events\":[{"
-            + "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
+            + "\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}]}";
 
-    assertThat(EventsResponseParser.fromJson(json)).isEqualTo(response);
+    assertThat(QueryEventsResponseParser.fromJson(json)).isEqualTo(response);
   }
 
   @Test
   void testFromJsonWithNullInput() {
     assertThatNullPointerException()
-        .isThrownBy(() -> EventsResponseParser.fromJson((JsonNode) null))
-        .withMessage("Cannot parse events response from null object");
+        .isThrownBy(() -> QueryEventsResponseParser.fromJson((JsonNode) null))
+        .withMessage("Cannot parse query events response from null object");
   }
 
   @Test
   void testFromJsonWithMissingProperties() {
+    String missingNextPageToken = "{\"highest-processed-timestamp-ms\":1,\"events\":[]}";
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> QueryEventsResponseParser.fromJson(missingNextPageToken));
+
     String missingHighestProcessedTimestamp = "{\"events\":[]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> EventsResponseParser.fromJson(missingHighestProcessedTimestamp));
+        .isThrownBy(() -> QueryEventsResponseParser.fromJson(missingHighestProcessedTimestamp));
 
     String missingEvents = "{\"highest-processed-timestamp-ms\":1}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> EventsResponseParser.fromJson(missingEvents));
+        .isThrownBy(() -> QueryEventsResponseParser.fromJson(missingEvents));
   }
 
   @Test
@@ -139,19 +143,19 @@ public class TestEventsResponseParser {
     String invalidNextPageToken =
         "{\"next-page-token\":123,\"highest-processed-timestamp-ms\":1,\"events\":[]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> EventsResponseParser.fromJson(invalidNextPageToken));
+        .isThrownBy(() -> QueryEventsResponseParser.fromJson(invalidNextPageToken));
 
     String invalidHighestProcessed =
         "{\"next-page-token\":\"npt\",\"highest-processed-timestamp-ms\":\"x\",\"events\":[]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> EventsResponseParser.fromJson(invalidHighestProcessed));
+        .isThrownBy(() -> QueryEventsResponseParser.fromJson(invalidHighestProcessed));
 
     String invalidEvents = "{\"highest-processed-timestamp-ms\":1,\"events\":{}}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> EventsResponseParser.fromJson(invalidEvents));
+        .isThrownBy(() -> QueryEventsResponseParser.fromJson(invalidEvents));
 
     String invalidEventsObject = "{\"highest-processed-timestamp-ms\":1,\"events\":[{}]}";
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> EventsResponseParser.fromJson(invalidEventsObject));
+        .isThrownBy(() -> QueryEventsResponseParser.fromJson(invalidEventsObject));
   }
 }

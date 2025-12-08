@@ -30,7 +30,7 @@ import org.apache.iceberg.util.JsonUtil;
 public class EventParser {
   private static final String EVENT_ID = "event-id";
   private static final String REQUEST_ID = "request-id";
-  private static final String EVENT_COUNT = "event-count";
+  private static final String REQUEST_EVENT_COUNT = "request-event-count";
   private static final String TIMESTAMP_MS = "timestamp-ms";
   private static final String ACTOR = "actor";
   private static final String OPERATION = "operation";
@@ -56,7 +56,7 @@ public class EventParser {
 
     gen.writeStringField(EVENT_ID, event.eventId());
     gen.writeStringField(REQUEST_ID, event.requestId());
-    gen.writeNumberField(EVENT_COUNT, event.eventCount());
+    gen.writeNumberField(REQUEST_EVENT_COUNT, event.requestEventCount());
     gen.writeNumberField(TIMESTAMP_MS, event.timestampMs());
 
     if (!event.actor().isEmpty()) {
@@ -78,7 +78,7 @@ public class EventParser {
 
     String eventId = JsonUtil.getString(EVENT_ID, json);
     String requestId = JsonUtil.getString(REQUEST_ID, json);
-    int eventCount = JsonUtil.getInt(EVENT_COUNT, json);
+    int eventCount = JsonUtil.getInt(REQUEST_EVENT_COUNT, json);
     long timestampMs = JsonUtil.getLong(TIMESTAMP_MS, json);
     Operation operation = OperationParser.fromJson(JsonUtil.get(OPERATION, json));
 
@@ -86,7 +86,7 @@ public class EventParser {
         ImmutableEvent.builder()
             .eventId(eventId)
             .requestId(requestId)
-            .eventCount(eventCount)
+            .requestEventCount(eventCount)
             .timestampMs(timestampMs);
 
     if (json.has(ACTOR)) {

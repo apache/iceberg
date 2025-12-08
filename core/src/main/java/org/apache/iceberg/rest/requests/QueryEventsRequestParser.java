@@ -22,7 +22,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.stream.Collectors;
-import org.apache.iceberg.catalog.CatalogObject;
+import org.apache.iceberg.catalog.CatalogObjectIdentifier;
 import org.apache.iceberg.catalog.CatalogObjectType;
 import org.apache.iceberg.catalog.CatalogObjectUuid;
 import org.apache.iceberg.catalog.CatalogObjectUuidParser;
@@ -31,7 +31,7 @@ import org.apache.iceberg.rest.events.operations.OperationType;
 import org.apache.iceberg.util.JsonUtil;
 
 public class QueryEventsRequestParser {
-  private static final String PAGE_TOKEN = "page-token";
+  private static final String CONTINUATION_TOKEN = "continuation-token";
   private static final String PAGE_SIZE = "page-size";
   private static final String AFTER_TIMESTAMP_MS = "after-timestamp-ms";
   private static final String OPERATION_TYPES = "operation-types";
@@ -60,8 +60,8 @@ public class QueryEventsRequestParser {
 
     gen.writeStartObject();
 
-    if (request.pageToken() != null) {
-      gen.writeStringField(PAGE_TOKEN, request.pageToken());
+    if (request.continuationToken() != null) {
+      gen.writeStringField(CONTINUATION_TOKEN, request.continuationToken());
     }
 
     if (request.pageSize() != null) {
@@ -85,8 +85,8 @@ public class QueryEventsRequestParser {
     if (!request.catalogObjectsByName().isEmpty()) {
       gen.writeArrayFieldStart(CATALOG_OBJECTS_BY_NAME);
 
-      for (CatalogObject catalogObject : request.catalogObjectsByName()) {
-        gen.writeString(catalogObject.toString());
+      for (CatalogObjectIdentifier catalogObjectIdentifier : request.catalogObjectsByName()) {
+        gen.writeString(catalogObjectIdentifier.toString());
       }
 
       gen.writeEndArray();
@@ -128,8 +128,8 @@ public class QueryEventsRequestParser {
 
     ImmutableQueryEventsRequest.Builder builder = ImmutableQueryEventsRequest.builder();
 
-    if (json.has(PAGE_TOKEN)) {
-      builder.pageToken(JsonUtil.getString(PAGE_TOKEN, json));
+    if (json.has(CONTINUATION_TOKEN)) {
+      builder.continuationToken(JsonUtil.getString(CONTINUATION_TOKEN, json));
     }
 
     if (json.has(PAGE_SIZE)) {
@@ -150,7 +150,7 @@ public class QueryEventsRequestParser {
     if (json.has(CATALOG_OBJECTS_BY_NAME)) {
       builder.catalogObjectsByName(
           JsonUtil.getStringList(CATALOG_OBJECTS_BY_NAME, json).stream()
-              .map(CatalogObject::of)
+              .map(CatalogObjectIdentifier::of)
               .collect(Collectors.toList()));
     }
 

@@ -21,7 +21,9 @@ package org.apache.iceberg.catalog;
 import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Enum representing {@link CatalogObject} type. */
+/** Enum representing a CatalogObject i.e., {@link Namespace}, {@link
+ * org.apache.iceberg.Table}, or {@link org.apache.iceberg.view.View}.
+ */
 public enum CatalogObjectType {
   NAMESPACE("namespace"),
   TABLE("table"),

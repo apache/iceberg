@@ -27,39 +27,37 @@ import org.apache.iceberg.rest.events.Event;
 import org.apache.iceberg.rest.events.parsers.EventParser;
 import org.apache.iceberg.util.JsonUtil;
 
-public class EventsResponseParser {
+public class QueryEventsResponseParser {
   private static final String NEXT_PAGE_TOKEN = "next-page-token";
   private static final String HIGHEST_PROCESSED_TIMESTAMP_MS = "highest-processed-timestamp-ms";
   private static final String EVENTS = "events";
 
-  private EventsResponseParser() {}
+  private QueryEventsResponseParser() {}
 
-  public static String toJson(EventsResponse eventsResponse) {
-    return toJson(eventsResponse, false);
+  public static String toJson(QueryEventsResponse queryEventsResponse) {
+    return toJson(queryEventsResponse, false);
   }
 
-  public static String toJsonPretty(EventsResponse eventsResponse) {
-    return toJson(eventsResponse, true);
+  public static String toJsonPretty(QueryEventsResponse queryEventsResponse) {
+    return toJson(queryEventsResponse, true);
   }
 
-  private static String toJson(EventsResponse eventsResponse, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(eventsResponse, gen), pretty);
+  private static String toJson(QueryEventsResponse queryEventsResponse, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(queryEventsResponse, gen), pretty);
   }
 
-  public static void toJson(EventsResponse eventsResponse, JsonGenerator gen) throws IOException {
-    Preconditions.checkNotNull(eventsResponse, "Invalid events response: null");
+  public static void toJson(QueryEventsResponse queryEventsResponse, JsonGenerator gen) throws IOException {
+    Preconditions.checkNotNull(queryEventsResponse, "Invalid query events response: null");
 
     gen.writeStartObject();
 
-    if (eventsResponse.nextPageToken() != null) {
-      gen.writeStringField(NEXT_PAGE_TOKEN, eventsResponse.nextPageToken());
-    }
+    gen.writeStringField(NEXT_PAGE_TOKEN, queryEventsResponse.nextPageToken());
 
     gen.writeNumberField(
-        HIGHEST_PROCESSED_TIMESTAMP_MS, eventsResponse.highestProcessedTimestampMs());
+        HIGHEST_PROCESSED_TIMESTAMP_MS, queryEventsResponse.highestProcessedTimestampMs());
 
     gen.writeArrayFieldStart(EVENTS);
-    for (Event event : eventsResponse.events()) {
+    for (Event event : queryEventsResponse.events()) {
       EventParser.toJson(event, gen);
     }
     gen.writeEndArray();
@@ -67,24 +65,22 @@ public class EventsResponseParser {
     gen.writeEndObject();
   }
 
-  public static EventsResponse fromJson(String json) {
-    return JsonUtil.parse(json, EventsResponseParser::fromJson);
+  public static QueryEventsResponse fromJson(String json) {
+    return JsonUtil.parse(json, QueryEventsResponseParser::fromJson);
   }
 
-  public static EventsResponse fromJson(JsonNode json) {
-    Preconditions.checkNotNull(json, "Cannot parse events response from null object");
+  public static QueryEventsResponse fromJson(JsonNode json) {
+    Preconditions.checkNotNull(json, "Cannot parse query events response from null object");
 
+    String nextPageToken = JsonUtil.getString(NEXT_PAGE_TOKEN, json);
     Long highestProcessedTimestampMs = JsonUtil.getLong(HIGHEST_PROCESSED_TIMESTAMP_MS, json);
     List<Event> events = JsonUtil.getObjectList(EVENTS, json, EventParser::fromJson);
 
-    ImmutableEventsResponse.Builder builder =
-        ImmutableEventsResponse.builder()
+    ImmutableQueryEventsResponse.Builder builder =
+        ImmutableQueryEventsResponse.builder()
+            .nextPageToken(nextPageToken)
             .highestProcessedTimestampMs(highestProcessedTimestampMs)
             .events(events);
-
-    if (json.has(NEXT_PAGE_TOKEN)) {
-      builder.nextPageToken(JsonUtil.getString(NEXT_PAGE_TOKEN, json));
-    }
 
     return builder.build();
   }

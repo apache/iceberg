@@ -19,18 +19,17 @@
 package org.apache.iceberg.rest.events;
 
 import java.util.Map;
-import javax.annotation.Nullable;
 import org.apache.iceberg.rest.events.operations.Operation;
 import org.immutables.value.Value;
 
-/** An event to record an operation on {@link org.apache.iceberg.catalog.CatalogObject}. */
+/** An event to record an operation on a CatalogObject. */
 @Value.Immutable
 public interface Event {
   String eventId();
 
   String requestId();
 
-  Integer eventCount();
+  Integer requestEventCount();
 
   Long timestampMs();
 

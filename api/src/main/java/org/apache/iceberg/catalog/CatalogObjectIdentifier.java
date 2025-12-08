@@ -28,41 +28,41 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * Reference to a named object in a {@link Catalog}, such as {@link Namespace}, {@link
  * org.apache.iceberg.Table}, or {@link org.apache.iceberg.view.View}.
  */
-public class CatalogObject {
-  private static final CatalogObject EMPTY_CATALOG_OBJECT = new CatalogObject(new String[] {});
+public class CatalogObjectIdentifier {
+  private static final CatalogObjectIdentifier EMPTY_CATALOG_OBJECT = new CatalogObjectIdentifier(new String[] {});
   private static final Joiner DOT = Joiner.on(".");
   private static final Predicate<String> CONTAINS_NULL_CHARACTER =
       Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
 
-  public static CatalogObject empty() {
+  public static CatalogObjectIdentifier empty() {
     return EMPTY_CATALOG_OBJECT;
   }
 
-  public static CatalogObject of(String... levels) {
-    Preconditions.checkArgument(null != levels, "Cannot create CatalogObject from null array");
+  public static CatalogObjectIdentifier of(String... levels) {
+    Preconditions.checkArgument(null != levels, "Cannot create CatalogObjectIdentifier from null array");
     if (levels.length == 0) {
       return empty();
     }
 
     for (String level : levels) {
-      Preconditions.checkNotNull(level, "Cannot create a CatalogObject with a null level");
+      Preconditions.checkNotNull(level, "Cannot create a CatalogObjectIdentifier with a null level");
       Preconditions.checkArgument(
           !CONTAINS_NULL_CHARACTER.test(level),
-          "Cannot create a CatalogObject with the null-byte character");
+          "Cannot create a CatalogObjectIdentifier with the null-byte character");
     }
 
-    return new CatalogObject(levels);
+    return new CatalogObjectIdentifier(levels);
   }
 
-  public static CatalogObject of(String name) {
-    Preconditions.checkNotNull(name, "Cannot create CatalogObject from null name");
+  public static CatalogObjectIdentifier of(String name) {
+    Preconditions.checkNotNull(name, "Cannot create CatalogObjectIdentifier from null name");
 
     return of(name.split("\\."));
   }
 
   private final String[] levels;
 
-  private CatalogObject(String[] levels) {
+  private CatalogObjectIdentifier(String[] levels) {
     this.levels = levels;
   }
 
@@ -92,8 +92,8 @@ public class CatalogObject {
       return false;
     }
 
-    CatalogObject catalogObject = (CatalogObject) other;
-    return Arrays.equals(levels, catalogObject.levels);
+    CatalogObjectIdentifier catalogObjectIdentifier = (CatalogObjectIdentifier) other;
+    return Arrays.equals(levels, catalogObjectIdentifier.levels);
   }
 
   @Override

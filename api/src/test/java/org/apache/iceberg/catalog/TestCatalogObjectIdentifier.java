@@ -23,44 +23,44 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
-public class TestCatalogObject {
+public class TestCatalogObjectIdentifier {
 
   @Test
   public void testWithNullAndEmpty() {
-    assertThatThrownBy(() -> CatalogObject.of((String[]) null))
+    assertThatThrownBy(() -> CatalogObjectIdentifier.of((String[]) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create CatalogObject from null array");
+        .hasMessage("Cannot create CatalogObjectIdentifier from null array");
 
-    assertThat(CatalogObject.of()).isEqualTo(CatalogObject.empty());
+    assertThat(CatalogObjectIdentifier.of()).isEqualTo(CatalogObjectIdentifier.empty());
   }
 
   @Test
-  public void testCatalogObject() {
+  public void testCatalogObjectIdentifier() {
     String[] levels = {"a", "b", "c", "d"};
-    CatalogObject catalogObject = CatalogObject.of(levels);
-    assertThat(catalogObject).isNotNull();
-    assertThat(catalogObject.levels()).hasSize(4);
-    assertThat(catalogObject).hasToString("a.b.c.d");
+    CatalogObjectIdentifier catalogObjectIdentifier = CatalogObjectIdentifier.of(levels);
+    assertThat(catalogObjectIdentifier).isNotNull();
+    assertThat(catalogObjectIdentifier.levels()).hasSize(4);
+    assertThat(catalogObjectIdentifier).hasToString("a.b.c.d");
     for (int i = 0; i < levels.length; i++) {
-      assertThat(catalogObject.level(i)).isEqualTo(levels[i]);
+      assertThat(catalogObjectIdentifier.level(i)).isEqualTo(levels[i]);
     }
   }
 
   @Test
   public void testWithNullInLevel() {
-    assertThatThrownBy(() -> CatalogObject.of("a", null, "b"))
+    assertThatThrownBy(() -> CatalogObjectIdentifier.of("a", null, "b"))
         .isInstanceOf(NullPointerException.class)
-        .hasMessage("Cannot create a CatalogObject with a null level");
+        .hasMessage("Cannot create a CatalogObjectIdentifier with a null level");
   }
 
   @Test
-  public void testDisallowsCatalogObjectWithNullByte() {
-    assertThatThrownBy(() -> CatalogObject.of("ac", "\u0000c", "b"))
+  public void testDisallowsCatalogObjectIdentifierWithNullByte() {
+    assertThatThrownBy(() -> CatalogObjectIdentifier.of("ac", "\u0000c", "b"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create a CatalogObject with the null-byte character");
+        .hasMessage("Cannot create a CatalogObjectIdentifier with the null-byte character");
 
-    assertThatThrownBy(() -> CatalogObject.of("ac", "c\0", "b"))
+    assertThatThrownBy(() -> CatalogObjectIdentifier.of("ac", "c\0", "b"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create a CatalogObject with the null-byte character");
+        .hasMessage("Cannot create a CatalogObjectIdentifier with the null-byte character");
   }
 }

@@ -42,7 +42,7 @@ public class TestEventParser {
     return ImmutableEvent.builder()
         .eventId("e-1")
         .requestId("r-1")
-        .eventCount(2)
+        .requestEventCount(2)
         .timestampMs(123L)
         .actor(Map.of("id", "user1"))
         .operation(sampleOperation())
@@ -53,7 +53,7 @@ public class TestEventParser {
     return ImmutableEvent.builder()
         .eventId("e-2")
         .requestId("r-2")
-        .eventCount(1)
+        .requestEventCount(1)
         .timestampMs(999L)
         .operation(sampleOperation())
         .build();
@@ -63,7 +63,7 @@ public class TestEventParser {
   void testToJson() {
     Event event = sampleEventWithActor();
     String expected =
-        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThat(EventParser.toJson(event)).isEqualTo(expected);
   }
 
@@ -74,7 +74,7 @@ public class TestEventParser {
         "{\n"
             + "  \"event-id\" : \"e-1\",\n"
             + "  \"request-id\" : \"r-1\",\n"
-            + "  \"event-count\" : 2,\n"
+            + "  \"request-event-count\" : 2,\n"
             + "  \"timestamp-ms\" : 123,\n"
             + "  \"actor\" : {\n"
             + "    \"id\" : \"user1\"\n"
@@ -98,14 +98,14 @@ public class TestEventParser {
   void testToJsonWithoutActor() {
     Event event = sampleEventWithoutActor();
     String expected =
-        "{\"event-id\":\"e-2\",\"request-id\":\"r-2\",\"event-count\":1,\"timestamp-ms\":999,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":\"e-2\",\"request-id\":\"r-2\",\"request-event-count\":1,\"timestamp-ms\":999,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThat(EventParser.toJson(event)).isEqualTo(expected);
   }
 
   @Test
   void testFromJson() {
     String json =
-        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"actor\":{\"id\":\"user1\"},\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     Event expected = sampleEventWithActor();
     assertThat(EventParser.fromJson(json)).isEqualTo(expected);
   }
@@ -120,23 +120,23 @@ public class TestEventParser {
   @Test
   void testFromJsonWithMissingProperties() {
     String missingEventId =
-        "{\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingEventId));
 
     String missingRequestId =
-        "{\"event-id\":\"e-1\",\"event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":\"e-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingRequestId));
 
-    String missingEventCount =
+    String missingRequestEventCount =
         "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingEventCount));
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingRequestEventCount));
 
     String missingTimestamp =
-        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingTimestamp));
 
     String missingOperation =
-        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123}";
+        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(missingOperation));
   }
 
@@ -144,27 +144,27 @@ public class TestEventParser {
   void testFromJsonWithInvalidProperties() {
     // event-id present but not a string
     String invalidEventId =
-        "{\"event-id\":1,\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":1,\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidEventId));
 
     // request-id present but not a string
     String invalidRequestId =
-        "{\"event-id\":\"e-1\",\"request-id\":1,\"event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":\"e-1\",\"request-id\":1,\"request-event-count\":2,\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidRequestId));
 
-    // event-count present but not an integer
-    String invalidEventCount =
-        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":\"two\",\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
-    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidEventCount));
+    // request-event-count present but not an integer
+    String invalidRequestEventCount =
+        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":\"two\",\"timestamp-ms\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+    assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidRequestEventCount));
 
     // timestamp-ms present but not a long
     String invalidTimestamp =
-        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":\"123\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":\"123\",\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidTimestamp));
 
     // actor present but not a map
     String invalidActor =
-        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"event-count\":2,\"timestamp-ms\":123,\"actor\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
+        "{\"event-id\":\"e-1\",\"request-id\":\"r-1\",\"request-event-count\":2,\"timestamp-ms\":123,\"actor\":123,\"operation\":{\"operation-type\":\"create-namespace\",\"namespace\":[\"a\",\"b\"]}}";
     assertThatIllegalArgumentException().isThrownBy(() -> EventParser.fromJson(invalidActor));
   }
 }

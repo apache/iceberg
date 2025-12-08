@@ -23,9 +23,7 @@ import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Enum representing the type of operation performed on a {@link
- * org.apache.iceberg.catalog.CatalogObject}
- */
+ * Enum representing the type of operation performed on a CatalogObject */
 public enum OperationType {
   CREATE_TABLE("create-table"),
   REGISTER_TABLE("register-table"),
