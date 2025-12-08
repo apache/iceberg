@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.assertj.core.api.InstanceOfAssertFactories.map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -3347,7 +3348,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testIdempotencyKeyLifetimeExpiredTreatsAsNew() {
     // Set TTL to 0 so cached success expires immediately
-    RESTCatalogAdapter.setIdempotencyLifetimeFromIso("PT0S");
+    CatalogHandlers.setIdempotencyLifetimeFromIso("PT0S");
     try {
       IdempotentCreateEnv env = prepareIdempotentCreateEnv("ns_exp", "t_exp", "expired-create-key");
 
@@ -3377,7 +3378,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       restCatalog.dropTable(env.ident);
     } finally {
       // Restore default TTL for other tests
-      RESTCatalogAdapter.setIdempotencyLifetimeFromIso("PT30M");
+      CatalogHandlers.setIdempotencyLifetimeFromIso("PT30M");
     }
   }
 
@@ -3385,7 +3386,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   public void testIdempotentCreateReplayAfterSimulated503() {
     // Use a fixed key and simulate 503 after first success for that key
     String key = "idemp-create-503";
-    RESTCatalogAdapter.simulate503OnFirstSuccessForKey(key);
+    CatalogHandlers.simulate503OnFirstSuccessForKey(key);
     IdempotentCreateEnv env = prepareIdempotentCreateEnv("ns_idemp", "t_idemp", key);
 
     // First attempt: server finalizes success but responds 503
@@ -3412,6 +3413,27 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // Clean up
     restCatalog.dropTable(env.ident);
+  }
+
+  @Test
+  public void testIdempotentDropDuplicateNoop() {
+    String key = "idemp-drop-void";
+    IdempotentCreateEnv env = prepareIdempotentCreateEnv("ns_void", "t_void", key);
+
+    // Create a table to drop
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
+    restCatalog.createTable(env.ident, schema, PartitionSpec.unpartitioned());
+
+    String path = ResourcePaths.forCatalogProperties(ImmutableMap.of()).table(env.ident);
+
+    // First drop: table exists -> drop succeeds
+    env.http.delete(path, null, env.headers, ErrorHandlers.tableErrorHandler());
+    assertThat(restCatalog.tableExists(env.ident)).isFalse();
+
+    // Second drop with the same key: should be a no-op (no exception)
+    assertThatCode(
+            () -> env.http.delete(path, null, env.headers, ErrorHandlers.tableErrorHandler()))
+        .doesNotThrowAnyException();
   }
 
   private RESTCatalog createCatalogWithIdempAdapter(ConfigResponse cfg, boolean expectOnMutations) {
