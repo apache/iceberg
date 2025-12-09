@@ -82,7 +82,7 @@ public class SinkWriter {
           this.reporter.report(record, ex);
         }
         if (this.config.errorTolerance().equalsIgnoreCase(ErrorTolerance.ALL.toString())) {
-          LOG.error("An error occurred converting record...", ex);
+          LOG.error("An error occurred while saving record...", ex);
         } else {
           throw ex;
         }
