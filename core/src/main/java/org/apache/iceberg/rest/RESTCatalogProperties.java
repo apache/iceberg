@@ -37,6 +37,10 @@ public final class RESTCatalogProperties {
 
   public static final String NAMESPACE_SEPARATOR = "namespace-separator";
 
+  // Enable planning on the REST server side
+  public static final String REST_SCAN_PLANNING_ENABLED = "rest-scan-planning-enabled";
+  public static final boolean REST_SCAN_PLANNING_ENABLED_DEFAULT = false;
+
   public enum SnapshotMode {
     ALL,
     REFS

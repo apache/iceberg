@@ -225,4 +225,67 @@ public class TestResourcePaths {
     assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views/view-name");
     assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/n%1Fs/views/view-name");
   }
+
+  @Test
+  public void planEndpointPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+
+    assertThat(withPrefix.planTableScan(tableId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/plan");
+    assertThat(withoutPrefix.planTableScan(tableId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    assertThat(withPrefix.planTableScan(complexId))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/plan");
+    assertThat(withoutPrefix.planTableScan(complexId))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/plan");
+  }
+
+  @Test
+  public void fetchScanTasksPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+
+    assertThat(withPrefix.fetchScanTasks(tableId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/tasks");
+    assertThat(withoutPrefix.fetchScanTasks(tableId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/tasks");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    assertThat(withPrefix.fetchScanTasks(complexId))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/tasks");
+    assertThat(withoutPrefix.fetchScanTasks(complexId))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/tasks");
+  }
+
+  @Test
+  public void cancelPlanEndpointPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+    String planId = "plan-abc-123";
+
+    assertThat(withPrefix.plan(tableId, planId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
+    assertThat(withoutPrefix.plan(tableId, planId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
+
+    // The planId contains a space which needs to be encoded
+    String spaceSeperatedPlanId = "plan with spaces";
+    // The expected encoded version of the planId
+    String encodedPlanId = "plan+with+spaces";
+
+    assertThat(withPrefix.plan(tableId, spaceSeperatedPlanId))
+        .isEqualTo(
+            "v1/ws/catalog/namespaces/test_namespace/tables/test_table/plan/" + encodedPlanId);
+    assertThat(withoutPrefix.plan(tableId, spaceSeperatedPlanId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/" + encodedPlanId);
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    assertThat(withPrefix.plan(complexId, "plan-xyz-789"))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/plan/plan-xyz-789");
+    assertThat(withoutPrefix.plan(complexId, "plan-xyz-789"))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/plan/plan-xyz-789");
+  }
 }
