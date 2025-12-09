@@ -59,7 +59,6 @@ import org.junit.jupiter.api.io.TempDir;
 @ExtendWith(ParameterizedTestExtension.class)
 class TestFlinkUnknownType {
   private static final long TARGET_FILE_SIZE = 128 * 1024 * 1024;
-
   private static final Schema SCHEMA_WITH_UNKNOWN_COL =
       new Schema(
           Lists.newArrayList(
@@ -67,6 +66,12 @@ class TestFlinkUnknownType {
               Types.NestedField.optional(2, "data", Types.StringType.get()),
               Types.NestedField.optional(3, "unknown_col", Types.UnknownType.get()),
               Types.NestedField.optional(4, "data1", Types.StringType.get())));
+  private static final List<GenericRowData> EXCEPTED_ROW_DATA =
+      Lists.newArrayList(
+          GenericRowData.of(1, StringData.fromString("data"), null, StringData.fromString("data1")),
+          GenericRowData.of(
+              2, StringData.fromString("data"), null, StringData.fromString("data1")));
+  private static final List<Record> EXPECTED_RECORDS = exceptedRecords();
 
   @RegisterExtension
   private static final HadoopCatalogExtension CATALOG_EXTENSION =
@@ -77,8 +82,6 @@ class TestFlinkUnknownType {
   @Parameter private FileFormat fileFormat;
 
   private Table table;
-  private static final List<GenericRowData> EXCEPTED_ROW_DATA = exceptedRowData();
-  private static final List<Record> EXPECTED_RECORDS = exceptedRecords();
 
   @Parameters(name = "fileFormat={0}")
   public static Iterable<Object[]> parameters() {
@@ -151,12 +154,6 @@ class TestFlinkUnknownType {
             table, flinkWriteType, TARGET_FILE_SIZE, fileFormat, table.properties(), null, false);
     taskWriterFactory.initialize(1, 1);
     return taskWriterFactory.create();
-  }
-
-  private static List<GenericRowData> exceptedRowData() {
-    return Lists.newArrayList(
-        GenericRowData.of(1, StringData.fromString("data"), null, StringData.fromString("data1")),
-        GenericRowData.of(2, StringData.fromString("data"), null, StringData.fromString("data1")));
   }
 
   private static List<Record> exceptedRecords() {
