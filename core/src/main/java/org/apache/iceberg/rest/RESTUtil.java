@@ -263,7 +263,10 @@ public class RESTUtil {
    *
    * @param ns namespace to encode
    * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     RESTUtil#encodeNamespace(Namespace, String)} instead.
    */
+  @Deprecated
   public static String encodeNamespace(Namespace ns) {
     return encodeNamespace(ns, NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
@@ -304,7 +307,10 @@ public class RESTUtil {
    *
    * @param encodedNs a namespace to decode
    * @return a namespace
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     RESTUtil#decodeNamespace(String, String)} instead.
    */
+  @Deprecated
   public static Namespace decodeNamespace(String encodedNs) {
     return decodeNamespace(encodedNs, NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
