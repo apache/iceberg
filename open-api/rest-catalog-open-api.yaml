@@ -1835,16 +1835,14 @@ paths:
       description: >
         Returns a sequence of changes to catalog objects (tables, namespaces, views)
         that allows clients to efficiently track metadata modifications without polling individual
-        resources. Consumers track their progress through a next-page-token, enabling resumable
+        resources. Consumers track their progress through a continuation-token, enabling resumable
         synchronization after downtime or errors.
 
         This endpoint primarily supports use cases like catalog federation, workflow triggering,
         and basic audit capabilities.
 
-        When a request includes a `next-page-token`, it takes precedence over
-        all other filters including `after-timestamp-ms` and `operation-type`.
         The server encodes all necessary state in the token to ensure
-        consistent filtering across pages. Clients should use the returned `next-page-token` for
+        consistent filtering across pages. Clients should use the returned `continuation-token` for
         subsequent requests.
 
         Consumers should be prepared to handle 410 Gone responses when requested sequences are
