@@ -56,6 +56,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
@@ -85,7 +86,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   @SuppressWarnings("AvoidEscapedUnicodeCharacters")
   private static final String NAMESPACE_SEPARATOR_UNICODE = "\u002e";
 
-  private static final String NAMESPACE_SEPARATOR_URLENCODED_UTF_8 = "%2E";
+  @VisibleForTesting static final String NAMESPACE_SEPARATOR_URLENCODED_UTF_8 = "%2E";
 
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES =
       ImmutableMap.<Class<? extends Exception>, Integer>builder()

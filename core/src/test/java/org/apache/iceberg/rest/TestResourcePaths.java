@@ -111,6 +111,47 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void testDecodeNamespaceContainingLegacySeparators() {
+    Namespace namespace = Namespace.of("first", "second", "third");
+    String legacySeparator = RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+    String newSeparator = RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    // legacy separator is always used by default, so no need to configure it
+    ResourcePaths pathsWithLegacySeparator = ResourcePaths.forCatalogProperties(ImmutableMap.of());
+
+    // Encode namespace using legacy separator. No need to provide the separator to encodeNamespace
+    String legacyEncodedNamespace = RESTUtil.encodeNamespace(namespace);
+    assertThat(pathsWithLegacySeparator.namespace(namespace))
+        .contains(legacyEncodedNamespace)
+        .contains(legacySeparator);
+
+    // Decode the namespace containing legacy separator without providing the separator
+    assertThat(RESTUtil.decodeNamespace(legacyEncodedNamespace)).isEqualTo(namespace);
+
+    // Decode the namespace containing legacy separator with providing the new separator
+    assertThat(RESTUtil.decodeNamespace(legacyEncodedNamespace, newSeparator)).isEqualTo(namespace);
+  }
+
+  @Test
+  public void testDecodeNamespaceContainingNewSeparators() {
+    Namespace namespace = Namespace.of("first", "second", "third");
+    String newSeparator = RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    ResourcePaths pathsWithNewSeparator =
+        ResourcePaths.forCatalogProperties(
+            ImmutableMap.of(RESTCatalogProperties.NAMESPACE_SEPARATOR, newSeparator));
+
+    // Encode namespace using new separator
+    String newEncodedSeparator = RESTUtil.encodeNamespace(namespace, newSeparator);
+    assertThat(pathsWithNewSeparator.namespace(namespace))
+        .contains(newEncodedSeparator)
+        .contains(newSeparator);
+
+    // Decode the namespace containing new separator with explicitly providing the separator
+    assertThat(RESTUtil.decodeNamespace(newEncodedSeparator, newSeparator)).isEqualTo(namespace);
+  }
+
+  @Test
   public void testNamespaceProperties() {
     Namespace ns = Namespace.of("ns");
     assertThat(withPrefix.namespaceProperties(ns))
