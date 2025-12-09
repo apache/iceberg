@@ -46,13 +46,16 @@ public class SinkWriter {
   private final IcebergWriterFactory writerFactory;
   private final Map<String, RecordWriter> writers;
   private final Map<TopicPartition, Offset> sourceOffsets;
-  private final ErrantRecordReporter reporter;
+  private ErrantRecordReporter reporter;
 
-  public SinkWriter(Catalog catalog, IcebergSinkConfig config, ErrantRecordReporter reporter) {
+  public SinkWriter(Catalog catalog, IcebergSinkConfig config) {
     this.config = config;
     this.writerFactory = new IcebergWriterFactory(catalog, config);
     this.writers = Maps.newHashMap();
     this.sourceOffsets = Maps.newHashMap();
+  }
+
+  public void setReporter(ErrantRecordReporter reporter) {
     this.reporter = reporter;
   }
 
