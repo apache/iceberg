@@ -38,6 +38,7 @@ import org.apache.iceberg.flink.CatalogLoader;
 class DynamicTableUpdateOperator
     extends RichMapFunction<DynamicRecordInternal, DynamicRecordInternal> {
   private final CatalogLoader catalogLoader;
+  private final boolean dropUnusedColumns;
   private final int cacheMaximumSize;
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
@@ -47,11 +48,13 @@ class DynamicTableUpdateOperator
 
   DynamicTableUpdateOperator(
       CatalogLoader catalogLoader,
+      boolean dropUnusedColumns,
       int cacheMaximumSize,
       long cacheRefreshMs,
       int inputSchemasPerTableCacheMaximumSize,
       TableCreator tableCreator) {
     this.catalogLoader = catalogLoader;
+    this.dropUnusedColumns = dropUnusedColumns;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
@@ -66,7 +69,8 @@ class DynamicTableUpdateOperator
         new TableUpdater(
             new TableMetadataCache(
                 catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize),
-            catalog);
+            catalog,
+            dropUnusedColumns);
   }
 
   @Override

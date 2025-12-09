@@ -354,7 +354,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             ? SnapshotUtil.ancestorsOf(parentSnapshot.snapshotId(), base::snapshot)
             : List.of();
 
-    boolean valid = snapshotAncestryValidator.apply(snapshotAncestry);
+    boolean valid = snapshotAncestryValidator.validate(snapshotAncestry);
     ValidationException.check(
         valid, "Snapshot ancestry validation failed: %s", snapshotAncestryValidator.errorMessage());
   }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.time.Clock;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
@@ -50,13 +51,25 @@ class TableMetadataCache {
 
   private final Catalog catalog;
   private final long refreshMs;
+  private final Clock cacheRefreshClock;
   private final int inputSchemasPerTableCacheMaximumSize;
   private final Map<TableIdentifier, CacheItem> tableCache;
 
   TableMetadataCache(
       Catalog catalog, int maximumSize, long refreshMs, int inputSchemasPerTableCacheMaximumSize) {
+    this(catalog, maximumSize, refreshMs, inputSchemasPerTableCacheMaximumSize, Clock.systemUTC());
+  }
+
+  @VisibleForTesting
+  TableMetadataCache(
+      Catalog catalog,
+      int maximumSize,
+      long refreshMs,
+      int inputSchemasPerTableCacheMaximumSize,
+      Clock cacheRefreshClock) {
     this.catalog = catalog;
     this.refreshMs = refreshMs;
+    this.cacheRefreshClock = cacheRefreshClock;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCache = new LRUCache<>(maximumSize);
   }
@@ -76,8 +89,8 @@ class TableMetadataCache {
     return branch(identifier, branch, true);
   }
 
-  ResolvedSchemaInfo schema(TableIdentifier identifier, Schema input) {
-    return schema(identifier, input, true);
+  ResolvedSchemaInfo schema(TableIdentifier identifier, Schema input, boolean dropUnusedColumns) {
+    return schema(identifier, input, true, dropUnusedColumns);
   }
 
   PartitionSpec spec(TableIdentifier identifier, PartitionSpec spec) {
@@ -88,6 +101,7 @@ class TableMetadataCache {
     tableCache.put(
         identifier,
         new CacheItem(
+            cacheRefreshClock.millis(),
             true,
             table.refs().keySet(),
             table.schemas(),
@@ -110,7 +124,7 @@ class TableMetadataCache {
   }
 
   private ResolvedSchemaInfo schema(
-      TableIdentifier identifier, Schema input, boolean allowRefresh) {
+      TableIdentifier identifier, Schema input, boolean allowRefresh, boolean dropUnusedColumns) {
     CacheItem cached = tableCache.get(identifier);
     Schema compatible = null;
     if (cached != null && cached.tableExists) {
@@ -125,7 +139,7 @@ class TableMetadataCache {
 
       for (Map.Entry<Integer, Schema> tableSchema : cached.tableSchemas.entrySet()) {
         CompareSchemasVisitor.Result result =
-            CompareSchemasVisitor.visit(input, tableSchema.getValue(), true);
+            CompareSchemasVisitor.visit(input, tableSchema.getValue(), true, dropUnusedColumns);
         if (result == CompareSchemasVisitor.Result.SAME) {
           ResolvedSchemaInfo newResult =
               new ResolvedSchemaInfo(
@@ -143,7 +157,7 @@ class TableMetadataCache {
 
     if (needsRefresh(cached, allowRefresh)) {
       refreshTable(identifier);
-      return schema(identifier, input, false);
+      return schema(identifier, input, false, dropUnusedColumns);
     } else if (compatible != null) {
       ResolvedSchemaInfo newResult =
           new ResolvedSchemaInfo(
@@ -186,14 +200,16 @@ class TableMetadataCache {
       return EXISTS;
     } catch (NoSuchTableException e) {
       LOG.debug("Table doesn't exist {}", identifier, e);
-      tableCache.put(identifier, new CacheItem(false, null, null, null, 1));
+      tableCache.put(
+          identifier, new CacheItem(cacheRefreshClock.millis(), false, null, null, null, 1));
       return Tuple2.of(false, e);
     }
   }
 
   private boolean needsRefresh(CacheItem cacheItem, boolean allowRefresh) {
     return allowRefresh
-        && (cacheItem == null || cacheItem.created + refreshMs > System.currentTimeMillis());
+        && (cacheItem == null
+            || cacheRefreshClock.millis() - cacheItem.createdTimestampMillis > refreshMs);
   }
 
   public void invalidate(TableIdentifier identifier) {
@@ -202,8 +218,7 @@ class TableMetadataCache {
 
   /** Handles timeout for missing items only. Caffeine performance causes noticeable delays. */
   static class CacheItem {
-    private final long created = System.currentTimeMillis();
-
+    private final long createdTimestampMillis;
     private final boolean tableExists;
     private final Set<String> branches;
     private final Map<Integer, Schema> tableSchemas;
@@ -211,11 +226,13 @@ class TableMetadataCache {
     private final Map<Schema, ResolvedSchemaInfo> inputSchemas;
 
     private CacheItem(
+        long createdTimestampMillis,
         boolean tableExists,
         Set<String> branches,
         Map<Integer, Schema> tableSchemas,
         Map<Integer, PartitionSpec> specs,
         int inputSchemaCacheMaximumSize) {
+      this.createdTimestampMillis = createdTimestampMillis;
       this.tableExists = tableExists;
       this.branches = branches;
       this.tableSchemas = tableSchemas;

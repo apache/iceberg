@@ -62,6 +62,18 @@ public class TestFileScanTaskParser {
     assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
   }
 
+  @Test
+  public void testFileScanTaskParsesFieldIdPartitionMap() {
+    boolean caseSensitive = true;
+    PartitionSpec spec = TestBase.SPEC;
+    FileScanTask expected = createFileScanTask(spec, caseSensitive);
+
+    FileScanTask deserializedTask =
+        ScanTaskParser.fromJson(fileScanTaskFieldIdPartitionMapJson(), caseSensitive);
+
+    assertFileScanTaskEquals(expected, deserializedTask, spec, caseSensitive);
+  }
+
   private FileScanTask createFileScanTask(PartitionSpec spec, boolean caseSensitive) {
     ResidualEvaluator residualEvaluator;
     if (spec.isUnpartitioned()) {
@@ -84,15 +96,15 @@ public class TestFileScanTaskParser {
         + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
         + "\"spec\":{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
         + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
-        + "\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
-        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},"
+        + "\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
+        + "\"file-format\":\"parquet\",\"partition\":[0],"
         + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
         + "\"start\":0,\"length\":10,"
-        + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
-        + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
-        + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1},"
-        + "{\"spec-id\":0,\"content\":\"EQUALITY_DELETES\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
-        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,"
+        + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
+        + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"parquet\","
+        + "\"partition\":[0],\"file-size-in-bytes\":10,\"record-count\":1},"
+        + "{\"spec-id\":0,\"content\":\"equality-deletes\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
+        + "\"file-format\":\"parquet\",\"partition\":[0],\"file-size-in-bytes\":10,"
         + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0}],"
         + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
   }
@@ -104,15 +116,35 @@ public class TestFileScanTaskParser {
         + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
         + "\"spec\":{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
         + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
-        + "\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
-        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},"
+        + "\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
+        + "\"file-format\":\"parquet\",\"partition\":[0],"
         + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
         + "\"start\":0,\"length\":10,"
-        + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
-        + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
+        + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
+        + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"parquet\","
+        + "\"partition\":[0],\"file-size-in-bytes\":10,\"record-count\":1},"
+        + "{\"spec-id\":0,\"content\":\"equality-deletes\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
+        + "\"file-format\":\"parquet\",\"partition\":[0],\"file-size-in-bytes\":10,"
+        + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0}],"
+        + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
+  }
+
+  private String fileScanTaskFieldIdPartitionMapJson() {
+    return "{\"task-type\":\"file-scan-task\","
+        + "\"schema\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+        + "{\"id\":3,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
+        + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
+        + "\"spec\":{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
+        + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
+        + "\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
+        + "\"file-format\":\"parquet\",\"partition\":{\"1000\":0},"
+        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+        + "\"start\":0,\"length\":10,"
+        + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
+        + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"parquet\","
         + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1},"
-        + "{\"spec-id\":0,\"content\":\"EQUALITY_DELETES\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
-        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,"
+        + "{\"spec-id\":0,\"content\":\"equality-deletes\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
+        + "\"file-format\":\"parquet\",\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,"
         + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0}],"
         + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
   }

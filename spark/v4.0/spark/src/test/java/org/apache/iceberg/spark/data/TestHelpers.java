@@ -52,10 +52,16 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.deletes.DeleteCounter;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
@@ -882,5 +888,70 @@ public class TestHelpers {
 
   public static Types.StructType nonDerivedSchema(Dataset<Row> metadataTable) {
     return SparkSchemaUtil.convert(TestHelpers.selectNonDerived(metadataTable).schema()).asStruct();
+  }
+
+  public static class CustomizedDeleteFilter extends DeleteFilter<InternalRow> {
+    private final boolean hasDeletes;
+
+    protected CustomizedDeleteFilter(
+        boolean hasDeletes, Schema tableSchema, Schema projectedSchema) {
+      super("", List.of(), tableSchema, projectedSchema, new DeleteCounter(), true);
+      this.hasDeletes = hasDeletes;
+    }
+
+    @Override
+    protected StructLike asStructLike(InternalRow record) {
+      return null;
+    }
+
+    @Override
+    protected InputFile getInputFile(String location) {
+      return null;
+    }
+
+    @Override
+    public boolean hasPosDeletes() {
+      return hasDeletes;
+    }
+
+    @Override
+    public PositionDeleteIndex deletedRowPositions() {
+      PositionDeleteIndex deletedRowPos = new CustomizedPositionDeleteIndex();
+      if (hasDeletes) {
+        deletedRowPos.delete(98, 103);
+      }
+
+      return deletedRowPos;
+    }
+  }
+
+  public static class CustomizedPositionDeleteIndex implements PositionDeleteIndex {
+    private final Set<Long> deleteIndex;
+
+    private CustomizedPositionDeleteIndex() {
+      deleteIndex = Sets.newHashSet();
+    }
+
+    @Override
+    public void delete(long position) {
+      deleteIndex.add(position);
+    }
+
+    @Override
+    public void delete(long posStart, long posEnd) {
+      for (long l = posStart; l < posEnd; l++) {
+        delete(l);
+      }
+    }
+
+    @Override
+    public boolean isDeleted(long position) {
+      return deleteIndex.contains(position);
+    }
+
+    @Override
+    public boolean isEmpty() {
+      return deleteIndex.isEmpty();
+    }
   }
 }

@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.UUIDUtil;
 
 public class RESTUtil {
   private static final char NAMESPACE_SEPARATOR = '\u001f';
@@ -48,6 +49,8 @@ public class RESTUtil {
    *     RESTUtil#namespaceFromQueryParam(String)} instead.
    */
   @Deprecated public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR);
+
+  public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
   private RESTUtil() {}
 
@@ -270,5 +273,13 @@ public class RESTUtil {
 
   public static Map<String, String> configHeaders(Map<String, String> properties) {
     return RESTUtil.extractPrefixMap(properties, "header.");
+  }
+
+  /**
+   * Returns a single-use headers map containing a freshly generated idempotency key. The key is a
+   * UUIDv7 string suitable for use in the Idempotency-Key header.
+   */
+  public static Map<String, String> idempotencyHeaders() {
+    return ImmutableMap.of(IDEMPOTENCY_KEY_HEADER, UUIDUtil.generateUuidV7().toString());
   }
 }

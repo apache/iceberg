@@ -26,6 +26,7 @@ nav:
     - Tables:
       - branching.md
       - configuration.md
+      - encryption.md
       - evolution.md
       - maintenance.md
       - metrics-reporting.md
