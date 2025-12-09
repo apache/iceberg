@@ -2943,7 +2943,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThatThrownBy(() -> catalog().loadTable(TABLE)).isInstanceOf(NullPointerException.class);
 
     TableIdentifier metadataTableIdentifier =
-        TableIdentifier.of(TABLE.namespace().toString(), TABLE.name(), "partitions");
+        TableIdentifier.of(NS.toString(), TABLE.name(), "partitions");
 
     // TODO: This won't throw when client side of freshness-aware loading is implemented
     assertThatThrownBy(() -> catalog().loadTable(metadataTableIdentifier))
@@ -2956,12 +2956,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any());
 
+    // RESTCatalogAdapter uses %2E as a namespace separator, and we're verifying here which
+    // server-side path was called
+    ResourcePaths paths =
+        ResourcePaths.forCatalogProperties(
+            ImmutableMap.of(RESTCatalogProperties.NAMESPACE_SEPARATOR, "%2E"));
     verify(adapterForRESTServer)
         .execute(
-            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(metadataTableIdentifier)),
-            any(),
-            any(),
-            any());
+            reqMatcher(HTTPMethod.GET, paths.table(metadataTableIdentifier)), any(), any(), any());
   }
 
   @Test
