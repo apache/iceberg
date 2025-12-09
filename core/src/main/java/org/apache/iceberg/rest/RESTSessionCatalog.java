@@ -164,6 +164,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
   private KeyManagementClient keyManagementClient = null;
+  private String namespaceSeparator = null;
 
   public RESTSessionCatalog() {
     this(
@@ -271,6 +272,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       this.keyManagementClient = EncryptionUtil.createKmsClient(mergedProps);
       this.closeables.addCloseable(this.keyManagementClient);
     }
+    
+    this.namespaceSeparator =
+        PropertyUtil.propertyAsString(
+            mergedProps,
+            RESTCatalogProperties.NAMESPACE_SEPARATOR,
+            RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
 
     super.initialize(name, mergedProps);
   }
@@ -591,7 +598,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
-      queryParams.put("parent", RESTUtil.namespaceToQueryParam(namespace));
+      queryParams.put("parent", RESTUtil.namespaceToQueryParam(namespace, namespaceSeparator));
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();

@@ -29,14 +29,20 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.ChecksumFileSystem;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
@@ -54,6 +60,7 @@ import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.mockito.internal.util.collections.Iterables;
 
 public class TestTableEncryption extends CatalogTestBase {
   private static Map<String, String> appendCatalogEncryptionProperties(Map<String, String> props) {
@@ -88,7 +95,7 @@ public class TestTableEncryption extends CatalogTestBase {
     sql(
         "CREATE TABLE %s (id bigint, data string, float float) USING iceberg "
             + "TBLPROPERTIES ( "
-            + "'encryption.key-id'='%s')",
+            + "'encryption.key-id'='%s', 'format-version'='3')",
         tableName, UnitestKMS.MASTER_KEY_NAME1);
 
     sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
@@ -222,6 +229,29 @@ public class TestTableEncryption extends CatalogTestBase {
         "Should return all expected rows",
         expected,
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testMetadataTamperproofing() throws IOException {
+    ChecksumFileSystem fs = ((ChecksumFileSystem) FileSystem.newInstance(new Configuration()));
+    catalog.initialize(catalogName, catalogConfig);
+
+    Table table = catalog.loadTable(tableIdent);
+    TableMetadata currentMetadata = ((HasTableOperations) table).operations().current();
+    Path metadataFile = new Path(currentMetadata.metadataFileLocation());
+    Path previousMetadataFile = new Path(Iterables.firstOf(currentMetadata.previousFiles()).file());
+
+    // manual FS tampering: replacing the current metadata file with a previous one
+    Path crcPath = fs.getChecksumFile(metadataFile);
+    fs.delete(crcPath, false);
+    fs.delete(metadataFile, false);
+    fs.rename(previousMetadataFile, metadataFile);
+
+    assertThatThrownBy(() -> catalog.loadTable(tableIdent))
+        .hasMessageContaining(
+            String.format(
+                "The current metadata file %s might have been modified. Hash of metadata loaded from storage differs from HMS-stored metadata hash.",
+                metadataFile));
   }
 
   @TestTemplate
