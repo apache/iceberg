@@ -272,7 +272,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       this.keyManagementClient = EncryptionUtil.createKmsClient(mergedProps);
       this.closeables.addCloseable(this.keyManagementClient);
     }
-    
+
     this.namespaceSeparator =
         PropertyUtil.propertyAsString(
             mergedProps,
