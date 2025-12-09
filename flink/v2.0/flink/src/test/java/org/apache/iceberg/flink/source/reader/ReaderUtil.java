@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.CombinedScanTask;
@@ -78,11 +79,16 @@ public class ReaderUtil {
   }
 
   public static DataIterator<RowData> createDataIterator(CombinedScanTask combinedTask) {
+    return createDataIterator(combinedTask, TestFixtures.SCHEMA, TestFixtures.SCHEMA);
+  }
+
+  public static DataIterator<RowData> createDataIterator(
+      CombinedScanTask combinedTask, Schema tableSchema, Schema projectSchema) {
     return new DataIterator<>(
         new RowDataFileScanTaskReader(
-            TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true, Collections.emptyList()),
+            tableSchema, projectSchema, null, true, Collections.emptyList()),
         combinedTask,
-        new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
+        new HadoopFileIO(new Configuration()),
         PlaintextEncryptionManager.instance());
   }
 
