@@ -169,7 +169,19 @@ public class TestFlinkParquetReader extends DataTestBase {
             primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.OPTIONAL)
                 .id(117)
                 .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
-                .named("time"));
+                .named("time"),
+            // 17: required(118, "ts_nano_tz", Types.TimestampNanoType.withZone())
+            primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.REQUIRED)
+                .id(118)
+                .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+                .named("ts_tz"),
+            // 18: required(119, "ts_nano", Types.TimestampNanoType.withoutZone())
+            primitive(PrimitiveType.PrimitiveTypeName.INT64, Type.Repetition.REQUIRED)
+                .id(119)
+                .as(
+                    LogicalTypeAnnotation.timestampType(
+                        false, LogicalTypeAnnotation.TimeUnit.NANOS))
+                .named("ts_nano"));
     ParquetValueReader<RowData> reader =
         FlinkParquetReaders.buildReader(new Schema(SUPPORTED_PRIMITIVES.fields()), fileSchema);
 

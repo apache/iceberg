@@ -18,44 +18,119 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import java.util.List;
+import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.formats.avro.AvroToRowDataConverters;
 import org.apache.flink.formats.avro.typeutils.AvroSchemaConverter;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.utils.TypeConversions;
-import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * This util class converts Avro GenericRecord to Flink RowData. <br>
  * <br>
  * Internally it uses Flink {@link AvroToRowDataConverters}. Because of the precision difference
  * between how Iceberg schema (micro) and Flink {@link AvroToRowDataConverters} (milli) deal with
- * time type, we can't directly use the Avro Schema converted from Iceberg schema via {@link
- * AvroSchemaUtil#convert(org.apache.iceberg.Schema, String)}.
+ * time type, we can't directly use the Avro Schema converted from Iceberg schema. Additionally,
+ * Flink's converter doesn't handle timestamp-nanos logical type properly, so we manually fix those
+ * fields after conversion.
  */
 public class AvroGenericRecordToRowDataMapper implements MapFunction<GenericRecord, RowData> {
 
   private final AvroToRowDataConverters.AvroToRowDataConverter converter;
+  private final List<Integer> timestampNanosFieldIndices;
+  private final RowType rowType;
 
-  AvroGenericRecordToRowDataMapper(RowType rowType) {
+  AvroGenericRecordToRowDataMapper(RowType rowType, List<Integer> timestampNanosFieldIndices) {
     this.converter = AvroToRowDataConverters.createRowConverter(rowType);
+    this.timestampNanosFieldIndices = timestampNanosFieldIndices;
+    this.rowType = rowType;
   }
 
   @Override
   public RowData map(GenericRecord genericRecord) throws Exception {
-    return (RowData) converter.convert(genericRecord);
+    RowData rowData = (RowData) converter.convert(genericRecord);
+
+    // Post-process: Flink's AvroToRowDataConverters doesn't properly handle timestamp-nanos,
+    // so we need to manually fix the timestamp fields after conversion
+    if (timestampNanosFieldIndices.isEmpty()) {
+      return rowData;
+    }
+
+    // Create a new GenericRowData with corrected timestamp-nanos fields
+    GenericRowData correctedRowData = new GenericRowData(rowData.getArity());
+    correctedRowData.setRowKind(rowData.getRowKind());
+
+    // Copy all fields from the converted RowData
+    for (int i = 0; i < rowData.getArity(); i++) {
+      if (timestampNanosFieldIndices.contains(i)) {
+        // Manually convert timestamp-nanos field from original Avro record
+        Object avroValue = genericRecord.get(i);
+        if (avroValue instanceof Long) {
+          long nanos = (Long) avroValue;
+          long millis = Math.floorDiv(nanos, 1_000_000);
+          int nanosOfMillis = Math.floorMod(nanos, 1_000_000);
+          TimestampData timestampData = TimestampData.fromEpochMillis(millis, nanosOfMillis);
+          correctedRowData.setField(i, timestampData);
+        } else {
+          // If not a Long, copy as-is
+          correctedRowData.setField(i, getFieldValue(rowData, i));
+        }
+      } else {
+        // Copy other fields as-is
+        correctedRowData.setField(i, getFieldValue(rowData, i));
+      }
+    }
+
+    return correctedRowData;
+  }
+
+  private Object getFieldValue(RowData rowData, int pos) {
+    if (rowData.isNullAt(pos)) {
+      return null;
+    }
+    // Use FieldGetter to extract the field value
+    LogicalType fieldType = rowType.getTypeAt(pos);
+    RowData.FieldGetter fieldGetter = RowData.createFieldGetter(fieldType, pos);
+    return fieldGetter.getFieldOrNull(rowData);
   }
 
   /** Create a mapper based on Avro schema. */
   public static AvroGenericRecordToRowDataMapper forAvroSchema(Schema avroSchema) {
     DataType dataType = AvroSchemaConverter.convertToDataType(avroSchema.toString());
     LogicalType logicalType = TypeConversions.fromDataToLogicalType(dataType);
-    RowType rowType = RowType.of(logicalType.getChildren().toArray(new LogicalType[0]));
-    return new AvroGenericRecordToRowDataMapper(rowType);
+
+    // Fix up timestamp-nanos fields: Flink's AvroSchemaConverter doesn't properly handle
+    // timestamp-nanos logical type and converts it to BIGINT instead of TIMESTAMP(9).
+    List<LogicalType> fixedFields = Lists.newArrayList();
+    List<Integer> timestampNanosFieldIndices = Lists.newArrayList();
+    List<Schema.Field> avroFields = avroSchema.getFields();
+    LogicalType[] originalFields = logicalType.getChildren().toArray(new LogicalType[0]);
+
+    for (int i = 0; i < avroFields.size(); i++) {
+      Schema.Field avroField = avroFields.get(i);
+      LogicalType fieldType = originalFields[i];
+
+      // Check if this field has timestamp-nanos logical type
+      if (avroField.schema().getLogicalType() instanceof LogicalTypes.TimestampNanos) {
+        // Replace BIGINT with TIMESTAMP(9) for nanosecond precision
+        fixedFields.add(new TimestampType(9));
+        timestampNanosFieldIndices.add(i);
+      } else {
+        fixedFields.add(fieldType);
+      }
+    }
+
+    RowType rowType = RowType.of(fixedFields.toArray(new LogicalType[0]));
+    return new AvroGenericRecordToRowDataMapper(rowType, timestampNanosFieldIndices);
   }
 }

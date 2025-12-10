@@ -69,6 +69,8 @@ public class RowDataUtil {
         return (int) ((Long) value / 1000);
       case TIMESTAMP: // TimestampData
         return TimestampData.fromLocalDateTime(DateTimeUtil.timestampFromMicros((Long) value));
+      case TIMESTAMP_NANO: // TimestampData
+        return TimestampData.fromLocalDateTime(DateTimeUtil.timestampFromNanos((Long) value));
       case UUID:
         return UUIDUtil.convert((UUID) value);
       default:

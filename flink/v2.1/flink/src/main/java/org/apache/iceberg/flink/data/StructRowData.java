@@ -186,8 +186,31 @@ public class StructRowData implements RowData {
 
   @Override
   public TimestampData getTimestamp(int pos, int precision) {
-    long timeLong = getLong(pos);
-    return TimestampData.fromEpochMillis(timeLong / 1000, (int) (timeLong % 1000) * 1000);
+    if (precision == 9) {
+      // Nanosecond precision: get nanoseconds directly from struct
+      Object longVal = struct.get(pos, Object.class);
+      long nanos;
+      if (longVal instanceof Long) {
+        nanos = (long) longVal;
+      } else if (longVal instanceof OffsetDateTime) {
+        nanos = Duration.between(Instant.EPOCH, (OffsetDateTime) longVal).toNanos();
+      } else if (longVal instanceof LocalDateTime) {
+        nanos =
+            Duration.between(Instant.EPOCH, ((LocalDateTime) longVal).atOffset(ZoneOffset.UTC))
+                .toNanos();
+      } else {
+        throw new IllegalStateException(
+            "Unknown type for nanosecond timestamp field. Type name: "
+                + longVal.getClass().getName());
+      }
+      long mills = Math.floorDiv(nanos, 1_000_000);
+      int leftover = Math.floorMod(nanos, 1_000_000);
+      return TimestampData.fromEpochMillis(mills, leftover);
+    } else {
+      // Microsecond precision (precision 6) or other precisions
+      long timeLong = getLong(pos);
+      return TimestampData.fromEpochMillis(timeLong / 1000, (int) (timeLong % 1000) * 1000);
+    }
   }
 
   @Override
