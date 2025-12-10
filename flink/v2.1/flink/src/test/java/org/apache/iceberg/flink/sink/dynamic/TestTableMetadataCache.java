@@ -130,4 +130,28 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     assertThat(cacheItem).isNotNull();
     assertThat(cacheItem.inputSchemas()).containsKeys(SCHEMA, SCHEMA2);
   }
+
+  @Test
+  void testNoSuchNamespaceExceptionHandling() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.of("nonexistent_namespace", "myTable");
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+
+    TableMetadataCache.ResolvedSchemaInfo result = cache.schema(tableIdentifier, SCHEMA, false);
+
+    assertThat(result).isEqualTo(TableMetadataCache.NOT_FOUND);
+    assertThat(cache.getInternalCache().get(tableIdentifier)).isNotNull();
+  }
+
+  @Test
+  void testNoSuchTableExceptionHandling() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.nonexistent_table");
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+
+    TableMetadataCache.ResolvedSchemaInfo result = cache.schema(tableIdentifier, SCHEMA, false);
+
+    assertThat(result).isEqualTo(TableMetadataCache.NOT_FOUND);
+    assertThat(cache.getInternalCache().get(tableIdentifier)).isNotNull();
+  }
 }

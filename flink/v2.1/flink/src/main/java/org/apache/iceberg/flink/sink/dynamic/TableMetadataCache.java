@@ -29,6 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.slf4j.Logger;
@@ -198,8 +199,8 @@ class TableMetadataCache {
       Table table = catalog.loadTable(identifier);
       update(identifier, table);
       return EXISTS;
-    } catch (NoSuchTableException e) {
-      LOG.debug("Table doesn't exist {}", identifier, e);
+    } catch (NoSuchTableException | NoSuchNamespaceException e) {
+      LOG.debug("Table or namespace doesn't exist {}", identifier, e);
       tableCache.put(
           identifier, new CacheItem(cacheRefreshClock.millis(), false, null, null, null, 1));
       return Tuple2.of(false, e);
