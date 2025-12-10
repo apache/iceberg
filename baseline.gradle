@@ -64,8 +64,8 @@ subprojects {
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
 
-      String scalafmtConfigFile = null
       if (project.name.startsWith("iceberg-spark")) {
+        String scalafmtConfigFile = null
         // Configure different scalafmt rules for specific Scala version
         if (scalaVersion?.startsWith("2.12")) {
           scalafmtConfigFile = "$rootDir/.baseline/scala/.scala212fmt.conf"
