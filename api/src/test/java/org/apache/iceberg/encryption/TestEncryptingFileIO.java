@@ -20,9 +20,12 @@ package org.apache.iceberg.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.junit.jupiter.api.Test;
 
@@ -44,5 +47,22 @@ public class TestEncryptingFileIO {
         .isInstanceOf(EncryptingFileIO.WithSupportsPrefixOperations.class)
         .extracting(EncryptingFileIO::encryptionManager)
         .isEqualTo(em);
+  }
+
+  @Test
+  public void prefixOperationsDelegation() {
+    EncryptionManager em = mock(EncryptionManager.class);
+    SupportsPrefixOperations delegate = mock(SupportsPrefixOperations.class);
+
+    EncryptingFileIO.WithSupportsPrefixOperations fileIO =
+        (EncryptingFileIO.WithSupportsPrefixOperations) EncryptingFileIO.combine(delegate, em);
+
+    String prefix = "prefix";
+    Iterable<FileInfo> fileInfos = mock(Iterable.class);
+    when(delegate.listPrefix(prefix)).thenReturn(fileInfos);
+    assertThat(fileIO.listPrefix(prefix)).isEqualTo(fileInfos);
+
+    fileIO.deletePrefix(prefix);
+    verify(delegate).deletePrefix(prefix);
   }
 }
