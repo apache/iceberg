@@ -41,6 +41,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
@@ -158,6 +159,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
+  private boolean restScanPlanningEnabled;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
@@ -270,6 +272,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
             RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
 
+    this.restScanPlanningEnabled =
+        PropertyUtil.propertyAsBoolean(
+            mergedProps,
+            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
+            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED_DEFAULT);
     super.initialize(name, mergedProps);
   }
 
@@ -476,6 +483,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
+    RESTTable restTable = restTableForScanPlanning(ops, finalIdentifier, tableClient);
+    // RestTable should be only be returned for non-metadata tables, because client would
+    // not have access to metadata files for example manifests, since all it needs is catalog.
+    if (restTable != null) {
+      return restTable;
+    }
+
     BaseTable table =
         new BaseTable(
             ops,
@@ -486,6 +500,23 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     return table;
+  }
+
+  private RESTTable restTableForScanPlanning(
+      TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
+    // server supports remote planning endpoint and server / client wants to do server side planning
+    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restScanPlanningEnabled) {
+      return new RESTTable(
+          ops,
+          fullTableName(finalIdentifier),
+          metricsReporter(paths.metrics(finalIdentifier), restClient),
+          restClient,
+          Map::of,
+          finalIdentifier,
+          paths,
+          endpoints);
+    }
+    return null;
   }
 
   private void trackFileIO(RESTTableOperations ops) {
@@ -555,6 +586,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             endpoints);
 
     trackFileIO(ops);
+
+    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+    if (restTable != null) {
+      return restTable;
+    }
 
     return new BaseTable(
         ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
@@ -819,6 +855,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               endpoints);
 
       trackFileIO(ops);
+
+      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+      if (restTable != null) {
+        return restTable;
+      }
 
       return new BaseTable(
           ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
