@@ -89,6 +89,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
   private static final String TRANSACTIONAL_PREFIX_PROP =
       "iceberg.coordinator.transactional.prefix";
+  private static final String CONTROL_POLL_INTERVAL_MS_PROP = "iceberg.control.poll.interval-ms";
+  private static final int CONTROL_POLL_INTERVAL_MS_DEFAULT = 100;
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
@@ -223,6 +225,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.LOW,
         "Optional prefix of the transactional id for the coordinator");
+    configDef.define(
+        CONTROL_POLL_INTERVAL_MS_PROP,
+        ConfigDef.Type.INT,
+        CONTROL_POLL_INTERVAL_MS_DEFAULT,
+        Importance.LOW,
+        "Worker control topic polling interval in milliseconds for async background processing");
     configDef.define(
         HADOOP_CONF_DIR_PROP,
         ConfigDef.Type.STRING,
@@ -426,6 +434,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     }
 
     return "";
+  }
+
+  public int controlPollIntervalMs() {
+    return getInt(CONTROL_POLL_INTERVAL_MS_PROP);
   }
 
   public String hadoopConfDir() {
