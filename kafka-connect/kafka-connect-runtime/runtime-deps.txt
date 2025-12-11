@@ -71,6 +71,10 @@ com.google.re2j:re2j:1.8
 com.jcraft:jsch:0.1
 com.microsoft.azure:msal4j-persistence-extension:1.3
 com.microsoft.azure:msal4j:1.23
+com.nimbusds:content-type:2.3
+com.nimbusds:lang-tag:1.7
+com.nimbusds:nimbus-jose-jwt:10.9
+com.nimbusds:oauth2-oidc-sdk:11.37
 com.sun.xml.bind:jaxb-impl:2.2
 commons-cli:commons-cli:1.9
 commons-codec:commons-codec:1.19
@@ -149,6 +153,7 @@ javax.xml.bind:jaxb-api:2.2
 javax.xml.stream:stax-api:1.0-2
 net.java.dev.jna:jna-platform:5.17
 net.java.dev.jna:jna:5.17
+net.minidev:json-smart:2.6
 org.apache.arrow:arrow-format:17.0
 org.apache.arrow:arrow-memory-core:17.0
 org.apache.arrow:arrow-memory-netty-buffer-patch:17.0

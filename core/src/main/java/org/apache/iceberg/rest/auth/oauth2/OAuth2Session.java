@@ -16,21 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.auth;
+package org.apache.iceberg.rest.auth.oauth2;
 
-import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
+import org.apache.iceberg.rest.HTTPRequest;
+import org.apache.iceberg.rest.auth.AuthSession;
 
-/**
- * Helper class to make the token refresh retries configurable for testing.
- *
- * @deprecated will be removed in 1.14.0
- */
-@Deprecated
-public class AuthSessionUtil {
+public class OAuth2Session implements AuthSession {
 
-  private AuthSessionUtil() {}
+  private final OAuth2Config config;
 
-  public static void setTokenRefreshNumRetries(int retries) {
-    AuthSession.setTokenRefreshNumRetries(retries);
+  OAuth2Session(OAuth2Config config) {
+    this.config = config;
   }
+
+  OAuth2Config config() {
+    return config;
+  }
+
+  @Override
+  public HTTPRequest authenticate(HTTPRequest request) {
+    throw new UnsupportedOperationException("Not implemented");
+  }
+
+  @Override
+  public void close() {}
 }

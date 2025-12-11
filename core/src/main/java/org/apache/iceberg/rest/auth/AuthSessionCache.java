@@ -32,7 +32,13 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** A cache for {@link AuthSession} instances. */
+/**
+ * A cache for {@link AuthSession} instances.
+ *
+ * @deprecated will be removed in 1.14.0, use {@link
+ *     org.apache.iceberg.rest.auth.oauth2.OAuth2Manager} instead.
+ */
+@Deprecated
 public class AuthSessionCache implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(AuthSessionCache.class);

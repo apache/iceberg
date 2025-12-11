@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.rest.auth;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.RESTClient;
 
@@ -43,7 +46,12 @@ public final class BasicAuthManager implements AuthManager {
     String username = properties.get(AuthProperties.BASIC_USERNAME);
     String password = properties.get(AuthProperties.BASIC_PASSWORD);
     String credentials = username + ":" + password;
-    return DefaultAuthSession.of(HTTPHeaders.of(OAuth2Util.basicAuthHeaders(credentials)));
+    // Note: RFC 7617 specifies ISO-8859-1 as the default encoding for Basic authentication
+    // credentials. This implementation uses UTF-8 for backwards compatibility.
+    String encoded =
+        Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+    return DefaultAuthSession.of(
+        HTTPHeaders.of(ImmutableMap.of("Authorization", "Basic " + encoded)));
   }
 
   @Override

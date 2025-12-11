@@ -56,7 +56,8 @@ class TestBasicAuthManager {
         AuthSession session = authManager.catalogSession(null, properties)) {
       assertThat(session)
           .isEqualTo(
-              DefaultAuthSession.of(HTTPHeaders.of(OAuth2Util.basicAuthHeaders("alice:secret"))));
+              DefaultAuthSession.of(
+                  HTTPHeaders.of(Map.of("Authorization", "Basic YWxpY2U6c2VjcmV0"))));
     }
   }
 }
