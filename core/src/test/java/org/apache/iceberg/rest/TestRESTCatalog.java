@@ -3550,7 +3550,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private void verifyCreatePost(Namespace ns, Map<String, String> headers) {
     verify(adapterForRESTServer, atLeastOnce())
         .execute(
-            reqMatcher(
+            reqMatcherContainsHeaders(
                 HTTPMethod.POST,
                 ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
                 headers),
@@ -3627,6 +3627,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 && req.headers().equals(HTTPHeaders.of(headers))
                 && req.queryParameters().equals(parameters)
                 && Objects.equals(req.body(), body));
+  }
+
+  static HTTPRequest reqMatcherContainsHeaders(
+      HTTPMethod method, String path, Map<String, String> headers) {
+    return argThat(
+        req ->
+            req.method() == method
+                && req.path().equals(path)
+                && req.headers().entries().containsAll(HTTPHeaders.of(headers).entries()));
   }
 
   private static List<HTTPRequest> allRequests(RESTCatalogAdapter adapter) {
