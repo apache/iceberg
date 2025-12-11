@@ -86,15 +86,14 @@ Hosts are required to ensure that:
 2. All talks should be vendor-neutral and not sales pitches
 3. Each meetup should have at least two talks with speakers representing different companies/organizations
 4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
-5. The talk selection process is transparent and community members who are interested in speaking can/know how to propose a session
-6. All [Community Guidelines](#community-guidelines) must be respected
+5. All [Community Guidelines](#community-guidelines) must be respected
 
 Meetups *must* be small events under the ASF branding guidelines (linked above) and are typically small, informal gatherings. If you're unsure whether an event is a meetup, meetups usually:
 
 * Rely on a curated selection of talks, where organizers work with the community to include a diverse representation of speakers, topics, and companies. They don't use a formal call for papers like a conference.
 * Are single-tracked and accommodate only a handful of sessions.
-* Take place over a ~4 hour window.
-* Are hosted/sponsored by 1-3 companies providing food, drinks, and/or *unpaid* meeting space. They don't require exorbitant financial support or selling booth space or marketing opportunities to put on.
+* Have at most 2-3 hours of content, plus networking time.
+* Are sponsored by 1-3 companies providing food, drinks, or meeting space; not by selling booth space or marketing opportunities. They don't require substantial financial support.
 
 If you don't know whether an event qualifies as a meetup, please ask the PMC through the private mailing list! (Be sure to do this *before* using the Apache Iceberg brand or trademark.)
 
