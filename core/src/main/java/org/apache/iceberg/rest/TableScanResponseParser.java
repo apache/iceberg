@@ -96,7 +96,7 @@ public class TableScanResponseParser {
       gen.writeArrayFieldStart(DELETE_FILES);
       for (int i = 0; i < deleteFiles.size(); i++) {
         DeleteFile deleteFile = deleteFiles.get(i);
-        deleteFilePathToIndex.put(String.valueOf(deleteFile.path()), i);
+        deleteFilePathToIndex.put(deleteFile.location(), i);
         ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
       }
 
@@ -105,11 +105,11 @@ public class TableScanResponseParser {
 
     if (fileScanTasks != null) {
       gen.writeArrayFieldStart(FILE_SCAN_TASKS);
-      Set<Integer> deleteFileReferences = Sets.newHashSet();
       for (FileScanTask fileScanTask : fileScanTasks) {
+        Set<Integer> deleteFileReferences = Sets.newHashSet();
         if (deleteFiles != null) {
           for (DeleteFile taskDelete : fileScanTask.deletes()) {
-            deleteFileReferences.add(deleteFilePathToIndex.get(taskDelete.path().toString()));
+            deleteFileReferences.add(deleteFilePathToIndex.get(taskDelete.location()));
           }
         }
 

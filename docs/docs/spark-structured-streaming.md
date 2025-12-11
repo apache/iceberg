@@ -76,8 +76,6 @@ data.writeStream
     .toTable("database.table_name")
 ```
 
-If you're using Spark 3.0 or earlier, you need to use `.option("path", "database.table_name").start()`, instead of `.toTable("database.table_name")`.
-
 In the case of the directory-based Hadoop catalog:
 
 ```scala
@@ -101,7 +99,7 @@ Iceberg doesn't support experimental [continuous processing](https://spark.apach
 
 ### Partitioned table
 
-Iceberg requires sorting data by partition per task prior to writing the data. In Spark tasks are split by Spark partition.
+Iceberg requires sorting data by partition per task prior to writing the data. In Spark tasks are split by Spark partition
 against partitioned table. For batch queries you're encouraged to do explicit sort to fulfill the requirement
 (see [here](spark-writes.md#writing-distribution-modes)), but the approach would bring additional latency as
 repartition and sort are considered as heavy operations for streaming workload. To avoid additional latency, you can
@@ -134,7 +132,7 @@ documents how to configure the interval.
 
 ### Expire old snapshots
 
-Each batch written to a table produces a new snapshot. Iceberg tracks snapshots in table metadata until they are expired. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](maintenance.md#expire-snapshots). [Snapshot expiration](spark-procedures.md#expire_snapshots) is the procedure of removing the metadata and any data files that are no longer needed. By default, the procedure will expire the snapshots older than five days. 
+Each batch written to a table produces a new snapshot. Iceberg tracks snapshots in table metadata until they are expired. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](maintenance.md#expire-snapshots). [Snapshot expiration](spark-procedures.md#expire_snapshots) is the procedure of removing the metadata and any data files that are no longer needed. By default, the procedure will expire the snapshots older than five days.
 
 ### Compacting data files
 

@@ -90,6 +90,8 @@ nav:
   - Project:
     - Contributing: contribute.md
     - Multi-engine support: multi-engine-support.md
+    - Benchmarks: benchmarks.md
+    - Security: security.md
     - How to release: how-to-release.md
     - ASF:
       - Sponsorship: https://www.apache.org/foundation/sponsorship.html
@@ -102,6 +104,7 @@ nav:
     - Community: community.md
     - Talks: talks.md
     - Vendors: vendors.md
+  
   - Specification:
     - Terms: terms.md
     - REST Catalog Spec: rest-catalog-spec.md

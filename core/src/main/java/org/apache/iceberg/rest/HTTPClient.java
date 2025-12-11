@@ -180,7 +180,8 @@ public class HTTPClient extends BaseHTTPClient {
     int code = response.getCode();
     return code == HttpStatus.SC_OK
         || code == HttpStatus.SC_ACCEPTED
-        || code == HttpStatus.SC_NO_CONTENT;
+        || code == HttpStatus.SC_NO_CONTENT
+        || code == HttpStatus.SC_NOT_MODIFIED;
   }
 
   private static ErrorResponse buildDefaultErrorResponse(CloseableHttpResponse response) {
@@ -324,8 +325,7 @@ public class HTTPClient extends BaseHTTPClient {
       responseHeaders.accept(respHeaders);
 
       // Skip parsing the response stream for any successful request not expecting a response body
-      if (response.getCode() == HttpStatus.SC_NO_CONTENT
-          || (responseType == null && isSuccessful(response))) {
+      if (emptyBody(response, responseType)) {
         return null;
       }
 
@@ -358,6 +358,13 @@ public class HTTPClient extends BaseHTTPClient {
     } catch (IOException e) {
       throw new RESTException(e, "Error occurred while processing %s request", req.method());
     }
+  }
+
+  private <T extends RESTResponse> boolean emptyBody(
+      CloseableHttpResponse response, Class<T> responseType) {
+    return response.getCode() == HttpStatus.SC_NO_CONTENT
+        || response.getCode() == HttpStatus.SC_NOT_MODIFIED
+        || (responseType == null && isSuccessful(response));
   }
 
   @Override

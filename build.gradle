@@ -34,9 +34,9 @@ buildscript {
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
-    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.2'
+    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.4'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.4.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.16.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.17.0'
   }
 }
 
@@ -161,6 +161,19 @@ subprojects {
     
     tasks.named("revapiAnalyze").configure {
       dependsOn(":iceberg-common:jar")
+    }
+  }
+
+  def testParallelism = System.getProperty('testParallelism')
+  if (testParallelism != null) {
+    def numTestWorkers
+    if (testParallelism.equalsIgnoreCase('auto')) {
+      numTestWorkers = Math.ceil(Runtime.getRuntime().availableProcessors() / 2.0) as int
+    } else {
+      numTestWorkers = testParallelism as int
+    }
+    tasks.withType(Test).configureEach {
+      maxParallelForks = numTestWorkers
     }
   }
 
@@ -364,6 +377,7 @@ project(':iceberg-core') {
     implementation libs.jackson.databind
     implementation libs.caffeine
     implementation libs.roaringbitmap
+    implementation libs.failsafe
     compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -717,6 +731,7 @@ project(':iceberg-gcp') {
     compileOnly platform(libs.google.libraries.bom)
     compileOnly "com.google.cloud:google-cloud-storage"
     compileOnly "com.google.cloud:google-cloud-kms"
+    compileOnly(libs.gcs.analytics.core)
 
     testImplementation "com.google.cloud:google-cloud-nio"
 
@@ -733,6 +748,8 @@ project(':iceberg-gcp') {
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.mockito.junit.jupiter
+    testImplementation libs.testcontainers
+    testImplementation libs.testcontainers.junit.jupiter
   }
 
   sourceSets {

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.MAX_ORPHAN_FILE_SAMPLE_SIZE;
+import static org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.STREAM_RESULTS;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -202,8 +204,23 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .deleteOrphanFiles(table)
             .usePrefixListing(usePrefixListing)
             .olderThan(System.currentTimeMillis())
+            .option(STREAM_RESULTS, "true")
+            .deleteWith(s -> {})
             .execute();
     assertThat(result3.orphanFileLocations())
+        .as("Streaming dry run should find 1 file")
+        .isEqualTo(invalidFiles);
+    assertThat(fs.exists(new Path(invalidFiles.get(0))))
+        .as("Invalid file should be present after streaming dry run")
+        .isTrue();
+
+    DeleteOrphanFiles.Result result4 =
+        actions
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .execute();
+    assertThat(result4.orphanFileLocations())
         .as("Action should delete 1 file")
         .isEqualTo(invalidFiles);
     assertThat(fs.exists(new Path(invalidFiles.get(0))))
@@ -1203,9 +1220,89 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     Dataset<String> validFileDS = spark.createDataset(validFiles, Encoders.STRING());
     Dataset<String> actualFileDS = spark.createDataset(actualFiles, Encoders.STRING());
 
-    List<String> orphanFiles =
+    Dataset<String> orphanFileDS =
         DeleteOrphanFilesSparkAction.findOrphanFiles(
-            spark, toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
+            toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
+
+    List<String> orphanFiles = orphanFileDS.collectAsList();
+    orphanFileDS.unpersist();
+
     assertThat(orphanFiles).isEqualTo(expectedOrphanFiles);
+  }
+
+  @TestTemplate
+  public void testStreamResultsDeletion() throws IOException {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    List<String> validFiles =
+        spark
+            .read()
+            .format("iceberg")
+            .load(tableLocation + "#files")
+            .select("file_path")
+            .as(Encoders.STRING())
+            .collectAsList();
+    assertThat(validFiles).as("Should be 1 valid file").hasSize(1);
+
+    for (int i = 0; i < 10; i++) {
+      df.write().mode("append").parquet(tableLocation + "/data");
+    }
+
+    Path dataPath = new Path(tableLocation + "/data");
+    FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
+    List<String> allFiles =
+        Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
+            .filter(FileStatus::isFile)
+            .map(file -> file.getPath().toString())
+            .collect(Collectors.toList());
+    assertThat(allFiles).as("Should be 11 files").hasSize(11);
+
+    List<String> invalidFiles = Lists.newArrayList(allFiles);
+    invalidFiles.removeAll(validFiles);
+    assertThat(invalidFiles).as("Should be 10 invalid files").hasSize(10);
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    DeleteOrphanFiles.Result nonStreamingResult =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .deleteWith(s -> {})
+            .execute();
+
+    assertThat(nonStreamingResult.orphanFileLocations())
+        .as("Non-streaming dry-run should return all 10 orphan files")
+        .hasSize(10)
+        .containsExactlyInAnyOrderElementsOf(invalidFiles);
+
+    DeleteOrphanFiles.Result streamingResult =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .usePrefixListing(usePrefixListing)
+            .olderThan(System.currentTimeMillis())
+            .option(STREAM_RESULTS, "true")
+            .option(MAX_ORPHAN_FILE_SAMPLE_SIZE, "5")
+            .execute();
+
+    assertThat(streamingResult.orphanFileLocations())
+        .as("Streaming with sample size 5 should return only 5 orphan files")
+        .hasSize(5);
+
+    for (String invalidFile : invalidFiles) {
+      assertThat(fs.exists(new Path(invalidFile))).as("Orphan file should be deleted").isFalse();
+    }
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords =
+        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
+    assertThat(actualRecords).isEqualTo(records);
   }
 }

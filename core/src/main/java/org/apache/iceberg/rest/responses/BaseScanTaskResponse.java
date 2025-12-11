@@ -55,6 +55,10 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
     return deleteFiles;
   }
 
+  /**
+   * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
+   */
+  @Deprecated
   public Map<Integer, PartitionSpec> specsById() {
     return specsById;
   }
@@ -87,6 +91,10 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
       return self();
     }
 
+    /**
+     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
+     */
+    @Deprecated
     public B withSpecsById(Map<Integer, PartitionSpec> specs) {
       this.specsById = specs;
       return self();
@@ -104,6 +112,10 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
       return deleteFiles;
     }
 
+    /**
+     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
+     */
+    @Deprecated
     public Map<Integer, PartitionSpec> specsById() {
       return specsById;
     }

@@ -89,6 +89,13 @@ public class SimpleDataUtil {
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.optional(3, "extra", Types.StringType.get()));
 
+  public static final Schema SCHEMA3 =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()),
+          Types.NestedField.optional(3, "_row_id", Types.LongType.get()),
+          Types.NestedField.optional(4, "_last_updated_sequence_number", Types.LongType.get()));
+
   public static final ResolvedSchema FLINK_SCHEMA =
       ResolvedSchema.of(
           Column.physical("id", DataTypes.INT()), Column.physical("data", DataTypes.STRING()));
@@ -100,6 +107,7 @@ public class SimpleDataUtil {
 
   public static final Record RECORD = GenericRecord.create(SCHEMA);
   public static final Record RECORD2 = GenericRecord.create(SCHEMA2);
+  public static final Record RECORD3 = GenericRecord.create(SCHEMA3);
 
   public static Table createTable(
       String path, Map<String, String> properties, boolean partitioned) {
@@ -124,6 +132,16 @@ public class SimpleDataUtil {
     record.setField("id", id);
     record.setField("data", data);
     record.setField("extra", extra);
+    return record;
+  }
+
+  public static Record createRecordWithRowId(
+      Integer id, String data, Long rowId, Long lastUpdatedSequenceNumber) {
+    Record record = RECORD3.copy();
+    record.setField("id", id);
+    record.setField("data", data);
+    record.setField("_row_id", rowId);
+    record.setField("_last_updated_sequence_number", lastUpdatedSequenceNumber);
     return record;
   }
 
@@ -348,6 +366,11 @@ public class SimpleDataUtil {
 
   public static void assertTableRecords(Table table, List<Record> expected, String branch)
       throws IOException {
+    assertTableRecords(table, expected, branch, table.schema());
+  }
+
+  public static void assertTableRecords(
+      Table table, List<Record> expected, String branch, Schema projectSchema) throws IOException {
     table.refresh();
     Snapshot snapshot = latestSnapshot(table, branch);
 
@@ -360,12 +383,15 @@ public class SimpleDataUtil {
       return;
     }
 
-    Types.StructType type = table.schema().asStruct();
+    Types.StructType type = projectSchema.asStruct();
     StructLikeSet expectedSet = StructLikeSet.create(type);
     expectedSet.addAll(expected);
 
     try (CloseableIterable<Record> iterable =
-        IcebergGenerics.read(table).useSnapshot(snapshot.snapshotId()).build()) {
+        IcebergGenerics.read(table)
+            .useSnapshot(snapshot.snapshotId())
+            .project(projectSchema)
+            .build()) {
       StructLikeSet actualSet = StructLikeSet.create(type);
 
       for (Record record : iterable) {

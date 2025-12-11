@@ -33,7 +33,7 @@ import org.apache.iceberg.rest.TableScanResponseParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class FetchPlanningResultResponseParser {
-  private static final String PLAN_STATUS = "plan-status";
+  private static final String STATUS = "status";
   private static final String PLAN_TASKS = "plan-tasks";
 
   private FetchPlanningResultResponseParser() {}
@@ -54,7 +54,7 @@ public class FetchPlanningResultResponseParser {
             || (response.fileScanTasks() == null || response.fileScanTasks().isEmpty()),
         "Cannot serialize fileScanTasks in fetchingPlanningResultResponse without specsById");
     gen.writeStartObject();
-    gen.writeStringField(PLAN_STATUS, response.planStatus().status());
+    gen.writeStringField(STATUS, response.planStatus().status());
     if (response.planTasks() != null) {
       JsonUtil.writeStringArray(PLAN_TASKS, response.planTasks(), gen);
     }
@@ -69,11 +69,7 @@ public class FetchPlanningResultResponseParser {
       String json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(
         json != null, "Invalid fetchPlanningResult response: null or empty");
-    return JsonUtil.parse(
-        json,
-        node -> {
-          return fromJson(node, specsById, caseSensitive);
-        });
+    return JsonUtil.parse(json, node -> fromJson(node, specsById, caseSensitive));
   }
 
   public static FetchPlanningResultResponse fromJson(
@@ -81,7 +77,7 @@ public class FetchPlanningResultResponseParser {
     Preconditions.checkArgument(
         json != null && !json.isEmpty(), "Invalid fetchPlanningResult response: null or empty");
 
-    PlanStatus planStatus = PlanStatus.fromName(JsonUtil.getString(PLAN_STATUS, json));
+    PlanStatus planStatus = PlanStatus.fromName(JsonUtil.getString(STATUS, json));
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
     List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json, specsById);
     List<FileScanTask> fileScanTasks =
@@ -91,6 +87,7 @@ public class FetchPlanningResultResponseParser {
         .withPlanTasks(planTasks)
         .withFileScanTasks(fileScanTasks)
         .withDeleteFiles(deleteFiles)
+        .withSpecsById(specsById)
         .build();
   }
 }

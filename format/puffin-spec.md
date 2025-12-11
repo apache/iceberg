@@ -87,7 +87,6 @@ with content size present), UTF-8 encoded JSON payload representing a single
 
 `FileMetadata` has the following fields
 
-
 | Field Name | Field Type                              | Required | Description |
 | ---------- | --------------------------------------- | -------- | ----------- |
 | blobs      | list of BlobMetadata objects            | yes      |
@@ -146,17 +145,17 @@ for the key, then it is not set.
 
 The serialized blob contains:
 
-* Combined length of the vector and magic bytes stored as 4 bytes, big-endian
-* A 4-byte magic sequence, `D1 D3 39 64`
-* The vector, serialized as described below
-* A CRC-32 checksum of the magic bytes and serialized vector as 4 bytes, big-endian
+- Combined length of the vector and magic bytes stored as 4 bytes, big-endian
+- A 4-byte magic sequence, `D1 D3 39 64`
+- The vector, serialized as described below
+- A CRC-32 checksum of the magic bytes and serialized vector as 4 bytes, big-endian
 
 The position vector is serialized using the Roaring bitmap
 ["portable" format][roaring-bitmap-portable-serialization]. This representation
 consists of:
 
-* The number of 32-bit Roaring bitmaps, serialized as 8 bytes, little-endian
-* For each 32-bit Roaring bitmap, ordered by unsigned comparison of the 32-bit keys:
+- The number of 32-bit Roaring bitmaps, serialized as 8 bytes, little-endian
+- For each 32-bit Roaring bitmap, ordered by unsigned comparison of the 32-bit keys:
     - The key stored as 4 bytes, little-endian
     - A [32-bit Roaring bitmap][roaring-bitmap-general-layout]
 
@@ -166,17 +165,16 @@ for compatibility with existing deletion vectors in Delta tables.
 
 The blob's `properties` must:
 
-* Include `referenced-data-file`, the location of the data file the delete
+- Include `referenced-data-file`, the location of the data file the delete
   vector applies to; must be equal to the data file's `location` in table
   metadata
-* Include `cardinality`, the number of deleted rows (set positions) in the
+- Include `cardinality`, the number of deleted rows (set positions) in the
   delete vector
-* Omit `compression-codec`; `deletion-vector-v1` is not compressed
+- Omit `compression-codec`; `deletion-vector-v1` is not compressed
 
 Snapshot ID and sequence number are not known at the time the Puffin file is
 created. `snapshot-id` and `sequence-number` must be set to -1 in blob metadata
 for Puffin v1.
-
 
 [roaring-bitmap-portable-serialization]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#extension-for-64-bit-implementations
 [roaring-bitmap-general-layout]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#general-layout

@@ -310,7 +310,7 @@ public class TestHiveCommits extends HiveTableTestBase {
     TableIdentifier badTi = TableIdentifier.of(DB_NAME, "`tbl`");
     assertThatThrownBy(() -> catalog.createTable(badTi, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(ValidationException.class)
-        .hasMessage(String.format("Invalid Hive object for %s.%s", DB_NAME, "`tbl`"));
+        .hasMessage("Invalid Hive object for %s.%s", DB_NAME, "`tbl`");
   }
 
   @Test
@@ -318,7 +318,7 @@ public class TestHiveCommits extends HiveTableTestBase {
     assertThatThrownBy(
             () -> catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage(String.format("Table already exists: %s.%s", DB_NAME, TABLE_NAME));
+        .hasMessage("Table already exists: %s.%s", DB_NAME, TABLE_NAME);
   }
 
   /** Uses NoLock and pretends we throw an error because of a concurrent commit */

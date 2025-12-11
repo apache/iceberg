@@ -149,9 +149,8 @@ public class TestUpdateRequirements {
     assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updated)))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage(
-            String.format(
-                "Requirement failed: UUID does not match: expected %s != %s",
-                updated.uuid(), metadata.uuid()));
+            "Requirement failed: UUID does not match: expected %s != %s",
+            updated.uuid(), metadata.uuid());
   }
 
   @Test
@@ -182,9 +181,8 @@ public class TestUpdateRequirements {
     assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updatedViewMetadata)))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage(
-            String.format(
-                "Requirement failed: view UUID does not match: expected %s != %s",
-                updatedViewMetadata.uuid(), viewMetadata.uuid()));
+            "Requirement failed: view UUID does not match: expected %s != %s",
+            updatedViewMetadata.uuid(), viewMetadata.uuid());
   }
 
   @ParameterizedTest

@@ -64,11 +64,7 @@ public class FetchScanTasksResponseParser {
   static FetchScanTasksResponse fromJson(
       String json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     Preconditions.checkArgument(json != null, "Cannot parse fetchScanTasks response from null");
-    return JsonUtil.parse(
-        json,
-        node -> {
-          return fromJson(node, specsById, caseSensitive);
-        });
+    return JsonUtil.parse(json, node -> fromJson(node, specsById, caseSensitive));
   }
 
   public static FetchScanTasksResponse fromJson(
@@ -81,6 +77,7 @@ public class FetchScanTasksResponseParser {
         TableScanResponseParser.parseFileScanTasks(json, deleteFiles, specsById, caseSensitive);
     return FetchScanTasksResponse.builder()
         .withPlanTasks(planTasks)
+        .withSpecsById(specsById)
         .withFileScanTasks(fileScanTasks)
         .withDeleteFiles(deleteFiles)
         .build();

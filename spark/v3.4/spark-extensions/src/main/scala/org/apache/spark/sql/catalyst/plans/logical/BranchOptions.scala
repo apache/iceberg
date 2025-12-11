@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
-case class BranchOptions (snapshotId: Option[Long], numSnapshots: Option[Long],
-                          snapshotRetain: Option[Long], snapshotRefRetain: Option[Long])
+case class BranchOptions(
+    snapshotId: Option[Long],
+    numSnapshots: Option[Long],
+    snapshotRetain: Option[Long],
+    snapshotRefRetain: Option[Long])

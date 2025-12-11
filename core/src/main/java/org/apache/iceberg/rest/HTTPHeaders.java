@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,6 +50,11 @@ public interface HTTPHeaders {
     return entries().stream()
         .filter(header -> header.name().equalsIgnoreCase(name))
         .collect(Collectors.toSet());
+  }
+
+  /** Returns the first entry in this group for the given name (case-insensitive). */
+  default Optional<HTTPHeader> firstEntry(String name) {
+    return entries().stream().filter(header -> header.name().equalsIgnoreCase(name)).findFirst();
   }
 
   /** Returns whether this group contains an entry with the given name (case-insensitive). */

@@ -29,6 +29,7 @@ site/site/
 site/docs/docs/
 site/docs/.asf.yaml
 site/docs/javadoc/
+site/.venv/
 
 # benchmark output
 spark/v3.4/spark/benchmark/*

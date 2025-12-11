@@ -146,7 +146,6 @@ You can then run any of the following commands to start a Spark session.
 To create your first Iceberg table in Spark, run a [`CREATE TABLE`](docs/latest/spark-ddl.md#create-table) command. Let's create a table
 using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database name, and `taxis` is the table name.
 
-
 === "SparkSQL"
 
     ```sql
@@ -192,7 +191,6 @@ using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database n
     df = spark.createDataFrame([], schema)
     df.writeTo("demo.nyc.taxis").create()
     ```
-
 
 Iceberg catalogs support the full range of SQL DDL commands, including:
 
@@ -246,7 +244,6 @@ Once your table is created, you can insert records.
 
 To read a table, simply use the Iceberg table's name.
 
-
 === "SparkSQL"
 
     ```sql
@@ -277,7 +274,7 @@ This configuration creates a path-based catalog named `local` for tables under `
 === "CLI"
 
     ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}\
+    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}\
         --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
         --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
         --conf spark.sql.catalog.spark_catalog.type=hive \
@@ -290,7 +287,7 @@ This configuration creates a path-based catalog named `local` for tables under `
 === "spark-defaults.conf"
 
     ```sh
-    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
     spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
     spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
     spark.sql.catalog.spark_catalog.type                 hive
@@ -312,27 +309,24 @@ If you already have a Spark environment, you can add Iceberg, using the `--packa
 === "SparkSQL"
 
     ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
     ```
 
 === "Spark-Shell"
 
     ```sh
-    spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+    spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
     ```
 
 === "PySpark"
 
     ```sh
-    pyspark --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+    pyspark --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMajor }}:{{ icebergVersion }}
     ```
 
 !!! note
     If you want to include Iceberg in your Spark installation, add the Iceberg Spark runtime to Spark's `jars` folder.
     You can download the runtime by visiting to the [Releases](releases.md) page.
-
-<!-- markdown-link-check-disable-next-line -->
-[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar
 
 #### Learn More
 

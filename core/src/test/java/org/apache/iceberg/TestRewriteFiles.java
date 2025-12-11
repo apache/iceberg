@@ -82,8 +82,7 @@ public class TestRewriteFiles extends TestBase {
                             ImmutableSet.of(fileBDeletes())),
                     branch))
         .isInstanceOf(ValidationException.class)
-        .hasMessage(
-            String.format("Missing required files to delete: %s", fileADeletes().location()));
+        .hasMessage("Missing required files to delete: %s", fileADeletes().location());
   }
 
   @TestTemplate

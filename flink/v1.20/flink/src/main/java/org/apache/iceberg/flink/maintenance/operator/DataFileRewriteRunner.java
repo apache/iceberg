@@ -28,11 +28,15 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.util.Collector;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewritePlanner.PlannedGroup;
@@ -108,8 +112,10 @@ public class DataFileRewriteRunner
           value.group().rewrittenFiles().size());
     }
 
-    try (TaskWriter<RowData> writer = writerFor(value)) {
-      try (DataIterator<RowData> iterator = readerFor(value)) {
+    boolean preserveRowId = TableUtil.supportsRowLineage(value.table());
+
+    try (TaskWriter<RowData> writer = writerFor(value, preserveRowId)) {
+      try (DataIterator<RowData> iterator = readerFor(value, preserveRowId)) {
         while (iterator.hasNext()) {
           writer.write(iterator.next());
         }
@@ -169,30 +175,42 @@ public class DataFileRewriteRunner
     }
   }
 
-  private TaskWriter<RowData> writerFor(PlannedGroup value) {
+  private TaskWriter<RowData> writerFor(PlannedGroup value, boolean preserveRowId) {
     String formatString =
         PropertyUtil.propertyAsString(
             value.table().properties(),
             TableProperties.DEFAULT_FILE_FORMAT,
             TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+    Schema writeSchema =
+        preserveRowId
+            ? MetadataColumns.schemaWithRowLineage(value.table().schema())
+            : value.table().schema();
+    RowType flinkWriteType = FlinkSchemaUtil.convert(writeSchema);
     RowDataTaskWriterFactory factory =
         new RowDataTaskWriterFactory(
-            value.table(),
-            FlinkSchemaUtil.convert(value.table().schema()),
+            value::table,
+            flinkWriteType,
             value.group().inputSplitSize(),
             FileFormat.fromString(formatString),
             value.table().properties(),
             null,
-            false);
+            false,
+            writeSchema,
+            value.table().spec());
     factory.initialize(subTaskId, attemptId);
     return factory.create();
   }
 
-  private DataIterator<RowData> readerFor(PlannedGroup value) {
+  private DataIterator<RowData> readerFor(PlannedGroup value, boolean preserveRowId) {
+    Schema projectedSchema =
+        preserveRowId
+            ? MetadataColumns.schemaWithRowLineage(value.table().schema())
+            : value.table().schema();
+
     RowDataFileScanTaskReader reader =
         new RowDataFileScanTaskReader(
             value.table().schema(),
-            value.table().schema(),
+            projectedSchema,
             PropertyUtil.propertyAsString(value.table().properties(), DEFAULT_NAME_MAPPING, null),
             false,
             Collections.emptyList());

@@ -189,9 +189,7 @@ public class TestHelpers {
               .as("Should have matching schema id")
               .isEqualTo(schema1.schemaId());
           assertThat(schema1.sameSchema(schema2))
-              .as(
-                  String.format(
-                      "Should be the same schema. Schema 1: %s, schema 2: %s", schema1, schema2))
+              .as("Should be the same schema. Schema 1: %s, schema 2: %s", schema1, schema2)
               .isTrue();
         });
   }

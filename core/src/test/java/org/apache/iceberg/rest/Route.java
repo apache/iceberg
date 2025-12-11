@@ -26,6 +26,8 @@ import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
+import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
@@ -33,12 +35,15 @@ import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
+import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
+import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 
@@ -109,7 +114,24 @@ enum Route {
       LoadViewResponse.class),
   RENAME_VIEW(
       HTTPRequest.HTTPMethod.POST, ResourcePaths.V1_VIEW_RENAME, RenameTableRequest.class, null),
-  DROP_VIEW(HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_VIEW);
+  DROP_VIEW(HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_VIEW),
+  PLAN_TABLE_SCAN(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_TABLE_SCAN_PLAN_SUBMIT,
+      PlanTableScanRequest.class,
+      PlanTableScanResponse.class),
+  FETCH_PLANNING_RESULT(
+      HTTPRequest.HTTPMethod.GET,
+      ResourcePaths.V1_TABLE_SCAN_PLAN,
+      null,
+      FetchPlanningResultResponse.class),
+  FETCH_SCAN_TASKS(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_TABLE_SCAN_PLAN_TASKS,
+      FetchScanTasksRequest.class,
+      FetchScanTasksResponse.class),
+  CANCEL_PLAN_TABLE_SCAN(
+      HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_TABLE_SCAN_PLAN, null, null);
 
   private final HTTPRequest.HTTPMethod method;
   private final int requiredLength;

@@ -25,11 +25,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Scan;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
@@ -45,6 +48,8 @@ import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchPlanIdException;
+import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
@@ -60,6 +65,8 @@ import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
+import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
@@ -74,6 +81,12 @@ import org.apache.iceberg.util.PropertyUtil;
 
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
 public class RESTCatalogAdapter extends BaseHTTPClient {
+
+  @SuppressWarnings("AvoidEscapedUnicodeCharacters")
+  private static final String NAMESPACE_SEPARATOR_UNICODE = "\u002e";
+
+  private static final String NAMESPACE_SEPARATOR_URLENCODED_UTF_8 = "%2E";
+
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES =
       ImmutableMap.<Class<? extends Exception>, Integer>builder()
           .put(IllegalArgumentException.class, 400)
@@ -90,6 +103,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           .put(CommitFailedException.class, 409)
           .put(UnprocessableEntityException.class, 422)
           .put(CommitStateUnknownException.class, 500)
+          .put(NoSuchPlanIdException.class, 404)
+          .put(NoSuchPlanTaskException.class, 404)
           .buildOrThrow();
 
   private final Catalog catalog;
@@ -97,6 +112,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private final ViewCatalog asViewCatalog;
 
   private AuthSession authSession = AuthSession.EMPTY;
+  private PlanningBehavior planningBehavior;
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
@@ -158,13 +174,15 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                     Arrays.stream(Route.values())
                         .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                         .collect(Collectors.toList()))
+                .withOverride(
+                    RESTCatalogProperties.NAMESPACE_SEPARATOR, NAMESPACE_SEPARATOR_URLENCODED_UTF_8)
                 .build());
 
       case LIST_NAMESPACES:
         if (asNamespaceCatalog != null) {
           Namespace ns;
           if (vars.containsKey("parent")) {
-            ns = RESTUtil.namespaceFromQueryParam(vars.get("parent"));
+            ns = RESTUtil.namespaceFromQueryParam(vars.get("parent"), NAMESPACE_SEPARATOR_UNICODE);
           } else {
             ns = Namespace.empty();
           }
@@ -279,10 +297,54 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                   tableIdentFromPathVars(vars),
                   snapshotModeFromQueryParams(httpRequest.queryParameters()));
 
-          responseHeaders.accept(
-              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+          Optional<HTTPHeaders.HTTPHeader> ifNoneMatchHeader =
+              httpRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH);
+
+          String eTag = ETagProvider.of(response.metadataLocation());
+
+          if (ifNoneMatchHeader.isPresent() && eTag.equals(ifNoneMatchHeader.get().value())) {
+            return null;
+          }
+
+          responseHeaders.accept(ImmutableMap.of(HttpHeaders.ETAG, eTag));
 
           return castResponse(responseType, response);
+        }
+
+      case PLAN_TABLE_SCAN:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          PlanTableScanRequest request = castRequest(PlanTableScanRequest.class, body);
+          return castResponse(
+              responseType,
+              CatalogHandlers.planTableScan(
+                  catalog,
+                  ident,
+                  request,
+                  planningBehavior()::shouldPlanTableScanAsync,
+                  scan -> planningBehavior().numberFileScanTasksPerPlanTask()));
+        }
+
+      case FETCH_PLANNING_RESULT:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          String planId = planIDFromPathVars(vars);
+          return castResponse(
+              responseType, CatalogHandlers.fetchPlanningResult(catalog, ident, planId));
+        }
+
+      case FETCH_SCAN_TASKS:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          FetchScanTasksRequest request = castRequest(FetchScanTasksRequest.class, body);
+          return castResponse(
+              responseType, CatalogHandlers.fetchScanTasks(catalog, ident, request));
+        }
+
+      case CANCEL_PLAN_TABLE_SCAN:
+        {
+          CatalogHandlers.cancelPlanTableScan(planIDFromPathVars(vars));
+          return null;
         }
 
       case REGISTER_TABLE:
@@ -524,11 +586,36 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     throw new RESTException("Unhandled error: %s", error);
   }
 
+  /**
+   * Supplied interface to allow RESTCatalogAdapter implementations to have a mechanism to change
+   * how many file scan tasks get grouped in a plan task or under what conditions a table scan
+   * should be performed async. Primarily used in testing to allow overriding more deterministic
+   * ways of planning behavior.
+   */
+  public interface PlanningBehavior {
+    default int numberFileScanTasksPerPlanTask() {
+      return 100;
+    }
+
+    default boolean shouldPlanTableScanAsync(Scan<?, FileScanTask, ?> scan) {
+      return false;
+    }
+  }
+
+  protected PlanningBehavior planningBehavior() {
+    return this.planningBehavior == null ? new PlanningBehavior() {} : planningBehavior;
+  }
+
+  protected void setPlanningBehavior(PlanningBehavior behavior) {
+    this.planningBehavior = behavior;
+  }
+
   @Override
   public void close() throws IOException {
     // The calling test is responsible for closing the underlying catalog backing this REST catalog
     // so that the underlying backend catalog is not closed and reopened during the REST catalog's
     // initialize method when fetching the server configuration.
+    CatalogHandlers.clearPlanningState();
   }
 
   private static class BadResponseType extends RuntimeException {
@@ -570,7 +657,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.decodeNamespace(pathVars.get("namespace"));
+    return RESTUtil.decodeNamespace(
+        pathVars.get("namespace"), NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
 
   private static TableIdentifier tableIdentFromPathVars(Map<String, String> pathVars) {
@@ -581,6 +669,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private static TableIdentifier viewIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
         namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("view")));
+  }
+
+  private static String planIDFromPathVars(Map<String, String> pathVars) {
+    return RESTUtil.decodeString(pathVars.get("plan-id"));
   }
 
   private static SnapshotMode snapshotModeFromQueryParams(Map<String, String> queryParams) {

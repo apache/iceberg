@@ -19,8 +19,8 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
@@ -184,6 +184,11 @@ public class PartitionSpec implements Serializable {
               classes[i] = Object.class;
             } else {
               Type sourceType = schema.findType(field.sourceId());
+              if (null == sourceType) {
+                // When the source field has been dropped we cannot determine the type
+                sourceType = Types.UnknownType.get();
+              }
+
               Type result = field.transform().getResultType(sourceType);
               classes[i] = result.typeId().javaClass();
             }
@@ -203,11 +208,7 @@ public class PartitionSpec implements Serializable {
   }
 
   private String escape(String string) {
-    try {
-      return URLEncoder.encode(string, "UTF-8");
-    } catch (UnsupportedEncodingException e) {
-      throw new RuntimeException(e);
-    }
+    return URLEncoder.encode(string, StandardCharsets.UTF_8);
   }
 
   public String partitionToPath(StructLike data) {

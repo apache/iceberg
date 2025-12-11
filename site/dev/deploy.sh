@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+source dev/common.sh
 set -e
 
 remote_name="${1:-origin}"
@@ -24,4 +25,4 @@ remote_name="${1:-origin}"
 
 echo " --> Deploy to asf-site branch of remote repository: ${remote_name}"
 
-mkdocs gh-deploy --no-history --remote-branch=asf-site --remote-name ${remote_name}
+"${VENV_DIR}/bin/python3" -m mkdocs gh-deploy --no-history --remote-branch=asf-site --remote-name ${remote_name}

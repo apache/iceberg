@@ -197,7 +197,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     assertThatThrownBy(() -> jdbcCatalog.listNamespaces())
         .isInstanceOf(UncheckedSQLException.class)
-        .hasMessage(String.format("Failed to execute query: %s", JdbcUtil.LIST_ALL_NAMESPACES_SQL));
+        .hasMessage("Failed to execute query: %s", JdbcUtil.LIST_ALL_NAMESPACES_SQL);
   }
 
   @Test
@@ -239,7 +239,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     expectedRetryableExceptions.forEach(
         exception -> {
           assertThat(jdbcClientPool.isConnectionException(exception))
-              .as(String.format("%s status should be retryable", exception.getSQLState()))
+              .as("%s status should be retryable", exception.getSQLState())
               .isTrue();
         });
 
@@ -250,7 +250,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     expectedRetryableExceptions.forEach(
         exception -> {
           assertThat(updatedClientPool.isConnectionException(exception))
-              .as(String.format("%s status should be retryable", exception.getSQLState()))
+              .as("%s status should be retryable", exception.getSQLState())
               .isTrue();
         });
   }
@@ -848,15 +848,15 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     assertThatThrownBy(() -> catalog.dropNamespace(tbl1.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace db.ns1.ns2 is not empty. 2 tables exist.");
+        .hasMessage("Namespace db.ns1.ns2 is not empty. Contains 2 table(s).");
 
     assertThatThrownBy(() -> catalog.dropNamespace(tbl2.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace db.ns1 is not empty. 1 tables exist.");
+        .hasMessage("Namespace db.ns1 is not empty. Contains 1 table(s).");
 
     assertThatThrownBy(() -> catalog.dropNamespace(tbl4.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Namespace db is not empty. 1 tables exist.");
+        .hasMessage("Namespace db is not empty. Contains 1 table(s).");
   }
 
   @Test

@@ -20,7 +20,13 @@ package org.apache.iceberg.hive;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -36,10 +42,12 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.HashWriter;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.view.ViewMetadata;
 import org.slf4j.Logger;
@@ -101,6 +109,7 @@ public class HMSTablePropertyHelper {
         metadata.schema(),
         maxHiveTablePropertySize);
     setStorageHandler(parameters, hiveEngineEnabled);
+    setMetadataHash(metadata, parameters);
 
     // Set the basic statistics
     if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
@@ -253,6 +262,41 @@ public class HMSTablePropertyHelper {
     if (exposeInHmsProperties(maxHiveTablePropertySize) && schema != null) {
       String jsonSchema = SchemaParser.toJson(schema);
       setField(parameters, TableProperties.CURRENT_SCHEMA, jsonSchema, maxHiveTablePropertySize);
+    }
+  }
+
+  @VisibleForTesting
+  static void setMetadataHash(TableMetadata metadata, Map<String, String> parameters) {
+    if (parameters.containsKey(TableProperties.ENCRYPTION_TABLE_KEY)) {
+      byte[] currentHashBytes = hashOf(metadata);
+      parameters.put(
+          BaseMetastoreTableOperations.METADATA_HASH_PROP,
+          Base64.getEncoder().encodeToString(currentHashBytes));
+    }
+  }
+
+  @VisibleForTesting
+  static void verifyMetadataHash(TableMetadata metadata, String metadataHashFromHMS) {
+    byte[] currentHashBytes = hashOf(metadata);
+    byte[] expectedHashBytes = Base64.getDecoder().decode(metadataHashFromHMS);
+
+    if (!Arrays.equals(expectedHashBytes, currentHashBytes)) {
+      throw new RuntimeException(
+          String.format(
+              "The current metadata file %s might have been modified. Hash of metadata loaded from storage differs "
+                  + "from HMS-stored metadata hash.",
+              metadata.metadataFileLocation()));
+    }
+  }
+
+  private static byte[] hashOf(TableMetadata tableMetadata) {
+    try (HashWriter hashWriter = new HashWriter("SHA-256", StandardCharsets.UTF_8)) {
+      JsonGenerator generator = JsonUtil.factory().createGenerator(hashWriter);
+      TableMetadataParser.toJson(tableMetadata, generator);
+      generator.flush();
+      return hashWriter.getHash();
+    } catch (NoSuchAlgorithmException | IOException e) {
+      throw new RuntimeException("Unable to produce hash of table metadata", e);
     }
   }
 

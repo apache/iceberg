@@ -459,4 +459,47 @@ public class TestPartitioning {
 
     assertThat(table.spec()).isEqualTo(spec);
   }
+
+  @Test
+  public void deleteFileAfterDeletingAllPartitionFields() {
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, BY_DATA_SPEC, V2_FORMAT_VERSION);
+
+    DataFile dataFile =
+        DataFiles.builder(BY_DATA_SPEC)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data=1")
+            .withRecordCount(1)
+            .build();
+
+    table.newAppend().appendFile(dataFile).commit();
+    assertThat(table.currentSnapshot().summary()).containsEntry("added-data-files", "1");
+    table.updateSpec().removeField("data").commit();
+    table.updateSchema().deleteColumn("data").commit();
+    table.newDelete().deleteFile(dataFile).commit();
+    assertThat(table.currentSnapshot().summary()).containsEntry("deleted-data-files", "1");
+  }
+
+  @Test
+  public void deleteFileAfterDeletingOnePartitionField() {
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, BY_CATEGORY_DATA_SPEC, V2_FORMAT_VERSION);
+
+    // drop one out of 2 partition fields
+    DataFile dataFile =
+        DataFiles.builder(BY_CATEGORY_DATA_SPEC)
+            .withPath("/path/to/data-b.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("category=2/data=2")
+            .withRecordCount(1)
+            .build();
+
+    table.newAppend().appendFile(dataFile).commit();
+    assertThat(table.currentSnapshot().summary()).containsEntry("added-data-files", "1");
+    table.updateSpec().removeField("data").commit();
+    table.updateSchema().deleteColumn("data").commit();
+    table.newDelete().deleteFile(dataFile).commit();
+    assertThat(table.currentSnapshot().summary()).containsEntry("deleted-data-files", "1");
+  }
 }

@@ -26,6 +26,7 @@ import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_SUMMARY;
 import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_TIMESTAMP;
 import static org.apache.iceberg.TableProperties.DEFAULT_PARTITION_SPEC;
 import static org.apache.iceberg.TableProperties.DEFAULT_SORT_ORDER;
+import static org.apache.iceberg.TableProperties.ENCRYPTION_TABLE_KEY;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_COUNT;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -47,6 +48,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -460,7 +462,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
     assertThatThrownBy(() -> catalog.createNamespace(namespace1))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage(String.format("Namespace already exists: %s", namespace1));
+        .hasMessage("Namespace already exists: %s", namespace1);
     String hiveLocalDir = temp.toFile().toURI().toString();
     // remove the trailing slash of the URI
     hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
@@ -530,9 +532,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Create namespace setting %s without setting %s is not allowed",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Create namespace setting %s without setting %s is not allowed",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -655,9 +656,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Setting %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Setting %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -671,9 +671,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Setting %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Setting %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -846,9 +845,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Removing %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Removing %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -866,9 +864,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Removing %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Removing %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
   }
 
   private void removeNamespaceOwnershipAndVerify(
@@ -1242,6 +1239,31 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     } finally {
       // Dropping the test database
       HIVE_METASTORE_EXTENSION.metastoreClient().dropDatabase(dbName);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testMetadataHashing(boolean isTableEncrypted) {
+    Map<String, String> hiveTblProperties = Maps.newHashMap();
+    if (isTableEncrypted) {
+      hiveTblProperties.put(ENCRYPTION_TABLE_KEY, "key_id");
+    }
+
+    Schema schema = new Schema(Types.NestedField.required(1, "col1", Types.StringType.get()));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+
+    HMSTablePropertyHelper.setMetadataHash(tableMetadata, hiveTblProperties);
+
+    String base64EncodedHash =
+        hiveTblProperties.get(BaseMetastoreTableOperations.METADATA_HASH_PROP);
+    if (isTableEncrypted) {
+      assertThat(base64EncodedHash).isBase64();
+      HMSTablePropertyHelper.verifyMetadataHash(tableMetadata, base64EncodedHash);
+    } else {
+      assertThat(base64EncodedHash).isNull();
     }
   }
 }

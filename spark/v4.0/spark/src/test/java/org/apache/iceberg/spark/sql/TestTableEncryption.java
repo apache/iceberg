@@ -29,13 +29,21 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.ChecksumFileSystem;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
@@ -51,6 +59,7 @@ import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.mockito.internal.util.collections.Iterables;
 
 public class TestTableEncryption extends CatalogTestBase {
   private static Map<String, String> appendCatalogEncryptionProperties(Map<String, String> props) {
@@ -76,7 +85,7 @@ public class TestTableEncryption extends CatalogTestBase {
     sql(
         "CREATE TABLE %s (id bigint, data string, float float) USING iceberg "
             + "TBLPROPERTIES ( "
-            + "'encryption.key-id'='%s')",
+            + "'encryption.key-id'='%s', 'format-version'='3')",
         tableName, UnitestKMS.MASTER_KEY_NAME1);
 
     sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
@@ -103,8 +112,8 @@ public class TestTableEncryption extends CatalogTestBase {
 
   @TestTemplate
   public void testRefresh() {
-    catalog.initialize(catalogName, catalogConfig);
-    Table table = catalog.loadTable(tableIdent);
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
 
     assertThat(currentDataFiles(table)).isNotEmpty();
 
@@ -112,6 +121,76 @@ public class TestTableEncryption extends CatalogTestBase {
 
     table.refresh();
     assertThat(currentDataFiles(table)).isNotEmpty();
+  }
+
+  @TestTemplate
+  public void testAppendTransaction() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    List<DataFile> dataFiles = currentDataFiles(table);
+    Transaction transaction = table.newTransaction();
+    AppendFiles append = transaction.newAppend();
+
+    // add an arbitrary datafile
+    append.appendFile(dataFiles.get(0));
+    append.commit();
+    transaction.commitTransaction();
+
+    assertThat(currentDataFiles(table)).hasSize(dataFiles.size() + 1);
+  }
+
+  @TestTemplate
+  public void testConcurrentAppendTransactions() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    List<DataFile> dataFiles = currentDataFiles(table);
+    Transaction transaction = table.newTransaction();
+    AppendFiles append = transaction.newAppend();
+
+    // add an arbitrary datafile
+    append.appendFile(dataFiles.get(0));
+
+    // append to the table in the meantime. use a separate load to avoid shared operations
+    validationCatalog.loadTable(tableIdent).newFastAppend().appendFile(dataFiles.get(0)).commit();
+
+    append.commit();
+    transaction.commitTransaction();
+
+    assertThat(currentDataFiles(table)).hasSize(dataFiles.size() + 2);
+  }
+
+  // See CatalogTests#testConcurrentReplaceTransactions
+  @TestTemplate
+  public void testConcurrentReplaceTransactions() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    DataFile file = currentDataFiles(table).get(0);
+    Schema schema = table.schema();
+
+    // Write data for a replace transaction that will be committed later
+    Transaction secondReplace =
+        validationCatalog
+            .buildTable(tableIdent, schema)
+            .withProperty("encryption.key-id", UnitestKMS.MASTER_KEY_NAME1)
+            .replaceTransaction();
+    secondReplace.newFastAppend().appendFile(file).commit();
+
+    // Commit another replace transaction first
+    Transaction firstReplace =
+        validationCatalog
+            .buildTable(tableIdent, schema)
+            .withProperty("encryption.key-id", UnitestKMS.MASTER_KEY_NAME1)
+            .replaceTransaction();
+    firstReplace.newFastAppend().appendFile(file).commit();
+    firstReplace.commitTransaction();
+
+    secondReplace.commitTransaction();
+
+    Table afterSecondReplace = validationCatalog.loadTable(tableIdent);
+    assertThat(currentDataFiles(afterSecondReplace)).hasSize(1);
   }
 
   @TestTemplate
@@ -143,10 +222,40 @@ public class TestTableEncryption extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testMetadataTamperproofing() throws IOException {
+    ChecksumFileSystem fs = ((ChecksumFileSystem) FileSystem.newInstance(new Configuration()));
+    catalog.initialize(catalogName, catalogConfig);
+
+    Table table = catalog.loadTable(tableIdent);
+    TableMetadata currentMetadata = ((HasTableOperations) table).operations().current();
+    Path metadataFile = new Path(currentMetadata.metadataFileLocation());
+    Path previousMetadataFile = new Path(Iterables.firstOf(currentMetadata.previousFiles()).file());
+
+    // manual FS tampering: replacing the current metadata file with a previous one
+    Path crcPath = fs.getChecksumFile(metadataFile);
+    fs.delete(crcPath, false);
+    fs.delete(metadataFile, false);
+    fs.rename(previousMetadataFile, metadataFile);
+
+    assertThatThrownBy(() -> catalog.loadTable(tableIdent))
+        .hasMessageContaining(
+            String.format(
+                "The current metadata file %s might have been modified. Hash of metadata loaded from storage differs from HMS-stored metadata hash.",
+                metadataFile));
+  }
+
+  @TestTemplate
   public void testKeyDelete() {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s UNSET TBLPROPERTIES (`encryption.key-id`)", tableName))
         .hasMessageContaining("Cannot remove key in encrypted table");
+  }
+
+  @TestTemplate
+  public void testKeyAlter() {
+    assertThatThrownBy(
+            () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='abcd')", tableName))
+        .hasMessageContaining("Cannot modify key in encrypted table");
   }
 
   @TestTemplate

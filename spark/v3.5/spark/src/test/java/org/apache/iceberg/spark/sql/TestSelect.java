@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
@@ -148,6 +149,19 @@ public class TestSelect extends CatalogTestBase {
     assertThat(Spark3Util.describe(lastScanEvent.filter()))
         .as("Should push down expected filter")
         .isEqualTo("(float IS NOT NULL AND is_nan(float))");
+  }
+
+  @TestTemplate
+  public void selectWithLimit() {
+    Object[] first = row(1L, "a", 1.0F);
+    Object[] second = row(2L, "b", 2.0F);
+    Object[] third = row(3L, "c", Float.NaN);
+
+    // verify that LIMIT is properly applied in case SupportsPushDownLimit.isPartiallyPushed() is
+    // ever overridden in SparkScanBuilder
+    assertThat(sql("SELECT * FROM %s LIMIT 1", tableName)).containsExactly(first);
+    assertThat(sql("SELECT * FROM %s LIMIT 2", tableName)).containsExactly(first, second);
+    assertThat(sql("SELECT * FROM %s LIMIT 3", tableName)).containsExactly(first, second, third);
   }
 
   @TestTemplate
@@ -629,5 +643,40 @@ public class TestSelect extends CatalogTestBase {
 
     assertEquals("Should return all expected rows", ImmutableList.of(row(0)), result);
     sql("DROP TABLE IF EXISTS %s", nestedStructTable);
+  }
+
+  @TestTemplate
+  public void simpleTypesInFilter() {
+    String tableName = tableName("simple_types_table");
+    sql(
+        "CREATE TABLE IF NOT EXISTS %s (id bigint, boolean boolean, integer integer, long long, "
+            + "float float, double double, string string, date date, timestamp timestamp) USING iceberg",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, true, 1, 1L, 1.1, 1.3, '1.5', to_date('2021-01-01'), to_timestamp('2021-01-01T00:00:00')), "
+            + "(2, false, 2, 2L, 2.2, 2.4, '2.6', to_date('2022-02-02'), to_timestamp('2022-02-02T00:00:00')), "
+            + "(3, true, 3, 3L, 3.3, 3.6, '3.9', to_date('2023-03-03'), to_timestamp('2023-03-03T00:00:00'))",
+        tableName);
+    assertThat(sql("SELECT id FROM %s where id > 1", tableName)).containsExactly(row(2L), row(3L));
+    assertThat(sql("SELECT id, boolean FROM %s where boolean = true", tableName))
+        .containsExactly(row(1L, true), row(3L, true));
+    assertThat(sql("SELECT long FROM %s where long > 1", tableName))
+        .containsExactly(row(2L), row(3L));
+    assertThat(sql("SELECT float FROM %s where float > 1.1f", tableName))
+        .containsExactly(row(2.2f), row(3.3f));
+    assertThat(sql("SELECT double FROM %s where double > 1.3", tableName))
+        .containsExactly(row(2.4d), row(3.6d));
+    assertThat(sql("SELECT string FROM %s where string > '1.5'", tableName))
+        .containsExactly(row("2.6"), row("3.9"));
+    java.sql.Date dateOne = java.sql.Date.valueOf("2022-02-02");
+    java.sql.Date dateTwo = java.sql.Date.valueOf("2023-03-03");
+    assertThat(sql("SELECT date FROM %s where date > to_date('2021-01-01')", tableName))
+        .containsExactly(row(dateOne), row(dateTwo));
+    assertThat(
+            sql("SELECT timestamp FROM %s where timestamp > to_timestamp('2021-01-01')", tableName))
+        .containsExactly(
+            row(new Timestamp(dateOne.getTime())), row(new Timestamp(dateTwo.getTime())));
+
+    sql("DROP TABLE IF EXISTS %s", tableName);
   }
 }
