@@ -203,9 +203,8 @@ public class StructRowData implements RowData {
             "Unknown type for nanosecond timestamp field. Type name: "
                 + longVal.getClass().getName());
       }
-      long mills = Math.floorDiv(nanos, 1_000_000);
-      int leftover = Math.floorMod(nanos, 1_000_000);
-      return TimestampData.fromEpochMillis(mills, leftover);
+
+      return TimestampData.fromEpochMillis(nanos / 1_000_000L, (int) (nanos % 1_000_000L));
     } else {
       // Microsecond precision (precision 6) or other precisions
       long timeLong = getLong(pos);

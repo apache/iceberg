@@ -49,14 +49,25 @@ public class RowDataToAvroGenericRecordConverter implements Function<RowData, Ge
   private final RowDataToAvroConverters.RowDataToAvroConverter converter;
   private final Schema avroSchema;
   private final Set<Integer> timestampNanosFieldIndices;
-  private final RowType converterRowType;
+  private final RowData.FieldGetter[] fieldGetters;
 
   private RowDataToAvroGenericRecordConverter(
       RowType converterRowType, Schema avroSchema, Set<Integer> timestampNanosFieldIndices) {
     this.converter = RowDataToAvroConverters.createConverter(converterRowType);
     this.avroSchema = avroSchema;
     this.timestampNanosFieldIndices = timestampNanosFieldIndices;
-    this.converterRowType = converterRowType;
+
+    // Pre-create field getters only if there are timestamp-nanos fields
+    // (otherwise we take the early return path and never use them)
+    if (!timestampNanosFieldIndices.isEmpty()) {
+      this.fieldGetters = new RowData.FieldGetter[converterRowType.getFieldCount()];
+      for (int i = 0; i < converterRowType.getFieldCount(); i++) {
+        LogicalType fieldType = converterRowType.getTypeAt(i);
+        this.fieldGetters[i] = RowData.createFieldGetter(fieldType, i);
+      }
+    } else {
+      this.fieldGetters = null;
+    }
   }
 
   @Override
@@ -83,14 +94,8 @@ public class RowDataToAvroGenericRecordConverter implements Function<RowData, Ge
           processedRowData.setField(i, null);
         }
       } else {
-        // Copy other fields as-is
-        if (rowData.isNullAt(i)) {
-          processedRowData.setField(i, null);
-        } else {
-          LogicalType fieldType = converterRowType.getTypeAt(i);
-          RowData.FieldGetter fieldGetter = RowData.createFieldGetter(fieldType, i);
-          processedRowData.setField(i, fieldGetter.getFieldOrNull(rowData));
-        }
+        // Copy other fields as-is using pre-created field getter
+        processedRowData.setField(i, fieldGetters[i].getFieldOrNull(rowData));
       }
     }
 

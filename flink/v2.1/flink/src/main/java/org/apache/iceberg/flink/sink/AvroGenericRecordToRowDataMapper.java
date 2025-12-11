@@ -48,12 +48,23 @@ public class AvroGenericRecordToRowDataMapper implements MapFunction<GenericReco
 
   private final AvroToRowDataConverters.AvroToRowDataConverter converter;
   private final List<Integer> timestampNanosFieldIndices;
-  private final RowType rowType;
+  private final RowData.FieldGetter[] fieldGetters;
 
   AvroGenericRecordToRowDataMapper(RowType rowType, List<Integer> timestampNanosFieldIndices) {
     this.converter = AvroToRowDataConverters.createRowConverter(rowType);
     this.timestampNanosFieldIndices = timestampNanosFieldIndices;
-    this.rowType = rowType;
+
+    // Pre-create field getters only if there are timestamp-nanos fields
+    // (otherwise we take the early return path and never use them)
+    if (!timestampNanosFieldIndices.isEmpty()) {
+      this.fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
+      for (int i = 0; i < rowType.getFieldCount(); i++) {
+        LogicalType fieldType = rowType.getTypeAt(i);
+        this.fieldGetters[i] = RowData.createFieldGetter(fieldType, i);
+      }
+    } else {
+      this.fieldGetters = null;
+    }
   }
 
   @Override
@@ -70,38 +81,26 @@ public class AvroGenericRecordToRowDataMapper implements MapFunction<GenericReco
     GenericRowData correctedRowData = new GenericRowData(rowData.getArity());
     correctedRowData.setRowKind(rowData.getRowKind());
 
-    // Copy all fields from the converted RowData
     for (int i = 0; i < rowData.getArity(); i++) {
       if (timestampNanosFieldIndices.contains(i)) {
         // Manually convert timestamp-nanos field from original Avro record
         Object avroValue = genericRecord.get(i);
         if (avroValue instanceof Long) {
           long nanos = (Long) avroValue;
-          long millis = Math.floorDiv(nanos, 1_000_000);
-          int nanosOfMillis = Math.floorMod(nanos, 1_000_000);
-          TimestampData timestampData = TimestampData.fromEpochMillis(millis, nanosOfMillis);
+          TimestampData timestampData =
+              TimestampData.fromEpochMillis(nanos / 1_000_000L, (int) (nanos % 1_000_000L));
           correctedRowData.setField(i, timestampData);
         } else {
           // If not a Long, copy as-is
-          correctedRowData.setField(i, getFieldValue(rowData, i));
+          correctedRowData.setField(i, fieldGetters[i].getFieldOrNull(rowData));
         }
       } else {
         // Copy other fields as-is
-        correctedRowData.setField(i, getFieldValue(rowData, i));
+        correctedRowData.setField(i, fieldGetters[i].getFieldOrNull(rowData));
       }
     }
 
     return correctedRowData;
-  }
-
-  private Object getFieldValue(RowData rowData, int pos) {
-    if (rowData.isNullAt(pos)) {
-      return null;
-    }
-    // Use FieldGetter to extract the field value
-    LogicalType fieldType = rowType.getTypeAt(pos);
-    RowData.FieldGetter fieldGetter = RowData.createFieldGetter(fieldType, pos);
-    return fieldGetter.getFieldOrNull(rowData);
   }
 
   /** Create a mapper based on Avro schema. */
@@ -120,7 +119,6 @@ public class AvroGenericRecordToRowDataMapper implements MapFunction<GenericReco
       Schema.Field avroField = avroFields.get(i);
       LogicalType fieldType = originalFields[i];
 
-      // Check if this field has timestamp-nanos logical type
       if (avroField.schema().getLogicalType() instanceof LogicalTypes.TimestampNanos) {
         // Replace BIGINT with TIMESTAMP(9) for nanosecond precision
         fixedFields.add(new TimestampType(9));
