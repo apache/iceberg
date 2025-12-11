@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.azure.keymanagement;
 
-import static org.apache.iceberg.azure.AzureProperties.KEYVAULT_URI;
+import static org.apache.iceberg.azure.AzureProperties.AZURE_KEYVAULT_URL;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.azure.identity.DefaultAzureCredentialBuilder;
@@ -39,7 +39,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
   @EnabledIfEnvironmentVariable(named = "AZURE_CLIENT_ID", matches = ".*"),
   @EnabledIfEnvironmentVariable(named = "AZURE_CLIENT_SECRET", matches = ".*"),
   @EnabledIfEnvironmentVariable(named = "AZURE_TENANT_ID", matches = ".*"),
-  @EnabledIfEnvironmentVariable(named = KEYVAULT_URI, matches = ".*")
+  @EnabledIfEnvironmentVariable(named = "AZURE_KEYVAULT_URL", matches = ".*")
 })
 public class TestAzureKeyManagementClient {
   private static final String ICEBERG_TEST_KEY_NAME = "iceberg-test-key";
@@ -50,7 +50,7 @@ public class TestAzureKeyManagementClient {
 
   @BeforeAll
   public static void beforeClass() {
-    String keyVaultUri = System.getenv(KEYVAULT_URI);
+    String keyVaultUri = System.getenv("AZURE_KEYVAULT_URL");
     keyClient =
         new KeyClientBuilder()
             .vaultUrl(keyVaultUri)
@@ -58,13 +58,13 @@ public class TestAzureKeyManagementClient {
             .buildClient();
     keyClient.createKey(ICEBERG_TEST_KEY_NAME, KeyType.RSA);
     azureKeyManagementClient = new AzureKeyManagementClient();
-    azureKeyManagementClient.initialize(ImmutableMap.of(KEYVAULT_URI, keyVaultUri));
+    azureKeyManagementClient.initialize(ImmutableMap.of(AZURE_KEYVAULT_URL, keyVaultUri));
   }
 
   @AfterAll
   public static void afterClass() {
     if (keyClient != null) {
-      keyClient.beginDeleteKey(ICEBERG_TEST_KEY_NAME).waitForCompletion(Duration.ofMinutes(5));
+      keyClient.beginDeleteKey(ICEBERG_TEST_KEY_NAME).waitForCompletion(Duration.ofMinutes(3));
       keyClient.purgeDeletedKey(ICEBERG_TEST_KEY_NAME);
     }
   }

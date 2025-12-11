@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.azure.keymanagement;
 
-import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.security.keyvault.keys.KeyClient;
 import com.azure.security.keyvault.keys.KeyClientBuilder;
 import com.azure.security.keyvault.keys.cryptography.models.KeyWrapAlgorithm;
@@ -26,6 +25,7 @@ import com.azure.security.keyvault.keys.cryptography.models.UnwrapResult;
 import com.azure.security.keyvault.keys.cryptography.models.WrapResult;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.azure.AdlsTokenCredentialProviders;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.util.ByteBuffers;
@@ -39,12 +39,12 @@ public class AzureKeyManagementClient implements KeyManagementClient {
   public void initialize(Map<String, String> properties) {
     AzureProperties azureProperties = new AzureProperties(properties);
 
-    String vaultUrl = azureProperties.keyVaultUri();
     this.keyWrapAlgorithm = azureProperties.keyWrapAlgorithm();
+    KeyClientBuilder keyClientBuilder = new KeyClientBuilder();
+    azureProperties.keyVaultUrl().ifPresent(keyClientBuilder::vaultUrl);
     this.keyClient =
-        new KeyClientBuilder()
-            .vaultUrl(vaultUrl)
-            .credential(new DefaultAzureCredentialBuilder().build())
+        keyClientBuilder
+            .credential(AdlsTokenCredentialProviders.from(properties).credential())
             .buildClient();
   }
 
