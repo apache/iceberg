@@ -190,7 +190,6 @@ These queries only return `id` and `status`, because tags are bound to a
 specific snapshot and use that snapshot's schema, even if the table's current
 schema has evolved.
 
-
 ## Querying with DataFrames
 
 To load a table as a DataFrame, use `table`:
