@@ -24,6 +24,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -66,7 +67,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -114,7 +114,6 @@ public class CatalogHandlers {
   // Advanced idempotency store with TTL and in-flight coalescing
   private static final ConcurrentMap<String, IdempotencyEntry> IDEMPOTENCY_STORE =
       Maps.newConcurrentMap();
-  private static final Set<String> SIMULATE_503_ON_FIRST_SUCCESS_KEYS = Sets.newConcurrentHashSet();
   private static volatile long idempotencyLifetimeMillis = TimeUnit.MINUTES.toMillis(30);
 
   private CatalogHandlers() {}
@@ -155,11 +154,7 @@ public class CatalogHandlers {
     // check existing entry and TTL
     IdempotencyEntry existing = IDEMPOTENCY_STORE.get(key);
     if (existing != null) {
-      long now = System.currentTimeMillis();
-      boolean expired =
-          existing.status == IdempotencyEntry.Status.FINALIZED
-              && (now - existing.firstSeenMillis) > idempotencyLifetimeMillis;
-      if (!expired) {
+      if (!existing.isExpired()) {
         existing.awaitFinalized();
         if (existing.error != null) {
           throw existing.error;
@@ -175,11 +170,6 @@ public class CatalogHandlers {
     try {
       T res = action.get();
       entry.finalizeSuccess(res);
-
-      if (SIMULATE_503_ON_FIRST_SUCCESS_KEYS.remove(key)) {
-        throw new CommitStateUnknownException(
-            new RuntimeException("simulated transient 503 after success"));
-      }
       return res;
     } catch (RuntimeException e) {
       if (entry.status != IdempotencyEntry.Status.FINALIZED || entry.responseBody == null) {
@@ -187,11 +177,6 @@ public class CatalogHandlers {
       }
       throw e;
     }
-  }
-
-  // Test hooks/configuration for idempotency behavior
-  public static void simulate503OnFirstSuccessForKey(String key) {
-    SIMULATE_503_ON_FIRST_SUCCESS_KEYS.add(key);
   }
 
   public static void setIdempotencyLifetimeFromIso(String isoDuration) {
@@ -247,6 +232,16 @@ public class CatalogHandlers {
         throw new RuntimeException(
             "Interrupted while waiting for idempotent request to complete", ie);
       }
+    }
+
+    boolean isExpired() {
+      if (this.status != Status.FINALIZED) {
+        return false;
+      }
+
+      Instant expiry =
+          Instant.ofEpochMilli(this.firstSeenMillis).plusMillis(idempotencyLifetimeMillis);
+      return Instant.now().isAfter(expiry);
     }
   }
 
