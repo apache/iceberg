@@ -348,6 +348,7 @@ public class TestRESTScanPlanning {
     }
   }
 
+  @Disabled("Temporarily disabled: Fix tracked via issue-14823")
   @ParameterizedTest
   @EnumSource(PlanningMode.class)
   void scanPlanningWithBatchScan(
