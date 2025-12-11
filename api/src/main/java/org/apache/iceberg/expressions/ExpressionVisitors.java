@@ -350,6 +350,7 @@ public class ExpressionVisitors {
                 "Invalid operation for BoundSetPredicate: " + pred.op());
         }
       }
+
       throw new IllegalStateException("Unsupported bound predicate: " + pred.getClass().getName());
     }
 

@@ -553,7 +553,7 @@ public class ExpressionUtil {
     } else if (literal instanceof Literals.VariantLiteral) {
       return sanitizeVariant(((Literals.VariantLiteral) literal).value(), now, today);
     } else if (literal instanceof BoundingBoxLiteral) {
-      return "(geospatial)";
+      return "(boundingbox)";
     } else {
       // for uuid, decimal, fixed and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());

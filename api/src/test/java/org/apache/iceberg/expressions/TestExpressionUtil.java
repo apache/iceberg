@@ -1366,13 +1366,13 @@ public class TestExpressionUtil {
 
     UnboundPredicate<ByteBuffer> geoPredicate =
         Expressions.geospatialPredicate(operation, columnName, bbox);
-    Expression predicateSanitized = Expressions.predicate(operation, columnName, "(geospatial)");
+    Expression predicateSanitized = Expressions.predicate(operation, columnName, "(boundingbox)");
     assertEquals(predicateSanitized, ExpressionUtil.sanitize(geoPredicate));
     assertEquals(predicateSanitized, ExpressionUtil.sanitize(geoStruct, geoPredicate, true));
 
     String opString = operation.name();
     String expectedSanitizedString =
-        opString.toLowerCase(Locale.ROOT) + "(" + columnName + ", (geospatial))";
+        opString.toLowerCase(Locale.ROOT) + "(" + columnName + ", (boundingbox))";
 
     assertThat(ExpressionUtil.toSanitizedString(geoPredicate))
         .as("Sanitized string should be identical for geospatial predicates")
