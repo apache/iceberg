@@ -134,6 +134,8 @@ class ExpressionType(BaseModel):
             'not-null',
             'is-nan',
             'not-nan',
+            'st-intersects',
+            'st-disjoint',
         ],
     )
 
@@ -148,6 +150,11 @@ class FalseExpression(BaseModel):
     type: ExpressionType = Field(
         default_factory=lambda: ExpressionType.parse_obj('false'), const=True
     )
+
+
+class CoordinateRange(BaseModel):
+    min: float
+    max: float
 
 
 class Reference(BaseModel):
@@ -1029,6 +1036,13 @@ class RenameTableRequest(BaseModel):
     destination: TableIdentifier
 
 
+class BoundingBox(BaseModel):
+    x: CoordinateRange
+    y: CoordinateRange
+    z: Optional[CoordinateRange] = None
+    m: Optional[CoordinateRange] = None
+
+
 class TransformTerm(BaseModel):
     type: str = Field('transform', const=True)
     transform: Transform
@@ -1189,6 +1203,12 @@ class SetExpression(BaseModel):
     values: List[PrimitiveTypeValue]
 
 
+class SpatialExpression(BaseModel):
+    type: ExpressionType
+    term: Term
+    value: BoundingBox
+
+
 class ResidualFilter6(SetExpression, ResidualFilter1):
     """
     An optional filter to be applied to rows in this file scan task.
@@ -1204,6 +1224,13 @@ class ResidualFilter7(LiteralExpression, ResidualFilter1):
 
 
 class ResidualFilter8(UnaryExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter9(SpatialExpression, ResidualFilter1):
     """
     An optional filter to be applied to rows in this file scan task.
     If the residual is not present, the client must produce the residual or use the original filter.
@@ -1254,6 +1281,7 @@ class Expression(BaseModel):
         SetExpression,
         LiteralExpression,
         UnaryExpression,
+        SpatialExpression,
     ]
 
 
@@ -1612,6 +1640,7 @@ class ResidualFilter(BaseModel):
         ResidualFilter6,
         ResidualFilter7,
         ResidualFilter8,
+        ResidualFilter9,
     ] = Field(
         ...,
         description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
