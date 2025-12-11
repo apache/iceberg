@@ -30,7 +30,6 @@ import static org.apache.iceberg.TestBase.SCHEMA;
 import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,6 +57,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Scan;
+import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.Namespace;
@@ -348,6 +348,25 @@ public class TestRESTScanPlanning {
     }
   }
 
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void scanPlanningWithBatchScan(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    configurePlanningBehavior(planMode);
+    Table table = restTableFor(scanPlanningCatalog(), "batch_scan_table");
+    setParserContext(table);
+
+    // Verify actual data file is returned with correct count
+    try (CloseableIterable<ScanTask> iterable = table.newBatchScan().planFiles()) {
+      List<ScanTask> tasks = Lists.newArrayList(iterable);
+
+      assertThat(tasks).hasSize(1);
+      assertThat(tasks.get(0).asFileScanTask().file().location()).isEqualTo(FILE_A.location());
+      assertThat(tasks.get(0).asFileScanTask().deletes()).isEmpty();
+    }
+  }
+
   @Test
   public void nestedPlanTaskPagination() throws IOException {
     // Configure: synchronous planning with very small pages (creates nested plan task structure)
@@ -409,11 +428,7 @@ public class TestRESTScanPlanning {
 
   @ParameterizedTest
   @EnumSource(MetadataTableType.class)
-  public void metadataTablesWithRemotePlanning(MetadataTableType type) throws IOException {
-    assumeThat(type)
-        .as("POSITION_DELETES table does not implement newScan() method")
-        .isNotEqualTo(MetadataTableType.POSITION_DELETES);
-
+  public void metadataTablesWithRemotePlanning(MetadataTableType type) {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
     RESTTable table = restTableFor(scanPlanningCatalog(), "metadata_tables_test");
     table.newAppend().appendFile(FILE_B).commit();
@@ -424,7 +439,12 @@ public class TestRESTScanPlanning {
     // tasks, this test just verifies that metadata tables can be scanned with RESTTable.
     Table metadataTableInstance = MetadataTableUtils.createMetadataTableInstance(table, type);
     assertThat(metadataTableInstance).isNotNull();
-    assertThat(metadataTableInstance.newScan().planFiles()).isNotEmpty();
+    if (type.equals(MetadataTableType.POSITION_DELETES)) {
+      // Position deletes table only uses batch scan
+      assertThat(metadataTableInstance.newBatchScan().planFiles()).isNotEmpty();
+    } else {
+      assertThat(metadataTableInstance.newScan().planFiles()).isNotEmpty();
+    }
   }
 
   @ParameterizedTest
