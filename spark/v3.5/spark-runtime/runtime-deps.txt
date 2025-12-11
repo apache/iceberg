@@ -5,10 +5,15 @@ com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21
 com.github.ben-manes.caffeine:caffeine:2.9
 com.google.errorprone:error_prone_annotations:2.10
 com.google.flatbuffers:flatbuffers-java:23.5
+com.nimbusds:content-type:2.3
+com.nimbusds:lang-tag:1.7
+com.nimbusds:nimbus-jose-jwt:10.9
+com.nimbusds:oauth2-oidc-sdk:11.37
 dev.failsafe:failsafe:3.3
 io.airlift:aircompressor:2.0
 io.netty:netty-buffer:4.2
 io.netty:netty-common:4.2
+net.minidev:json-smart:2.6
 org.apache.arrow:arrow-format:15.0
 org.apache.arrow:arrow-memory-core:15.0
 org.apache.arrow:arrow-memory-netty:15.0
