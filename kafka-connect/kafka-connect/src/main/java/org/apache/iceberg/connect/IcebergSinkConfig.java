@@ -89,6 +89,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
   private static final String TRANSACTIONAL_PREFIX_PROP =
       "iceberg.coordinator.transactional.prefix";
+  private static final String WORKER_POLL_DURATION_MS_PROP = "iceberg.worker.poll.duration-ms";
+  private static final int WORKER_POLL_DURATION_MS_DEFAULT = 0;
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
@@ -235,6 +237,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         120000L,
         Importance.LOW,
         "config to control coordinator executor keep alive time");
+    configDef.define(
+        WORKER_POLL_DURATION_MS_PROP,
+        ConfigDef.Type.INT,
+        WORKER_POLL_DURATION_MS_DEFAULT,
+        Importance.MEDIUM,
+        "Worker poll duration, in millis");
     return configDef;
   }
 
@@ -394,6 +402,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public String controlGroupIdPrefix() {
     return getString(CONTROL_GROUP_ID_PREFIX_PROP);
+  }
+
+  public int workerPollDurationMs() {
+    return getInt(WORKER_POLL_DURATION_MS_PROP);
   }
 
   public String connectGroupId() {
