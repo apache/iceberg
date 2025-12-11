@@ -192,8 +192,7 @@ public class TestWorker extends ChannelTestBase {
       // Add events with different group IDs (should be ignored)
       UUID commitId = UUID.randomUUID();
       Event event = new Event("different-group-id", new StartCommit(commitId));
-      consumer.addRecord(
-          new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", AvroUtil.encode(event)));
+      consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", AvroUtil.encode(event)));
 
       Thread.sleep(200);
       worker.process();
@@ -265,9 +264,7 @@ public class TestWorker extends ChannelTestBase {
 
       // Add COMMIT_COMPLETE event
       Event commitComplete =
-          new Event(
-              config.connectGroupId(),
-              new CommitComplete(commitId, EventTestUtil.now()));
+          new Event(config.connectGroupId(), new CommitComplete(commitId, EventTestUtil.now()));
       consumer.addRecord(
           new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", AvroUtil.encode(commitComplete)));
 
@@ -352,8 +349,7 @@ public class TestWorker extends ChannelTestBase {
 
       UUID commitId = UUID.randomUUID();
       Event event = new Event(config.connectGroupId(), new StartCommit(commitId));
-      consumer.addRecord(
-          new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", AvroUtil.encode(event)));
+      consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", AvroUtil.encode(event)));
 
       // Wait for longer than poll interval to ensure event is buffered
       Thread.sleep(1500);
@@ -424,7 +420,8 @@ public class TestWorker extends ChannelTestBase {
       worker.process();
 
       // Should have events for both commits
-      assertThat(producer.history().size()).isGreaterThanOrEqualTo(4); // 2 data written + 2 data complete
+      assertThat(producer.history().size())
+          .isGreaterThanOrEqualTo(4); // 2 data written + 2 data complete
 
       worker.stop();
     }
