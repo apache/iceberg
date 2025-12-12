@@ -121,7 +121,6 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
     boolean newView = base == null;
     String newMetadataLocation = writeNewMetadataIfRequired(metadata);
     boolean hiveEngineEnabled = false;
-
     CommitStatus commitStatus = CommitStatus.FAILURE;
     boolean updateHiveView = false;
 
@@ -130,7 +129,6 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
       lock.lock();
 
       Table tbl = loadHmsTable();
-
       if (tbl != null) {
         // If we try to create the view but the metadata location is already set, then we had a
         // concurrent commit
@@ -149,7 +147,6 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
         String sqlQuery = sqlFor(metadata);
         tbl.setViewExpandedText(sqlQuery);
         tbl.setViewOriginalText(sqlQuery);
-
         updateHiveView = true;
         LOG.debug("Committing existing view: {}", fullName);
       } else {
