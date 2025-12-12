@@ -146,6 +146,10 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
               viewName);
         }
 
+        String sqlQuery = sqlFor(metadata);
+        tbl.setViewExpandedText(sqlQuery);
+        tbl.setViewOriginalText(sqlQuery);
+
         updateHiveView = true;
         LOG.debug("Committing existing view: {}", fullName);
       } else {
