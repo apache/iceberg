@@ -64,7 +64,7 @@ nav:
         - Apache Amoro: integrations/amoro.md
         - Apache Doris: https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog
         - Apache Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
-        - Apache Fluss: https://fluss.apache.org/docs/streaming-lakehouse/integrate-data-lakes/iceberg/
+        - Apache Fluss: https://fluss.apache.org/docs/next/streaming-lakehouse/integrate-data-lakes/iceberg/
         - BladePipe: https://www.bladepipe.com/docs/dataMigrationAndSync/datasource_func/Iceberg/props_for_iceberg_ds
         - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
         - Daft: integrations/daft.md
