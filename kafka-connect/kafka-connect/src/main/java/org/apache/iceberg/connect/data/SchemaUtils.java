@@ -123,7 +123,13 @@ class SchemaUtils {
     // apply the updates
     UpdateSchema updateSchema = table.updateSchema();
     addColumns.forEach(
-        update -> updateSchema.addColumn(update.parentName(), update.name(), update.type()));
+        update -> {
+          if (update.isOptional()) {
+            updateSchema.addColumn(update.parentName(), update.name(), update.type());
+          } else {
+            updateSchema.addRequiredColumn(update.parentName(), update.name(), update.type());
+          }
+        });
     updateTypes.forEach(update -> updateSchema.updateColumn(update.name(), update.type()));
     makeOptionals.forEach(update -> updateSchema.makeColumnOptional(update.name()));
     updateSchema.commit();
