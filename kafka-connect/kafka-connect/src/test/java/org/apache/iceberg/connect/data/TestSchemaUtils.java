@@ -65,6 +65,7 @@ import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
+import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Time;
@@ -330,5 +331,87 @@ public class TestSchemaUtils {
     // skip infer for object if values are empty objects
     assertThat(SchemaUtils.inferIcebergType(ImmutableMap.of("nested", ImmutableMap.of()), config))
         .isNull();
+  }
+
+  @Test
+  public void testToIcebergTypeWithRecursiveSchema() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.schemaForceOptional()).thenReturn(false);
+
+    Schema treeNodeSchema = mock(Schema.class);
+    when(treeNodeSchema.type()).thenReturn(Schema.Type.STRUCT);
+    when(treeNodeSchema.name()).thenReturn("TreeNode");
+    when(treeNodeSchema.isOptional()).thenReturn(false);
+
+    Field subtreesField = new Field("subtrees", 0, treeNodeSchema);
+    when(treeNodeSchema.fields()).thenReturn(ImmutableList.of(subtreesField));
+    Type result = SchemaUtils.toIcebergType(treeNodeSchema, config);
+
+    assertThat(result).isInstanceOf(StructType.class);
+    assertThat(result.asStructType().fieldType("subtrees")).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testToIcebergTypeWithEmptyStruct() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.schemaForceOptional()).thenReturn(false);
+
+    Schema emptyStructSchema = SchemaBuilder.struct().name("EmptyRecord").build();
+
+    Type result = SchemaUtils.toIcebergType(emptyStructSchema, config);
+    assertThat(result).isInstanceOf(StringType.class);
+  }
+
+  @Test
+  public void testToIcebergTypeWithNestedArraysOfStructs() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.schemaForceOptional()).thenReturn(false);
+
+    Schema employeeSchema =
+        SchemaBuilder.struct()
+            .name("Employee")
+            .field("id", Schema.STRING_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .field("email", Schema.STRING_SCHEMA)
+            .field("salary", Schema.INT64_SCHEMA)
+            .build();
+
+    Schema departmentSchema =
+        SchemaBuilder.struct()
+            .name("Department")
+            .field("name", Schema.STRING_SCHEMA)
+            .field("employees", SchemaBuilder.array(employeeSchema).build())
+            .build();
+
+    Schema organizationSchema =
+        SchemaBuilder.struct()
+            .name("Organization")
+            .field("departments", SchemaBuilder.array(departmentSchema).build())
+            .build();
+
+    Type result = SchemaUtils.toIcebergType(organizationSchema, config);
+
+    assertThat(result).isInstanceOf(StructType.class);
+    StructType orgStruct = result.asStructType();
+    assertThat(orgStruct.field("departments")).isNotNull();
+
+    Type departmentsType = orgStruct.fieldType("departments");
+    assertThat(departmentsType).isInstanceOf(ListType.class);
+
+    Type deptElementType = departmentsType.asListType().elementType();
+    assertThat(deptElementType).isInstanceOf(StructType.class);
+    StructType deptStruct = deptElementType.asStructType();
+    assertThat(deptStruct.field("employees")).isNotNull();
+
+    Type employeesType = deptStruct.fieldType("employees");
+    assertThat(employeesType).isInstanceOf(ListType.class);
+
+    Type empElementType = employeesType.asListType().elementType();
+    assertThat(empElementType).isInstanceOf(StructType.class);
+    StructType empStruct = empElementType.asStructType();
+    assertThat(empStruct.field("id")).isNotNull();
+    assertThat(empStruct.field("name")).isNotNull();
+    assertThat(empStruct.field("email")).isNotNull();
+    assertThat(empStruct.field("salary")).isNotNull();
   }
 }
