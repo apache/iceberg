@@ -169,7 +169,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         expireSnapshots.cleanExpiredMetadata(cleanExpiredMetadata);
       }
 
-      expireSnapshots.cleanExpiredFiles(false).commit();
+      expireSnapshots.cleanupLevel(CleanupLevel.NONE).commit();
 
       // fetch valid files after expiration
       TableMetadata updatedMetadata = ops.refresh();
