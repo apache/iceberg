@@ -111,7 +111,7 @@ public class TestResourcePaths {
   }
 
   @Test
-  public void testDecodeNamespaceContainingLegacySeparators() {
+  public void nestedNamespaceWithLegacySeparator() {
     Namespace namespace = Namespace.of("first", "second", "third");
     String legacySeparator = RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
     String newSeparator = RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
@@ -133,7 +133,7 @@ public class TestResourcePaths {
   }
 
   @Test
-  public void testDecodeNamespaceContainingNewSeparators() {
+  public void nestedNamespaceWithNewSeparator() {
     Namespace namespace = Namespace.of("first", "second", "third");
     String newSeparator = RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
 
