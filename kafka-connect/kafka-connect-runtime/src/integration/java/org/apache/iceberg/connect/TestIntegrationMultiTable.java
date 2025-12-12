@@ -46,7 +46,7 @@ public class TestIntegrationMultiTable extends IntegrationTestBase {
     catalog().createTable(TABLE_IDENTIFIER2, TestEvent.TEST_SCHEMA);
 
     boolean useSchema = branch == null; // use a schema for one of the tests
-    runTest(branch, useSchema, false, ImmutableMap.of(), List.of(TABLE_IDENTIFIER1, TABLE_IDENTIFIER2));
+    runTest(branch, useSchema, ImmutableMap.of(), List.of(TABLE_IDENTIFIER1, TABLE_IDENTIFIER2));
 
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER1, branch);
     assertThat(files).hasSize(1);
@@ -60,8 +60,8 @@ public class TestIntegrationMultiTable extends IntegrationTestBase {
   }
 
   @Override
-  protected KafkaConnectUtils.Config createConfig(boolean useSchema, boolean forceSchemaOptional) {
-    return createCommonConfig(useSchema, forceSchemaOptional)
+  protected KafkaConnectUtils.Config createConfig(boolean useSchema) {
+    return createCommonConfig(useSchema)
         .config(
             "iceberg.tables",
             String.format("%s.%s, %s.%s", TEST_DB, TEST_TABLE1, TEST_DB, TEST_TABLE2))
