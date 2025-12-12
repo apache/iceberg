@@ -3347,7 +3347,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testClientNamespaceSeparatorOverridden() {
+  public void testClientWithOverriddenNamespaceSeparator() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
     // When initializing the catalog, the adapter always sends an override for the namespace
