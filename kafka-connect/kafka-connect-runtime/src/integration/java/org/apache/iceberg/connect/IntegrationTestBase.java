@@ -63,7 +63,7 @@ public abstract class IntegrationTestBase {
   protected static final int TEST_TOPIC_PARTITIONS = 2;
   protected static final String TEST_DB = "test";
 
-  abstract KafkaConnectUtils.Config createConfig(boolean useSchema);
+  abstract KafkaConnectUtils.Config createConfig(boolean useSchema, boolean forceSchemaOptional);
 
   abstract void sendEvents(boolean useSchema);
 
@@ -179,7 +179,7 @@ public abstract class IntegrationTestBase {
     producer.flush();
   }
 
-  protected KafkaConnectUtils.Config createCommonConfig(boolean useSchema) {
+  protected KafkaConnectUtils.Config createCommonConfig(boolean useSchema, boolean forceSchemaOptional) {
     // set offset reset to the earliest, so we don't miss any test messages
     return new KafkaConnectUtils.Config(connectorName())
         .config("topics", testTopic())
@@ -192,15 +192,17 @@ public abstract class IntegrationTestBase {
         .config("value.converter.schemas.enable", useSchema)
         .config("iceberg.control.commit.interval-ms", 1000)
         .config("iceberg.control.commit.timeout-ms", Integer.MAX_VALUE)
-        .config("iceberg.kafka.auto.offset.reset", "earliest");
+        .config("iceberg.kafka.auto.offset.reset", "earliest")
+        .config("iceberg.tables.schema-force-optional", forceSchemaOptional);
   }
 
   protected void runTest(
       String branch,
       boolean useSchema,
+      boolean forceSchemaOptional,
       Map<String, String> extraConfig,
       List<TableIdentifier> tableIdentifiers) {
-    KafkaConnectUtils.Config connectorConfig = createConfig(useSchema);
+    KafkaConnectUtils.Config connectorConfig = createConfig(useSchema, forceSchemaOptional);
 
     context().connectorCatalogProperties().forEach(connectorConfig::config);
 

@@ -52,7 +52,7 @@ public class TestIntegration extends IntegrationTestBase {
     catalog().createTable(TABLE_IDENTIFIER, TestEvent.TEST_SCHEMA, TestEvent.TEST_SPEC);
 
     boolean useSchema = branch == null; // use a schema for one of the tests
-    runTest(branch, useSchema, ImmutableMap.of(), List.of(TABLE_IDENTIFIER));
+    runTest(branch, useSchema, true, ImmutableMap.of(), List.of(TABLE_IDENTIFIER));
 
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER, branch);
     // partition may involve 1 or 2 workers
@@ -69,7 +69,7 @@ public class TestIntegration extends IntegrationTestBase {
     catalog().createTable(TABLE_IDENTIFIER, TestEvent.TEST_SCHEMA);
 
     boolean useSchema = branch == null; // use a schema for one of the tests
-    runTest(branch, useSchema, ImmutableMap.of(), List.of(TABLE_IDENTIFIER));
+    runTest(branch, useSchema, true, ImmutableMap.of(), List.of(TABLE_IDENTIFIER));
 
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER, branch);
     // may involve 1 or 2 workers
@@ -93,6 +93,7 @@ public class TestIntegration extends IntegrationTestBase {
     runTest(
         branch,
         useSchema,
+        true,
         ImmutableMap.of("iceberg.tables.evolve-schema-enabled", "true"),
         List.of(TABLE_IDENTIFIER));
 
@@ -112,6 +113,38 @@ public class TestIntegration extends IntegrationTestBase {
   @ParameterizedTest
   @NullSource
   @ValueSource(strings = "test_branch")
+  public void testIcebergSinkSchemaEvolutionWithRequiredColumn(String branch) {
+    Schema initialSchema =
+            new Schema(
+                    ImmutableList.of(
+                            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                            Types.NestedField.required(2, "type", Types.StringType.get())));
+    catalog().createTable(TABLE_IDENTIFIER, initialSchema);
+
+    boolean useSchema = branch == null; // use a schema for one of the tests
+    runTest(
+            branch,
+            useSchema,
+            false,
+            ImmutableMap.of("iceberg.tables.evolve-schema-enabled", "true"),
+            List.of(TABLE_IDENTIFIER));
+
+    List<DataFile> files = dataFiles(TABLE_IDENTIFIER, branch);
+    // may involve 1 or 2 workers
+    assertThat(files).hasSizeBetween(1, 2);
+    assertThat(files.stream().mapToLong(DataFile::recordCount).sum()).isEqualTo(2);
+    assertSnapshotProps(TABLE_IDENTIFIER, branch);
+
+    // when not using a value schema, the ID data type will not be updated
+    Class<? extends Type> expectedIdType =
+            useSchema ? Types.LongType.class : Types.IntegerType.class;
+
+    assertGeneratedSchema(useSchema, expectedIdType);
+  }
+
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(strings = "test_branch")
   public void testIcebergSinkAutoCreate(String branch) {
     boolean useSchema = branch == null; // use a schema for one of the tests
 
@@ -122,7 +155,7 @@ public class TestIntegration extends IntegrationTestBase {
       extraConfig.put("iceberg.tables.default-partition-by", "hour(ts)");
     }
 
-    runTest(branch, useSchema, extraConfig, List.of(TABLE_IDENTIFIER));
+    runTest(branch, useSchema, false, extraConfig, List.of(TABLE_IDENTIFIER));
 
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER, branch);
     // may involve 1 or 2 workers
@@ -154,8 +187,8 @@ public class TestIntegration extends IntegrationTestBase {
   }
 
   @Override
-  protected KafkaConnectUtils.Config createConfig(boolean useSchema) {
-    return createCommonConfig(useSchema)
+  protected KafkaConnectUtils.Config createConfig(boolean useSchema, boolean forceSchemaOptional) {
+    return createCommonConfig(useSchema, forceSchemaOptional)
         .config("iceberg.tables", String.format("%s.%s", TEST_DB, TEST_TABLE));
   }
 

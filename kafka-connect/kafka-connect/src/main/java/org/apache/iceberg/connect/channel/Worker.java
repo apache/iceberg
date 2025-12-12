@@ -21,7 +21,6 @@ package org.apache.iceberg.connect.channel;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -158,7 +157,7 @@ class Worker extends Channel {
   /** Process a single envelope (actual event handling logic). */
   private void processEnvelope(Envelope envelope) {
     Event event = envelope.event();
-    if (Objects.requireNonNull(event.type()) == PayloadType.START_COMMIT) {
+    if (PayloadType.START_COMMIT == event.type()) {
       handleStartCommit(((StartCommit) event.payload()).commitId());
     } else {
       LOG.warn(
