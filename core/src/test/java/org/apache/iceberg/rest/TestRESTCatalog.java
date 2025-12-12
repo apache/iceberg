@@ -3340,10 +3340,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog = catalog(adapter);
 
-    ResourcePaths pathsWithLegacySeparators = ResourcePaths.forCatalogProperties(ImmutableMap.of());
+    ResourcePaths pathsWithLegacySeparator = ResourcePaths.forCatalogProperties(ImmutableMap.of());
 
     runConfigurableNamespaceSeparatorTest(
-        catalog, adapter, pathsWithLegacySeparators, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+        catalog, adapter, pathsWithLegacySeparator, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
 
   @Test
