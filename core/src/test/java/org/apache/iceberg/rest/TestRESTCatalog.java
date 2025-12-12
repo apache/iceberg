@@ -3313,7 +3313,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testClientWithLegacyNamespaceSeparator() {
+  public void nestedNamespaceWithLegacySeparator() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
     // Simulate that the server doesn't send the namespace separator in the overrides
@@ -3347,7 +3347,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testClientWithOverriddenNamespaceSeparator() {
+  public void nestedNamespaceWithOverriddenSeparator() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
     // When initializing the catalog, the adapter always sends an override for the namespace
