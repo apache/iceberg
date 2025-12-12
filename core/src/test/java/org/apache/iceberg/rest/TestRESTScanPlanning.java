@@ -42,7 +42,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -349,17 +348,13 @@ public class TestRESTScanPlanning {
     }
   }
 
-  @Disabled("Temporarily disabled: Fix tracked via issue-14823")
   @ParameterizedTest
   @EnumSource(PlanningMode.class)
   void scanPlanningWithBatchScan(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table =
-        restTableFor(
-            scanPlanningCatalog(), String.format("batch_scan_table_%s", UUID.randomUUID()));
-    table.refresh();
+    Table table = restTableFor(scanPlanningCatalog(), "batch_scan_table");
     setParserContext(table);
 
     // Verify actual data file is returned with correct count

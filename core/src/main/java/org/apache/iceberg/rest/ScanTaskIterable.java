@@ -202,14 +202,13 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       }
 
       while (true) {
-        if (isDone()) {
-          return false;
-        }
-
         try {
           nextTask = taskQueue.poll(QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
           if (nextTask != null) {
             return true;
+          }
+          if (isDone()) {
+            return false;
           }
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
@@ -240,10 +239,14 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
     }
 
     private boolean isDone() {
-      return taskQueue.isEmpty()
+      // Reorder the conditions to make sure TaskQueue is empty is checked last.
+      // It may happen that a worker is about to add a new task to the queue, but before
+      // that happens, taskQueue.isEmpty() is checked then it completes fast before the
+      // activeWorker is decremented. This would lead to a false negative.
+      return activeWorkers.get() == 0
           && planTasks.isEmpty()
-          && activeWorkers.get() == 0
-          && initialFileScanTasks.isEmpty();
+          && initialFileScanTasks.isEmpty()
+          && taskQueue.isEmpty();
     }
   }
 }
