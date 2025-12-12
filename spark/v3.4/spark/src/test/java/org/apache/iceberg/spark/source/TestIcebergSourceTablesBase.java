@@ -2482,7 +2482,8 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     return Lists.newArrayList(dataFiles).stream().mapToLong(DataFile::fileSizeInBytes).sum();
   }
 
-  private static long totalDeleteFileSizeInBytes(Iterable<DeleteFile> deleteFiles, FileContent content) {
+  private static long totalDeleteFileSizeInBytes(
+      Iterable<DeleteFile> deleteFiles, FileContent content) {
     return Lists.newArrayList(deleteFiles).stream()
         .filter(Objects::nonNull)
         .filter(f -> f.content() == content)
