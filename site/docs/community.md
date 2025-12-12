@@ -88,7 +88,7 @@ Hosts are required to ensure that:
 4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
 5. All [Community Guidelines](#community-guidelines) must be respected
 
-Meetups *must* be small events under the ASF branding guidelines (linked above) and are typically small, informal gatherings. If you're unsure whether an event is a meetup, meetups usually:
+Meetups *must* be small events under the [ASF branding guidelines](https://www.apache.org/foundation/marks/events.html#dates) and are typically small, informal gatherings. If you're unsure whether an event is a meetup, meetups usually:
 
 * Rely on a curated selection of talks, where organizers work with the community to include a diverse representation of speakers, topics, and companies. They don't use a formal call for papers like a conference.
 * Are single-tracked and accommodate only a handful of sessions.
