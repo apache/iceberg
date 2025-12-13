@@ -75,9 +75,25 @@ public class SinkWriter {
         record.timestamp() == null
             ? null
             : OffsetDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneOffset.UTC);
-    sourceOffsets.put(
-        new TopicPartition(record.topic(), record.kafkaPartition()),
-        new Offset(record.kafkaOffset() + 1, timestamp));
+
+    TopicPartition tp = new TopicPartition(record.topic(), record.kafkaPartition());
+    long currentOffset = record.kafkaOffset();
+
+    sourceOffsets.compute(
+        tp,
+        (key, existingOffset) -> {
+          if (existingOffset == null) {
+            // First record for this partition - start and end are the same
+            return new Offset(currentOffset, currentOffset + 1, timestamp);
+          } else {
+            // Keep the original start offset, update end offset
+            Long startOffset = existingOffset.startOffset();
+            if (startOffset == null) {
+              startOffset = currentOffset;
+            }
+            return new Offset(startOffset, currentOffset + 1, timestamp);
+          }
+        });
 
     if (config.dynamicTablesEnabled()) {
       routeRecordDynamically(record);
