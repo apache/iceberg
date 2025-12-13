@@ -97,10 +97,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
   }
 
   private void submitFixedWorkers() {
-    // need to spawn at least one worker to enqueue initial file scan tasks
-    int numWorkers = Math.min(WORKER_POOL_SIZE, Math.max(planTasks.size(), 1));
-
-    for (int i = 0; i < numWorkers; i++) {
+    for (int i = 0; i < WORKER_POOL_SIZE; i++) {
       executorService.execute(new PlanTaskWorker());
     }
   }
@@ -138,28 +135,38 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       } catch (Exception e) {
         failure.compareAndSet(null, new RuntimeException("Worker failed processing planTask", e));
       } finally {
-        int remainingActiveWorkers = activeWorkers.decrementAndGet();
-        boolean noWorkLeft =
-            remainingActiveWorkers == 0 && planTasks.isEmpty() && initialFileScanTasks.isEmpty();
-        if (noWorkLeft || shutdown.get()) {
-          // if this is the last active worker and there is no work left, add the dummy task to mark
-          // completion of producer.
-          try {
-            taskQueue.put(DUMMY_TASK);
-          } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            failure.compareAndSet(
-                null, new RuntimeException("Interrupted while signaling completion", e));
-          }
-        } else if (remainingActiveWorkers == 0
-            && (!planTasks.isEmpty() || !initialFileScanTasks.isEmpty())) {
-          // if there is still work to be done but no active workers, it means all workers have
-          // failed. no need to respawn workers since the iterator will fail on next()
-          // and throw back the failure.
-          failure.compareAndSet(
-              null,
-              new IllegalStateException("Workers have exited but there is still work to be done"));
-        }
+        handleWorkerExit();
+      }
+    }
+
+    private void handleWorkerExit() {
+      int remainingActiveWorkers = activeWorkers.decrementAndGet();
+      boolean noWorkLeft =
+          remainingActiveWorkers == 0 && planTasks.isEmpty() && initialFileScanTasks.isEmpty();
+
+      if (noWorkLeft || shutdown.get()) {
+        signalCompletion();
+      } else if (remainingActiveWorkers == 0 && hasRemainingWork()) {
+        // if there is still work to be done but no active workers, it means all workers have
+        // failed. no need to respawn workers since the iterator will fail on next()
+        // and throw back the failure.
+        failure.compareAndSet(
+            null,
+            new IllegalStateException("Workers have exited but there is still work to be done"));
+      }
+    }
+
+    private boolean hasRemainingWork() {
+      return !planTasks.isEmpty() || !initialFileScanTasks.isEmpty();
+    }
+
+    private void signalCompletion() {
+      try {
+        taskQueue.put(DUMMY_TASK);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        failure.compareAndSet(
+            null, new RuntimeException("Interrupted while signaling completion", e));
       }
     }
 
@@ -226,6 +233,13 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
 
         try {
           nextTask = taskQueue.poll(QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+
+          // Re-check for worker failure after poll - failure could have been set while polling
+          workerFailure = failure.get();
+          if (workerFailure != null) {
+            throw workerFailure;
+          }
+
           if (nextTask == DUMMY_TASK) {
             nextTask = null;
             shutdown.set(true); // Mark as done so while loop exits on subsequent calls
