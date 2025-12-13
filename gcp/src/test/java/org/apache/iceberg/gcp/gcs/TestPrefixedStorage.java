@@ -21,11 +21,11 @@ package org.apache.iceberg.gcp.gcs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Date;
 import com.google.cloud.gcs.analyticscore.client.GcsClientOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystemOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsReadOptions;
+import java.util.Date;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -119,13 +119,13 @@ public class TestPrefixedStorage {
             GCPProperties.GCS_IMPERSONATE_DELEGATES, "delegate-sa@project.iam.gserviceaccount.com",
             GCPProperties.GCS_IMPERSONATE_LIFETIME_SECONDS, "1800");
 
-    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+    GCPProperties gcpProperties = new GCPProperties(properties);
 
-    assertThat(storage.gcpProperties().impersonateServiceAccount())
+    assertThat(gcpProperties.impersonateServiceAccount())
         .contains("test-sa@project.iam.gserviceaccount.com");
-    assertThat(storage.gcpProperties().impersonateDelegates())
+    assertThat(gcpProperties.impersonateDelegates())
         .contains("delegate-sa@project.iam.gserviceaccount.com");
-    assertThat(storage.gcpProperties().impersonateLifetimeSeconds()).isEqualTo(1800);
+    assertThat(gcpProperties.impersonateLifetimeSeconds()).isEqualTo(1800);
   }
 
   @Test
@@ -136,13 +136,16 @@ public class TestPrefixedStorage {
             GCPProperties.GCS_IMPERSONATE_SERVICE_ACCOUNT,
                 "test-sa@project.iam.gserviceaccount.com");
 
-    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
+    GCPProperties gcpProperties = new GCPProperties(properties);
 
-    assertThat(storage.gcpProperties().impersonateServiceAccount())
+    assertThat(gcpProperties.impersonateServiceAccount())
         .contains("test-sa@project.iam.gserviceaccount.com");
-    assertThat(storage.gcpProperties().impersonateDelegates()).isEmpty();
-    assertThat(storage.gcpProperties().impersonateLifetimeSeconds())
+    assertThat(gcpProperties.impersonateDelegates()).isEmpty();
+    assertThat(gcpProperties.impersonateLifetimeSeconds())
         .isEqualTo(GCPProperties.GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT);
+  }
+
+  @Test
   public void gcsFileSystem() {
     Map<String, String> properties =
         ImmutableMap.of(

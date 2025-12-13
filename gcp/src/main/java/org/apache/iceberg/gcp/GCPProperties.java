@@ -50,10 +50,10 @@ public class GCPProperties implements Serializable {
       "gcs.oauth2.refresh-credentials-endpoint";
 
   // Impersonation properties
-  public static final String GCS_IMPERSONATE_SERVICE_ACCOUNT = "gcs.impersonate.service-account";
-  public static final String GCS_IMPERSONATE_LIFETIME_SECONDS = "gcs.impersonate.lifetime-seconds";
+  public static final String GCS_IMPERSONATE_SERVICE_ACCOUNT = "gcp.impersonate.service-account";
+  public static final String GCS_IMPERSONATE_LIFETIME_SECONDS = "gcp.impersonate.lifetime-seconds";
+  public static final String GCS_IMPERSONATE_DELEGATES = "gcp.impersonate.delegates";
   public static final int GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT = 3600;
-  public static final String GCS_IMPERSONATE_DELEGATES = "gcs.impersonate.delegates";
 
   /** Controls whether vended credentials should be refreshed or not. Defaults to true. */
   public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED =

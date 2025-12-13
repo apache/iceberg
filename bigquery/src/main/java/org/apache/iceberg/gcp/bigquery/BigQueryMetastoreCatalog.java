@@ -57,19 +57,7 @@ import org.slf4j.LoggerFactory;
 public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Object> {
 
-  // User provided properties.
-  public static final String PROJECT_ID = "gcp.bigquery.project-id";
-  public static final String GCP_LOCATION = "gcp.bigquery.location";
-  public static final String LIST_ALL_TABLES = "gcp.bigquery.list-all-tables";
-
-  public static final String CLIENT_FACTORY = "gcp.bigquery.client.factory";
-  private static final String GCS_IMPERSONATE_SERVICE_ACCOUNT = "gcs.impersonate.service-account";
-  private static final String GCS_PROJECT_ID = "gcs.project-id";
-  private static final String GCS_IMPERSONATE_DELEGATES = "gcs.impersonate.delegates";
-
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryMetastoreCatalog.class);
-
-  private static final String DEFAULT_GCP_LOCATION = "us";
 
   private String catalogName;
   private Map<String, String> catalogProperties;
@@ -85,19 +73,17 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    Preconditions.checkArgument(
-        properties.containsKey(PROJECT_ID),
-        "Invalid GCP project: %s must be specified",
-        PROJECT_ID);
 
-    this.projectId = properties.get(PROJECT_ID);
-    this.projectLocation = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
+    this.projectId = properties.get(BigQueryProperties.PROJECT_ID);
+    this.projectLocation =
+        properties.getOrDefault(
+            BigQueryProperties.GCP_LOCATION, BigQueryProperties.DEFAULT_GCP_LOCATION);
 
-    BigQueryClientFactory clientFactory = createClientFactory(properties);
-    BigQueryOptions options = clientFactory.bigQueryOptions();
+    BigQueryProperties bigQueryProperties = new BigQueryProperties(properties);
+    BigQueryOptions bigQueryOptions = bigQueryProperties.metastoreOptions();
 
     try {
-      client = new BigQueryMetastoreClientImpl(options);
+      client = new BigQueryMetastoreClientImpl(bigQueryOptions);
     } catch (IOException e) {
       throw new UncheckedIOException("Creating BigQuery client failed", e);
     } catch (GeneralSecurityException e) {
@@ -105,28 +91,6 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     }
 
     initialize(name, properties, projectId, projectLocation, client);
-  }
-
-  @VisibleForTesting
-  BigQueryClientFactory createClientFactory(Map<String, String> properties) {
-    String factoryClassName = properties.get(CLIENT_FACTORY);
-    BigQueryClientFactory factory;
-
-    if (factoryClassName != null) {
-      try {
-        LOG.info("Loading custom BigQuery client factory: {}", factoryClassName);
-        Class<?> factoryClass = Class.forName(factoryClassName);
-        factory = (BigQueryClientFactory) factoryClass.getDeclaredConstructor().newInstance();
-      } catch (Exception e) {
-        throw new RuntimeException(
-            "Failed to load custom BigQuery client factory: " + factoryClassName, e);
-      }
-    } else {
-      factory = new DefaultBigQueryClientFactory();
-    }
-
-    factory.initialize(properties);
-    return factory;
   }
 
   @VisibleForTesting
@@ -150,38 +114,15 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
           LocationUtil.stripTrailingSlash(properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
-    Map<String, String> fileIOProperties = prepareFileIOProperties(properties, initialProjectId);
-
     this.fileIO =
         CatalogUtil.loadFileIO(
             properties.getOrDefault(
                 CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.io.ResolvingFileIO"),
-            fileIOProperties,
+            properties,
             conf);
 
-    this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, "true"));
-  }
-
-  @VisibleForTesting
-  Map<String, String> prepareFileIOProperties(Map<String, String> properties, String gcpProjectId) {
-    Map<String, String> fileIOProperties = Maps.newHashMap(properties);
-    String impersonateServiceAccount =
-        properties.get(ImpersonatedBigQueryClientFactory.IMPERSONATE_SERVICE_ACCOUNT);
-
-    if (impersonateServiceAccount != null) {
-      fileIOProperties.put(GCS_IMPERSONATE_SERVICE_ACCOUNT, impersonateServiceAccount);
-      fileIOProperties.put(GCS_PROJECT_ID, gcpProjectId);
-
-      // Also propagate delegation chain if specified
-      String delegates = properties.get(ImpersonatedBigQueryClientFactory.IMPERSONATE_DELEGATES);
-      if (delegates != null) {
-        fileIOProperties.put(GCS_IMPERSONATE_DELEGATES, delegates);
-      }
-
-      LOG.info("Auto-propagating impersonation to GCS FileIO: {}", impersonateServiceAccount);
-    }
-
-    return fileIOProperties;
+    this.listAllTables =
+        Boolean.parseBoolean(properties.getOrDefault(BigQueryProperties.LIST_ALL_TABLES, "true"));
   }
 
   @Override
