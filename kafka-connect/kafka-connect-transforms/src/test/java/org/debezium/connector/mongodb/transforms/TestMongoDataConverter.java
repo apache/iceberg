@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map.Entry;
@@ -44,14 +43,13 @@ import org.junit.jupiter.api.Test;
  */
 public class TestMongoDataConverter {
 
-  private String record;
   private BsonDocument val;
   private SchemaBuilder builder;
   private MongoDataConverter converter;
 
   @BeforeEach
   public void setUpBeforeEach() throws Exception {
-    record = getFile("restaurants5.json");
+    String record = getFile("restaurants5.json");
     val = BsonDocument.parse(record);
     builder = SchemaBuilder.struct().name("pub");
     converter = new MongoDataConverter(ArrayEncoding.ARRAY);
@@ -151,7 +149,7 @@ public class TestMongoDataConverter {
 
   private String getFile(String fileName) throws IOException, URISyntaxException {
     URL jsonResource = getClass().getClassLoader().getResource(fileName);
-    return new String(Files.readAllBytes(Paths.get(jsonResource.toURI())), StandardCharsets.UTF_8);
+    return Files.readString(Paths.get(jsonResource.toURI()));
   }
 
   @Test
