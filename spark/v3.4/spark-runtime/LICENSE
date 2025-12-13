@@ -203,10 +203,140 @@
 
 --------------------------------------------------------------------------------
 
+This binary artifact contains Apache Spark.
+
+Copyright: Copyright 2014 and onwards The Apache Software Foundation
+Home page: https://spark.apache.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Apache Datasketches.
+
+Copyright: Copyright 2020 The Apache Software Foundation
+Home page: https://datasketches.apache.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains OpenHFT Zero-Allocation Hashing.
+
+Copyright: Copyright 2013-2025 chronicle.software
+Home page: https://github.com/OpenHFT/Zero-Allocation-Hashing
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This binary artifact contains Apache Avro.
 
 Copyright: Copyright 2010-2019 The Apache Software Foundation
 Home page: https://avro.apache.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Google Cloud Java Client Libraries.
+
+Copyright: Copyright 2025 Google LLC
+Home page: https://github.com/googleapis/google-cloud-java
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Google APIs.
+
+Copyright: Copyright 2025 Google LLC
+Home page: https://github.com/googleapis/googleapis/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Gson.
+
+Copyright: Copyright 2008 Google Inc.
+Home page: https://github.com/google/gson
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains RoaringBitmap.
+
+Copyright: Copyright 2013-2016 the RoaringBitmap authors
+Home page: https://github.com/RoaringBitmap/RoaringBitmap
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Google j2objc.
+
+Copyright: Copyright 2011 Google Inc. All Rights Reserved.
+Home page: https://github.com/google/j2objc
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains JavaPoet.
+
+Copyright: Copyright 2015 Square, Inc.
+Home page: https://github.com/square/javapoet
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains ASM.
+
+Copyright: Copyright (c) 2000-2011 INRIA, France Telecom
+Home page: https://asm.ow2.io/
+License: BSD 3-Clause
+| ASM: a very small and fast Java bytecode manipulation framework
+| Copyright (c) 2000-2011 INRIA, France Telecom
+| All rights reserved.
+| 
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions
+| are met:
+| 1. Redistributions of source code must retain the above copyright
+|   notice, this list of conditions and the following disclaimer.
+| 2. Redistributions in binary form must reproduce the above copyright
+|   notice, this list of conditions and the following disclaimer in the
+|   documentation and/or other materials provided with the distribution.
+| 3. Neither the name of the copyright holders nor the names of its
+|   contributors may be used to endorse or promote products derived from
+|   this software without specific prior written permission.
+| 
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+| AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+| IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+| ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+| LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+| CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+| SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+| INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+| CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+| ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+| THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Conscrypt.
+
+Copyright: Copyright 2016 The Android Open Source Project
+Home page: https://github.com/google/conscrypt/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains JSON in Java [package org.json].
+
+Home page: https://github.com/stleary/JSON-java/
+License: Public Domain
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Opentelemetry.
+
+Copyright: Copyright The OpenTelemetry Authors
+Home page: https://github.com/open-telemetry/opentelemetry-java
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -216,6 +346,14 @@ This binary artifact contains the Jackson JSON processor.
 Copyright: 2007-2019 Tatu Saloranta and other contributors
 Home page: http://jackson.codehaus.org/
 License: http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This binary artifacts contains LocationTech JTS.
+
+Copyright: Copyright (c) 2016 Vivid Solutions
+Home page: https://github.com/locationtech/jts
+License: https://www.eclipse.org/legal/epl-v20.html
 
 --------------------------------------------------------------------------------
 
@@ -272,9 +410,6 @@ This binary artifact contains Google protobuf via ORC.
 Copyright: 2008 Google Inc.
 Home page: https://developers.google.com/protocol-buffers
 License: https://github.com/protocolbuffers/protobuf/blob/master/LICENSE (BSD)
-
-License text:
-
 | Copyright 2008 Google Inc.  All rights reserved.
 |
 | Redistribution and use in source and binary forms, with or without
@@ -307,6 +442,30 @@ License text:
 | of the input file used when generating it.  This code is not
 | standalone and requires a support library to be linked with it.  This
 | support library is itself covered by the above license.
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains gRPC.
+
+Copyright: Copyright 2016 The gRPC Authors
+Home page: https://github.com/grpc/grpc-java
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains OpenCensus.
+
+Copyright: Copyright 2017, OpenCensus Authors
+Home page: https://github.com/census-instrumentation/opencensus-java
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Eclipse MicroProfile OpenAPI.
+
+Copyright: Copyright (c) 2017 Contributors to the Eclipse Foundation
+Home page: https://github.com/microprofile/microprofile-open-api
+License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -363,8 +522,6 @@ This binary artifact contains checkerframework checker-qual Annotations.
 Copyright: 2004-2019 the Checker Framework developers
 Home page: https://github.com/typetools/checker-framework
 License: https://github.com/typetools/checker-framework/blob/master/LICENSE.txt (MIT license)
-
-License text:
 | The annotations are licensed under the MIT License.  (The text of this
 | license appears below.)  More specifically, all the parts of the Checker
 | Framework that you might want to include with your own program use the
@@ -395,6 +552,22 @@ License text:
 
 --------------------------------------------------------------------------------
 
+This binary artifact contains Jetbrains Annotations.
+
+Copyright: Copyright 2000-2021 JetBrains s.r.o.
+Home page: https://github.com/JetBrains/java-annotations
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Google API Extensions for Java.
+
+Copyright: Copyright 2017 Google LLC
+Home page: https://github.com/googleapis/sdk-platform-java/tree/main/gax-java
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This binary artifact contains Caffeine by Ben Manes.
 
 Copyright: 2014-2019 Ben Manes and contributors
@@ -411,7 +584,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Netty's buffer library.
+This binary artifact contains Netty.
 
 Copyright: 2014-2020 The Netty Project
 Home page: https://netty.io/
