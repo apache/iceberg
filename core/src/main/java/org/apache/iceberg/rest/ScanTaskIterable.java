@@ -142,26 +142,18 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
     }
 
     private void handleWorkerExit() {
-      int remainingActiveWorkers = activeWorkers.decrementAndGet();
-      boolean noWorkLeft =
-          remainingActiveWorkers == 0 && planTasks.isEmpty() && initialFileScanTasks.isEmpty();
+      boolean isLastWorker = activeWorkers.decrementAndGet() == 0;
+      boolean hasWorkLeft = !planTasks.isEmpty() || !initialFileScanTasks.isEmpty();
+      boolean isShuttingDown = shutdown.get();
 
-      // Only the last worker should signal completion to avoid multiple DUMMY_TASKs
-      if (noWorkLeft || (shutdown.get() && remainingActiveWorkers == 0)) {
+      if (isLastWorker && (!hasWorkLeft || isShuttingDown)) {
         signalCompletion();
-      } else if (remainingActiveWorkers == 0 && hasRemainingWork()) {
-        // This state should never be reached since this indicates that all workers failed and
-        // there's still in-flight work.  Workers which failed should've set the failure state and
-        // the consumer of the iterator would've already seen this state.
-        shutdown.set(true);
+      } else if (isLastWorker && hasWorkLeft) {
         failure.compareAndSet(
             null,
             new IllegalStateException("Workers have exited but there is still work to be done"));
+        shutdown.set(true);
       }
-    }
-
-    private boolean hasRemainingWork() {
-      return !planTasks.isEmpty() || !initialFileScanTasks.isEmpty();
     }
 
     private void signalCompletion() {
@@ -169,9 +161,9 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
         taskQueue.put(DUMMY_TASK);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
+        // we should just shut down and not rethrow since we are trying to signal completion
+        // its fine if we fail to put the dummy task in this case.
         shutdown.set(true);
-        failure.compareAndSet(
-            null, new RuntimeException("Interrupted while signaling completion", e));
       }
     }
 
