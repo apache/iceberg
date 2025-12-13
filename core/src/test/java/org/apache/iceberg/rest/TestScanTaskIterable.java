@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -37,6 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.catalog.Namespace;
@@ -79,6 +81,63 @@ public class TestScanTaskIterable {
     }
   }
 
+  private void assertIteratorThrows(CloseableIterator<FileScanTask> iterator, String errorPattern) {
+    assertThatThrownBy(iterator::hasNext)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining(errorPattern);
+  }
+
+  private List<String> planTasks(int count) {
+    return IntStream.range(0, count).mapToObj(i -> "planTask" + i).collect(toList());
+  }
+
+  private List<FileScanTask> fileTasks(int count) {
+    return IntStream.range(1, count + 1).mapToObj(i -> new MockFileScanTask(i)).collect(toList());
+  }
+
+  private List<FileScanTask> collectAll(CloseableIterator<FileScanTask> iterator)
+      throws IOException {
+    try (iterator) {
+      return Lists.newArrayList(iterator);
+    }
+  }
+
+  private ScanTaskIterable createIterable(List<String> planTasks, List<FileScanTask> initialTasks) {
+    return new ScanTaskIterable(
+        planTasks,
+        initialTasks,
+        mockClient,
+        resourcePaths,
+        TABLE_IDENTIFIER,
+        HEADERS,
+        executorService,
+        parserContext);
+  }
+
+  private void mockClientPost(FetchScanTasksResponse... responses) {
+    if (responses.length == 1) {
+      when(mockClient.post(
+              eq(FETCH_TASKS_PATH),
+              any(FetchScanTasksRequest.class),
+              eq(FetchScanTasksResponse.class),
+              eq(HEADERS),
+              any(),
+              any(),
+              eq(parserContext)))
+          .thenReturn(responses[0]);
+    } else {
+      when(mockClient.post(
+              eq(FETCH_TASKS_PATH),
+              any(FetchScanTasksRequest.class),
+              eq(FetchScanTasksResponse.class),
+              eq(HEADERS),
+              any(),
+              any(),
+              eq(parserContext)))
+          .thenReturn(responses[0], java.util.Arrays.copyOfRange(responses, 1, responses.length));
+    }
+  }
+
   // ==================== Nested/Paginated Plan Tasks Tests ====================
 
   @Test
@@ -99,34 +158,14 @@ public class TestScanTaskIterable {
             .withFileScanTasks(ImmutableList.of(new MockFileScanTask(300)))
             .build();
 
-    when(mockClient.post(
-            eq(FETCH_TASKS_PATH),
-            any(FetchScanTasksRequest.class),
-            eq(FetchScanTasksResponse.class),
-            eq(HEADERS),
-            any(),
-            any(),
-            eq(parserContext)))
-        .thenReturn(response1, response2, response3);
+    mockClientPost(response1, response2, response3);
 
     ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            ImmutableList.of("planTask1"),
-            Collections.emptyList(),
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+        createIterable(ImmutableList.of("planTask1"), Collections.emptyList());
 
-    try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
-      List<FileScanTask> result = Lists.newArrayList(iterator);
-      assertThat(result).hasSize(3);
-      assertThat(result)
-          .extracting(FileScanTask::length)
-          .containsExactlyInAnyOrder(100L, 200L, 300L);
-    }
+    List<FileScanTask> result = collectAll(iterable.iterator());
+    assertThat(result).hasSize(3);
+    assertThat(result).extracting(FileScanTask::length).containsExactlyInAnyOrder(100L, 200L, 300L);
 
     verify(mockClient, times(3))
         .post(
@@ -150,50 +189,20 @@ public class TestScanTaskIterable {
             .withFileScanTasks(ImmutableList.of(new MockFileScanTask(100)))
             .build();
 
-    when(mockClient.post(
-            eq(FETCH_TASKS_PATH),
-            any(FetchScanTasksRequest.class),
-            eq(FetchScanTasksResponse.class),
-            eq(HEADERS),
-            any(),
-            any(),
-            eq(parserContext)))
-        .thenReturn(response1, response2, response3);
+    mockClientPost(response1, response2, response3);
 
-    ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            ImmutableList.of("level1"),
-            Collections.emptyList(),
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+    ScanTaskIterable iterable = createIterable(ImmutableList.of("level1"), Collections.emptyList());
 
-    try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
-      List<FileScanTask> result = Lists.newArrayList(iterator);
-      assertThat(result).hasSize(1);
-      assertThat(result.get(0).length()).isEqualTo(100L);
-    }
+    List<FileScanTask> result = collectAll(iterable.iterator());
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).length()).isEqualTo(100L);
   }
 
   // ==================== Iterator Behavior Tests ====================
 
   @Test
   public void iteratorNextWithoutHasNext() throws IOException {
-    List<FileScanTask> initialTasks = ImmutableList.of(new MockFileScanTask(100));
-
-    ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            null,
-            initialTasks,
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+    ScanTaskIterable iterable = createIterable(null, ImmutableList.of(new MockFileScanTask(100)));
 
     try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
       FileScanTask task = iterator.next();
@@ -206,18 +215,7 @@ public class TestScanTaskIterable {
 
   @Test
   public void iteratorMultipleHasNextCallsIdempotent() throws IOException {
-    List<FileScanTask> initialTasks = ImmutableList.of(new MockFileScanTask(100));
-
-    ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            null,
-            initialTasks,
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+    ScanTaskIterable iterable = createIterable(null, ImmutableList.of(new MockFileScanTask(100)));
 
     try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
       // Multiple hasNext() calls should be idempotent
@@ -248,21 +246,10 @@ public class TestScanTaskIterable {
         .thenThrow(new RuntimeException("Network error"));
 
     ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            ImmutableList.of("planTask1"),
-            Collections.emptyList(),
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+        createIterable(ImmutableList.of("planTask1"), Collections.emptyList());
 
     try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
-      // hasNext() should throw the worker failure
-      assertThatThrownBy(iterator::hasNext)
-          .isInstanceOf(RuntimeException.class)
-          .hasMessageContaining("Worker failed");
+      assertIteratorThrows(iterator, "Worker failed");
     }
   }
 
@@ -296,20 +283,10 @@ public class TestScanTaskIterable {
             });
 
     ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            ImmutableList.of("initialTask"),
-            Collections.emptyList(),
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+        createIterable(ImmutableList.of("initialTask"), Collections.emptyList());
 
-    try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
-      List<FileScanTask> result = Lists.newArrayList(iterator);
-      assertThat(result).hasSize(4);
-    }
+    List<FileScanTask> result = collectAll(iterable.iterator());
+    assertThat(result).hasSize(4);
   }
 
   // ==================== Concurrency Tests ====================
@@ -337,26 +314,10 @@ public class TestScanTaskIterable {
             });
 
     // Create many plan tasks to trigger multiple workers
-    List<String> planTasks = Lists.newArrayList();
-    for (int i = 0; i < 50; i++) {
-      planTasks.add("planTask" + i);
-    }
+    ScanTaskIterable iterable = createIterable(planTasks(50), Collections.emptyList());
 
-    ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            planTasks,
-            Collections.emptyList(),
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
-
-    try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
-      List<FileScanTask> result = Lists.newArrayList(iterator);
-      assertThat(result).hasSize(50);
-    }
+    List<FileScanTask> result = collectAll(iterable.iterator());
+    assertThat(result).hasSize(50);
 
     // All plan tasks should have been processed exactly once
     assertThat(callCount.get()).isEqualTo(50);
@@ -385,20 +346,11 @@ public class TestScanTaskIterable {
             });
 
     ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            ImmutableList.of("planTask1", "planTask2", "planTask3"),
-            Collections.emptyList(),
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+        createIterable(
+            ImmutableList.of("planTask1", "planTask2", "planTask3"), Collections.emptyList());
 
-    try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
-      List<FileScanTask> result = Lists.newArrayList(iterator);
-      assertThat(result).hasSize(3);
-    }
+    List<FileScanTask> result = collectAll(iterable.iterator());
+    assertThat(result).hasSize(3);
   }
 
   @Test
@@ -424,15 +376,7 @@ public class TestScanTaskIterable {
             });
 
     ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            ImmutableList.of("planTask1"),
-            Collections.emptyList(),
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+        createIterable(ImmutableList.of("planTask1"), Collections.emptyList());
 
     try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
       // Wait for worker to start
@@ -474,21 +418,11 @@ public class TestScanTaskIterable {
             });
 
     ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            ImmutableList.of("task1", "task2", "task3"),
-            Collections.emptyList(),
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+        createIterable(ImmutableList.of("task1", "task2", "task3"), Collections.emptyList());
 
-    try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
-      List<FileScanTask> result = Lists.newArrayList(iterator);
-      // 3 initial tasks + 6 nested tasks = 9 total
-      assertThat(result).hasSize(9);
-    }
+    List<FileScanTask> result = collectAll(iterable.iterator());
+    // 3 initial tasks + 6 nested tasks = 9 total
+    assertThat(result).hasSize(9);
   }
 
   @Test
@@ -514,32 +448,11 @@ public class TestScanTaskIterable {
             });
 
     // Initial tasks should be available immediately while plan tasks are being fetched
-    List<FileScanTask> initialTasks = Lists.newArrayList();
-    for (int i = 1; i <= 10; i++) {
-      initialTasks.add(new MockFileScanTask(i));
-    }
+    ScanTaskIterable iterable = createIterable(planTasks(10), fileTasks(10));
 
-    List<String> planTasks = Lists.newArrayList();
-    for (int i = 0; i < 10; i++) {
-      planTasks.add("planTask" + i);
-    }
-
-    ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            planTasks,
-            initialTasks,
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
-
-    try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
-      List<FileScanTask> result = Lists.newArrayList(iterator);
-      // 10 initial + 10 from plan tasks = 20 total
-      assertThat(result).hasSize(20);
-    }
+    List<FileScanTask> result = collectAll(iterable.iterator());
+    // 10 initial + 10 from plan tasks = 20 total
+    assertThat(result).hasSize(20);
   }
 
   @Test
@@ -567,21 +480,10 @@ public class TestScanTaskIterable {
             });
 
     ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            ImmutableList.of("planTask1"),
-            Collections.emptyList(),
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+        createIterable(ImmutableList.of("planTask1"), Collections.emptyList());
 
     try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
-      // Should propagate the exception from the failed worker
-      assertThatThrownBy(iterator::hasNext)
-          .isInstanceOf(RuntimeException.class)
-          .hasMessageContaining("Worker failed");
+      assertIteratorThrows(iterator, "Worker failed");
     }
   }
 
@@ -608,32 +510,14 @@ public class TestScanTaskIterable {
             });
 
     // Create multiple plan tasks so multiple workers can pick them up and fail
-    List<String> planTasks = Lists.newArrayList();
-    for (int i = 0; i < 10; i++) {
-      planTasks.add("planTask" + i);
-    }
-
-    ScanTaskIterable iterable =
-        new ScanTaskIterable(
-            planTasks,
-            Collections.emptyList(),
-            mockClient,
-            resourcePaths,
-            TABLE_IDENTIFIER,
-            HEADERS,
-            executorService,
-            parserContext);
+    ScanTaskIterable iterable = createIterable(planTasks(10), Collections.emptyList());
 
     try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
       // Should propagate the first failure without hanging
-      assertThatThrownBy(iterator::hasNext)
-          .isInstanceOf(RuntimeException.class)
-          .hasMessageContaining("Worker failed");
+      assertIteratorThrows(iterator, "Worker failed");
 
       // Subsequent calls should also throw (not hang waiting for more DUMMY_TASKs)
-      assertThatThrownBy(iterator::hasNext)
-          .isInstanceOf(RuntimeException.class)
-          .hasMessageContaining("Worker failed");
+      assertIteratorThrows(iterator, "Worker failed");
     }
   }
 }
