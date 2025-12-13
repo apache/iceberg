@@ -183,7 +183,7 @@ class RecordConverter {
               if (type != null) {
                 String parentFieldName =
                     structFieldId < 0 ? null : tableSchema.findColumnName(structFieldId);
-                schemaUpdateConsumer.addColumn(parentFieldName, recordFieldName, type);
+                schemaUpdateConsumer.addColumn(parentFieldName, recordFieldName, type, true);
               }
             }
           } else {
@@ -218,7 +218,11 @@ class RecordConverter {
                   String parentFieldName =
                       structFieldId < 0 ? null : tableSchema.findColumnName(structFieldId);
                   Type type = SchemaUtils.toIcebergType(recordField.schema(), config);
-                  schemaUpdateConsumer.addColumn(parentFieldName, recordField.name(), type);
+                  schemaUpdateConsumer.addColumn(
+                      parentFieldName,
+                      recordField.name(),
+                      type,
+                      config.schemaForceOptional() || recordField.schema().isOptional());
                 }
               } else {
                 boolean hasSchemaUpdates = false;
