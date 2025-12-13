@@ -18,12 +18,18 @@
  */
 package org.apache.iceberg.rest;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.rest.RESTCatalogServer.CatalogContext;
+import org.apache.iceberg.rest.responses.ListFunctionsResponse;
+import org.apache.iceberg.rest.responses.LoadFunctionResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -44,6 +50,34 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
       HTTPRequest httpRequest,
       Class<T> responseType,
       Consumer<Map<String, String>> responseHeaders) {
+
+    // Handle functions endpoints directly from server resources
+    if (route == Route.LIST_FUNCTIONS) {
+      ListFunctionsResponse.Builder listFunctionsResponseBuilder = ListFunctionsResponse.builder();
+      listFunctionsResponseBuilder.add("add_one_file");
+      listFunctionsResponseBuilder.add("fruits_by_color");
+      return castResponse(responseType, listFunctionsResponseBuilder.build());
+    } else if (route == Route.LOAD_FUNCTION) {
+      String fn = vars.get("name");
+      String candidate =
+          fn.endsWith("_file") ? fn.substring(0, fn.length() - "_file".length()) : fn;
+      String resPath = "/udf/examples/" + candidate + ".json";
+      try (InputStream in = RESTServerCatalogAdapter.class.getResourceAsStream(resPath)) {
+        if (in == null) {
+          throw new IllegalArgumentException("UDF spec not found on server resources: " + resPath);
+        }
+        String content = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        JsonNode node = RESTObjectMapper.mapper().readTree(content);
+        if (!(node instanceof ObjectNode)) {
+          throw new IllegalArgumentException("UDF spec must be a JSON object: " + resPath);
+        }
+        return castResponse(
+            responseType, LoadFunctionResponse.builder().spec((ObjectNode) node).build());
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to load UDF spec from server resources: " + resPath, e);
+      }
+    }
+
     T restResponse = super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
 
     if (restResponse instanceof LoadTableResponse) {
