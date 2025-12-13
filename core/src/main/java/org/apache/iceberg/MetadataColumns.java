@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 
@@ -151,5 +152,9 @@ public class MetadataColumns {
 
   public static boolean nonMetadataColumn(String name) {
     return !isMetadataColumn(name);
+  }
+
+  public static Schema schemaWithRowLineage(Schema schema) {
+    return TypeUtil.join(schema, new Schema(ROW_ID, LAST_UPDATED_SEQUENCE_NUMBER));
   }
 }

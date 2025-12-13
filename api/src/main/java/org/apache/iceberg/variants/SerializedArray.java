@@ -85,4 +85,9 @@ class SerializedArray implements VariantArray, SerializedValue {
   public ByteBuffer buffer() {
     return value;
   }
+
+  @Override
+  public String toString() {
+    return VariantArray.asString(this);
+  }
 }

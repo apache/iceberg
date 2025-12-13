@@ -46,6 +46,8 @@ public class TestSingleValueParser {
           {Types.TimeType.get(), "\"10:15:30\""},
           {Types.TimestampType.withoutZone(), "\"2007-12-03T10:15:30\""},
           {Types.TimestampType.withZone(), "\"2007-12-03T10:15:30+00:00\""},
+          {Types.TimestampNanoType.withoutZone(), "\"2007-12-03T10:15:30.123456789\""},
+          {Types.TimestampNanoType.withZone(), "\"2007-12-03T10:15:30.123456789+00:00\""},
           {Types.StringType.get(), "\"foo\""},
           {Types.UUIDType.get(), "\"eb26bdb1-a1d8-4aa6-990e-da940875492c\""},
           {Types.FixedType.ofLength(2), "\"111f\""},
@@ -155,6 +157,15 @@ public class TestSingleValueParser {
     assertThatThrownBy(() -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot parse default as a timestamptz value");
+  }
+
+  @Test
+  public void testInvalidTimestamptzNano() {
+    Type expectedType = Types.TimestampNanoType.withZone();
+    String defaultJson = "\"2007-12-03T10:15:30+01:00\"";
+    assertThatThrownBy(() -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot parse default as a timestamptz_ns value");
   }
 
   // serialize to json and deserialize back should return the same result

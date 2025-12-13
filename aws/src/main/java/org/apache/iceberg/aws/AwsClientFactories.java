@@ -39,9 +39,10 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.kms.KmsClientBuilder;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 
 public class AwsClientFactories {
@@ -107,6 +108,7 @@ public class AwsClientFactories {
     public S3Client s3() {
       return S3Client.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
           .applyMutation(s3FileIOProperties::applyServiceConfigurations)
@@ -124,14 +126,17 @@ public class AwsClientFactories {
       if (s3FileIOProperties.isS3CRTEnabled()) {
         return S3AsyncClient.crtBuilder()
             .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-            .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+            .applyMutation(
+                b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))
             .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
             .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
             .build();
       }
       return S3AsyncClient.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
-          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+          .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
+          .applyMutation(
+              b -> s3FileIOProperties.applyCredentialConfigurations(awsClientProperties, b))
           .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
           .build();
     }
@@ -151,6 +156,7 @@ public class AwsClientFactories {
       return KmsClient.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyKmsEndpointConfigurations)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .applyMutation(awsClientProperties::applyRetryConfigurations)
           .build();
@@ -202,10 +208,11 @@ public class AwsClientFactories {
    * Configure the endpoint setting for a client
    *
    * @deprecated Not for public use. To configure the endpoint for a client, please use {@link
-   *     S3FileIOProperties#applyEndpointConfigurations(S3ClientBuilder)}, {@link
+   *     S3FileIOProperties#applyEndpointConfigurations(S3BaseClientBuilder)}, {@link
    *     AwsProperties#applyGlueEndpointConfigurations(GlueClientBuilder)}, or {@link
-   *     AwsProperties#applyDynamoDbEndpointConfigurations(DynamoDbClientBuilder)} accordingly. It
-   *     will be removed in 2.0.0
+   *     AwsProperties#applyDynamoDbEndpointConfigurations(DynamoDbClientBuilder)}, or {@link
+   *     AwsProperties#applyKmsEndpointConfigurations(KmsClientBuilder)} accordingly. It will be
+   *     removed in 2.0.0
    */
   @Deprecated
   public static <T extends SdkClientBuilder> void configureEndpoint(T builder, String endpoint) {
@@ -233,8 +240,8 @@ public class AwsClientFactories {
    * Build an AwsBasicCredential object
    *
    * @deprecated Not for public use. To configure the credentials for a s3 client, please use {@link
-   *     S3FileIOProperties#applyCredentialConfigurations(AwsClientProperties, S3ClientBuilder)} in
-   *     AwsProperties. It will be removed in 2.0.0.
+   *     S3FileIOProperties#applyCredentialConfigurations(AwsClientProperties, S3BaseClientBuilder)}
+   *     in AwsProperties. It will be removed in 2.0.0.
    */
   @Deprecated
   static AwsCredentialsProvider credentialsProvider(

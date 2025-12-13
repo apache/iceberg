@@ -164,6 +164,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'commons-logging', module: 'commons-logging'
     }
     implementation project(':iceberg-gcp')
+    implementation project(':iceberg-bigquery')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
@@ -174,7 +175,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     // for integration testing with the flink-runtime-jar
     // all of those dependencies are required because the integration test extends FlinkTestBase
     integrationCompileOnly project(':iceberg-api')
-    integrationImplementation libs.junit.vintage.engine
     integrationImplementation libs.assertj.core
     integrationImplementation project(path: ":iceberg-flink:iceberg-flink-${flinkMajorVersion}", configuration: "testArtifacts")
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')

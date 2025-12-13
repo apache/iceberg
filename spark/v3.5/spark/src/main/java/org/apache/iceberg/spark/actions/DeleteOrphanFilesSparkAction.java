@@ -21,9 +21,6 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.sql.Timestamp;
 import java.util.Collections;
@@ -31,33 +28,30 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.actions.ImmutableDeleteOrphanFiles;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.util.FileSystemWalker;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -97,11 +91,25 @@ import scala.Tuple2;
  * dataset provided which are not found in table metadata will be deleted, using the same {@link
  * Table#location()} and {@link #olderThan(long)} filtering as above.
  *
+ * <p>Streaming mode can be enabled via the {@value #STREAM_RESULTS} option to avoid loading all
+ * orphan file paths into driver memory. When enabled, the result will contain only a sample of file
+ * paths (up to {@value #MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT}). The total count of deleted files is
+ * logged but not included in the result.
+ *
  * <p><em>Note:</em> It is dangerous to call this action with a short retention interval as it might
  * corrupt the state of the table if another operation is writing at the same time.
  */
 public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFilesSparkAction>
     implements DeleteOrphanFiles {
+
+  public static final String STREAM_RESULTS = "stream-results";
+  public static final boolean STREAM_RESULTS_DEFAULT = false;
+
+  // Test-only option to configure the max sample size for streaming mode
+  @VisibleForTesting
+  static final String MAX_ORPHAN_FILE_SAMPLE_SIZE = "max-orphan-file-sample-size";
+
+  private static final int MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT = 20000;
 
   private static final Logger LOG = LoggerFactory.getLogger(DeleteOrphanFilesSparkAction.class);
   private static final Map<String, String> EQUAL_SCHEMES_DEFAULT = ImmutableMap.of("s3n,s3a", "s3");
@@ -109,6 +117,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private static final int MAX_DRIVER_LISTING_DIRECT_SUB_DIRS = 10;
   private static final int MAX_EXECUTOR_LISTING_DEPTH = 2000;
   private static final int MAX_EXECUTOR_LISTING_DIRECT_SUB_DIRS = Integer.MAX_VALUE;
+  private static final int DELETE_GROUP_SIZE = 100000;
 
   private final SerializableConfiguration hadoopConf;
   private final int listingParallelism;
@@ -121,6 +130,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Dataset<Row> compareToFileList;
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
+  private boolean usePrefixListing = false;
+  private static final Encoder<FileURI> FILE_URI_ENCODER = Encoders.bean(FileURI.class);
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -206,6 +217,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return this;
   }
 
+  public DeleteOrphanFilesSparkAction usePrefixListing(boolean newUsePrefixListing) {
+    this.usePrefixListing = newUsePrefixListing;
+    return this;
+  }
+
   private Dataset<String> filteredCompareToFileList() {
     Dataset<Row> files = compareToFileList;
     if (location != null) {
@@ -233,46 +249,140 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return String.format("Deleting orphan files (%s) from %s", optionsAsString, table.name());
   }
 
-  private void deleteFiles(SupportsBulkOperations io, List<String> paths) {
-    try {
-      io.deleteFiles(paths);
-      LOG.info("Deleted {} files using bulk deletes", paths.size());
-    } catch (BulkDeletionFailureException e) {
-      int deletedFilesCount = paths.size() - e.numberFailedObjects();
-      LOG.warn("Deleted only {} of {} files using bulk deletes", deletedFilesCount, paths.size());
-    }
+  private boolean streamResults() {
+    return PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
   }
 
   private DeleteOrphanFiles.Result doExecute() {
     Dataset<FileURI> actualFileIdentDS = actualFileIdentDS();
     Dataset<FileURI> validFileIdentDS = validFileIdentDS();
 
-    List<String> orphanFiles =
-        findOrphanFiles(spark(), actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
+    Dataset<String> orphanFileDS =
+        findOrphanFiles(actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
+    try {
+      return deleteFiles(orphanFileDS);
+    } finally {
+      orphanFileDS.unpersist();
+    }
+  }
 
-    if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
-      deleteFiles((SupportsBulkOperations) table.io(), orphanFiles);
-    } else {
+  /**
+   * Deletes orphan files from the cached dataset.
+   *
+   * @param orphanFileDS the cached dataset of orphan files
+   * @return result with orphan file paths
+   */
+  private DeleteOrphanFiles.Result deleteFiles(Dataset<String> orphanFileDS) {
+    int maxSampleSize =
+        PropertyUtil.propertyAsInt(
+            options(), MAX_ORPHAN_FILE_SAMPLE_SIZE, MAX_ORPHAN_FILE_SAMPLE_SIZE_DEFAULT);
+    List<String> orphanFileList = Lists.newArrayListWithCapacity(maxSampleSize);
+    long filesCount = 0;
 
-      Tasks.Builder<String> deleteTasks =
-          Tasks.foreach(orphanFiles)
-              .noRetry()
-              .executeWith(deleteExecutorService)
-              .suppressFailureWhenFinished()
-              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
+    Iterator<String> orphanFiles =
+        streamResults() ? orphanFileDS.toLocalIterator() : orphanFileDS.collectAsList().iterator();
 
-      if (deleteFunc == null) {
-        LOG.info(
-            "Table IO {} does not support bulk operations. Using non-bulk deletes.",
-            table.io().getClass().getName());
-        deleteTasks.run(table.io()::deleteFile);
+    Iterator<List<String>> fileGroups = Iterators.partition(orphanFiles, DELETE_GROUP_SIZE);
+
+    while (fileGroups.hasNext()) {
+      List<String> fileGroup = fileGroups.next();
+
+      collectPathsForOutput(fileGroup, orphanFileList, maxSampleSize);
+
+      if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
+        deleteBulk((SupportsBulkOperations) table.io(), fileGroup);
       } else {
-        LOG.info("Custom delete function provided. Using non-bulk deletes");
-        deleteTasks.run(deleteFunc::accept);
+        deleteNonBulk(fileGroup);
       }
+
+      filesCount += fileGroup.size();
     }
 
-    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFiles).build();
+    LOG.info("Deleted {} orphan files", filesCount);
+
+    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFileList).build();
+  }
+
+  private void collectPathsForOutput(
+      List<String> paths, List<String> orphanFileList, int maxSampleSize) {
+    if (streamResults()) {
+      int lengthToAdd = Math.min(maxSampleSize - orphanFileList.size(), paths.size());
+      orphanFileList.addAll(paths.subList(0, lengthToAdd));
+    } else {
+      orphanFileList.addAll(paths);
+    }
+  }
+
+  private void deleteBulk(SupportsBulkOperations io, List<String> paths) {
+    try {
+      io.deleteFiles(paths);
+      LOG.info("Deleted {} files using bulk deletes", paths.size());
+    } catch (BulkDeletionFailureException e) {
+      int deletedFilesCount = paths.size() - e.numberFailedObjects();
+      LOG.warn(
+          "Deleted only {} of {} files using bulk deletes", deletedFilesCount, paths.size(), e);
+    }
+  }
+
+  private void deleteNonBulk(List<String> paths) {
+    Tasks.Builder<String> deleteTasks =
+        Tasks.foreach(paths)
+            .noRetry()
+            .executeWith(deleteExecutorService)
+            .suppressFailureWhenFinished()
+            .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc));
+
+    if (deleteFunc == null) {
+      LOG.info(
+          "Table IO {} does not support bulk operations. Using non-bulk deletes.",
+          table.io().getClass().getName());
+      deleteTasks.run(table.io()::deleteFile);
+    } else {
+      LOG.info("Custom delete function provided. Using non-bulk deletes");
+      deleteTasks.run(deleteFunc::accept);
+    }
+  }
+
+  @VisibleForTesting
+  static Dataset<String> findOrphanFiles(
+      Dataset<FileURI> actualFileIdentDS,
+      Dataset<FileURI> validFileIdentDS,
+      PrefixMismatchMode prefixMismatchMode) {
+
+    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
+    actualFileIdentDS.sparkSession().sparkContext().register(conflicts);
+
+    Column joinCond = actualFileIdentDS.col("path").equalTo(validFileIdentDS.col("path"));
+
+    Dataset<String> orphanFileDS =
+        actualFileIdentDS
+            .joinWith(validFileIdentDS, joinCond, "leftouter")
+            .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING());
+
+    // Cache and force computation to populate conflicts accumulator
+    orphanFileDS = orphanFileDS.cache();
+
+    try {
+      orphanFileDS.count();
+
+      if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
+        throw new ValidationException(
+            "Unable to determine whether certain files are orphan. Metadata references files that"
+                + " match listed/provided files except for authority/scheme. Please, inspect the"
+                + " conflicting authorities/schemes and provide which of them are equal by further"
+                + " configuring the action via equalSchemes() and equalAuthorities() methods. Set the"
+                + " prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting"
+                + " authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that"
+                + " remaining conflicting authorities/schemes are different. It will be impossible to"
+                + " recover deleted files. Conflicting authorities/schemes: %s.",
+            conflicts.value());
+      }
+
+      return orphanFileDS;
+    } catch (Exception e) {
+      orphanFileDS.unpersist();
+      throw e;
+    }
   }
 
   private Dataset<FileURI> validFileIdentDS() {
@@ -303,122 +413,54 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     List<String> subDirs = Lists.newArrayList();
     List<String> matchingFiles = Lists.newArrayList();
 
-    Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
-    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
+    if (usePrefixListing) {
+      Preconditions.checkArgument(
+          table.io() instanceof SupportsPrefixOperations,
+          "Cannot use prefix listing with FileIO {} which does not support prefix operations.",
+          table.io());
 
-    // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
-    // less than MAX_DRIVER_LISTING_DIRECT_SUB_DIRS direct sub dirs on the driver
-    listDirRecursively(
-        location,
-        predicate,
-        hadoopConf.value(),
-        MAX_DRIVER_LISTING_DEPTH,
-        MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
-        subDirs,
-        pathFilter,
-        matchingFiles);
+      Predicate<org.apache.iceberg.io.FileInfo> predicate =
+          fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
+      FileSystemWalker.listDirRecursivelyWithFileIO(
+          (SupportsPrefixOperations) table.io(),
+          location,
+          table.specs(),
+          predicate,
+          matchingFiles::add);
 
-    JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
-
-    if (subDirs.isEmpty()) {
+      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
       return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
-    }
+    } else {
+      Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
+      // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
+      // less than MAX_DRIVER_LISTING_DIRECT_SUB_DIRS direct sub dirs on the driver
+      FileSystemWalker.listDirRecursivelyWithHadoop(
+          location,
+          table.specs(),
+          predicate,
+          hadoopConf.value(),
+          MAX_DRIVER_LISTING_DEPTH,
+          MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
+          subDirs::add,
+          matchingFiles::add);
 
-    int parallelism = Math.min(subDirs.size(), listingParallelism);
-    JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
+      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
 
-    Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
-    ListDirsRecursively listDirs = new ListDirsRecursively(conf, olderThanTimestamp, pathFilter);
-    JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirs);
-
-    JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
-    return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
-  }
-
-  private static void listDirRecursively(
-      String dir,
-      Predicate<FileStatus> predicate,
-      Configuration conf,
-      int maxDepth,
-      int maxDirectSubDirs,
-      List<String> remainingSubDirs,
-      PathFilter pathFilter,
-      List<String> matchingFiles) {
-
-    // stop listing whenever we reach the max depth
-    if (maxDepth <= 0) {
-      remainingSubDirs.add(dir);
-      return;
-    }
-
-    try {
-      Path path = new Path(dir);
-      FileSystem fs = path.getFileSystem(conf);
-
-      List<String> subDirs = Lists.newArrayList();
-
-      for (FileStatus file : fs.listStatus(path, pathFilter)) {
-        if (file.isDirectory()) {
-          subDirs.add(file.getPath().toString());
-        } else if (file.isFile() && predicate.test(file)) {
-          matchingFiles.add(file.getPath().toString());
-        }
+      if (subDirs.isEmpty()) {
+        return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
       }
 
-      // stop listing if the number of direct sub dirs is bigger than maxDirectSubDirs
-      if (subDirs.size() > maxDirectSubDirs) {
-        remainingSubDirs.addAll(subDirs);
-        return;
-      }
+      int parallelism = Math.min(subDirs.size(), listingParallelism);
+      JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
 
-      for (String subDir : subDirs) {
-        listDirRecursively(
-            subDir,
-            predicate,
-            conf,
-            maxDepth - 1,
-            maxDirectSubDirs,
-            remainingSubDirs,
-            pathFilter,
-            matchingFiles);
-      }
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
+      ListDirsRecursively listDirs =
+          new ListDirsRecursively(conf, olderThanTimestamp, table.specs());
+      JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirs);
+
+      JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
+      return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
     }
-  }
-
-  @VisibleForTesting
-  static List<String> findOrphanFiles(
-      SparkSession spark,
-      Dataset<FileURI> actualFileIdentDS,
-      Dataset<FileURI> validFileIdentDS,
-      PrefixMismatchMode prefixMismatchMode) {
-
-    SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
-    spark.sparkContext().register(conflicts);
-
-    Column joinCond = actualFileIdentDS.col("path").equalTo(validFileIdentDS.col("path"));
-
-    List<String> orphanFiles =
-        actualFileIdentDS
-            .joinWith(validFileIdentDS, joinCond, "leftouter")
-            .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING())
-            .collectAsList();
-
-    if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
-      throw new ValidationException(
-          "Unable to determine whether certain files are orphan. "
-              + "Metadata references files that match listed/provided files except for authority/scheme. "
-              + "Please, inspect the conflicting authorities/schemes and provide which of them are equal "
-              + "by further configuring the action via equalSchemes() and equalAuthorities() methods. "
-              + "Set the prefix mismatch mode to 'NONE' to ignore remaining locations with conflicting "
-              + "authorities/schemes or to 'DELETE' iff you are ABSOLUTELY confident that remaining conflicting "
-              + "authorities/schemes are different. It will be impossible to recover deleted files. "
-              + "Conflicting authorities/schemes: %s.",
-          conflicts.value());
-    }
-
-    return orphanFiles;
   }
 
   private static Map<String, String> flattenMap(Map<String, String> map) {
@@ -438,16 +480,16 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     private final Broadcast<SerializableConfiguration> hadoopConf;
     private final long olderThanTimestamp;
-    private final PathFilter pathFilter;
+    private final Map<Integer, PartitionSpec> specs;
 
     ListDirsRecursively(
         Broadcast<SerializableConfiguration> hadoopConf,
         long olderThanTimestamp,
-        PathFilter pathFilter) {
+        Map<Integer, PartitionSpec> specs) {
 
       this.hadoopConf = hadoopConf;
       this.olderThanTimestamp = olderThanTimestamp;
-      this.pathFilter = pathFilter;
+      this.specs = specs;
     }
 
     @Override
@@ -458,15 +500,15 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
 
       while (dirs.hasNext()) {
-        listDirRecursively(
+        FileSystemWalker.listDirRecursivelyWithHadoop(
             dirs.next(),
+            specs,
             predicate,
             hadoopConf.value().value(),
             MAX_EXECUTOR_LISTING_DEPTH,
             MAX_EXECUTOR_LISTING_DIRECT_SUB_DIRS,
-            subDirs,
-            pathFilter,
-            files);
+            subDirs::add,
+            files::add);
       }
 
       if (!subDirs.isEmpty()) {
@@ -500,29 +542,25 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       FileURI valid = row._2;
 
       if (valid == null) {
-        return actual.uriAsString;
+        return actual.getUriAsString();
       }
 
-      boolean schemeMatch = uriComponentMatch(valid.scheme, actual.scheme);
-      boolean authorityMatch = uriComponentMatch(valid.authority, actual.authority);
+      boolean schemeMatch = valid.schemeMatch(actual);
+      boolean authorityMatch = valid.authorityMatch(actual);
 
       if ((!schemeMatch || !authorityMatch) && mode == PrefixMismatchMode.DELETE) {
-        return actual.uriAsString;
+        return actual.getUriAsString();
       } else {
         if (!schemeMatch) {
-          conflicts.add(Pair.of(valid.scheme, actual.scheme));
+          conflicts.add(Pair.of(valid.getScheme(), actual.getScheme()));
         }
 
         if (!authorityMatch) {
-          conflicts.add(Pair.of(valid.authority, actual.authority));
+          conflicts.add(Pair.of(valid.getAuthority(), actual.getAuthority()));
         }
 
         return null;
       }
-    }
-
-    private boolean uriComponentMatch(String valid, String actual) {
-      return Strings.isNullOrEmpty(valid) || valid.equalsIgnoreCase(actual);
     }
   }
 
@@ -563,7 +601,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     protected abstract String uriAsString(I input);
 
     Dataset<FileURI> apply(Dataset<I> ds) {
-      return ds.mapPartitions(this, FileURI.ENCODER);
+      return ds.mapPartitions(this, FILE_URI_ENCODER);
     }
 
     @Override
@@ -577,100 +615,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       String scheme = equalSchemes.getOrDefault(uri.getScheme(), uri.getScheme());
       String authority = equalAuthorities.getOrDefault(uri.getAuthority(), uri.getAuthority());
       return new FileURI(scheme, authority, uri.getPath(), uriAsString);
-    }
-  }
-
-  /**
-   * A {@link PathFilter} that filters out hidden path, but does not filter out paths that would be
-   * marked as hidden by {@link HiddenPathFilter} due to a partition field that starts with one of
-   * the characters that indicate a hidden path.
-   */
-  @VisibleForTesting
-  static class PartitionAwareHiddenPathFilter implements PathFilter, Serializable {
-
-    private final Set<String> hiddenPathPartitionNames;
-
-    PartitionAwareHiddenPathFilter(Set<String> hiddenPathPartitionNames) {
-      this.hiddenPathPartitionNames = hiddenPathPartitionNames;
-    }
-
-    @Override
-    public boolean accept(Path path) {
-      return isHiddenPartitionPath(path) || HiddenPathFilter.get().accept(path);
-    }
-
-    private boolean isHiddenPartitionPath(Path path) {
-      return hiddenPathPartitionNames.stream().anyMatch(path.getName()::startsWith);
-    }
-
-    static PathFilter forSpecs(Map<Integer, PartitionSpec> specs) {
-      if (specs == null) {
-        return HiddenPathFilter.get();
-      }
-
-      Set<String> partitionNames =
-          specs.values().stream()
-              .map(PartitionSpec::fields)
-              .flatMap(List::stream)
-              .filter(field -> field.name().startsWith("_") || field.name().startsWith("."))
-              .map(field -> field.name() + "=")
-              .collect(Collectors.toSet());
-
-      if (partitionNames.isEmpty()) {
-        return HiddenPathFilter.get();
-      } else {
-        return new PartitionAwareHiddenPathFilter(partitionNames);
-      }
-    }
-  }
-
-  public static class FileURI {
-    public static final Encoder<FileURI> ENCODER = Encoders.bean(FileURI.class);
-
-    private String scheme;
-    private String authority;
-    private String path;
-    private String uriAsString;
-
-    public FileURI(String scheme, String authority, String path, String uriAsString) {
-      this.scheme = scheme;
-      this.authority = authority;
-      this.path = path;
-      this.uriAsString = uriAsString;
-    }
-
-    public FileURI() {}
-
-    public void setScheme(String scheme) {
-      this.scheme = scheme;
-    }
-
-    public void setAuthority(String authority) {
-      this.authority = authority;
-    }
-
-    public void setPath(String path) {
-      this.path = path;
-    }
-
-    public void setUriAsString(String uriAsString) {
-      this.uriAsString = uriAsString;
-    }
-
-    public String getScheme() {
-      return scheme;
-    }
-
-    public String getAuthority() {
-      return authority;
-    }
-
-    public String getPath() {
-      return path;
-    }
-
-    public String getUriAsString() {
-      return uriAsString;
     }
   }
 }

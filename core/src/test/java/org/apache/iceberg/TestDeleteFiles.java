@@ -25,9 +25,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -83,11 +83,9 @@ public class TestDeleteFiles extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {1, "main"},
-        new Object[] {1, "testBranch"},
-        new Object[] {2, "main"},
-        new Object[] {2, "testBranch"});
+    return TestHelpers.ALL_VERSIONS.stream()
+        .flatMap(v -> Stream.of(new Object[] {v, "main"}, new Object[] {v, "testBranch"}))
+        .collect(Collectors.toList());
   }
 
   @TestTemplate
@@ -467,6 +465,98 @@ public class TestDeleteFiles extends TestBase {
     assertThatThrownBy(builder::build)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Referenced data file is required for DV");
+  }
+
+  @TestTemplate
+  public void removingDataFileByExpressionAlsoRemovesDV() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    DeleteFile dv1 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-1-deletes.puffin")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(5)
+            .withReferencedDataFile(DATA_FILE_BUCKET_0_IDS_0_2.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    DeleteFile dv2 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-2-deletes.puffin")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(5)
+            .withReferencedDataFile(DATA_FILE_BUCKET_0_IDS_8_10.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(DATA_FILE_BUCKET_0_IDS_0_2)
+            .addRows(DATA_FILE_BUCKET_0_IDS_8_10)
+            .addDeletes(dv1)
+            .addDeletes(dv2),
+        branch);
+
+    Snapshot snapshot = latestSnapshot(table, branch);
+    assertThat(snapshot.sequenceNumber()).isEqualTo(1);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
+
+    // deleting by row filter should also remove the orphaned dv1 from delete manifests
+    commit(table, table.newDelete().deleteFromRowFilter(Expressions.lessThan("id", 5)), branch);
+
+    Snapshot deleteSnap = latestSnapshot(table, branch);
+    assertThat(deleteSnap.sequenceNumber()).isEqualTo(2);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
+
+    assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
+    validateDeleteManifest(
+        deleteSnap.deleteManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(deleteSnap.snapshotId(), snapshot.snapshotId()),
+        files(dv1, dv2),
+        statuses(ManifestEntry.Status.DELETED, Status.EXISTING));
+  }
+
+  @TestTemplate
+  public void removingDataFileByPathAlsoRemovesDV() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(FILE_A)
+            .addRows(FILE_B)
+            .addDeletes(fileADeletes())
+            .addDeletes(fileBDeletes()),
+        branch);
+
+    Snapshot snapshot = latestSnapshot(table, branch);
+    assertThat(snapshot.sequenceNumber()).isEqualTo(1);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
+
+    // deleting by path should also remove the orphaned DV for fileA from delete manifests
+    commit(table, table.newDelete().deleteFile(FILE_A.location()), branch);
+
+    Snapshot deleteSnap = latestSnapshot(table, branch);
+    assertThat(deleteSnap.sequenceNumber()).isEqualTo(2);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
+
+    assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
+    validateDeleteManifest(
+        deleteSnap.deleteManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(deleteSnap.snapshotId(), snapshot.snapshotId()),
+        files(fileADeletes(), fileBDeletes()),
+        statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
   }
 
   private static ByteBuffer longToBuffer(long value) {

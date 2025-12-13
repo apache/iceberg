@@ -27,7 +27,8 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.stream.Stream;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -39,7 +40,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public class TestSchemaParser extends DataTest {
+public class TestSchemaParser extends DataTestBase {
   @Override
   protected boolean supportsUnknown() {
     return true;
@@ -117,8 +118,15 @@ public class TestSchemaParser extends DataTest {
             Types.TimestampType.withZone(),
             Literal.of(DateTimeUtil.isoTimestamptzToMicros("2024-12-17T23:59:59.999999+00:00"))),
         Arguments.of(
+            Types.TimestampNanoType.withZone(),
+            Expressions.nanos(
+                DateTimeUtil.isoTimestamptzToNanos("2024-12-17T23:59:59.123456789+00:00"))),
+        Arguments.of(
             Types.TimestampType.withoutZone(),
             Literal.of(DateTimeUtil.isoTimestampToMicros("2024-12-17T23:59:59.999999"))),
+        Arguments.of(
+            Types.TimestampNanoType.withoutZone(),
+            Expressions.nanos(DateTimeUtil.isoTimestampToNanos("2024-12-17T23:59:59.123456789"))),
         Arguments.of(Types.StringType.get(), Literal.of("iceberg")),
         Arguments.of(Types.UUIDType.get(), Literal.of(UUID.randomUUID())),
         Arguments.of(

@@ -156,6 +156,9 @@ Convenience binary artifacts are staged on Nexus. The Maven repository URL is:
 
 Please download, verify, and test.
 
+Instructions for verifying a release can be found here:
+* https://iceberg.apache.org/how-to-release/#how-to-verify-a-release
+
 Please vote in the next 72 hours.
 
 [ ] +1 Release this as Apache Iceberg ${version}

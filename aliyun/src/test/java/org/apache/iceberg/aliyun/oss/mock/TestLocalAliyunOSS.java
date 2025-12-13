@@ -20,6 +20,7 @@ package org.apache.iceberg.aliyun.oss.mock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSErrorCode;
@@ -36,7 +37,6 @@ import java.util.UUID;
 import org.apache.iceberg.aliyun.TestUtility;
 import org.apache.iceberg.aliyun.oss.AliyunOSSExtension;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.assertj.core.api.Assumptions;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,7 +73,7 @@ public class TestLocalAliyunOSS {
 
   @Test
   public void testBuckets() {
-    Assumptions.assumeThat(OSS_TEST_EXTENSION.getClass())
+    assumeThat(OSS_TEST_EXTENSION.getClass())
         .as("Aliyun integration test cannot delete existing bucket from test environment.")
         .isEqualTo(AliyunOSSMockExtension.class);
 
@@ -90,7 +90,7 @@ public class TestLocalAliyunOSS {
 
   @Test
   public void testDeleteBucket() {
-    Assumptions.assumeThat(OSS_TEST_EXTENSION.getClass())
+    assumeThat(OSS_TEST_EXTENSION.getClass())
         .as("Aliyun integration test cannot delete existing bucket from test environment.")
         .isEqualTo(AliyunOSSMockExtension.class);
 

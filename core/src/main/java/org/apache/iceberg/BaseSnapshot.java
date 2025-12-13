@@ -45,6 +45,7 @@ class BaseSnapshot implements Snapshot {
   private final String[] v1ManifestLocations;
   private final Long firstRowId;
   private final Long addedRows;
+  private final String keyId;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -65,7 +66,8 @@ class BaseSnapshot implements Snapshot {
       Integer schemaId,
       String manifestList,
       Long firstRowId,
-      Long addedRows) {
+      Long addedRows,
+      String keyId) {
     Preconditions.checkArgument(
         firstRowId == null || firstRowId >= 0,
         "Invalid first-row-id (cannot be negative): %s",
@@ -88,6 +90,7 @@ class BaseSnapshot implements Snapshot {
     this.v1ManifestLocations = null;
     this.firstRowId = firstRowId;
     this.addedRows = firstRowId != null ? addedRows : null;
+    this.keyId = keyId;
   }
 
   BaseSnapshot(
@@ -110,6 +113,7 @@ class BaseSnapshot implements Snapshot {
     this.v1ManifestLocations = v1ManifestLocations;
     this.firstRowId = null;
     this.addedRows = null;
+    this.keyId = null;
   }
 
   @Override
@@ -157,6 +161,11 @@ class BaseSnapshot implements Snapshot {
     return addedRows;
   }
 
+  @Override
+  public String keyId() {
+    return keyId;
+  }
+
   private void cacheManifests(FileIO fileIO) {
     if (fileIO == null) {
       throw new IllegalArgumentException("Cannot cache changes: FileIO is null");
@@ -173,7 +182,9 @@ class BaseSnapshot implements Snapshot {
 
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      this.allManifests = ManifestLists.read(fileIO.newInputFile(manifestListLocation));
+      this.allManifests =
+          ManifestLists.read(
+              fileIO.newInputFile(new BaseManifestListFile(manifestListLocation, keyId)));
     }
 
     if (dataManifests == null || deleteManifests == null) {

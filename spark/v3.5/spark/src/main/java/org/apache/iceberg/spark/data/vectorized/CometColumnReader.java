@@ -19,11 +19,11 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.io.IOException;
+import org.apache.comet.CometSchemaImporter;
 import org.apache.comet.parquet.AbstractColumnReader;
 import org.apache.comet.parquet.ColumnReader;
 import org.apache.comet.parquet.TypeUtil;
 import org.apache.comet.parquet.Utils;
-import org.apache.comet.shaded.arrow.c.CometSchemaImporter;
 import org.apache.comet.shaded.arrow.memory.RootAllocator;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;

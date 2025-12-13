@@ -219,7 +219,7 @@ public class TestSetCurrentSnapshotProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot(1L)", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse identifier for arg table: 1");
+        .hasMessage("Cannot parse identifier for parameter 'table': 1");
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.set_current_snapshot(snapshot_id => 1L)", catalogName))
@@ -236,7 +236,7 @@ public class TestSetCurrentSnapshotProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot('', 1L)", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot handle an empty identifier for argument table");
+        .hasMessage("Cannot handle an empty identifier for parameter 'table'");
 
     assertThatThrownBy(
             () ->

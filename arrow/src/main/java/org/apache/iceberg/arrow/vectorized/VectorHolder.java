@@ -73,7 +73,7 @@ public class VectorHolder {
     icebergField = field;
   }
 
-  private VectorHolder(FieldVector vec, Types.NestedField field, NullabilityHolder nulls) {
+  VectorHolder(FieldVector vec, Types.NestedField field, NullabilityHolder nulls) {
     columnDescriptor = null;
     vector = vec;
     isDictionaryEncoded = false;
@@ -165,6 +165,11 @@ public class VectorHolder {
         FieldVector vector, Types.NestedField icebergField, NullabilityHolder nulls) {
       super(vector, icebergField, nulls);
     }
+  }
+
+  public static VectorHolder vectorHolder(
+      FieldVector vector, Types.NestedField icebergField, NullabilityHolder nulls) {
+    return new VectorHolder(vector, icebergField, nulls);
   }
 
   public static class DeletedVectorHolder extends VectorHolder {

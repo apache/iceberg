@@ -25,19 +25,23 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.LegacyMd5Plugin;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 public class MinioUtil {
+  public static final String LATEST_TAG = "latest";
+  // This version doesn't support strong integrity checks
+  static final String LEGACY_TAG = "RELEASE.2024-12-18T13-15-44Z";
 
   private MinioUtil() {}
 
   public static MinIOContainer createContainer() {
-    return createContainer(null);
+    return createContainer(LATEST_TAG, null);
   }
 
-  public static MinIOContainer createContainer(AwsCredentials credentials) {
-    var container = new MinIOContainer(DockerImageName.parse("minio/minio:latest"));
+  public static MinIOContainer createContainer(String tag, AwsCredentials credentials) {
+    var container = new MinIOContainer(DockerImageName.parse("minio/minio").withTag(tag));
 
     // this enables virtual-host-style requests. see
     // https://github.com/minio/minio/tree/master/docs/config#domain
@@ -52,8 +56,15 @@ public class MinioUtil {
   }
 
   public static S3Client createS3Client(MinIOContainer container) {
+    return createS3Client(container, false);
+  }
+
+  public static S3Client createS3Client(MinIOContainer container, boolean legacyMd5PluginEnabled) {
     URI uri = URI.create(container.getS3URL());
     S3ClientBuilder builder = S3Client.builder();
+    if (legacyMd5PluginEnabled) {
+      builder.addPlugin(LegacyMd5Plugin.create());
+    }
     builder.credentialsProvider(
         StaticCredentialsProvider.create(
             AwsBasicCredentials.create(container.getUserName(), container.getPassword())));

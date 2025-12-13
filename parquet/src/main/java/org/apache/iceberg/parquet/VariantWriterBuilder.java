@@ -37,7 +37,6 @@ import org.apache.parquet.schema.LogicalTypeAnnotation.IntLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor;
 import org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
-import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -170,7 +169,15 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
   @Override
   public ParquetValueWriter<?> array(
       GroupType array, ParquetValueWriter<?> valueWriter, ParquetValueWriter<?> elementWriter) {
-    throw new UnsupportedOperationException("Array is not yet supported");
+    int valueDL = schema.getMaxDefinitionLevel(path(VALUE));
+    int typedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE));
+    int repeatedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE, LIST));
+    int repeatedRL = schema.getMaxRepetitionLevel(path(TYPED_VALUE, LIST));
+
+    ParquetValueWriter<VariantValue> typedWriter =
+        ParquetVariantWriters.array(repeatedDL, repeatedRL, elementWriter);
+
+    return ParquetVariantWriters.shredded(valueDL, valueWriter, typedDL, typedWriter);
   }
 
   private static class LogicalTypeToVariantWriter
@@ -229,23 +236,16 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(TimeLogicalTypeAnnotation time) {
-      // ParquetValueWriter<VariantValue> writer =
-      //     ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), PhysicalType.TIME);
-      return Optional.empty();
+      ParquetValueWriter<VariantValue> writer =
+          ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), PhysicalType.TIME);
+      return Optional.of(writer);
     }
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(TimestampLogicalTypeAnnotation timestamp) {
-      if (timestamp.getUnit() == TimeUnit.MICROS) {
-        PhysicalType type =
-            timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
-        ParquetValueWriter<?> writer =
-            ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type);
-        return Optional.of(writer);
-      }
-
-      throw new IllegalArgumentException(
-          "Invalid unit for shredded timestamp: " + timestamp.getUnit());
+      return Optional.of(
+          ParquetVariantWriters.primitive(
+              ParquetValueWriters.longs(desc), ParquetVariantUtil.convert(timestamp)));
     }
 
     @Override
@@ -278,9 +278,9 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(UUIDLogicalTypeAnnotation uuidLogicalType) {
-      // ParquetValueWriter<VariantValue> writer =
-      //     ParquetVariantWriters.primitive(ParquetValueWriters.uuids(desc), PhysicalType.UUID);
-      return Optional.empty();
+      ParquetValueWriter<VariantValue> writer =
+          ParquetVariantWriters.primitive(ParquetValueWriters.uuids(desc), PhysicalType.UUID);
+      return Optional.of(writer);
     }
   }
 }

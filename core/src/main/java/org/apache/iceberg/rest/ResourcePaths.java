@@ -22,6 +22,7 @@ import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class ResourcePaths {
   private static final Joiner SLASH = Joiner.on("/").skipNulls();
@@ -38,16 +39,24 @@ public class ResourcePaths {
   public static final String V1_TABLE_METRICS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics";
   public static final String V1_TABLE_RENAME = "/v1/{prefix}/tables/rename";
-  public static final String V1_TABLE_SCAN_PLAN_SUBMIT = "/v1/{prefix}/tables/{table}/plan";
-  public static final String V1_TABLE_SCAN_PLAN = "/v1/{prefix}/tables/{table}/plan/{plan-id}";
-  public static final String V1_TABLE_SCAN_PLAN_TASKS = "/v1/{prefix}/tables/{table}/tasks";
+  public static final String V1_TABLE_SCAN_PLAN_SUBMIT =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/plan";
+  public static final String V1_TABLE_SCAN_PLAN =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/plan/{plan-id}";
+  public static final String V1_TABLE_SCAN_PLAN_TASKS =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/tasks";
   public static final String V1_TRANSACTIONS_COMMIT = "/v1/{prefix}/transactions/commit";
   public static final String V1_VIEWS = "/v1/{prefix}/namespaces/{namespace}/views";
   public static final String V1_VIEW = "/v1/{prefix}/namespaces/{namespace}/views/{view}";
   public static final String V1_VIEW_RENAME = "/v1/{prefix}/views/rename";
 
   public static ResourcePaths forCatalogProperties(Map<String, String> properties) {
-    return new ResourcePaths(properties.get(PREFIX));
+    return new ResourcePaths(
+        properties.get(PREFIX),
+        PropertyUtil.propertyAsString(
+            properties,
+            RESTCatalogProperties.NAMESPACE_SEPARATOR,
+            RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8));
   }
 
   public static String config() {
@@ -59,9 +68,20 @@ public class ResourcePaths {
   }
 
   private final String prefix;
+  private final String namespaceSeparator;
 
+  /**
+   * @deprecated since 1.11.0, will be made private in 1.12.0; use {@link
+   *     ResourcePaths#forCatalogProperties(Map)} instead.
+   */
+  @Deprecated
   public ResourcePaths(String prefix) {
+    this(prefix, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+  }
+
+  private ResourcePaths(String prefix, String namespaceSeparator) {
     this.prefix = prefix;
+    this.namespaceSeparator = namespaceSeparator;
   }
 
   public String namespaces() {
@@ -69,15 +89,15 @@ public class ResourcePaths {
   }
 
   public String namespace(Namespace ns) {
-    return SLASH.join("v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns));
+    return SLASH.join("v1", prefix, "namespaces", pathEncode(ns));
   }
 
   public String namespaceProperties(Namespace ns) {
-    return SLASH.join("v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns), "properties");
+    return SLASH.join("v1", prefix, "namespaces", pathEncode(ns), "properties");
   }
 
   public String tables(Namespace ns) {
-    return SLASH.join("v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns), "tables");
+    return SLASH.join("v1", prefix, "namespaces", pathEncode(ns), "tables");
   }
 
   public String table(TableIdentifier ident) {
@@ -85,13 +105,13 @@ public class ResourcePaths {
         "v1",
         prefix,
         "namespaces",
-        RESTUtil.encodeNamespace(ident.namespace()),
+        pathEncode(ident.namespace()),
         "tables",
         RESTUtil.encodeString(ident.name()));
   }
 
   public String register(Namespace ns) {
-    return SLASH.join("v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns), "register");
+    return SLASH.join("v1", prefix, "namespaces", pathEncode(ns), "register");
   }
 
   public String rename() {
@@ -103,7 +123,7 @@ public class ResourcePaths {
         "v1",
         prefix,
         "namespaces",
-        RESTUtil.encodeNamespace(identifier.namespace()),
+        pathEncode(identifier.namespace()),
         "tables",
         RESTUtil.encodeString(identifier.name()),
         "metrics");
@@ -114,7 +134,7 @@ public class ResourcePaths {
   }
 
   public String views(Namespace ns) {
-    return SLASH.join("v1", prefix, "namespaces", RESTUtil.encodeNamespace(ns), "views");
+    return SLASH.join("v1", prefix, "namespaces", pathEncode(ns), "views");
   }
 
   public String view(TableIdentifier ident) {
@@ -122,12 +142,50 @@ public class ResourcePaths {
         "v1",
         prefix,
         "namespaces",
-        RESTUtil.encodeNamespace(ident.namespace()),
+        pathEncode(ident.namespace()),
         "views",
         RESTUtil.encodeString(ident.name()));
   }
 
   public String renameView() {
     return SLASH.join("v1", prefix, "views", "rename");
+  }
+
+  public String planTableScan(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "plan");
+  }
+
+  public String plan(TableIdentifier ident, String planId) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "plan",
+        RESTUtil.encodeString(planId));
+  }
+
+  public String fetchScanTasks(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(ident.namespace()),
+        "tables",
+        RESTUtil.encodeString(ident.name()),
+        "tasks");
+  }
+
+  private String pathEncode(Namespace ns) {
+    return RESTUtil.encodeNamespace(ns, namespaceSeparator);
   }
 }

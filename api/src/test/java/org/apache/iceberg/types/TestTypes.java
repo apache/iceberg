@@ -98,6 +98,8 @@ public class TestTypes {
 
     assertThat(Types.fromPrimitiveString("geometry")).isEqualTo(Types.GeometryType.crs84());
     assertThat(Types.fromPrimitiveString("Geometry")).isEqualTo(Types.GeometryType.crs84());
+    assertThat(((Types.GeometryType) Types.fromPrimitiveString("geometry")).crs())
+        .isEqualTo(Types.GeometryType.DEFAULT_CRS);
     assertThat(Types.fromPrimitiveString("geometry(srid:3857)"))
         .isEqualTo(Types.GeometryType.of("srid:3857"));
     assertThat(Types.fromPrimitiveString("geometry( srid:3857 )"))
@@ -113,12 +115,13 @@ public class TestTypes {
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("geometry( )"))
         .withMessageContaining("Invalid CRS: (empty string)");
-    assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> Types.fromPrimitiveString("geometry(srid:123,456)"))
-        .withMessageContaining("Invalid CRS: srid:123,456");
 
     assertThat(Types.fromPrimitiveString("geography")).isEqualTo(Types.GeographyType.crs84());
     assertThat(Types.fromPrimitiveString("Geography")).isEqualTo(Types.GeographyType.crs84());
+    assertThat(((Types.GeographyType) Types.fromPrimitiveString("geography")).crs())
+        .isEqualTo(Types.GeographyType.DEFAULT_CRS);
+    assertThat(((Types.GeographyType) Types.fromPrimitiveString("geography")).algorithm())
+        .isEqualTo(Types.GeographyType.DEFAULT_ALGORITHM);
     assertThat(Types.fromPrimitiveString("geography(srid:4269)"))
         .isEqualTo(Types.GeographyType.of("srid:4269"));
     assertThat(Types.fromPrimitiveString("geography(srid: 4269)"))

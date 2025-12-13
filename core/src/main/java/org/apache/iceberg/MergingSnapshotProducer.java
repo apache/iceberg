@@ -295,6 +295,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             formatVersion(),
             file.location());
         break;
+      case 4:
+        Preconditions.checkArgument(
+            file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
+            "Must use DVs for position deletes in V%s: %s",
+            formatVersion(),
+            file.location());
+        break;
       default:
         throw new IllegalArgumentException("Unsupported format version: " + formatVersion());
     }
@@ -928,6 +935,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                             .UNASSIGNED_SEQ) // filter out unassigned in rewritten manifests
             .reduce(base.lastSequenceNumber(), Math::min);
     deleteFilterManager.dropDeleteFilesOlderThan(minDataSequenceNumber);
+
+    // retrieve the data files to be deleted from the DataFileFilterManager and pass it to the
+    // DeleteFileFilterManager so that it can potentially remove orphaned DVs
+    Set<DataFile> filesToBeDeleted = filterManager.filesToBeDeleted();
+    deleteFilterManager.removeDanglingDeletesFor(filesToBeDeleted);
+
     List<ManifestFile> filteredDeletes =
         deleteFilterManager.filterManifests(
             SnapshotUtil.schemaFor(base, targetBranch()),
@@ -1122,6 +1135,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     @Override
     protected Set<DataFile> newFileSet() {
       return DataFileSet.create();
+    }
+
+    @Override
+    protected void removeDanglingDeletesFor(Set<DataFile> dataFiles) {
+      throw new UnsupportedOperationException("Cannot remove dangling deletes");
     }
   }
 

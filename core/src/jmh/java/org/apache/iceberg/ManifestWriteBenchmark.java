@@ -27,6 +27,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.io.FileUtils;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -103,6 +104,7 @@ public class ManifestWriteBenchmark {
         ManifestLists.write(
             state.getFormatVersion(),
             org.apache.iceberg.Files.localOutput(manifestListFile),
+            PlaintextEncryptionManager.instance(),
             0,
             1L,
             0,

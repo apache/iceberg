@@ -49,7 +49,6 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -122,6 +121,7 @@ public class SparkTable
   private final Long snapshotId;
   private final boolean refreshEagerly;
   private final Set<TableCapability> capabilities;
+  private final boolean isTableRewrite;
   private String branch;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
@@ -142,6 +142,11 @@ public class SparkTable
   }
 
   public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
+    this(icebergTable, snapshotId, refreshEagerly, false);
+  }
+
+  public SparkTable(
+      Table icebergTable, Long snapshotId, boolean refreshEagerly, boolean isTableRewrite) {
     this.icebergTable = icebergTable;
     this.snapshotId = snapshotId;
     this.refreshEagerly = refreshEagerly;
@@ -152,6 +157,7 @@ public class SparkTable
             TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA,
             TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA_DEFAULT);
     this.capabilities = acceptAnySchema ? CAPABILITIES_WITH_ACCEPT_ANY_SCHEMA : CAPABILITIES;
+    this.isTableRewrite = isTableRewrite;
   }
 
   private SparkSession sparkSession() {
@@ -191,10 +197,18 @@ public class SparkTable
     if (icebergTable instanceof BaseMetadataTable) {
       return icebergTable.schema();
     } else if (branch != null) {
-      return SnapshotUtil.schemaFor(icebergTable, branch);
+      return addLineageIfRequired(SnapshotUtil.schemaFor(icebergTable, branch));
     } else {
-      return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
+      return addLineageIfRequired(SnapshotUtil.schemaFor(icebergTable, snapshotId, null));
     }
+  }
+
+  private Schema addLineageIfRequired(Schema schema) {
+    if (TableUtil.supportsRowLineage(icebergTable) && isTableRewrite) {
+      return MetadataColumns.schemaWithRowLineage(schema);
+    }
+
+    return schema;
   }
 
   @Override
@@ -258,23 +272,16 @@ public class SparkTable
   @Override
   public MetadataColumn[] metadataColumns() {
     DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(table()));
-    ImmutableList.Builder<SparkMetadataColumn> metadataColumns = ImmutableList.builder();
-    metadataColumns.add(
-        new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
-        new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
-        new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
-        new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false),
-        new SparkMetadataColumn(MetadataColumns.IS_DELETED.name(), DataTypes.BooleanType, false));
-
-    if (TableUtil.formatVersion(table()) >= 3) {
-      metadataColumns.add(
-          new SparkMetadataColumn(MetadataColumns.ROW_ID.name(), DataTypes.LongType, true));
-      metadataColumns.add(
-          new SparkMetadataColumn(
-              MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), DataTypes.LongType, true));
-    }
-
-    return metadataColumns.build().toArray(SparkMetadataColumn[]::new);
+    return new MetadataColumn[] {
+      new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
+      new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
+      new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
+      new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false),
+      new SparkMetadataColumn(MetadataColumns.IS_DELETED.name(), DataTypes.BooleanType, false),
+      new SparkMetadataColumn(MetadataColumns.ROW_ID.name(), DataTypes.LongType, true),
+      new SparkMetadataColumn(
+          MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), DataTypes.LongType, true)
+    };
   }
 
   @Override

@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewVersion;
@@ -328,30 +329,12 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0; Use {@link MetadataUpdate.RemoveSnapshots}
-   *     instead.
-   */
-  @Deprecated
-  class RemoveSnapshot implements MetadataUpdate {
-    private final long snapshotId;
-
-    public RemoveSnapshot(long snapshotId) {
-      this.snapshotId = snapshotId;
-    }
-
-    public long snapshotId() {
-      return snapshotId;
-    }
-
-    @Override
-    public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.removeSnapshots(ImmutableSet.of(snapshotId));
-    }
-  }
-
   class RemoveSnapshots implements MetadataUpdate {
     private final Set<Long> snapshotIds;
+
+    public RemoveSnapshots(long snapshotId) {
+      this.snapshotIds = ImmutableSet.of(snapshotId);
+    }
 
     public RemoveSnapshots(Set<Long> snapshotIds) {
       this.snapshotIds = snapshotIds;
@@ -543,16 +526,37 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
-  /**
-   * Update to enable row lineage.
-   *
-   * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
-   */
-  @Deprecated
-  class EnableRowLineage implements MetadataUpdate {
+  class AddEncryptionKey implements MetadataUpdate {
+    private final EncryptedKey key;
+
+    public AddEncryptionKey(EncryptedKey key) {
+      this.key = key;
+    }
+
+    public EncryptedKey key() {
+      return key;
+    }
+
     @Override
-    public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.enableRowLineage();
+    public void applyTo(TableMetadata.Builder builder) {
+      builder.addEncryptionKey(key);
+    }
+  }
+
+  class RemoveEncryptionKey implements MetadataUpdate {
+    private final String keyId;
+
+    public RemoveEncryptionKey(String keyId) {
+      this.keyId = keyId;
+    }
+
+    public String keyId() {
+      return keyId;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder builder) {
+      builder.removeEncryptionKey(keyId);
     }
   }
 }

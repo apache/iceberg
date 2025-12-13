@@ -18,16 +18,18 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.MetricsModes.Counts;
 import org.apache.iceberg.MetricsModes.Full;
 import org.apache.iceberg.MetricsModes.None;
@@ -46,8 +48,8 @@ public class TestMetricsModes {
   @Parameter private int formatVersion;
 
   @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+  protected static List<Integer> formatVersions() {
+    return ALL_VERSIONS;
   }
 
   @TempDir private Path temp;
@@ -195,5 +197,76 @@ public class TestMetricsModes {
     assertThat(config.columnMode("col1")).isEqualTo(Truncate.withLength(16));
     assertThat(config.columnMode("col2")).isEqualTo(Truncate.withLength(16));
     assertThat(config.columnMode("col3")).isEqualTo(None.get());
+  }
+
+  @TestTemplate
+  public void testMetricsVariantSupported() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    Schema schema =
+        new Schema(
+            required(1, "variant", Types.VariantType.get()),
+            required(2, "int", Types.IntegerType.get()));
+
+    Table table =
+        TestTables.create(
+            tableDir,
+            "test",
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    // only infer a default for the first column
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "1")
+        .commit();
+
+    MetricsConfig config = MetricsConfig.forTable(table);
+
+    Map<String, MetricsModes.MetricsMode> metricModes =
+        schema.idToName().values().stream().collect(Collectors.toMap(k -> k, config::columnMode));
+
+    assertThat(metricModes)
+        .containsOnly(Map.entry("variant", Truncate.withLength(16)), Map.entry("int", None.get()));
+  }
+
+  @TestTemplate
+  public void testMetricsConfigNestedTypesStructs() {
+    Schema schema =
+        new Schema(
+            required(
+                5,
+                "col_struct",
+                Types.StructType.of(
+                    required(33, "a", Types.IntegerType.get()),
+                    required(1, "b", Types.IntegerType.get()))),
+            required(4, "top", Types.IntegerType.get()));
+
+    Table table =
+        TestTables.create(
+            tableDir,
+            "test",
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    // only infer a default for the first two columns
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "2")
+        .commit();
+
+    MetricsConfig config = MetricsConfig.forTable(table);
+
+    Map<String, MetricsModes.MetricsMode> metricModes =
+        schema.idToName().values().stream().collect(Collectors.toMap(k -> k, config::columnMode));
+
+    assertThat(metricModes).containsOnlyKeys("col_struct.a", "col_struct", "col_struct.b", "top");
+
+    assertThat(metricModes).containsEntry("col_struct.a", Truncate.withLength(16));
+    assertThat(metricModes).containsEntry("col_struct.b", None.get());
+    assertThat(metricModes).containsEntry("top", Truncate.withLength(16));
   }
 }

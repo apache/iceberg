@@ -58,7 +58,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
         partition.expectedSchema(),
         partition.isCaseSensitive(),
         parquetBatchReadConf,
-        orcBatchReadConf);
+        orcBatchReadConf,
+        partition.cacheDeleteFilesOnExecutors());
   }
 
   BatchDataReader(
@@ -68,8 +69,17 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       Schema expectedSchema,
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
-      OrcBatchReadConf orcConf) {
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, parquetConf, orcConf);
+      OrcBatchReadConf orcConf,
+      boolean cacheDeleteFilesOnExecutors) {
+    super(
+        table,
+        taskGroup,
+        tableSchema,
+        expectedSchema,
+        caseSensitive,
+        parquetConf,
+        orcConf,
+        cacheDeleteFilesOnExecutors);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
@@ -95,15 +105,13 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
-
     InputFile inputFile = getInputFile(filePath);
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
     SparkDeleteFilter deleteFilter =
-        task.deletes().isEmpty()
-            ? null
-            : new SparkDeleteFilter(filePath, task.deletes(), counter(), false);
+        new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
+
+    Map<Integer, ?> idToConstant = constantsMap(task, deleteFilter.requiredSchema());
 
     return newBatchIterable(
             inputFile,

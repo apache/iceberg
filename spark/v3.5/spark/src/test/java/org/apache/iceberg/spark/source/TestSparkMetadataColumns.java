@@ -58,7 +58,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -77,7 +76,7 @@ public class TestSparkMetadataColumns extends TestBase {
   private static final String TABLE_NAME = "test_table";
   private static final Schema SCHEMA =
       new Schema(
-          Types.NestedField.optional(1, "id", Types.LongType.get()),
+          Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.optional(2, "category", Types.StringType.get()),
           Types.NestedField.optional(3, "data", Types.StringType.get()));
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
@@ -90,23 +89,15 @@ public class TestSparkMetadataColumns extends TestBase {
 
   @Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
   public static Object[][] parameters() {
-    return new Object[][] {
-      {FileFormat.PARQUET, false, 1},
-      {FileFormat.PARQUET, true, 1},
-      {FileFormat.PARQUET, false, 2},
-      {FileFormat.PARQUET, true, 2},
-      {FileFormat.PARQUET, false, 3},
-      {FileFormat.PARQUET, true, 3},
-      {FileFormat.AVRO, false, 1},
-      {FileFormat.AVRO, false, 2},
-      {FileFormat.AVRO, false, 3},
-      {FileFormat.ORC, false, 1},
-      {FileFormat.ORC, true, 1},
-      {FileFormat.ORC, false, 2},
-      {FileFormat.ORC, true, 2},
-      {FileFormat.ORC, false, 3},
-      {FileFormat.ORC, true, 3},
-    };
+    List<Object[]> parameters = Lists.newArrayList();
+    for (int version : TestHelpers.ALL_VERSIONS) {
+      parameters.add(new Object[] {FileFormat.PARQUET, false, version});
+      parameters.add(new Object[] {FileFormat.PARQUET, true, version});
+      parameters.add(new Object[] {FileFormat.AVRO, false, version});
+      parameters.add(new Object[] {FileFormat.ORC, false, version});
+      parameters.add(new Object[] {FileFormat.ORC, true, version});
+    }
+    return parameters.toArray(new Object[0][]);
   }
 
   @TempDir private Path temp;
@@ -318,25 +309,30 @@ public class TestSparkMetadataColumns extends TestBase {
   }
 
   @TestTemplate
-  public void testRowLineageColumnsResolvedInV3OrHigher() {
-    if (formatVersion >= 3) {
-      // Test against an empty table to ensure column resolution in formats supporting row lineage
-      // and so that the test doesn't have to change with inheritance
-      assertEquals(
-          "Rows must match",
-          ImmutableList.of(),
-          sql("SELECT _row_id, _last_updated_sequence_number, id FROM %s", TABLE_NAME));
-    } else {
-      // Should fail to resolve row lineage metadata columns in V1/V2 tables
-      assertThatThrownBy(() -> sql("SELECT _row_id FROM %s", TABLE_NAME))
-          .isInstanceOf(AnalysisException.class)
-          .hasMessageContaining(
-              "A column or function parameter with name `_row_id` cannot be resolved");
-      assertThatThrownBy(() -> sql("SELECT _last_updated_sequence_number FROM %s", TABLE_NAME))
-          .isInstanceOf(AnalysisException.class)
-          .hasMessageContaining(
-              "A column or function parameter with name `_last_updated_sequence_number` cannot be resolved");
-    }
+  public void testIdentifierFields() {
+    table.updateSchema().setIdentifierFields("id").commit();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", TABLE_NAME);
+
+    assertEquals(
+        "Rows must match",
+        ImmutableList.of(row(1L, 0, null)),
+        sql("SELECT id, _spec_id, _partition FROM %s", TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testRowLineageColumnsAreNullBeforeV3() {
+    assumeThat(formatVersion).isLessThan(3);
+    // ToDo: When the other readers have row lineage plumbed through, remove these assumptions
+    assumeThat(vectorized).isFalse();
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
+
+    sql("INSERT INTO TABLE %s VALUES (1L, 'a1', 'b1')", TABLE_NAME);
+
+    assertEquals(
+        "Rows must match",
+        ImmutableList.of(row(1L, null, null)),
+        sql("SELECT id, _row_id, _last_updated_sequence_number FROM %s", TABLE_NAME));
   }
 
   private void createAndInitTable() throws IOException {

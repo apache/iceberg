@@ -29,6 +29,8 @@ enum LogicalType {
   TIMESTAMPNTZ,
   BINARY,
   STRING,
+  TIME,
+  UUID,
   ARRAY,
   OBJECT
 }

@@ -94,7 +94,12 @@ class ADLSOutputStream extends PositionOutputStream {
     DataLakeFileOutputStreamOptions options = new DataLakeFileOutputStreamOptions();
     ParallelTransferOptions transferOptions = new ParallelTransferOptions();
     azureProperties.adlsWriteBlockSize().ifPresent(transferOptions::setBlockSizeLong);
-    this.stream = new BufferedOutputStream(fileClient.getOutputStream(options));
+    try {
+      this.stream = new BufferedOutputStream(fileClient.getOutputStream(options));
+    } catch (RuntimeException e) {
+      LOG.error("Failed to open output stream for file {}", fileClient.getFilePath(), e);
+      throw e;
+    }
   }
 
   @Override

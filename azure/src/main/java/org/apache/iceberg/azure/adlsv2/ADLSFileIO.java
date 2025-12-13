@@ -92,7 +92,7 @@ public class ADLSFileIO implements DelegateFileIO {
     // now as it is not a required operation for Iceberg.
     try {
       fileClient(path).delete();
-    } catch (DataLakeStorageException e) {
+    } catch (RuntimeException e) {
       LOG.warn("Failed to delete path: {}", path, e);
     }
   }
@@ -133,7 +133,7 @@ public class ADLSFileIO implements DelegateFileIO {
     initMetrics(properties);
     this.azureProperties
         .vendedAdlsCredentialProvider()
-        .ifPresent((provider -> this.vendedAdlsCredentialProvider = provider));
+        .ifPresent(provider -> this.vendedAdlsCredentialProvider = provider);
   }
 
   @SuppressWarnings("CatchBlockLogException")

@@ -555,7 +555,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
   @Override
   public List<Integer> equalityFieldIds() {
-    return ArrayUtil.toIntList(equalityIds);
+    return ArrayUtil.toUnmodifiableIntList(equalityIds);
   }
 
   @Override

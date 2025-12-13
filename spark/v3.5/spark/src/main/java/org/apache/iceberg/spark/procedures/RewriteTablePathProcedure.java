@@ -45,6 +45,8 @@ public class RewriteTablePathProcedure extends BaseProcedure {
       ProcedureParameter.optional("end_version", DataTypes.StringType);
   private static final ProcedureParameter STAGING_LOCATION_PARAM =
       ProcedureParameter.optional("staging_location", DataTypes.StringType);
+  private static final ProcedureParameter CREATE_FILE_LIST_PARAM =
+      ProcedureParameter.optional("create_file_list", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -53,14 +55,22 @@ public class RewriteTablePathProcedure extends BaseProcedure {
         TARGET_PREFIX_PARAM,
         START_VERSION_PARAM,
         END_VERSION_PARM,
-        STAGING_LOCATION_PARAM
+        STAGING_LOCATION_PARAM,
+        CREATE_FILE_LIST_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
           new StructField[] {
             new StructField("latest_version", DataTypes.StringType, true, Metadata.empty()),
-            new StructField("file_list_location", DataTypes.StringType, true, Metadata.empty())
+            new StructField("file_list_location", DataTypes.StringType, true, Metadata.empty()),
+            new StructField(
+                "rewritten_manifest_file_paths_count",
+                DataTypes.IntegerType,
+                true,
+                Metadata.empty()),
+            new StructField(
+                "rewritten_delete_file_paths_count", DataTypes.IntegerType, true, Metadata.empty())
           });
 
   public static SparkProcedures.ProcedureBuilder builder() {
@@ -95,6 +105,7 @@ public class RewriteTablePathProcedure extends BaseProcedure {
     String startVersion = input.asString(START_VERSION_PARAM, null);
     String endVersion = input.asString(END_VERSION_PARM, null);
     String stagingLocation = input.asString(STAGING_LOCATION_PARAM, null);
+    boolean createFileList = input.asBoolean(CREATE_FILE_LIST_PARAM, true);
 
     return withIcebergTable(
         tableIdent,
@@ -111,6 +122,7 @@ public class RewriteTablePathProcedure extends BaseProcedure {
             action.stagingLocation(stagingLocation);
           }
 
+          action.createFileList(createFileList);
           return toOutputRows(action.rewriteLocationPrefix(sourcePrefix, targetPrefix).execute());
         });
   }
@@ -119,7 +131,9 @@ public class RewriteTablePathProcedure extends BaseProcedure {
     return new InternalRow[] {
       newInternalRow(
           UTF8String.fromString(result.latestVersion()),
-          UTF8String.fromString(result.fileListLocation()))
+          UTF8String.fromString(result.fileListLocation()),
+          result.rewrittenManifestFilePathsCount(),
+          result.rewrittenDeleteFilePathsCount())
     };
   }
 

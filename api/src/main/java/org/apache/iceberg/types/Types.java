@@ -81,7 +81,6 @@ public class Types {
     Matcher geometry = GEOMETRY_PARAMETERS.matcher(typeString);
     if (geometry.matches()) {
       String crs = geometry.group(1);
-      Preconditions.checkArgument(!crs.contains(","), "Invalid CRS: %s", crs);
       return GeometryType.of(crs);
     }
 
@@ -599,7 +598,7 @@ public class Types {
     }
 
     public String crs() {
-      return crs;
+      return crs != null ? crs : DEFAULT_CRS;
     }
 
     @Override
@@ -631,6 +630,7 @@ public class Types {
 
   public static class GeographyType extends PrimitiveType {
     public static final String DEFAULT_CRS = "OGC:CRS84";
+    public static final EdgeAlgorithm DEFAULT_ALGORITHM = EdgeAlgorithm.SPHERICAL;
 
     public static GeographyType crs84() {
       return new GeographyType();
@@ -664,11 +664,11 @@ public class Types {
     }
 
     public String crs() {
-      return crs;
+      return crs != null ? crs : DEFAULT_CRS;
     }
 
     public EdgeAlgorithm algorithm() {
-      return algorithm;
+      return algorithm != null ? algorithm : DEFAULT_ALGORITHM;
     }
 
     @Override

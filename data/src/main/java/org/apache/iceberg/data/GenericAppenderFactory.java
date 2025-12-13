@@ -44,7 +44,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-/** Factory to create a new {@link FileAppender} to write {@link Record}s. */
+/**
+ * Factory to create a new {@link FileAppender} to write {@link Record}s.
+ *
+ * @deprecated will be removed in 1.12.0; use {@link GenericFileWriterFactory} instead.
+ */
+@Deprecated
 public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   private final Table table;
   private final Schema schema;
@@ -74,6 +79,39 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   /**
    * Constructor for GenericAppenderFactory.
    *
+   * @param schema the schema of the records to write
+   * @param spec the partition spec of the records
+   * @param equalityFieldIds the field ids for equality delete
+   * @param eqDeleteRowSchema the schema for equality delete rows
+   */
+  public GenericAppenderFactory(
+      Schema schema, PartitionSpec spec, int[] equalityFieldIds, Schema eqDeleteRowSchema) {
+    this(null, schema, spec, null, equalityFieldIds, eqDeleteRowSchema, null);
+  }
+
+  /**
+   * Constructor for GenericAppenderFactory.
+   *
+   * @param table iceberg table
+   * @param schema the schema of the records to write
+   * @param spec the partition spec of the records
+   * @param config the configuration for the writer
+   * @param equalityFieldIds the field ids for equality delete
+   * @param eqDeleteRowSchema the schema for equality delete rows
+   */
+  public GenericAppenderFactory(
+      Table table,
+      Schema schema,
+      PartitionSpec spec,
+      Map<String, String> config,
+      int[] equalityFieldIds,
+      Schema eqDeleteRowSchema) {
+    this(table, schema, spec, config, equalityFieldIds, eqDeleteRowSchema, null);
+  }
+
+  /**
+   * Constructor for GenericAppenderFactory.
+   *
    * @param table iceberg table
    * @param schema the schema of the records to write
    * @param spec the partition spec of the records
@@ -81,7 +119,11 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
    * @param equalityFieldIds the field ids for equality delete
    * @param eqDeleteRowSchema the schema for equality delete rows
    * @param posDeleteRowSchema the schema for position delete rows
+   * @deprecated This constructor is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+   *     Position deletes that include row data are no longer supported. Use {@link
+   *     #GenericAppenderFactory(Table, Schema, PartitionSpec, Map, int[], Schema)} instead.
    */
+  @Deprecated
   public GenericAppenderFactory(
       Table table,
       Schema schema,

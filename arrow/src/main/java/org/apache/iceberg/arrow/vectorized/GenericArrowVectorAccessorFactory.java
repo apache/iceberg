@@ -38,6 +38,9 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
+import org.apache.arrow.vector.TimeStampNanoTZVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
@@ -119,6 +122,8 @@ public class GenericArrowVectorAccessorFactory<
           PrimitiveType primitive) {
     Preconditions.checkState(
         vector instanceof IntVector, "Dictionary ids should be stored in IntVectors only");
+    // TODO: consider moving this to logical type annotations,
+    // as new Parquet types are added only there.
     if (primitive.getOriginalType() != null) {
       switch (desc.getPrimitiveType().getOriginalType()) {
         case ENUM:
@@ -156,7 +161,8 @@ public class GenericArrowVectorAccessorFactory<
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return new DictionaryBinaryAccessor<>((IntVector) vector, dictionary);
+          return new DictionaryBinaryAccessor<>(
+              (IntVector) vector, dictionary, stringFactorySupplier.get());
         case FLOAT:
           return new DictionaryFloatAccessor<>((IntVector) vector, dictionary);
         case INT64:
@@ -202,9 +208,13 @@ public class GenericArrowVectorAccessorFactory<
     } else if (vector instanceof DateDayVector) {
       return new DateAccessor<>((DateDayVector) vector);
     } else if (vector instanceof TimeStampMicroTZVector) {
-      return new TimestampMicroTzAccessor<>((TimeStampMicroTZVector) vector);
+      return new TimestampAccessor<>((TimeStampMicroTZVector) vector);
     } else if (vector instanceof TimeStampMicroVector) {
-      return new TimestampMicroAccessor<>((TimeStampMicroVector) vector);
+      return new TimestampAccessor<>((TimeStampMicroVector) vector);
+    } else if (vector instanceof TimeStampNanoVector) {
+      return new TimestampAccessor<>((TimeStampNanoVector) vector);
+    } else if (vector instanceof TimeStampNanoTZVector) {
+      return new TimestampAccessor<>((TimeStampNanoTZVector) vector);
     } else if (vector instanceof ListVector) {
       ListVector listVector = (ListVector) vector;
       return new ArrayAccessor<>(listVector, arrayFactorySupplier.get());
@@ -452,16 +462,26 @@ public class GenericArrowVectorAccessorFactory<
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
     private final IntVector offsetVector;
     private final Dictionary dictionary;
+    private final StringFactory<Utf8StringT> stringFactory;
 
-    DictionaryBinaryAccessor(IntVector vector, Dictionary dictionary) {
+    DictionaryBinaryAccessor(
+        IntVector vector, Dictionary dictionary, StringFactory<Utf8StringT> stringFactory) {
       super(vector);
       this.offsetVector = vector;
       this.dictionary = dictionary;
+      this.stringFactory = stringFactory;
     }
 
     @Override
     public final byte[] getBinary(int rowId) {
       return dictionary.decodeToBinary(offsetVector.get(rowId)).getBytes();
+    }
+
+    @Override
+    public Utf8StringT getUTF8String(int rowId) {
+      return null == stringFactory
+          ? super.getUTF8String(rowId)
+          : stringFactory.ofRow(offsetVector, dictionary, rowId);
     }
   }
 
@@ -505,30 +525,17 @@ public class GenericArrowVectorAccessorFactory<
     }
   }
 
-  private static class TimestampMicroTzAccessor<
-          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+  private static class TimestampAccessor<
+          DecimalT,
+          Utf8StringT,
+          ArrayT,
+          TimestampVectorT extends TimeStampVector,
+          ChildVectorT extends AutoCloseable>
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
-    private final TimeStampMicroTZVector vector;
+    private final TimestampVectorT vector;
 
-    TimestampMicroTzAccessor(TimeStampMicroTZVector vector) {
-      super(vector);
-      this.vector = vector;
-    }
-
-    @Override
-    public final long getLong(int rowId) {
-      return vector.get(rowId);
-    }
-  }
-
-  private static class TimestampMicroAccessor<
-          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-
-    private final TimeStampMicroVector vector;
-
-    TimestampMicroAccessor(TimeStampMicroVector vector) {
+    TimestampAccessor(TimestampVectorT vector) {
       super(vector);
       this.vector = vector;
     }
@@ -813,6 +820,13 @@ public class GenericArrowVectorAccessorFactory<
           String.format(
               "Creating %s from a FixedSizeBinaryVector is not supported",
               getGenericClass().getSimpleName()));
+    }
+
+    /** Create a UTF8 String from the row value in the Dictionary. */
+    default Utf8StringT ofRow(IntVector offsetVector, Dictionary dictionary, int rowId) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Creating %s from a Dictionary is not supported", getGenericClass().getSimpleName()));
     }
 
     /** Create a UTF8 String from the byte array. */

@@ -71,8 +71,8 @@ Iceberg table support is organized in library modules:
 
 Iceberg also has modules for adding Iceberg support to processing engines:
 
-* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
-* `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
+* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use [runtime jars](https://iceberg.apache.org/multi-engine-support/#runtime-jar) for a shaded version to avoid dependency conflicts)
+* `iceberg-flink` contains classes for integrating with Apache Flink (use [iceberg-flink-runtime](https://iceberg.apache.org/multi-engine-support/#runtime-jar) for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 
 ---
@@ -83,6 +83,15 @@ The tests require Docker to execute. On macOS (with Docker Desktop), you might n
 ```
 sudo ln -s $HOME/.docker/run/docker.sock /var/run/docker.sock
 ```
+
+In some cases the testcontainer may exit with an initialization error because of an illegal state exception in the GenericContainer.  One work around for this problem is to set `selinux` into permissive mode before running the tests. 
+
+```
+sudo setenforce Permissive
+./gradlew ...
+sudo setenforce Enforcing
+```
+
 ---
 
 ### Engine Compatibility

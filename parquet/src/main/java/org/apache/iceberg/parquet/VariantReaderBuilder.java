@@ -29,12 +29,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DateLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.IntLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor;
 import org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -63,8 +66,8 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
     return Streams.concat(Streams.stream(basePath), fieldNames.stream()).toArray(String[]::new);
   }
 
-  private String[] path(String name) {
-    return Streams.concat(Streams.stream(basePath), fieldNames.stream(), Stream.of(name))
+  private String[] path(String... names) {
+    return Streams.concat(Streams.stream(basePath), fieldNames.stream(), Stream.of(names))
         .toArray(String[]::new);
   }
 
@@ -159,8 +162,16 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
 
   @Override
   public VariantValueReader array(
-      GroupType array, ParquetValueReader<?> valueResult, ParquetValueReader<?> elementResult) {
-    throw new UnsupportedOperationException("Array is not yet supported");
+      GroupType array, ParquetValueReader<?> valueReader, ParquetValueReader<?> elementReader) {
+    int valueDL =
+        valueReader != null ? schema.getMaxDefinitionLevel(path(VALUE)) - 1 : Integer.MAX_VALUE;
+    int typedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE)) - 1;
+    int repeatedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE, LIST)) - 1;
+    int repeatedRL = schema.getMaxRepetitionLevel(path(TYPED_VALUE, LIST)) - 1;
+    VariantValueReader typedReader =
+        ParquetVariantReaders.array(repeatedDL, repeatedRL, elementReader);
+
+    return ParquetVariantReaders.shredded(valueDL, valueReader, typedDL, typedReader);
   }
 
   private static class LogicalTypeToVariantReader
@@ -198,11 +209,21 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
 
     @Override
     public Optional<VariantValueReader> visit(TimestampLogicalTypeAnnotation logical) {
-      PhysicalType variantType =
-          logical.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
+      VariantValueReader reader =
+          ParquetVariantReaders.asVariant(
+              ParquetVariantUtil.convert(logical), ParquetValueReaders.timestamps(desc));
+
+      return Optional.of(reader);
+    }
+
+    @Override
+    public Optional<VariantValueReader> visit(TimeLogicalTypeAnnotation logical) {
+      if (logical.getUnit() != LogicalTypeAnnotation.TimeUnit.MICROS || logical.isAdjustedToUTC()) {
+        throw new UnsupportedOperationException("Unsupported shredded value type: " + logical);
+      }
 
       VariantValueReader reader =
-          ParquetVariantReaders.asVariant(variantType, ParquetValueReaders.timestamps(desc));
+          ParquetVariantReaders.asVariant(PhysicalType.TIME, ParquetValueReaders.times(desc));
 
       return Optional.of(reader);
     }
@@ -240,6 +261,13 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
           throw new IllegalArgumentException("Invalid bit width for int: " + logical.getBitWidth());
       }
 
+      return Optional.of(reader);
+    }
+
+    @Override
+    public Optional<VariantValueReader> visit(UUIDLogicalTypeAnnotation logical) {
+      VariantValueReader reader =
+          ParquetVariantReaders.asVariant(PhysicalType.UUID, ParquetValueReaders.uuids(desc));
       return Optional.of(reader);
     }
 

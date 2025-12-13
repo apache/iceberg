@@ -31,7 +31,6 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -46,9 +45,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
@@ -79,12 +78,12 @@ public class TestS3OutputStream {
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
   @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
+  @TempDir private static Path tmpDir = null;
 
   private final S3Client s3 = MinioUtil.createS3Client(MINIO);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3));
   private final Random random = new Random(1);
-  private final Path tmpDir = Files.createTempDirectory("s3fileio-test-");
-  private final String newTmpDirectory = "/tmp/newStagingDirectory";
+  @TempDir private Path newTmpDirectory;
 
   private final S3FileIOProperties properties =
       new S3FileIOProperties(
@@ -100,20 +99,12 @@ public class TestS3OutputStream {
               "s3.delete.tags.xyz",
               "456"));
 
-  public TestS3OutputStream() throws IOException {}
+  public TestS3OutputStream() {}
 
   @BeforeEach
   public void before() {
     properties.setChecksumEnabled(false);
     createBucket(BUCKET);
-  }
-
-  @AfterEach
-  public void after() {
-    File newStagingDirectory = new File(newTmpDirectory);
-    if (newStagingDirectory.exists()) {
-      newStagingDirectory.delete();
-    }
   }
 
   @Test
@@ -170,7 +161,7 @@ public class TestS3OutputStream {
   public void testStagingDirectoryCreation() throws IOException {
     S3FileIOProperties newStagingDirectoryAwsProperties =
         new S3FileIOProperties(
-            ImmutableMap.of(S3FileIOProperties.STAGING_DIRECTORY, newTmpDirectory));
+            ImmutableMap.of(S3FileIOProperties.STAGING_DIRECTORY, newTmpDirectory.toString()));
     S3OutputStream stream =
         new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties, nullMetrics());
     stream.close();

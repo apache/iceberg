@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import java.net.BindException;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.extension.AfterAllCallback;
@@ -32,17 +33,18 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
   private RESTCatalogServer localServer;
   private RESTCatalog client;
   private final Map<String, String> config;
+  private final boolean findFreePort;
 
   public RESTServerExtension() {
     config = Maps.newHashMap();
+    findFreePort = false;
   }
 
   public RESTServerExtension(Map<String, String> config) {
     Map<String, String> conf = Maps.newHashMap(config);
-    if (conf.containsKey(RESTCatalogServer.REST_PORT)
-        && conf.get(RESTCatalogServer.REST_PORT).equals(FREE_PORT)) {
-      conf.put(RESTCatalogServer.REST_PORT, String.valueOf(RCKUtils.findFreePort()));
-    }
+    findFreePort =
+        conf.containsKey(RESTCatalogServer.REST_PORT)
+            && conf.get(RESTCatalogServer.REST_PORT).equals(FREE_PORT);
     this.config = conf;
   }
 
@@ -58,8 +60,24 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
   public void beforeAll(ExtensionContext extensionContext) throws Exception {
     if (Boolean.parseBoolean(
         extensionContext.getConfigurationParameter(RCKUtils.RCK_LOCAL).orElse("true"))) {
-      this.localServer = new RESTCatalogServer(config);
-      this.localServer.start(false);
+      int maxAttempts = 10;
+      for (int i = 0; i < maxAttempts; i++) {
+        try {
+          if (findFreePort) {
+            config.put(RESTCatalogServer.REST_PORT, String.valueOf(RCKUtils.findFreePort()));
+          }
+          this.localServer = new RESTCatalogServer(config);
+          this.localServer.start(false);
+          break;
+        } catch (BindException e) {
+          if (!findFreePort || i == maxAttempts - 1) {
+            throw new RuntimeException("Failed to start REST server", e);
+          }
+        } catch (Exception e) {
+          throw new RuntimeException("Failed to start REST server", e);
+        }
+      }
+
       this.client = RCKUtils.initCatalogClient(config);
     }
   }

@@ -26,10 +26,12 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -59,10 +61,21 @@ public class TestTables {
       PartitionSpec spec,
       SortOrder sortOrder,
       int formatVersion) {
+    return create(temp, null, name, schema, spec, sortOrder, formatVersion);
+  }
+
+  public static TestTable create(
+      File temp,
+      File metaTemp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      int formatVersion) {
     TestTableOperations ops = new TestTableOperations(name, temp);
 
     return createTable(
-        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null, ops);
+        temp, metaTemp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null, ops);
   }
 
   public static TestTable create(
@@ -74,7 +87,7 @@ public class TestTables {
       int formatVersion,
       TestTableOperations ops) {
     return createTable(
-        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null, ops);
+        temp, null, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null, ops);
   }
 
   public static TestTable create(
@@ -88,7 +101,7 @@ public class TestTables {
     TestTableOperations ops = new TestTableOperations(name, temp);
 
     return createTable(
-        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, reporter, ops);
+        temp, null, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, reporter, ops);
   }
 
   public static TestTable create(
@@ -101,11 +114,12 @@ public class TestTables {
     TestTableOperations ops = new TestTableOperations(name, temp);
 
     return createTable(
-        temp, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null, ops);
+        temp, null, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null, ops);
   }
 
   private static TestTable createTable(
       File temp,
+      File metaTemp,
       String name,
       Schema schema,
       PartitionSpec spec,
@@ -118,9 +132,18 @@ public class TestTables {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
 
-    ops.commit(
-        null,
-        newTableMetadata(schema, spec, sortOrder, temp.toString(), properties, formatVersion));
+    TableMetadata metadata =
+        newTableMetadata(schema, spec, sortOrder, temp.toString(), properties, formatVersion);
+
+    if (metaTemp != null) {
+      metadata =
+          TableMetadata.buildFrom(metadata)
+              .discardChanges()
+              .withMetadataLocation(metaTemp.toString())
+              .build();
+    }
+
+    ops.commit(null, metadata);
 
     if (reporter != null) {
       return new TestTable(ops, reporter);
@@ -307,7 +330,11 @@ public class TestTables {
           }
           Integer version = VERSIONS.get(tableName);
           // remove changes from the committed metadata
-          this.current = TableMetadata.buildFrom(updatedMetadata).discardChanges().build();
+          this.current =
+              TableMetadata.buildFrom(updatedMetadata)
+                  .discardChanges()
+                  .withMetadataLocation((current != null) ? current.metadataFileLocation() : null)
+                  .build();
           VERSIONS.put(tableName, version == null ? 0 : version + 1);
           METADATA.put(tableName, current);
         } else {
@@ -365,6 +392,20 @@ public class TestTables {
       if (!new File(path).delete()) {
         throw new RuntimeIOException("Failed to delete file: " + path);
       }
+    }
+  }
+
+  static class TestBulkLocalFileIO extends TestTables.LocalFileIO
+      implements SupportsBulkOperations {
+
+    @Override
+    public void deleteFile(String path) {
+      throw new RuntimeException("Expected to call the bulk delete interface.");
+    }
+
+    @Override
+    public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+      throw new RuntimeException("Expected to mock this function");
     }
   }
 }

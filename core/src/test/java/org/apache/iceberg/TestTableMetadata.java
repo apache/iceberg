@@ -55,6 +55,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -71,6 +72,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
@@ -116,6 +118,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -132,6 +135,7 @@ public class TestTableMetadata {
             null,
             7,
             manifestList,
+            null,
             null,
             null);
 
@@ -198,6 +202,7 @@ public class TestTableMetadata {
             statisticsFiles,
             partitionStatisticsFiles,
             40,
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -255,6 +260,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -271,6 +277,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
 
@@ -300,6 +307,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             0,
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
@@ -359,6 +367,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -376,6 +385,7 @@ public class TestTableMetadata {
             null,
             7,
             manifestList,
+            null,
             null,
             null);
 
@@ -421,6 +431,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     0L,
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
@@ -434,7 +445,7 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(snapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot snapshot =
         new BaseSnapshot(
-            0, snapshotId, null, snapshotId, null, null, null, manifestList, null, null);
+            0, snapshotId, null, snapshotId, null, null, null, manifestList, null, null, null);
 
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -468,6 +479,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     0L,
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
@@ -509,6 +521,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     0L,
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("does not exist in the existing snapshots list");
@@ -573,6 +586,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -589,6 +603,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
 
@@ -625,6 +640,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             0L,
+            ImmutableList.of(),
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
@@ -650,6 +666,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
     long currentSnapshotId = System.currentTimeMillis();
 
@@ -666,6 +683,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
 
@@ -713,6 +731,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             0L,
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -744,6 +763,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -760,6 +780,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
 
@@ -816,6 +837,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             0L,
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -851,6 +873,7 @@ public class TestTableMetadata {
             null,
             manifestList,
             null,
+            null,
             null);
 
     long currentSnapshotId = System.currentTimeMillis();
@@ -867,6 +890,7 @@ public class TestTableMetadata {
             null,
             null,
             manifestList,
+            null,
             null,
             null);
 
@@ -923,6 +947,7 @@ public class TestTableMetadata {
             ImmutableList.of(),
             ImmutableList.of(),
             0L,
+            ImmutableList.of(),
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -970,6 +995,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     0L,
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("UUID is required in format v2");
@@ -1006,6 +1032,7 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of(),
                     0L,
+                    ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
@@ -1053,6 +1080,7 @@ public class TestTableMetadata {
                 ImmutableList.of(),
                 ImmutableList.of(),
                 0L,
+                ImmutableList.of(),
                 ImmutableList.of()))
         .isNotNull();
 
@@ -1065,6 +1093,24 @@ public class TestTableMetadata {
                 ImmutableMap.of(),
                 supportedVersion))
         .isNotNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  void testEncryptionVersionValidation(int formatVersion) {
+    assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    TEST_SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    TEST_LOCATION,
+                    ImmutableMap.of("encryption.key-id", "test", "encryption.data-key-length", "5"),
+                    formatVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid properties for v%s: [encryption.key-id, encryption.data-key-length]",
+            formatVersion);
   }
 
   @Test
@@ -1804,12 +1850,17 @@ public class TestTableMetadata {
 
   private String createManifestListWithManifestFile(
       long snapshotId, Long parentSnapshotId, String manifestFile) throws IOException {
-    File manifestList = File.createTempFile("manifests", null, temp.toFile());
-    manifestList.deleteOnExit();
+    File manifestList = temp.resolve("manifests-" + System.nanoTime()).toFile();
 
     try (ManifestListWriter writer =
         ManifestLists.write(
-            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0L)) {
+            1,
+            Files.localOutput(manifestList),
+            PlaintextEncryptionManager.instance(),
+            snapshotId,
+            parentSnapshotId,
+            0,
+            0L)) {
       writer.addAll(
           ImmutableList.of(
               new GenericManifestFile(localInput(manifestFile), SPEC_5.specId(), snapshotId)));

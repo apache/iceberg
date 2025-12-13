@@ -26,6 +26,8 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchPlanIdException;
+import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
@@ -73,6 +75,14 @@ public class ErrorHandlers {
     return CommitErrorHandler.INSTANCE;
   }
 
+  public static Consumer<ErrorResponse> planErrorHandler() {
+    return PlanErrorHandler.INSTANCE;
+  }
+
+  public static Consumer<ErrorResponse> planTaskHandler() {
+    return PlanTaskErrorHandler.INSTANCE;
+  }
+
   public static Consumer<ErrorResponse> defaultErrorHandler() {
     return DefaultErrorHandler.INSTANCE;
   }
@@ -94,6 +104,7 @@ public class ErrorHandlers {
           throw new CommitFailedException("Commit failed: %s", error.message());
         case 500:
         case 502:
+        case 503:
         case 504:
           throw new CommitStateUnknownException(
               new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
@@ -124,6 +135,46 @@ public class ErrorHandlers {
     }
   }
 
+  /** Plan level error handler. */
+  private static class PlanErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new PlanErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      if (error.code() == 404) {
+        if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
+          throw new NoSuchNamespaceException("%s", error.message());
+        } else if (NoSuchTableException.class.getSimpleName().equals(error.type())) {
+          throw new NoSuchTableException("%s", error.message());
+        } else {
+          throw new NoSuchPlanIdException("%s", error.message());
+        }
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** PlanTask level error handler. */
+  private static class PlanTaskErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new PlanTaskErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      if (error.code() == 404) {
+        if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
+          throw new NoSuchNamespaceException("%s", error.message());
+        } else if (NoSuchTableException.class.getSimpleName().equals(error.type())) {
+          throw new NoSuchTableException("%s", error.message());
+        } else {
+          throw new NoSuchPlanTaskException("%s", error.message());
+        }
+      }
+
+      super.accept(error);
+    }
+  }
+
   /** View commit error handler. */
   private static class ViewCommitErrorHandler extends DefaultErrorHandler {
     private static final ErrorHandler INSTANCE = new ViewCommitErrorHandler();
@@ -137,6 +188,7 @@ public class ErrorHandlers {
           throw new CommitFailedException("Commit failed: %s", error.message());
         case 500:
         case 502:
+        case 503:
         case 504:
           throw new CommitStateUnknownException(
               new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));

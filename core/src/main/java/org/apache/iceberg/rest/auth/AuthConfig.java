@@ -56,7 +56,12 @@ public interface AuthConfig {
 
   @Value.Default
   default boolean keepRefreshed() {
-    return true;
+    return OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT;
+  }
+
+  @Value.Default
+  default boolean exchangeEnabled() {
+    return OAuth2Properties.TOKEN_EXCHANGE_ENABLED_DEFAULT;
   }
 
   @Nullable
@@ -84,6 +89,11 @@ public interface AuthConfig {
                 properties,
                 OAuth2Properties.TOKEN_REFRESH_ENABLED,
                 OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT))
+        .exchangeEnabled(
+            PropertyUtil.propertyAsBoolean(
+                properties,
+                OAuth2Properties.TOKEN_EXCHANGE_ENABLED,
+                OAuth2Properties.TOKEN_EXCHANGE_ENABLED_DEFAULT))
         .expiresAtMillis(expiresAtMillis(properties))
         .build();
   }

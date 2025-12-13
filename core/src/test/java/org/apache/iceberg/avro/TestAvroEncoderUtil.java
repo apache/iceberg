@@ -25,10 +25,10 @@ import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.types.Type;
 
-public class TestAvroEncoderUtil extends DataTest {
+public class TestAvroEncoderUtil extends DataTestBase {
   @Override
   protected boolean supportsUnknown() {
     return true;

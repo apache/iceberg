@@ -20,11 +20,14 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestRESTUtil {
 
@@ -67,18 +70,24 @@ public class TestRESTUtil {
     }
   }
 
-  @Test
-  public void testRoundTripUrlEncodeDecodeNamespace() {
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2D", "%2E", "#", "_"})
+  public void testRoundTripUrlEncodeDecodeNamespace(String namespaceSeparator) {
     // Namespace levels and their expected url encoded form
     Object[][] testCases =
         new Object[][] {
           new Object[] {new String[] {"dogs"}, "dogs"},
           new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
           new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
-          new Object[] {new String[] {"dogs", "named", "hank"}, "dogs%1Fnamed%1Fhank"},
+          new Object[] {
+            new String[] {"dogs", "named", "hank"},
+            String.format("dogs%snamed%shank", namespaceSeparator, namespaceSeparator)
+          },
           new Object[] {
             new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
-            "dogs.and.cats%1Fnamed%1Fhank.or.james-westfall"
+            String.format(
+                "dogs.and.cats%snamed%shank.or.james-westfall",
+                namespaceSeparator, namespaceSeparator),
           }
         };
 
@@ -89,12 +98,33 @@ public class TestRESTUtil {
       Namespace namespace = Namespace.of(levels);
 
       // To be placed into a URL path as query parameter or path parameter
-      assertThat(RESTUtil.encodeNamespace(namespace)).isEqualTo(encodedNs);
+      assertThat(RESTUtil.encodeNamespace(namespace, namespaceSeparator)).isEqualTo(encodedNs);
 
       // Decoded (after pulling as String) from URL
-      Namespace asNamespace = RESTUtil.decodeNamespace(encodedNs);
-      assertThat(asNamespace).isEqualTo(namespace);
+      assertThat(RESTUtil.decodeNamespace(encodedNs, namespaceSeparator)).isEqualTo(namespace);
     }
+  }
+
+  @Test
+  public void encodeAsOldClientAndDecodeAsNewServer() {
+    Namespace namespace = Namespace.of("first", "second", "third");
+    // old client would call encodeNamespace without specifying a separator
+    String encodedNamespace = RESTUtil.encodeNamespace(namespace);
+    assertThat(encodedNamespace).contains(RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+
+    // old client would also call namespaceToQueryParam without specifying a separator
+    String namespaceAsUnicode = RESTUtil.namespaceToQueryParam(namespace);
+    assertThat(namespaceAsUnicode).contains("\u001f");
+
+    // newer server would try and decode the namespace with the separator it communicates to clients
+    String separator = "%2E";
+    Namespace decodedNamespace = RESTUtil.decodeNamespace(encodedNamespace, separator);
+    assertThat(decodedNamespace).isEqualTo(namespace);
+
+    // newer server would try and split the namespace with the separator it communicates to clients
+    // but should detect whether the namespace contains the legacy separator
+    assertThat(RESTUtil.namespaceFromQueryParam(namespaceAsUnicode, separator))
+        .isEqualTo(namespace);
   }
 
   @Test
@@ -165,5 +195,86 @@ public class TestRESTUtil {
     assertThat(
             RESTUtil.resolveEndpoint("http://catalog-uri/", "relative-endpoint/refresh-endpoint"))
         .isEqualTo("http://catalog-uri/relative-endpoint/refresh-endpoint");
+  }
+
+  @Test
+  public void namespaceToQueryParam() {
+    assertThatThrownBy(() -> RESTUtil.namespaceToQueryParam(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: null");
+
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.empty())).isEqualTo("");
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.of(""))).isEqualTo("");
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.of("ns"))).isEqualTo("ns");
+
+    // verify that the unicode character (\001f) and not its UTF-8 escaped version (%1F) is used
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.of("one", "ns")))
+        .isEqualTo("one\u001fns")
+        .isNotEqualTo("one%1Fns");
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.of("one", "two", "ns")))
+        .isEqualTo("one\u001ftwo\u001fns")
+        .isNotEqualTo("one%1Ftwo%1Fns");
+    assertThat(RESTUtil.namespaceToQueryParam(Namespace.of("one.two", "three.four", "ns")))
+        .isEqualTo("one.two\u001fthree.four\u001fns")
+        .isNotEqualTo("one.two%1Fthree.four%1Fns");
+  }
+
+  @Test
+  public void namespaceFromQueryParam() {
+    assertThatThrownBy(() -> RESTUtil.namespaceFromQueryParam(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid namespace: null");
+
+    assertThat(RESTUtil.namespaceFromQueryParam("")).isEqualTo(Namespace.of(""));
+    assertThat(RESTUtil.namespaceFromQueryParam("ns")).isEqualTo(Namespace.of("ns"));
+    assertThat(RESTUtil.namespaceFromQueryParam("one\u001fns"))
+        .isEqualTo(Namespace.of("one", "ns"));
+    assertThat(RESTUtil.namespaceFromQueryParam("one\u001ftwo\u001fns"))
+        .isEqualTo(Namespace.of("one", "two", "ns"));
+    assertThat(RESTUtil.namespaceFromQueryParam("one.two\u001fthree.four\u001fns"))
+        .isEqualTo(Namespace.of("one.two", "three.four", "ns"));
+
+    // using the UTF-8 escaped version will produce a wrong namespace instance
+    assertThat(RESTUtil.namespaceFromQueryParam("one%1Fns")).isEqualTo(Namespace.of("one%1Fns"));
+    assertThat(RESTUtil.namespaceFromQueryParam("one%1Ftwo%1Fns"))
+        .isEqualTo(Namespace.of("one%1Ftwo%1Fns"));
+    assertThat(RESTUtil.namespaceFromQueryParam("one%1Ftwo\u001fns"))
+        .isEqualTo(Namespace.of("one%1Ftwo", "ns"));
+  }
+
+  @Test
+  public void nullOrEmptyNamespaceSeparator() {
+    String errorMsg = "Invalid separator: null or empty";
+    assertThatThrownBy(() -> RESTUtil.encodeNamespace(Namespace.empty(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.encodeNamespace(Namespace.empty(), ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.decodeNamespace("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.decodeNamespace("namespace", ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.namespaceToQueryParam(Namespace.empty(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.namespaceToQueryParam(Namespace.empty(), ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.namespaceFromQueryParam("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.namespaceFromQueryParam("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
   }
 }

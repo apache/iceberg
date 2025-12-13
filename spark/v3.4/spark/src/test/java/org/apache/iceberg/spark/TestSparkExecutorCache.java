@@ -44,6 +44,8 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -74,18 +76,16 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.storage.memory.MemoryStore;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestSparkExecutorCache extends SparkTestBaseWithCatalog {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
-  public static Object[][] parameters() {
+  protected static Object[][] parameters() {
     return new Object[][] {
       {
         "testhive",
@@ -109,32 +109,27 @@ public class TestSparkExecutorCache extends SparkTestBaseWithCatalog {
   private String targetTableName;
   private TableIdentifier targetTableIdent;
 
-  public TestSparkExecutorCache(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   public void configureTargetTableName() {
     String name = "target_exec_cache_" + JOB_COUNTER.incrementAndGet();
     this.targetTableName = tableName(name);
     this.targetTableIdent = TableIdentifier.of(Namespace.of("default"), name);
   }
 
-  @After
+  @AfterEach
   public void releaseResources() {
     sql("DROP TABLE IF EXISTS %s", targetTableName);
     sql("DROP TABLE IF EXISTS %s", UPDATES_VIEW_NAME);
     INPUT_FILES.clear();
   }
 
-  @Test
+  @TestTemplate
   public void testCacheValueWeightOverflow() {
     CacheValue cacheValue = new CacheValue("v", Integer.MAX_VALUE + 1L);
     assertThat(cacheValue.weight()).isEqualTo(Integer.MAX_VALUE);
   }
 
-  @Test
+  @TestTemplate
   public void testCacheEnabledConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true"),
@@ -151,7 +146,7 @@ public class TestSparkExecutorCache extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testTimeoutConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.EXECUTOR_CACHE_TIMEOUT, "10s"),
@@ -168,7 +163,7 @@ public class TestSparkExecutorCache extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testMaxEntrySizeConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.EXECUTOR_CACHE_MAX_ENTRY_SIZE, "128"),
@@ -178,7 +173,7 @@ public class TestSparkExecutorCache extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testMaxTotalSizeConfig() {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.EXECUTOR_CACHE_MAX_TOTAL_SIZE, "512"),
@@ -188,7 +183,40 @@ public class TestSparkExecutorCache extends SparkTestBaseWithCatalog {
         });
   }
 
-  @Test
+  @TestTemplate
+  public void testDeleteFilesCacheDisabledConfig() throws Exception {
+    createAndInitTable(TableProperties.DELETE_MODE, COPY_ON_WRITE);
+    Table table = validationCatalog.loadTable(targetTableIdent);
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "false"),
+        () -> {
+          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+        });
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
+        () -> {
+          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
+        });
+
+    withSQLConf(
+        ImmutableMap.of(
+            SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "false",
+            SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
+        () -> {
+          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+        });
+  }
+
+  @TestTemplate
   public void testConcurrentAccess() throws InterruptedException {
     SparkExecutorCache cache = SparkExecutorCache.getOrCreate();
 
@@ -253,12 +281,12 @@ public class TestSparkExecutorCache extends SparkTestBaseWithCatalog {
     assertThat(liveKeys).noneMatch(key -> key.startsWith(table1) || key.startsWith(table2));
   }
 
-  @Test
+  @TestTemplate
   public void testCopyOnWriteDelete() throws Exception {
     checkDelete(COPY_ON_WRITE);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeOnReadDelete() throws Exception {
     checkDelete(MERGE_ON_READ);
   }
@@ -344,13 +372,13 @@ public class TestSparkExecutorCache extends SparkTestBaseWithCatalog {
       deletes.add(delete.copy(col, value));
     }
 
-    OutputFile out = Files.localOutput(temp.newFile("eq-deletes-" + UUID.randomUUID()));
+    OutputFile out = Files.localOutput(new File(temp.toFile(), "eq-deletes-" + UUID.randomUUID()));
     return FileHelpers.writeDeleteFile(table, out, null, deletes, deleteSchema);
   }
 
   private Pair<DeleteFile, CharSequenceSet> writePosDeletes(
       Table table, List<Pair<CharSequence, Long>> deletes) throws IOException {
-    OutputFile out = Files.localOutput(temp.newFile("pos-deletes-" + UUID.randomUUID()));
+    OutputFile out = Files.localOutput(new File(temp.toFile(), "pos-deletes-" + UUID.randomUUID()));
     return FileHelpers.writeDeleteFile(table, out, null, deletes);
   }
 

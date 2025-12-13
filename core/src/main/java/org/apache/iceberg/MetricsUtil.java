@@ -55,7 +55,8 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         metrics.lowerBounds(),
-        metrics.upperBounds());
+        metrics.upperBounds(),
+        metrics.originalTypes());
   }
 
   /**
@@ -73,7 +74,8 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.lowerBounds(), excludedFieldIds),
-        copyWithoutKeys(metrics.upperBounds(), excludedFieldIds));
+        copyWithoutKeys(metrics.upperBounds(), excludedFieldIds),
+        copyWithoutKeys(metrics.originalTypes(), excludedFieldIds));
   }
 
   private static <K, V> Map<K, V> copyWithoutKeys(Map<K, V> map, Set<K> keys) {

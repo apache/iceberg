@@ -23,12 +23,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 
 /**
  * Container class representing a set of files to be rewritten by a RewriteAction and the new files
@@ -37,14 +40,6 @@ import org.apache.iceberg.util.DataFileSet;
 public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTask, DataFile> {
   private final int outputSpecId;
   private DataFileSet addedFiles = DataFileSet.create();
-
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0
-   */
-  @Deprecated
-  public RewriteFileGroup(FileGroupInfo info, List<FileScanTask> fileScanTasks) {
-    this(info, fileScanTasks, 0, 0L, 0L, 0);
-  }
 
   public RewriteFileGroup(
       FileGroupInfo info,
@@ -57,14 +52,6 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
     this.outputSpecId = outputSpecId;
   }
 
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #fileScanTasks()}
-   */
-  @Deprecated
-  public List<FileScanTask> fileScans() {
-    return fileScanTasks();
-  }
-
   public void setOutputFiles(Set<DataFile> files) {
     addedFiles = DataFileSet.of(files);
   }
@@ -73,6 +60,12 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
     return fileScanTasks().stream()
         .map(FileScanTask::file)
         .collect(Collectors.toCollection(DataFileSet::create));
+  }
+
+  public Set<DeleteFile> danglingDVs() {
+    return fileScanTasks().stream()
+        .flatMap(task -> task.deletes().stream().filter(ContentFileUtil::isDV))
+        .collect(Collectors.toCollection(DeleteFileSet::create));
   }
 
   public Set<DataFile> addedFiles() {
@@ -86,6 +79,7 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
         .addedDataFilesCount(addedFiles.size())
         .rewrittenDataFilesCount(fileScanTasks().size())
         .rewrittenBytesCount(inputFilesSizeInBytes())
+        .removedDeleteFilesCount(danglingDVs().size())
         .build();
   }
 
@@ -103,22 +97,6 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
         .add("expectedOutputFiles", expectedOutputFiles())
         .add("outputSpecId", outputSpecId)
         .toString();
-  }
-
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #inputFilesSizeInBytes()}
-   */
-  @Deprecated
-  public long sizeInBytes() {
-    return inputFilesSizeInBytes();
-  }
-
-  /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #inputFileNum()}
-   */
-  @Deprecated
-  public int numFiles() {
-    return inputFileNum();
   }
 
   public int outputSpecId() {

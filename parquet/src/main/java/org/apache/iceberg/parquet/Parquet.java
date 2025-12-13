@@ -28,8 +28,10 @@ import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
@@ -98,7 +100,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PropertyUtil;
@@ -120,6 +121,7 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Type.ID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -308,31 +310,18 @@ public class Parquet {
 
     private void setBloomFilterConfig(
         Context context,
-        MessageType parquetSchema,
+        Map<String, String> colNameToParquetPathMap,
         BiConsumer<String, Boolean> withBloomFilterEnabled,
-        BiConsumer<String, Double> withBloomFilterFPP) {
-
-      Map<Integer, String> fieldIdToParquetPath =
-          parquetSchema.getColumns().stream()
-              .filter(col -> col.getPrimitiveType().getId() != null)
-              .collect(
-                  Collectors.toMap(
-                      col -> col.getPrimitiveType().getId().intValue(),
-                      col -> String.join(".", col.getPath())));
+        BiConsumer<String, Double> withBloomFilterFPP,
+        BiConsumer<String, Long> withBloomFilterNDV) {
 
       context
           .columnBloomFilterEnabled()
           .forEach(
               (colPath, isEnabled) -> {
-                Types.NestedField fieldId = schema.findField(colPath);
-                if (fieldId == null) {
-                  LOG.warn("Skipping bloom filter config for missing field: {}", colPath);
-                  return;
-                }
-
-                String parquetColumnPath = fieldIdToParquetPath.get(fieldId.fieldId());
+                String parquetColumnPath = colNameToParquetPathMap.get(colPath);
                 if (parquetColumnPath == null) {
-                  LOG.warn("Skipping bloom filter config for missing field: {}", fieldId);
+                  LOG.warn("Skipping bloom filter config for missing field: {}", colPath);
                   return;
                 }
 
@@ -341,6 +330,28 @@ public class Parquet {
                 if (fpp != null) {
                   withBloomFilterFPP.accept(parquetColumnPath, Double.parseDouble(fpp));
                 }
+                String ndv = context.columnBloomFilterNdv().get(colPath);
+                if (ndv != null) {
+                  withBloomFilterNDV.accept(parquetColumnPath, Long.parseLong(ndv));
+                }
+              });
+    }
+
+    private void setColumnStatsConfig(
+        Context context,
+        Map<String, String> colNameToParquetPathMap,
+        BiConsumer<String, Boolean> withColumnStatsEnabled) {
+
+      context
+          .columnStatsEnabled()
+          .forEach(
+              (colPath, isEnabled) -> {
+                String parquetColumnPath = colNameToParquetPathMap.get(colPath);
+                if (parquetColumnPath == null) {
+                  LOG.warn("Skipping column statistics config for missing field: {}", colPath);
+                  return;
+                }
+                withColumnStatsEnabled.accept(parquetColumnPath, Boolean.valueOf(isEnabled));
               });
     }
 
@@ -401,6 +412,18 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
+      Map<String, String> colNameToParquetPathMap =
+          type.getColumns().stream()
+              .filter(
+                  col -> {
+                    ID id = col.getPrimitiveType().getId();
+                    return (id != null) && (schema.findColumnName(id.intValue()) != null);
+                  })
+              .collect(
+                  Collectors.toMap(
+                      col -> schema.findColumnName(col.getPrimitiveType().getId().intValue()),
+                      col -> String.join(".", col.getPath())));
+
       if (createWriterFunc != null) {
         Preconditions.checkArgument(
             writeSupport == null, "Cannot write with both write support and Parquet value writer");
@@ -421,7 +444,13 @@ public class Parquet {
                 .withMaxBloomFilterBytes(bloomFilterMaxBytes);
 
         setBloomFilterConfig(
-            context, type, propsBuilder::withBloomFilterEnabled, propsBuilder::withBloomFilterFPP);
+            context,
+            colNameToParquetPathMap,
+            propsBuilder::withBloomFilterEnabled,
+            propsBuilder::withBloomFilterFPP,
+            propsBuilder::withBloomFilterNDV);
+
+        setColumnStatsConfig(context, colNameToParquetPathMap, propsBuilder::withStatisticsEnabled);
 
         ParquetProperties parquetProperties = propsBuilder.build();
 
@@ -457,9 +486,13 @@ public class Parquet {
 
         setBloomFilterConfig(
             context,
-            type,
+            colNameToParquetPathMap,
             parquetWriteBuilder::withBloomFilterEnabled,
-            parquetWriteBuilder::withBloomFilterFPP);
+            parquetWriteBuilder::withBloomFilterFPP,
+            parquetWriteBuilder::withBloomFilterNDV);
+
+        setColumnStatsConfig(
+            context, colNameToParquetPathMap, parquetWriteBuilder::withStatisticsEnabled);
 
         return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
       }
@@ -476,7 +509,9 @@ public class Parquet {
       private final int rowGroupCheckMaxRecordCount;
       private final int bloomFilterMaxBytes;
       private final Map<String, String> columnBloomFilterFpp;
+      private final Map<String, String> columnBloomFilterNdv;
       private final Map<String, String> columnBloomFilterEnabled;
+      private final Map<String, String> columnStatsEnabled;
       private final boolean dictionaryEnabled;
 
       private Context(
@@ -490,7 +525,9 @@ public class Parquet {
           int rowGroupCheckMaxRecordCount,
           int bloomFilterMaxBytes,
           Map<String, String> columnBloomFilterFpp,
+          Map<String, String> columnBloomFilterNdv,
           Map<String, String> columnBloomFilterEnabled,
+          Map<String, String> columnStatsEnabled,
           boolean dictionaryEnabled) {
         this.rowGroupSize = rowGroupSize;
         this.pageSize = pageSize;
@@ -502,7 +539,9 @@ public class Parquet {
         this.rowGroupCheckMaxRecordCount = rowGroupCheckMaxRecordCount;
         this.bloomFilterMaxBytes = bloomFilterMaxBytes;
         this.columnBloomFilterFpp = columnBloomFilterFpp;
+        this.columnBloomFilterNdv = columnBloomFilterNdv;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
+        this.columnStatsEnabled = columnStatsEnabled;
         this.dictionaryEnabled = dictionaryEnabled;
       }
 
@@ -561,8 +600,14 @@ public class Parquet {
         Map<String, String> columnBloomFilterFpp =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX);
 
+        Map<String, String> columnBloomFilterNdv =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX);
+
         Map<String, String> columnBloomFilterEnabled =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX);
+
+        Map<String, String> columnStatsEnabled =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_STATS_ENABLED_PREFIX);
 
         boolean dictionaryEnabled =
             PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
@@ -578,7 +623,9 @@ public class Parquet {
             rowGroupCheckMaxRecordCount,
             bloomFilterMaxBytes,
             columnBloomFilterFpp,
+            columnBloomFilterNdv,
             columnBloomFilterEnabled,
+            columnStatsEnabled,
             dictionaryEnabled);
       }
 
@@ -647,6 +694,8 @@ public class Parquet {
             PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT,
             ImmutableMap.of(),
             ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
             dictionaryEnabled);
       }
 
@@ -698,8 +747,16 @@ public class Parquet {
         return columnBloomFilterFpp;
       }
 
+      Map<String, String> columnBloomFilterNdv() {
+        return columnBloomFilterNdv;
+      }
+
       Map<String, String> columnBloomFilterEnabled() {
         return columnBloomFilterEnabled;
+      }
+
+      Map<String, String> columnStatsEnabled() {
+        return columnStatsEnabled;
       }
 
       boolean dictionaryEnabled() {
@@ -787,6 +844,11 @@ public class Parquet {
     public DataWriteBuilder createWriterFunc(
         BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
       appenderBuilder.createWriterFunc(newCreateWriterFunc);
+      return this;
+    }
+
+    public DataWriteBuilder variantShreddingFunc(VariantShreddingFunction func) {
+      appenderBuilder.variantShreddingFunc(func);
       return this;
     }
 
@@ -1114,8 +1176,7 @@ public class Parquet {
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
     private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
-    private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
-    private BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema = null;
+    private ReaderFunction readerFunction = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
     private boolean callInit = false;
@@ -1124,6 +1185,61 @@ public class Parquet {
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
+    private Class<? extends StructLike> rootType = null;
+    private Map<Integer, Class<? extends StructLike>> customTypes = Maps.newHashMap();
+
+    public interface ReaderFunction {
+      Function<MessageType, ParquetValueReader<?>> apply();
+
+      default ReaderFunction withRootType(Class<? extends StructLike> rootType) {
+        return this;
+      }
+
+      default ReaderFunction withCustomTypes(
+          Map<Integer, Class<? extends StructLike>> customTypes) {
+        return this;
+      }
+
+      default ReaderFunction withSchema(Schema schema) {
+        return this;
+      }
+    }
+
+    private static class UnaryReaderFunction implements ReaderFunction {
+      private final Function<MessageType, ParquetValueReader<?>> readerFunc;
+
+      UnaryReaderFunction(Function<MessageType, ParquetValueReader<?>> readerFunc) {
+        this.readerFunc = readerFunc;
+      }
+
+      @Override
+      public Function<MessageType, ParquetValueReader<?>> apply() {
+        return readerFunc;
+      }
+    }
+
+    private static class BinaryReaderFunction implements ReaderFunction {
+      private final BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema;
+      private Schema schema;
+
+      BinaryReaderFunction(
+          BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema) {
+        this.readerFuncWithSchema = readerFuncWithSchema;
+      }
+
+      @Override
+      public Function<MessageType, ParquetValueReader<?>> apply() {
+        Preconditions.checkArgument(
+            schema != null, "Schema must be set for 2-argument reader function");
+        return messageType -> readerFuncWithSchema.apply(schema, messageType);
+      }
+
+      @Override
+      public ReaderFunction withSchema(Schema expectedSchema) {
+        this.schema = expectedSchema;
+        return this;
+      }
+    }
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -1183,32 +1299,40 @@ public class Parquet {
           this.batchedReaderFunc == null,
           "Cannot set reader function: batched reader function already set");
       Preconditions.checkArgument(
-          this.readerFuncWithSchema == null,
-          "Cannot set reader function: 2-argument reader function already set");
-      this.readerFunc = newReaderFunction;
+          this.readerFunction == null, "Cannot set reader function: reader function already set");
+      this.readerFunction = new UnaryReaderFunction(newReaderFunction);
       return this;
     }
 
     public ReadBuilder createReaderFunc(
         BiFunction<Schema, MessageType, ParquetValueReader<?>> newReaderFunction) {
       Preconditions.checkArgument(
-          this.readerFunc == null,
-          "Cannot set 2-argument reader function: reader function already set");
-      Preconditions.checkArgument(
           this.batchedReaderFunc == null,
-          "Cannot set 2-argument reader function: batched reader function already set");
-      this.readerFuncWithSchema = newReaderFunction;
+          "Cannot set reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.readerFunction == null, "Cannot set reader function: reader function already set");
+      this.readerFunction = new BinaryReaderFunction(newReaderFunction);
       return this;
     }
 
     public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
       Preconditions.checkArgument(
-          this.readerFunc == null,
-          "Cannot set batched reader function: reader function already set");
+          this.batchedReaderFunc == null,
+          "Cannot set batched reader function: batched reader function already set");
       Preconditions.checkArgument(
-          this.readerFuncWithSchema == null,
-          "Cannot set batched reader function: 2-argument reader function already set");
+          this.readerFunction == null,
+          "Cannot set batched reader function: ReaderFunction already set");
       this.batchedReaderFunc = func;
+      return this;
+    }
+
+    public ReadBuilder createReaderFunc(ReaderFunction reader) {
+      Preconditions.checkArgument(
+          this.batchedReaderFunc == null,
+          "Cannot set reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.readerFunction == null, "Cannot set reader function: reader function already set");
+      this.readerFunction = reader;
       return this;
     }
 
@@ -1244,12 +1368,14 @@ public class Parquet {
 
     @Override
     public ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
-      throw new UnsupportedOperationException("Custom types are not yet supported");
+      rootType = rootClass;
+      return this;
     }
 
     @Override
     public ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
-      throw new UnsupportedOperationException("Custom types are not yet supported");
+      customTypes.put(fieldId, structClass);
+      return this;
     }
 
     public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
@@ -1278,7 +1404,7 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
-      if (readerFunc != null || readerFuncWithSchema != null || batchedReaderFunc != null) {
+      if (batchedReaderFunc != null || readerFunction != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -1303,6 +1429,7 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
+        optionsBuilder.withUseHadoopVectoredIo(true);
         ParquetReadOptions options = optionsBuilder.build();
 
         NameMapping mapping;
@@ -1327,9 +1454,12 @@ public class Parquet {
               maxRecordsPerBatch);
         } else {
           Function<MessageType, ParquetValueReader<?>> readBuilder =
-              readerFuncWithSchema != null
-                  ? fileType -> readerFuncWithSchema.apply(schema, fileType)
-                  : readerFunc;
+              readerFunction
+                  .withSchema(schema)
+                  .withRootType(rootType)
+                  .withCustomTypes(customTypes)
+                  .apply();
+
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
         }

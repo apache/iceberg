@@ -20,11 +20,14 @@ package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestUnpartitionedWritesToBranch extends UnpartitionedWritesTestBase {
 
   private static final String BRANCH = "test";

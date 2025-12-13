@@ -143,6 +143,7 @@ public class OrcMetrics {
     final Schema schema = ORCSchemaUtil.convert(orcSchemaWithIds);
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
+    Map<Integer, Type> originalTypes = Maps.newHashMap();
 
     Map<Integer, FieldMetrics<?>> fieldMetricsMap =
         Optional.ofNullable(fieldMetricsStream)
@@ -193,6 +194,8 @@ public class OrcMetrics {
                         icebergCol.type(), colStat, metricsMode, fieldMetricsMap.get(fieldId))
                     : Optional.empty();
             orcMax.ifPresent(byteBuffer -> upperBounds.put(icebergCol.fieldId(), byteBuffer));
+
+            originalTypes.put(fieldId, icebergCol.type());
           }
         }
       }
@@ -206,7 +209,8 @@ public class OrcMetrics {
         MetricsUtil.createNanValueCounts(
             fieldMetricsMap.values().stream(), effectiveMetricsConfig, schema),
         lowerBounds,
-        upperBounds);
+        upperBounds,
+        originalTypes);
   }
 
   private static boolean inMapOrList(TypeDescription orcCol) {

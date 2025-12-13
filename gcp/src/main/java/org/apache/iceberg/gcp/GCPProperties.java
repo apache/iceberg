@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -55,11 +56,16 @@ public class GCPProperties implements Serializable {
   /** Configure the batch size used when deleting multiple files from a given GCS bucket */
   public static final String GCS_DELETE_BATCH_SIZE = "gcs.delete.batch-size";
 
+  /** Controls whether analytics core library is enabled or not. Defaults to false. */
+  public static final String GCS_ANALYTICS_CORE_ENABLED = "gcs.analytics-core.enabled";
+
   /**
    * Max possible batch size for deletion. Currently, a max of 100 keys is advised, so we default to
    * a number below that. https://cloud.google.com/storage/docs/batch
    */
   public static final int GCS_DELETE_BATCH_SIZE_DEFAULT = 50;
+
+  private final Map<String, String> allProperties;
 
   private String projectId;
   private String clientLibToken;
@@ -77,13 +83,17 @@ public class GCPProperties implements Serializable {
   private Date gcsOAuth2TokenExpiresAt;
   private String gcsOauth2RefreshCredentialsEndpoint;
   private boolean gcsOauth2RefreshCredentialsEnabled;
+  private boolean gcsAnalyticsCoreEnabled;
 
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
 
-  public GCPProperties() {}
+  public GCPProperties() {
+    this.allProperties = ImmutableMap.of();
+  }
 
   @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   public GCPProperties(Map<String, String> properties) {
+    this.allProperties = ImmutableMap.copyOf(properties);
     projectId = properties.get(GCS_PROJECT_ID);
     clientLibToken = properties.get(GCS_CLIENT_LIB_TOKEN);
     serviceHost = properties.get(GCS_SERVICE_HOST);
@@ -122,6 +132,8 @@ public class GCPProperties implements Serializable {
     gcsDeleteBatchSize =
         PropertyUtil.propertyAsInt(
             properties, GCS_DELETE_BATCH_SIZE, GCS_DELETE_BATCH_SIZE_DEFAULT);
+    gcsAnalyticsCoreEnabled =
+        PropertyUtil.propertyAsBoolean(properties, GCS_ANALYTICS_CORE_ENABLED, false);
   }
 
   public Optional<Integer> channelReadChunkSize() {
@@ -178,5 +190,13 @@ public class GCPProperties implements Serializable {
 
   public boolean oauth2RefreshCredentialsEnabled() {
     return gcsOauth2RefreshCredentialsEnabled;
+  }
+
+  public Map<String, String> properties() {
+    return allProperties;
+  }
+
+  public boolean isGcsAnalyticsCoreEnabled() {
+    return gcsAnalyticsCoreEnabled;
   }
 }

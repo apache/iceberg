@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
@@ -94,6 +95,12 @@ public class TestVariantMetrics {
         Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
         Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
         Variants.of("iceberg"),
+        Variants.ofIsoTime("12:33:54.123456"),
+        Variants.ofIsoTimestamptzNanos("2024-11-07T12:33:54.123456789+00:00"),
+        Variants.ofIsoTimestamptzNanos("1957-11-07T12:33:54.123456789+00:00"),
+        Variants.ofIsoTimestampntzNanos("2024-11-07T12:33:54.123456789"),
+        Variants.ofIsoTimestampntzNanos("1957-11-07T12:33:54.123456789"),
+        Variants.ofUUID("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
       };
 
   @ParameterizedTest
@@ -110,7 +117,7 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds()).hasSize(2);
     assertThat(metrics.lowerBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(0L);
@@ -122,7 +129,7 @@ public class TestVariantMetrics {
             })
         .isEqualTo(value);
 
-    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+    assertThat(metrics.upperBounds()).hasSize(2);
     assertThat(metrics.upperBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(2L);
@@ -133,6 +140,10 @@ public class TestVariantMetrics {
               return bounds.get(ROOT_FIELD);
             })
         .isEqualTo(value);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
   @ParameterizedTest
@@ -151,7 +162,7 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 1L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds()).hasSize(2);
     assertThat(metrics.lowerBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(0L);
@@ -163,7 +174,7 @@ public class TestVariantMetrics {
             })
         .isEqualTo(value);
 
-    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+    assertThat(metrics.upperBounds()).hasSize(2);
     assertThat(metrics.upperBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(3L);
@@ -174,6 +185,10 @@ public class TestVariantMetrics {
               return bounds.get(ROOT_FIELD);
             })
         .isEqualTo(largerValue);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
   @ParameterizedTest
@@ -197,6 +212,8 @@ public class TestVariantMetrics {
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
     assertThat(metrics.upperBounds())
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+
+    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
   }
 
   @Test
@@ -217,6 +234,8 @@ public class TestVariantMetrics {
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
     assertThat(metrics.upperBounds())
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+
+    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
   }
 
   @Test
@@ -237,6 +256,8 @@ public class TestVariantMetrics {
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
     assertThat(metrics.upperBounds())
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+
+    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
   }
 
   @Test
@@ -256,6 +277,8 @@ public class TestVariantMetrics {
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
     assertThat(metrics.upperBounds())
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+
+    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
   }
 
   @Test
@@ -274,6 +297,8 @@ public class TestVariantMetrics {
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
     assertThat(metrics.upperBounds())
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+
+    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
   }
 
   @Test
@@ -311,7 +336,7 @@ public class TestVariantMetrics {
     expectedBounds.put("$['c']", str);
     expectedBounds.put("$['d']['e']", dec);
 
-    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds()).hasSize(2);
     assertThat(metrics.lowerBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(0L);
@@ -319,13 +344,17 @@ public class TestVariantMetrics {
         .extracting(bytes -> Variant.from(bytes).value())
         .isEqualTo(expectedBounds);
 
-    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+    assertThat(metrics.upperBounds()).hasSize(2);
     assertThat(metrics.upperBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(4L);
     assertThat(metrics.upperBounds().get(2))
         .extracting(bytes -> Variant.from(bytes).value())
         .isEqualTo(expectedBounds);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
   @Test
@@ -367,7 +396,7 @@ public class TestVariantMetrics {
     expectedBounds.put("$['a']", date);
     expectedBounds.put("$['b']", num);
 
-    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds()).hasSize(2);
     assertThat(metrics.lowerBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(0L);
@@ -375,13 +404,17 @@ public class TestVariantMetrics {
         .extracting(bytes -> Variant.from(bytes).value())
         .isEqualTo(expectedBounds);
 
-    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+    assertThat(metrics.upperBounds()).hasSize(2);
     assertThat(metrics.upperBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(4L);
     assertThat(metrics.upperBounds().get(2))
         .extracting(bytes -> Variant.from(bytes).value())
         .isEqualTo(expectedBounds);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
   @Test
@@ -425,7 +458,7 @@ public class TestVariantMetrics {
     expectedBounds.put("$['a']", date);
     expectedBounds.put("$['d']['e']", dec);
 
-    assertThat(metrics.lowerBounds().size()).isEqualTo(2);
+    assertThat(metrics.lowerBounds()).hasSize(2);
     assertThat(metrics.lowerBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(0L);
@@ -433,13 +466,17 @@ public class TestVariantMetrics {
         .extracting(bytes -> Variant.from(bytes).value())
         .isEqualTo(expectedBounds);
 
-    assertThat(metrics.upperBounds().size()).isEqualTo(2);
+    assertThat(metrics.upperBounds()).hasSize(2);
     assertThat(metrics.upperBounds().get(1))
         .extracting(bytes -> Conversions.fromByteBuffer(Types.LongType.get(), bytes))
         .isEqualTo(5L);
     assertThat(metrics.upperBounds().get(2))
         .extracting(bytes -> Variant.from(bytes).value())
         .isEqualTo(expectedBounds);
+
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
   private Metrics writeParquet(VariantShreddingFunction shredding, Variant... variants)
@@ -481,6 +518,9 @@ public class TestVariantMetrics {
       case INT64:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
+      case TIME:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
         return Variants.of(value.type(), (Long) primitive.get() + 1L);
       case FLOAT:
         return Variants.of(value.type(), (Float) primitive.get() + 1.0F);
@@ -496,6 +536,11 @@ public class TestVariantMetrics {
       case STRING:
         return Variants.of(
             value.type(), UnicodeUtil.truncateStringMax((String) primitive.get(), 5));
+      case UUID:
+        UUID uuid = (UUID) primitive.get();
+        return Variants.of(
+            value.type(),
+            new UUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits() + 1));
     }
 
     throw new UnsupportedOperationException("Cannot increment value: " + value);

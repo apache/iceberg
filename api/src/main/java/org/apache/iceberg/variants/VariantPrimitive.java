@@ -37,10 +37,16 @@ public interface VariantPrimitive<T> extends VariantValue {
     switch (type()) {
       case DATE:
         return DateTimeUtil.daysToIsoDate((Integer) get());
+      case TIME:
+        return DateTimeUtil.microsToIsoTime((Long) get());
       case TIMESTAMPTZ:
         return DateTimeUtil.microsToIsoTimestamptz((Long) get());
       case TIMESTAMPNTZ:
         return DateTimeUtil.microsToIsoTimestamp((Long) get());
+      case TIMESTAMPTZ_NANOS:
+        return DateTimeUtil.nanosToIsoTimestamptz((Long) get());
+      case TIMESTAMPNTZ_NANOS:
+        return DateTimeUtil.nanosToIsoTimestamp((Long) get());
       case BINARY:
         return BaseEncoding.base16().encode(ByteBuffers.toByteArray((ByteBuffer) get()));
       default:

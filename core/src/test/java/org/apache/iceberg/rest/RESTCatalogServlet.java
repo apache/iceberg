@@ -37,9 +37,9 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
-import org.apache.iceberg.rest.RESTCatalogAdapter.Route;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
@@ -52,9 +52,10 @@ import org.slf4j.LoggerFactory;
 public class RESTCatalogServlet extends HttpServlet {
   private static final Logger LOG = LoggerFactory.getLogger(RESTCatalogServlet.class);
 
-  private final RESTCatalogAdapter restCatalogAdapter;
-  private final Map<String, String> responseHeaders =
+  private static final Map<String, String> DEFAULT_RESPONSE_HEADERS =
       ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
+
+  private final RESTCatalogAdapter restCatalogAdapter;
 
   public RESTCatalogServlet(RESTCatalogAdapter restCatalogAdapter) {
     this.restCatalogAdapter = restCatalogAdapter;
@@ -87,7 +88,7 @@ public class RESTCatalogServlet extends HttpServlet {
   protected void execute(ServletRequestContext context, HttpServletResponse response)
       throws IOException {
     response.setStatus(HttpServletResponse.SC_OK);
-    responseHeaders.forEach(response::setHeader);
+    DEFAULT_RESPONSE_HEADERS.forEach(response::setHeader);
 
     if (context.error().isPresent()) {
       response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -96,7 +97,6 @@ public class RESTCatalogServlet extends HttpServlet {
     }
 
     try {
-
       HTTPRequest request =
           restCatalogAdapter.buildRequest(
               context.method(),
@@ -104,12 +104,27 @@ public class RESTCatalogServlet extends HttpServlet {
               context.queryParams(),
               context.headers(),
               context.body());
+
+      Map<String, String> responseHeaders = Maps.newHashMap();
       Object responseBody =
           restCatalogAdapter.execute(
-              request, context.route().responseClass(), handle(response), h -> {});
+              request, context.route().responseClass(), handle(response), responseHeaders::putAll);
+
+      responseHeaders.forEach(response::setHeader);
 
       if (responseBody != null) {
         RESTObjectMapper.mapper().writeValue(response.getWriter(), responseBody);
+      } else {
+        Pair<Route, Map<String, String>> routeAndVars =
+            Route.from(request.method(), request.path());
+        if (routeAndVars != null) {
+          Route route = routeAndVars.first();
+          if (route == Route.LOAD_TABLE) {
+            response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+          } else if (shouldReturn204(route)) {
+            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+          }
+        }
       }
     } catch (RESTException e) {
       LOG.error("Error processing REST request", e);
@@ -118,6 +133,20 @@ public class RESTCatalogServlet extends HttpServlet {
       LOG.error("Unexpected exception when processing REST request", e);
       response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
+  }
+
+  private boolean shouldReturn204(Route route) {
+    return route == Route.NAMESPACE_EXISTS
+        || route == Route.TABLE_EXISTS
+        || route == Route.VIEW_EXISTS
+        || route == Route.DROP_NAMESPACE
+        || route == Route.DROP_TABLE
+        || route == Route.DROP_VIEW
+        || route == Route.RENAME_TABLE
+        || route == Route.RENAME_VIEW
+        || route == Route.CANCEL_PLAN_TABLE_SCAN
+        || route == Route.REPORT_METRICS
+        || route == Route.COMMIT_TRANSACTION;
   }
 
   protected Consumer<ErrorResponse> handle(HttpServletResponse response) {

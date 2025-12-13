@@ -125,12 +125,8 @@ public class DynMethods {
     /** Singleton {@link UnboundMethod}, performs no operation and returns null. */
     private static final UnboundMethod NOOP =
         new UnboundMethod(null, "NOOP") {
-          /**
-           * @deprecated since 1.7.0, visibility will be reduced in 1.8.0
-           */
-          @Deprecated // will become package-private
           @Override
-          public <R> R invokeChecked(Object target, Object... args) {
+          <R> R invokeChecked(Object target, Object... args) {
             return null;
           }
 

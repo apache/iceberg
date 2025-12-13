@@ -29,6 +29,7 @@ import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +64,13 @@ public class TestS3MultipartUpload {
     properties = new S3FileIOProperties();
     properties.setMultiPartSize(S3FileIOProperties.MULTIPART_SIZE_MIN);
     properties.setChecksumEnabled(true);
-    io = new S3FileIO(() -> s3, properties);
+    io = new S3FileIO(() -> s3);
+    io.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.MULTIPART_SIZE,
+            Integer.toString(S3FileIOProperties.MULTIPART_SIZE_MIN),
+            S3FileIOProperties.CHECKSUM_ENABLED,
+            "true"));
   }
 
   @AfterAll

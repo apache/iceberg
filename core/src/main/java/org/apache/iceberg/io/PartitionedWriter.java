@@ -46,6 +46,16 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
   }
 
+  protected PartitionedWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileWriterFactory<T> fileWriterFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize) {
+    super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize);
+  }
+
   /**
    * Create a PartitionKey from the values in row.
    *
