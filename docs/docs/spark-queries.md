@@ -116,7 +116,7 @@ SELECT * FROM prod.db.table VERSION AS OF 'historical-snapshot';
 SELECT * FROM prod.db.table.`tag_historical-snapshot`;
 ```
 
-For example, consider a table that evolves its schema over time:
+For example, consider a table that evolves its schema over time, and see how each type of time travel query selects its schema:
 
 ```sql
 -- snapshot S1: initial schema (id, status)
