@@ -121,9 +121,11 @@ public class TestHiveViewCommits {
     assertThat(tbl.getViewExpandedText()).isEqualTo(VIEW_QUERY);
 
     String newQuery = "select * from ns.tbl2 limit 10";
+    assertThat(VIEW_QUERY).isNotEqualTo(newQuery);
 
     // update view query
-    view = catalog
+    view =
+        catalog
             .buildView(VIEW_IDENTIFIER)
             .withSchema(SCHEMA)
             .withDefaultNamespace(NS)
@@ -133,12 +135,12 @@ public class TestHiveViewCommits {
     Table updatedTbl = ops.loadHmsTable();
 
     assertThat(updatedTbl.getViewOriginalText())
-            .as("The original view query in HMS must be updated to the new SQL.")
-            .isEqualTo(newQuery);
+        .as("The original view query in HMS must be updated to the new SQL.")
+        .isEqualTo(newQuery);
 
     assertThat(updatedTbl.getViewExpandedText())
-            .as("The expanded view query in HMS must be updated to the new SQL.")
-            .isEqualTo(newQuery);
+        .as("The expanded view query in HMS must be updated to the new SQL.")
+        .isEqualTo(newQuery);
   }
 
   @Test
