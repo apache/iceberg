@@ -346,11 +346,15 @@ public class TableMetadata implements Serializable {
     // changes are carried through until metadata is read from a file
     this.changes = changes;
 
-    this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
+    this.snapshotsById =
+        this.snapshots != null
+            ? indexAndValidateSnapshots(this.snapshots, lastSequenceNumber)
+            : ImmutableMap.of();
     this.schemasById = indexSchemas();
     this.specsById = PartitionUtil.indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
-    this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
+    this.refs =
+        this.snapshots != null ? validateRefs(currentSnapshotId, refs, snapshotsById) : refs;
     this.statisticsFiles = ImmutableList.copyOf(statisticsFiles);
     this.partitionStatisticsFiles = ImmutableList.copyOf(partitionStatisticsFiles);
 
@@ -398,7 +402,9 @@ public class TableMetadata implements Serializable {
           previous.timestampMillis);
     }
 
-    validateCurrentSnapshot();
+    if (this.snapshots != null) {
+      validateCurrentSnapshot();
+    }
   }
 
   public int formatVersion() {
@@ -523,6 +529,10 @@ public class TableMetadata implements Serializable {
 
   public Snapshot currentSnapshot() {
     return snapshotsById.get(currentSnapshotId);
+  }
+
+  public long currentSnapshotId() {
+    return currentSnapshotId;
   }
 
   public List<Snapshot> snapshots() {
