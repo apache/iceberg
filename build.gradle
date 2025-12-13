@@ -381,6 +381,13 @@ project(':iceberg-core') {
       exclude group: 'junit'
     }
     testImplementation libs.awaitility
+    testImplementation libs.testcontainers
+    testImplementation libs.testcontainers.db2
+    testImplementation libs.testcontainers.oracle
+    testImplementation libs.testcontainers.postgres
+    testImplementation libs.db2.jdbc
+    testImplementation libs.oracle.jdbc
+    testImplementation libs.postgres.jdbc
   }
 }
 
