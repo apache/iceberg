@@ -54,6 +54,7 @@ import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.Factory;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.CatalogProperties.CacheExpirationPolicy;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
@@ -108,7 +109,8 @@ public class FlinkCatalog extends AbstractCatalog {
       CatalogLoader catalogLoader,
       Map<String, String> catalogProps,
       boolean cacheEnabled,
-      long cacheExpirationIntervalMs) {
+      long cacheExpirationIntervalMs,
+      CacheExpirationPolicy cacheExpirationPolicy) {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
     this.catalogProps = catalogProps;
@@ -118,7 +120,7 @@ public class FlinkCatalog extends AbstractCatalog {
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog =
         cacheEnabled
-            ? CachingCatalog.wrap(originalCatalog, cacheExpirationIntervalMs)
+            ? CachingCatalog.wrap(originalCatalog, cacheExpirationIntervalMs, cacheExpirationPolicy)
             : originalCatalog;
     asNamespaceCatalog =
         originalCatalog instanceof SupportsNamespaces ? (SupportsNamespaces) originalCatalog : null;
