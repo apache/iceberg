@@ -145,30 +145,6 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   @Test
   public void testCreateTableWithDefaultColumnValue() {}
 
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void testRenameTable() {
-    super.testRenameTable();
-  }
-
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void testRenameTableDestinationTableAlreadyExists() {
-    super.testRenameTableDestinationTableAlreadyExists();
-  }
-
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void renameTableNamespaceMissing() {
-    super.renameTableNamespaceMissing();
-  }
-
-  @Disabled("BigQuery Metastore does not support rename tables")
-  @Test
-  public void testRenameTableMissingSourceTable() {
-    super.testRenameTableMissingSourceTable();
-  }
-
   @Test
   public void testIsValidIdentifierWithValidSingleLevelNamespace() {
     assertThat(catalog.isValidIdentifier(TableIdentifier.of("dataset1", "table1"))).isTrue();
