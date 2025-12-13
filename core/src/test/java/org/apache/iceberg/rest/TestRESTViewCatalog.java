@@ -409,7 +409,8 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter) {
           @Override
           protected RESTSessionCatalog newSessionCatalog(
-              Function<Map<String, String>, RESTClient> clientBuilder) {
+              Function<Map<String, String>, RESTClient> clientBuilder,
+              BiFunction<SessionCatalog.SessionContext, Map<String, String>, FileIO> ioBuilder) {
             return sessionCatalogFactory.apply(clientBuilder);
           }
         };
