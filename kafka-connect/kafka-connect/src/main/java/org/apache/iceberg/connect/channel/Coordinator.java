@@ -70,7 +70,7 @@ class Coordinator extends Channel {
   private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commit-id";
-  private static final String TASK_ID_SNAPSHOT_PROP = "kafka.connect.task-id";
+  private static final String COORDINATOR_ID_SNAPSHOT_PROP = "kafka.connect.coordinator-id";
   private static final String VALID_THROUGH_TS_SNAPSHOT_PROP = "kafka.connect.valid-through-ts";
   private static final Duration POLL_DURATION = Duration.ofSeconds(1);
 
@@ -81,6 +81,7 @@ class Coordinator extends Channel {
   private final ExecutorService exec;
   private final CommitState commitState;
   private volatile boolean terminated;
+  private final String coordinatorId;
 
   Coordinator(
       Catalog catalog,
@@ -110,6 +111,7 @@ class Coordinator extends Channel {
                 .setNameFormat("iceberg-committer" + "-%d")
                 .build());
     this.commitState = new CommitState(config);
+    this.coordinatorId = config.connectorName() + "-" + config.taskId();
   }
 
   void process() {
@@ -119,7 +121,7 @@ class Coordinator extends Channel {
       Event event =
           new Event(config.connectGroupId(), new StartCommit(commitState.currentCommitId()));
       send(event);
-      LOG.info("Commit {} initiated", commitState.currentCommitId());
+      LOG.info("Coordinator {} initiated commit {}", coordinatorId, commitState.currentCommitId());
     }
 
     consumeAvailable(POLL_DURATION);
@@ -149,7 +151,11 @@ class Coordinator extends Channel {
     try {
       doCommit(partialCommit);
     } catch (Exception e) {
-      LOG.warn("Commit failed, will try again next cycle", e);
+      LOG.warn(
+          "Coordinator {} failed to commit for commit {}, will try again next cycle",
+          coordinatorId,
+          commitState.currentCommitId(),
+          e);
     } finally {
       commitState.endCurrentCommit();
     }
@@ -179,7 +185,8 @@ class Coordinator extends Channel {
     send(event);
 
     LOG.info(
-        "Commit {} complete, committed to {} table(s), valid-through {}",
+        "Coordinator {} completed commit {}, committed to {} table(s), valid-through {}",
+        coordinatorId,
         commitState.currentCommitId(),
         commitMap.size(),
         validThroughTs);
@@ -246,13 +253,13 @@ class Coordinator extends Channel {
             .collect(Collectors.toList());
 
     if (terminated) {
-      throw new ConnectException("Coordinator is terminated, commit aborted");
+      throw new ConnectException(
+          String.format("Coordinator %s is terminated, commit aborted", coordinatorId));
     }
 
     if (dataFiles.isEmpty() && deleteFiles.isEmpty()) {
       LOG.info("Nothing to commit to table {}, skipping", tableIdentifier);
     } else {
-      String taskId = String.format("%s-%s", config.connectorName(), config.taskId());
       if (deleteFiles.isEmpty()) {
         AppendFiles appendOp =
             table.newAppend().validateWith(offsetValidator(tableIdentifier, committedOffsets));
@@ -261,7 +268,7 @@ class Coordinator extends Channel {
         }
         appendOp.set(snapshotOffsetsProp, offsetsJson);
         appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
-        appendOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
+        appendOp.set(COORDINATOR_ID_SNAPSHOT_PROP, coordinatorId);
         if (validThroughTs != null) {
           appendOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
@@ -275,7 +282,7 @@ class Coordinator extends Channel {
         }
         deltaOp.set(snapshotOffsetsProp, offsetsJson);
         deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
-        deltaOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
+        deltaOp.set(COORDINATOR_ID_SNAPSHOT_PROP, coordinatorId);
         if (validThroughTs != null) {
           deltaOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
@@ -293,7 +300,8 @@ class Coordinator extends Channel {
       send(event);
 
       LOG.info(
-          "Commit complete to table {}, snapshot {}, commit ID {}, valid-through {}",
+          "Coordinator {} completed commit to table {}, snapshot {}, commit ID {}, valid-through {}",
+          coordinatorId,
           tableIdentifier,
           snapshotId,
           commitState.currentCommitId(),
