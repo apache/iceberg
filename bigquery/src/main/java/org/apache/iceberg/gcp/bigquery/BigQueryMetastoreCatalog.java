@@ -23,7 +23,6 @@ import com.google.api.services.bigquery.model.DatasetList.Datasets;
 import com.google.api.services.bigquery.model.DatasetReference;
 import com.google.api.services.bigquery.model.ExternalCatalogDatasetOptions;
 import com.google.api.services.bigquery.model.TableReference;
-import com.google.cloud.ServiceOptions;
 import com.google.cloud.bigquery.BigQueryOptions;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -58,14 +57,7 @@ import org.slf4j.LoggerFactory;
 public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Object> {
 
-  // User provided properties.
-  public static final String PROJECT_ID = "gcp.bigquery.project-id";
-  public static final String GCP_LOCATION = "gcp.bigquery.location";
-  public static final String LIST_ALL_TABLES = "gcp.bigquery.list-all-tables";
-
   private static final Logger LOG = LoggerFactory.getLogger(BigQueryMetastoreCatalog.class);
-
-  private static final String DEFAULT_GCP_LOCATION = "us";
 
   private String catalogName;
   private Map<String, String> catalogProperties;
@@ -81,23 +73,17 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    Preconditions.checkArgument(
-        properties.containsKey(PROJECT_ID),
-        "Invalid GCP project: %s must be specified",
-        PROJECT_ID);
 
-    this.projectId = properties.get(PROJECT_ID);
-    this.projectLocation = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
+    this.projectId = properties.get(BigQueryProperties.PROJECT_ID);
+    this.projectLocation =
+        properties.getOrDefault(
+            BigQueryProperties.GCP_LOCATION, BigQueryProperties.DEFAULT_GCP_LOCATION);
 
-    BigQueryOptions options =
-        BigQueryOptions.newBuilder()
-            .setProjectId(projectId)
-            .setLocation(projectLocation)
-            .setRetrySettings(ServiceOptions.getDefaultRetrySettings())
-            .build();
+    BigQueryProperties bigQueryProperties = new BigQueryProperties(properties);
+    BigQueryOptions bigQueryOptions = bigQueryProperties.metastoreOptions();
 
     try {
-      client = new BigQueryMetastoreClientImpl(options);
+      client = new BigQueryMetastoreClientImpl(bigQueryOptions);
     } catch (IOException e) {
       throw new UncheckedIOException("Creating BigQuery client failed", e);
     } catch (GeneralSecurityException e) {
@@ -135,7 +121,8 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
             properties,
             conf);
 
-    this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, "true"));
+    this.listAllTables =
+        Boolean.parseBoolean(properties.getOrDefault(BigQueryProperties.LIST_ALL_TABLES, "true"));
   }
 
   @Override
