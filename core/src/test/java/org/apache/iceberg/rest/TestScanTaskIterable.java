@@ -82,7 +82,7 @@ public class TestScanTaskIterable {
   // ==================== Nested/Paginated Plan Tasks Tests ====================
 
   @Test
-  public void testIterableWithNestedPlanTasks() throws IOException {
+  public void iterableWithNestedPlanTasks() throws IOException {
     // First plan task returns more plan tasks
     FetchScanTasksResponse response1 =
         FetchScanTasksResponse.builder()
@@ -140,7 +140,7 @@ public class TestScanTaskIterable {
   }
 
   @Test
-  public void testIterableWithDeeplyNestedPlanTasks() throws IOException {
+  public void iterableWithDeeplyNestedPlanTasks() throws IOException {
     FetchScanTasksResponse response1 =
         FetchScanTasksResponse.builder().withPlanTasks(ImmutableList.of("level2")).build();
     FetchScanTasksResponse response2 =
@@ -181,7 +181,7 @@ public class TestScanTaskIterable {
   // ==================== Iterator Behavior Tests ====================
 
   @Test
-  public void testIteratorNextWithoutHasNext() throws IOException {
+  public void iteratorNextWithoutHasNext() throws IOException {
     List<FileScanTask> initialTasks = ImmutableList.of(new MockFileScanTask(100));
 
     ScanTaskIterable iterable =
@@ -205,7 +205,7 @@ public class TestScanTaskIterable {
   }
 
   @Test
-  public void testIteratorMultipleHasNextCallsIdempotent() throws IOException {
+  public void iteratorMultipleHasNextCallsIdempotent() throws IOException {
     List<FileScanTask> initialTasks = ImmutableList.of(new MockFileScanTask(100));
 
     ScanTaskIterable iterable =
@@ -236,7 +236,7 @@ public class TestScanTaskIterable {
   // ==================== Error Handling Tests ====================
 
   @Test
-  public void testWorkerFailurePropagatesException() throws IOException {
+  public void workerFailurePropagatesException() throws IOException {
     when(mockClient.post(
             eq(FETCH_TASKS_PATH),
             any(FetchScanTasksRequest.class),
@@ -269,7 +269,7 @@ public class TestScanTaskIterable {
   // ==================== Chained Plan Tasks Test ====================
 
   @Test
-  public void testChainedPlanTasks() throws IOException {
+  public void chainedPlanTasks() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
     when(mockClient.post(
@@ -315,7 +315,7 @@ public class TestScanTaskIterable {
   // ==================== Concurrency Tests ====================
 
   @Test
-  public void testConcurrentWorkersProcessingTasks() throws IOException {
+  public void concurrentWorkersProcessingTasks() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
     when(mockClient.post(
@@ -363,7 +363,7 @@ public class TestScanTaskIterable {
   }
 
   @Test
-  public void testSlowProducerFastConsumer() throws IOException {
+  public void slowProducerFastConsumer() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
     when(mockClient.post(
@@ -402,7 +402,7 @@ public class TestScanTaskIterable {
   }
 
   @Test
-  public void testCloseWhileWorkersAreRunning() throws IOException, InterruptedException {
+  public void closeWhileWorkersAreRunning() throws IOException, InterruptedException {
     CountDownLatch workerStarted = new CountDownLatch(1);
 
     when(mockClient.post(
@@ -445,7 +445,7 @@ public class TestScanTaskIterable {
   }
 
   @Test
-  public void testMultipleWorkersWithMixedNestedPlanTasks() throws IOException {
+  public void multipleWorkersWithMixedNestedPlanTasks() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
     when(mockClient.post(
@@ -492,7 +492,7 @@ public class TestScanTaskIterable {
   }
 
   @Test
-  public void testInitialFileScanTasksWithConcurrentPlanTasks() throws IOException {
+  public void initialFileScanTasksWithConcurrentPlanTasks() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
     when(mockClient.post(
@@ -543,7 +543,7 @@ public class TestScanTaskIterable {
   }
 
   @Test
-  public void testWorkerExceptionDoesNotBlockOtherTasks() throws IOException {
+  public void workerExceptionDoesNotBlockOtherTasks() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
     when(mockClient.post(
@@ -579,6 +579,58 @@ public class TestScanTaskIterable {
 
     try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
       // Should propagate the exception from the failed worker
+      assertThatThrownBy(iterator::hasNext)
+          .isInstanceOf(RuntimeException.class)
+          .hasMessageContaining("Worker failed");
+    }
+  }
+
+  @Test
+  public void multipleWorkerFailuresOnlySignalOnce() throws IOException {
+    // This test verifies that when multiple workers fail, only one DUMMY_TASK is added
+    // and the iterator correctly propagates the first failure without hanging
+    AtomicInteger callCount = new AtomicInteger(0);
+
+    when(mockClient.post(
+            eq(FETCH_TASKS_PATH),
+            any(FetchScanTasksRequest.class),
+            eq(FetchScanTasksResponse.class),
+            eq(HEADERS),
+            any(),
+            any(),
+            eq(parserContext)))
+        .thenAnswer(
+            invocation -> {
+              int count = callCount.incrementAndGet();
+              // Add small delay to allow multiple workers to start
+              Thread.sleep(10);
+              throw new RuntimeException("Worker " + count + " failed");
+            });
+
+    // Create multiple plan tasks so multiple workers can pick them up and fail
+    List<String> planTasks = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      planTasks.add("planTask" + i);
+    }
+
+    ScanTaskIterable iterable =
+        new ScanTaskIterable(
+            planTasks,
+            Collections.emptyList(),
+            mockClient,
+            resourcePaths,
+            TABLE_IDENTIFIER,
+            HEADERS,
+            executorService,
+            parserContext);
+
+    try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
+      // Should propagate the first failure without hanging
+      assertThatThrownBy(iterator::hasNext)
+          .isInstanceOf(RuntimeException.class)
+          .hasMessageContaining("Worker failed");
+
+      // Subsequent calls should also throw (not hang waiting for more DUMMY_TASKs)
       assertThatThrownBy(iterator::hasNext)
           .isInstanceOf(RuntimeException.class)
           .hasMessageContaining("Worker failed");

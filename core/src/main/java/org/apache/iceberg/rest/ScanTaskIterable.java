@@ -132,8 +132,10 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         failure.compareAndSet(null, new RuntimeException("PlanWorker was interrupted", e));
+        shutdown.set(true);
       } catch (Exception e) {
         failure.compareAndSet(null, new RuntimeException("Worker failed processing planTask", e));
+        shutdown.set(true);
       } finally {
         handleWorkerExit();
       }
@@ -144,12 +146,14 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       boolean noWorkLeft =
           remainingActiveWorkers == 0 && planTasks.isEmpty() && initialFileScanTasks.isEmpty();
 
-      if (noWorkLeft || shutdown.get()) {
+      // Only the last worker should signal completion to avoid multiple DUMMY_TASKs
+      if (noWorkLeft || (shutdown.get() && remainingActiveWorkers == 0)) {
         signalCompletion();
       } else if (remainingActiveWorkers == 0 && hasRemainingWork()) {
-        // if there is still work to be done but no active workers, it means all workers have
-        // failed. no need to respawn workers since the iterator will fail on next()
-        // and throw back the failure.
+        // This state should never be reached since this indicates that all workers failed and
+        // there's still in-flight work.  Workers which failed should've set the failure state and
+        // the consumer of the iterator would've already seen this state.
+        shutdown.set(true);
         failure.compareAndSet(
             null,
             new IllegalStateException("Workers have exited but there is still work to be done"));
@@ -165,6 +169,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
         taskQueue.put(DUMMY_TASK);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
+        shutdown.set(true);
         failure.compareAndSet(
             null, new RuntimeException("Interrupted while signaling completion", e));
       }
@@ -224,36 +229,30 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
         return true;
       }
 
+      boolean hasNext = false;
       while (!shutdown.get()) {
-        // Check for worker failure
-        RuntimeException workerFailure = failure.get();
-        if (workerFailure != null) {
-          throw workerFailure;
-        }
-
         try {
           nextTask = taskQueue.poll(QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-
-          // Re-check for worker failure after poll - failure could have been set while polling
-          workerFailure = failure.get();
-          if (workerFailure != null) {
-            throw workerFailure;
-          }
-
           if (nextTask == DUMMY_TASK) {
             nextTask = null;
             shutdown.set(true); // Mark as done so while loop exits on subsequent calls
-            return false;
+            break;
           } else if (nextTask != null) {
-            return true;
+            hasNext = true;
+            break;
           }
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
-          return false;
+          shutdown.set(true);
         }
       }
 
-      return false;
+      RuntimeException workerFailure = failure.get();
+      if (workerFailure != null) {
+        throw workerFailure;
+      }
+
+      return hasNext;
     }
 
     @Override
