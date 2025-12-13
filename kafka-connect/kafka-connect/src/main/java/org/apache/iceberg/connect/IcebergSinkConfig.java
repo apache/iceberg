@@ -67,6 +67,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String CATALOG_NAME_PROP = "iceberg.catalog";
   private static final String TABLES_PROP = "iceberg.tables";
   private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic-enabled";
+  private static final String TABLES_ROUTE_NAMESPACE_PROP = "iceberg.tables.route-namespace";
+  private static final String TABLES_ROUTE_PREFIX_PROP = "iceberg.tables.route-prefix";
   private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
   private static final String TABLES_DEFAULT_ID_COLUMNS = "iceberg.tables.default-id-columns";
@@ -127,6 +129,18 @@ public class IcebergSinkConfig extends AbstractConfig {
         false,
         Importance.MEDIUM,
         "Enable dynamic routing to tables based on a record value");
+    configDef.define(
+        TABLES_ROUTE_NAMESPACE_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.MEDIUM,
+        "Target namespace for routing records to tables");
+    configDef.define(
+        TABLES_ROUTE_PREFIX_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.MEDIUM,
+        "Target prefix for routing records to tables");
     configDef.define(
         TABLES_ROUTE_FIELD_PROP,
         ConfigDef.Type.STRING,
@@ -333,6 +347,14 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public boolean dynamicTablesEnabled() {
     return getBoolean(TABLES_DYNAMIC_PROP);
+  }
+
+  public String tablesRouteNamespace() {
+    return getString(TABLES_ROUTE_NAMESPACE_PROP);
+  }
+
+  public String tablesRoutePrefix() {
+    return getString(TABLES_ROUTE_PREFIX_PROP);
   }
 
   public String tablesRouteField() {
