@@ -127,7 +127,6 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
     HiveLock lock = lockObject();
     try {
       lock.lock();
-
       Table tbl = loadHmsTable();
       if (tbl != null) {
         // If we try to create the view but the metadata location is already set, then we had a
@@ -143,10 +142,11 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
               database,
               viewName);
         }
-
         String sqlQuery = sqlFor(metadata);
-        tbl.setViewExpandedText(sqlQuery);
-        tbl.setViewOriginalText(sqlQuery);
+        if (sqlQuery != null) {
+          tbl.setViewExpandedText(sqlQuery);
+          tbl.setViewOriginalText(sqlQuery);
+        }
         updateHiveView = true;
         LOG.debug("Committing existing view: {}", fullName);
       } else {
