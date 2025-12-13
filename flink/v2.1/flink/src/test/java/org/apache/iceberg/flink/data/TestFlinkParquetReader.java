@@ -81,6 +81,11 @@ public class TestFlinkParquetReader extends DataTestBase {
     return true;
   }
 
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
   @Test
   public void testBuildReader() {
     MessageType fileSchema =
