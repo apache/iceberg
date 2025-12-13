@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
@@ -70,6 +71,7 @@ public class TestHiveViewCommits {
           required(3, "id", Types.IntegerType.get(), "unique ID"),
           required(4, "data", Types.StringType.get()));
   private static final TableIdentifier VIEW_IDENTIFIER = TableIdentifier.of(NS, VIEW_NAME);
+  private static final String VIEW_QUERY = "select * from ns.tbl";
 
   @RegisterExtension
   protected static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
@@ -100,7 +102,7 @@ public class TestHiveViewCommits {
             .buildView(VIEW_IDENTIFIER)
             .withSchema(SCHEMA)
             .withDefaultNamespace(NS)
-            .withQuery("hive", "select * from ns.tbl")
+            .withQuery("hive", VIEW_QUERY)
             .create();
     viewLocation = new Path(view.location());
   }
@@ -109,6 +111,34 @@ public class TestHiveViewCommits {
   public void dropTestView() throws IOException {
     viewLocation.getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf()).delete(viewLocation, true);
     catalog.dropView(VIEW_IDENTIFIER);
+  }
+
+  @Test
+  public void testViewQueryIsUpdatedOnCommit() throws Exception {
+    HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
+    Table tbl = ops.loadHmsTable();
+    assertThat(tbl.getViewOriginalText()).isEqualTo(VIEW_QUERY);
+    assertThat(tbl.getViewExpandedText()).isEqualTo(VIEW_QUERY);
+
+    String newQuery = "select * from ns.tbl2 limit 10";
+
+    // update view query
+    view = catalog
+            .buildView(VIEW_IDENTIFIER)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(NS)
+            .withQuery("hive", newQuery)
+            .replace();
+
+    Table updatedTbl = ops.loadHmsTable();
+
+    assertThat(updatedTbl.getViewOriginalText())
+            .as("The original view query in HMS must be updated to the new SQL.")
+            .isEqualTo(newQuery);
+
+    assertThat(updatedTbl.getViewExpandedText())
+            .as("The expanded view query in HMS must be updated to the new SQL.")
+            .isEqualTo(newQuery);
   }
 
   @Test
