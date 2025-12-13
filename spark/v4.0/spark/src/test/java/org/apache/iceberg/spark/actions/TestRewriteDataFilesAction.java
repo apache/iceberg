@@ -172,6 +172,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       // Test with ParquetFileMerger enabled
       params.add(new Object[] {version, true});
     }
+
     return params;
   }
 

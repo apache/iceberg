@@ -23,7 +23,6 @@ import static java.util.Collections.emptyMap;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.LongUnaryOperator;
 import org.apache.hadoop.conf.Configuration;
@@ -41,6 +40,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.LongType;
@@ -120,47 +120,6 @@ public class ParquetFileMerger {
     // Utility class - prevent instantiation
   }
 
-  @VisibleForTesting
-  static MessageType canMergeAndGetSchema(List<InputFile> inputFiles) {
-    try {
-      if (inputFiles == null || inputFiles.isEmpty()) {
-        return null;
-      }
-
-      // Read schema from the first file
-      MessageType firstSchema = readSchema(inputFiles.get(0));
-
-      // Check if schema has physical row lineage columns
-      boolean hasRowIdColumn = firstSchema.containsField(MetadataColumns.ROW_ID.name());
-      boolean hasSeqNumColumn =
-          firstSchema.containsField(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name());
-
-      // Validate all files have the same schema
-      for (int i = 1; i < inputFiles.size(); i++) {
-        MessageType currentSchema = readSchema(inputFiles.get(i));
-
-        if (!firstSchema.equals(currentSchema)) {
-          return null;
-        }
-      }
-
-      // If there are physical row lineage columns, validate no nulls
-      if (hasRowIdColumn || hasSeqNumColumn) {
-        validateRowLineageColumnsHaveNoNulls(inputFiles);
-      }
-
-      return firstSchema;
-    } catch (RuntimeException | IOException e) {
-      // Returns null for:
-      // - Non-Parquet files (IOException when reading Parquet footer)
-      // - Encrypted files (ParquetCryptoRuntimeException extends RuntimeException)
-      // - Files with null row lineage values (IllegalArgumentException from
-      // validateRowLineageColumnsHaveNoNulls)
-      // - Any other validation failures
-      return null;
-    }
-  }
-
   /**
    * Validates that DataFiles can be merged and returns the Parquet schema if validation succeeds.
    *
@@ -183,9 +142,8 @@ public class ParquetFileMerger {
    */
   public static MessageType canMergeAndGetSchema(
       List<DataFile> dataFiles, FileIO fileIO, long targetOutputSize) {
-    if (dataFiles == null || dataFiles.isEmpty()) {
-      return null;
-    }
+    Preconditions.checkArgument(
+        dataFiles != null && !dataFiles.isEmpty(), "dataFiles cannot be null or empty");
 
     // Single loop to check partition spec consistency, file sizes, and build InputFile list
     int firstSpecId = dataFiles.get(0).specId();
@@ -207,13 +165,6 @@ public class ParquetFileMerger {
     return canMergeAndGetSchema(inputFiles);
   }
 
-  /**
-   * Reads the Parquet schema from an Iceberg InputFile.
-   *
-   * @param inputFile Iceberg input file to read schema from
-   * @return MessageType schema of the Parquet file
-   * @throws IOException if reading fails
-   */
   private static MessageType readSchema(InputFile inputFile) throws IOException {
     return ParquetFileReader.open(ParquetIO.file(inputFile))
         .getFooter()
@@ -228,51 +179,51 @@ public class ParquetFileMerger {
    * we cannot automatically calculate null values during binary merge. This method ensures all
    * values in both _row_id and _last_updated_sequence_number columns are present.
    *
+   * <p>Additionally, this method requires that statistics exist for these columns. Statistics are
+   * necessary to extract the firstRowId for the merged DataFile metadata. Files without statistics
+   * cannot be merged because we cannot guarantee the output DataFile metadata will be consistent
+   * with the physical file contents.
+   *
    * @param inputFiles List of input files to validate
-   * @throws IllegalArgumentException if any row lineage column contains null values
-   * @throws IOException if reading file metadata fails
+   * @return true if all row lineage columns have statistics with no nulls, false otherwise
    */
-  private static void validateRowLineageColumnsHaveNoNulls(List<InputFile> inputFiles)
-      throws IOException {
-    for (InputFile inputFile : inputFiles) {
-      try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
-        List<BlockMetaData> rowGroups = reader.getFooter().getBlocks();
+  private static boolean validateRowLineageColumnsHaveNoNulls(List<InputFile> inputFiles) {
+    try {
+      for (InputFile inputFile : inputFiles) {
+        try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+          List<BlockMetaData> rowGroups = reader.getFooter().getBlocks();
 
-        for (BlockMetaData rowGroup : rowGroups) {
-          for (ColumnChunkMetaData columnChunk : rowGroup.getColumns()) {
-            String columnPath = columnChunk.getPath().toDotString();
+          for (BlockMetaData rowGroup : rowGroups) {
+            for (ColumnChunkMetaData columnChunk : rowGroup.getColumns()) {
+              String columnPath = columnChunk.getPath().toDotString();
 
-            // Check if this is the _row_id column
-            if (columnPath.equals(MetadataColumns.ROW_ID.name())) {
-              Statistics<?> stats = columnChunk.getStatistics();
-              if (stats != null && stats.getNumNulls() > 0) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "File %s contains null values in _row_id column (row group has %d nulls). "
-                            + "Cannot merge files with null _row_id values using binary copy.",
-                        inputFile.location(),
-                        stats.getNumNulls()));
+              // Check if this is the _row_id column
+              if (columnPath.equals(MetadataColumns.ROW_ID.name())) {
+                Statistics<?> stats = columnChunk.getStatistics();
+                // If stats are null, we can't verify no nulls exist - reject merge to be safe
+                // If stats exist and show nulls, reject merge
+                if (stats == null || stats.getNumNulls() > 0) {
+                  return false;
+                }
               }
-            }
 
-            // Check if this is the _last_updated_sequence_number column
-            if (columnPath.equals(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())) {
-              Statistics<?> stats = columnChunk.getStatistics();
-              if (stats != null && stats.getNumNulls() > 0) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "File %s contains null values in _last_updated_sequence_number column "
-                            + "(row group has %d nulls). Cannot merge files with null "
-                            + "_last_updated_sequence_number values using binary copy.",
-                        inputFile.location(),
-                        stats.getNumNulls()));
+              // Check if this is the _last_updated_sequence_number column
+              if (columnPath.equals(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())) {
+                Statistics<?> stats = columnChunk.getStatistics();
+                // If stats are null, we can't verify no nulls exist - reject merge to be safe
+                // If stats exist and show nulls, reject merge
+                if (stats == null || stats.getNumNulls() > 0) {
+                  return false;
+                }
               }
             }
           }
         }
       }
+      return true;
+    } catch (IOException e) {
+      // If we can't read the file metadata, we can't validate
+      return false;
     }
   }
 
@@ -329,6 +280,13 @@ public class ParquetFileMerger {
     // Extend schema to include _row_id and _last_updated_sequence_number columns
     MessageType extendedSchema = addRowLineageColumns(baseSchema);
 
+    // Get column descriptors for row lineage columns from extended schema
+    ColumnDescriptor rowIdDescriptor =
+        extendedSchema.getColumnDescription(new String[] {MetadataColumns.ROW_ID.name()});
+    ColumnDescriptor seqNumDescriptor =
+        extendedSchema.getColumnDescription(
+            new String[] {MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()});
+
     // Create output writer with extended schema
     try (ParquetFileWriter writer =
         new ParquetFileWriter(
@@ -343,13 +301,6 @@ public class ParquetFileMerger {
             (InternalFileEncryptor) null)) {
 
       writer.start();
-
-      // Get column descriptors for row lineage columns from extended schema
-      ColumnDescriptor rowIdDescriptor =
-          extendedSchema.getColumnDescription(new String[] {MetadataColumns.ROW_ID.name()});
-      ColumnDescriptor seqNumDescriptor =
-          extendedSchema.getColumnDescription(
-              new String[] {MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()});
 
       Map<String, String> extraMetadata = null;
 
@@ -417,9 +368,10 @@ public class ParquetFileMerger {
    * <p>This method intelligently handles row lineage based on the input files and metadata:
    *
    * <ul>
-   *   <li>If DataFiles have null firstRowId/dataSequenceNumber: performs simple binary copy merge
-   *   <li>If files already have physical row lineage columns: performs simple binary copy merge
-   *   <li>Otherwise: synthesizes physical row lineage columns from DataFile metadata
+   *   <li>If row lineage is not needed (null firstRowId/dataSequenceNumber): binary copy merge
+   *   <li>If row lineage is needed AND already present (physical columns exist): binary copy merge
+   *   <li>If row lineage is needed AND not present: synthesizes physical row lineage columns from
+   *       DataFile metadata
    * </ul>
    *
    * <p>Row lineage consists of two columns:
@@ -460,13 +412,10 @@ public class ParquetFileMerger {
 
     for (DataFile dataFile : dataFiles) {
       inputFiles.add(fileIO.newInputFile(dataFile.path().toString()));
+      firstRowIds.add(dataFile.firstRowId());
+      dataSequenceNumbers.add(dataFile.dataSequenceNumber());
 
-      Long firstRowId = dataFile.firstRowId();
-      Long dataSequenceNumber = dataFile.dataSequenceNumber();
-      firstRowIds.add(firstRowId);
-      dataSequenceNumbers.add(dataSequenceNumber);
-
-      if (firstRowId != null && dataSequenceNumber != null) {
+      if (dataFile.firstRowId() != null && dataFile.dataSequenceNumber() != null) {
         hasRowLineage = true;
       }
     }
@@ -503,19 +452,15 @@ public class ParquetFileMerger {
     }
 
     // Build DataFile with metrics and metadata
-    String outputPath = outputFile.location();
-    long fileSize = fileIO.newInputFile(outputPath).getLength();
-
-    // Extract metrics from the merged Parquet file
-    MetricsConfig metricsConfig = MetricsConfig.getDefault();
-    Metrics metrics = ParquetUtil.fileMetrics(fileIO.newInputFile(outputPath), metricsConfig);
+    InputFile compactedFile = fileIO.newInputFile(outputFile.location());
+    Metrics metrics = ParquetUtil.fileMetrics(compactedFile, MetricsConfig.getDefault());
 
     // Build the DataFile
     DataFiles.Builder builder =
         DataFiles.builder(spec)
-            .withPath(outputPath)
+            .withPath(compactedFile.location())
             .withFormat(FileFormat.PARQUET)
-            .withFileSizeInBytes(fileSize)
+            .withFileSizeInBytes(compactedFile.getLength())
             .withMetrics(metrics);
 
     // Add partition if present
@@ -536,33 +481,54 @@ public class ParquetFileMerger {
     return builder.build();
   }
 
+  @VisibleForTesting
+  static MessageType canMergeAndGetSchema(List<InputFile> inputFiles) {
+    Preconditions.checkArgument(
+        inputFiles != null && !inputFiles.isEmpty(), "inputFiles cannot be null or empty");
+
+    try {
+      MessageType firstSchema = readSchema(inputFiles.get(0));
+
+      for (int i = 1; i < inputFiles.size(); i++) {
+        MessageType currentSchema = readSchema(inputFiles.get(i));
+        if (!firstSchema.equals(currentSchema)) {
+          return null;
+        }
+      }
+
+      boolean hasPhysicalRowLineageColumns =
+          firstSchema.containsField(MetadataColumns.ROW_ID.name())
+              || firstSchema.containsField(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name());
+
+      if (hasPhysicalRowLineageColumns && !validateRowLineageColumnsHaveNoNulls(inputFiles)) {
+        return null;
+      }
+
+      return firstSchema;
+    } catch (RuntimeException | IOException e) {
+      // Returns null for:
+      // - Non-Parquet files (IOException when reading Parquet footer)
+      // - Encrypted files (ParquetCryptoRuntimeException extends RuntimeException)
+      // - Any other validation failures
+      return null;
+    }
+  }
+
   /**
-   * Extends a Parquet schema by adding the row lineage metadata columns.
-   *
-   * <p>Row lineage consists of two columns:
-   *
-   * <ul>
-   *   <li>_row_id: unique identifier for each row
-   *   <li>_last_updated_sequence_number: data sequence number when row was last updated
-   * </ul>
-   *
-   * @param baseSchema Original Parquet schema
-   * @return Extended schema with row lineage columns added
+   * Extends a Parquet schema by adding the row lineage metadata columns: _row_id,
+   * _last_updated_sequence_number.
    */
   private static MessageType addRowLineageColumns(MessageType baseSchema) {
-    // Create _row_id column: required int64 with Iceberg field ID for proper column mapping
     PrimitiveType rowIdType =
         Types.required(PrimitiveType.PrimitiveTypeName.INT64)
             .id(MetadataColumns.ROW_ID.fieldId())
             .named(MetadataColumns.ROW_ID.name());
 
-    // Create _last_updated_sequence_number column: required int64 with Iceberg field ID
     PrimitiveType seqNumType =
         Types.required(PrimitiveType.PrimitiveTypeName.INT64)
             .id(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId())
             .named(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name());
 
-    // Add to existing fields
     List<Type> fields = Lists.newArrayList(baseSchema.getFields());
     fields.add(rowIdType);
     fields.add(seqNumType);
@@ -597,26 +563,21 @@ public class ParquetFileMerger {
       LongUnaryOperator valueGenerator)
       throws IOException {
 
-    // Start the column chunk with the specified compression codec
     writer.startColumn(descriptor, rowCount, codec);
 
-    // Use DELTA_BINARY_PACKED encoding for efficient compression
     ValuesWriter valuesWriter =
         new DeltaBinaryPackingValuesWriterForLong(
             DEFAULT_INITIAL_BUFFER_SIZE,
             DEFAULT_PAGE_SIZE_FOR_ENCODING,
             HeapByteBufferAllocator.getInstance());
 
-    // Write values using the provided generator function
     for (long i = 0; i < rowCount; i++) {
       valuesWriter.writeLong(valueGenerator.applyAsLong(i));
     }
 
-    // Get the encoded bytes
     BytesInput encodedData = valuesWriter.getBytes();
     int uncompressedSize = (int) encodedData.size();
 
-    // Compress the encoded data if a codec is specified
     BytesInput compressedData;
     if (codec != CompressionCodecName.UNCOMPRESSED) {
       CodecFactory codecFactory =
@@ -628,35 +589,24 @@ public class ParquetFileMerger {
       compressedData = encodedData;
     }
 
-    // Create statistics for the column
     LongStatistics stats = new LongStatistics();
     stats.setMinMax(minValue, maxValue);
     stats.setNumNulls(0);
 
-    // Write data page using DELTA_BINARY_PACKED encoding
     // For required column (no nulls), we don't need repetition/definition level encoding
     writer.writeDataPage(
-        (int) rowCount, // valueCount
-        uncompressedSize, // uncompressedSize (size before compression)
-        compressedData, // bytes (compressed encoded data)
-        stats, // statistics
-        Encoding.BIT_PACKED, // rlEncoding (not used for required)
-        Encoding.BIT_PACKED, // dlEncoding (not used for required)
-        Encoding.DELTA_BINARY_PACKED); // valuesEncoding
+        (int) rowCount,
+        uncompressedSize,
+        compressedData,
+        stats,
+        Encoding.BIT_PACKED,
+        Encoding.BIT_PACKED,
+        Encoding.DELTA_BINARY_PACKED);
 
-    // End the column chunk
     writer.endColumn();
   }
 
-  /**
-   * Copies all column chunks from a row group using binary copy.
-   *
-   * @param writer ParquetFileWriter to write to
-   * @param baseSchema Base schema without _row_id column
-   * @param inputFile Input file to read from
-   * @param rowGroup Row group metadata
-   * @throws IOException if copying fails
-   */
+  /** Copies all column chunks from a row group using binary copy. */
   private static void copyColumnChunks(
       ParquetFileWriter writer, MessageType baseSchema, InputFile inputFile, BlockMetaData rowGroup)
       throws IOException {

@@ -131,6 +131,7 @@ public class RewriteDataFilesSparkAction
     } else {
       this.runner = new SparkBinPackFileRewriteRunner(spark(), table);
     }
+
     return this;
   }
 
