@@ -23,6 +23,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAUL
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -32,10 +34,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
@@ -105,8 +111,139 @@ public class CatalogHandlers {
   private static final InMemoryPlanningState IN_MEMORY_PLANNING_STATE =
       InMemoryPlanningState.getInstance();
   private static final ExecutorService ASYNC_PLANNING_POOL = Executors.newSingleThreadExecutor();
+  // Advanced idempotency store with TTL and in-flight coalescing
+  private static final ConcurrentMap<String, IdempotencyEntry> IDEMPOTENCY_STORE =
+      Maps.newConcurrentMap();
+  private static volatile long idempotencyLifetimeMillis = TimeUnit.MINUTES.toMillis(30);
 
   private CatalogHandlers() {}
+
+  /**
+   * Execute a mutation with basic idempotency semantics based on the Idempotency-Key header.
+   *
+   * <p>This simple reference implementation stores the response in-memory keyed by the header
+   * value. If the same key is seen again, the stored response is returned and the action is not
+   * re-executed. This is suitable for tests and examples; production servers should provide a
+   * durable store and TTL management.
+   */
+  @SuppressWarnings("unchecked")
+  public static <T extends RESTResponse> T withIdempotency(
+      HTTPRequest httpRequest, Supplier<T> action) {
+    return withIdempotencyInternal(httpRequest, action);
+  }
+
+  public static void withIdempotency(HTTPRequest httpRequest, Runnable action) {
+    withIdempotencyInternal(
+        httpRequest,
+        () -> {
+          action.run();
+          return Boolean.TRUE;
+        });
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T withIdempotencyInternal(HTTPRequest httpRequest, Supplier<T> action) {
+    Optional<HTTPHeaders.HTTPHeader> keyHeader =
+        httpRequest.headers().firstEntry(RESTUtil.IDEMPOTENCY_KEY_HEADER);
+    if (keyHeader.isEmpty()) {
+      return action.get();
+    }
+
+    String key = keyHeader.get().value();
+
+    // check existing entry and TTL
+    IdempotencyEntry existing = IDEMPOTENCY_STORE.get(key);
+    if (existing != null) {
+      if (!existing.isExpired()) {
+        existing.awaitFinalized();
+        if (existing.error != null) {
+          throw existing.error;
+        }
+        return (T) existing.responseBody;
+      } else {
+        IDEMPOTENCY_STORE.remove(key, existing);
+      }
+    }
+
+    IdempotencyEntry entry = IdempotencyEntry.inProgress();
+    IDEMPOTENCY_STORE.put(key, entry);
+    try {
+      T res = action.get();
+      entry.finalizeSuccess(res);
+      return res;
+    } catch (RuntimeException e) {
+      if (entry.status != IdempotencyEntry.Status.FINALIZED || entry.responseBody == null) {
+        entry.finalizeError(e);
+      }
+      throw e;
+    }
+  }
+
+  public static void setIdempotencyLifetimeFromIso(String isoDuration) {
+    if (isoDuration == null) {
+      return;
+    }
+    try {
+      idempotencyLifetimeMillis = Duration.parse(isoDuration).toMillis();
+    } catch (Exception e) {
+      // ignore parse errors; keep default
+    }
+  }
+
+  private static final class IdempotencyEntry {
+    enum Status {
+      IN_PROGRESS,
+      FINALIZED
+    }
+
+    private final CountDownLatch latch;
+    private final long firstSeenMillis;
+    private volatile Status status;
+    private volatile Object responseBody;
+    private volatile RuntimeException error;
+
+    private IdempotencyEntry(Status status) {
+      this.status = status;
+      this.latch = new CountDownLatch(1);
+      this.firstSeenMillis = System.currentTimeMillis();
+    }
+
+    static IdempotencyEntry inProgress() {
+      return new IdempotencyEntry(Status.IN_PROGRESS);
+    }
+
+    void finalizeSuccess(Object body) {
+      this.responseBody = body;
+      this.status = Status.FINALIZED;
+      this.latch.countDown();
+    }
+
+    void finalizeError(RuntimeException cause) {
+      this.error = cause;
+      this.status = Status.FINALIZED;
+      this.latch.countDown();
+    }
+
+    void awaitFinalized() {
+      try {
+        this.latch.await();
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(
+            "Interrupted while waiting for idempotent request to complete", ie);
+      }
+    }
+
+    boolean isExpired() {
+      if (this.status != Status.FINALIZED) {
+        return false;
+      }
+
+      Instant expiry =
+          Instant.ofEpochMilli(this.firstSeenMillis).plusMillis(idempotencyLifetimeMillis);
+      return Instant.now().isAfter(expiry);
+    }
+  }
 
   /**
    * Exception used to avoid retrying commits when assertions fail.
