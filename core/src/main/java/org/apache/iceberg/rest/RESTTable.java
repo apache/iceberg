@@ -30,7 +30,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.metrics.MetricsReporter;
 
-class RESTTable extends BaseTable {
+class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
   private final RESTClient client;
   private final Supplier<Map<String, String>> headers;
   private final MetricsReporter reporter;
