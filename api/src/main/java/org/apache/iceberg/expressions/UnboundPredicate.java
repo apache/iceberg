@@ -176,6 +176,14 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
           boundTerm.type());
     }
 
+    if (op() == Operation.CONTAINS || op() == Operation.NOT_CONTAINS) {
+      ValidationException.check(
+          boundTerm.type().equals(Types.StringType.get()),
+          "Term for CONTAINS or NOT_CONTAINS must produce a string: %s: %s",
+          boundTerm,
+          boundTerm.type());
+    }
+
     Literal<T> lit = literal().to(boundTerm.type());
 
     if (lit == null) {
@@ -284,6 +292,10 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         return term() + " startsWith \"" + literal() + "\"";
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal() + "\"";
+      case CONTAINS:
+        return term() + " contains \"" + literal() + "\"";
+      case NOT_CONTAINS:
+        return term() + " notContains \"" + literal() + "\"";
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:
