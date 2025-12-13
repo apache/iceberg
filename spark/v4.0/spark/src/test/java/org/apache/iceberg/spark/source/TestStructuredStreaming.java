@@ -27,7 +27,9 @@ import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -59,6 +61,7 @@ public class TestStructuredStreaming {
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
   private static SparkSession spark = null;
+  protected static Map<String, Object> extraConf = new HashMap<>();
 
   @TempDir private Path temp;
 
@@ -69,6 +72,7 @@ public class TestStructuredStreaming {
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
             .config("spark.sql.shuffle.partitions", 4)
+            .config(extraConf)
             .getOrCreate();
   }
 
