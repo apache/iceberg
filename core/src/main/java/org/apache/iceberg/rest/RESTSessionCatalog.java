@@ -514,7 +514,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           Map::of,
           finalIdentifier,
           paths,
-          endpoints);
+          endpoints,
+          properties(),
+          conf);
     }
     return null;
   }
