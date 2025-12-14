@@ -3375,12 +3375,12 @@ components:
               - Columns not listed in the required-column-projections MUST NOT be read.
 
             2. A column MUST appear at most once in the required-column-projections.
-      
+
             3. If a projected column's corresponding entry includes an action that the reader cannot evaluate,
               the reader MUST fail rather than ignore the transform.
-      
+
             4. An identity transform is equivalent to projecting the column directly.
-            
+
             5. The data type of the projected column MUST match the data type defined for the transform result.
 
           type: array
@@ -3389,15 +3389,15 @@ components:
         required-row-filter:
           description: >
             An expression that filters rows in the table that the authenticated principal does not have access to.
-      
+
             1. A reader MUST discard any row for which the filter evaluates to false or null, and
               no information derived from discarded rows MAY be included in the query result.
-            
+
             2. Row filters MUST be evaluated against the original, untransformed column values.
               Required projections MUST be applied only after row filters are applied.
-      
+
             3. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.
-      
+
             4. If this property is absent, null, or always true then no mandatory filtering is required.
           $ref: '#/components/schemas/Expression'
 
@@ -3424,9 +3424,9 @@ components:
 
     MaskHashSha256:
       description: |
-        Mask the data of the column by applying SHA-256. 
-        The input must be UTF-8 encoded bytes of the column value. 
-        The SHA-256 digest is represented as a lowercase hexadecimal string. 
+        Mask the data of the column by applying SHA-256.
+        The input must be UTF-8 encoded bytes of the column value.
+        The SHA-256 digest is represented as a lowercase hexadecimal string.
         Engines must follow this procedure to ensure consistency:
         1. Convert the column value to a UTF-8 byte array.
         2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.
