@@ -1205,13 +1205,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     List<StructLike> records = Lists.newArrayList();
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-        for (FileScanTask task : tasks) {
-            // PartitionsTable is a StaticTable, so the task is a StaticDataTask
-            StaticDataTask dataTask = (StaticDataTask) task.asDataTask();
-            try (CloseableIterable<StructLike> rows = dataTask.rows()) {
-                rows.forEach(records::add);
-            }
+      for (FileScanTask task : tasks) {
+        // PartitionsTable is a StaticTable, so the task is a StaticDataTask
+        StaticDataTask dataTask = (StaticDataTask) task.asDataTask();
+        try (CloseableIterable<StructLike> rows = dataTask.rows()) {
+          rows.forEach(records::add);
         }
+      }
     }
 
     // The returned records are StructLike, and we need to extract fields by position
@@ -1220,9 +1220,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     // Resulting schema has two top-level fields.
     // Field 0: partition (struct with one field, data_bucket)
     // Field 1: total_delete_file_size_in_bytes (long)
-    
+
     records.sort(Comparator.comparing(r -> r.get(0, StructLike.class).get(0, Integer.class)));
-      
+
     assertThat(records).hasSize(4);
 
     // The preparePartitionedTable() method adds one delete file to each of the 4 partitions.
