@@ -138,6 +138,18 @@ public class TestScanTaskIterable {
     }
   }
 
+  private void mockClientPostAnswer(org.mockito.stubbing.Answer<FetchScanTasksResponse> answer) {
+    when(mockClient.post(
+            eq(FETCH_TASKS_PATH),
+            any(FetchScanTasksRequest.class),
+            eq(FetchScanTasksResponse.class),
+            eq(HEADERS),
+            any(),
+            any(),
+            eq(parserContext)))
+        .thenAnswer(answer);
+  }
+
   // ==================== Nested/Paginated Plan Tasks Tests ====================
 
   @Test
@@ -259,28 +271,20 @@ public class TestScanTaskIterable {
   public void chainedPlanTasks() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
-    when(mockClient.post(
-            eq(FETCH_TASKS_PATH),
-            any(FetchScanTasksRequest.class),
-            eq(FetchScanTasksResponse.class),
-            eq(HEADERS),
-            any(),
-            any(),
-            eq(parserContext)))
-        .thenAnswer(
-            invocation -> {
-              int count = callCount.incrementAndGet();
-              if (count <= 3) {
-                return FetchScanTasksResponse.builder()
-                    .withPlanTasks(ImmutableList.of("chainedTask" + count))
-                    .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100L)))
-                    .build();
-              } else {
-                return FetchScanTasksResponse.builder()
-                    .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100L)))
-                    .build();
-              }
-            });
+    mockClientPostAnswer(
+        invocation -> {
+          int count = callCount.incrementAndGet();
+          if (count <= 3) {
+            return FetchScanTasksResponse.builder()
+                .withPlanTasks(ImmutableList.of("chainedTask" + count))
+                .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100L)))
+                .build();
+          } else {
+            return FetchScanTasksResponse.builder()
+                .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100L)))
+                .build();
+          }
+        });
 
     ScanTaskIterable iterable =
         createIterable(ImmutableList.of("initialTask"), Collections.emptyList());
@@ -295,23 +299,15 @@ public class TestScanTaskIterable {
   public void concurrentWorkersProcessingTasks() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
-    when(mockClient.post(
-            eq(FETCH_TASKS_PATH),
-            any(FetchScanTasksRequest.class),
-            eq(FetchScanTasksResponse.class),
-            eq(HEADERS),
-            any(),
-            any(),
-            eq(parserContext)))
-        .thenAnswer(
-            invocation -> {
-              int count = callCount.incrementAndGet();
-              // Simulate some network latency
-              Thread.sleep(10);
-              return FetchScanTasksResponse.builder()
-                  .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
-                  .build();
-            });
+    mockClientPostAnswer(
+        invocation -> {
+          int count = callCount.incrementAndGet();
+          // Simulate some network latency
+          Thread.sleep(10);
+          return FetchScanTasksResponse.builder()
+              .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
+              .build();
+        });
 
     // Create many plan tasks to trigger multiple workers
     ScanTaskIterable iterable = createIterable(planTasks(50), Collections.emptyList());
@@ -327,27 +323,17 @@ public class TestScanTaskIterable {
   public void slowProducerFastConsumer() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
-    when(mockClient.post(
-            eq(FETCH_TASKS_PATH),
-            any(FetchScanTasksRequest.class),
-            eq(FetchScanTasksResponse.class),
-            eq(HEADERS),
-            any(),
-            any(),
-            eq(parserContext)))
-        .thenAnswer(
-            invocation -> {
-              // Slow producer - simulate network delay
-              Thread.sleep(50);
-              int count = callCount.incrementAndGet();
-              return FetchScanTasksResponse.builder()
-                  .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
-                  .build();
-            });
+    mockClientPostAnswer(
+        invocation -> {
+          // Slow producer - simulate network delay
+          Thread.sleep(50);
+          int count = callCount.incrementAndGet();
+          return FetchScanTasksResponse.builder()
+              .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
+              .build();
+        });
 
-    ScanTaskIterable iterable =
-        createIterable(
-            ImmutableList.of("planTask1", "planTask2", "planTask3"), Collections.emptyList());
+    ScanTaskIterable iterable = createIterable(planTasks(3), Collections.emptyList());
 
     List<FileScanTask> result = collectAll(iterable.iterator());
     assertThat(result).hasSize(3);
@@ -357,23 +343,15 @@ public class TestScanTaskIterable {
   public void closeWhileWorkersAreRunning() throws IOException, InterruptedException {
     CountDownLatch workerStarted = new CountDownLatch(1);
 
-    when(mockClient.post(
-            eq(FETCH_TASKS_PATH),
-            any(FetchScanTasksRequest.class),
-            eq(FetchScanTasksResponse.class),
-            eq(HEADERS),
-            any(),
-            any(),
-            eq(parserContext)))
-        .thenAnswer(
-            invocation -> {
-              workerStarted.countDown();
-              // Simulate a very slow network call
-              Thread.sleep(5000);
-              return FetchScanTasksResponse.builder()
-                  .withFileScanTasks(ImmutableList.of(new MockFileScanTask(100)))
-                  .build();
-            });
+    mockClientPostAnswer(
+        invocation -> {
+          workerStarted.countDown();
+          // Simulate a very slow network call
+          Thread.sleep(5000);
+          return FetchScanTasksResponse.builder()
+              .withFileScanTasks(ImmutableList.of(new MockFileScanTask(100)))
+              .build();
+        });
 
     ScanTaskIterable iterable =
         createIterable(ImmutableList.of("planTask1"), Collections.emptyList());
@@ -392,33 +370,24 @@ public class TestScanTaskIterable {
   public void multipleWorkersWithMixedNestedPlanTasks() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
-    when(mockClient.post(
-            eq(FETCH_TASKS_PATH),
-            any(FetchScanTasksRequest.class),
-            eq(FetchScanTasksResponse.class),
-            eq(HEADERS),
-            any(),
-            any(),
-            eq(parserContext)))
-        .thenAnswer(
-            invocation -> {
-              int count = callCount.incrementAndGet();
-              // First few calls return nested plan tasks to generate more work
-              if (count <= 3) {
-                return FetchScanTasksResponse.builder()
-                    .withPlanTasks(
-                        ImmutableList.of("nestedTask" + count + "a", "nestedTask" + count + "b"))
-                    .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
-                    .build();
-              } else {
-                return FetchScanTasksResponse.builder()
-                    .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
-                    .build();
-              }
-            });
+    mockClientPostAnswer(
+        invocation -> {
+          int count = callCount.incrementAndGet();
+          // First few calls return nested plan tasks to generate more work
+          if (count <= 3) {
+            return FetchScanTasksResponse.builder()
+                .withPlanTasks(
+                    ImmutableList.of("nestedTask" + count + "a", "nestedTask" + count + "b"))
+                .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
+                .build();
+          } else {
+            return FetchScanTasksResponse.builder()
+                .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
+                .build();
+          }
+        });
 
-    ScanTaskIterable iterable =
-        createIterable(ImmutableList.of("task1", "task2", "task3"), Collections.emptyList());
+    ScanTaskIterable iterable = createIterable(planTasks(3), Collections.emptyList());
 
     List<FileScanTask> result = collectAll(iterable.iterator());
     // 3 initial tasks + 6 nested tasks = 9 total
@@ -429,23 +398,15 @@ public class TestScanTaskIterable {
   public void initialFileScanTasksWithConcurrentPlanTasks() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
-    when(mockClient.post(
-            eq(FETCH_TASKS_PATH),
-            any(FetchScanTasksRequest.class),
-            eq(FetchScanTasksResponse.class),
-            eq(HEADERS),
-            any(),
-            any(),
-            eq(parserContext)))
-        .thenAnswer(
-            invocation -> {
-              int count = callCount.incrementAndGet();
-              // Simulate network delay
-              Thread.sleep(20);
-              return FetchScanTasksResponse.builder()
-                  .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 1000)))
-                  .build();
-            });
+    mockClientPostAnswer(
+        invocation -> {
+          int count = callCount.incrementAndGet();
+          // Simulate network delay
+          Thread.sleep(20);
+          return FetchScanTasksResponse.builder()
+              .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 1000)))
+              .build();
+        });
 
     // Initial tasks should be available immediately while plan tasks are being fetched
     ScanTaskIterable iterable = createIterable(planTasks(10), fileTasks(10));
@@ -459,25 +420,17 @@ public class TestScanTaskIterable {
   public void workerExceptionDoesNotBlockOtherTasks() throws IOException {
     AtomicInteger callCount = new AtomicInteger(0);
 
-    when(mockClient.post(
-            eq(FETCH_TASKS_PATH),
-            any(FetchScanTasksRequest.class),
-            eq(FetchScanTasksResponse.class),
-            eq(HEADERS),
-            any(),
-            any(),
-            eq(parserContext)))
-        .thenAnswer(
-            invocation -> {
-              int count = callCount.incrementAndGet();
-              if (count == 1) {
-                // First call fails
-                throw new RuntimeException("First call failed");
-              }
-              return FetchScanTasksResponse.builder()
-                  .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
-                  .build();
-            });
+    mockClientPostAnswer(
+        invocation -> {
+          int count = callCount.incrementAndGet();
+          if (count == 1) {
+            // First call fails
+            throw new RuntimeException("First call failed");
+          }
+          return FetchScanTasksResponse.builder()
+              .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
+              .build();
+        });
 
     ScanTaskIterable iterable =
         createIterable(ImmutableList.of("planTask1"), Collections.emptyList());
@@ -493,21 +446,13 @@ public class TestScanTaskIterable {
     // and the iterator correctly propagates the first failure without hanging
     AtomicInteger callCount = new AtomicInteger(0);
 
-    when(mockClient.post(
-            eq(FETCH_TASKS_PATH),
-            any(FetchScanTasksRequest.class),
-            eq(FetchScanTasksResponse.class),
-            eq(HEADERS),
-            any(),
-            any(),
-            eq(parserContext)))
-        .thenAnswer(
-            invocation -> {
-              int count = callCount.incrementAndGet();
-              // Add small delay to allow multiple workers to start
-              Thread.sleep(10);
-              throw new RuntimeException("Worker " + count + " failed");
-            });
+    mockClientPostAnswer(
+        invocation -> {
+          int count = callCount.incrementAndGet();
+          // Add small delay to allow multiple workers to start
+          Thread.sleep(10);
+          throw new RuntimeException("Worker " + count + " failed");
+        });
 
     // Create multiple plan tasks so multiple workers can pick them up and fail
     ScanTaskIterable iterable = createIterable(planTasks(10), Collections.emptyList());
@@ -519,5 +464,155 @@ public class TestScanTaskIterable {
       // Subsequent calls should also throw (not hang waiting for more DUMMY_TASKs)
       assertIteratorThrows(iterator, "Worker failed");
     }
+  }
+
+  @Test
+  public void workerExceptionWithFullQueueDoesNotHangOtherWorkers() throws Exception {
+    // This test verifies that when one worker fails and the consumer throws (stops draining),
+    // other workers don't hang indefinitely trying to put tasks into the full queue.
+    // Key: consumer does NOT call close() - it just blows up on the exception.
+    CountDownLatch firstWorkerStarted = new CountDownLatch(1);
+    CountDownLatch failureTriggered = new CountDownLatch(1);
+    AtomicInteger callCount = new AtomicInteger(0);
+
+    mockClientPostAnswer(
+        invocation -> {
+          int count = callCount.incrementAndGet();
+          if (count == 1) {
+            firstWorkerStarted.countDown();
+            // First worker returns many tasks to fill the queue, plus more plan tasks
+            return FetchScanTasksResponse.builder()
+                .withPlanTasks(planTasks(5))
+                .withFileScanTasks(fileTasks(500))
+                .build();
+          } else if (count == 2) {
+            // Second worker waits a bit then fails - this triggers consumer to throw
+            Thread.sleep(100);
+            failureTriggered.countDown();
+            throw new RuntimeException("Worker failed");
+          } else {
+            // Other workers return lots of tasks - they may block on full queue
+            return FetchScanTasksResponse.builder().withFileScanTasks(fileTasks(500)).build();
+          }
+        });
+
+    ScanTaskIterable iterable = createIterable(planTasks(3), Collections.emptyList());
+
+    Thread consumerThread =
+        new Thread(
+            () -> {
+              CloseableIterator<FileScanTask> iterator = iterable.iterator();
+              try {
+                // Wait for first worker to start filling the queue
+                firstWorkerStarted.await(5, TimeUnit.SECONDS);
+
+                // Consume just a few tasks, leaving queue nearly full
+                int consumed = 0;
+                while (consumed < 5) {
+                  if (iterator.hasNext()) {
+                    iterator.next();
+                    consumed++;
+                  }
+                }
+
+                // Wait for failure to be triggered
+                failureTriggered.await(5, TimeUnit.SECONDS);
+
+                // Give time for failure to propagate
+                Thread.sleep(200);
+
+                // This hasNext() should throw due to worker failure
+                // Consumer blows up here - does NOT call close()
+                iterator.hasNext();
+
+              } catch (RuntimeException e) {
+                // Expected - consumer blows up, stops draining, does NOT call close()
+                // Other workers should still exit gracefully via shutdown flag
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+              }
+              // Note: iterator.close() is intentionally NOT called
+            });
+
+    consumerThread.start();
+
+    // Test should complete within 2 seconds. If workers hang on put(), this will timeout.
+    consumerThread.join(2000);
+
+    assertThat(consumerThread.isAlive())
+        .as(
+            "Consumer thread should have completed - workers should not hang when consumer blows up")
+        .isFalse();
+
+    // Give workers a bit more time to exit after consumer stopped
+    Thread.sleep(500);
+
+    // Verify executor can shut down cleanly (workers aren't stuck)
+    executorService.shutdown();
+    boolean terminated = executorService.awaitTermination(2, TimeUnit.SECONDS);
+    assertThat(terminated)
+        .as("Executor should terminate - workers should have exited gracefully")
+        .isTrue();
+  }
+
+  @Test
+  public void closeWithFullQueueDoesNotHangWorkers() throws Exception {
+    // This test verifies that when the queue is full and the consumer closes the iterator,
+    // workers don't hang indefinitely trying to put tasks into the full queue.
+    // The queue capacity is 1000, so we need to generate more tasks than that.
+    CountDownLatch workerStarted = new CountDownLatch(1);
+    AtomicInteger callCount = new AtomicInteger(0);
+
+    mockClientPostAnswer(
+        invocation -> {
+          workerStarted.countDown();
+          int count = callCount.incrementAndGet();
+          // Each response returns many file scan tasks to fill the queue quickly,
+          // plus more plan tasks to keep workers busy
+          if (count <= 10) {
+            return FetchScanTasksResponse.builder()
+                .withPlanTasks(planTasks(2))
+                .withFileScanTasks(fileTasks(500))
+                .build();
+          }
+          return FetchScanTasksResponse.builder().withFileScanTasks(fileTasks(500)).build();
+        });
+
+    ScanTaskIterable iterable = createIterable(planTasks(2), Collections.emptyList());
+
+    Thread testThread =
+        new Thread(
+            () -> {
+              try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
+                // Wait for workers to start producing
+                workerStarted.await(5, TimeUnit.SECONDS);
+
+                // Consume a few tasks to let the queue fill up
+                int consumed = 0;
+                while (iterator.hasNext() && consumed < 10) {
+                  iterator.next();
+                  consumed++;
+                }
+
+                // Give workers time to fill the queue
+                Thread.sleep(200);
+
+                // Close the iterator while workers might be blocked on put()
+                // This should NOT hang - workers should detect shutdown and exit
+                iterator.close();
+              } catch (Exception e) {
+                // Expected - workers may have failed or been interrupted
+              }
+            });
+
+    testThread.start();
+
+    // The test should complete within 2 seconds. If workers hang on put(), this will timeout.
+    // The offer timeout is 100ms, so workers should exit within a few iterations.
+    testThread.join(2000);
+
+    assertThat(testThread.isAlive())
+        .as("Test thread should have completed - workers should not hang on full queue")
+        .isFalse();
   }
 }

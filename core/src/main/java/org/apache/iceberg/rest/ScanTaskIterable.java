@@ -141,6 +141,20 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       }
     }
 
+    /**
+     * Offers a task to the queue with timeout, periodically checking for shutdown. Returns true if
+     * the task was successfully added, false if shutdown was requested. Throws InterruptedException
+     * if the thread is interrupted while waiting.
+     */
+    private boolean offerWithTimeout(FileScanTask task) throws InterruptedException {
+      while (!shutdown.get()) {
+        if (taskQueue.offer(task, QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     private void handleWorkerExit() {
       boolean isLastWorker = activeWorkers.decrementAndGet() == 0;
       boolean hasWorkLeft = !planTasks.isEmpty() || !initialFileScanTasks.isEmpty();
@@ -158,7 +172,9 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
 
     private void signalCompletion() {
       try {
-        taskQueue.put(DUMMY_TASK);
+        // Use offer with timeout to avoid blocking indefinitely if queue is full and consumer
+        // stopped draining. If shutdown is already set, consumer will exit via its shutdown check.
+        offerWithTimeout(DUMMY_TASK);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         // we should just shut down and not rethrow since we are trying to signal completion
@@ -171,7 +187,9 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       while (!initialFileScanTasks.isEmpty() && !Thread.currentThread().isInterrupted()) {
         FileScanTask initialFileScanTask = initialFileScanTasks.poll();
         if (initialFileScanTask != null) {
-          taskQueue.put(initialFileScanTask);
+          if (!offerWithTimeout(initialFileScanTask)) {
+            return;
+          }
         }
       }
     }
@@ -193,7 +211,9 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
 
       if (response.fileScanTasks() != null) {
         for (FileScanTask task : response.fileScanTasks()) {
-          taskQueue.put(task);
+          if (!offerWithTimeout(task)) {
+            return;
+          }
         }
       }
     }
