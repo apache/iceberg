@@ -16,5 +16,5 @@
 # under the License.
 
 openapi-spec-validator==0.7.2
-datamodel-code-generator==0.41.0
+datamodel-code-generator==0.43.1
 yamllint==1.37.1
