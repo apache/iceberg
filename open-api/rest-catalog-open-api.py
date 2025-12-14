@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Literal
+from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Extra, Field
@@ -593,7 +593,7 @@ class StorageCredential(BaseModel):
 class MaskHashSha256(BaseModel):
     __root__: Any = Field(
         ...,
-        description='Mask the data of the column by applying SHA-256. \nThe input must be UTF-8 encoded bytes of the column value. \nThe SHA-256 digest is represented as a lowercase hexadecimal string. \nEngines must follow this procedure to ensure consistency:\n1. Convert the column value to a UTF-8 byte array.\n2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.\n3. Convert the resulting 32-byte digest to a 64-character lowercase hexadecimal string.\n',
+        description='Mask the data of the column by applying SHA-256.\nThe input must be UTF-8 encoded bytes of the column value.\nThe SHA-256 digest is represented as a lowercase hexadecimal string.\nEngines must follow this procedure to ensure consistency:\n1. Convert the column value to a UTF-8 byte array.\n2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.\n3. Convert the resulting 32-byte digest to a 64-character lowercase hexadecimal string.\n',
     )
 
 
@@ -1279,6 +1279,15 @@ class SetExpression(BaseModel):
     values: list[PrimitiveTypeValue]
 
 
+class Action(BaseModel):
+    __root__: Union[
+        MaskHashSha256, ReplaceWithNull, MaskAlphanumeric, ApplyTransform
+    ] = Field(
+        ...,
+        description='Defines the specific action to be executed for computing the projection.',
+    )
+
+
 class ResidualFilter6(SetExpression, ResidualFilter1):
     """
     An optional filter to be applied to rows in this file scan task.
@@ -1298,15 +1307,6 @@ class ResidualFilter8(UnaryExpression, ResidualFilter1):
     An optional filter to be applied to rows in this file scan task.
     If the residual is not present, the client must produce the residual or use the original filter.
     """
-
-
-class Action(BaseModel):
-    __root__: Union[
-        MaskHashSha256, ReplaceWithNull, MaskAlphanumeric, ApplyTransform
-    ] = Field(
-        ...,
-        description='Defines the specific action to be executed for computing the projection.',
-    )
 
 
 class Projection(BaseModel):
