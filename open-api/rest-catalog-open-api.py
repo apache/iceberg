@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Dict, Literal
+from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -269,11 +269,8 @@ class Summary(BaseModel):
     model_config = ConfigDict(
         extra='allow',
     )
+    __pydantic_extra__: dict[str, str]
     operation: Literal['append', 'replace', 'overwrite', 'delete']
-
-
-Summary.__annotations__['__pydantic_extra__'] = Dict[str, str]
-Summary.model_rebuild(force=True)
 
 
 class Snapshot(BaseModel):
@@ -368,17 +365,17 @@ class AssignUUIDUpdate(BaseUpdate):
     Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
     """
 
-    action: Literal['assign-uuid']
+    action: Literal['assign-uuid'] = 'assign-uuid'
     uuid: str
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
-    action: Literal['upgrade-format-version']
+    action: Literal['upgrade-format-version'] = 'upgrade-format-version'
     format_version: int = Field(..., alias='format-version')
 
 
 class SetCurrentSchemaUpdate(BaseUpdate):
-    action: Literal['set-current-schema']
+    action: Literal['set-current-schema'] = 'set-current-schema'
     schema_id: int = Field(
         ...,
         alias='schema-id',
@@ -387,12 +384,12 @@ class SetCurrentSchemaUpdate(BaseUpdate):
 
 
 class AddPartitionSpecUpdate(BaseUpdate):
-    action: Literal['add-spec']
+    action: Literal['add-spec'] = 'add-spec'
     spec: PartitionSpec
 
 
 class SetDefaultSpecUpdate(BaseUpdate):
-    action: Literal['set-default-spec']
+    action: Literal['set-default-spec'] = 'set-default-spec'
     spec_id: int = Field(
         ...,
         alias='spec-id',
@@ -401,12 +398,12 @@ class SetDefaultSpecUpdate(BaseUpdate):
 
 
 class AddSortOrderUpdate(BaseUpdate):
-    action: Literal['add-sort-order']
+    action: Literal['add-sort-order'] = 'add-sort-order'
     sort_order: SortOrder = Field(..., alias='sort-order')
 
 
 class SetDefaultSortOrderUpdate(BaseUpdate):
-    action: Literal['set-default-sort-order']
+    action: Literal['set-default-sort-order'] = 'set-default-sort-order'
     sort_order_id: int = Field(
         ...,
         alias='sort-order-id',
@@ -415,47 +412,47 @@ class SetDefaultSortOrderUpdate(BaseUpdate):
 
 
 class AddSnapshotUpdate(BaseUpdate):
-    action: Literal['add-snapshot']
+    action: Literal['add-snapshot'] = 'add-snapshot'
     snapshot: Snapshot
 
 
 class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
-    action: Literal['set-snapshot-ref']
+    action: Literal['set-snapshot-ref'] = 'set-snapshot-ref'
     ref_name: str = Field(..., alias='ref-name')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
-    action: Literal['remove-snapshots']
+    action: Literal['remove-snapshots'] = 'remove-snapshots'
     snapshot_ids: list[int] = Field(..., alias='snapshot-ids')
 
 
 class RemoveSnapshotRefUpdate(BaseUpdate):
-    action: Literal['remove-snapshot-ref']
+    action: Literal['remove-snapshot-ref'] = 'remove-snapshot-ref'
     ref_name: str = Field(..., alias='ref-name')
 
 
 class SetLocationUpdate(BaseUpdate):
-    action: Literal['set-location']
+    action: Literal['set-location'] = 'set-location'
     location: str
 
 
 class SetPropertiesUpdate(BaseUpdate):
-    action: Literal['set-properties']
+    action: Literal['set-properties'] = 'set-properties'
     updates: dict[str, str]
 
 
 class RemovePropertiesUpdate(BaseUpdate):
-    action: Literal['remove-properties']
+    action: Literal['remove-properties'] = 'remove-properties'
     removals: list[str]
 
 
 class AddViewVersionUpdate(BaseUpdate):
-    action: Literal['add-view-version']
+    action: Literal['add-view-version'] = 'add-view-version'
     view_version: ViewVersion = Field(..., alias='view-version')
 
 
 class SetCurrentViewVersionUpdate(BaseUpdate):
-    action: Literal['set-current-view-version']
+    action: Literal['set-current-view-version'] = 'set-current-view-version'
     view_version_id: int = Field(
         ...,
         alias='view-version-id',
@@ -464,32 +461,32 @@ class SetCurrentViewVersionUpdate(BaseUpdate):
 
 
 class RemoveStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-statistics']
+    action: Literal['remove-statistics'] = 'remove-statistics'
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-partition-statistics']
+    action: Literal['remove-partition-statistics'] = 'remove-partition-statistics'
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionSpecsUpdate(BaseUpdate):
-    action: Literal['remove-partition-specs']
+    action: Literal['remove-partition-specs'] = 'remove-partition-specs'
     spec_ids: list[int] = Field(..., alias='spec-ids')
 
 
 class RemoveSchemasUpdate(BaseUpdate):
-    action: Literal['remove-schemas']
+    action: Literal['remove-schemas'] = 'remove-schemas'
     schema_ids: list[int] = Field(..., alias='schema-ids')
 
 
 class AddEncryptionKeyUpdate(BaseUpdate):
-    action: Literal['add-encryption-key']
+    action: Literal['add-encryption-key'] = 'add-encryption-key'
     encryption_key: EncryptedKey = Field(..., alias='encryption-key')
 
 
 class RemoveEncryptionKeyUpdate(BaseUpdate):
-    action: Literal['remove-encryption-key']
+    action: Literal['remove-encryption-key'] = 'remove-encryption-key'
     key_id: str = Field(..., alias='key-id')
 
 
@@ -522,7 +519,7 @@ class AssertRefSnapshotId(TableRequirement):
 
     """
 
-    type: Literal['assert-ref-snapshot-id']
+    type: Literal['assert-ref-snapshot-id'] = 'assert-ref-snapshot-id'
     ref: str
     snapshot_id: int = Field(..., alias='snapshot-id')
 
@@ -532,7 +529,7 @@ class AssertLastAssignedFieldId(TableRequirement):
     The table's last assigned column id must match the requirement's `last-assigned-field-id`
     """
 
-    type: Literal['assert-last-assigned-field-id']
+    type: Literal['assert-last-assigned-field-id'] = 'assert-last-assigned-field-id'
     last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
 
 
@@ -541,7 +538,7 @@ class AssertCurrentSchemaId(TableRequirement):
     The table's current schema id must match the requirement's `current-schema-id`
     """
 
-    type: Literal['assert-current-schema-id']
+    type: Literal['assert-current-schema-id'] = 'assert-current-schema-id'
     current_schema_id: int = Field(..., alias='current-schema-id')
 
 
@@ -550,7 +547,9 @@ class AssertLastAssignedPartitionId(TableRequirement):
     The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
     """
 
-    type: Literal['assert-last-assigned-partition-id']
+    type: Literal['assert-last-assigned-partition-id'] = (
+        'assert-last-assigned-partition-id'
+    )
     last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
 
 
@@ -559,7 +558,7 @@ class AssertDefaultSpecId(TableRequirement):
     The table's default spec id must match the requirement's `default-spec-id`
     """
 
-    type: Literal['assert-default-spec-id']
+    type: Literal['assert-default-spec-id'] = 'assert-default-spec-id'
     default_spec_id: int = Field(..., alias='default-spec-id')
 
 
@@ -568,7 +567,7 @@ class AssertDefaultSortOrderId(TableRequirement):
     The table's default sort order id must match the requirement's `default-sort-order-id`
     """
 
-    type: Literal['assert-default-sort-order-id']
+    type: Literal['assert-default-sort-order-id'] = 'assert-default-sort-order-id'
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
 
 
@@ -592,7 +591,7 @@ class StorageCredential(BaseModel):
 class MaskHashSha256(BaseModel):
     __root__: Any = Field(
         ...,
-        description='Mask the data of the column by applying SHA-256. \nThe input must be UTF-8 encoded bytes of the column value. \nThe SHA-256 digest is represented as a lowercase hexadecimal string. \nEngines must follow this procedure to ensure consistency:\n1. Convert the column value to a UTF-8 byte array.\n2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.\n3. Convert the resulting 32-byte digest to a 64-character lowercase hexadecimal string.\n',
+        description='Mask the data of the column by applying SHA-256.\nThe input must be UTF-8 encoded bytes of the column value.\nThe SHA-256 digest is represented as a lowercase hexadecimal string.\nEngines must follow this procedure to ensure consistency:\n1. Convert the column value to a UTF-8 byte array.\n2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.\n3. Convert the resulting 32-byte digest to a 64-character lowercase hexadecimal string.\n',
     )
 
 
@@ -1162,7 +1161,7 @@ class TransformTerm(BaseModel):
 
 
 class SetPartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['set-partition-statistics']
+    action: Literal['set-partition-statistics'] = 'set-partition-statistics'
     partition_statistics: PartitionStatisticsFile = Field(
         ..., alias='partition-statistics'
     )
@@ -1272,7 +1271,7 @@ class Term(RootModel[Reference | TransformTerm]):
 
 
 class SetStatisticsUpdate(BaseUpdate):
-    action: Literal['set-statistics']
+    action: Literal['set-statistics'] = 'set-statistics'
     snapshot_id: int | None = Field(
         None,
         alias='snapshot-id',
@@ -1408,6 +1407,15 @@ class SetExpression(BaseModel):
     values: list[PrimitiveTypeValue]
 
 
+class Action(BaseModel):
+    __root__: Union[
+        MaskHashSha256, ReplaceWithNull, MaskAlphanumeric, ApplyTransform
+    ] = Field(
+        ...,
+        description='Defines the specific action to be executed for computing the projection.',
+    )
+
+
 class ResidualFilter6(SetExpression, ResidualFilter1):
     """
     An optional filter to be applied to rows in this file scan task.
@@ -1427,15 +1435,6 @@ class ResidualFilter8(UnaryExpression, ResidualFilter1):
     An optional filter to be applied to rows in this file scan task.
     If the residual is not present, the client must produce the residual or use the original filter.
     """
-
-
-class Action(BaseModel):
-    __root__: Union[
-        MaskHashSha256, ReplaceWithNull, MaskAlphanumeric, ApplyTransform
-    ] = Field(
-        ...,
-        description='Defines the specific action to be executed for computing the projection.',
-    )
 
 
 class Projection(BaseModel):
@@ -1585,7 +1584,7 @@ class ViewMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
-    action: Literal['add-schema']
+    action: Literal['add-schema'] = 'add-schema'
     schema_: Schema = Field(..., alias='schema')
     last_column_id: int | None = Field(
         None,
