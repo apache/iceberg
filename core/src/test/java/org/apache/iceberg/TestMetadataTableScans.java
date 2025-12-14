@@ -1196,6 +1196,52 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void testPartitionsTableScanWithDeleteFileSize() throws java.io.IOException {
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
+    preparePartitionedTable();
+
+    Table partitionsTable = new PartitionsTable(table);
+    TableScan scan = partitionsTable.newScan().select("partition.data_bucket", "total_delete_file_size_in_bytes");
+
+    List<StructLike> records = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+        for (FileScanTask task : tasks) {
+            // PartitionsTable is a StaticTable, so the task is a StaticDataTask
+            StaticDataTask dataTask = (StaticDataTask) task.asDataTask();
+            try (CloseableIterable<StructLike> rows = dataTask.rows()) {
+                rows.forEach(records::add);
+            }
+        }
+    }
+
+    // The returned records are StructLike, and we need to extract fields by position
+    // based on the projection.
+    // Projection is: "partition.data_bucket", "total_delete_file_size_in_bytes"
+    // Resulting schema has two top-level fields.
+    // Field 0: partition (struct with one field, data_bucket)
+    // Field 1: total_delete_file_size_in_bytes (long)
+    
+    records.sort(Comparator.comparing(r -> r.get(0, StructLike.class).get(0, Integer.class)));
+      
+    assertThat(records).hasSize(4);
+
+    // The preparePartitionedTable() method adds one delete file to each of the 4 partitions.
+    // Each of those delete files (fileADeletes, fileBDeletes, FILE_C2_DELETES, FILE_D2_DELETES)
+    // is created with a size of 10 bytes in the test base class.
+    long expectedDeleteFileSize = 10L;
+
+    for (int i = 0; i < 4; i++) {
+      StructLike record = records.get(i);
+      StructLike partition = record.get(0, StructLike.class);
+      Integer partitionValue = partition.get(0, Integer.class);
+      Long deleteFileSize = record.get(1, Long.class);
+
+      assertThat(partitionValue).isEqualTo(i);
+      assertThat(deleteFileSize).isEqualTo(expectedDeleteFileSize);
+    }
+  }
+
+  @TestTemplate
   public void testAllManifestsTableSnapshotGt() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
