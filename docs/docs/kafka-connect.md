@@ -375,7 +375,7 @@ upserted, and if `D` then it is deleted. This requires that the table be in Iceb
 The Iceberg identifier field(s) are used to identify a row, if that is not set for the table,
 then the `iceberg.tables.default-id-columns` or `iceberg.table.\<table name\>.id-columns`configuration
 can be set instead. CDC can be combined with multi-table fan-out. The property `iceberg.tables.use-dv`
-can be set to `true` to enable delete vector (DV) mode for more efficient deletes. Note that DV mode 
+can be set to `false` to disable delete vector (DV) mode for compatibility with v2 tables. Note that DV mode 
 requires both identifier columns and a CDC field to be configured.
 
 
