@@ -480,78 +480,69 @@ public class TestScanTaskIterable {
           int count = callCount.incrementAndGet();
           if (count == 1) {
             firstWorkerStarted.countDown();
-            // First worker returns many tasks to fill the queue, plus more plan tasks
+            // First worker returns MORE tasks than queue capacity (1000) to ensure it blocks on
+            // offer().Also adds more plan tasks so other workers have work.
             return FetchScanTasksResponse.builder()
                 .withPlanTasks(planTasks(5))
-                .withFileScanTasks(fileTasks(500))
+                .withFileScanTasks(fileTasks(1500))
                 .build();
           } else if (count == 2) {
-            // Second worker waits a bit then fails - this triggers consumer to throw
-            Thread.sleep(100);
+            // Second worker waits for first worker to start blocking on full queue, then fails.
+            // This sets shutdown=true, which should unblock worker 1.
+            Thread.sleep(200);
             failureTriggered.countDown();
             throw new RuntimeException("Worker failed");
           } else {
-            // Other workers return lots of tasks - they may block on full queue
-            return FetchScanTasksResponse.builder().withFileScanTasks(fileTasks(500)).build();
+            // Other workers also return many tasks - they may also block on full queue
+            return FetchScanTasksResponse.builder().withFileScanTasks(fileTasks(1500)).build();
           }
         });
 
     ScanTaskIterable iterable = createIterable(planTasks(3), Collections.emptyList());
 
-    Thread consumerThread =
-        new Thread(
-            () -> {
-              CloseableIterator<FileScanTask> iterator = iterable.iterator();
-              try {
-                // Wait for first worker to start filling the queue
-                firstWorkerStarted.await(5, TimeUnit.SECONDS);
+    // Intentionally NOT using try-with-resources - we don't want close() called
+    CloseableIterator<FileScanTask> iterator = iterable.iterator();
+    try {
+      // Wait for first worker to start filling the queue
+      firstWorkerStarted.await(5, TimeUnit.SECONDS);
 
-                // Consume just a few tasks, leaving queue nearly full
-                int consumed = 0;
-                while (consumed < 5) {
-                  if (iterator.hasNext()) {
-                    iterator.next();
-                    consumed++;
-                  }
-                }
+      // Consume just a few tasks
+      int consumed = 0;
+      while (consumed < 5) {
+        if (iterator.hasNext()) {
+          iterator.next();
+          consumed++;
+        }
+      }
 
-                // Wait for failure to be triggered
-                failureTriggered.await(5, TimeUnit.SECONDS);
+      // Wait for failure to be triggered
+      failureTriggered.await(5, TimeUnit.SECONDS);
 
-                // Give time for failure to propagate
-                Thread.sleep(200);
+      // Verify at least 2 workers ran. Worker 1 produced 1500 tasks (queue capacity is 1000),
+      // so worker 1 should be blocked on offer() when worker 2 fails and sets shutdown=true.
+      assertThat(callCount.get()).isGreaterThanOrEqualTo(2);
 
-                // This hasNext() should throw due to worker failure
-                // Consumer blows up here - does NOT call close()
-                iterator.hasNext();
+      // Give time for failure to propagate
+      Thread.sleep(200);
 
-              } catch (RuntimeException e) {
-                // Expected - consumer blows up, stops draining, does NOT call close()
-                // Other workers should still exit gracefully via shutdown flag
-              } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-              }
-              // Note: iterator.close() is intentionally NOT called
-            });
+      // This hasNext() should throw due to worker failure
+      iterator.hasNext();
 
-    consumerThread.start();
-
-    // Test should complete within 2 seconds. If workers hang on put(), this will timeout.
-    consumerThread.join(2000);
-
-    assertThat(consumerThread.isAlive())
-        .as(
-            "Consumer thread should have completed - workers should not hang when consumer blows up")
-        .isFalse();
-
-    // Give workers a bit more time to exit after consumer stopped
+      // Should not reach here
+      assertThat(false).as("Expected RuntimeException from hasNext()").isTrue();
+    } catch (RuntimeException e) {
+      // Expected - consumer blows up, does NOT call close()
+      assertThat(e.getMessage()).contains("Worker failed");
+    }
+    // Note: iterator.close() is intentionally NOT called
+    // Give workers time to see the shutdown flag (set by failing worker) and exit.
     Thread.sleep(500);
 
-    // Verify executor can shut down cleanly (workers aren't stuck)
+    // Verify executor can shut down cleanly (workers aren't stuck on offer())
     executorService.shutdown();
     boolean terminated = executorService.awaitTermination(2, TimeUnit.SECONDS);
     assertThat(terminated)
-        .as("Executor should terminate - workers should have exited gracefully")
+        .as("Executor should terminate - workers should have exited via shutdown flag")
         .isTrue();
   }
 
@@ -580,39 +571,35 @@ public class TestScanTaskIterable {
 
     ScanTaskIterable iterable = createIterable(planTasks(2), Collections.emptyList());
 
-    Thread testThread =
-        new Thread(
-            () -> {
-              try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
-                // Wait for workers to start producing
-                workerStarted.await(5, TimeUnit.SECONDS);
+    try (CloseableIterator<FileScanTask> iterator = iterable.iterator()) {
+      // Wait for workers to start producing
+      workerStarted.await(5, TimeUnit.SECONDS);
 
-                // Consume a few tasks to let the queue fill up
-                int consumed = 0;
-                while (iterator.hasNext() && consumed < 10) {
-                  iterator.next();
-                  consumed++;
-                }
+      // Consume a few tasks to let the queue fill up
+      int consumed = 0;
+      while (iterator.hasNext() && consumed < 10) {
+        iterator.next();
+        consumed++;
+      }
 
-                // Give workers time to fill the queue
-                Thread.sleep(200);
+      // Give workers time to fill the queue (each worker produces 500 tasks, queue capacity is
+      // 1000)
+      Thread.sleep(200);
 
-                // Close the iterator while workers might be blocked on put()
-                // This should NOT hang - workers should detect shutdown and exit
-                iterator.close();
-              } catch (Exception e) {
-                // Expected - workers may have failed or been interrupted
-              }
-            });
+      // Verify enough workers ran to fill the queue beyond capacity.
+      // With 500 tasks per call and queue capacity 1000, we need 3+ calls to overflow.
+      assertThat(callCount.get()).isGreaterThanOrEqualTo(3);
+    }
+    // iterator.close() called here by try-with-resources
 
-    testThread.start();
+    // Give workers a bit more time to exit after consumer closed
+    Thread.sleep(500);
 
-    // The test should complete within 2 seconds. If workers hang on put(), this will timeout.
-    // The offer timeout is 100ms, so workers should exit within a few iterations.
-    testThread.join(2000);
-
-    assertThat(testThread.isAlive())
-        .as("Test thread should have completed - workers should not hang on full queue")
-        .isFalse();
+    // Verify executor can shut down cleanly (workers aren't stuck on offer())
+    executorService.shutdown();
+    boolean terminated = executorService.awaitTermination(2, TimeUnit.SECONDS);
+    assertThat(terminated)
+        .as("Executor should terminate - workers should have exited gracefully")
+        .isTrue();
   }
 }

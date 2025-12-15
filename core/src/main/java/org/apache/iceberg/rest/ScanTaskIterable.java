@@ -46,7 +46,6 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
   private static final Logger LOG = LoggerFactory.getLogger(ScanTaskIterable.class);
   private static final int DEFAULT_TASK_QUEUE_CAPACITY = 1000;
   private static final long QUEUE_POLL_TIMEOUT_MS = 100;
-  private static final int WORKER_POOL_SIZE = Math.max(1, ThreadPools.WORKER_THREAD_POOL_SIZE / 4);
   // Dummy task acts as a poison pill to indicate that there will be no more tasks
   private static final FileScanTask DUMMY_TASK = new BaseFileScanTask(null, null, null, null, null);
   private final AtomicReference<RuntimeException> failure = new AtomicReference<>(null);
@@ -97,7 +96,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
   }
 
   private void submitFixedWorkers() {
-    for (int i = 0; i < WORKER_POOL_SIZE; i++) {
+    for (int i = 0; i < ThreadPools.WORKER_THREAD_POOL_SIZE; i++) {
       executorService.execute(new PlanTaskWorker());
     }
   }
