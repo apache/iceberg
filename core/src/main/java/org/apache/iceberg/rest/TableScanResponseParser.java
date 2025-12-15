@@ -79,7 +79,7 @@ public class TableScanResponseParser {
 
       if (fileScanTaskList.isEmpty()) {
         Preconditions.checkArgument(
-            (deleteFiles == null || deleteFiles.isEmpty()),
+            deleteFiles == null || deleteFiles.isEmpty(),
             "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
       }
 
