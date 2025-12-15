@@ -60,10 +60,17 @@ The UDF metadata file has the following fields:
 | *required*  | `definitions`     | `list<definition>`     | List of function [definition](#definition) entities.                                                            |
 | *required*  | `definition-log`  | `list<definition-log>` | History of [definition snapshots](#definition-log).                                                             |
 | *required*  | `parameter-names` | `list<parameter-name>` | Global ordered parameter names shared across all overloads. Overloads must use a prefix of this list, in order. |
-| *optional*  | `location`        | `string`               | Storage location of metadata files.                                                                             |
+| *optional*  | `location`        | `string`               | The function's base location; used to create metadata file locations.                                           |
 | *optional*  | `properties`      | `map<string,string>`   | A string-to-string map of properties.                                                                           |
 | *optional*  | `secure`          | `boolean`              | Whether it is a secure function. Default: `false`.                                                              |
 | *optional*  | `doc`             | `string`               | Documentation string.                                                                                           |
+
+Notes:
+1. When `secure` is `true`:
+   - Engines MUST NOT expose the function definition or its body through any form of metadata inspection (e.g., `SHOW FUNCTIONS`).
+   - Engines MUST prevent leakage of sensitive information during execution via error messages, logs, query plans, or intermediate results.
+   - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
+2. Entries in `properties` are treated as hints, not strict rules. Engines MAY choose to honor them or ignore them.
 
 ### Parameter-Name
 | Requirement | Field  | Type     | Description              |
@@ -72,12 +79,7 @@ The UDF metadata file has the following fields:
 | *optional*  | `doc`  | `string` | Parameter documentation. |
 
 Notes:
-1. When `secure` is `true`:
-   - Engines MUST NOT expose the function definition or its body through any form of metadata inspection (e.g., `SHOW FUNCTIONS`).
-   - Engines MUST prevent leakage of sensitive information during execution via error messages, logs, query plans, or intermediate results.
-   - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
-2. Entries in `properties` are treated as hints, not strict rules. Engines MAY choose to honor them or ignore them.
-3. `parameter-names` is the source of truth for parameter naming across all overload definitions, which makes named-argument
+1. `parameter-names` is the source of truth for parameter naming across all overload definitions, which makes named-argument
    invocation consistent across definitions:
    - Each overload uses the first N entries of this list for its arity, in order.
    - Names and their relative ordering are immutable. Only appending new names is allowed.
@@ -123,6 +125,8 @@ Notes:
 5. The function MUST return a value assignable to the declared `return-type`, meaning the returned value’s type and
    structure must match the declared Iceberg type (including field names, element types, and nesting for complex types),
    and any field or element marked as required MUST NOT be null. Engines MUST reject results that violate these rules.
+6. All variable names used in definitions must match the global parameter name list, and this requirement applies across
+   all versions and overloads.
 
 #### Defaults and Overload Compatibility
 When a parameter has a default value, the definition supports multiple invocation arities. These arities are reserved,
