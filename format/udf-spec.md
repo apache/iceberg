@@ -70,7 +70,7 @@ Notes:
    - Engines MUST NOT expose the function definition or its body through any form of metadata inspection (e.g., `SHOW FUNCTIONS`).
    - Engines MUST prevent leakage of sensitive information during execution via error messages, logs, query plans, or intermediate results.
    - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
-2. Entries in `properties` are treated as hints, not strict rules. Engines MAY choose to honor them or ignore them.
+2. Entries in `properties` are treated as hints, not strict rules.
 
 ### Parameter-Name
 | Requirement | Field  | Type     | Description              |
@@ -198,13 +198,20 @@ Resolution rule is decided by engines, but engines SHOULD:
 
 SQL statement:
 ```sql
+# Trino SQL
 CREATE FUNCTION add_one(x INT COMMENT 'Input integer')
 COMMENT 'Add one to the input integer'
 RETURNS INT
 RETURN x + 1;
 
+# Trino SQL
 CREATE FUNCTION add_one(x FLOAT COMMENT 'Input float')
 COMMENT 'Add one to the input float'
+RETURNS FLOAT
+RETURN x + 1.0;
+
+# Spark SQL
+CREATE OR REPLACE FUNCTION add_one(x FLOAT)
 RETURNS FLOAT
 RETURN x + 1.0;
 ```
@@ -266,6 +273,12 @@ RETURN x + 1.0;
     }
   ],
   "definition-log": [
+    {
+      "timestamp-ms": 1733507001123,
+      "definition-versions": [
+        { "definition-id": "(int)", "version-id": 1 }
+      ]
+    },
     {
       "timestamp-ms": 1734507001123,
       "definition-versions": [
