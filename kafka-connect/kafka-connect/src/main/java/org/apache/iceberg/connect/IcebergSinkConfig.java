@@ -152,7 +152,7 @@ public class IcebergSinkConfig extends AbstractConfig {
     configDef.define(
         TABLES_USE_DV_PROP,
         ConfigDef.Type.BOOLEAN,
-        false,
+        true,
         Importance.MEDIUM,
         "Set to true to enable DV for tables, false otherwise");
     configDef.define(
