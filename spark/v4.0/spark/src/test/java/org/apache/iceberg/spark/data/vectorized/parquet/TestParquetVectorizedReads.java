@@ -81,7 +81,8 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   private static final String PLAIN = "PLAIN";
   private static final List<String> GOLDEN_FILE_ENCODINGS =
-      ImmutableList.of("PLAIN_DICTIONARY", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
+      ImmutableList.of(
+          "PLAIN_DICTIONARY", "RLE_DICTIONARY", "DELTA_BINARY_PACKED", "BYTE_STREAM_SPLIT");
   private static final Map<String, PrimitiveType> GOLDEN_FILE_TYPES =
       ImmutableMap.of(
           "string", Types.StringType.get(),
@@ -89,7 +90,8 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
           "int32", Types.IntegerType.get(),
           "int64", Types.LongType.get(),
           "binary", Types.BinaryType.get(),
-          "boolean", Types.BooleanType.get());
+          "boolean", Types.BooleanType.get(),
+          "double", Types.DoubleType.get());
 
   static final Function<Record, Record> IDENTITY = record -> record;
 
@@ -490,10 +492,16 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                     .flatMap(
                         e ->
                             Stream.of(true, false)
-                                .map(
+                                .flatMap(
                                     vectorized ->
-                                        Arguments.of(
-                                            encoding, e.getKey(), e.getValue(), vectorized))));
+                                        Stream.of(
+                                            Arguments.of(
+                                                encoding, e.getKey(), e.getValue(), vectorized),
+                                            Arguments.of(
+                                                encoding,
+                                                e.getKey() + "_with_nulls",
+                                                e.getValue(),
+                                                vectorized)))));
   }
 
   private File resourceUrlToLocalFile(URL url) throws IOException, URISyntaxException {
