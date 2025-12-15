@@ -453,6 +453,12 @@ License: https://www.apache.org/licenses/LICENSE-2.0.html
 
 --------------------------------------------------------------------------------
 
+Group: com.azure  Name: azure-security-keyvault-keys  Version: 4.10.2
+Project URL: https://github.com/Azure/azure-sdk-for-java
+License: The MIT License (MIT) - http://opensource.org/licenses/MIT
+
+--------------------------------------------------------------------------------
+
 This binary artifact contains Codehale Metrics.
 
 Copyright: (c) 2010-2013 Coda Hale, Yammer.com, 2014-2021 Dropwizard Team
