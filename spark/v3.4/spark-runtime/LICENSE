@@ -211,6 +211,12 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
+Group: com.azure  Name: azure-security-keyvault-keys  Version: 4.10.2
+Project URL: https://github.com/Azure/azure-sdk-for-java
+License: The MIT License (MIT) - http://opensource.org/licenses/MIT
+
+--------------------------------------------------------------------------------
+
 This binary artifact contains the Jackson JSON processor.
 
 Copyright: 2007-2019 Tatu Saloranta and other contributors
