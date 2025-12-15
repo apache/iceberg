@@ -36,17 +36,17 @@ public class BinPacking {
     private final long targetWeight;
     private final int lookback;
     private final boolean largestBinFirst;
-    private final long targetSize;
+    private final long maxSize;
 
     public ListPacker(long targetWeight, int lookback, boolean largestBinFirst) {
       this(targetWeight, lookback, largestBinFirst, Long.MAX_VALUE);
     }
 
-    public ListPacker(long targetWeight, int lookback, boolean largestBinFirst, long targetSize) {
+    public ListPacker(long targetWeight, int lookback, boolean largestBinFirst, long maxSize) {
       this.targetWeight = targetWeight;
       this.lookback = lookback;
       this.largestBinFirst = largestBinFirst;
-      this.targetSize = targetSize;
+      this.maxSize = maxSize;
     }
 
     public List<List<T>> packEnd(List<T> items, Function<T, Long> weightFunc) {
@@ -59,14 +59,14 @@ public class BinPacking {
                       lookback,
                       weightFunc,
                       largestBinFirst,
-                      targetSize),
+                      maxSize),
                   Lists::reverse)));
     }
 
     public List<List<T>> pack(Iterable<T> items, Function<T, Long> weightFunc) {
       return ImmutableList.copyOf(
           new PackingIterable<>(
-              items, targetWeight, lookback, weightFunc, largestBinFirst, targetSize));
+              items, targetWeight, lookback, weightFunc, largestBinFirst, maxSize));
     }
   }
 
@@ -74,7 +74,7 @@ public class BinPacking {
     private final Iterable<T> iterable;
     private final long targetWeight;
     private final int lookback;
-    private final long targetSize;
+    private final long maxSize;
     private final Function<T, Long> weightFunc;
     private final boolean largestBinFirst;
 
@@ -98,13 +98,13 @@ public class BinPacking {
         int lookback,
         Function<T, Long> weightFunc,
         boolean largestBinFirst,
-        long targetSize) {
+        long maxSize) {
       Preconditions.checkArgument(
           lookback > 0, "Bin look-back size must be greater than 0: %s", lookback);
       this.iterable = iterable;
       this.targetWeight = targetWeight;
       this.lookback = lookback;
-      this.targetSize = targetSize;
+      this.maxSize = maxSize;
       this.weightFunc = weightFunc;
       this.largestBinFirst = largestBinFirst;
     }
@@ -112,7 +112,7 @@ public class BinPacking {
     @Override
     public Iterator<List<T>> iterator() {
       return new PackingIterator<>(
-          iterable.iterator(), targetWeight, lookback, targetSize, weightFunc, largestBinFirst);
+          iterable.iterator(), targetWeight, lookback, maxSize, weightFunc, largestBinFirst);
     }
   }
 
@@ -121,7 +121,7 @@ public class BinPacking {
     private final Iterator<T> items;
     private final long targetWeight;
     private final int lookback;
-    private final long targetSize;
+    private final long maxSize;
     private final Function<T, Long> weightFunc;
     private final boolean largestBinFirst;
 
@@ -129,13 +129,13 @@ public class BinPacking {
         Iterator<T> items,
         long targetWeight,
         int lookback,
-        long targetSize,
+        long maxSize,
         Function<T, Long> weightFunc,
         boolean largestBinFirst) {
       this.items = items;
       this.targetWeight = targetWeight;
       this.lookback = lookback;
-      this.targetSize = targetSize;
+      this.maxSize = maxSize;
       this.weightFunc = weightFunc;
       this.largestBinFirst = largestBinFirst;
     }
@@ -190,7 +190,7 @@ public class BinPacking {
     }
 
     private Bin<T> newBin() {
-      return new Bin<>(targetWeight, targetSize);
+      return new Bin<>(targetWeight, maxSize);
     }
 
     private static <T> Bin<T> removeLargestBin(Collection<Bin<T>> bins) {
@@ -208,14 +208,14 @@ public class BinPacking {
 
   private static class Bin<T> {
     private final long targetWeight;
-    private final long targetSize;
+    private final long maxSize;
     private final List<T> items = Lists.newArrayList();
     private long binWeight = 0L;
     private int binSize = 0;
 
-    Bin(long targetWeight, long targetSize) {
+    Bin(long targetWeight, long maxSize) {
       this.targetWeight = targetWeight;
-      this.targetSize = targetSize;
+      this.maxSize = maxSize;
     }
 
     List<T> items() {
@@ -223,7 +223,7 @@ public class BinPacking {
     }
 
     boolean canAdd(long weight) {
-      return binWeight + weight <= targetWeight && binSize < targetSize;
+      return binWeight + weight <= targetWeight && binSize < maxSize;
     }
 
     void add(T item, long weight) {
