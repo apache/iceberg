@@ -36,17 +36,18 @@ public class BinPacking {
     private final long targetWeight;
     private final int lookback;
     private final boolean largestBinFirst;
-    private final long maxSize;
+    private final long maxItemPerBin;
 
     public ListPacker(long targetWeight, int lookback, boolean largestBinFirst) {
       this(targetWeight, lookback, largestBinFirst, Long.MAX_VALUE);
     }
 
-    public ListPacker(long targetWeight, int lookback, boolean largestBinFirst, long maxSize) {
+    public ListPacker(
+        long targetWeight, int lookback, boolean largestBinFirst, long maxItemPerBin) {
       this.targetWeight = targetWeight;
       this.lookback = lookback;
       this.largestBinFirst = largestBinFirst;
-      this.maxSize = maxSize;
+      this.maxItemPerBin = maxItemPerBin;
     }
 
     public List<List<T>> packEnd(List<T> items, Function<T, Long> weightFunc) {
@@ -59,14 +60,14 @@ public class BinPacking {
                       lookback,
                       weightFunc,
                       largestBinFirst,
-                      maxSize),
+                      maxItemPerBin),
                   Lists::reverse)));
     }
 
     public List<List<T>> pack(Iterable<T> items, Function<T, Long> weightFunc) {
       return ImmutableList.copyOf(
           new PackingIterable<>(
-              items, targetWeight, lookback, weightFunc, largestBinFirst, maxSize));
+              items, targetWeight, lookback, weightFunc, largestBinFirst, maxItemPerBin));
     }
   }
 

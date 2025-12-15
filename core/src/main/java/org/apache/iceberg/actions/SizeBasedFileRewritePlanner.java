@@ -112,9 +112,9 @@ public abstract class SizeBasedFileRewritePlanner<
    * It helps with breaking down the rewriting of very large partitions which may not be rewritable
    * otherwise due to the resource constraints of the cluster.
    */
-  public static final String MAX_FILE_GROUP_COUNT = "max-file-group-count";
+  public static final String MAX_FILE_GROUP_INPUT_FILES = "max-file-group-input-files";
 
-  public static final long MAX_FILE_GROUP_COUNT_DEFAULT = Long.MAX_VALUE;
+  public static final long MAX_FILE_GROUP_INPUT_FILES_DEFAULT = Long.MAX_VALUE;
 
   private static final long SPLIT_OVERHEAD = 5L * 1024;
 
@@ -351,9 +351,10 @@ public abstract class SizeBasedFileRewritePlanner<
 
   private long maxGroupCount(Map<String, String> options) {
     long value =
-        PropertyUtil.propertyAsLong(options, MAX_FILE_GROUP_COUNT, MAX_FILE_GROUP_COUNT_DEFAULT);
+        PropertyUtil.propertyAsLong(
+            options, MAX_FILE_GROUP_INPUT_FILES, MAX_FILE_GROUP_INPUT_FILES_DEFAULT);
     Preconditions.checkArgument(
-        value > 0, "'%s' is set to %s but must be > 0", MAX_FILE_GROUP_COUNT, value);
+        value > 0, "'%s' is set to %s but must be > 0", MAX_FILE_GROUP_INPUT_FILES, value);
     return value;
   }
 

@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MAX_FILE_GROUP_COUNT;
+import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MAX_FILE_GROUP_INPUT_FILES;
 import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_FILES;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.newDataFiles;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
@@ -198,7 +198,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
 
     List<DataFileRewritePlanner.PlannedGroup> planWithMaxFileGroupCount =
         planDataFileRewrite(
-            tableLoader(), ImmutableMap.of(MIN_INPUT_FILES, "2", MAX_FILE_GROUP_COUNT, "2"));
+            tableLoader(), ImmutableMap.of(MIN_INPUT_FILES, "2", MAX_FILE_GROUP_INPUT_FILES, "2"));
     assertThat(planWithMaxFileGroupCount).hasSize(3);
   }
 

@@ -183,13 +183,14 @@ public class RewriteDataFiles {
 
     /**
      * Configures the max file count for rewriting. See {@link
-     * SizeBasedFileRewritePlanner#MAX_FILE_GROUP_COUNT} for more details.
+     * SizeBasedFileRewritePlanner#MAX_FILE_GROUP_INPUT_FILES} for more details.
      *
-     * @param maxFileGroupCount file count for rewrite
+     * @param maxFileGroupInputFiles file count for rewrite
      */
-    public Builder maxFileGroupCount(long maxFileGroupCount) {
+    public Builder maxFileGroupInputFiles(long maxFileGroupInputFiles) {
       this.rewriteOptions.put(
-          SizeBasedFileRewritePlanner.MAX_FILE_GROUP_COUNT, String.valueOf(maxFileGroupCount));
+          SizeBasedFileRewritePlanner.MAX_FILE_GROUP_INPUT_FILES,
+          String.valueOf(maxFileGroupInputFiles));
       return this;
     }
 
