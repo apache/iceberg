@@ -64,10 +64,10 @@ class IcebergWriter implements RecordWriter {
         row = convertToRow(record);
       }
     } catch (Exception e) {
-      String recordData = "";
-      if (this.config.errorLogIncludeMessages()) {
-        recordData = String.format(", record: %s", record.value().toString());
-      }
+      String recordData =
+          this.config.errorLogIncludeMessages()
+              ? String.format(", record: %s", record.value().toString())
+              : "";
       throw new DataException(
           String.format(
               Locale.ROOT,
