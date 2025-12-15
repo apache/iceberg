@@ -801,6 +801,7 @@ paths:
         404:
           description:
             Not Found
+            - NoSuchPlanIdException, the plan-id does not exist
             - NoSuchTableException, the table does not exist
             - NoSuchNamespaceException, the namespace does not exist
           content:
@@ -808,6 +809,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
+                PlanIdDoesNotExist:
+                  $ref: '#/components/examples/NoSuchPlanIdError'
                 TableDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
                 NamespaceDoesNotExist:
