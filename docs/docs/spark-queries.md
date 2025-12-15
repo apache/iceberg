@@ -116,6 +116,33 @@ SELECT * FROM prod.db.table VERSION AS OF 'historical-snapshot';
 SELECT * FROM prod.db.table.`tag_historical-snapshot`;
 ```
 
+#### SQL functions for partition transforms
+
+Iceberg exposes its partition transforms as Spark SQL functions in the `system`
+schema of each Iceberg catalog. These functions return the same values that
+Iceberg uses for hidden partition columns, which makes it easier to:
+
+- define sort orders that align with a table’s partitioning,
+- write predicates that use the partition values, and
+- debug how a partition transform behaves for a specific input.
+
+The functions are available as `catalog.system.<function>(...)`, where
+`catalog` is the Iceberg catalog name (for example, `prod_catalog`).
+
+|Function|Description|Example|
+|--------|-----------|-------|
+|`system.iceberg_version()`|Returns the Iceberg library version used by the catalog.|`SELECT prod_catalog.system.iceberg_version() AS iceberg_version;`|
+|`system.bucket(num_buckets, value)`|Computes the bucket value for `value` using Iceberg's `bucket` transform (Murmur3 hash modulo `num_buckets`). This matches how bucketed partition fields are computed.|`SELECT prod_catalog.system.bucket(16, id) AS id_bucket FROM prod.db.table;`|
+|`system.years(ts)`|Returns the year component for a `DATE` or `TIMESTAMP` expression using the `years` transform.|`SELECT prod_catalog.system.years(event_time) AS event_year, COUNT(*) FROM prod.db.events GROUP BY event_year;`|
+|`system.month(ts)` / `system.months(ts)`|Returns the month component for a `DATE` or `TIMESTAMP` expression using the `months` transform. Both the singular and plural forms are accepted.|`SELECT prod_catalog.system.months(event_time) AS event_month, COUNT(*) FROM prod.db.events GROUP BY event_month;`|
+|`system.days(ts)`|Returns the day component for a `DATE` or `TIMESTAMP` expression using the `days` transform.|`SELECT prod_catalog.system.days(event_time) AS event_day, COUNT(*) FROM prod.db.events GROUP BY event_day;`|
+|`system.hours(ts)`|Returns the hour component for a `TIMESTAMP` expression using the `hours` transform.|`SELECT prod_catalog.system.hours(event_time) AS event_hour, COUNT(*) FROM prod.db.events GROUP BY event_hour;`|
+|`system.truncate(width, value)`|Applies Iceberg's `truncate` transform to `value`. For strings this truncates to `width` characters; for numeric types it truncates into width-sized buckets.|`SELECT prod_catalog.system.truncate(4, user_agent) AS ua_prefix, COUNT(*) FROM prod.db.events GROUP BY ua_prefix;`|
+
+These functions mirror the partition transforms described in the partitioning
+documentation and can be used in `SELECT`, `WHERE`, `GROUP BY`, or `ORDER BY`
+clauses to reason about a table’s partition values.
+
 ## Querying with DataFrames
 
 To load a table as a DataFrame, use `table`:
