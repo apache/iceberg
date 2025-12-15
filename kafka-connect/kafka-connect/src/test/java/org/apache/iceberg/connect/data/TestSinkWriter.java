@@ -254,6 +254,7 @@ public class TestSinkWriter {
     Map<String, Object> badValue = ImmutableMap.of("id", "abc");
     assertThatThrownBy(() -> sinkWriterTest(badValue, config))
         .isInstanceOf(DataException.class)
+        .hasStackTraceContaining("Caused by: java.lang.NumberFormatException: For input string: \"abc\"\n")
         .hasMessage(
             "An error occurred converting record, topic: topic, partition, 1, offset: 100, record: {id=abc}");
   }
@@ -264,7 +265,6 @@ public class TestSinkWriter {
     when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.errorTolerance()).thenReturn(ErrorTolerance.ALL.toString());
-    when(config.errorDeadLetterQueueTopicNameConfig()).thenReturn("topic_dlq");
 
     ErrantRecordReporter reporter = mock(ErrantRecordReporter.class);
     when(reporter.report(any(), any()))
