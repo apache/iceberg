@@ -29,6 +29,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
@@ -44,7 +46,9 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
   private static final Logger LOG = LoggerFactory.getLogger(ScanTaskIterable.class);
   private static final int DEFAULT_TASK_QUEUE_CAPACITY = 1000;
   private static final long QUEUE_POLL_TIMEOUT_MS = 100;
-  private static final int WORKER_POOL_SIZE = Math.max(1, ThreadPools.WORKER_THREAD_POOL_SIZE / 4);
+  // Dummy task acts as a poison pill to indicate that there will be no more tasks
+  private static final FileScanTask DUMMY_TASK = new BaseFileScanTask(null, null, null, null, null);
+  private final AtomicReference<RuntimeException> failure = new AtomicReference<>(null);
   private final BlockingQueue<FileScanTask> taskQueue;
   private final ConcurrentLinkedQueue<FileScanTask> initialFileScanTasks;
   private final ConcurrentLinkedQueue<String> planTasks;
@@ -82,7 +86,9 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
     if (initialPlanTasks != null && !initialPlanTasks.isEmpty()) {
       planTasks.addAll(initialPlanTasks);
     } else if (initialFileScanTasks.isEmpty()) {
-      // nothing to do, no need to spawn workers.
+      // Add dummy task to indicate there is no work to be done.
+      // Queue is empty at this point, so add() will never fail.
+      taskQueue.add(DUMMY_TASK);
       return;
     }
 
@@ -90,15 +96,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
   }
 
   private void submitFixedWorkers() {
-    if (planTasks.isEmpty() && initialFileScanTasks.isEmpty()) {
-      // nothing to do
-      return;
-    }
-
-    // need to spawn at least one worker to enqueue initial file scan tasks
-    int numWorkers = Math.min(WORKER_POOL_SIZE, Math.max(planTasks.size(), 1));
-
-    for (int i = 0; i < numWorkers; i++) {
+    for (int i = 0; i < ThreadPools.WORKER_THREAD_POOL_SIZE; i++) {
       executorService.execute(new PlanTaskWorker());
     }
   }
@@ -118,17 +116,12 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       activeWorkers.incrementAndGet();
 
       try {
-        while (!shutdown.get()) {
+        while (!shutdown.get() && !Thread.currentThread().isInterrupted()) {
           String planTask = planTasks.poll();
           if (planTask == null) {
             // if there are no more plan tasks, see if we can just add any remaining initial
             // file scan tasks before exiting.
-            while (!initialFileScanTasks.isEmpty()) {
-              FileScanTask initialFileScanTask = initialFileScanTasks.poll();
-              if (initialFileScanTask != null) {
-                taskQueue.put(initialFileScanTask);
-              }
-            }
+            offerInitialFileScanTasks();
             return;
           }
 
@@ -137,16 +130,65 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
 
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
+        failure.compareAndSet(null, new RuntimeException("PlanWorker was interrupted", e));
+        shutdown.set(true);
       } catch (Exception e) {
-        throw new RuntimeException("Worker failed processing planTask", e);
+        failure.compareAndSet(null, new RuntimeException("Worker failed processing planTask", e));
+        shutdown.set(true);
       } finally {
-        int remaining = activeWorkers.decrementAndGet();
+        handleWorkerExit();
+      }
+    }
 
-        if (remaining == 0
-            && !planTasks.isEmpty()
-            && !shutdown.get()
-            && !initialFileScanTasks.isEmpty()) {
-          executorService.execute(new PlanTaskWorker());
+    /**
+     * Offers a task to the queue with timeout, periodically checking for shutdown. Returns true if
+     * the task was successfully added, false if shutdown was requested. Throws InterruptedException
+     * if the thread is interrupted while waiting.
+     */
+    private boolean offerWithTimeout(FileScanTask task) throws InterruptedException {
+      while (!shutdown.get()) {
+        if (taskQueue.offer(task, QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    private void handleWorkerExit() {
+      boolean isLastWorker = activeWorkers.decrementAndGet() == 0;
+      boolean hasWorkLeft = !planTasks.isEmpty() || !initialFileScanTasks.isEmpty();
+      boolean isShuttingDown = shutdown.get();
+
+      if (isLastWorker && (!hasWorkLeft || isShuttingDown)) {
+        signalCompletion();
+      } else if (isLastWorker && hasWorkLeft) {
+        failure.compareAndSet(
+            null,
+            new IllegalStateException("Workers have exited but there is still work to be done"));
+        shutdown.set(true);
+      }
+    }
+
+    private void signalCompletion() {
+      try {
+        // Use offer with timeout to avoid blocking indefinitely if queue is full and consumer
+        // stopped draining. If shutdown is already set, consumer will exit via its shutdown check.
+        offerWithTimeout(DUMMY_TASK);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        // we should just shut down and not rethrow since we are trying to signal completion
+        // its fine if we fail to put the dummy task in this case.
+        shutdown.set(true);
+      }
+    }
+
+    private void offerInitialFileScanTasks() throws InterruptedException {
+      while (!initialFileScanTasks.isEmpty() && !Thread.currentThread().isInterrupted()) {
+        FileScanTask initialFileScanTask = initialFileScanTasks.poll();
+        if (initialFileScanTask != null) {
+          if (!offerWithTimeout(initialFileScanTask)) {
+            return;
+          }
         }
       }
     }
@@ -164,16 +206,13 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       }
 
       // Now since the network IO is done, first add any initial file scan tasks
-      while (!initialFileScanTasks.isEmpty()) {
-        FileScanTask initialFileScanTask = initialFileScanTasks.poll();
-        if (initialFileScanTask != null) {
-          taskQueue.put(initialFileScanTask);
-        }
-      }
+      offerInitialFileScanTasks();
 
       if (response.fileScanTasks() != null) {
         for (FileScanTask task : response.fileScanTasks()) {
-          taskQueue.put(task);
+          if (!offerWithTimeout(task)) {
+            return;
+          }
         }
       }
     }
@@ -201,21 +240,30 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
         return true;
       }
 
-      while (true) {
-        if (isDone()) {
-          return false;
-        }
-
+      boolean hasNext = false;
+      while (!shutdown.get()) {
         try {
           nextTask = taskQueue.poll(QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-          if (nextTask != null) {
-            return true;
+          if (nextTask == DUMMY_TASK) {
+            nextTask = null;
+            shutdown.set(true); // Mark as done so while loop exits on subsequent calls
+            break;
+          } else if (nextTask != null) {
+            hasNext = true;
+            break;
           }
         } catch (InterruptedException e) {
           Thread.currentThread().interrupt();
-          return false;
+          shutdown.set(true);
         }
       }
+
+      RuntimeException workerFailure = failure.get();
+      if (workerFailure != null) {
+        throw workerFailure;
+      }
+
+      return hasNext;
     }
 
     @Override
@@ -237,13 +285,6 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
           planTasks.size());
       taskQueue.clear();
       planTasks.clear();
-    }
-
-    private boolean isDone() {
-      return taskQueue.isEmpty()
-          && planTasks.isEmpty()
-          && activeWorkers.get() == 0
-          && initialFileScanTasks.isEmpty();
     }
   }
 }
