@@ -31,6 +31,7 @@ import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -297,5 +298,25 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
 
       return super.replaceTransaction();
     }
+  }
+
+  @Override
+  public View registerView(TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(
+        identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register an empty metadata file location as a view");
+
+    if (viewExists(identifier)) {
+      throw new AlreadyExistsException("View already exists: %s", identifier);
+    }
+
+    ViewOperations ops = newViewOps(identifier);
+    InputFile metadataFile = ((BaseViewOperations) ops).io().newInputFile(metadataFileLocation);
+    ViewMetadata metadata = ViewMetadataParser.read(metadataFile);
+    ops.commit(null, metadata);
+
+    return new BaseView(ops, fullTableName(name(), identifier));
   }
 }
