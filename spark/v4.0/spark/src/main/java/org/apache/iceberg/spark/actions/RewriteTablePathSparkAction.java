@@ -22,6 +22,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -662,16 +663,24 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       return;
     }
 
+    Set<DeleteFile> uniqueDeleteFiles = deduplicateDeleteFilesByLocation(toRewrite);
     Encoder<DeleteFile> deleteFileEncoder = Encoders.javaSerialization(DeleteFile.class);
     Dataset<DeleteFile> deleteFileDs =
-        spark().createDataset(Lists.newArrayList(toRewrite), deleteFileEncoder);
+        spark().createDataset(Lists.newArrayList(uniqueDeleteFiles), deleteFileEncoder);
 
     PositionDeleteReaderWriter posDeleteReaderWriter = new SparkPositionDeleteReaderWriter();
     deleteFileDs
-        .repartition(toRewrite.size())
+        .repartition(uniqueDeleteFiles.size())
         .foreach(
             rewritePositionDelete(
                 tableBroadcast(), sourcePrefix, targetPrefix, stagingDir, posDeleteReaderWriter));
+  }
+
+  @VisibleForTesting
+  Set<DeleteFile> deduplicateDeleteFilesByLocation(Set<DeleteFile> deleteFiles) {
+    Map<String, DeleteFile> uniqueDeleteFiles = new LinkedHashMap<>();
+    deleteFiles.forEach(deleteFile -> uniqueDeleteFiles.putIfAbsent(deleteFile.location(), deleteFile));
+    return Sets.newLinkedHashSet(uniqueDeleteFiles.values());
   }
 
   private static class SparkPositionDeleteReaderWriter implements PositionDeleteReaderWriter {
