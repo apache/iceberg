@@ -723,21 +723,28 @@ class Literals {
     }
   }
 
-  static class BoundingBoxLiteral extends BaseLiteral<ByteBuffer> {
+  static class BoundingBoxLiteral implements Literal<ByteBuffer> {
     private static final Comparator<ByteBuffer> CMP =
         Comparators.<ByteBuffer>nullsFirst().thenComparing(Comparators.unsignedBytes());
 
+    private final ByteBuffer value;
+
     BoundingBoxLiteral(BoundingBox value) {
-      super(value.toByteBuffer());
+      this.value = value.toByteBuffer();
     }
 
     BoundingBoxLiteral(ByteBuffer value) {
-      super(value);
+      this.value = value;
     }
 
     @Override
-    protected Type.TypeID typeId() {
-      return Type.TypeID.GEOMETRY;
+    public ByteBuffer value() {
+      return value;
+    }
+
+    @Override
+    public ByteBuffer toByteBuffer() {
+      return value;
     }
 
     @Override
@@ -761,6 +768,24 @@ class Literals {
     @Override
     public String toString() {
       return String.valueOf(value());
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+      if (!(other instanceof BoundingBoxLiteral)) {
+        return false;
+      }
+
+      BoundingBoxLiteral that = (BoundingBoxLiteral) other;
+      return comparator().compare(value(), that.value()) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hashCode(value());
     }
   }
 }
