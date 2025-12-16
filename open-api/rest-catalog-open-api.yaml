@@ -2252,6 +2252,7 @@ components:
         - $ref: '#/components/schemas/SetExpression'
         - $ref: '#/components/schemas/LiteralExpression'
         - $ref: '#/components/schemas/UnaryExpression'
+        - $ref: '#/components/schemas/SpatialExpression'
 
     ExpressionType:
       type: string
@@ -2275,6 +2276,8 @@ components:
         - "not-null"
         - "is-nan"
         - "not-nan"
+        - "st-intersects"
+        - "st-disjoint"
 
     TrueExpression:
       type: object
@@ -2364,6 +2367,49 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PrimitiveTypeValue'
+
+    SpatialExpression:
+      type: object
+      required:
+        - type
+        - term
+        - value
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["st-intersects", "st-disjoint"]
+        term:
+          $ref: '#/components/schemas/Term'
+        value:
+          $ref: '#/components/schemas/BoundingBox'
+
+    BoundingBox:
+      type: object
+      required:
+        - x
+        - y
+      properties:
+        x:
+          $ref: '#/components/schemas/CoordinateRange'
+        y:
+          $ref: '#/components/schemas/CoordinateRange'
+        z:
+          $ref: '#/components/schemas/CoordinateRange'
+        m:
+          $ref: '#/components/schemas/CoordinateRange'
+
+    CoordinateRange:
+      type: object
+      required:
+        - min
+        - max
+      properties:
+        min:
+          type: number
+          format: double
+        max:
+          type: number
+          format: double
 
     Term:
       oneOf:
