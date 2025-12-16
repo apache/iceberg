@@ -30,6 +30,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -39,6 +40,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -1215,6 +1217,45 @@ public class TestRewriteTablePathsAction extends TestBase {
     // force deserializing broadcast values
     removeBroadcastValuesFromLocalBlockManager(tableBroadcast.id());
     assertThat(tableBroadcast.getValue().uuid()).isEqualTo(table.uuid());
+  }
+
+  @TestTemplate
+  public void testDeduplicatePositionDeleteFilesByLocation() {
+    RewriteTablePathSparkAction action =
+        (RewriteTablePathSparkAction) actions().rewriteTablePath(table);
+
+    DeleteFile first =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/delete-file.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    DeleteFile duplicatePath =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/delete-file.parquet")
+            .withFileSizeInBytes(20)
+            .withRecordCount(2)
+            .build();
+
+    DeleteFile second =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/delete-file-2.parquet")
+            .withFileSizeInBytes(5)
+            .withRecordCount(1)
+            .build();
+
+    Set<DeleteFile> deduplicated =
+        action.deduplicateDeleteFilesByLocation(
+            Sets.newHashSet(first, duplicatePath, second));
+
+    assertThat(deduplicated).hasSize(2);
+    assertThat(deduplicated.stream().map(DeleteFile::location).collect(Collectors.toSet()))
+        .containsExactlyInAnyOrder(
+            "/path/to/delete-file.parquet", "/path/to/delete-file-2.parquet");
   }
 
   @TestTemplate
