@@ -218,6 +218,7 @@ env.execute("Table Maintenance Job");
 | `partialProgressMaxCommits(int)` | Maximum commits allowed for partial progress when partialProgressEnabled is true | 10 | int |
 | `maxRewriteBytes(long)` | Maximum bytes to rewrite per execution | Long.MAX_VALUE | long |
 | `filter(Expression)` | Filter expression for selecting files to rewrite | Expressions.alwaysTrue() | Expression |
+| `maxFileGroupInputFiles(long)`         | Maximum allowed number of input files within a file group                                              | Long.MAX_VALUE | long |
 
 #### DeleteOrphanFiles Configuration
 
