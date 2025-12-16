@@ -295,12 +295,16 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
   public void testSupportedReadsForParquetV2() throws Exception {
     // Float and double column types are written using plain encoding with Parquet V2,
     // also Parquet V2 will dictionary encode decimals that use fixed length binary
-    // (i.e. decimals > 8 bytes)
+    // (i.e. decimals > 8 bytes). Int and long types use DELTA_BINARY_PACKED.
+    // Boolean types use RLE.
     Schema schema =
         new Schema(
             optional(102, "float_data", Types.FloatType.get()),
             optional(103, "double_data", Types.DoubleType.get()),
-            optional(104, "decimal_data", Types.DecimalType.of(25, 5)));
+            optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
+            optional(105, "int_data", Types.IntegerType.get()),
+            optional(106, "long_data", Types.LongType.get()),
+            optional(107, "boolean_data", Types.BooleanType.get()));
 
     OutputFile outputFile = new InMemoryOutputFile();
     Iterable<GenericData.Record> data =

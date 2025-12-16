@@ -95,6 +95,12 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
   public void testVectorizedReadsWithNewContainers() throws IOException {}
 
   @Test
+  @Override
+  @Disabled // Ignored since vectorized reads are supported for parquet v2 written files over
+  // dictionary-encoded files
+  public void testUnsupportedReadsForParquetV2() throws IOException {}
+
+  @Test
   public void testMixedDictionaryNonDictionaryReads() throws IOException {
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
     File dictionaryEncodedFile = File.createTempFile("junit", null, temp.toFile());
