@@ -18,11 +18,11 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-/** Test writing DynamicRecord with the full schema and standard UTF encoding */
-class TestDynamicRecordInternalSerializerWriteSchema
+/** Test writing DynamicRecord with only the schema id and long UTF encoding */
+class TestDynamicRecordInternalSerializerWriteSchemaIdLongUTF
     extends DynamicRecordInternalSerializerTestBase {
 
-  TestDynamicRecordInternalSerializerWriteSchema() {
-    super(true, false);
+  TestDynamicRecordInternalSerializerWriteSchemaIdLongUTF() {
+    super(false, true);
   }
 }
