@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.io.Closeable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -57,10 +58,12 @@ abstract class BaseCommitService<T> implements Closeable {
   private final ConcurrentLinkedQueue<T> completedRewrites;
   private final ConcurrentLinkedQueue<String> inProgressCommits;
   private final ConcurrentLinkedQueue<T> committedRewrites;
+  private final List<Exception> exceptionsOfFailedCommits;
   private final int rewritesPerCommit;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final long timeoutInMS;
   private int succeededCommits = 0;
+  private int failedCommits = 0;
 
   /**
    * Constructs a {@link BaseCommitService}
@@ -94,6 +97,7 @@ abstract class BaseCommitService<T> implements Closeable {
     completedRewrites = Queues.newConcurrentLinkedQueue();
     committedRewrites = Queues.newConcurrentLinkedQueue();
     inProgressCommits = Queues.newConcurrentLinkedQueue();
+    exceptionsOfFailedCommits = new ArrayList<>();
   }
 
   /**
@@ -231,6 +235,8 @@ abstract class BaseCommitService<T> implements Closeable {
         succeededCommits++;
       } catch (Exception e) {
         LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
+        exceptionsOfFailedCommits.add(e);
+        failedCommits++;
       }
       inProgressCommits.remove(inProgressCommitToken);
     }
@@ -238,6 +244,14 @@ abstract class BaseCommitService<T> implements Closeable {
 
   public int succeededCommits() {
     return succeededCommits;
+  }
+
+  public int failedCommits() {
+    return failedCommits;
+  }
+
+  public List<Exception> exceptionsOfFailedCommits() {
+    return Lists.newArrayList(exceptionsOfFailedCommits);
   }
 
   @VisibleForTesting
