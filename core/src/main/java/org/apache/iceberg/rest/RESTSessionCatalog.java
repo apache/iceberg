@@ -505,9 +505,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private RESTTable restTableForScanPlanning(
-      TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
+      TableOperations ops,
+      TableIdentifier finalIdentifier,
+      RESTClient restClient,
+      Map<String, String> tableConf) {
     // server supports remote planning endpoint and server / client wants to do server side planning
-    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restScanPlanningEnabled) {
+    boolean shouldDoServerSidePlanning =
+        PropertyUtil.propertyAsBoolean(
+            tableConf, RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, false);
+    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN)
+        && (restScanPlanningEnabled || shouldDoServerSidePlanning)) {
       return new RESTTable(
           ops,
           fullTableName(finalIdentifier),
@@ -589,7 +596,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
     if (restTable != null) {
       return restTable;
     }
@@ -858,7 +865,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
       if (restTable != null) {
         return restTable;
       }
