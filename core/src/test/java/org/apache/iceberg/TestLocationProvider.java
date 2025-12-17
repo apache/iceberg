@@ -219,7 +219,7 @@ public class TestLocationProvider extends TestBase {
     assertThatThrownBy(() -> table.locationProvider().newDataLocation("file"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Property 'write.folder-storage.path' has been deprecated and will be removed in 2.0, use 'write.data.path' instead.");
+            "Property 'write.folder-storage.path' has been deprecated and will be removed in 2.0.0, use 'write.data.path' instead.");
 
     table
         .updateProperties()
@@ -230,7 +230,7 @@ public class TestLocationProvider extends TestBase {
     assertThatThrownBy(() -> table.locationProvider().newDataLocation("file"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Property 'write.object-storage.path' has been deprecated and will be removed in 2.0, use 'write.data.path' instead.");
+            "Property 'write.object-storage.path' has been deprecated and will be removed in 2.0.0, use 'write.data.path' instead.");
   }
 
   @TestTemplate
@@ -245,7 +245,7 @@ public class TestLocationProvider extends TestBase {
     assertThatThrownBy(() -> table.locationProvider().newDataLocation("file"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Property 'write.folder-storage.path' has been deprecated and will be removed in 2.0, use 'write.data.path' instead.");
+            "Property 'write.folder-storage.path' has been deprecated and will be removed in 2.0.0, use 'write.data.path' instead.");
   }
 
   @TestTemplate

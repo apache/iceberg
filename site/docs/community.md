@@ -88,6 +88,15 @@ Hosts are required to ensure that:
 4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
 5. All [Community Guidelines](#community-guidelines) must be respected
 
+Meetups *must* be small events under the [ASF branding guidelines](https://www.apache.org/foundation/marks/events.html#dates) and are typically small, informal gatherings. If you're unsure whether an event is a meetup, meetups usually:
+
+* Rely on a curated selection of talks, where organizers work with the community to include a diverse representation of speakers, topics, and companies. Due to the small number of submissions, meetups might use, but don't require, a CfP.
+* Are single-tracked and accommodate only a handful of sessions.
+* Have at most 2-3 hours of content, plus networking time.
+* Are sponsored by 1-3 companies providing food, drinks, or meeting space; not by selling booth space or marketing opportunities. They don't require substantial financial support.
+
+If you don't know whether an event qualifies as a meetup, please ask the PMC through the private mailing list! (Be sure to do this *before* using the Apache Iceberg brand or trademark.)
+
 ## Community Guidelines
 
 ### Apache Iceberg Community Guidelines

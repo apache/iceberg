@@ -61,6 +61,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
@@ -70,7 +71,6 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -650,7 +650,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       case HttpStatusCodes.STATUS_CODE_FORBIDDEN:
         throw new ForbiddenException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_PRECONDITION_FAILED:
-        throw new ValidationException("%s", errorMessage);
+        throw new CommitFailedException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_NOT_FOUND:
         throw new IllegalArgumentException(errorMessage);
       case HttpStatusCodes.STATUS_CODE_SERVER_ERROR:

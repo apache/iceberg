@@ -263,7 +263,10 @@ paths:
             An optional namespace, underneath which to list namespaces.
             If not provided, all top-level namespaces should be listed.
             For backward compatibility, empty string is treated as absent for now.
-            If parent is a multipart namespace, the parts must be separated by the unit separator (`0x1F`) byte.
+            If parent is a multipart namespace, the parts must be separated by the namespace separator as
+            indicated via the /config override `namespace-separator`, which defaults to the unit separator `0x1F` byte (url encoded `%1F`).
+            To be compatible with older clients, servers must use both the advertised separator and `0x1F` as valid separators when decoding namespaces.
+            The `namespace-separator` should be provided in a url encoded form.
           required: false
           schema:
             type: string
@@ -659,6 +662,8 @@ paths:
           needed by calling cancelPlanning. Cancellation is not necessary after
           fetchScanTasks has been used to fetch scan tasks for each plan task.
       operationId: planTableScan
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       requestBody:
         content:
           application/json:
@@ -766,6 +771,8 @@ paths:
         - Catalog API
       summary: Cancels scan planning for a plan-id
       operationId: cancelPlanning
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description: >
         Cancels scan planning for a plan-id.
 
@@ -794,6 +801,7 @@ paths:
         404:
           description:
             Not Found
+            - NoSuchPlanIdException, the plan-id does not exist
             - NoSuchTableException, the table does not exist
             - NoSuchNamespaceException, the namespace does not exist
           content:
@@ -801,6 +809,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
+                PlanIdDoesNotExist:
+                  $ref: '#/components/examples/NoSuchPlanIdError'
                 TableDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
                 NamespaceDoesNotExist:
@@ -824,6 +834,8 @@ paths:
         - Catalog API
       summary: Fetches result tasks for a plan task
       operationId: fetchScanTasks
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
       description: Fetches result tasks for a plan task.
       requestBody:
         content:
@@ -1835,7 +1847,10 @@ components:
       required: true
       description:
         A namespace identifier as a single string.
-        Multipart namespace parts should be separated by the unit separator (`0x1F`) byte.
+        Multipart namespace parts must be separated by the namespace separator as
+        indicated via the /config override `namespace-separator`, which defaults to the unit separator `0x1F` byte (url encoded `%1F`).
+        To be compatible with older clients, servers must use both the advertised separator and `0x1F` as valid separators when decoding namespaces.
+        The `namespace-separator` should be provided in a url encoded form.
       schema:
         type: string
       examples:
