@@ -63,7 +63,6 @@ abstract class BaseCommitService<T> implements Closeable {
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final long timeoutInMS;
   private int succeededCommits = 0;
-  private int failedCommits = 0;
 
   /**
    * Constructs a {@link BaseCommitService}
@@ -236,7 +235,6 @@ abstract class BaseCommitService<T> implements Closeable {
       } catch (Exception e) {
         LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
         exceptionsOfFailedCommits.add(e);
-        failedCommits++;
       }
       inProgressCommits.remove(inProgressCommitToken);
     }
@@ -247,7 +245,7 @@ abstract class BaseCommitService<T> implements Closeable {
   }
 
   public int failedCommits() {
-    return failedCommits;
+    return exceptionsOfFailedCommits.size();
   }
 
   public List<Exception> exceptionsOfFailedCommits() {
