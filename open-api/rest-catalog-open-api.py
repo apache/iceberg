@@ -1309,6 +1309,7 @@ class LoadTableResult(BaseModel):
     ## General Configurations
 
     - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
+    - `rest-scan-planning-enabled`: The client should use remote scan planning.
 
     ## AWS Configurations
 

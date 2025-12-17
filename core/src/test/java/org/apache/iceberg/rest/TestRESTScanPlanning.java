@@ -72,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -1019,5 +1020,85 @@ public class TestRESTScanPlanning {
 
     // Verify no exception was thrown - cancelPlan returns false when endpoint not supported
     assertThat(cancelled).isFalse();
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  public void tableLevelScanPlanningOverride(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
+      throws IOException {
+    // Test REST_SCAN_PLANNING_ENABLED in LoadTableResponse.config() overrides catalog setting
+    configurePlanningBehavior(planMode);
+
+    // Catalog that adds scan planning config to LoadTableResponse (table-level override)
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithTableLevelConfig(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true");
+
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "table_override_test");
+    setParserContext(table);
+
+    assertThat(table.newScan().planFiles()).hasSize(1);
+
+    catalogWithAdapter.catalog.close();
+  }
+
+  private CatalogWithAdapter catalogWithTableLevelConfig(String configKey, String configValue) {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  return castResponse(
+                      responseType,
+                      ConfigResponse.builder()
+                          .withEndpoints(
+                              Arrays.stream(Route.values())
+                                  .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
+                                  .collect(Collectors.toList()))
+                          .withOverride(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "false")
+                          .build());
+                }
+
+                Object body = roundTripSerialize(request.body(), "request");
+                T response =
+                    super.execute(
+                        ImmutableHTTPRequest.builder().from(request).body(body).build(),
+                        responseType,
+                        errorHandler,
+                        responseHeaders);
+
+                // Add config to ALL LoadTableResponse
+                if (response instanceof LoadTableResponse) {
+                  LoadTableResponse load = (LoadTableResponse) response;
+                  return roundTripSerialize(
+                      castResponse(
+                          responseType,
+                          LoadTableResponse.builder()
+                              .withTableMetadata(load.tableMetadata())
+                              .addConfig(configKey, configValue)
+                              .addAllCredentials(load.credentials())
+                              .build()),
+                      "response");
+                }
+
+                return roundTripSerialize(response, "response");
+              }
+            });
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
+            "false",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    return new CatalogWithAdapter(catalog, adapter);
   }
 }
