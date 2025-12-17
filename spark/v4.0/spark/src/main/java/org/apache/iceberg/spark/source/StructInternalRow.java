@@ -68,6 +68,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
 class StructInternalRow extends InternalRow {
+  private static final BaseEncoding LOWER_HEX = BaseEncoding.base16().lowerCase();
   private final Types.StructType type;
   private StructLike struct;
 
@@ -197,11 +198,11 @@ class StructInternalRow extends InternalRow {
     if (value instanceof ByteBuffer) {
       // Metrics lower_bound / upper_bound for UUIDs
       byte[] bytes = ByteBuffers.toByteArray((ByteBuffer) value);
-      return UTF8String.fromString(BaseEncoding.base16().lowerCase().encode(bytes));
+      return UTF8String.fromString(LOWER_HEX.encode(bytes));
     }
 
     if (value instanceof byte[]) {
-      return UTF8String.fromString(BaseEncoding.base16().lowerCase().encode((byte[]) value));
+      return UTF8String.fromString(LOWER_HEX.encode((byte[]) value));
     }
 
     if (value instanceof CharSequence) {
