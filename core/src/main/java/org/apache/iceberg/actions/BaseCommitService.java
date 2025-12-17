@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.io.Closeable;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -96,7 +97,7 @@ abstract class BaseCommitService<T> implements Closeable {
     completedRewrites = Queues.newConcurrentLinkedQueue();
     committedRewrites = Queues.newConcurrentLinkedQueue();
     inProgressCommits = Queues.newConcurrentLinkedQueue();
-    exceptionsOfFailedCommits = Lists.newArrayList();
+    exceptionsOfFailedCommits = Collections.synchronizedList(Lists.newArrayList());
   }
 
   /**
