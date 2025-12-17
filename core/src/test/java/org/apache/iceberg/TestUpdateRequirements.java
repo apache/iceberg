@@ -689,14 +689,18 @@ public class TestUpdateRequirements {
 
   @Test
   public void addAndRemoveSnapshot() {
+    Snapshot newSnapshot = mock(Snapshot.class);
+    when(newSnapshot.parentId()).thenReturn(null);
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.AddSnapshot(mock(Snapshot.class))));
+            metadata, ImmutableList.of(new MetadataUpdate.AddSnapshot(newSnapshot)));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
-        .hasSize(1)
-        .hasOnlyElementsOfTypes(UpdateRequirement.AssertTableUUID.class);
+        .hasSize(2)
+        .hasOnlyElementsOfTypes(
+            UpdateRequirement.AssertTableUUID.class,
+            UpdateRequirement.AssertLastSequenceNumber.class);
 
     assertTableUUID(requirements);
 
@@ -713,14 +717,18 @@ public class TestUpdateRequirements {
 
   @Test
   public void addAndRemoveSnapshots() {
+    Snapshot newSnapshot = mock(Snapshot.class);
+    when(newSnapshot.parentId()).thenReturn(null);
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.AddSnapshot(mock(Snapshot.class))));
+            metadata, ImmutableList.of(new MetadataUpdate.AddSnapshot(newSnapshot)));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
-        .hasSize(1)
-        .hasOnlyElementsOfTypes(UpdateRequirement.AssertTableUUID.class);
+        .hasSize(2)
+        .hasOnlyElementsOfTypes(
+            UpdateRequirement.AssertTableUUID.class,
+            UpdateRequirement.AssertLastSequenceNumber.class);
 
     assertTableUUID(requirements);
 

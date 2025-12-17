@@ -109,6 +109,8 @@ public class UpdateRequirements {
         update((MetadataUpdate.RemovePartitionSpecs) update);
       } else if (update instanceof MetadataUpdate.RemoveSchemas) {
         update((MetadataUpdate.RemoveSchemas) update);
+      } else if (update instanceof MetadataUpdate.AddSnapshot) {
+        update((MetadataUpdate.AddSnapshot) update);
       }
 
       return this;
@@ -177,6 +179,17 @@ public class UpdateRequirements {
 
       // require that no branches have changed, so that old schemas won't be written.
       requireNoBranchesChanged();
+    }
+
+    private void update(MetadataUpdate.AddSnapshot addSnapshot) {
+      // Only add sequence number requirement when updating an existing table (not creating a new
+      // one)
+      if (base != null && !isReplace) {
+        require(
+            new UpdateRequirement.AssertLastSequenceNumber(
+                addSnapshot.snapshot().sequenceNumber(),
+                addSnapshot.snapshot().parentId() != null));
+      }
     }
 
     private void requireDefaultPartitionSpecNotChanged() {
