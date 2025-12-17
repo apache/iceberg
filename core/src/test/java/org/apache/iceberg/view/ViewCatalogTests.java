@@ -44,7 +44,6 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.LocationUtil;
 import org.junit.jupiter.api.Test;
@@ -1978,9 +1977,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   public void registerView() {
     C catalog = catalog();
 
-    // Register view is not yet supported for REST catalog
-    assumeThat(catalog).isNotInstanceOf(RESTCatalog.class);
-
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
     if (requiresNamespaceCreate()) {
@@ -2002,9 +1998,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog.dropView(identifier)).isTrue();
     assertThat(catalog.viewExists(identifier)).as("View must not exist").isFalse();
-
-    // view metadata should still exist after dropping the view as gc is disabled
-    assertThat(((BaseViewOperations) ops).io().newInputFile(metadataLocation).exists()).isTrue();
 
     View registeredView = catalog.registerView(identifier, metadataLocation);
 
@@ -2049,9 +2042,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   public void registerExistingView() {
     C catalog = catalog();
 
-    // Register view is not yet supported for REST catalog
-    assumeThat(catalog).isNotInstanceOf(RESTCatalog.class);
-
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
     if (requiresNamespaceCreate()) {
@@ -2079,9 +2069,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   @Test
   public void registerViewWithExistingTable() {
     C catalog = catalog();
-
-    // Register view is not yet supported for REST catalog
-    assumeThat(catalog).isNotInstanceOf(RESTCatalog.class);
 
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 

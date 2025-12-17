@@ -49,6 +49,7 @@ public class ResourcePaths {
   public static final String V1_VIEWS = "/v1/{prefix}/namespaces/{namespace}/views";
   public static final String V1_VIEW = "/v1/{prefix}/namespaces/{namespace}/views/{view}";
   public static final String V1_VIEW_RENAME = "/v1/{prefix}/views/rename";
+  public static final String V1_VIEW_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register-view";
 
   public static ResourcePaths forCatalogProperties(Map<String, String> properties) {
     return new ResourcePaths(
@@ -149,6 +150,10 @@ public class ResourcePaths {
 
   public String renameView() {
     return SLASH.join("v1", prefix, "views", "rename");
+  }
+
+  public String registerView(Namespace ns) {
+    return SLASH.join("v1", prefix, "namespaces", pathEncode(ns), "register-view");
   }
 
   public String planTableScan(TableIdentifier ident) {
