@@ -49,7 +49,7 @@ When queried, engines may return the precomputed data for the materialized views
 
 Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, the "storage-table", which stores the precomputed data.
 Materialized View metadata is a superset of View metadata with an additional pointer to the storage table. The storage table is an Iceberg table with additional materialized view refresh state metadata.
-Refresh metadata contains information about the "source tables" and/or "source views", which are the tables/views referenced in the query definition of the materialized view.
+Refresh metadata contains information about the "source tables", "source views", and/or "source materialized views", which are the tables/views/materialized views referenced in the query definition of the materialized view.
 
 ## Specification
 
@@ -211,12 +211,13 @@ The refresh state record captures the unique dependencies in the materialized vi
 **Producer responsibilities:**
 - The producer of the storage table must provide a sufficient list of source states so that consumers can determine freshness according to the producer's interpretation.
 - The source states list may be empty if the source state cannot be determined for all objects (for example, for non-Iceberg tables).
+- When the same source object appears multiple times in the dependency graph (for example, in diamond patterns), the producer must store the entry with the oldest snapshot-id or version-id for that object.
 
 **Consumer evaluation:**
 - The consumer must at least perform a coarse-grained evaluation based on `refresh-start-timestamp-ms` and `max-staleness-ms`. A materialized view is fresh if `refresh-start-timestamp-ms` is within the window `[now - max-staleness-ms, now]`.
 - The consumer may additionally compare the `source-states` list against the states loaded from the catalog. If this evaluation determines the materialized view is fresh, it overrides the coarse-grained evaluation result.
 - The consumer may parse the view definition to implement a more sophisticated policy.
-- When a materialized view is considered stale, the consumer can fail, refresh inline, or treat the materialized view as a logical view. The consumer must not consume from the storage table when the materialized view is stale.
+- When a materialized view is considered stale, the consumer can fail, refresh inline, or treat the materialized view as a logical view. The consumer must not consume from the storage table when the materialized view doesn't meet freshness criteria.
 
 The refresh state has the following fields:
 
