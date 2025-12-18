@@ -198,9 +198,11 @@ The property "refresh-state" is set on the [snapshot summary](https://iceberg.ap
 
 #### Freshness
 
-A materialized view is considered fresh when its precomputed data is usable by consumers. As tables referenced by a materialized view change over time, the precomputed data may no longer accurately reflect the logical materialized view definition. When this occurs, the materialized view (storage table) is considered stale.
+A materialized view's precomputed data becomes stale as the tables and views referenced in its query definition change over time. Freshness determines whether the precomputed data accurately represents the logical query definition at the current state of its dependencies.
 
 Different systems define freshness differently, based on how much of the dependency graph must be current. Some require the entire query tree to be fully up to date, while others only require direct children or allow bounded staleness at leaf nodes. As a result, "fresh" can mean strict end-to-end consistency, acceptable lag, or policy/version compliance.
+
+A materialized view is considered fresh when its precomputed data meets the freshness criteria defined by the consumer's evaluation policy. When these criteria are not met, the materialized view is considered stale.
 
 #### Refresh state
 
