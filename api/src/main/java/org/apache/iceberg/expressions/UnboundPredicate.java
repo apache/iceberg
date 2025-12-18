@@ -19,7 +19,6 @@
 package org.apache.iceberg.expressions;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -286,11 +285,9 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal() + "\"";
       case ST_INTERSECTS:
+        return "st_intersects(" + term() + ", " + literal() + ")";
       case ST_DISJOINT:
-        {
-          String functionName = op().name().toLowerCase(Locale.ROOT);
-          return functionName + "(" + term() + ", " + literal() + ")";
-        }
+        return "st_disjoint(" + term() + ", " + literal() + ")";
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:
