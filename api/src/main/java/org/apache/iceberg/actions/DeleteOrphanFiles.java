@@ -143,6 +143,7 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
     /** Returns locations of orphan files. */
     Iterable<String> orphanFileLocations();
 
+    /** Returns the number of deleted orphan files. */
     default long deletedOrphanFilesCount() {
       return 0;
     }
