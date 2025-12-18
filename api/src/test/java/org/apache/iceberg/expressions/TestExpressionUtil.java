@@ -1347,25 +1347,59 @@ public class TestExpressionUtil {
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
     BoundingBox bbox = new BoundingBox(min, max);
 
+    GeospatialBound minXYZ = GeospatialBound.createXYZ(1.0, 2.0, 3.0);
+    GeospatialBound maxXYZ = GeospatialBound.createXYZ(3.0, 4.0, 5.0);
+    BoundingBox bboxXYZ = new BoundingBox(minXYZ, maxXYZ);
+
+    GeospatialBound minXYM = GeospatialBound.createXYM(1.0, 2.0, 3.0);
+    GeospatialBound maxXYM = GeospatialBound.createXYM(3.0, 4.0, 5.0);
+    BoundingBox bboxXYM = new BoundingBox(minXYM, maxXYM);
+
+    GeospatialBound minXYZM = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
+    GeospatialBound maxXYZM = GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0);
+    BoundingBox bboxXYZM = new BoundingBox(minXYZM, maxXYZM);
+
     return Stream.of(
         Arguments.of(
-            Expressions.stIntersects("geometry", bbox), "st_intersects(geometry, (boundingbox))"),
+            Expressions.stIntersects("geometry", bbox),
+            "st_intersects(geometry, (boundingbox-xy))",
+            "(boundingbox-xy)"),
         Arguments.of(
-            Expressions.stIntersects("geography", bbox), "st_intersects(geography, (boundingbox))"),
+            Expressions.stIntersects("geography", bbox),
+            "st_intersects(geography, (boundingbox-xy))",
+            "(boundingbox-xy)"),
         Arguments.of(
-            Expressions.stDisjoint("geometry", bbox), "st_disjoint(geometry, (boundingbox))"),
+            Expressions.stDisjoint("geometry", bbox),
+            "st_disjoint(geometry, (boundingbox-xy))",
+            "(boundingbox-xy)"),
         Arguments.of(
-            Expressions.stDisjoint("geography", bbox), "st_disjoint(geography, (boundingbox))"));
+            Expressions.stDisjoint("geography", bbox),
+            "st_disjoint(geography, (boundingbox-xy))",
+            "(boundingbox-xy)"),
+        Arguments.of(
+            Expressions.stIntersects("geometry", bboxXYZ),
+            "st_intersects(geometry, (boundingbox-xyz))",
+            "(boundingbox-xyz)"),
+        Arguments.of(
+            Expressions.stIntersects("geometry", bboxXYM),
+            "st_intersects(geometry, (boundingbox-xym))",
+            "(boundingbox-xym)"),
+        Arguments.of(
+            Expressions.stIntersects("geometry", bboxXYZM),
+            "st_intersects(geometry, (boundingbox-xyzm))",
+            "(boundingbox-xyzm)"));
   }
 
   @ParameterizedTest
   @MethodSource("geospatialPredicateParameters")
   public void testSanitizeGeospatialPredicates(
-      UnboundPredicate<ByteBuffer> geoPredicate, String expectedSanitizedString) {
+      UnboundPredicate<ByteBuffer> geoPredicate,
+      String expectedSanitizedString,
+      String expectedLiteral) {
     Expression.Operation operation = geoPredicate.op();
     String columnName = geoPredicate.term().ref().name();
 
-    Expression predicateSanitized = Expressions.predicate(operation, columnName, "(boundingbox)");
+    Expression predicateSanitized = Expressions.predicate(operation, columnName, expectedLiteral);
     assertEquals(predicateSanitized, ExpressionUtil.sanitize(geoPredicate));
     assertEquals(predicateSanitized, ExpressionUtil.sanitize(STRUCT, geoPredicate, true));
 
