@@ -215,7 +215,7 @@ The refresh state record captures the unique dependencies in the materialized vi
 **Consumer evaluation:**
 - The consumer must at least perform a coarse-grained evaluation based on `refresh-start-timestamp-ms` and `max-staleness-ms`. A materialized view is fresh if `refresh-start-timestamp-ms` is within the window `[now - max-staleness-ms, now]`.
 - The consumer may additionally compare the `source-states` list against the states loaded from the catalog. If this evaluation determines the materialized view is fresh, it overrides the coarse-grained evaluation result.
-- The consumer may parse the view definition to implement more sophisticated policy.
+- The consumer may parse the view definition to implement a more sophisticated policy.
 - When a materialized view is considered stale, the consumer can fail, refresh inline, or treat the materialized view as a logical view. The consumer must not consume from the storage table when the materialized view is stale.
 
 The refresh state has the following fields:
