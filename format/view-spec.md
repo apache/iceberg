@@ -228,7 +228,7 @@ The refresh state has the following fields:
 
 #### Source state
 
-Materialized views can reference source objects of different types, such as Iceberg tables and views. Source state records have a common field `type` that determines the form, which can be one of the following:
+Materialized views can reference source objects of different types, such as Iceberg tables, view, and materialized views. Source state records have a common field `type` that determines the form, which can be one of the following:
 
 * `table`: An Iceberg table
 * `view`: An Iceberg view
