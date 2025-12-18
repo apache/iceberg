@@ -188,6 +188,47 @@ MapType map = MapType.ofOptional(
 ListType list = ListType.ofRequired(1, IntegerType.get());
 ```
 
+## Using Version 3 Types
+
+Iceberg version 3 introduced additional types for handling semi-structured data, nanosecond precision timestamps, and geospatial features. To use these types, create tables with format version 3.
+
+**Nanosecond Timestamps:**
+
+```java
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types;
+
+Schema schema = new Schema(
+    Types.NestedField.required(1, "event_time", Types.TimestampNanoType.withoutZone()),
+    Types.NestedField.required(2, "received_time", Types.TimestampNanoType.withZone())
+);
+```
+
+**Variant (Semi-structured Data):**
+
+```java
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types;
+
+Schema schema = new Schema(
+    Types.NestedField.required(1, "event_id", Types.LongType.get()),
+    Types.NestedField.optional(2, "event_data", Types.VariantType.get())
+);
+```
+
+**Geospatial Types:**
+
+```java
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types;
+
+Schema schema = new Schema(
+    Types.NestedField.required(1, "location_id", Types.LongType.get()),
+    Types.NestedField.required(2, "point", Types.GeometryType.crs84()),
+    Types.NestedField.optional(3, "area", Types.GeographyType.crs84())
+);
+```
+
 ## Expressions
 
 Iceberg's expressions are used to configure table scans. To create expressions, use the factory methods in [`Expressions`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/expressions/Expressions.html).
