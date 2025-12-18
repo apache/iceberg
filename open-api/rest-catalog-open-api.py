@@ -138,15 +138,11 @@ class ExpressionType(BaseModel):
 
 
 class TrueExpression(BaseModel):
-    type: ExpressionType = Field(
-        default_factory=lambda: ExpressionType.parse_obj('true'), const=True
-    )
+    type: str = Field('true', const=True)
 
 
 class FalseExpression(BaseModel):
-    type: ExpressionType = Field(
-        default_factory=lambda: ExpressionType.parse_obj('false'), const=True
-    )
+    type: str = Field('false', const=True)
 
 
 class Reference(BaseModel):
@@ -354,9 +350,14 @@ class AddSnapshotUpdate(BaseUpdate):
     snapshot: Snapshot
 
 
-class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
-    action: str = Field('set-snapshot-ref', const=True)
+class SetSnapshotRefUpdate(BaseModel):
+    action: str = Field(..., const=True)
     ref_name: str = Field(..., alias='ref-name')
+    type: Literal['tag', 'branch']
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    max_ref_age_ms: Optional[int] = Field(None, alias='max-ref-age-ms')
+    max_snapshot_age_ms: Optional[int] = Field(None, alias='max-snapshot-age-ms')
+    min_snapshots_to_keep: Optional[int] = Field(None, alias='min-snapshots-to-keep')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
@@ -528,6 +529,21 @@ class LoadCredentialsResponse(BaseModel):
     storage_credentials: List[StorageCredential] = Field(
         ..., alias='storage-credentials'
     )
+
+
+class AsyncPlanningResult(BaseModel):
+    status: Literal['submitted'] = Field(..., const=True)
+    plan_id: str = Field(
+        ..., alias='plan-id', description='ID used to track a planning request'
+    )
+
+
+class EmptyPlanningResult(BaseModel):
+    """
+    Empty server-side planning result
+    """
+
+    status: Literal['cancelled']
 
 
 class PlanStatus(BaseModel):
@@ -946,6 +962,27 @@ class PlanTask(BaseModel):
     )
 
 
+class ResidualFilter1(BaseModel):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter2(TrueExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter3(FalseExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: Optional[Dict[str, str]] = Field(
@@ -983,21 +1020,6 @@ class FailedPlanningResult(IcebergErrorResponse):
     """
 
     status: Literal['failed'] = Field(..., const=True)
-
-
-class AsyncPlanningResult(BaseModel):
-    status: Literal['submitted'] = Field(..., const=True)
-    plan_id: str = Field(
-        ..., alias='plan-id', description='ID used to track a planning request'
-    )
-
-
-class EmptyPlanningResult(BaseModel):
-    """
-    Empty server-side planning result
-    """
-
-    status: Literal['cancelled']
 
 
 class ReportMetricsRequest2(CommitReport):
@@ -1083,20 +1105,43 @@ class SetStatisticsUpdate(BaseUpdate):
 
 
 class UnaryExpression(BaseModel):
-    type: ExpressionType
+    type: Literal['is-null', 'not-null', 'is-nan', 'not-nan']
     term: Term
 
 
 class LiteralExpression(BaseModel):
-    type: ExpressionType
+    type: Literal[
+        'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
+    ]
     term: Term
     value: PrimitiveTypeValue
 
 
 class SetExpression(BaseModel):
-    type: ExpressionType
+    type: Literal['in', 'not-in']
     term: Term
     values: List[PrimitiveTypeValue]
+
+
+class ResidualFilter6(SetExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter7(LiteralExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter8(UnaryExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
 
 
 class StructField(BaseModel):
@@ -1147,15 +1192,13 @@ class Expression(BaseModel):
 
 
 class AndOrExpression(BaseModel):
-    type: ExpressionType
+    type: Literal['and', 'or']
     left: Expression
     right: Expression
 
 
 class NotExpression(BaseModel):
-    type: ExpressionType = Field(
-        default_factory=lambda: ExpressionType.parse_obj('not'), const=True
-    )
+    type: str = Field('not', const=True)
     child: Expression
 
 
@@ -1351,7 +1394,18 @@ class CommitTableRequest(BaseModel):
         None,
         description='Table identifier to update; must be present for CommitTransactionRequest',
     )
-    requirements: List[TableRequirement]
+    requirements: List[
+        Union[
+            AssertCreate,
+            AssertTableUUID,
+            AssertRefSnapshotId,
+            AssertLastAssignedFieldId,
+            AssertCurrentSchemaId,
+            AssertLastAssignedPartitionId,
+            AssertDefaultSpecId,
+            AssertDefaultSortOrderId,
+        ]
+    ]
     updates: List[TableUpdate]
 
 
@@ -1476,6 +1530,26 @@ class PlanTableScanRequest(BaseModel):
     )
 
 
+class ResidualFilter(BaseModel):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+    __root__: Union[
+        ResidualFilter2,
+        ResidualFilter3,
+        ResidualFilter4,
+        ResidualFilter5,
+        ResidualFilter6,
+        ResidualFilter7,
+        ResidualFilter8,
+    ] = Field(
+        ...,
+        description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
+    )
+
+
 class FileScanTask(BaseModel):
     data_file: DataFile = Field(..., alias='data-file')
     delete_file_references: Optional[List[int]] = Field(
@@ -1483,7 +1557,7 @@ class FileScanTask(BaseModel):
         alias='delete-file-references',
         description='A list of indices in the delete files array (0-based)',
     )
-    residual_filter: Optional[Expression] = Field(
+    residual_filter: Optional[ResidualFilter] = Field(
         None,
         alias='residual-filter',
         description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
@@ -1495,6 +1569,20 @@ class Schema(StructType):
     identifier_field_ids: Optional[List[int]] = Field(
         None, alias='identifier-field-ids'
     )
+
+
+class ResidualFilter4(AndOrExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
+
+
+class ResidualFilter5(NotExpression, ResidualFilter1):
+    """
+    An optional filter to be applied to rows in this file scan task.
+    If the residual is not present, the client must produce the residual or use the original filter.
+    """
 
 
 class CompletedPlanningResult(ScanTasks):
@@ -1540,6 +1628,7 @@ PlanTableScanResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
+ResidualFilter.update_forward_refs()
 CompletedPlanningResult.update_forward_refs()
 FetchScanTasksResult.update_forward_refs()
 CompletedPlanningWithIDResult.update_forward_refs()

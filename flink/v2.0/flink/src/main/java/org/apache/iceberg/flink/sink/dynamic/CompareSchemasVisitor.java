@@ -43,20 +43,23 @@ public class CompareSchemasVisitor
     extends SchemaWithPartnerVisitor<Integer, CompareSchemasVisitor.Result> {
 
   private final Schema tableSchema;
+  private final boolean dropUnusedColumns;
 
-  private CompareSchemasVisitor(Schema tableSchema) {
+  private CompareSchemasVisitor(Schema tableSchema, boolean dropUnusedColumns) {
     this.tableSchema = tableSchema;
+    this.dropUnusedColumns = dropUnusedColumns;
   }
 
   public static Result visit(Schema dataSchema, Schema tableSchema) {
-    return visit(dataSchema, tableSchema, true);
+    return visit(dataSchema, tableSchema, true, false);
   }
 
-  public static Result visit(Schema dataSchema, Schema tableSchema, boolean caseSensitive) {
+  public static Result visit(
+      Schema dataSchema, Schema tableSchema, boolean caseSensitive, boolean dropUnusedColumns) {
     return visit(
         dataSchema,
         -1,
-        new CompareSchemasVisitor(tableSchema),
+        new CompareSchemasVisitor(tableSchema, dropUnusedColumns),
         new PartnerIdByNameAccessors(tableSchema, caseSensitive));
   }
 
@@ -70,6 +73,7 @@ public class CompareSchemasVisitor
   }
 
   @Override
+  @SuppressWarnings("CyclomaticComplexity")
   public Result struct(Types.StructType struct, Integer tableSchemaId, List<Result> fields) {
     if (tableSchemaId == null) {
       return Result.SCHEMA_UPDATE_NEEDED;
@@ -88,10 +92,10 @@ public class CompareSchemasVisitor
     }
 
     for (Types.NestedField tableField : tableSchemaType.asStructType().fields()) {
-      if (tableField.isRequired() && struct.field(tableField.name()) == null) {
+      if (struct.field(tableField.name()) == null
+          && (tableField.isRequired() || dropUnusedColumns)) {
         // If a field from the table schema does not exist in the input schema, then we won't visit
-        // it and check for required/optional compatibility. The only choice is to make the table
-        // field optional.
+        // it. The only choice is to make the table field optional or drop it.
         return Result.SCHEMA_UPDATE_NEEDED;
       }
     }

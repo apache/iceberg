@@ -53,17 +53,22 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     catalog.createTable(tableIdentifier, SCHEMA);
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
 
-    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    Schema schema1 = cache.schema(tableIdentifier, SCHEMA, false).resolvedTableSchema();
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
     assertThat(
-            cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).resolvedTableSchema())
+            cache
+                .schema(tableIdentifier, SerializationUtils.clone(SCHEMA), false)
+                .resolvedTableSchema())
         .isEqualTo(schema1);
 
-    assertThat(cache.schema(tableIdentifier, SCHEMA2)).isEqualTo(TableMetadataCache.NOT_FOUND);
+    assertThat(cache.schema(tableIdentifier, SCHEMA2, false))
+        .isEqualTo(TableMetadataCache.NOT_FOUND);
 
-    schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    schema1 = cache.schema(tableIdentifier, SCHEMA, false).resolvedTableSchema();
     assertThat(
-            cache.schema(tableIdentifier, SerializationUtils.clone(SCHEMA)).resolvedTableSchema())
+            cache
+                .schema(tableIdentifier, SerializationUtils.clone(SCHEMA), false)
+                .resolvedTableSchema())
         .isEqualTo(schema1);
   }
 
@@ -73,9 +78,9 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
     catalog.createTable(tableIdentifier, SCHEMA);
     TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
-    TableUpdater tableUpdater = new TableUpdater(cache, catalog);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
-    Schema schema1 = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    Schema schema1 = cache.schema(tableIdentifier, SCHEMA, false).resolvedTableSchema();
     assertThat(schema1.sameSchema(SCHEMA)).isTrue();
 
     catalog.dropTable(tableIdentifier);
@@ -83,7 +88,7 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     tableUpdater.update(
         tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
 
-    Schema schema2 = cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema();
+    Schema schema2 = cache.schema(tableIdentifier, SCHEMA2, false).resolvedTableSchema();
     assertThat(schema2.sameSchema(SCHEMA2)).isTrue();
   }
 
@@ -111,11 +116,11 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     cache.update(tableIdentifier, table);
 
     // Cache schema
-    Schema schema = cache.schema(tableIdentifier, SCHEMA2).resolvedTableSchema();
+    Schema schema = cache.schema(tableIdentifier, SCHEMA2, false).resolvedTableSchema();
     assertThat(schema.sameSchema(SCHEMA2)).isTrue();
 
     // Cache schema with fewer fields
-    TableMetadataCache.ResolvedSchemaInfo schemaInfo = cache.schema(tableIdentifier, SCHEMA);
+    TableMetadataCache.ResolvedSchemaInfo schemaInfo = cache.schema(tableIdentifier, SCHEMA, false);
     assertThat(schemaInfo.resolvedTableSchema().sameSchema(SCHEMA2)).isTrue();
     assertThat(schemaInfo.compareResult())
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
@@ -124,5 +129,29 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     TableMetadataCache.CacheItem cacheItem = cache.getInternalCache().get(tableIdentifier);
     assertThat(cacheItem).isNotNull();
     assertThat(cacheItem.inputSchemas()).containsKeys(SCHEMA, SCHEMA2);
+  }
+
+  @Test
+  void testNoSuchNamespaceExceptionHandling() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.of("nonexistent_namespace", "myTable");
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+
+    TableMetadataCache.ResolvedSchemaInfo result = cache.schema(tableIdentifier, SCHEMA, false);
+
+    assertThat(result).isEqualTo(TableMetadataCache.NOT_FOUND);
+    assertThat(cache.getInternalCache().get(tableIdentifier)).isNotNull();
+  }
+
+  @Test
+  void testNoSuchTableExceptionHandling() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.nonexistent_table");
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+
+    TableMetadataCache.ResolvedSchemaInfo result = cache.schema(tableIdentifier, SCHEMA, false);
+
+    assertThat(result).isEqualTo(TableMetadataCache.NOT_FOUND);
+    assertThat(cache.getInternalCache().get(tableIdentifier)).isNotNull();
   }
 }

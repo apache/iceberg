@@ -700,11 +700,6 @@ public class CatalogHandlers {
             .withPlanStatus(PlanStatus.COMPLETED)
             .withPlanId(planId)
             .withFileScanTasks(initial.first())
-            .withDeleteFiles(
-                initial.first().stream()
-                    .flatMap(task -> task.deletes().stream())
-                    .distinct()
-                    .collect(Collectors.toList()))
             .withSpecsById(table.specs());
 
     if (!nextPlanTasks.isEmpty()) {
@@ -733,11 +728,6 @@ public class CatalogHandlers {
     Pair<List<FileScanTask>, String> initial = IN_MEMORY_PLANNING_STATE.initialScanTasksFor(planId);
     return FetchPlanningResultResponse.builder()
         .withPlanStatus(PlanStatus.COMPLETED)
-        .withDeleteFiles(
-            initial.first().stream()
-                .flatMap(task -> task.deletes().stream())
-                .distinct()
-                .collect(Collectors.toList()))
         .withFileScanTasks(initial.first())
         .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(initial.second()))
         .withSpecsById(table.specs())
@@ -762,11 +752,6 @@ public class CatalogHandlers {
         .withFileScanTasks(fileScanTasks)
         .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(planTask))
         .withSpecsById(table.specs())
-        .withDeleteFiles(
-            fileScanTasks.stream()
-                .flatMap(task -> task.deletes().stream())
-                .distinct()
-                .collect(Collectors.toList()))
         .build();
   }
 

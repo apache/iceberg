@@ -177,12 +177,11 @@ public class TestBigQueryTableOperations {
     org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
 
     when(client.update(any(), any()))
-        .thenThrow(new ValidationException("error message etag mismatch"));
+        .thenThrow(new CommitFailedException("error message etag mismatch"));
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining(
-            "Updating table failed due to conflict updates (etag mismatch). Retry the update");
+        .hasMessage("error message etag mismatch");
   }
 
   @Test

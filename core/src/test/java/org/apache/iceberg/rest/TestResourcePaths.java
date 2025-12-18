@@ -24,6 +24,8 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestResourcePaths {
   private final String prefix = "ws/catalog";
@@ -62,6 +64,91 @@ public class TestResourcePaths {
     Namespace ns = Namespace.of("n", "s");
     assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs");
     assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%1Fs");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2D", "%2E"})
+  public void testNamespaceWithMultipartNamespace(String namespaceSeparator) {
+    Namespace ns = Namespace.of("n", "s");
+    String namespace = String.format("n%ss", namespaceSeparator);
+    assertThat(
+            ResourcePaths.forCatalogProperties(
+                    ImmutableMap.of(
+                        "prefix",
+                        prefix,
+                        RESTCatalogProperties.NAMESPACE_SEPARATOR,
+                        namespaceSeparator))
+                .namespace(ns))
+        .isEqualTo("v1/ws/catalog/namespaces/" + namespace);
+
+    assertThat(
+            ResourcePaths.forCatalogProperties(
+                    ImmutableMap.of(RESTCatalogProperties.NAMESPACE_SEPARATOR, namespaceSeparator))
+                .namespace(ns))
+        .isEqualTo("v1/namespaces/" + namespace);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2D", "%2E"})
+  public void testNamespaceWithDot(String namespaceSeparator) {
+    Namespace ns = Namespace.of("n.s", "a.b");
+    String namespace = String.format("n.s%sa.b", namespaceSeparator);
+    assertThat(
+            ResourcePaths.forCatalogProperties(
+                    ImmutableMap.of(
+                        "prefix",
+                        prefix,
+                        RESTCatalogProperties.NAMESPACE_SEPARATOR,
+                        namespaceSeparator))
+                .namespace(ns))
+        .isEqualTo("v1/ws/catalog/namespaces/" + namespace);
+
+    assertThat(
+            ResourcePaths.forCatalogProperties(
+                    ImmutableMap.of(RESTCatalogProperties.NAMESPACE_SEPARATOR, namespaceSeparator))
+                .namespace(ns))
+        .isEqualTo("v1/namespaces/" + namespace);
+  }
+
+  @Test
+  public void nestedNamespaceWithLegacySeparator() {
+    Namespace namespace = Namespace.of("first", "second", "third");
+    String legacySeparator = RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+    String newSeparator = RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    // legacy separator is always used by default, so no need to configure it
+    ResourcePaths pathsWithLegacySeparator = ResourcePaths.forCatalogProperties(ImmutableMap.of());
+
+    // Encode namespace using legacy separator. No need to provide the separator to encodeNamespace
+    String legacyEncodedNamespace = RESTUtil.encodeNamespace(namespace);
+    assertThat(pathsWithLegacySeparator.namespace(namespace))
+        .contains(legacyEncodedNamespace)
+        .contains(legacySeparator);
+
+    // Decode the namespace containing legacy separator without providing the separator
+    assertThat(RESTUtil.decodeNamespace(legacyEncodedNamespace)).isEqualTo(namespace);
+
+    // Decode the namespace containing legacy separator with providing the new separator
+    assertThat(RESTUtil.decodeNamespace(legacyEncodedNamespace, newSeparator)).isEqualTo(namespace);
+  }
+
+  @Test
+  public void nestedNamespaceWithNewSeparator() {
+    Namespace namespace = Namespace.of("first", "second", "third");
+    String newSeparator = RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    ResourcePaths pathsWithNewSeparator =
+        ResourcePaths.forCatalogProperties(
+            ImmutableMap.of(RESTCatalogProperties.NAMESPACE_SEPARATOR, newSeparator));
+
+    // Encode namespace using new separator
+    String newEncodedSeparator = RESTUtil.encodeNamespace(namespace, newSeparator);
+    assertThat(pathsWithNewSeparator.namespace(namespace))
+        .contains(newEncodedSeparator)
+        .contains(newSeparator);
+
+    // Decode the namespace containing new separator with explicitly providing the separator
+    assertThat(RESTUtil.decodeNamespace(newEncodedSeparator, newSeparator)).isEqualTo(namespace);
   }
 
   @Test
@@ -178,5 +265,68 @@ public class TestResourcePaths {
     TableIdentifier ident = TableIdentifier.of("n", "s", "view-name");
     assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views/view-name");
     assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/n%1Fs/views/view-name");
+  }
+
+  @Test
+  public void planEndpointPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+
+    assertThat(withPrefix.planTableScan(tableId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/plan");
+    assertThat(withoutPrefix.planTableScan(tableId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    assertThat(withPrefix.planTableScan(complexId))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/plan");
+    assertThat(withoutPrefix.planTableScan(complexId))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/plan");
+  }
+
+  @Test
+  public void fetchScanTasksPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+
+    assertThat(withPrefix.fetchScanTasks(tableId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/tasks");
+    assertThat(withoutPrefix.fetchScanTasks(tableId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/tasks");
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    assertThat(withPrefix.fetchScanTasks(complexId))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/tasks");
+    assertThat(withoutPrefix.fetchScanTasks(complexId))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/tasks");
+  }
+
+  @Test
+  public void cancelPlanEndpointPath() {
+    TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
+    String planId = "plan-abc-123";
+
+    assertThat(withPrefix.plan(tableId, planId))
+        .isEqualTo("v1/ws/catalog/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
+    assertThat(withoutPrefix.plan(tableId, planId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
+
+    // The planId contains a space which needs to be encoded
+    String spaceSeperatedPlanId = "plan with spaces";
+    // The expected encoded version of the planId
+    String encodedPlanId = "plan+with+spaces";
+
+    assertThat(withPrefix.plan(tableId, spaceSeperatedPlanId))
+        .isEqualTo(
+            "v1/ws/catalog/namespaces/test_namespace/tables/test_table/plan/" + encodedPlanId);
+    assertThat(withoutPrefix.plan(tableId, spaceSeperatedPlanId))
+        .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/" + encodedPlanId);
+
+    // Test with different identifiers
+    TableIdentifier complexId = TableIdentifier.of(Namespace.of("db", "schema"), "my_table");
+    assertThat(withPrefix.plan(complexId, "plan-xyz-789"))
+        .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/plan/plan-xyz-789");
+    assertThat(withoutPrefix.plan(complexId, "plan-xyz-789"))
+        .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/plan/plan-xyz-789");
   }
 }

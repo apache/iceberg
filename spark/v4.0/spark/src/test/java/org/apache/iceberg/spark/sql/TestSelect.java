@@ -21,7 +21,9 @@ package org.apache.iceberg.spark.sql;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
@@ -35,6 +37,7 @@ import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
@@ -642,5 +645,71 @@ public class TestSelect extends CatalogTestBase {
 
     assertEquals("Should return all expected rows", ImmutableList.of(row(0)), result);
     sql("DROP TABLE IF EXISTS %s", nestedStructTable);
+  }
+
+  @TestTemplate
+  public void simpleTypesInFilter() {
+    String tableName = tableName("simple_types_table");
+    sql(
+        "CREATE TABLE IF NOT EXISTS %s (id bigint, boolean boolean, integer integer, long long, "
+            + "float float, double double, string string, date date, timestamp timestamp) USING iceberg",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, true, 1, 1L, 1.1, 1.3, '1.5', to_date('2021-01-01'), to_timestamp('2021-01-01T00:00:00')), "
+            + "(2, false, 2, 2L, 2.2, 2.4, '2.6', to_date('2022-02-02'), to_timestamp('2022-02-02T00:00:00')), "
+            + "(3, true, 3, 3L, 3.3, 3.6, '3.9', to_date('2023-03-03'), to_timestamp('2023-03-03T00:00:00'))",
+        tableName);
+    assertThat(sql("SELECT id FROM %s where id > 1", tableName)).containsExactly(row(2L), row(3L));
+    assertThat(sql("SELECT id, boolean FROM %s where boolean = true", tableName))
+        .containsExactly(row(1L, true), row(3L, true));
+    assertThat(sql("SELECT long FROM %s where long > 1", tableName))
+        .containsExactly(row(2L), row(3L));
+    assertThat(sql("SELECT float FROM %s where float > 1.1f", tableName))
+        .containsExactly(row(2.2f), row(3.3f));
+    assertThat(sql("SELECT double FROM %s where double > 1.3", tableName))
+        .containsExactly(row(2.4d), row(3.6d));
+    assertThat(sql("SELECT string FROM %s where string > '1.5'", tableName))
+        .containsExactly(row("2.6"), row("3.9"));
+    java.sql.Date dateOne = java.sql.Date.valueOf("2022-02-02");
+    java.sql.Date dateTwo = java.sql.Date.valueOf("2023-03-03");
+    assertThat(sql("SELECT date FROM %s where date > to_date('2021-01-01')", tableName))
+        .containsExactly(row(dateOne), row(dateTwo));
+    assertThat(
+            sql("SELECT timestamp FROM %s where timestamp > to_timestamp('2021-01-01')", tableName))
+        .containsExactly(
+            row(new Timestamp(dateOne.getTime())), row(new Timestamp(dateTwo.getTime())));
+
+    sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @TestTemplate
+  public void variantTypeInFilter() {
+    assumeThat(validationCatalog)
+        .as("Variant is not supported in Hive catalog")
+        .isNotInstanceOf(HiveCatalog.class);
+
+    String tableName = tableName("variant_table");
+    sql(
+        "CREATE TABLE %s (id BIGINT, v1 VARIANT, v2 VARIANT) USING iceberg TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    String v1r1 = "{\"a\":5}";
+    String v1r2 = "{\"a\":10}";
+    String v2r1 = "{\"x\":15}";
+    String v2r2 = "{\"x\":20}";
+
+    sql("INSERT INTO %s SELECT 1, parse_json('%s'), parse_json('%s')", tableName, v1r1, v2r1);
+    sql("INSERT INTO %s SELECT 2, parse_json('%s'), parse_json('%s')", tableName, v1r2, v2r2);
+
+    assertThat(
+            sql(
+                "SELECT id, try_variant_get(v1, '$.a', 'int') FROM %s WHERE try_variant_get(v1, '$.a', 'int') > 5",
+                tableName))
+        .containsExactly(row(2L, 10));
+    assertThat(
+            sql(
+                "SELECT id, try_variant_get(v2, '$.x', 'int') FROM %s WHERE try_variant_get(v2, '$.x', 'int') < 100",
+                tableName))
+        .containsExactlyInAnyOrder(row(1L, 15), row(2L, 20));
   }
 }
