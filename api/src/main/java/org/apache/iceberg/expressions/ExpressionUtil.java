@@ -34,6 +34,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Literals.BoundingBoxLiteral;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
@@ -553,7 +554,8 @@ public class ExpressionUtil {
     } else if (literal instanceof Literals.VariantLiteral) {
       return sanitizeVariant(((Literals.VariantLiteral) literal).value(), now, today);
     } else if (literal instanceof BoundingBoxLiteral) {
-      return "(boundingbox)";
+      BoundingBox bbox = BoundingBox.fromByteBuffer(((BoundingBoxLiteral) literal).value());
+      return sanitizeBoundingBox(bbox);
     } else {
       // for uuid, decimal, fixed and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());
@@ -630,6 +632,20 @@ public class ExpressionUtil {
   private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
     return String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply(value));
+  }
+
+  private static String sanitizeBoundingBox(BoundingBox bbox) {
+    boolean hasZ = bbox.min().hasZ() && bbox.max().hasZ();
+    boolean hasM = bbox.min().hasM() && bbox.max().hasM();
+    if (hasZ && hasM) {
+      return "(boundingbox-xyzm)";
+    } else if (hasZ) {
+      return "(boundingbox-xyz)";
+    } else if (hasM) {
+      return "(boundingbox-xym)";
+    } else {
+      return "(boundingbox-xy)";
+    }
   }
 
   private static String sanitizeVariant(Variant value, long now, int today) {
