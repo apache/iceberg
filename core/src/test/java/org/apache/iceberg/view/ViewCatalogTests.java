@@ -1975,89 +1975,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
-  public void registerView() {
-    C catalog = catalog();
-
-    // Register view is not yet supported for REST catalog
-    assumeThat(catalog instanceof RESTCatalog).isFalse();
-
-    TableIdentifier identifier = TableIdentifier.of("ns", "view");
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(identifier.namespace());
-    }
-
-    View originalView =
-        catalog()
-            .buildView(identifier)
-            .withSchema(SCHEMA)
-            .withDefaultNamespace(identifier.namespace())
-            .withDefaultCatalog(catalog().name())
-            .withQuery("spark", "select * from ns.tbl")
-            .withProperty(GC_ENABLED, "false")
-            .create();
-
-    ViewOperations ops = ((BaseView) originalView).operations();
-    String metadataLocation = ops.current().metadataFileLocation();
-
-    assertThat(catalog.dropView(identifier)).isTrue();
-    assertThat(catalog.viewExists(identifier)).as("View must not exist").isFalse();
-
-    // view metadata should still exist after dropping the view as gc is disabled
-    assertThat(((BaseViewOperations) ops).io().newInputFile(metadataLocation).exists()).isTrue();
-
-    View registeredView = catalog.registerView(identifier, metadataLocation);
-
-    assertThat(registeredView).isNotNull();
-    assertThat(catalog.viewExists(identifier)).as("View must exist").isTrue();
-    assertThat(registeredView.schema().asStruct())
-        .as("Schema must match")
-        .isEqualTo(originalView.schema().asStruct());
-    assertThat(registeredView.currentVersion())
-        .as("Current version must match")
-        .isEqualTo(originalView.currentVersion());
-    assertThat(registeredView.versions())
-        .as("versions must match")
-        .isEqualTo(originalView.versions());
-    assertThat(registeredView.history()).as("History must match").isEqualTo(originalView.history());
-
-    assertThat(catalog.loadView(identifier)).isNotNull();
-    assertThat(catalog.dropView(identifier)).isTrue();
-    assertThat(catalog.viewExists(identifier)).isFalse();
-  }
-
-  @Test
-  public void registerExistingView() {
-    C catalog = catalog();
-
-    // Register view is not yet supported for REST catalog
-    assumeThat(catalog instanceof RESTCatalog).isFalse();
-
-    TableIdentifier identifier = TableIdentifier.of("ns", "view");
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(identifier.namespace());
-    }
-
-    View view =
-        catalog()
-            .buildView(identifier)
-            .withSchema(SCHEMA)
-            .withDefaultNamespace(identifier.namespace())
-            .withDefaultCatalog(catalog().name())
-            .withQuery("spark", "select * from ns.tbl")
-            .create();
-
-    ViewOperations ops = ((BaseView) view).operations();
-    String metadataLocation = ops.current().metadataFileLocation();
-
-    assertThatThrownBy(() -> catalog.registerView(identifier, metadataLocation))
-        .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageStartingWith("View already exists: ns.view");
-    assertThat(catalog.dropView(identifier)).isTrue();
-  }
-
-  @Test
   public void registerTableThatAlreadyExistsAsView() {
     TableIdentifier identifier = TableIdentifier.of("ns", "tbl");
 
@@ -2090,5 +2007,146 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(tableCatalog().tableExists(identifier)).as("Table should not exist").isFalse();
     assertThat(catalog().dropView(identifier)).isTrue();
+  }
+
+  @Test
+  public void registerView() {
+    C catalog = catalog();
+
+    // Register view is not yet supported for REST catalog
+    assumeThat(catalog).isNotInstanceOf(RESTCatalog.class);
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    View originalView =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .withProperty(GC_ENABLED, "false")
+            .create();
+
+    ViewOperations ops = ((BaseView) originalView).operations();
+    String metadataLocation = ops.current().metadataFileLocation();
+
+    assertThat(catalog.dropView(identifier)).isTrue();
+    assertThat(catalog.viewExists(identifier)).as("View must not exist").isFalse();
+
+    // view metadata should still exist after dropping the view as gc is disabled
+    assertThat(((BaseViewOperations) ops).io().newInputFile(metadataLocation).exists()).isTrue();
+
+    View registeredView = catalog.registerView(identifier, metadataLocation);
+
+    assertThat(registeredView).isNotNull();
+    assertThat(catalog.viewExists(identifier)).as("View must exist").isTrue();
+    assertThat(registeredView.name())
+        .isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
+    assertThat(registeredView.history())
+        .hasSize(1)
+        .first()
+        .extracting(ViewHistoryEntry::versionId)
+        .isEqualTo(1);
+    assertThat(registeredView.schemas()).hasSize(1).containsKey(0);
+    assertThat(registeredView.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
+    assertThat(registeredView.currentVersion().operation()).isEqualTo("create");
+    assertThat(registeredView.versions())
+        .hasSize(1)
+        .containsExactly(registeredView.currentVersion());
+    assertThat(registeredView.versions()).isEqualTo(originalView.versions());
+    assertThat(registeredView.currentVersion())
+        .isEqualTo(
+            ImmutableViewVersion.builder()
+                .timestampMillis(registeredView.currentVersion().timestampMillis())
+                .versionId(1)
+                .schemaId(0)
+                .summary(registeredView.currentVersion().summary())
+                .defaultNamespace(identifier.namespace())
+                .defaultCatalog(catalog().name())
+                .addRepresentations(
+                    ImmutableSQLViewRepresentation.builder()
+                        .sql("select * from ns.tbl")
+                        .dialect("spark")
+                        .build())
+                .build());
+
+    assertThat(catalog.loadView(identifier)).isNotNull();
+    assertThat(catalog.dropView(identifier)).isTrue();
+    assertThat(catalog.viewExists(identifier)).isFalse();
+  }
+
+  @Test
+  public void registerExistingView() {
+    C catalog = catalog();
+
+    // Register view is not yet supported for REST catalog
+    assumeThat(catalog).isNotInstanceOf(RESTCatalog.class);
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
+
+    ViewOperations ops = ((BaseView) view).operations();
+    String metadataLocation = ops.current().metadataFileLocation();
+
+    assertThatThrownBy(() -> catalog.registerView(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("View already exists: ns.view");
+    assertThat(catalog.dropView(identifier)).isTrue();
+  }
+
+  @Test
+  public void registerViewWithExistingTable() {
+    C catalog = catalog();
+
+    // Register view is not yet supported for REST catalog
+    assumeThat(catalog).isNotInstanceOf(RESTCatalog.class);
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    // create a table with the same name as the view
+    tableCatalog().createTable(identifier, SCHEMA);
+
+    ViewBuilder viewBuilder =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl");
+
+    assertThatThrownBy(viewBuilder::create)
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("Table with same name already exists: ns.view");
+
+    Table table = tableCatalog().loadTable(identifier);
+    TableOperations ops = ((BaseTable) table).operations();
+    String metadataLocation = ops.current().metadataFileLocation();
+
+    assertThatThrownBy(() -> catalog.registerView(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("Table with same name already exists: ns.view");
+
+    assertThat(tableCatalog().dropTable(identifier)).isTrue();
   }
 }

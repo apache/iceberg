@@ -312,11 +312,15 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       throw new AlreadyExistsException("View already exists: %s", identifier);
     }
 
+    if (tableExists(identifier)) {
+      throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
+    }
+
     ViewOperations ops = newViewOps(identifier);
     InputFile metadataFile = ((BaseViewOperations) ops).io().newInputFile(metadataFileLocation);
     ViewMetadata metadata = ViewMetadataParser.read(metadataFile);
     ops.commit(null, metadata);
 
-    return new BaseView(ops, fullTableName(name(), identifier));
+    return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
   }
 }
