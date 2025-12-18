@@ -521,8 +521,7 @@ public class TestExpressionBinding {
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
     BoundingBox bbox = new BoundingBox(min, max);
 
-    Expression expr =
-        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "point", bbox);
+    Expression expr = Expressions.stIntersects("point", bbox);
     Expression bound = Binder.bind(STRUCT, expr);
 
     TestHelpers.assertAllReferencesBound("ST_Intersects", bound);
@@ -539,8 +538,7 @@ public class TestExpressionBinding {
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
     BoundingBox bbox = new BoundingBox(min, max);
 
-    Expression expr =
-        Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geography", bbox);
+    Expression expr = Expressions.stDisjoint("geography", bbox);
     Expression bound = Binder.bind(STRUCT, expr);
 
     TestHelpers.assertAllReferencesBound("ST_Disjoint", bound);

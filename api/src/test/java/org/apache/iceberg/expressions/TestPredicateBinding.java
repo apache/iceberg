@@ -656,8 +656,8 @@ public class TestPredicateBinding {
   public void testGeospatialPredicateBinding() {
     StructType struct =
         StructType.of(
-            required(20, "geom", Types.GeometryType.crs84()),
-            required(21, "geog", Types.GeographyType.crs84()));
+            required(20, "geometry", Types.GeometryType.crs84()),
+            required(21, "geography", Types.GeographyType.crs84()));
 
     // Create a bounding box for testing
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
@@ -665,8 +665,7 @@ public class TestPredicateBinding {
     BoundingBox bbox = new BoundingBox(min, max);
 
     // Test ST_INTERSECTS with geometry
-    UnboundPredicate<ByteBuffer> stIntersectsGeom =
-        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geom", bbox);
+    UnboundPredicate<ByteBuffer> stIntersectsGeom = Expressions.stIntersects("geometry", bbox);
     Expression expr = stIntersectsGeom.bind(struct);
     BoundPredicate<ByteBuffer> bound = assertAndUnwrap(expr);
     assertThat(bound.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
@@ -674,8 +673,7 @@ public class TestPredicateBinding {
     assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
 
     // Test ST_DISJOINT with geometry
-    UnboundPredicate<ByteBuffer> stDisjointGeom =
-        Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geom", bbox);
+    UnboundPredicate<ByteBuffer> stDisjointGeom = Expressions.stDisjoint("geometry", bbox);
     expr = stDisjointGeom.bind(struct);
     bound = assertAndUnwrap(expr);
     assertThat(bound.op()).isEqualTo(Expression.Operation.ST_DISJOINT);
@@ -683,8 +681,7 @@ public class TestPredicateBinding {
     assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
 
     // Test ST_INTERSECTS with geography
-    UnboundPredicate<ByteBuffer> stIntersectsGeog =
-        Expressions.geospatialPredicate(Expression.Operation.ST_INTERSECTS, "geog", bbox);
+    UnboundPredicate<ByteBuffer> stIntersectsGeog = Expressions.stIntersects("geography", bbox);
     expr = stIntersectsGeog.bind(struct);
     bound = assertAndUnwrap(expr);
     assertThat(bound.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
@@ -692,8 +689,7 @@ public class TestPredicateBinding {
     assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
 
     // Test ST_DISJOINT with geography
-    UnboundPredicate<ByteBuffer> stDisjointGeog =
-        Expressions.geospatialPredicate(Expression.Operation.ST_DISJOINT, "geog", bbox);
+    UnboundPredicate<ByteBuffer> stDisjointGeog = Expressions.stDisjoint("geography", bbox);
     expr = stDisjointGeog.bind(struct);
     bound = assertAndUnwrap(expr);
     assertThat(bound.op()).isEqualTo(Expression.Operation.ST_DISJOINT);

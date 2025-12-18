@@ -434,7 +434,14 @@ public class ExpressionParser {
     Preconditions.checkArgument(
         !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
     BoundingBox boundingBox = geospatialBoundingBox(JsonUtil.get(VALUE, node));
-    return Expressions.geospatialPredicate(op, term, boundingBox);
+    switch (op) {
+      case ST_INTERSECTS:
+        return Expressions.stIntersects(term, boundingBox);
+      case ST_DISJOINT:
+        return Expressions.stDisjoint(term, boundingBox);
+      default:
+        throw new UnsupportedOperationException("Unsupported geospatial operation: " + op);
+    }
   }
 
   private static <T> T literal(JsonNode valueNode, Function<JsonNode, T> toValue) {

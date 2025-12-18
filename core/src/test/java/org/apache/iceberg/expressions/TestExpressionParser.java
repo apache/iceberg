@@ -54,8 +54,8 @@ public class TestExpressionParser {
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
           required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
           required(117, "time", Types.TimeType.get()),
-          required(118, "geom", Types.GeometryType.crs84()),
-          required(119, "geog", Types.GeographyType.crs84()));
+          required(118, "geometry", Types.GeometryType.crs84()),
+          required(119, "geography", Types.GeographyType.crs84()));
   private static final Schema SCHEMA = new Schema(SUPPORTED_PRIMITIVES.fields());
 
   @Test
@@ -100,18 +100,18 @@ public class TestExpressionParser {
               Expressions.equal("date", "2022-08-14")),
           Expressions.not(Expressions.in("l", 1, 2, 3, 4)),
           Expressions.stIntersects(
-              "geom",
+              "geometry",
               new BoundingBox(GeospatialBound.createXY(1, 2), GeospatialBound.createXY(3, 4))),
           Expressions.stDisjoint(
-              "geom",
+              "geometry",
               new BoundingBox(
                   GeospatialBound.createXYM(1, 2, 3), GeospatialBound.createXYM(3, 4, 5))),
           Expressions.stIntersects(
-              "geog",
+              "geography",
               new BoundingBox(
                   GeospatialBound.createXYZ(1, 2, 3), GeospatialBound.createXYZ(3, 4, 5))),
           Expressions.stDisjoint(
-              "geog",
+              "geography",
               new BoundingBox(
                   GeospatialBound.createXYZM(1, 2, 3, 4), GeospatialBound.createXYZM(3, 4, 5, 6)))
         };
