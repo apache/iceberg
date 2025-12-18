@@ -55,10 +55,4 @@ public class TestRemoteScanPlanning extends TestSelect {
   public void testBinaryInFilter() {
     super.testBinaryInFilter();
   }
-
-  @TestTemplate
-  @Disabled("Metadata tables are currently not supported")
-  public void testMetadataTables() {
-    super.testMetadataTables();
-  }
 }
