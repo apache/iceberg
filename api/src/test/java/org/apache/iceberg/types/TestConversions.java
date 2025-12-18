@@ -47,7 +47,6 @@ import org.junit.jupiter.api.Test;
 public class TestConversions {
 
   @Test
-  @SuppressWarnings("MethodLength")
   public void testByteBufferConversions() {
     // booleans are stored as 0x00 for 'false' and a non-zero byte for 'true'
     assertConversion(false, BooleanType.get(), new byte[] {0x00});
@@ -192,7 +191,10 @@ public class TestConversions {
     assertConversion(new BigDecimal("0.011"), DecimalType.of(10, 3), new byte[] {11});
     assertThat(Literal.of(new BigDecimal("0.011")).toByteBuffer().array())
         .isEqualTo(new byte[] {11});
+  }
 
+  @Test
+  public void testGeospatialByteBufferConversions() {
     // geospatial values were kept as-is
     // this is the WKB representation of POINT (2 3)
     byte[] wkb = new byte[] {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 8, 64};

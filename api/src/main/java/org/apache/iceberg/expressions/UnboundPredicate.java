@@ -18,12 +18,10 @@
  */
 package org.apache.iceberg.expressions;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -290,10 +288,8 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       case ST_INTERSECTS:
       case ST_DISJOINT:
         {
-          ByteBuffer serializedBoundingBox = (ByteBuffer) literal().value();
-          BoundingBox boundingBox = BoundingBox.fromByteBuffer(serializedBoundingBox);
           String functionName = op().name().toLowerCase(Locale.ROOT);
-          return functionName + "(" + term() + ", " + boundingBox + ")";
+          return functionName + "(" + term() + ", " + literal() + ")";
         }
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";

@@ -795,7 +795,7 @@ class Literals {
 
     @Override
     public String toString() {
-      return String.valueOf(value());
+      return BoundingBox.fromByteBuffer(value()).toString();
     }
 
     @Override

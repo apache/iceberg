@@ -30,7 +30,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -69,7 +68,9 @@ public class TestExpressionUtil {
           Types.NestedField.optional(8, "data", Types.StringType.get()),
           Types.NestedField.optional(9, "measurement", Types.DoubleType.get()),
           Types.NestedField.optional(10, "test", Types.IntegerType.get()),
-          Types.NestedField.required(11, "var", Types.VariantType.get()));
+          Types.NestedField.required(11, "var", Types.VariantType.get()),
+          Types.NestedField.required(12, "geometry", Types.GeometryType.crs84()),
+          Types.NestedField.required(13, "geography", Types.GeographyType.crs84()));
 
   private static final Types.StructType STRUCT = SCHEMA.asStruct();
 
@@ -1342,43 +1343,37 @@ public class TestExpressionUtil {
   }
 
   private static Stream<Arguments> geospatialPredicateParameters() {
-    return Stream.of(
-        Arguments.of(Expression.Operation.ST_INTERSECTS, "geom"),
-        Arguments.of(Expression.Operation.ST_INTERSECTS, "geog"),
-        Arguments.of(Expression.Operation.ST_DISJOINT, "geom"),
-        Arguments.of(Expression.Operation.ST_DISJOINT, "geog"));
-  }
-
-  @ParameterizedTest
-  @MethodSource("geospatialPredicateParameters")
-  public void testSanitizeGeospatialPredicates(Expression.Operation operation, String columnName) {
-    // Create a schema with geometry and geography fields
-    Schema geoSchema =
-        new Schema(
-            Types.NestedField.required(1, "geom", Types.GeometryType.crs84()),
-            Types.NestedField.required(2, "geog", Types.GeographyType.crs84()));
-    Types.StructType geoStruct = geoSchema.asStruct();
-
-    // Create a bounding box for testing
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
     BoundingBox bbox = new BoundingBox(min, max);
 
-    UnboundPredicate<ByteBuffer> geoPredicate =
-        Expressions.geospatialPredicate(operation, columnName, bbox);
+    return Stream.of(
+        Arguments.of(
+            Expressions.stIntersects("geometry", bbox), "st_intersects(geometry, (boundingbox))"),
+        Arguments.of(
+            Expressions.stIntersects("geography", bbox), "st_intersects(geography, (boundingbox))"),
+        Arguments.of(
+            Expressions.stDisjoint("geometry", bbox), "st_disjoint(geometry, (boundingbox))"),
+        Arguments.of(
+            Expressions.stDisjoint("geography", bbox), "st_disjoint(geography, (boundingbox))"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("geospatialPredicateParameters")
+  public void testSanitizeGeospatialPredicates(
+      UnboundPredicate<ByteBuffer> geoPredicate, String expectedSanitizedString) {
+    Expression.Operation operation = geoPredicate.op();
+    String columnName = geoPredicate.term().ref().name();
+
     Expression predicateSanitized = Expressions.predicate(operation, columnName, "(boundingbox)");
     assertEquals(predicateSanitized, ExpressionUtil.sanitize(geoPredicate));
-    assertEquals(predicateSanitized, ExpressionUtil.sanitize(geoStruct, geoPredicate, true));
-
-    String opString = operation.name();
-    String expectedSanitizedString =
-        opString.toLowerCase(Locale.ROOT) + "(" + columnName + ", (boundingbox))";
+    assertEquals(predicateSanitized, ExpressionUtil.sanitize(STRUCT, geoPredicate, true));
 
     assertThat(ExpressionUtil.toSanitizedString(geoPredicate))
         .as("Sanitized string should be identical for geospatial predicates")
         .isEqualTo(expectedSanitizedString);
 
-    assertThat(ExpressionUtil.toSanitizedString(geoStruct, geoPredicate, true))
+    assertThat(ExpressionUtil.toSanitizedString(STRUCT, geoPredicate, true))
         .as("Sanitized string should be identical for geospatial predicates")
         .isEqualTo(expectedSanitizedString);
   }

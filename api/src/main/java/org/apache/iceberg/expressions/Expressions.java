@@ -300,12 +300,12 @@ public class Expressions {
     return new UnboundPredicate<>(op, expr);
   }
 
-  public static UnboundPredicate<ByteBuffer> geospatialPredicate(
+  static UnboundPredicate<ByteBuffer> geospatialPredicate(
       Operation op, String name, BoundingBox value) {
     return geospatialPredicate(op, ref(name), value);
   }
 
-  public static UnboundPredicate<ByteBuffer> geospatialPredicate(
+  static UnboundPredicate<ByteBuffer> geospatialPredicate(
       Operation op, UnboundTerm<ByteBuffer> expr, BoundingBox value) {
     return new UnboundPredicate<>(op, expr, Literal.of(value));
   }
