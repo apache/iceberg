@@ -153,8 +153,8 @@ public class TestExpressionHelpers {
         StructType.of(
             NestedField.optional(1, "a", Types.IntegerType.get()),
             NestedField.optional(2, "s", Types.StringType.get()),
-            NestedField.optional(3, "geom", Types.GeometryType.crs84()),
-            NestedField.optional(4, "geog", Types.GeographyType.crs84()));
+            NestedField.optional(3, "geometry", Types.GeometryType.crs84()),
+            NestedField.optional(4, "geography", Types.GeographyType.crs84()));
     BoundingBox bbox =
         new BoundingBox(GeospatialBound.createXY(10, 20), GeospatialBound.createXY(30, 40));
     Expression[][] expressions =
@@ -187,10 +187,10 @@ public class TestExpressionHelpers {
           {or(equal("a", 5), notNull("a")), or(equal("a", 5), not(isNull("a")))},
           {startsWith("s", "hello"), not(notStartsWith("s", "hello"))},
           {notStartsWith("s", "world"), not(startsWith("s", "world"))},
-          {stIntersects("geom", bbox), not(stDisjoint("geom", bbox))},
-          {stDisjoint("geom", bbox), not(stIntersects("geom", bbox))},
-          {stIntersects("geog", bbox), not(stDisjoint("geog", bbox))},
-          {stDisjoint("geog", bbox), not(stIntersects("geog", bbox))},
+          {stIntersects("geometry", bbox), not(stDisjoint("geometry", bbox))},
+          {stDisjoint("geometry", bbox), not(stIntersects("geometry", bbox))},
+          {stIntersects("geography", bbox), not(stDisjoint("geography", bbox))},
+          {stDisjoint("geography", bbox), not(stIntersects("geography", bbox))},
         };
 
     for (Expression[] pair : expressions) {

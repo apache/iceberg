@@ -19,7 +19,6 @@
 package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
-import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.StructLike;
@@ -156,16 +155,6 @@ public class Evaluator implements Serializable {
     @Override
     public <T> Boolean notStartsWith(Bound<T> valueExpr, Literal<T> lit) {
       return !startsWith(valueExpr, lit);
-    }
-
-    @Override
-    public <T> Boolean stIntersects(Bound<T> valueExpr, Literal<ByteBuffer> literal) {
-      throw new UnsupportedOperationException("Evaluation of stIntersects is not implemented.");
-    }
-
-    @Override
-    public <T> Boolean stDisjoint(Bound<T> valueExpr, Literal<ByteBuffer> literal) {
-      throw new UnsupportedOperationException("Evaluation of stDisjoint is not implemented.");
     }
   }
 }
