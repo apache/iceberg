@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.sql;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
@@ -36,6 +37,7 @@ import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
@@ -678,5 +680,36 @@ public class TestSelect extends CatalogTestBase {
             row(new Timestamp(dateOne.getTime())), row(new Timestamp(dateTwo.getTime())));
 
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @TestTemplate
+  public void variantTypeInFilter() {
+    assumeThat(validationCatalog)
+        .as("Variant is not supported in Hive catalog")
+        .isNotInstanceOf(HiveCatalog.class);
+
+    String tableName = tableName("variant_table");
+    sql(
+        "CREATE TABLE %s (id BIGINT, v1 VARIANT, v2 VARIANT) USING iceberg TBLPROPERTIES ('format-version'='3')",
+        tableName);
+
+    String v1r1 = "{\"a\":5}";
+    String v1r2 = "{\"a\":10}";
+    String v2r1 = "{\"x\":15}";
+    String v2r2 = "{\"x\":20}";
+
+    sql("INSERT INTO %s SELECT 1, parse_json('%s'), parse_json('%s')", tableName, v1r1, v2r1);
+    sql("INSERT INTO %s SELECT 2, parse_json('%s'), parse_json('%s')", tableName, v1r2, v2r2);
+
+    assertThat(
+            sql(
+                "SELECT id, try_variant_get(v1, '$.a', 'int') FROM %s WHERE try_variant_get(v1, '$.a', 'int') > 5",
+                tableName))
+        .containsExactly(row(2L, 10));
+    assertThat(
+            sql(
+                "SELECT id, try_variant_get(v2, '$.x', 'int') FROM %s WHERE try_variant_get(v2, '$.x', 'int') < 100",
+                tableName))
+        .containsExactlyInAnyOrder(row(1L, 15), row(2L, 20));
   }
 }
