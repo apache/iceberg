@@ -159,7 +159,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
-  private boolean restScanPlanningEnabled;
+  private RESTCatalogProperties.ScanPlanningMode restScanPlanningMode;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
@@ -272,11 +272,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
             RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
 
-    this.restScanPlanningEnabled =
-        PropertyUtil.propertyAsBoolean(
+    String scanPlanningConfig =
+        PropertyUtil.propertyAsString(
             mergedProps,
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED_DEFAULT);
+            RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
+            RESTCatalogProperties.REST_SCAN_PLANNING_MODE_DEFAULT);
+    this.restScanPlanningMode =
+        RESTCatalogProperties.ScanPlanningMode.fromString(scanPlanningConfig);
     super.initialize(name, mergedProps);
   }
 
@@ -486,7 +488,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     // RestTable should only be returned for non-metadata tables, because client would
     // not have access to metadata files for example manifests, since all it needs is catalog.
     if (metadataType == null) {
-      RESTTable restTable = restTableForScanPlanning(ops, finalIdentifier, tableClient);
+      RESTTable restTable = restTableForScanPlanning(ops, finalIdentifier, tableClient, tableConf);
       if (restTable != null) {
         return restTable;
       }
@@ -509,23 +511,59 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableIdentifier finalIdentifier,
       RESTClient restClient,
       Map<String, String> tableConf) {
-    // server supports remote planning endpoint and server / client wants to do server side planning
-    boolean shouldDoServerSidePlanning =
-        PropertyUtil.propertyAsBoolean(
-            tableConf, RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, false);
-    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN)
-        && (restScanPlanningEnabled || shouldDoServerSidePlanning)) {
-      return new RESTTable(
-          ops,
-          fullTableName(finalIdentifier),
-          metricsReporter(paths.metrics(finalIdentifier), restClient),
-          restClient,
-          Map::of,
-          finalIdentifier,
-          paths,
-          endpoints);
+    // Determine the effective scan planning mode (table-level config overrides catalog config)
+    RESTCatalogProperties.ScanPlanningMode effectiveMode = restScanPlanningMode;
+
+    // Check for table-level override
+    String tableModeConfig = tableConf.get(RESTCatalogProperties.REST_SCAN_PLANNING_MODE);
+    if (tableModeConfig != null) {
+      effectiveMode = RESTCatalogProperties.ScanPlanningMode.fromString(tableModeConfig);
     }
-    return null;
+
+    boolean serverSupportsPlanning = endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
+
+    // Handle the three modes
+    switch (effectiveMode) {
+      case NONE:
+        // Server-side planning not allowed, use client-side
+        return null;
+
+      case OPTIONAL:
+        // Use server-side planning if server supports it
+        if (serverSupportsPlanning) {
+          return new RESTTable(
+              ops,
+              fullTableName(finalIdentifier),
+              metricsReporter(paths.metrics(finalIdentifier), restClient),
+              restClient,
+              Map::of,
+              finalIdentifier,
+              paths,
+              endpoints);
+        }
+        return null;
+
+      case REQUIRED:
+        // Server-side planning is required
+        if (!serverSupportsPlanning) {
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Server-side scan planning is required but server does not support endpoint: %s",
+                  Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN));
+        }
+        return new RESTTable(
+            ops,
+            fullTableName(finalIdentifier),
+            metricsReporter(paths.metrics(finalIdentifier), restClient),
+            restClient,
+            Map::of,
+            finalIdentifier,
+            paths,
+            endpoints);
+
+      default:
+        throw new IllegalStateException("Unknown scan planning mode: " + effectiveMode);
+    }
   }
 
   private void trackFileIO(RESTTableOperations ops) {

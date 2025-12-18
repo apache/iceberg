@@ -3374,7 +3374,10 @@ components:
         ## General Configurations
 
         - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
-        - `rest-scan-planning-enabled`: The client should use remote scan planning.
+        - `rest-scan-planning-mode`: Controls the scan planning behavior. Valid values are:
+          - `none` (default): Server-side scan planning is not supported or allowed. Client must use client-side planning.
+          - `optional`: Client can choose between client-side or server-side planning based on its capabilities and preferences.
+          - `required`: Server-side planning is required. Client must not use client-side planning.
 
         ## AWS Configurations
 

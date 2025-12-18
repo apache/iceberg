@@ -124,7 +124,7 @@ public class TestRESTScanPlanning {
                                   .collect(Collectors.toList()))
                           .withOverrides(
                               ImmutableMap.of(
-                                  RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true"))
+                                  RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "optional"))
                           .build());
                 }
                 Object body = roundTripSerialize(request.body(), "request");
@@ -923,8 +923,8 @@ public class TestRESTScanPlanning {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
-            "true"));
+            RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
+            "optional"));
     return new CatalogWithAdapter(catalog, adapter);
   }
 
@@ -944,6 +944,74 @@ public class TestRESTScanPlanning {
         .extracting(ContentScanTask::file)
         .extracting(ContentFile::location)
         .isEqualTo(FILE_A.location());
+  }
+
+  @Test
+  public void scanPlanningModeRequired() throws IOException {
+    // Test REQUIRED mode - should throw exception when server doesn't support planning
+    // Create a catalog that doesn't advertise scan planning endpoints
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  // Return config without scan planning endpoints
+                  return castResponse(
+                      responseType,
+                      ConfigResponse.builder().withEndpoints(baseCatalogEndpoints()).build());
+                }
+                return super.execute(request, responseType, errorHandler, responseHeaders);
+              }
+            });
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test-required",
+        ImmutableMap.of(
+            RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
+            "required",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+    TableIdentifier tableId = TableIdentifier.of(NS, "required_mode_test");
+    catalog.createNamespace(NS);
+
+    // Should throw UnsupportedOperationException when trying to create/load the table
+    // because REQUIRED mode needs server-side planning but server doesn't support it
+    assertThatThrownBy(() -> catalog.createTable(tableId, SCHEMA))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Server-side scan planning is required");
+
+    catalog.close();
+  }
+
+  @Test
+  public void scanPlanningModeNone() throws IOException {
+    // Test NONE mode - should use client-side planning even if server supports it
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithTableLevelConfig(RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "none");
+
+    Table table = createTableWithScanPlanning(catalogWithAdapter.catalog, "none_mode_test");
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // Should not be a RESTTable since NONE mode disables server-side planning
+    assertThat(table).isNotInstanceOf(RESTTable.class);
+
+    // Should still work with client-side planning
+    assertThat(table.newScan().planFiles())
+        .hasSize(1)
+        .first()
+        .extracting(ContentScanTask::file)
+        .extracting(ContentFile::location)
+        .isEqualTo(FILE_A.location());
+
+    catalogWithAdapter.catalog.close();
   }
 
   @Test
@@ -1027,12 +1095,12 @@ public class TestRESTScanPlanning {
   public void tableLevelScanPlanningOverride(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
-    // Test REST_SCAN_PLANNING_ENABLED in LoadTableResponse.config() overrides catalog setting
+    // Test REST_SCAN_PLANNING_MODE in LoadTableResponse.config() overrides catalog setting
     configurePlanningBehavior(planMode);
 
     // Catalog that adds scan planning config to LoadTableResponse (table-level override)
     CatalogWithAdapter catalogWithAdapter =
-        catalogWithTableLevelConfig(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true");
+        catalogWithTableLevelConfig(RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "optional");
 
     RESTTable table = restTableFor(catalogWithAdapter.catalog, "table_override_test");
     setParserContext(table);
@@ -1060,7 +1128,7 @@ public class TestRESTScanPlanning {
                               Arrays.stream(Route.values())
                                   .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                                   .collect(Collectors.toList()))
-                          .withOverride(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "false")
+                          .withOverride(RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "none")
                           .build());
                 }
 
@@ -1095,8 +1163,8 @@ public class TestRESTScanPlanning {
     catalog.initialize(
         "test",
         ImmutableMap.of(
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
-            "false",
+            RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
+            "none",
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO"));
     return new CatalogWithAdapter(catalog, adapter);
