@@ -31,9 +31,6 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPAuthUtils;
@@ -51,8 +48,6 @@ class PrefixedStorage implements AutoCloseable {
   private SerializableSupplier<Storage> storage;
   private CloseableGroup closeableGroup;
   private transient volatile Storage storageClient;
-  private static final String CLOUD_PLATFORM_SCOPE =
-      "https://www.googleapis.com/auth/cloud-platform";
   private final SerializableSupplier<GcsFileSystem> gcsFileSystemSupplier;
   private transient volatile GcsFileSystem gcsFileSystem;
 
@@ -159,18 +154,12 @@ class PrefixedStorage implements AutoCloseable {
     try {
       GoogleCredentials sourceCredentials = GoogleCredentials.getApplicationDefault();
 
-      // Parse delegation chain if provided
-      List<String> delegates = null;
-      if (properties.impersonateDelegates().isPresent()) {
-        delegates = Arrays.asList(properties.impersonateDelegates().get().split(","));
-      }
-
       ImpersonatedCredentials impersonatedCredentials =
           ImpersonatedCredentials.create(
               sourceCredentials,
               properties.impersonateServiceAccount().get(),
-              delegates,
-              Collections.singletonList(CLOUD_PLATFORM_SCOPE),
+              properties.impersonateDelegates(),
+              properties.impersonateScopes(),
               properties.impersonateLifetimeSeconds());
 
       // Refresh to get initial token

@@ -87,15 +87,14 @@ public class TestGCPProperties {
                 GCS_IMPERSONATE_DELEGATES,
                 "test-delegate-sa@test-project.iam.gserviceaccount.com"));
 
-    assertThat(gcpProperties.impersonateDelegates()).isPresent();
     assertThat(gcpProperties.impersonateDelegates())
-        .hasValue("test-delegate-sa@test-project.iam.gserviceaccount.com");
+        .containsExactly("test-delegate-sa@test-project.iam.gserviceaccount.com");
   }
 
   @Test
   public void testImpersonateDelegatesAbsent() {
     GCPProperties gcpProperties = new GCPProperties(ImmutableMap.of());
 
-    assertThat(gcpProperties.impersonateDelegates()).isNotPresent();
+    assertThat(gcpProperties.impersonateDelegates()).isNull();
   }
 }

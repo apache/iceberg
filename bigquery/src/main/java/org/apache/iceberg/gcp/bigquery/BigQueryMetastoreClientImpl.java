@@ -28,7 +28,6 @@ import com.google.api.client.http.HttpStatusCodes;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.Data;
 import com.google.api.services.bigquery.Bigquery;
-import com.google.api.services.bigquery.BigqueryScopes;
 import com.google.api.services.bigquery.model.Dataset;
 import com.google.api.services.bigquery.model.DatasetList;
 import com.google.api.services.bigquery.model.DatasetList.Datasets;
@@ -42,7 +41,6 @@ import com.google.api.services.bigquery.model.TableReference;
 import com.google.api.services.bigquery.model.TableSchema;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.cloud.BaseServiceException;
 import com.google.cloud.ExceptionHandler;
 import com.google.cloud.bigquery.BigQueryErrorMessages;
@@ -129,19 +127,8 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     // Initialize client that will be used to send requests. This client only needs to be created
     // once, and can be reused for multiple requests
 
-    // Get credentials from options, or use application default
-    GoogleCredentials credentials =
-        (options.getCredentials() instanceof GoogleCredentials)
-            ? (GoogleCredentials) options.getCredentials()
-            : GoogleCredentials.getApplicationDefault();
-
-    // Scope credentials unless already scoped (e.g., ImpersonatedCredentials)
-    GoogleCredentials scopedCredentials =
-        (credentials instanceof ImpersonatedCredentials)
-            ? credentials
-            : credentials.createScoped(BigqueryScopes.all());
-
-    HttpCredentialsAdapter httpCredentialsAdapter = new HttpCredentialsAdapter(scopedCredentials);
+    GoogleCredentials credentials = (GoogleCredentials) options.getCredentials();
+    HttpCredentialsAdapter httpCredentialsAdapter = new HttpCredentialsAdapter(credentials);
 
     this.client =
         new Bigquery.Builder(

@@ -140,7 +140,7 @@ public class TestPrefixedStorage {
 
     assertThat(gcpProperties.impersonateServiceAccount())
         .contains("test-sa@project.iam.gserviceaccount.com");
-    assertThat(gcpProperties.impersonateDelegates()).isEmpty();
+    assertThat(gcpProperties.impersonateDelegates()).isNull();
     assertThat(gcpProperties.impersonateLifetimeSeconds())
         .isEqualTo(GCPProperties.GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT);
   }
