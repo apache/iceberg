@@ -21,7 +21,6 @@ package org.apache.iceberg.gcp.bigquery;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.google.cloud.bigquery.BigQueryOptions;
 import java.util.Arrays;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -35,22 +34,18 @@ public class TestBigQueryProperties {
             BigQueryProperties.PROJECT_ID, "test-project",
             BigQueryProperties.GCP_LOCATION, "us-central1");
     BigQueryProperties bigQueryProperties = new BigQueryProperties(properties);
-    BigQueryOptions options = bigQueryProperties.metastoreOptions();
 
-    assertThat(options).isNotNull();
-    assertThat(options.getProjectId()).isEqualTo("test-project");
-    assertThat(options.getLocation()).isEqualTo("us-central1");
+    assertThat(bigQueryProperties.projectId()).isEqualTo("test-project");
+    assertThat(bigQueryProperties.location()).isEqualTo("us-central1");
   }
 
   @Test
   public void testInitializeWithDefaultLocation() {
     Map<String, String> properties = Map.of(BigQueryProperties.PROJECT_ID, "test-project");
     BigQueryProperties bigQueryProperties = new BigQueryProperties(properties);
-    BigQueryOptions options = bigQueryProperties.metastoreOptions();
 
-    assertThat(options).isNotNull();
-    assertThat(options.getProjectId()).isEqualTo("test-project");
-    assertThat(options.getLocation()).isEqualTo("us");
+    assertThat(bigQueryProperties.projectId()).isEqualTo("test-project");
+    assertThat(bigQueryProperties.location()).isEqualTo("us");
   }
 
   @Test
