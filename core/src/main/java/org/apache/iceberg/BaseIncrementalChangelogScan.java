@@ -20,10 +20,13 @@ package org.apache.iceberg;
 
 import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestGroup.CreateTasksFunction;
@@ -43,12 +46,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.TableScanUtil;
+import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class BaseIncrementalChangelogScan
     extends BaseIncrementalScan<
         IncrementalChangelogScan, ChangelogScanTask, ScanTaskGroup<ChangelogScanTask>>
     implements IncrementalChangelogScan {
+
+  private static final Logger LOG = LoggerFactory.getLogger(BaseIncrementalChangelogScan.class);
 
   BaseIncrementalChangelogScan(Table table) {
     this(table, table.schema(), TableScanContext.empty());
@@ -146,7 +155,12 @@ class BaseIncrementalChangelogScan
         planDeletedRowsTasks(
             changelogSnapshots, existingDeleteIndex, addedDeletesBySnapshot, changelogSnapshotIds);
 
-    return CloseableIterable.concat(ImmutableList.of(dataFileTasks, deletedRowsTasks));
+    // Merge tasks from both iterables in order by changeOrdinal
+    Comparator<ChangelogScanTask> byOrdinal =
+        Comparator.comparing(ChangelogScanTask::changeOrdinal)
+            .thenComparing(ChangelogScanTask::commitSnapshotId);
+
+    return new SortedMerge<>(byOrdinal, ImmutableList.of(dataFileTasks, deletedRowsTasks));
   }
 
   @Override
@@ -210,7 +224,7 @@ class BaseIncrementalChangelogScan
     }
 
     // Load delete files from manifests
-    List<DeleteFile> deleteFiles = loadDeleteFiles(prunedManifests);
+    Iterable<DeleteFile> deleteFiles = loadDeleteFiles(prunedManifests);
 
     return DeleteFileIndex.builderFor(deleteFiles)
         .specsById(table().specs())
@@ -247,36 +261,44 @@ class BaseIncrementalChangelogScan
    * manifests.
    */
   private Map<Long, DeleteFileIndex> buildAddedDeleteIndexes(Deque<Snapshot> changelogSnapshots) {
-    Map<Long, DeleteFileIndex> addedDeletesBySnapshot = Maps.newHashMap();
+    Map<Long, DeleteFileIndex> addedDeletesBySnapshot = Maps.newConcurrentMap();
+    Tasks.foreach(changelogSnapshots)
+        .retry(3)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(planExecutor())
+        .onFailure(
+            (snapshot, exc) ->
+                LOG.warn(
+                    "Failed to build delete index for snapshot {}", snapshot.snapshotId(), exc))
+        .run(
+            snapshot -> {
+              List<ManifestFile> snapshotDeleteManifests = snapshot.deleteManifests(table().io());
+              if (snapshotDeleteManifests.isEmpty()) {
+                addedDeletesBySnapshot.put(snapshot.snapshotId(), DeleteFileIndex.emptyIndex());
+                return;
+              }
 
-    for (Snapshot snapshot : changelogSnapshots) {
-      List<ManifestFile> snapshotDeleteManifests = snapshot.deleteManifests(table().io());
-      if (snapshotDeleteManifests.isEmpty()) {
-        addedDeletesBySnapshot.put(snapshot.snapshotId(), DeleteFileIndex.emptyIndex());
-        continue;
-      }
+              // Filter to only include delete files added in this snapshot
+              List<ManifestFile> addedDeleteManifests =
+                  snapshotDeleteManifests.stream()
+                      .filter(manifest -> manifest.snapshotId().equals(snapshot.snapshotId()))
+                      .collect(Collectors.toUnmodifiableList());
 
-      // Filter to only include delete files added in this snapshot
-      List<ManifestFile> addedDeleteManifests =
-          FluentIterable.from(snapshotDeleteManifests)
-              .filter(manifest -> manifest.snapshotId().equals(snapshot.snapshotId()))
-              .toList();
+              if (addedDeleteManifests.isEmpty()) {
+                addedDeletesBySnapshot.put(snapshot.snapshotId(), DeleteFileIndex.emptyIndex());
+              } else {
+                // Load delete files from manifests
+                Iterable<DeleteFile> deleteFiles = loadDeleteFiles(addedDeleteManifests);
 
-      if (addedDeleteManifests.isEmpty()) {
-        addedDeletesBySnapshot.put(snapshot.snapshotId(), DeleteFileIndex.emptyIndex());
-      } else {
-        // Load delete files from manifests
-        List<DeleteFile> deleteFiles = loadDeleteFiles(addedDeleteManifests);
-
-        DeleteFileIndex index =
-            DeleteFileIndex.builderFor(deleteFiles)
-                .specsById(table().specs())
-                .caseSensitive(isCaseSensitive())
-                .build();
-        addedDeletesBySnapshot.put(snapshot.snapshotId(), index);
-      }
-    }
-
+                DeleteFileIndex index =
+                    DeleteFileIndex.builderFor(deleteFiles)
+                        .specsById(table().specs())
+                        .caseSensitive(isCaseSensitive())
+                        .build();
+                addedDeletesBySnapshot.put(snapshot.snapshotId(), index);
+              }
+            });
     return addedDeletesBySnapshot;
   }
 
@@ -502,12 +524,18 @@ class BaseIncrementalChangelogScan
    * @param manifests the delete manifests to load
    * @return list of delete files
    */
-  private List<DeleteFile> loadDeleteFiles(List<ManifestFile> manifests) {
-    List<DeleteFile> allDeleteFiles = Lists.newArrayList();
+  private Iterable<DeleteFile> loadDeleteFiles(List<ManifestFile> manifests) {
+    Queue<DeleteFile> allDeleteFiles = new ConcurrentLinkedQueue<>();
 
-    for (ManifestFile manifest : manifests) {
-      allDeleteFiles.addAll(loadDeleteFilesFromManifest(manifest));
-    }
+    Tasks.foreach(manifests)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(planExecutor())
+        .run(
+            manifest -> {
+              List<DeleteFile> deleteFiles = loadDeleteFilesFromManifest(manifest);
+              allDeleteFiles.addAll(deleteFiles);
+            });
 
     return allDeleteFiles;
   }
@@ -768,19 +796,15 @@ class BaseIncrementalChangelogScan
 
       // Add all deletes from snapshots in the scan range BEFORE the deletion
       List<DeleteFile> cumulativeDeletes = cumulativeDeletesMap.get(deletionSnapshotId);
-      if (cumulativeDeletes != null) {
-        // For each cumulative delete, check if it applies to this entry
-        for (DeleteFile df : cumulativeDeletes) {
-          // Create a temporary index to check if this delete applies to the entry
-          DeleteFileIndex tempIndex =
-              DeleteFileIndex.builderFor(Lists.newArrayList(df))
-                  .specsById(specsById)
-                  .caseSensitive(caseSensitive)
-                  .build();
-          DeleteFile[] applicable = tempIndex.forEntry(entry);
-          for (DeleteFile applicableDelete : applicable) {
-            allDeletes.add(applicableDelete);
-          }
+      if (cumulativeDeletes != null && !cumulativeDeletes.isEmpty()) {
+        DeleteFileIndex tempIndex =
+            DeleteFileIndex.builderFor(cumulativeDeletes)
+                .specsById(specsById)
+                .caseSensitive(caseSensitive)
+                .build();
+        DeleteFile[] applicable = tempIndex.forEntry(entry);
+        for (DeleteFile deleteFile : applicable) {
+          allDeletes.add(deleteFile);
         }
       }
 
