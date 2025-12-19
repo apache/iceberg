@@ -37,12 +37,12 @@ Iceberg tables support the following types:
 | **`timestamp_ns`**     | Timestamp without timezone, nanosecond precision                         | Stored as nanoseconds; added in v3               |
 | **`timestamptz_ns`**   | Timestamp with timezone, nanosecond precision                            | Stored as nanoseconds; added in v3               |
 | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8                               |
-| **`uuid`**             | Universally unique identifiers                                           | Should use 16-byte fixed                         |
+| **`uuid`**             | Universally unique identifiers  
 | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
-| **`variant`**          | Semi-structured data (JSON-like)                                         | Added in v3; requires Spark 4.0+                 |
-| **`geometry(C)`**      | Geospatial features with CRS parameter                                   | Planar calculations; added in v3                 |
-| **`geography(C, A)`**  | Geospatial features with CRS and edge algorithm                          | Spherical calculations; added in v3              |
+| **`variant`**          | Semi-structured data (JSON-like)                                         | Added in v3                 |
+| **`geometry(C)`**      | Geospatial features with CRS parameter                                   | Planar kernel; added in v3                 |
+| **`geography(C, A)`**  | Geospatial features with CRS and edge algorithm                          | Spherical kernel; added in v3              |
 | **`unknown`**          | Placeholder type for undetermined columns                                | Must be optional; added in v3                    |
 | **`struct<...>`**  | A record with named fields of any data type                              |                                                  |
 | **`list<E>`**      | A list with elements of any data type                                    |                                                  |
