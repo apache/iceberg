@@ -23,6 +23,6 @@ class TestDynamicRecordInternalSerializerWriteSchemaId
     extends DynamicRecordInternalSerializerTestBase {
 
   TestDynamicRecordInternalSerializerWriteSchemaId() {
-    super(false, false);
+    super(false /* writeFullSchemaAndSpec */, false /* writeLongUTF */);
   }
 }

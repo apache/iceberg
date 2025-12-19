@@ -86,6 +86,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
       } else {
         dataOutputView.writeUTF(SchemaParser.toJson(toSerialize.schema()));
       }
+
       dataOutputView.writeUTF(PartitionSpecParser.toJson(toSerialize.spec()));
     } else {
       dataOutputView.writeInt(toSerialize.schema().schemaId());
@@ -130,6 +131,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
       } else {
         schema = SchemaParser.fromJson(dataInputView.readUTF());
       }
+
       spec = PartitionSpecParser.fromJson(schema, dataInputView.readUTF());
       rowDataSerializer = serializerCache.serializer(tableName, schema, spec);
     } else {
@@ -178,6 +180,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
       } else {
         schema = SchemaParser.fromJson(dataInputView.readUTF());
       }
+
       spec = PartitionSpecParser.fromJson(schema, dataInputView.readUTF());
       reuse.setSchema(schema);
       reuse.setSpec(spec);
@@ -316,6 +319,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
       if (oldSerializerSnapshot.getCurrentVersion() == getCurrentVersion()) {
         return TypeSerializerSchemaCompatibility.compatibleAsIs();
       }
+
       // Old TypeSerializerSnapshots do not contain the serializer cache, but the newest one does.
       // This will also ensure that we always use the up-to-date cache alongside with its catalog
       // configuration.
@@ -330,6 +334,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
         throw new RuntimeException(
             "Failed to initialize serializerCache for reading data with old serializer", e);
       }
+
       // This will first read data with the old serializer, then switch to the most recent one.
       return TypeSerializerSchemaCompatibility.compatibleAfterMigration();
     }
@@ -341,6 +346,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
         // parameters.
         return new DynamicRecordInternalSerializer(serializerCache, writeSchemaAndSpec, false);
       }
+
       // In all other cases, we just use the newest serializer.
       return new DynamicRecordInternalSerializer(serializerCache, writeSchemaAndSpec, true);
     }

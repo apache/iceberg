@@ -23,6 +23,6 @@ class TestDynamicRecordInternalSerializerWriteSchemaIdLongUTF
     extends DynamicRecordInternalSerializerTestBase {
 
   TestDynamicRecordInternalSerializerWriteSchemaIdLongUTF() {
-    super(false, true);
+    super(false /* writeFullSchemaAndSpec */, true /* writeLongUTF */);
   }
 }

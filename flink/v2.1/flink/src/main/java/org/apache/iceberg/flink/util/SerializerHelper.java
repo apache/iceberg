@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.util;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UTFDataFormatException;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputSerializer;
@@ -31,6 +32,7 @@ import org.apache.flink.core.memory.DataOutputView;
  * taken from the class org.apache.flink.core.memory.DataInputSerializer.readUTF and
  * org.apache.flink.core.memory.DataOutputSerializer.writeUTF.
  */
+@Internal
 public class SerializerHelper implements Serializable {
 
   private SerializerHelper() {}
