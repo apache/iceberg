@@ -55,4 +55,10 @@ public class TestRemoteScanPlanning extends TestSelect {
   public void testBinaryInFilter() {
     super.testBinaryInFilter();
   }
+
+  @TestTemplate
+  @Disabled("Currently flaky and will be fixed by https://github.com/apache/iceberg/issues/14892")
+  public void testTimestampAsOf() {
+    super.testTimestampAsOf();
+  }
 }
