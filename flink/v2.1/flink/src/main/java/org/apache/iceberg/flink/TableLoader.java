@@ -36,124 +36,125 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  */
 public interface TableLoader extends Closeable, Serializable, Cloneable {
 
-  void open();
+    void open();
 
-  boolean isOpen();
+    boolean isOpen();
 
-  Table loadTable();
+    Table loadTable();
 
-  /** Clone a TableLoader */
-  @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
-  TableLoader clone();
-
-  static TableLoader fromCatalog(CatalogLoader catalogLoader, TableIdentifier identifier) {
-    return new CatalogTableLoader(catalogLoader, identifier);
-  }
-
-  static TableLoader fromHadoopTable(String location) {
-    return fromHadoopTable(location, FlinkCatalogFactory.clusterHadoopConf());
-  }
-
-  static TableLoader fromHadoopTable(String location, Configuration hadoopConf) {
-    return new HadoopTableLoader(location, hadoopConf);
-  }
-
-  class HadoopTableLoader implements TableLoader {
-
-    private static final long serialVersionUID = 1L;
-
-    private final String location;
-    private final SerializableConfiguration hadoopConf;
-
-    private transient HadoopTables tables;
-
-    private HadoopTableLoader(String location, Configuration conf) {
-      this.location = location;
-      this.hadoopConf = new SerializableConfiguration(conf);
-    }
-
-    @Override
-    public void open() {
-      tables = new HadoopTables(hadoopConf.get());
-    }
-
-    @Override
-    public boolean isOpen() {
-      return tables != null;
-    }
-
-    @Override
-    public Table loadTable() {
-      FlinkEnvironmentContext.init();
-      return tables.load(location);
-    }
-
-    @Override
+    /** Clone a TableLoader */
     @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
-    public TableLoader clone() {
-      return new HadoopTableLoader(location, new Configuration(hadoopConf.get()));
+    TableLoader clone();
+
+    static TableLoader fromCatalog(CatalogLoader catalogLoader, TableIdentifier identifier) {
+        return new CatalogTableLoader(catalogLoader, identifier);
     }
 
-    @Override
-    public void close() {}
-
-    @Override
-    public String toString() {
-      return MoreObjects.toStringHelper(this).add("location", location).toString();
-    }
-  }
-
-  class CatalogTableLoader implements TableLoader {
-
-    private static final long serialVersionUID = 1L;
-
-    private final CatalogLoader catalogLoader;
-    private final String identifier;
-
-    private transient Catalog catalog;
-
-    private CatalogTableLoader(CatalogLoader catalogLoader, TableIdentifier tableIdentifier) {
-      this.catalogLoader = catalogLoader;
-      this.identifier = tableIdentifier.toString();
+    static TableLoader fromHadoopTable(String location) {
+        return fromHadoopTable(location, FlinkCatalogFactory.clusterHadoopConf());
     }
 
-    @Override
-    public void open() {
-      catalog = catalogLoader.loadCatalog();
+    static TableLoader fromHadoopTable(String location, Configuration hadoopConf) {
+        return new HadoopTableLoader(location, hadoopConf);
     }
 
-    @Override
-    public boolean isOpen() {
-      return catalog != null;
+    class HadoopTableLoader implements TableLoader {
+
+        private static final long serialVersionUID = 1L;
+
+        private final String location;
+        private final SerializableConfiguration hadoopConf;
+
+        private transient HadoopTables tables;
+
+        private HadoopTableLoader(String location, Configuration conf) {
+            this.location = location;
+            this.hadoopConf = new SerializableConfiguration(conf);
+        }
+
+        @Override
+        public void open() {
+            tables = new HadoopTables(hadoopConf.get());
+        }
+
+        @Override
+        public boolean isOpen() {
+            return tables != null;
+        }
+
+        @Override
+        public Table loadTable() {
+            FlinkEnvironmentContext.init();
+            return tables.load(location);
+        }
+
+        @Override
+        @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+        public TableLoader clone() {
+            return new HadoopTableLoader(location, new Configuration(hadoopConf.get()));
+        }
+
+        @Override
+        public void close() {
+        }
+
+        @Override
+        public String toString() {
+            return MoreObjects.toStringHelper(this).add("location", location).toString();
+        }
     }
 
-    @Override
-    public Table loadTable() {
-      FlinkEnvironmentContext.init();
-      return catalog.loadTable(TableIdentifier.parse(identifier));
-    }
+    class CatalogTableLoader implements TableLoader {
 
-    @Override
-    public void close() throws IOException {
-      if (catalog instanceof Closeable) {
-        ((Closeable) catalog).close();
-      }
+        private static final long serialVersionUID = 1L;
 
-      catalog = null;
-    }
+        private final CatalogLoader catalogLoader;
+        private final TableIdentifier identifier;
 
-    @Override
-    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
-    public TableLoader clone() {
-      return new CatalogTableLoader(catalogLoader.clone(), TableIdentifier.parse(identifier));
-    }
+        private transient Catalog catalog;
 
-    @Override
-    public String toString() {
-      return MoreObjects.toStringHelper(this)
-          .add("tableIdentifier", identifier)
-          .add("catalogLoader", catalogLoader)
-          .toString();
+        private CatalogTableLoader(CatalogLoader catalogLoader, TableIdentifier tableIdentifier) {
+            this.catalogLoader = catalogLoader;
+            this.identifier = tableIdentifier;
+        }
+
+        @Override
+        public void open() {
+            catalog = catalogLoader.loadCatalog();
+        }
+
+        @Override
+        public boolean isOpen() {
+            return catalog != null;
+        }
+
+        @Override
+        public Table loadTable() {
+            FlinkEnvironmentContext.init();
+            return catalog.loadTable(identifier);
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (catalog instanceof Closeable) {
+                ((Closeable) catalog).close();
+            }
+
+            catalog = null;
+        }
+
+        @Override
+        @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
+        public TableLoader clone() {
+            return new CatalogTableLoader(catalogLoader.clone(), identifier);
+        }
+
+        @Override
+        public String toString() {
+            return MoreObjects.toStringHelper(this)
+                    .add("tableIdentifier", identifier)
+                    .add("catalogLoader", catalogLoader)
+                    .toString();
+        }
     }
-  }
 }
