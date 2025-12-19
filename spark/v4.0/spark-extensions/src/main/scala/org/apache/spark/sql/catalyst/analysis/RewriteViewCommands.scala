@@ -62,7 +62,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
           replace,
           _) =>
       val q = CTESubstitution.apply(query)
-      verifyTemporaryObjectsDontExist(resolved, q)
+      verifyTemporaryObjectsDoNotExist(resolved, q)
       CreateIcebergView(
         child = resolved,
         queryText = queryText,
@@ -127,7 +127,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
   /**
    * Permanent views are not allowed to reference temp objects
    */
-  private def verifyTemporaryObjectsDontExist(
+  private def verifyTemporaryObjectsDoNotExist(
       identifier: ResolvedIdentifier,
       child: LogicalPlan): Unit = {
     val tempViews = collectTemporaryViews(child)
