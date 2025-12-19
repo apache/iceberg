@@ -114,7 +114,7 @@ public class TestHiveViewCommits {
   }
 
   @Test
-public void testViewQueryIsUpdatedOnCommit() throws Exception {
+  public void testViewQueryIsUpdatedOnCommit() throws Exception {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
     assertThat(view.currentVersion().representations())
         .containsExactly(
