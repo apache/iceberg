@@ -302,7 +302,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     return ImmutableDeleteOrphanFiles.Result.builder()
         .orphanFileLocations(orphanFileList)
-        .deletedOrphanFilesCount(filesCount)
+        .orphanFilesCount(filesCount)
         .build();
   }
 
