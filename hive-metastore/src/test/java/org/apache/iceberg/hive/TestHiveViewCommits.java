@@ -114,16 +114,17 @@ public class TestHiveViewCommits {
   }
 
   @Test
-  public void testViewQueryIsUpdatedOnCommit() throws Exception {
+public void testViewQueryIsUpdatedOnCommit() throws Exception {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
-    Table tbl = ops.loadHmsTable();
-    assertThat(tbl.getViewOriginalText()).isEqualTo(VIEW_QUERY);
-    assertThat(tbl.getViewExpandedText()).isEqualTo(VIEW_QUERY);
+    assertThat(view.currentVersion().representations())
+        .containsExactly(
+            ImmutableSQLViewRepresentation.builder().sql(VIEW_QUERY).dialect("hive").build());
+
+    Table hmsTable = ops.loadHmsTable();
+    assertThat(hmsTable.getViewOriginalText()).isEqualTo(VIEW_QUERY);
+    assertThat(hmsTable.getViewExpandedText()).isEqualTo(VIEW_QUERY);
 
     String newQuery = "select * from ns.tbl2 limit 10";
-    assertThat(VIEW_QUERY).isNotEqualTo(newQuery);
-
-    // update view query
     view =
         catalog
             .buildView(VIEW_IDENTIFIER)
@@ -132,15 +133,13 @@ public class TestHiveViewCommits {
             .withQuery("hive", newQuery)
             .replace();
 
-    Table updatedTbl = ops.loadHmsTable();
+    assertThat(view.currentVersion().representations())
+        .containsExactly(
+            ImmutableSQLViewRepresentation.builder().sql(newQuery).dialect("hive").build());
 
-    assertThat(updatedTbl.getViewOriginalText())
-        .as("The original view query in HMS must be updated to the new SQL.")
-        .isEqualTo(newQuery);
-
-    assertThat(updatedTbl.getViewExpandedText())
-        .as("The expanded view query in HMS must be updated to the new SQL.")
-        .isEqualTo(newQuery);
+    Table updatedHmsTable = ops.loadHmsTable();
+    assertThat(updatedHmsTable.getViewOriginalText()).isEqualTo(newQuery);
+    assertThat(updatedHmsTable.getViewExpandedText()).isEqualTo(newQuery);
   }
 
   @Test
