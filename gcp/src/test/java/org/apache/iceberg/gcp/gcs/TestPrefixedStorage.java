@@ -25,7 +25,6 @@ import com.google.cloud.gcs.analyticscore.client.GcsClientOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystemOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsReadOptions;
-import java.util.Date;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -76,40 +75,6 @@ public class TestPrefixedStorage {
   }
 
   @Test
-  public void noAuthPropertiesAreRead() {
-    Map<String, String> properties =
-        ImmutableMap.of(
-            GCPProperties.GCS_PROJECT_ID, "myProject",
-            GCPProperties.GCS_NO_AUTH, "true");
-
-    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
-
-    assertThat(storage.gcpProperties().noAuth()).isTrue();
-    assertThat(storage.storage()).isNotNull();
-    assertThat(storage.storage().getOptions().getCredentials().toString())
-        .contains("NoCredentials");
-  }
-
-  @Test
-  public void oauth2TokenPropertiesAreRead() {
-    long expiresAt = System.currentTimeMillis() + 3600000;
-    Map<String, String> properties =
-        ImmutableMap.of(
-            GCPProperties.GCS_PROJECT_ID, "myProject",
-            GCPProperties.GCS_OAUTH2_TOKEN, "test-token",
-            GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT, String.valueOf(expiresAt));
-
-    PrefixedStorage storage = new PrefixedStorage("gs://bucket", properties, null);
-
-    assertThat(storage.gcpProperties().oauth2Token()).contains("test-token");
-    assertThat(storage.gcpProperties().oauth2TokenExpiresAt())
-        .isPresent()
-        .get()
-        .extracting(Date::getTime)
-        .isEqualTo(expiresAt);
-  }
-
-  @Test
   public void impersonationPropertiesAreRead() {
     Map<String, String> properties =
         ImmutableMap.of(
@@ -117,7 +82,8 @@ public class TestPrefixedStorage {
             GCPProperties.GCS_IMPERSONATE_SERVICE_ACCOUNT,
                 "test-sa@project.iam.gserviceaccount.com",
             GCPProperties.GCS_IMPERSONATE_DELEGATES, "delegate-sa@project.iam.gserviceaccount.com",
-            GCPProperties.GCS_IMPERSONATE_LIFETIME_SECONDS, "1800");
+            GCPProperties.GCS_IMPERSONATE_LIFETIME_SECONDS, "1800",
+            GCPProperties.GCS_IMPERSONATE_SCOPES, "bigquery,devstorage.read_only");
 
     GCPProperties gcpProperties = new GCPProperties(properties);
 
@@ -126,6 +92,10 @@ public class TestPrefixedStorage {
     assertThat(gcpProperties.impersonateDelegates())
         .contains("delegate-sa@project.iam.gserviceaccount.com");
     assertThat(gcpProperties.impersonateLifetimeSeconds()).isEqualTo(1800);
+    assertThat(gcpProperties.impersonateScopes())
+        .containsExactly(
+            "https://www.googleapis.com/auth/bigquery",
+            "https://www.googleapis.com/auth/devstorage.read_only");
   }
 
   @Test

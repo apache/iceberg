@@ -55,10 +55,10 @@ public class GCPProperties implements Serializable {
       "gcs.oauth2.refresh-credentials-endpoint";
 
   // Impersonation properties
-  public static final String GCS_IMPERSONATE_SERVICE_ACCOUNT = "gcp.impersonate.service-account";
-  public static final String GCS_IMPERSONATE_LIFETIME_SECONDS = "gcp.impersonate.lifetime-seconds";
-  public static final String GCS_IMPERSONATE_DELEGATES = "gcp.impersonate.delegates";
-  public static final String GCS_IMPERSONATE_SCOPES = "gcp.impersonate.scopes";
+  public static final String GCS_IMPERSONATE_SERVICE_ACCOUNT = "gcs.impersonate.service-account";
+  public static final String GCS_IMPERSONATE_LIFETIME_SECONDS = "gcs.impersonate.lifetime-seconds";
+  public static final String GCS_IMPERSONATE_DELEGATES = "gcs.impersonate.delegates";
+  public static final String GCS_IMPERSONATE_SCOPES = "gcs.impersonate.scopes";
   public static final int GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT = 3600;
   private static final List<String> GCS_IMPERSONATE_SCOPES_DEFAULT =
       ImmutableList.of("https://www.googleapis.com/auth/cloud-platform");

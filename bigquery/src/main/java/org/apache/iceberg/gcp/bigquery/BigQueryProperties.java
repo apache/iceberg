@@ -46,10 +46,12 @@ class BigQueryProperties implements Serializable {
   public static final String LIST_ALL_TABLES = "gcp.bigquery.list-all-tables";
 
   // Service account impersonation properties.
-  public static final String IMPERSONATE_SERVICE_ACCOUNT = "gcp.impersonate.service-account";
-  public static final String IMPERSONATE_LIFETIME_SECONDS = "gcp.impersonate.lifetime-seconds";
-  public static final String IMPERSONATE_SCOPES = "gcp.impersonate.scopes";
-  public static final String IMPERSONATE_DELEGATES = "gcp.impersonate.delegates";
+  public static final String IMPERSONATE_SERVICE_ACCOUNT =
+      "gcp.bigquery.impersonate.service-account";
+  public static final String IMPERSONATE_LIFETIME_SECONDS =
+      "gcp.bigquery.impersonate.lifetime-seconds";
+  public static final String IMPERSONATE_SCOPES = "gcp.bigquery.impersonate.scopes";
+  public static final String IMPERSONATE_DELEGATES = "gcp.bigquery.impersonate.delegates";
 
   public static final String DEFAULT_GCP_LOCATION = "us";
   private static final int DEFAULT_LIFETIME_SECONDS = 3600;
@@ -58,6 +60,7 @@ class BigQueryProperties implements Serializable {
 
   private final String projectId;
   private final String location;
+  private final boolean listAllTables;
   private final String impersonateServiceAccount;
   private final int lifetimeSeconds;
   private final List<String> scopes;
@@ -104,6 +107,8 @@ class BigQueryProperties implements Serializable {
 
     this.location = properties.getOrDefault(GCP_LOCATION, DEFAULT_GCP_LOCATION);
 
+    this.listAllTables = Boolean.parseBoolean(properties.getOrDefault(LIST_ALL_TABLES, "true"));
+
     // Impersonation properties, optional
     this.impersonateServiceAccount = properties.get(IMPERSONATE_SERVICE_ACCOUNT);
 
@@ -132,6 +137,10 @@ class BigQueryProperties implements Serializable {
 
   String location() {
     return location;
+  }
+
+  boolean listAllTables() {
+    return listAllTables;
   }
 
   BigQueryOptions metastoreOptions() {

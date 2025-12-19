@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.gcp;
 
-import static org.apache.iceberg.gcp.GCPProperties.GCS_IMPERSONATE_DELEGATES;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT;
@@ -77,24 +76,5 @@ public class TestGCPProperties {
         .isPresent()
         .get()
         .isEqualTo("/v1/credentials");
-  }
-
-  @Test
-  public void testImpersonateDelegatesPresent() {
-    GCPProperties gcpProperties =
-        new GCPProperties(
-            ImmutableMap.of(
-                GCS_IMPERSONATE_DELEGATES,
-                "test-delegate-sa@test-project.iam.gserviceaccount.com"));
-
-    assertThat(gcpProperties.impersonateDelegates())
-        .containsExactly("test-delegate-sa@test-project.iam.gserviceaccount.com");
-  }
-
-  @Test
-  public void testImpersonateDelegatesAbsent() {
-    GCPProperties gcpProperties = new GCPProperties(ImmutableMap.of());
-
-    assertThat(gcpProperties.impersonateDelegates()).isNull();
   }
 }

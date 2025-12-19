@@ -96,6 +96,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
     this.projectId = bigQueryProperties.projectId();
     this.projectLocation = bigQueryProperties.location();
+    this.listAllTables = bigQueryProperties.listAllTables();
 
     BigQueryOptions bigQueryOptions = bigQueryProperties.metastoreOptions();
 
@@ -137,9 +138,6 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
                 CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.io.ResolvingFileIO"),
             properties,
             conf);
-
-    this.listAllTables =
-        Boolean.parseBoolean(properties.getOrDefault(BigQueryProperties.LIST_ALL_TABLES, "true"));
   }
 
   @Override
