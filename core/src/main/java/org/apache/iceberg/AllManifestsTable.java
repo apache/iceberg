@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.StructProjection;
 
 /**
@@ -298,7 +299,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         manifest.content() == ManifestContent.DELETES ? manifest.deletedFilesCount() : 0,
         ManifestsTable.partitionSummariesToRows(spec, manifest.partitions()),
         referenceSnapshotId,
-        manifest.keyMetadata() == null ? null : manifest.keyMetadata().array());
+        manifest.keyMetadata() == null ? null : ByteBuffers.toByteArray(manifest.keyMetadata()));
   }
 
   private static class SnapshotEvaluator {
