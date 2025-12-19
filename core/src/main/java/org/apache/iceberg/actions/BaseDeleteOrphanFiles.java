@@ -31,6 +31,6 @@ interface BaseDeleteOrphanFiles extends DeleteOrphanFiles {
   @Value.Immutable
   interface Result extends DeleteOrphanFiles.Result {
     @Override
-    long deletedOrphanFilesCount();
+    long orphanFilesCount();
   }
 }
