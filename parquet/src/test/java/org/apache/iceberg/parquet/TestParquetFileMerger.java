@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import static org.apache.iceberg.parquet.Parquet.writeData;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,10 +29,8 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
@@ -70,7 +69,6 @@ public class TestParquetFileMerger {
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()));
 
-  private static final PartitionSpec UNPARTITIONED_SPEC = PartitionSpec.unpartitioned();
   private static final long DEFAULT_ROW_GROUP_SIZE =
       TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
 
@@ -84,15 +82,17 @@ public class TestParquetFileMerger {
   }
 
   @Test
-  public void testCanMergeReturnsFalseForEmptyList() {
-    MessageType result = ParquetFileMerger.canMergeAndGetSchema(Collections.emptyList());
-    assertThat(result).isNull();
+  public void testCanMergeThrowsForEmptyList() {
+    assertThatThrownBy(() -> ParquetFileMerger.canMergeAndGetSchema(Collections.emptyList()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("inputFiles cannot be null or empty");
   }
 
   @Test
-  public void testCanMergeReturnsFalseForNullInput() {
-    MessageType result = ParquetFileMerger.canMergeAndGetSchema(null);
-    assertThat(result).isNull();
+  public void testCanMergeThrowsForNullInput() {
+    assertThatThrownBy(() -> ParquetFileMerger.canMergeAndGetSchema(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("inputFiles cannot be null or empty");
   }
 
   @Test
@@ -117,7 +117,7 @@ public class TestParquetFileMerger {
 
     File parquetFile1 = createTempFile(temp);
     OutputFile outputFile1 = Files.localOutput(parquetFile1);
-    createParquetFileWithSchema(outputFile1, icebergSchema1);
+    createParquetFileWithData(outputFile1, icebergSchema1, Collections.emptyList());
 
     // Create second Parquet file with different schema
     Schema icebergSchema2 =
@@ -127,7 +127,7 @@ public class TestParquetFileMerger {
 
     File parquetFile2 = createTempFile(temp);
     OutputFile outputFile2 = Files.localOutput(parquetFile2);
-    createParquetFileWithSchema(outputFile2, icebergSchema2);
+    createParquetFileWithData(outputFile2, icebergSchema2, Collections.emptyList());
 
     // Try to validate - should return null due to different schemas
     InputFile inputFile1 = Files.localInput(parquetFile1);
@@ -157,20 +157,6 @@ public class TestParquetFileMerger {
   }
 
   @Test
-  public void testCanMergeReturnsTrueForSingleFile() throws IOException {
-    // Create a single Parquet file with some data
-    File parquetFile = createTempFile(temp);
-    writeRecordsToFile(parquetFile, Arrays.asList(createRecord(1, "a")));
-
-    // Should return non-null MessageType for single file
-    InputFile inputFile = Files.localInput(parquetFile);
-    List<InputFile> inputFiles = Lists.newArrayList(inputFile);
-
-    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
-    assertThat(result).isNotNull();
-  }
-
-  @Test
   public void testMergeFilesSynthesizesRowLineageColumns() throws IOException {
     // Test that merging files with virtual row lineage synthesizes physical _row_id and
     // _last_updated_sequence_number columns
@@ -193,7 +179,8 @@ public class TestParquetFileMerger {
     OutputFile mergedOutput = Files.localOutput(mergedFile);
 
     // Perform merge
-    mergeFilesHelper(dataFiles, mergedOutput, DEFAULT_ROW_GROUP_SIZE, UNPARTITIONED_SPEC, null);
+    mergeFilesHelper(
+        dataFiles, mergedOutput, DEFAULT_ROW_GROUP_SIZE, PartitionSpec.unpartitioned(), null);
 
     // Verify the merged file has both row lineage columns
     InputFile mergedInput = Files.localInput(mergedFile);
@@ -255,7 +242,8 @@ public class TestParquetFileMerger {
     File mergedFile = createTempFile(temp);
     OutputFile mergedOutput = Files.localOutput(mergedFile);
 
-    mergeFilesHelper(dataFiles, mergedOutput, DEFAULT_ROW_GROUP_SIZE, UNPARTITIONED_SPEC, null);
+    mergeFilesHelper(
+        dataFiles, mergedOutput, DEFAULT_ROW_GROUP_SIZE, PartitionSpec.unpartitioned(), null);
 
     // Verify row IDs are sequential across row groups
     List<RowLineageRecord> mergedRecords = readRowLineageData(Files.localInput(mergedFile));
@@ -292,7 +280,11 @@ public class TestParquetFileMerger {
     File mergedFile = createTempFile(temp);
 
     mergeFilesHelper(
-        dataFiles, Files.localOutput(mergedFile), DEFAULT_ROW_GROUP_SIZE, UNPARTITIONED_SPEC, null);
+        dataFiles,
+        Files.localOutput(mergedFile),
+        DEFAULT_ROW_GROUP_SIZE,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Verify sequence numbers transition correctly between files
     List<RowLineageRecord> records = readRowLineageData(Files.localInput(mergedFile));
@@ -330,7 +322,11 @@ public class TestParquetFileMerger {
     File mergedFile = createTempFile(temp);
 
     mergeFilesHelper(
-        dataFiles, Files.localOutput(mergedFile), DEFAULT_ROW_GROUP_SIZE, UNPARTITIONED_SPEC, null);
+        dataFiles,
+        Files.localOutput(mergedFile),
+        DEFAULT_ROW_GROUP_SIZE,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Verify merged file does NOT have row lineage columns
     MessageType mergedSchema;
@@ -374,7 +370,7 @@ public class TestParquetFileMerger {
 
     // Create files with physical row lineage columns
     File file1 = createTempFile(temp);
-    createParquetFileWithRowLineage(
+    createParquetFileWithData(
         Files.localOutput(file1),
         schemaWithLineage,
         Arrays.asList(
@@ -382,7 +378,7 @@ public class TestParquetFileMerger {
             createRecordWithLineage(schemaWithLineage, 2, "b", 101L, 5L)));
 
     File file2 = createTempFile(temp);
-    createParquetFileWithRowLineage(
+    createParquetFileWithData(
         Files.localOutput(file2),
         schemaWithLineage,
         Arrays.asList(createRecordWithLineage(schemaWithLineage, 3, "c", 102L, 5L)));
@@ -396,7 +392,11 @@ public class TestParquetFileMerger {
     File mergedFile = createTempFile(temp);
 
     mergeFilesHelper(
-        dataFiles, Files.localOutput(mergedFile), DEFAULT_ROW_GROUP_SIZE, UNPARTITIONED_SPEC, null);
+        dataFiles,
+        Files.localOutput(mergedFile),
+        DEFAULT_ROW_GROUP_SIZE,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Verify physical columns are preserved
     List<RowLineageRecord> records = readRowLineageData(Files.localInput(mergedFile));
@@ -430,7 +430,7 @@ public class TestParquetFileMerger {
 
     File file1 = createTempFile(temp);
     // Create file with null in _row_id column (this simulates corrupted data)
-    createParquetFileWithRowLineage(
+    createParquetFileWithData(
         Files.localOutput(file1),
         schemaWithLineage,
         Arrays.asList(
@@ -479,7 +479,11 @@ public class TestParquetFileMerger {
     File outputFile = createTempFile(temp);
 
     mergeFilesHelper(
-        dataFiles, Files.localOutput(outputFile), DEFAULT_ROW_GROUP_SIZE, UNPARTITIONED_SPEC, null);
+        dataFiles,
+        Files.localOutput(outputFile),
+        DEFAULT_ROW_GROUP_SIZE,
+        PartitionSpec.unpartitioned(),
+        null);
 
     // Read back the merged data and verify exact row ID values
     List<RowLineageRecord> records = readRowLineageData(Files.localInput(outputFile));
@@ -523,7 +527,7 @@ public class TestParquetFileMerger {
             Types.NestedField.optional(2, "data", Types.StringType.get()));
 
     File file1 = createTempFile(temp);
-    createParquetFileWithSchema(Files.localOutput(file1), schema1);
+    createParquetFileWithData(Files.localOutput(file1), schema1, Collections.emptyList());
 
     // Create second file with 'data' as LongType (incompatible)
     Schema schema2 =
@@ -532,7 +536,7 @@ public class TestParquetFileMerger {
             Types.NestedField.optional(2, "data", Types.LongType.get()));
 
     File file2 = createTempFile(temp);
-    createParquetFileWithSchema(Files.localOutput(file2), schema2);
+    createParquetFileWithData(Files.localOutput(file2), schema2, Collections.emptyList());
 
     // Validation should fail due to type mismatch
     List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
@@ -550,35 +554,21 @@ public class TestParquetFileMerger {
 
     // Create file 1 with SNAPPY compression
     File file1 = createTempFile(temp);
-    var writer1 =
-        writeData(Files.localOutput(file1))
-            .schema(SCHEMA)
-            .withSpec(UNPARTITIONED_SPEC)
-            .createWriterFunc(GenericParquetWriter::create)
-            .set(TableProperties.PARQUET_COMPRESSION, "snappy")
-            .overwrite()
-            .build();
-    try {
-      writer1.write(createRecord(1, "a"));
-    } finally {
-      writer1.close();
-    }
+    createParquetFileWithData(
+        Files.localOutput(file1),
+        SCHEMA,
+        Arrays.asList(createRecord(1, "a")),
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        "snappy");
 
     // Create file 2 with GZIP compression
     File file2 = createTempFile(temp);
-    var writer2 =
-        writeData(Files.localOutput(file2))
-            .schema(SCHEMA)
-            .withSpec(UNPARTITIONED_SPEC)
-            .createWriterFunc(GenericParquetWriter::create)
-            .set(TableProperties.PARQUET_COMPRESSION, "gzip")
-            .overwrite()
-            .build();
-    try {
-      writer2.write(createRecord(2, "b"));
-    } finally {
-      writer2.close();
-    }
+    createParquetFileWithData(
+        Files.localOutput(file2),
+        SCHEMA,
+        Arrays.asList(createRecord(2, "b")),
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        "gzip");
 
     // Should succeed - compression doesn't affect schema compatibility
     List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
@@ -729,134 +719,20 @@ public class TestParquetFileMerger {
 
     DataFile baseFile = builder.build();
 
-    // Wrap the DataFile to add dataSequenceNumber since DataFiles.Builder doesn't support it
-    return new DataFileWrapper(baseFile, dataSequenceNumber);
-  }
-
-  /** Wrapper to add dataSequenceNumber to a DataFile */
-  private static class DataFileWrapper implements DataFile {
-    private final DataFile wrapped;
-    private final Long dataSequenceNumber;
-
-    DataFileWrapper(DataFile wrapped, Long dataSequenceNumber) {
-      this.wrapped = wrapped;
-      this.dataSequenceNumber = dataSequenceNumber;
+    // Use reflection to set dataSequenceNumber since DataFiles.Builder doesn't support it
+    try {
+      // Access BaseFile.setDataSequenceNumber via reflection so BaseFile can remain
+      // package-private and the test does not depend on its visibility.
+      Class<?> baseFileClass = Class.forName("org.apache.iceberg.BaseFile");
+      java.lang.reflect.Method setDataSeq =
+          baseFileClass.getDeclaredMethod("setDataSequenceNumber", Long.class);
+      setDataSeq.setAccessible(true);
+      setDataSeq.invoke(baseFileClass.cast(baseFile), dataSequenceNumber);
+    } catch (ReflectiveOperationException e) {
+      throw new RuntimeException("Failed to set dataSequenceNumber on DataFile", e);
     }
 
-    @Override
-    public Long pos() {
-      return wrapped.pos();
-    }
-
-    @Override
-    public int specId() {
-      return wrapped.specId();
-    }
-
-    @Override
-    public FileContent content() {
-      return wrapped.content();
-    }
-
-    @Override
-    public CharSequence path() {
-      return wrapped.path();
-    }
-
-    @Override
-    public FileFormat format() {
-      return wrapped.format();
-    }
-
-    @Override
-    public StructLike partition() {
-      return wrapped.partition();
-    }
-
-    @Override
-    public long recordCount() {
-      return wrapped.recordCount();
-    }
-
-    @Override
-    public long fileSizeInBytes() {
-      return wrapped.fileSizeInBytes();
-    }
-
-    @Override
-    public Map<Integer, Long> columnSizes() {
-      return wrapped.columnSizes();
-    }
-
-    @Override
-    public Map<Integer, Long> valueCounts() {
-      return wrapped.valueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nullValueCounts() {
-      return wrapped.nullValueCounts();
-    }
-
-    @Override
-    public Map<Integer, Long> nanValueCounts() {
-      return wrapped.nanValueCounts();
-    }
-
-    @Override
-    public Map<Integer, java.nio.ByteBuffer> lowerBounds() {
-      return wrapped.lowerBounds();
-    }
-
-    @Override
-    public Map<Integer, java.nio.ByteBuffer> upperBounds() {
-      return wrapped.upperBounds();
-    }
-
-    @Override
-    public java.nio.ByteBuffer keyMetadata() {
-      return wrapped.keyMetadata();
-    }
-
-    @Override
-    public List<Long> splitOffsets() {
-      return wrapped.splitOffsets();
-    }
-
-    @Override
-    public List<Integer> equalityFieldIds() {
-      return wrapped.equalityFieldIds();
-    }
-
-    @Override
-    public Integer sortOrderId() {
-      return wrapped.sortOrderId();
-    }
-
-    @Override
-    public Long dataSequenceNumber() {
-      return dataSequenceNumber;
-    }
-
-    @Override
-    public Long fileSequenceNumber() {
-      return wrapped.fileSequenceNumber();
-    }
-
-    @Override
-    public Long firstRowId() {
-      return wrapped.firstRowId();
-    }
-
-    @Override
-    public DataFile copy() {
-      return new DataFileWrapper(wrapped.copy(), dataSequenceNumber);
-    }
-
-    @Override
-    public DataFile copyWithoutStats() {
-      return new DataFileWrapper(wrapped.copyWithoutStats(), dataSequenceNumber);
-    }
+    return baseFile;
   }
 
   /** Helper to create a Parquet file with data */
@@ -870,33 +746,29 @@ public class TestParquetFileMerger {
   private void createParquetFileWithData(
       OutputFile outputFile, Schema schema, List<Record> records, long rowGroupSize)
       throws IOException {
-    var writer =
-        writeData(outputFile)
-            .schema(schema)
-            .withSpec(PartitionSpec.unpartitioned())
-            .createWriterFunc(GenericParquetWriter::create)
-            .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(rowGroupSize))
-            .overwrite()
-            .build();
-    try {
-      for (Record record : records) {
-        writer.write(record);
-      }
-    } finally {
-      writer.close();
-    }
+    createParquetFileWithData(outputFile, schema, records, rowGroupSize, null);
   }
 
-  /** Helper to create a Parquet file with row lineage columns */
-  private void createParquetFileWithRowLineage(
-      OutputFile outputFile, Schema schema, List<Record> records) throws IOException {
-    var writer =
+  /** Helper to create a Parquet file with data, row group size, and compression codec */
+  private void createParquetFileWithData(
+      OutputFile outputFile,
+      Schema schema,
+      List<Record> records,
+      long rowGroupSize,
+      String compression)
+      throws IOException {
+    var writerBuilder =
         writeData(outputFile)
             .schema(schema)
             .withSpec(PartitionSpec.unpartitioned())
             .createWriterFunc(GenericParquetWriter::create)
-            .overwrite()
-            .build();
+            .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(rowGroupSize));
+
+    if (compression != null) {
+      writerBuilder.set(TableProperties.PARQUET_COMPRESSION, compression);
+    }
+
+    var writer = writerBuilder.overwrite().build();
     try {
       for (Record record : records) {
         writer.write(record);
@@ -918,6 +790,7 @@ public class TestParquetFileMerger {
         records.add(record);
       }
     }
+
     return records;
   }
 
@@ -940,6 +813,7 @@ public class TestParquetFileMerger {
         }
       }
     }
+
     return records;
   }
 
@@ -1028,18 +902,6 @@ public class TestParquetFileMerger {
       this.id = id;
       this.data = data;
     }
-  }
-
-  /** Helper method to create a Parquet file with a given schema (empty file, just for testing) */
-  private void createParquetFileWithSchema(OutputFile outputFile, Schema schema)
-      throws IOException {
-    writeData(outputFile)
-        .schema(schema)
-        .withSpec(PartitionSpec.unpartitioned())
-        .createWriterFunc(GenericParquetWriter::create)
-        .overwrite()
-        .build()
-        .close();
   }
 
   /**
