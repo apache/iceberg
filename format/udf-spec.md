@@ -91,22 +91,25 @@ Notes:
 
 Each `definition` represents one function signature (e.g., `add_one(int)` vs `add_one(float)`).
 
-| Requirement | Field name           | Type                                                                                                                                                                                                                                                        | Description                                                                                                   |
-|-------------|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| *required*  | `definition-id`      | `string`                                                                                                                                                                                                                                                    | An identifier derived from canonical parameter-type tuple (lowercase, no spaces; e.g., `"(int,int,string)"`). |
-| *required*  | `parameters`         | `list<parameter>`                                                                                                                                                                                                                                           | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.                 |
-| *required*  | `return-type`        | [Iceberg Type JSON Representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization), primitive types are encoded as JSON strings (e.g., `"int"`, `"string"`), and complex types are encoded as JSON objects (e.g., `{"type": "struct", ...}` | Type of value returned                                                                                        |
-| *optional*  | `nullable-return`    | `boolean`                                                                                                                                                                                                                                                   | A hint to indicate whether the return value is nullable or not. Default: `true`.                              |
-| *required*  | `versions`           | `list<definition-version>`                                                                                                                                                                                                                                  | [Versioned implementations](#definition-version) of this definition.                                          |
-| *required*  | `current-version-id` | `int`                                                                                                                                                                                                                                                       | Identifier of the current version for this definition.                                                        |
-| *optional*  | `function-type`      | `string` (`"udf"` or `"udtf"`, default `"udf"`)                                                                                                                                                                                                             | If `"udtf"`, `return-type` must be an Iceberg type `struct` describing the output schema.                     |
-| *optional*  | `doc`                | `string`                                                                                                                                                                                                                                                    | Documentation string.                                                                                         |
+| Requirement | Field name           | Type                                            | Description                                                                                                   |
+|-------------|----------------------|-------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| *required*  | `definition-id`      | `string`                                        | An identifier derived from canonical parameter-type tuple (lowercase, no spaces; e.g., `"(int,int,string)"`). |
+| *required*  | `parameters`         | `list<parameter>`                               | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.                 |
+| *required*  | `return-type`        | `string`                                        | Declared return type (see [Parameter Type](#parameter-type)).                                                 |
+| *optional*  | `nullable-return`    | `boolean`                                       | A hint to indicate whether the return value is nullable or not. Default: `true`.                              |
+| *required*  | `versions`           | `list<definition-version>`                      | [Versioned implementations](#definition-version) of this definition.                                          |
+| *required*  | `current-version-id` | `int`                                           | Identifier of the current version for this definition.                                                        |
+| *optional*  | `function-type`      | `string` (`"udf"` or `"udtf"`, default `"udf"`) | If `"udtf"`, `return-type` must be an Iceberg type `struct` describing the output schema.                     |
+| *optional*  | `doc`                | `string`                                        | Documentation string.                                                                                         |
 
 ### Parameter
-| Requirement | Field     | Type                                                                                                                                                                                                                                                         | Description              |
-|-------------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|
-| *required*  | `type`    | [Iceberg Type JSON Representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization), primitive types are encoded as JSON strings (e.g., `"int"`, `"string"`), and complex types are encoded as JSON objects (e.g., `{"type": "struct", ...}`) | Parameter data type.     |
-| *optional*  | `default` | [Iceberg Single-value JSON Representation](https://iceberg.apache.org/spec/#json-single-value-serialization), following the [table default value rule](https://iceberg.apache.org/spec/#default-values).                                                     | Parameter Default value. |
+| Requirement | Field     | Type                                              | Description                                                  |
+|-------------|-----------|---------------------------------------------------|--------------------------------------------------------------|
+| *required*  | `type`    | `string`                                          | Parameter data type (see [Parameter Type](#parameter-type)). |
+| *optional*  | `default` | [Iceberg Single-value JSON Representation][value] | Parameter Default value, following the [default-value-rule]. |
+
+[value]: https://iceberg.apache.org/spec/#json-single-value-serialization
+[default-value-rule]: https://iceberg.apache.org/spec/#default-value
 
 Notes:
 1. Function definitions are identified by the tuple of `type`s and there can be only one definition for a given tuple.
@@ -121,6 +124,15 @@ Notes:
    and any field or element marked as required MUST NOT be null. Engines MUST reject results that violate these rules.
 6. All variable names used in definitions must match the global parameter name list, and this requirement applies across
    all versions and overloads.
+
+#### Parameter-Type
+Primitive types are encoded using the [Iceberg Type JSON Representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization),
+for example `"int"`, `"string"`.
+
+Three composite types are supported. 
+* `list<T>`: Ordered, homogeneous collection of elements of type `T` (any Iceberg type); example `list<int>`.
+* `map<K,V>`: Key–value collection; `K` must be a primitive, comparable type (`string` recommended); example `map<string,int>`.
+* `struct<...>`: Closed record with explicitly named fields; field order is significant and undeclared fields are not allowed; example `struct<id:int,name:string>`.
 
 #### Defaults and Overload Compatibility
 When a parameter has a default value, the definition supports multiple invocation arities. These arities are reserved,
