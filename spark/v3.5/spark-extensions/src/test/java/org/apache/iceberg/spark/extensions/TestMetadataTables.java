@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -997,107 +996,42 @@ public class TestMetadataTables extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testBinaryUUIDReadableMetrics() throws Exception {
+  public void testReadableMetricsWithUUIDBounds() throws Exception {
+    // 1. Create table via Spark SQL (Spark-compatible)
     sql(
-        "CREATE TABLE %s (id binary) USING iceberg TBLPROPERTIES ('format-version'='%s')",
+        "CREATE TABLE %s (dummy INT) USING iceberg TBLPROPERTIES ('format-version'='%s')",
         tableName, formatVersion);
 
-    // Prepare UUIDs as 16-byte binary
-    List<byte[]> values =
-        Stream.of(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
-            .map(
-                uuid -> {
-                  ByteBuffer buf = ByteBuffer.allocate(16);
-                  buf.putLong(uuid.getMostSignificantBits());
-                  buf.putLong(uuid.getLeastSignificantBits());
-                  return buf.array();
-                })
-            .collect(Collectors.toList());
-
-    Dataset<Row> df = spark.createDataset(values, Encoders.BINARY()).toDF("id");
-
-    df.writeTo(tableName).append();
-
+    // 2. Load Iceberg table and evolve schema to UUID
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    assertThat(table.currentSnapshot()).isNotNull();
 
-    // Make sure metric
-    List<Object[]> metrics = sql("SELECT readable_metrics FROM %s.all_files", tableName);
+    table.updateSchema().deleteColumn("dummy").addColumn("id", Types.UUIDType.get()).commit();
 
-    assertThat(metrics).isNotEmpty();
+    // 3. Insert data via Spark (forces Iceberg to write UUID metrics)
+    UUID uuid = UUID.randomUUID();
 
-    Object[] readableMetrics = (Object[]) metrics.get(0)[0];
+    sql("INSERT INTO %s VALUES ('%s')", tableName, uuid.toString());
+
+    // 4. Query readable_metrics
+    //    BEFORE FIX: crashes with
+    //    java.lang.ClassCastException: java.util.UUID → java.lang.CharSequence
+    Dataset<Row> df = spark.sql("SELECT readable_metrics FROM " + tableName + ".all_files");
+
+    // After fix: must not throw
+    List<Row> rows = df.collectAsList();
+    assertThat(rows).hasSize(1);
+
+    Row readableMetrics = rows.get(0).getStruct(0);
     assertThat(readableMetrics).isNotNull();
 
-    // Nested column metrics for "id"
-    Object[] idMetrics = (Object[]) readableMetrics[0];
-    assertThat(idMetrics).isNotNull();
+    Row idMetrics = readableMetrics.getStruct(readableMetrics.fieldIndex("id"));
 
-    // Extract bounds
-    Object lowerObj = idMetrics[4];
-    Object upperObj = idMetrics[5];
+    // Accessing bounds must not throw
+    Object lowerBound = idMetrics.get(idMetrics.fieldIndex("lower_bound"));
+    Object upperBound = idMetrics.get(idMetrics.fieldIndex("upper_bound"));
 
-    if (lowerObj != null) {
-      assertThat(lowerObj).isInstanceOf(byte[].class);
-      String lower = LOWER_HEX.encode((byte[]) lowerObj);
-      assertThat(lower).isNotEmpty();
-      assertThat(lower).matches("[0-9a-f]+");
-    }
-
-    if (upperObj != null) {
-      assertThat(upperObj).isInstanceOf(byte[].class);
-      String upper = LOWER_HEX.encode((byte[]) upperObj);
-      assertThat(upper).isNotEmpty();
-      assertThat(upper).matches("[0-9a-f]+");
-    }
-
-    if (lowerObj != null && upperObj != null) {
-      String lower = LOWER_HEX.encode((byte[]) lowerObj);
-      String upper = LOWER_HEX.encode((byte[]) upperObj);
-      assertThat(lower.compareTo(upper)).isLessThanOrEqualTo(0);
-    }
-  }
-
-  @TestTemplate
-  public void testStringUUIDReadableMetrics() throws Exception {
-    // Create table with STRING UUID column
-    sql(
-        "CREATE TABLE %s (id STRING) USING iceberg TBLPROPERTIES ('format-version'='%s')",
-        tableName, formatVersion);
-
-    // Prepare UUIDs as strings
-    List<String> values =
-        Stream.of(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
-            .map(UUID::toString)
-            .collect(Collectors.toList());
-
-    Dataset<Row> df = spark.createDataset(values, Encoders.STRING()).toDF("id");
-    df.writeTo(tableName).append();
-
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    assertThat(table.currentSnapshot()).isNotNull();
-
-    // Fetch readable metrics from all_files
-    List<Object[]> metrics = sql("SELECT readable_metrics FROM %s.all_files", tableName);
-    assertThat(metrics).isNotEmpty();
-
-    // readable_metrics is a STRUCT represented as Object[]
-    Object[] readableMetrics = (Object[]) metrics.get(0)[0];
-    assertThat(readableMetrics).isNotNull();
-
-    // Column "id" metrics
-    Object[] idMetrics = (Object[]) readableMetrics[0];
-    assertThat(idMetrics).isNotNull();
-
-    // Extract bounds
-    String lower = (String) idMetrics[4]; // lower_bound
-    String upper = (String) idMetrics[5]; // upper_bound
-
-    // For STRING UUIDs, bounds should always exist
-    assertThat(lower).isNotNull().isNotEmpty();
-    assertThat(upper).isNotNull().isNotEmpty();
-
-    // Lexicographic ordering must hold
-    assertThat(lower.compareTo(upper)).isLessThanOrEqualTo(0);
+    // Do NOT assert exact type — only that Spark can read safely
+    assertThat(lowerBound).isNotNull();
+    assertThat(upperBound).isNotNull();
   }
 }

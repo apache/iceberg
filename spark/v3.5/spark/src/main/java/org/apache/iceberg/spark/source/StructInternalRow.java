@@ -197,10 +197,6 @@ class StructInternalRow extends InternalRow {
       return UTF8String.fromString(LOWER_HEX.encode(bytes));
     }
 
-    if (value instanceof byte[]) {
-      return UTF8String.fromString(LOWER_HEX.encode((byte[]) value));
-    }
-
     if (value instanceof CharSequence) {
       return UTF8String.fromString(value.toString());
     }
