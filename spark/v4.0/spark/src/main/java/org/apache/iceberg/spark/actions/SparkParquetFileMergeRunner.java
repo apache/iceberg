@@ -139,9 +139,6 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
    */
   private void mergeParquetFilesDistributed(
       String groupId, RewriteFileGroup group, MessageType schema) {
-    PartitionSpec spec = table().specs().get(group.outputSpecId());
-    StructLike partition = group.info().partition();
-
     LOG.info(
         "Merging {} Parquet files into 1 output file (group: {})",
         group.rewrittenFiles().size(),
@@ -153,26 +150,16 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
             table().properties(),
             TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
             TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
-    List<DataFile> dataFiles = Lists.newArrayList(group.rewrittenFiles());
     FileIO fileIO = table().io();
     Table serializableTable = table();
 
     // Execute merge on an executor
-    // Use parallelize with a single dummy element to run the merge on an executor
+    // Use parallelize to run the merge task on an executor
     JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark().sparkContext());
-    JavaRDD<Integer> taskRDD = jsc.parallelize(Lists.newArrayList(1), 1);
+    JavaRDD<RewriteFileGroup> taskRDD = jsc.parallelize(Lists.newArrayList(group), 1);
     DataFile newFile =
         taskRDD
-            .map(
-                ignored ->
-                    mergeFilesForTask(
-                        dataFiles,
-                        rowGroupSize,
-                        partition,
-                        spec,
-                        fileIO,
-                        serializableTable,
-                        schema))
+            .map(task -> mergeFilesForTask(task, rowGroupSize, fileIO, serializableTable, schema))
             .collect()
             .get(0);
 
@@ -191,18 +178,18 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
    * <p>IMPORTANT: OutputFileFactory is created here on the executor (not serialized from driver)
    * using TaskContext.taskAttemptId() to ensure unique filenames across task retry attempts.
    *
+   * @param task the file group to merge
    * @param schema the Parquet schema obtained from validation on the driver, reused to avoid
    *     redundant file reads
    */
   private static DataFile mergeFilesForTask(
-      List<DataFile> dataFiles,
-      long rowGroupSize,
-      StructLike partition,
-      PartitionSpec spec,
-      FileIO fileIO,
-      Table table,
-      MessageType schema)
+      RewriteFileGroup task, long rowGroupSize, FileIO fileIO, Table table, MessageType schema)
       throws IOException {
+    // Extract task metadata on executor
+    List<DataFile> dataFiles = Lists.newArrayList(task.rewrittenFiles());
+    PartitionSpec spec = table.specs().get(task.outputSpecId());
+    StructLike partition = task.info().partition();
+
     // Create OutputFileFactory on executor using Spark's TaskContext.taskAttemptId()
     // This ensures unique filenames across retry attempts (taskAttemptId changes on each retry)
     TaskContext sparkContext = TaskContext.get();

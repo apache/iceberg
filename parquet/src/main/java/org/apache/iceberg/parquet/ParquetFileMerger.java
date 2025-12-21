@@ -99,7 +99,8 @@ public class ParquetFileMerger {
   }
 
   /**
-   * Validates that DataFiles can be merged and returns the Parquet schema if validation succeeds.
+   * Checks whether the provided DataFiles are eligible for merging and, if successful, returns the
+   * common Parquet schema.
    *
    * <p>This method validates:
    *
@@ -186,6 +187,7 @@ public class ParquetFileMerger {
           }
         }
       }
+
       return true;
     } catch (IOException e) {
       // If we can't read the file metadata, we can't validate
