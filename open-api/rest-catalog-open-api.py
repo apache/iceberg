@@ -110,6 +110,10 @@ class PrimitiveType(BaseModel):
     __root__: str = Field(..., example=['long', 'string', 'fixed[16]', 'decimal(10,2)'])
 
 
+class VariantType(BaseModel):
+    type: str = Field('variant', const=True)
+
+
 class ExpressionType(BaseModel):
     __root__: str = Field(
         ...,
@@ -1176,7 +1180,7 @@ class MapType(BaseModel):
 
 
 class Type(BaseModel):
-    __root__: Union[PrimitiveType, StructType, ListType, MapType]
+    __root__: Union[PrimitiveType, StructType, ListType, MapType, VariantType]
 
 
 class Expression(BaseModel):
