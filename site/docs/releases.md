@@ -102,7 +102,6 @@ The 1.10.1 release contains bug fixes. For full release notes visit [Github](htt
     - Backport Prevent recreation of `ManifestOutputFileFactory` during flushing ([\#14385](https://github.com/apache/iceberg/pull/14385))
     - Fix cache refreshing in `DynamicIcebergSink` ([\#14406](https://github.com/apache/iceberg/pull/14406))
     - Port fix cache refreshing in `DynamicIcebergSink` ([\#14765](https://github.com/apache/iceberg/pull/14765))
-    - Fix `DynamicIcebergSink` cache refreshing fix ([\#14862](https://github.com/apache/iceberg/pull/14862))
 * Spark
     - 3.4: Pass format-version when creating a snapshot ([\#14170](https://github.com/apache/iceberg/pull/14170))
     - 3.5: Pass format-version when creating a snapshot ([\#14169](https://github.com/apache/iceberg/pull/14169))
