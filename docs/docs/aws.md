@@ -417,7 +417,7 @@ There is no redundant consistency wait and check which might negatively impact p
 ### Hadoop S3A FileSystem
 
 > ⚠️ **Important**
-> 
+>
 > **S3FileIO is recommended** for S3 use cases rather than the `S3A FileSystem` (`HadoopFileIO`).
 >
 
