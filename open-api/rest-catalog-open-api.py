@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Dict, List, Literal, Optional, Union
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Extra, Field
@@ -38,7 +38,7 @@ class ErrorModel(BaseModel):
     code: int = Field(
         ..., description='HTTP response code', example=404, ge=400, le=600
     )
-    stack: Optional[List[str]] = None
+    stack: list[str] | None = None
 
 
 class CatalogConfig(BaseModel):
@@ -46,15 +46,15 @@ class CatalogConfig(BaseModel):
     Server-provided configuration for the catalog.
     """
 
-    overrides: Dict[str, str] = Field(
+    overrides: dict[str, str] = Field(
         ...,
         description='Properties that should be used to override client configuration; applied after defaults and client configuration.',
     )
-    defaults: Dict[str, str] = Field(
+    defaults: dict[str, str] = Field(
         ...,
         description='Properties that should be used as default configuration; applied before client configuration.',
     )
-    endpoints: Optional[List[str]] = Field(
+    endpoints: list[str] | None = Field(
         None,
         description='A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>". The HTTP verb and the resource path must be separated by a space character.',
         example=[
@@ -65,7 +65,7 @@ class CatalogConfig(BaseModel):
             'GET /v1/{prefix}/namespaces/{namespace}/views/{view}',
         ],
     )
-    idempotency_key_lifetime: Optional[timedelta] = Field(
+    idempotency_key_lifetime: timedelta | None = Field(
         None,
         alias='idempotency-key-lifetime',
         description='Client reuse window for an Idempotency-Key (ISO-8601 duration, e.g., PT30M, PT24H). Interpreted as the maximum time from the first submission using a key to the last retry during which a client may reuse that key. Servers SHOULD accept retries for at least this duration and MAY include a grace period to account for delays/clock skew. Clients SHOULD NOT reuse an Idempotency-Key after this window elapses; they SHOULD generate a new key for any subsequent attempt. Presence of this field indicates the server supports Idempotency-Key semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.',
@@ -74,12 +74,10 @@ class CatalogConfig(BaseModel):
 
 
 class UpdateNamespacePropertiesRequest(BaseModel):
-    removals: Optional[List[str]] = Field(
+    removals: list[str] | None = Field(
         None, example=['department', 'access_group'], unique_items=True
     )
-    updates: Optional[Dict[str, str]] = Field(
-        None, example={'owner': 'Hank Bendickson'}
-    )
+    updates: dict[str, str] | None = Field(None, example={'owner': 'Hank Bendickson'})
 
 
 class Namespace(BaseModel):
@@ -87,7 +85,7 @@ class Namespace(BaseModel):
     Reference to one or more levels of a namespace
     """
 
-    __root__: List[str] = Field(
+    __root__: list[str] = Field(
         ...,
         description='Reference to one or more levels of a namespace',
         example=['accounting', 'tax'],
@@ -95,7 +93,7 @@ class Namespace(BaseModel):
 
 
 class PageToken(BaseModel):
-    __root__: Optional[str] = Field(
+    __root__: str | None = Field(
         None,
         description='An opaque token that allows clients to make use of pagination for list APIs (e.g. ListTables). Clients may initiate the first paginated request by sending an empty query parameter `pageToken` to the server.\nServers that support pagination should identify the `pageToken` parameter and return a `next-page-token` in the response if there are more results available.  After the initial request, the value of `next-page-token` from each response must be used as the `pageToken` parameter value for the next request. The server must return `null` value for the `next-page-token` in the last response.\nServers that support pagination must return all results in a single response with the value of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the request.\nServers that do not support pagination should ignore the `pageToken` parameter and return all results in a single response. The `next-page-token` must be omitted from the response.\nClients must interpret either `null` or missing response value of `next-page-token` as the end of the listing results.',
     )
@@ -165,15 +163,15 @@ class Transform(BaseModel):
 
 
 class PartitionField(BaseModel):
-    field_id: Optional[int] = Field(None, alias='field-id')
+    field_id: int | None = Field(None, alias='field-id')
     source_id: int = Field(..., alias='source-id')
     name: str
     transform: Transform
 
 
 class PartitionSpec(BaseModel):
-    spec_id: Optional[int] = Field(None, alias='spec-id')
-    fields: List[PartitionField]
+    spec_id: int | None = Field(None, alias='spec-id')
+    fields: list[PartitionField]
 
 
 class SortDirection(BaseModel):
@@ -193,14 +191,14 @@ class SortField(BaseModel):
 
 class SortOrder(BaseModel):
     order_id: int = Field(..., alias='order-id')
-    fields: List[SortField]
+    fields: list[SortField]
 
 
 class EncryptedKey(BaseModel):
     key_id: str = Field(..., alias='key-id')
     encrypted_key_metadata: str = Field(..., alias='encrypted-key-metadata')
-    encrypted_by_id: Optional[str] = Field(None, alias='encrypted-by-id')
-    properties: Optional[Dict[str, str]] = None
+    encrypted_by_id: str | None = Field(None, alias='encrypted-by-id')
+    properties: dict[str, str] | None = None
 
 
 class Summary(BaseModel):
@@ -209,38 +207,38 @@ class Summary(BaseModel):
 
 class Snapshot(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
-    parent_snapshot_id: Optional[int] = Field(None, alias='parent-snapshot-id')
-    sequence_number: Optional[int] = Field(None, alias='sequence-number')
+    parent_snapshot_id: int | None = Field(None, alias='parent-snapshot-id')
+    sequence_number: int | None = Field(None, alias='sequence-number')
     timestamp_ms: int = Field(..., alias='timestamp-ms')
     manifest_list: str = Field(
         ...,
         alias='manifest-list',
         description="Location of the snapshot's manifest list file",
     )
-    first_row_id: Optional[int] = Field(
+    first_row_id: int | None = Field(
         None,
         alias='first-row-id',
         description='The first _row_id assigned to the first row in the first data file in the first manifest',
     )
-    added_rows: Optional[int] = Field(
+    added_rows: int | None = Field(
         None,
         alias='added-rows',
         description='The upper bound of the number of rows with assigned row IDs',
     )
     summary: Summary
-    schema_id: Optional[int] = Field(None, alias='schema-id')
+    schema_id: int | None = Field(None, alias='schema-id')
 
 
 class SnapshotReference(BaseModel):
     type: Literal['tag', 'branch']
     snapshot_id: int = Field(..., alias='snapshot-id')
-    max_ref_age_ms: Optional[int] = Field(None, alias='max-ref-age-ms')
-    max_snapshot_age_ms: Optional[int] = Field(None, alias='max-snapshot-age-ms')
-    min_snapshots_to_keep: Optional[int] = Field(None, alias='min-snapshots-to-keep')
+    max_ref_age_ms: int | None = Field(None, alias='max-ref-age-ms')
+    max_snapshot_age_ms: int | None = Field(None, alias='max-snapshot-age-ms')
+    min_snapshots_to_keep: int | None = Field(None, alias='min-snapshots-to-keep')
 
 
 class SnapshotReferences(BaseModel):
-    __root__: Dict[str, SnapshotReference]
+    __root__: dict[str, SnapshotReference]
 
 
 class SnapshotLogItem(BaseModel):
@@ -249,7 +247,7 @@ class SnapshotLogItem(BaseModel):
 
 
 class SnapshotLog(BaseModel):
-    __root__: List[SnapshotLogItem]
+    __root__: list[SnapshotLogItem]
 
 
 class MetadataLogItem(BaseModel):
@@ -258,7 +256,7 @@ class MetadataLogItem(BaseModel):
 
 
 class MetadataLog(BaseModel):
-    __root__: List[MetadataLogItem]
+    __root__: list[MetadataLogItem]
 
 
 class SQLViewRepresentation(BaseModel):
@@ -284,9 +282,9 @@ class ViewVersion(BaseModel):
         alias='schema-id',
         description='Schema ID to set as current, or -1 to set last added schema',
     )
-    summary: Dict[str, str]
-    representations: List[ViewRepresentation]
-    default_catalog: Optional[str] = Field(None, alias='default-catalog')
+    summary: dict[str, str]
+    representations: list[ViewRepresentation]
+    default_catalog: str | None = Field(None, alias='default-catalog')
     default_namespace: Namespace = Field(..., alias='default-namespace')
 
 
@@ -355,14 +353,14 @@ class SetSnapshotRefUpdate(BaseModel):
     ref_name: str = Field(..., alias='ref-name')
     type: Literal['tag', 'branch']
     snapshot_id: int = Field(..., alias='snapshot-id')
-    max_ref_age_ms: Optional[int] = Field(None, alias='max-ref-age-ms')
-    max_snapshot_age_ms: Optional[int] = Field(None, alias='max-snapshot-age-ms')
-    min_snapshots_to_keep: Optional[int] = Field(None, alias='min-snapshots-to-keep')
+    max_ref_age_ms: int | None = Field(None, alias='max-ref-age-ms')
+    max_snapshot_age_ms: int | None = Field(None, alias='max-snapshot-age-ms')
+    min_snapshots_to_keep: int | None = Field(None, alias='min-snapshots-to-keep')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
     action: str = Field('remove-snapshots', const=True)
-    snapshot_ids: List[int] = Field(..., alias='snapshot-ids')
+    snapshot_ids: list[int] = Field(..., alias='snapshot-ids')
 
 
 class RemoveSnapshotRefUpdate(BaseUpdate):
@@ -377,12 +375,12 @@ class SetLocationUpdate(BaseUpdate):
 
 class SetPropertiesUpdate(BaseUpdate):
     action: str = Field('set-properties', const=True)
-    updates: Dict[str, str]
+    updates: dict[str, str]
 
 
 class RemovePropertiesUpdate(BaseUpdate):
     action: str = Field('remove-properties', const=True)
-    removals: List[str]
+    removals: list[str]
 
 
 class AddViewVersionUpdate(BaseUpdate):
@@ -411,12 +409,12 @@ class RemovePartitionStatisticsUpdate(BaseUpdate):
 
 class RemovePartitionSpecsUpdate(BaseUpdate):
     action: str = Field('remove-partition-specs', const=True)
-    spec_ids: List[int] = Field(..., alias='spec-ids')
+    spec_ids: list[int] = Field(..., alias='spec-ids')
 
 
 class RemoveSchemasUpdate(BaseUpdate):
     action: str = Field('remove-schemas', const=True)
-    schema_ids: List[int] = Field(..., alias='schema-ids')
+    schema_ids: list[int] = Field(..., alias='schema-ids')
 
 
 class AddEncryptionKeyUpdate(BaseUpdate):
@@ -522,11 +520,11 @@ class StorageCredential(BaseModel):
         ...,
         description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix (by selecting the longest prefix) if several credentials of the same type are available.',
     )
-    config: Dict[str, str]
+    config: dict[str, str]
 
 
 class LoadCredentialsResponse(BaseModel):
-    storage_credentials: List[StorageCredential] = Field(
+    storage_credentials: list[StorageCredential] = Field(
         ..., alias='storage-credentials'
     )
 
@@ -555,7 +553,7 @@ class PlanStatus(BaseModel):
 class RegisterTableRequest(BaseModel):
     name: str
     metadata_location: str = Field(..., alias='metadata-location')
-    overwrite: Optional[bool] = Field(
+    overwrite: bool | None = Field(
         False,
         description='Whether to overwrite table metadata if the table already exists',
     )
@@ -585,7 +583,7 @@ class OAuthClientCredentialsRequest(BaseModel):
     """
 
     grant_type: Literal['client_credentials']
-    scope: Optional[str] = None
+    scope: str | None = None
     client_id: str = Field(
         ...,
         description='Client ID\n\nThis can be sent in the request body, but OAuth2 recommends sending it in a Basic Authorization header.',
@@ -606,20 +604,20 @@ class OAuthTokenExchangeRequest(BaseModel):
     """
 
     grant_type: Literal['urn:ietf:params:oauth:grant-type:token-exchange']
-    scope: Optional[str] = None
-    requested_token_type: Optional[TokenType] = None
+    scope: str | None = None
+    requested_token_type: TokenType | None = None
     subject_token: str = Field(
         ..., description='Subject token for token exchange request'
     )
     subject_token_type: TokenType
-    actor_token: Optional[str] = Field(
+    actor_token: str | None = Field(
         None, description='Actor token for token exchange request'
     )
-    actor_token_type: Optional[TokenType] = None
+    actor_token_type: TokenType | None = None
 
 
 class OAuthTokenRequest(BaseModel):
-    __root__: Union[OAuthClientCredentialsRequest, OAuthTokenExchangeRequest] = Field(
+    __root__: OAuthClientCredentialsRequest | OAuthTokenExchangeRequest = Field(
         ...,
         description='The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.',
     )
@@ -637,11 +635,11 @@ class TimerResult(BaseModel):
 
 
 class MetricResult(BaseModel):
-    __root__: Union[CounterResult, TimerResult]
+    __root__: CounterResult | TimerResult
 
 
 class Metrics(BaseModel):
-    __root__: Dict[str, MetricResult]
+    __root__: dict[str, MetricResult]
 
 
 class CommitReport(BaseModel):
@@ -650,7 +648,7 @@ class CommitReport(BaseModel):
     sequence_number: int = Field(..., alias='sequence-number')
     operation: str
     metrics: Metrics
-    metadata: Optional[Dict[str, str]] = None
+    metadata: dict[str, str] | None = None
 
 
 class OAuthError(BaseModel):
@@ -666,8 +664,8 @@ class OAuthError(BaseModel):
         'unsupported_grant_type',
         'invalid_scope',
     ]
-    error_description: Optional[str] = None
-    error_uri: Optional[str] = None
+    error_description: str | None = None
+    error_uri: str | None = None
 
 
 class OAuthTokenResponse(BaseModel):
@@ -682,15 +680,15 @@ class OAuthTokenResponse(BaseModel):
         ...,
         description='Access token type for client credentials or token exchange\n\nSee https://datatracker.ietf.org/doc/html/rfc6749#section-7.1',
     )
-    expires_in: Optional[int] = Field(
+    expires_in: int | None = Field(
         None,
         description='Lifetime of the access token in seconds for client credentials or token exchange',
     )
-    issued_token_type: Optional[TokenType] = None
-    refresh_token: Optional[str] = Field(
+    issued_token_type: TokenType | None = None
+    refresh_token: str | None = Field(
         None, description='Refresh token for client credentials or token exchange'
     )
-    scope: Optional[str] = Field(
+    scope: str | None = Field(
         None, description='Authorization scope for client credentials or token exchange'
     )
 
@@ -708,7 +706,7 @@ class IcebergErrorResponse(BaseModel):
 
 class CreateNamespaceResponse(BaseModel):
     namespace: Namespace
-    properties: Optional[Dict[str, str]] = Field(
+    properties: dict[str, str] | None = Field(
         {},
         description='Properties stored on the namespace, if supported by the server.',
         example={'owner': 'Ralph', 'created_at': '1452120468'},
@@ -717,7 +715,7 @@ class CreateNamespaceResponse(BaseModel):
 
 class GetNamespaceResponse(BaseModel):
     namespace: Namespace
-    properties: Optional[Dict[str, str]] = Field(
+    properties: dict[str, str] | None = Field(
         {},
         description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',
         example={'owner': 'Ralph', 'transient_lastDdlTime': '1452120468'},
@@ -725,23 +723,23 @@ class GetNamespaceResponse(BaseModel):
 
 
 class ListTablesResponse(BaseModel):
-    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
-    identifiers: Optional[List[TableIdentifier]] = Field(None, unique_items=True)
+    next_page_token: PageToken | None = Field(None, alias='next-page-token')
+    identifiers: list[TableIdentifier] | None = Field(None, unique_items=True)
 
 
 class ListNamespacesResponse(BaseModel):
-    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
-    namespaces: Optional[List[Namespace]] = Field(None, unique_items=True)
+    next_page_token: PageToken | None = Field(None, alias='next-page-token')
+    namespaces: list[Namespace] | None = Field(None, unique_items=True)
 
 
 class UpdateNamespacePropertiesResponse(BaseModel):
-    updated: List[str] = Field(
+    updated: list[str] = Field(
         ...,
         description='List of property keys that were added or updated',
         unique_items=True,
     )
-    removed: List[str] = Field(..., description='List of properties that were removed')
-    missing: Optional[List[str]] = Field(
+    removed: list[str] = Field(..., description='List of properties that were removed')
+    missing: list[str] | None = Field(
         None,
         description="List of properties requested for removal that were not found in the namespace's properties. Represents a partial success response. Server's do not need to implement this.",
     )
@@ -751,8 +749,8 @@ class BlobMetadata(BaseModel):
     type: str
     snapshot_id: int = Field(..., alias='snapshot-id')
     sequence_number: int = Field(..., alias='sequence-number')
-    fields: List[int]
-    properties: Optional[Dict[str, str]] = None
+    fields: list[int]
+    properties: dict[str, str] | None = None
 
 
 class PartitionStatisticsFile(BaseModel):
@@ -869,33 +867,33 @@ class BinaryTypeValue(BaseModel):
 
 
 class CountMap(BaseModel):
-    keys: Optional[List[IntegerTypeValue]] = Field(
+    keys: list[IntegerTypeValue] | None = Field(
         None, description='List of integer column ids for each corresponding value'
     )
-    values: Optional[List[LongTypeValue]] = Field(
+    values: list[LongTypeValue] | None = Field(
         None, description="List of Long values, matched to 'keys' by index"
     )
 
 
 class PrimitiveTypeValue(BaseModel):
-    __root__: Union[
-        BooleanTypeValue,
-        IntegerTypeValue,
-        LongTypeValue,
-        FloatTypeValue,
-        DoubleTypeValue,
-        DecimalTypeValue,
-        StringTypeValue,
-        UUIDTypeValue,
-        DateTypeValue,
-        TimeTypeValue,
-        TimestampTypeValue,
-        TimestampTzTypeValue,
-        TimestampNanoTypeValue,
-        TimestampTzNanoTypeValue,
-        FixedTypeValue,
-        BinaryTypeValue,
-    ]
+    __root__: (
+        BooleanTypeValue
+        | IntegerTypeValue
+        | LongTypeValue
+        | FloatTypeValue
+        | DoubleTypeValue
+        | DecimalTypeValue
+        | StringTypeValue
+        | UUIDTypeValue
+        | DateTypeValue
+        | TimeTypeValue
+        | TimestampTypeValue
+        | TimestampTzTypeValue
+        | TimestampNanoTypeValue
+        | TimestampTzNanoTypeValue
+        | FixedTypeValue
+        | BinaryTypeValue
+    )
 
 
 class FileFormat(BaseModel):
@@ -907,7 +905,7 @@ class ContentFile(BaseModel):
     file_path: str = Field(..., alias='file-path')
     file_format: FileFormat = Field(..., alias='file-format')
     spec_id: int = Field(..., alias='spec-id')
-    partition: List[PrimitiveTypeValue] = Field(
+    partition: list[PrimitiveTypeValue] = Field(
         ...,
         description='A list of partition field values ordered based on the fields of the partition spec specified by the `spec-id`',
         example=[1, 'bar'],
@@ -918,23 +916,23 @@ class ContentFile(BaseModel):
     record_count: int = Field(
         ..., alias='record-count', description='Number of records in the file'
     )
-    key_metadata: Optional[BinaryTypeValue] = Field(
+    key_metadata: BinaryTypeValue | None = Field(
         None, alias='key-metadata', description='Encryption key metadata blob'
     )
-    split_offsets: Optional[List[int]] = Field(
+    split_offsets: list[int] | None = Field(
         None, alias='split-offsets', description='List of splittable offsets'
     )
-    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
+    sort_order_id: int | None = Field(None, alias='sort-order-id')
 
 
 class PositionDeleteFile(ContentFile):
     content: Literal['position-deletes'] = Field(..., const=True)
-    content_offset: Optional[int] = Field(
+    content_offset: int | None = Field(
         None,
         alias='content-offset',
         description='Offset within the delete file of delete content',
     )
-    content_size_in_bytes: Optional[int] = Field(
+    content_size_in_bytes: int | None = Field(
         None,
         alias='content-size-in-bytes',
         description='Length, in bytes, of the delete content; required if content-offset is present',
@@ -943,7 +941,7 @@ class PositionDeleteFile(ContentFile):
 
 class EqualityDeleteFile(ContentFile):
     content: Literal['equality-deletes'] = Field(..., const=True)
-    equality_ids: Optional[List[int]] = Field(
+    equality_ids: list[int] | None = Field(
         None, alias='equality-ids', description='List of equality field IDs'
     )
 
@@ -985,7 +983,7 @@ class ResidualFilter3(FalseExpression, ResidualFilter1):
 
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
-    properties: Optional[Dict[str, str]] = Field(
+    properties: dict[str, str] | None = Field(
         {},
         description='Configured string to string map of properties for the namespace',
         example={'owner': 'Hank Bendickson'},
@@ -1031,49 +1029,49 @@ class StatisticsFile(BaseModel):
     statistics_path: str = Field(..., alias='statistics-path')
     file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
     file_footer_size_in_bytes: int = Field(..., alias='file-footer-size-in-bytes')
-    blob_metadata: List[BlobMetadata] = Field(..., alias='blob-metadata')
+    blob_metadata: list[BlobMetadata] = Field(..., alias='blob-metadata')
 
 
 class ValueMap(BaseModel):
-    keys: Optional[List[IntegerTypeValue]] = Field(
+    keys: list[IntegerTypeValue] | None = Field(
         None, description='List of integer column ids for each corresponding value'
     )
-    values: Optional[List[PrimitiveTypeValue]] = Field(
+    values: list[PrimitiveTypeValue] | None = Field(
         None, description="List of primitive type values, matched to 'keys' by index"
     )
 
 
 class DataFile(ContentFile):
     content: str = Field(..., const=True)
-    first_row_id: Optional[int] = Field(
+    first_row_id: int | None = Field(
         None,
         alias='first-row-id',
         description='The first row ID assigned to the first row in the data file',
     )
-    column_sizes: Optional[CountMap] = Field(
+    column_sizes: CountMap | None = Field(
         None,
         alias='column-sizes',
         description='Map of column id to total count, including null and NaN',
     )
-    value_counts: Optional[CountMap] = Field(
+    value_counts: CountMap | None = Field(
         None, alias='value-counts', description='Map of column id to null value count'
     )
-    null_value_counts: Optional[CountMap] = Field(
+    null_value_counts: CountMap | None = Field(
         None,
         alias='null-value-counts',
         description='Map of column id to null value count',
     )
-    nan_value_counts: Optional[CountMap] = Field(
+    nan_value_counts: CountMap | None = Field(
         None,
         alias='nan-value-counts',
         description='Map of column id to number of NaN values in the column',
     )
-    lower_bounds: Optional[ValueMap] = Field(
+    lower_bounds: ValueMap | None = Field(
         None,
         alias='lower-bounds',
         description='Map of column id to lower bound primitive type values',
     )
-    upper_bounds: Optional[ValueMap] = Field(
+    upper_bounds: ValueMap | None = Field(
         None,
         alias='upper-bounds',
         description='Map of column id to upper bound primitive type values',
@@ -1081,7 +1079,7 @@ class DataFile(ContentFile):
 
 
 class DeleteFile(BaseModel):
-    __root__: Union[PositionDeleteFile, EqualityDeleteFile] = Field(
+    __root__: PositionDeleteFile | EqualityDeleteFile = Field(
         ..., discriminator='content'
     )
 
@@ -1091,12 +1089,12 @@ class FetchScanTasksRequest(BaseModel):
 
 
 class Term(BaseModel):
-    __root__: Union[Reference, TransformTerm]
+    __root__: Reference | TransformTerm
 
 
 class SetStatisticsUpdate(BaseUpdate):
     action: str = Field('set-statistics', const=True)
-    snapshot_id: Optional[int] = Field(
+    snapshot_id: int | None = Field(
         None,
         alias='snapshot-id',
         description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
@@ -1120,7 +1118,7 @@ class LiteralExpression(BaseModel):
 class SetExpression(BaseModel):
     type: Literal['in', 'not-in']
     term: Term
-    values: List[PrimitiveTypeValue]
+    values: list[PrimitiveTypeValue]
 
 
 class ResidualFilter6(SetExpression, ResidualFilter1):
@@ -1149,14 +1147,14 @@ class StructField(BaseModel):
     name: str
     type: Type
     required: bool
-    doc: Optional[str] = None
-    initial_default: Optional[PrimitiveTypeValue] = Field(None, alias='initial-default')
-    write_default: Optional[PrimitiveTypeValue] = Field(None, alias='write-default')
+    doc: str | None = None
+    initial_default: PrimitiveTypeValue | None = Field(None, alias='initial-default')
+    write_default: PrimitiveTypeValue | None = Field(None, alias='write-default')
 
 
 class StructType(BaseModel):
     type: str = Field('struct', const=True)
-    fields: List[StructField]
+    fields: list[StructField]
 
 
 class ListType(BaseModel):
@@ -1176,19 +1174,19 @@ class MapType(BaseModel):
 
 
 class Type(BaseModel):
-    __root__: Union[PrimitiveType, StructType, ListType, MapType]
+    __root__: PrimitiveType | StructType | ListType | MapType
 
 
 class Expression(BaseModel):
-    __root__: Union[
-        TrueExpression,
-        FalseExpression,
-        AndOrExpression,
-        NotExpression,
-        SetExpression,
-        LiteralExpression,
-        UnaryExpression,
-    ]
+    __root__: (
+        TrueExpression
+        | FalseExpression
+        | AndOrExpression
+        | NotExpression
+        | SetExpression
+        | LiteralExpression
+        | UnaryExpression
+    )
 
 
 class AndOrExpression(BaseModel):
@@ -1205,33 +1203,31 @@ class NotExpression(BaseModel):
 class TableMetadata(BaseModel):
     format_version: int = Field(..., alias='format-version', ge=1, le=3)
     table_uuid: str = Field(..., alias='table-uuid')
-    location: Optional[str] = None
-    last_updated_ms: Optional[int] = Field(None, alias='last-updated-ms')
-    next_row_id: Optional[int] = Field(
+    location: str | None = None
+    last_updated_ms: int | None = Field(None, alias='last-updated-ms')
+    next_row_id: int | None = Field(
         None,
         alias='next-row-id',
         description="A long higher than all assigned row IDs; the next snapshot's first-row-id.",
     )
-    properties: Optional[Dict[str, str]] = None
-    schemas: Optional[List[Schema]] = None
-    current_schema_id: Optional[int] = Field(None, alias='current-schema-id')
-    last_column_id: Optional[int] = Field(None, alias='last-column-id')
-    partition_specs: Optional[List[PartitionSpec]] = Field(
-        None, alias='partition-specs'
-    )
-    default_spec_id: Optional[int] = Field(None, alias='default-spec-id')
-    last_partition_id: Optional[int] = Field(None, alias='last-partition-id')
-    sort_orders: Optional[List[SortOrder]] = Field(None, alias='sort-orders')
-    default_sort_order_id: Optional[int] = Field(None, alias='default-sort-order-id')
-    encryption_keys: Optional[List[EncryptedKey]] = Field(None, alias='encryption-keys')
-    snapshots: Optional[List[Snapshot]] = None
-    refs: Optional[SnapshotReferences] = None
-    current_snapshot_id: Optional[int] = Field(None, alias='current-snapshot-id')
-    last_sequence_number: Optional[int] = Field(None, alias='last-sequence-number')
-    snapshot_log: Optional[SnapshotLog] = Field(None, alias='snapshot-log')
-    metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
-    statistics: Optional[List[StatisticsFile]] = None
-    partition_statistics: Optional[List[PartitionStatisticsFile]] = Field(
+    properties: dict[str, str] | None = None
+    schemas: list[Schema] | None = None
+    current_schema_id: int | None = Field(None, alias='current-schema-id')
+    last_column_id: int | None = Field(None, alias='last-column-id')
+    partition_specs: list[PartitionSpec] | None = Field(None, alias='partition-specs')
+    default_spec_id: int | None = Field(None, alias='default-spec-id')
+    last_partition_id: int | None = Field(None, alias='last-partition-id')
+    sort_orders: list[SortOrder] | None = Field(None, alias='sort-orders')
+    default_sort_order_id: int | None = Field(None, alias='default-sort-order-id')
+    encryption_keys: list[EncryptedKey] | None = Field(None, alias='encryption-keys')
+    snapshots: list[Snapshot] | None = None
+    refs: SnapshotReferences | None = None
+    current_snapshot_id: int | None = Field(None, alias='current-snapshot-id')
+    last_sequence_number: int | None = Field(None, alias='last-sequence-number')
+    snapshot_log: SnapshotLog | None = Field(None, alias='snapshot-log')
+    metadata_log: MetadataLog | None = Field(None, alias='metadata-log')
+    statistics: list[StatisticsFile] | None = None
+    partition_statistics: list[PartitionStatisticsFile] | None = Field(
         None, alias='partition-statistics'
     )
 
@@ -1241,16 +1237,16 @@ class ViewMetadata(BaseModel):
     format_version: int = Field(..., alias='format-version', ge=1, le=1)
     location: str
     current_version_id: int = Field(..., alias='current-version-id')
-    versions: List[ViewVersion]
-    version_log: List[ViewHistoryEntry] = Field(..., alias='version-log')
-    schemas: List[Schema]
-    properties: Optional[Dict[str, str]] = None
+    versions: list[ViewVersion]
+    version_log: list[ViewHistoryEntry] = Field(..., alias='version-log')
+    schemas: list[Schema]
+    properties: dict[str, str] | None = None
 
 
 class AddSchemaUpdate(BaseUpdate):
     action: str = Field('add-schema', const=True)
     schema_: Schema = Field(..., alias='schema')
-    last_column_id: Optional[int] = Field(
+    last_column_id: int | None = Field(
         None,
         alias='last-column-id',
         description="This optional field is **DEPRECATED for REMOVAL** since it more safe to handle this internally, and shouldn't be exposed to the clients.\nThe highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.",
@@ -1258,42 +1254,42 @@ class AddSchemaUpdate(BaseUpdate):
 
 
 class TableUpdate(BaseModel):
-    __root__: Union[
-        AssignUUIDUpdate,
-        UpgradeFormatVersionUpdate,
-        AddSchemaUpdate,
-        SetCurrentSchemaUpdate,
-        AddPartitionSpecUpdate,
-        SetDefaultSpecUpdate,
-        AddSortOrderUpdate,
-        SetDefaultSortOrderUpdate,
-        AddSnapshotUpdate,
-        SetSnapshotRefUpdate,
-        RemoveSnapshotsUpdate,
-        RemoveSnapshotRefUpdate,
-        SetLocationUpdate,
-        SetPropertiesUpdate,
-        RemovePropertiesUpdate,
-        SetStatisticsUpdate,
-        RemoveStatisticsUpdate,
-        RemovePartitionSpecsUpdate,
-        RemoveSchemasUpdate,
-        AddEncryptionKeyUpdate,
-        RemoveEncryptionKeyUpdate,
-    ]
+    __root__: (
+        AssignUUIDUpdate
+        | UpgradeFormatVersionUpdate
+        | AddSchemaUpdate
+        | SetCurrentSchemaUpdate
+        | AddPartitionSpecUpdate
+        | SetDefaultSpecUpdate
+        | AddSortOrderUpdate
+        | SetDefaultSortOrderUpdate
+        | AddSnapshotUpdate
+        | SetSnapshotRefUpdate
+        | RemoveSnapshotsUpdate
+        | RemoveSnapshotRefUpdate
+        | SetLocationUpdate
+        | SetPropertiesUpdate
+        | RemovePropertiesUpdate
+        | SetStatisticsUpdate
+        | RemoveStatisticsUpdate
+        | RemovePartitionSpecsUpdate
+        | RemoveSchemasUpdate
+        | AddEncryptionKeyUpdate
+        | RemoveEncryptionKeyUpdate
+    )
 
 
 class ViewUpdate(BaseModel):
-    __root__: Union[
-        AssignUUIDUpdate,
-        UpgradeFormatVersionUpdate,
-        AddSchemaUpdate,
-        SetLocationUpdate,
-        SetPropertiesUpdate,
-        RemovePropertiesUpdate,
-        AddViewVersionUpdate,
-        SetCurrentViewVersionUpdate,
-    ]
+    __root__: (
+        AssignUUIDUpdate
+        | UpgradeFormatVersionUpdate
+        | AddSchemaUpdate
+        | SetLocationUpdate
+        | SetPropertiesUpdate
+        | RemovePropertiesUpdate
+        | AddViewVersionUpdate
+        | SetCurrentViewVersionUpdate
+    )
 
 
 class LoadTableResult(BaseModel):
@@ -1331,14 +1327,14 @@ class LoadTableResult(BaseModel):
 
     """
 
-    metadata_location: Optional[str] = Field(
+    metadata_location: str | None = Field(
         None,
         alias='metadata-location',
         description='May be null if the table is staged as part of a transaction',
     )
     metadata: TableMetadata
-    config: Optional[Dict[str, str]] = None
-    storage_credentials: Optional[List[StorageCredential]] = Field(
+    config: dict[str, str] | None = None
+    storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
     )
 
@@ -1357,32 +1353,32 @@ class ScanTasks(BaseModel):
 
     """
 
-    delete_files: Optional[List[DeleteFile]] = Field(
+    delete_files: list[DeleteFile] | None = Field(
         None,
         alias='delete-files',
         description='Delete files referenced by file scan tasks',
     )
-    file_scan_tasks: Optional[List[FileScanTask]] = Field(None, alias='file-scan-tasks')
-    plan_tasks: Optional[List[PlanTask]] = Field(None, alias='plan-tasks')
+    file_scan_tasks: list[FileScanTask] | None = Field(None, alias='file-scan-tasks')
+    plan_tasks: list[PlanTask] | None = Field(None, alias='plan-tasks')
 
 
 class FetchPlanningResult(BaseModel):
-    __root__: Union[
-        CompletedPlanningResult, FailedPlanningResult, EmptyPlanningResult
-    ] = Field(
-        ...,
-        description='Result of server-side scan planning for fetchPlanningResult',
-        discriminator='status',
+    __root__: CompletedPlanningResult | FailedPlanningResult | EmptyPlanningResult = (
+        Field(
+            ...,
+            description='Result of server-side scan planning for fetchPlanningResult',
+            discriminator='status',
+        )
     )
 
 
 class PlanTableScanResult(BaseModel):
-    __root__: Union[
-        CompletedPlanningWithIDResult,
-        FailedPlanningResult,
-        AsyncPlanningResult,
-        EmptyPlanningResult,
-    ] = Field(
+    __root__: (
+        CompletedPlanningWithIDResult
+        | FailedPlanningResult
+        | AsyncPlanningResult
+        | EmptyPlanningResult
+    ) = Field(
         ...,
         description='Result of server-side scan planning for planTableScan',
         discriminator='status',
@@ -1390,57 +1386,55 @@ class PlanTableScanResult(BaseModel):
 
 
 class CommitTableRequest(BaseModel):
-    identifier: Optional[TableIdentifier] = Field(
+    identifier: TableIdentifier | None = Field(
         None,
         description='Table identifier to update; must be present for CommitTransactionRequest',
     )
-    requirements: List[
-        Union[
-            AssertCreate,
-            AssertTableUUID,
-            AssertRefSnapshotId,
-            AssertLastAssignedFieldId,
-            AssertCurrentSchemaId,
-            AssertLastAssignedPartitionId,
-            AssertDefaultSpecId,
-            AssertDefaultSortOrderId,
-        ]
+    requirements: list[
+        AssertCreate
+        | AssertTableUUID
+        | AssertRefSnapshotId
+        | AssertLastAssignedFieldId
+        | AssertCurrentSchemaId
+        | AssertLastAssignedPartitionId
+        | AssertDefaultSpecId
+        | AssertDefaultSortOrderId
     ]
-    updates: List[TableUpdate]
+    updates: list[TableUpdate]
 
 
 class CommitViewRequest(BaseModel):
-    identifier: Optional[TableIdentifier] = Field(
+    identifier: TableIdentifier | None = Field(
         None, description='View identifier to update'
     )
-    requirements: Optional[List[ViewRequirement]] = None
-    updates: List[ViewUpdate]
+    requirements: list[ViewRequirement] | None = None
+    updates: list[ViewUpdate]
 
 
 class CommitTransactionRequest(BaseModel):
-    table_changes: List[CommitTableRequest] = Field(..., alias='table-changes')
+    table_changes: list[CommitTableRequest] = Field(..., alias='table-changes')
 
 
 class CreateTableRequest(BaseModel):
     name: str
-    location: Optional[str] = None
+    location: str | None = None
     schema_: Schema = Field(..., alias='schema')
-    partition_spec: Optional[PartitionSpec] = Field(None, alias='partition-spec')
-    write_order: Optional[SortOrder] = Field(None, alias='write-order')
-    stage_create: Optional[bool] = Field(None, alias='stage-create')
-    properties: Optional[Dict[str, str]] = None
+    partition_spec: PartitionSpec | None = Field(None, alias='partition-spec')
+    write_order: SortOrder | None = Field(None, alias='write-order')
+    stage_create: bool | None = Field(None, alias='stage-create')
+    properties: dict[str, str] | None = None
 
 
 class CreateViewRequest(BaseModel):
     name: str
-    location: Optional[str] = None
+    location: str | None = None
     schema_: Schema = Field(..., alias='schema')
     view_version: ViewVersion = Field(
         ...,
         alias='view-version',
         description='The view version to create, will replace the schema-id sent within the view-version with the id assigned to the provided schema',
     )
-    properties: Dict[str, str]
+    properties: dict[str, str]
 
 
 class LoadViewResult(BaseModel):
@@ -1463,11 +1457,11 @@ class LoadViewResult(BaseModel):
 
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
-    config: Optional[Dict[str, str]] = None
+    config: dict[str, str] | None = None
 
 
 class ReportMetricsRequest(BaseModel):
-    __root__: Union[ReportMetricsRequest1, ReportMetricsRequest2]
+    __root__: ReportMetricsRequest1 | ReportMetricsRequest2
 
 
 class ScanReport(BaseModel):
@@ -1475,10 +1469,10 @@ class ScanReport(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
     filter: Expression
     schema_id: int = Field(..., alias='schema-id')
-    projected_field_ids: List[int] = Field(..., alias='projected-field-ids')
-    projected_field_names: List[str] = Field(..., alias='projected-field-names')
+    projected_field_ids: list[int] = Field(..., alias='projected-field-ids')
+    projected_field_names: list[str] = Field(..., alias='projected-field-names')
     metrics: Metrics
-    metadata: Optional[Dict[str, str]] = None
+    metadata: dict[str, str] | None = None
 
 
 class CommitTableResponse(BaseModel):
@@ -1487,43 +1481,43 @@ class CommitTableResponse(BaseModel):
 
 
 class PlanTableScanRequest(BaseModel):
-    snapshot_id: Optional[int] = Field(
+    snapshot_id: int | None = Field(
         None,
         alias='snapshot-id',
         description='Identifier for the snapshot to scan in a point-in-time scan',
     )
-    select: Optional[List[FieldName]] = Field(
+    select: list[FieldName] | None = Field(
         None, description='List of selected schema fields'
     )
-    filter: Optional[Expression] = Field(
+    filter: Expression | None = Field(
         None, description='Expression used to filter the table data'
     )
-    min_rows_requested: Optional[int] = Field(
+    min_rows_requested: int | None = Field(
         None,
         alias='min-rows-requested',
         description='The minimum number of rows requested for the scan. This is used as a hint to the server to not have to return more rows than necessary. It is not required for the server to return that many rows since the scan may not produce that many rows. The server can also return more rows than requested.',
     )
-    case_sensitive: Optional[bool] = Field(
+    case_sensitive: bool | None = Field(
         True,
         alias='case-sensitive',
         description='Enables case sensitive field matching for filter and select',
     )
-    use_snapshot_schema: Optional[bool] = Field(
+    use_snapshot_schema: bool | None = Field(
         False,
         alias='use-snapshot-schema',
         description='Whether to use the schema at the time the snapshot was written.\nWhen time travelling, the snapshot schema should be used (true). When scanning a branch, the table schema should be used (false).',
     )
-    start_snapshot_id: Optional[int] = Field(
+    start_snapshot_id: int | None = Field(
         None,
         alias='start-snapshot-id',
         description='Starting snapshot ID for an incremental scan (exclusive)',
     )
-    end_snapshot_id: Optional[int] = Field(
+    end_snapshot_id: int | None = Field(
         None,
         alias='end-snapshot-id',
         description='Ending snapshot ID for an incremental scan (inclusive).\nRequired when start-snapshot-id is specified.',
     )
-    stats_fields: Optional[List[FieldName]] = Field(
+    stats_fields: list[FieldName] | None = Field(
         None,
         alias='stats-fields',
         description='List of fields for which the service should send column stats.',
@@ -1536,15 +1530,15 @@ class ResidualFilter(BaseModel):
     If the residual is not present, the client must produce the residual or use the original filter.
     """
 
-    __root__: Union[
-        ResidualFilter2,
-        ResidualFilter3,
-        ResidualFilter4,
-        ResidualFilter5,
-        ResidualFilter6,
-        ResidualFilter7,
-        ResidualFilter8,
-    ] = Field(
+    __root__: (
+        ResidualFilter2
+        | ResidualFilter3
+        | ResidualFilter4
+        | ResidualFilter5
+        | ResidualFilter6
+        | ResidualFilter7
+        | ResidualFilter8
+    ) = Field(
         ...,
         description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
     )
@@ -1552,12 +1546,12 @@ class ResidualFilter(BaseModel):
 
 class FileScanTask(BaseModel):
     data_file: DataFile = Field(..., alias='data-file')
-    delete_file_references: Optional[List[int]] = Field(
+    delete_file_references: list[int] | None = Field(
         None,
         alias='delete-file-references',
         description='A list of indices in the delete files array (0-based)',
     )
-    residual_filter: Optional[ResidualFilter] = Field(
+    residual_filter: ResidualFilter | None = Field(
         None,
         alias='residual-filter',
         description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
@@ -1565,10 +1559,8 @@ class FileScanTask(BaseModel):
 
 
 class Schema(StructType):
-    schema_id: Optional[int] = Field(None, alias='schema-id')
-    identifier_field_ids: Optional[List[int]] = Field(
-        None, alias='identifier-field-ids'
-    )
+    schema_id: int | None = Field(None, alias='schema-id')
+    identifier_field_ids: list[int] | None = Field(None, alias='identifier-field-ids')
 
 
 class ResidualFilter4(AndOrExpression, ResidualFilter1):
@@ -1591,7 +1583,7 @@ class CompletedPlanningResult(ScanTasks):
     """
 
     status: Literal['completed'] = Field(..., const=True)
-    storage_credentials: Optional[List[StorageCredential]] = Field(
+    storage_credentials: list[StorageCredential] | None = Field(
         None,
         alias='storage-credentials',
         description='Storage credentials for accessing the files returned in the scan result.\nIf the server returns storage credentials as part of the completed scan planning response, the expectation is for the client to use these credentials to read the files returned in the FileScanTasks as part of the scan result.',
