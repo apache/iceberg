@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
@@ -400,6 +401,10 @@ public class SnapshotUtil {
    * @return the schema
    */
   public static Schema schemaFor(Table table, long snapshotId) {
+    if (table instanceof BaseMetadataTable) {
+      return table.schema();
+    }
+
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Cannot find snapshot with ID %s", snapshotId);
     Integer schemaId = snapshot.schemaId();

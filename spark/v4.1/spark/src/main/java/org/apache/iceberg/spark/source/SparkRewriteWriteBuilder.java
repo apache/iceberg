@@ -64,6 +64,7 @@ class SparkRewriteWriteBuilder implements WriteBuilder {
     return new SparkWrite(
         spark,
         table,
+        null /* main branch */,
         writeConf,
         info,
         appId,

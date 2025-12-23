@@ -79,6 +79,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.StringToFileURI;
@@ -724,7 +725,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     return spark
         .read()
         .format("iceberg")
-        .option("snapshot-id", snapshotId)
+        .option(SparkReadOptions.VERSION_AS_OF, snapshotId)
         .load(tableLocation + "#files")
         .select("file_path")
         .as(Encoders.STRING())
