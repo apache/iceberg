@@ -57,6 +57,7 @@ class SparkBatch implements Batch {
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
   private final boolean cacheDeleteFilesOnExecutors;
+  private Boolean orderingEnabled = null; // lazily computed, driver-only
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -94,19 +95,44 @@ class SparkBatch implements Batch {
     InputPartition[] partitions = new InputPartition[taskGroups.size()];
 
     for (int index = 0; index < taskGroups.size(); index++) {
+      ScanTaskGroup<?> taskGroup = taskGroups.get(index);
+
       partitions[index] =
           new SparkInputPartition(
               groupingKeyType,
-              taskGroups.get(index),
+              taskGroup,
               tableBroadcast,
               fileIOBroadcast,
               projectionString,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              cacheDeleteFilesOnExecutors);
+              cacheDeleteFilesOnExecutors,
+              shouldUseMergingSortedReader(taskGroup));
     }
 
     return partitions;
+  }
+
+  /** Returns true if the table's sort ordering can be reported to Spark for this batch. */
+  private boolean isOrderingEnabled() {
+    if (orderingEnabled == null) {
+      orderingEnabled =
+          !groupingKeyType.fields().isEmpty()
+              && readConf.preserveDataOrdering()
+              && SortOrderAnalyzer.canReportOrdering(table, taskGroups, groupingKeyType);
+    }
+    return orderingEnabled;
+  }
+
+  /**
+   * Returns true if this task group should use a k-way merging reader. This requires ordering to be
+   * enabled at the table level (validated by {@link #isOrderingEnabled()}, multiple files in the
+   * group, and all tasks being {@link FileScanTask}s.
+   */
+  private boolean shouldUseMergingSortedReader(ScanTaskGroup<?> taskGroup) {
+    return isOrderingEnabled()
+        && taskGroup.tasks().size() > 1
+        && taskGroup.tasks().stream().allMatch(task -> task instanceof FileScanTask);
   }
 
   private String[][] computePreferredLocations() {
@@ -157,6 +183,12 @@ class SparkBatch implements Batch {
   private boolean supportsParquetBatchReads(ScanTask task) {
     if (task instanceof ScanTaskGroup) {
       ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+
+      // Vectorized readers cannot merge sorted data from multiple files
+      if (shouldUseMergingSortedReader(taskGroup)) {
+        return false;
+      }
+
       return taskGroup.tasks().stream().allMatch(this::supportsParquetBatchReads);
 
     } else if (task.isFileScanTask() && !task.isDataTask()) {
@@ -183,6 +215,12 @@ class SparkBatch implements Batch {
   private boolean supportsOrcBatchReads(ScanTask task) {
     if (task instanceof ScanTaskGroup) {
       ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+
+      // Vectorized readers cannot merge sorted data from multiple files
+      if (shouldUseMergingSortedReader(taskGroup)) {
+        return false;
+      }
+
       return taskGroup.tasks().stream().allMatch(this::supportsOrcBatchReads);
 
     } else if (task.isFileScanTask() && !task.isDataTask()) {
