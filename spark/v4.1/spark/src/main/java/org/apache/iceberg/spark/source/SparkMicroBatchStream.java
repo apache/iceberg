@@ -172,7 +172,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
               expectedSchema,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              cacheDeleteFilesOnExecutors);
+              cacheDeleteFilesOnExecutors,
+              null);
     }
 
     return partitions;

@@ -43,6 +43,11 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.planning.preserve-data-grouping";
   public static final boolean PRESERVE_DATA_GROUPING_DEFAULT = false;
 
+  // Controls whether to preserve data ordering and report it to Spark
+  public static final String PRESERVE_DATA_ORDERING =
+      "spark.sql.iceberg.planning.preserve-data-ordering";
+  public static final boolean PRESERVE_DATA_ORDERING_DEFAULT = false;
+
   // Controls whether to push down aggregate (MAX/MIN/COUNT) to Iceberg
   public static final String AGGREGATE_PUSH_DOWN_ENABLED =
       "spark.sql.iceberg.aggregate-push-down.enabled";

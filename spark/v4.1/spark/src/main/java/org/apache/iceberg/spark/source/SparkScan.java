@@ -343,6 +343,13 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {
+    if (readConf.preserveDataOrdering()) {
+      // Diable splitting tasks into multiple groups when we need to preserve ordering.
+      // This prevents multiple InputPartitions with the same partitionKey, which would
+      // cause Spark to suppress outputOrdering.
+      return Long.MAX_VALUE;
+    }
+
     if (readConf.splitSizeOption() == null && readConf.adaptiveSplitSizeEnabled()) {
       long scanSize = tasks.stream().mapToLong(ScanTask::sizeBytes).sum();
       int parallelism = readConf.parallelism();
