@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import org.apache.iceberg.metrics.MetricsReporter;
 
 /**
  * API for removing old {@link Snapshot snapshots} from a table.
@@ -161,4 +162,7 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement cleanExpiredMetadata");
   }
+
+  /** Report metrics about the ExpireSnapshots operation to the provided reporter */
+  ExpireSnapshots metricsReporter(MetricsReporter reporter);
 }
