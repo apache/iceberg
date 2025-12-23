@@ -1,0 +1,13 @@
+{"commitInfo":{"timestamp":1603723978664,"operation":"Manual Update","operationParameters":{},"isBlindAppend":true}}
+{"protocol":{"minReaderVersion":1,"minWriterVersion":2}}
+{"metaData":{"id":"94c8d2b0-fbad-439b-a31f-17e17d93c2c7","format":{"provider":"parquet","options":{}},"partitionColumns":[],"configuration":{},"createdTime":1603723978664}}
+{"add":{"path":"1","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}
+{"add":{"path":"2","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}
+{"add":{"path":"3","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}
+{"add":{"path":"4","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}
+{"add":{"path":"5","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}
+{"add":{"path":"6","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}
+{"add":{"path":"7","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}
+{"add":{"path":"8","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}
+{"add":{"path":"9","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}
+{"add":{"path":"10","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}

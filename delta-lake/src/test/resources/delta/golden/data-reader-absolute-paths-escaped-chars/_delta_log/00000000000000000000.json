@@ -1,0 +1,3 @@
+{"commitInfo":{"timestamp":1603387084639,"operation":"Manual Update","operationParameters":{},"isBlindAppend":true}}
+{"protocol":{"minReaderVersion":1,"minWriterVersion":2}}
+{"add":{"path":"..//Users/scott.sandre/connectors/golden-tables/src/test/resources/golden/data-reader-absolute-paths-escaped-chars/foo.snappy.parquet","partitionValues":{},"size":1,"modificationTime":1603387084631,"dataChange":true}}

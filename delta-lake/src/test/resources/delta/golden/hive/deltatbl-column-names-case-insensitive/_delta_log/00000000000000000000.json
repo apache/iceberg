@@ -1,0 +1,7 @@
+{"commitInfo":{"timestamp":1629874535433,"operation":"WRITE","operationParameters":{"mode":"ErrorIfExists","partitionBy":"[\"BarFoo\"]"},"isBlindAppend":true,"operationMetrics":{"numFiles":"4","numOutputBytes":"1782","numOutputRows":"10"}}}
+{"protocol":{"minReaderVersion":1,"minWriterVersion":2}}
+{"metaData":{"id":"testId","format":{"provider":"parquet","options":{}},"schemaString":"{\"type\":\"struct\",\"fields\":[{\"name\":\"FooBar\",\"type\":\"integer\",\"nullable\":true,\"metadata\":{}},{\"name\":\"BarFoo\",\"type\":\"string\",\"nullable\":true,\"metadata\":{}}]}","partitionColumns":["BarFoo"],"configuration":{},"createdTime":1629874533636}}
+{"add":{"path":"BarFoo=foo0/part-00000-36c1f69c-21dc-4374-a89e-1c4468eff784.c000.snappy.parquet","partitionValues":{"BarFoo":"foo0"},"size":448,"modificationTime":1629874535000,"dataChange":true}}
+{"add":{"path":"BarFoo=foo1/part-00000-5c80a439-70eb-435a-92eb-04549d3f220e.c000.snappy.parquet","partitionValues":{"BarFoo":"foo1"},"size":443,"modificationTime":1629874535000,"dataChange":true}}
+{"add":{"path":"BarFoo=foo0/part-00001-27f5c1f6-2393-4021-9a0f-44d143761f88.c000.snappy.parquet","partitionValues":{"BarFoo":"foo0"},"size":443,"modificationTime":1629874535000,"dataChange":true}}
+{"add":{"path":"BarFoo=foo1/part-00001-b6134dd2-aa40-4868-a708-bec69fc562a2.c000.snappy.parquet","partitionValues":{"BarFoo":"foo1"},"size":448,"modificationTime":1629874535000,"dataChange":true}}

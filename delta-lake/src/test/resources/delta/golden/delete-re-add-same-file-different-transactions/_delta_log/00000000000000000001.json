@@ -1,0 +1,2 @@
+{"commitInfo":{"timestamp":1697064967361,"operation":"Manual Update","operationParameters":{},"readVersion":0,"isolationLevel":"Serializable","isBlindAppend":false,"operationMetrics":{},"engineInfo":"Apache-Spark/3.5.0 Delta-Lake/3.0.0-SNAPSHOT","txnId":"1bd8568f-6a12-41ac-983c-cd5e1b4e1caa"}}
+{"remove":{"path":"foo","deletionTimestamp":1697064967349,"dataChange":true,"extendedFileMetadata":true,"partitionValues":{},"size":1}}

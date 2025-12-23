@@ -1,0 +1,2 @@
+{"commitInfo":{"timestamp":1697064970033,"operation":"Manual Update","operationParameters":{},"readVersion":1,"isolationLevel":"Serializable","isBlindAppend":true,"operationMetrics":{},"engineInfo":"Apache-Spark/3.5.0 Delta-Lake/3.0.0-SNAPSHOT","txnId":"2c2bb7f0-5a0f-4670-80b0-f787f7b23a80"}}
+{"add":{"path":"foo","partitionValues":{},"size":1,"modificationTime":1700000000000,"dataChange":true}}

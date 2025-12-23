@@ -1,0 +1,4 @@
+{"metaData":{"id":"testId","format":{"provider":"parquet","options":{}},"partitionColumns":[],"configuration":{},"createdTime":1607452026918}}
+{"protocol":{"minReaderVersion":1,"minWriterVersion":2}}
+{"commitInfo":{"timestamp":1540415658000,"userId":"user_0","userName":"username_0","operation":"WRITE","operationParameters":{"test":"test"},"job":{"jobId":"job_id_0","jobName":"job_name_0","runId":"run_id_0","jobOwnerId":"job_owner_0","triggerType":"trigger_type_0"},"notebook":{"notebookId":"notebook_id_0"},"clusterId":"cluster_id_0","readVersion":-1,"isolationLevel":"default","isBlindAppend":true,"operationMetrics":{"test":"test"},"userMetadata":"foo"}}
+{"add":{"path":"abc","partitionValues":{},"size":1,"modificationTime":1,"dataChange":true}}
