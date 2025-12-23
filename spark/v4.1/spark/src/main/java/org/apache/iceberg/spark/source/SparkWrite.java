@@ -119,6 +119,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
   SparkWrite(
       SparkSession spark,
       Table table,
+      String branch,
       SparkWriteConf writeConf,
       LogicalWriteInfo writeInfo,
       String applicationId,
@@ -133,7 +134,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
     this.applicationId = applicationId;
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
-    this.branch = writeConf.branch();
+    this.branch = branch;
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;

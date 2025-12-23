@@ -67,8 +67,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
       IncrementalChangelogScan scan,
       SparkReadConf readConf,
       Schema projection,
-      List<Expression> filters,
-      boolean emptyScan) {
+      List<Expression> filters) {
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), projection);
 
@@ -80,7 +79,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     this.filters = filters != null ? filters : Collections.emptyList();
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
-    if (emptyScan) {
+    if (scan == null) {
       this.taskGroups = Collections.emptyList();
     }
   }

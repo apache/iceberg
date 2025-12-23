@@ -29,6 +29,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
@@ -54,6 +55,7 @@ import org.apache.spark.sql.types.StructType;
 class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, SupportsOverwrite {
   private final SparkSession spark;
   private final Table table;
+  private final String branch;
   private final SparkWriteConf writeConf;
   private final LogicalWriteInfo info;
   private final boolean caseSensitive;
@@ -65,12 +67,14 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   SparkWriteBuilder(SparkSession spark, Table table, String branch, LogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
-    this.writeConf = new SparkWriteConf(spark, table, branch, info.options());
+    this.branch = branch;
+    this.writeConf = new SparkWriteConf(spark, table, info.options());
     this.info = info;
     this.caseSensitive = writeConf.caseSensitive();
     this.checkNullability = writeConf.checkNullability();
     this.checkOrdering = writeConf.checkOrdering();
     this.mergeSchema = writeConf.mergeSchema();
+    SparkTableUtil.validateWriteBranch(spark, table, branch, info.options());
   }
 
   public WriteBuilder overwriteFiles(Scan scan, Command command, IsolationLevel isolationLevel) {
@@ -132,6 +136,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     return new SparkWrite(
         spark,
         table,
+        branch,
         writeConf,
         info,
         appId,
