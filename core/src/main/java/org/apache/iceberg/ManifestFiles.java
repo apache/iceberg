@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
 import org.apache.iceberg.avro.AvroEncoderUtil;
@@ -36,7 +37,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CacheMetricsReport;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -93,16 +93,16 @@ public class ManifestFiles {
   }
 
   /**
-   * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
+   * Returns a {@link CloseableIterable} of {@link DataFile}s in the {@link ManifestFile}.
    *
    * @param manifest a ManifestFile
    * @param io a FileIO
    * @return a manifest reader
    */
-  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
+  public static CloseableIterable<DataFile> readColumns(
+      ManifestFile manifest, FileIO io, Collection<String> columns) {
     return CloseableIterable.transform(
-        read(manifest, io, null).select(ImmutableList.of("file_path")).liveEntries(),
-        entry -> entry.file().location());
+        read(manifest, io, null).select(columns).liveEntries(), ManifestEntry::file);
   }
 
   /**

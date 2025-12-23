@@ -44,6 +44,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.RemoveSnapshotsReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -80,6 +82,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private boolean cleanExpiredMetadata = false;
   private boolean cleanExpiredFiles = true;
   private CleanupLevel cleanupLevel = CleanupLevel.ALL;
+  private MetricsReporter metricsReporter;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -191,6 +194,12 @@ class RemoveSnapshots implements ExpireSnapshots {
     removed.removeAll(updated.snapshots());
 
     return removed;
+  }
+
+  @Override
+  public ExpireSnapshots metricsReporter(MetricsReporter reporter) {
+    this.metricsReporter = reporter;
+    return this;
   }
 
   private TableMetadata internalApply() {
@@ -403,7 +412,18 @@ class RemoveSnapshots implements ExpireSnapshots {
             : new ReachableFileCleanup(
                 ops.io(), deleteExecutorService, planExecutorService(), deleteFunc);
 
-    cleanupStrategy.cleanFiles(base, current, cleanupLevel);
+    FileCleanupStrategy.DeleteSummary summary =
+        cleanupStrategy.cleanFiles(base, current, cleanupLevel);
+    if (metricsReporter != null) {
+      metricsReporter.report(
+          RemoveSnapshotsReport.of(
+              summary.dataFilesCount(),
+              summary.positionDeleteFilesCount(),
+              summary.equalityDeleteFilesCount(),
+              summary.manifestsCount(),
+              summary.manifestListsCount(),
+              summary.statisticsFilesCount()));
+    }
   }
 
   private void validateCleanupCanBeIncremental(TableMetadata current) {
