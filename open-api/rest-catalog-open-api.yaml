@@ -3374,10 +3374,30 @@ components:
         ## General Configurations
 
         - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
-        - `rest-scan-planning-mode`: Controls the scan planning behavior. Valid values are:
-          - `none` (default): Server-side scan planning is not supported or allowed. Client must use client-side planning.
-          - `optional`: Client can choose between client-side or server-side planning based on its capabilities and preferences.
-          - `required`: Server-side planning is required. Client must not use client-side planning.
+        - `rest-scan-planning-mode`: Controls the catalog's scan planning mode (server-side configuration). Valid values are:
+          - `client-only`: Client MUST use client-side planning. Server MUST NOT provide server-side planning endpoints or capabilities.
+          - `client-preferred` (default): Client SHOULD use client-side planning. Server MAY provide server-side planning if explicitly requested by client.
+          - `catalog-preferred`: Client SHOULD use server-side planning when available. Server MAY fall back to client-side planning if server doesn't support planning endpoints or client explicitly requests it.
+          - `catalog-only`: Client MUST use server-side planning. Server MUST provide server-side planning endpoints. Client MUST NOT use client-side planning.
+        - `rest-scan-planning-client-preference`: Controls the client's scan planning preference. Valid values are:
+          - `none` (default): Client SHOULD follow the catalog's `rest-scan-planning-mode` recommendation. No explicit preference set.
+          - `client`: Client MUST use client-side planning. Request fails with IllegalStateException if catalog mode is `catalog-only`.
+          - `catalog`: Client MUST use server-side planning. Request fails with IllegalStateException if catalog mode is `client-only`, or with UnsupportedOperationException if server doesn't support planning endpoints.
+
+        ### Scan Planning Decision Matrix
+
+        The final scan planning decision is determined by the negotiation between `rest-scan-planning-mode` (catalog requirement) and `rest-scan-planning-client-preference` (client requirement):
+
+        | Client Preference | client-only | client-preferred | catalog-preferred | catalog-only |
+        |-------------------|-------------|------------------|-------------------|--------------|
+        | **none** (follow catalog) | Client-side | Client-side | Server-side (fallback to client if unavailable) | Server-side (fail if unavailable) |
+        | **client** (MUST client) | Client-side | Client-side | Client-side | **IllegalStateException** |
+        | **catalog** (MUST server) | **IllegalStateException** | Server-side (fail if unavailable) | Server-side (fail if unavailable) | Server-side (fail if unavailable) |
+
+        Notes:
+        - "Server-side (fallback to client if unavailable)" means the client will attempt server-side planning, but gracefully fall back to client-side if the server doesn't advertise planning endpoints.
+        - "Server-side (fail if unavailable)" means the client will throw UnsupportedOperationException if the server doesn't advertise planning endpoints.
+        - "IllegalStateException" is thrown when client and catalog MUST requirements conflict (e.g., client MUST use client-side but catalog MUST use server-side).
 
         ## AWS Configurations
 

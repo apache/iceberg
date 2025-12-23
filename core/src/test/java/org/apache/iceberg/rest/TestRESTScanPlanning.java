@@ -124,7 +124,8 @@ public class TestRESTScanPlanning {
                                   .collect(Collectors.toList()))
                           .withOverrides(
                               ImmutableMap.of(
-                                  RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "optional"))
+                                  RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
+                                  "catalog-preferred"))
                           .build());
                 }
                 Object body = roundTripSerialize(request.body(), "request");
@@ -924,7 +925,7 @@ public class TestRESTScanPlanning {
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
             RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
-            "optional"));
+            "catalog-preferred"));
     return new CatalogWithAdapter(catalog, adapter);
   }
 
@@ -972,10 +973,10 @@ public class TestRESTScanPlanning {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize(
-        "test-required",
+        "test-catalog-only",
         ImmutableMap.of(
             RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
-            "required",
+            "catalog-only",
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO"));
 
@@ -983,10 +984,11 @@ public class TestRESTScanPlanning {
     catalog.createNamespace(NS);
 
     // Should throw UnsupportedOperationException when trying to create/load the table
-    // because REQUIRED mode needs server-side planning but server doesn't support it
+    // because CATALOG_ONLY mode requires server-side planning but server doesn't support it
     assertThatThrownBy(() -> catalog.createTable(tableId, SCHEMA))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("Server-side scan planning is required");
+        .hasMessageContaining("server-side planning")
+        .hasMessageContaining("CATALOG_ONLY");
 
     catalog.close();
   }
@@ -995,7 +997,8 @@ public class TestRESTScanPlanning {
   public void scanPlanningModeNone() throws IOException {
     // Test NONE mode - should use client-side planning even if server supports it
     CatalogWithAdapter catalogWithAdapter =
-        catalogWithTableLevelConfig(RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "none");
+        catalogWithTableLevelConfig(
+            RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "client-only");
 
     Table table = createTableWithScanPlanning(catalogWithAdapter.catalog, "none_mode_test");
     table.newAppend().appendFile(FILE_A).commit();
@@ -1100,7 +1103,8 @@ public class TestRESTScanPlanning {
 
     // Catalog that adds scan planning config to LoadTableResponse (table-level override)
     CatalogWithAdapter catalogWithAdapter =
-        catalogWithTableLevelConfig(RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "optional");
+        catalogWithTableLevelConfig(
+            RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "catalog-preferred");
 
     RESTTable table = restTableFor(catalogWithAdapter.catalog, "table_override_test");
     setParserContext(table);
@@ -1128,7 +1132,8 @@ public class TestRESTScanPlanning {
                               Arrays.stream(Route.values())
                                   .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                                   .collect(Collectors.toList()))
-                          .withOverride(RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "none")
+                          .withOverride(
+                              RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "client-only")
                           .build());
                 }
 
@@ -1164,7 +1169,7 @@ public class TestRESTScanPlanning {
         "test",
         ImmutableMap.of(
             RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
-            "none",
+            "client-only",
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO"));
     return new CatalogWithAdapter(catalog, adapter);

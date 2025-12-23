@@ -160,6 +160,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
   private RESTCatalogProperties.ScanPlanningMode restScanPlanningMode;
+  private RESTCatalogProperties.ClientScanPlanningPreference clientScanPlanningPreference;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
@@ -279,6 +280,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.REST_SCAN_PLANNING_MODE_DEFAULT);
     this.restScanPlanningMode =
         RESTCatalogProperties.ScanPlanningMode.fromString(scanPlanningConfig);
+
+    String clientPreferenceConfig =
+        PropertyUtil.propertyAsString(
+            mergedProps,
+            RESTCatalogProperties.CLIENT_SCAN_PLANNING_PREFERENCE,
+            RESTCatalogProperties.CLIENT_SCAN_PLANNING_PREFERENCE_DEFAULT);
+    this.clientScanPlanningPreference =
+        RESTCatalogProperties.ClientScanPlanningPreference.fromString(clientPreferenceConfig);
+
     super.initialize(name, mergedProps);
   }
 
@@ -511,59 +521,46 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableIdentifier finalIdentifier,
       RESTClient restClient,
       Map<String, String> tableConf) {
-    // Determine the effective scan planning mode (table-level config overrides catalog config)
-    RESTCatalogProperties.ScanPlanningMode effectiveMode = restScanPlanningMode;
-
-    // Check for table-level override
+    // Determine effective catalog mode (table-level config overrides catalog config)
+    RESTCatalogProperties.ScanPlanningMode effectiveCatalogMode = restScanPlanningMode;
     String tableModeConfig = tableConf.get(RESTCatalogProperties.REST_SCAN_PLANNING_MODE);
     if (tableModeConfig != null) {
-      effectiveMode = RESTCatalogProperties.ScanPlanningMode.fromString(tableModeConfig);
+      effectiveCatalogMode = RESTCatalogProperties.ScanPlanningMode.fromString(tableModeConfig);
     }
 
+    // Determine effective client preference (could optionally support table-level override)
+    RESTCatalogProperties.ClientScanPlanningPreference effectiveClientPref =
+        clientScanPlanningPreference;
+    String tableClientPrefConfig =
+        tableConf.get(RESTCatalogProperties.CLIENT_SCAN_PLANNING_PREFERENCE);
+    if (tableClientPrefConfig != null) {
+      effectiveClientPref =
+          RESTCatalogProperties.ClientScanPlanningPreference.fromString(tableClientPrefConfig);
+    }
+
+    // Check server capabilities
     boolean serverSupportsPlanning = endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
 
-    // Handle the three modes
-    switch (effectiveMode) {
-      case NONE:
-        // Server-side planning not allowed, use client-side
-        return null;
+    // Negotiate scan planning strategy
+    ScanPlanningNegotiator.PlanningDecision decision =
+        ScanPlanningNegotiator.negotiate(
+            effectiveCatalogMode, effectiveClientPref, serverSupportsPlanning, finalIdentifier);
 
-      case OPTIONAL:
-        // Use server-side planning if server supports it
-        if (serverSupportsPlanning) {
-          return new RESTTable(
-              ops,
-              fullTableName(finalIdentifier),
-              metricsReporter(paths.metrics(finalIdentifier), restClient),
-              restClient,
-              Map::of,
-              finalIdentifier,
-              paths,
-              endpoints);
-        }
-        return null;
-
-      case REQUIRED:
-        // Server-side planning is required
-        if (!serverSupportsPlanning) {
-          throw new UnsupportedOperationException(
-              String.format(
-                  "Server-side scan planning is required but server does not support endpoint: %s",
-                  Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN));
-        }
-        return new RESTTable(
-            ops,
-            fullTableName(finalIdentifier),
-            metricsReporter(paths.metrics(finalIdentifier), restClient),
-            restClient,
-            Map::of,
-            finalIdentifier,
-            paths,
-            endpoints);
-
-      default:
-        throw new IllegalStateException("Unknown scan planning mode: " + effectiveMode);
+    // Apply the decision
+    if (decision == ScanPlanningNegotiator.PlanningDecision.USE_CATALOG_PLANNING) {
+      return new RESTTable(
+          ops,
+          fullTableName(finalIdentifier),
+          metricsReporter(paths.metrics(finalIdentifier), restClient),
+          restClient,
+          Map::of,
+          finalIdentifier,
+          paths,
+          endpoints);
     }
+
+    // USE_CLIENT_PLANNING
+    return null;
   }
 
   private void trackFileIO(RESTTableOperations ops) {

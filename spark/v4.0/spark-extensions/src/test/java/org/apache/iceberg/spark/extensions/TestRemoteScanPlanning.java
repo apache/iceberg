@@ -42,7 +42,7 @@ public class TestRemoteScanPlanning extends TestSelect {
             .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
             // this flag is typically only set by the server, but we set it from the client for
             // testing
-            .put(RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "required")
+            .put(RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "catalog-only")
             .build(),
         SparkCatalogConfig.REST.catalogName() + ".default.binary_table"
       }
