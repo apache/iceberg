@@ -109,14 +109,6 @@ public class Spark3Util {
 
   private Spark3Util() {}
 
-  public static CaseInsensitiveStringMap setOption(
-      String key, String value, CaseInsensitiveStringMap options) {
-    Map<String, String> newOptions = Maps.newHashMap();
-    newOptions.putAll(options);
-    newOptions.put(key, value);
-    return new CaseInsensitiveStringMap(newOptions);
-  }
-
   public static Map<String, String> rebuildCreateProperties(Map<String, String> createProperties) {
     ImmutableMap.Builder<String, String> tableProperties = ImmutableMap.builder();
     createProperties.entrySet().stream()
@@ -546,6 +538,31 @@ public class Spark3Util {
     return extensions.contains("IcebergSparkSessionExtensions");
   }
 
+  public static boolean containsIncrementalOptions(CaseInsensitiveStringMap options) {
+    return options.containsKey(SparkReadOptions.START_SNAPSHOT_ID)
+        || options.containsKey(SparkReadOptions.END_SNAPSHOT_ID);
+  }
+
+  public static void validateNoLegacyTimeTravel(CaseInsensitiveStringMap options) {
+    Preconditions.checkArgument(
+        !options.containsKey(SparkReadOptions.LEGACY_SNAPSHOT_ID),
+        "Time travel option `%s` is no longer supported, use Spark built-in `%s` instead",
+        SparkReadOptions.LEGACY_SNAPSHOT_ID,
+        SparkReadOptions.VERSION_AS_OF);
+
+    Preconditions.checkArgument(
+        !options.containsKey(SparkReadOptions.LEGACY_AS_OF_TIMESTAMP),
+        "Time travel option `%s` (in millis) is no longer supported, use Spark built-in `%s` instead (properly formatted timestamp)",
+        SparkReadOptions.LEGACY_AS_OF_TIMESTAMP,
+        SparkReadOptions.TIMESTAMP_AS_OF);
+
+    Preconditions.checkArgument(
+        !options.containsKey(SparkReadOptions.LEGACY_TAG),
+        "Time travel option `%s` is no longer supported, use Spark built-in `%s` instead",
+        SparkReadOptions.LEGACY_TAG,
+        SparkReadOptions.VERSION_AS_OF);
+  }
+
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {
     private static final Joiner COMMA = Joiner.on(',');
     private static final DescribeSchemaVisitor INSTANCE = new DescribeSchemaVisitor();
@@ -848,6 +865,15 @@ public class Spark3Util {
     public CatalogAndIdentifier(Pair<CatalogPlugin, Identifier> identifier) {
       this.catalog = identifier.first();
       this.identifier = identifier.second();
+    }
+
+    public TableCatalog tableCatalog() {
+      Preconditions.checkArgument(
+          catalog instanceof TableCatalog,
+          "%s is not a valid table catalog: %s",
+          catalog.name(),
+          catalog.getClass().getName());
+      return (TableCatalog) catalog;
     }
 
     public CatalogPlugin catalog() {

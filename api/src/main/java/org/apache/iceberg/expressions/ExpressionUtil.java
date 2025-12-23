@@ -194,7 +194,7 @@ public class ExpressionUtil {
    */
   public static boolean selectsPartitions(Expression expr, Table table, boolean caseSensitive) {
     return table.specs().values().stream()
-        .allMatch(spec -> selectsPartitions(expr, spec, caseSensitive));
+        .allMatch(spec -> spec.isPartitioned() && selectsPartitions(expr, spec, caseSensitive));
   }
 
   /**

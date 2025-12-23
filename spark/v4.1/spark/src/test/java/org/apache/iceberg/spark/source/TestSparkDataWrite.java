@@ -685,7 +685,7 @@ public class TestSparkDataWrite {
 
     Table spyTable = spy(table);
     when(spyTable.newAppend()).thenReturn(spyAppend);
-    SparkTable sparkTable = new SparkTable(spyTable, false);
+    SparkTable sparkTable = new SparkTable(spyTable);
 
     String manualTableName = "unknown_exception";
     ManualSource.setTable(manualTableName, sparkTable);

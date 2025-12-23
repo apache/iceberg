@@ -60,7 +60,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.TableMigrationUtil;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
@@ -988,7 +987,8 @@ public class SparkTableUtil {
   }
 
   public static Dataset<Row> loadTable(SparkSession spark, Table table, long snapshotId) {
-    SparkTable sparkTable = new SparkTable(table, snapshotId, false);
+    TimeTravel timeTravel = TimeTravel.version(String.valueOf(snapshotId));
+    SparkTable sparkTable = SparkTable.create(table, timeTravel);
     DataSourceV2Relation relation = createRelation(sparkTable, ImmutableMap.of());
     Preconditions.checkArgument(
         spark instanceof org.apache.spark.sql.classic.SparkSession,
@@ -1007,7 +1007,7 @@ public class SparkTableUtil {
   public static Dataset<Row> loadMetadataTable(
       SparkSession spark, Table table, MetadataTableType type, Map<String, String> extraOptions) {
     Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
-    SparkTable sparkMetadataTable = new SparkTable(metadataTable, false);
+    SparkTable sparkMetadataTable = new SparkTable(metadataTable);
     DataSourceV2Relation relation = createRelation(sparkMetadataTable, extraOptions);
     Preconditions.checkArgument(
         spark instanceof org.apache.spark.sql.classic.SparkSession,
@@ -1025,37 +1025,86 @@ public class SparkTableUtil {
         sparkTable, Option.empty(), Option.empty(), options, Option.empty());
   }
 
-  /**
-   * Determine the write branch.
-   *
-   * <p>Validate wap config and determine the write branch.
-   *
-   * @param spark a Spark Session
-   * @param branch write branch if there is no WAP branch configured
-   * @return branch for write operation
-   */
-  public static String determineWriteBranch(SparkSession spark, String branch) {
+  public static void validateWriteBranch(
+      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
+    validateBranch(spark, branch, determineWriteBranch(spark, table, branch, options));
+  }
+
+  public static void validateReadBranch(
+      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
+    validateBranch(spark, branch, determineReadBranch(spark, table, branch, options));
+  }
+
+  private static void validateBranch(SparkSession spark, String branch, String targetBranch) {
+    Preconditions.checkArgument(
+        Objects.equal(branch, targetBranch) || Spark3Util.extensionsEnabled(spark),
+        "Must enable Iceberg extensions to use branching via options or SQL: operation targets branch `%s`",
+        targetBranch);
+  }
+
+  public static String determineWriteBranch(
+      SparkSession spark, SparkTable sparkTable, CaseInsensitiveStringMap options) {
+    return determineWriteBranch(spark, sparkTable.table(), sparkTable.branch(), options);
+  }
+
+  public static String determineWriteBranch(
+      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
+    String optionBranch = options.get(SparkWriteOptions.BRANCH);
+    if (optionBranch != null) {
+      Preconditions.checkArgument(
+          branch == null || optionBranch.equals(branch),
+          "Explicitly configured branch [%s] and write option [%s] are in conflict",
+          branch,
+          optionBranch);
+      return optionBranch;
+    }
+
+    if (branch == null && wapEnabled(table)) {
+      return wapSessionBranch(spark);
+    }
+
+    return branch;
+  }
+
+  public static String determineReadBranch(
+      SparkSession spark, SparkTable sparkTable, CaseInsensitiveStringMap options) {
+    return determineReadBranch(spark, sparkTable.table(), sparkTable.branch(), options);
+  }
+
+  public static String determineReadBranch(
+      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
+    String optionBranch = options.get(SparkReadOptions.BRANCH);
+    if (optionBranch != null) {
+      Preconditions.checkArgument(
+          branch == null || optionBranch.equals(branch),
+          "Explicitly configured branch [%s] and read option [%s] are in conflict",
+          branch,
+          optionBranch);
+      return optionBranch;
+    }
+
+    if (branch == null && wapEnabled(table)) {
+      String wapBranch = wapSessionBranch(spark);
+      if (wapBranch != null && table.refs().containsKey(wapBranch)) {
+        return wapBranch;
+      }
+    }
+
+    return branch;
+  }
+
+  private static String wapSessionBranch(SparkSession spark) {
     String wapId = spark.conf().get(SparkSQLProperties.WAP_ID, null);
     String wapBranch = spark.conf().get(SparkSQLProperties.WAP_BRANCH, null);
-    ValidationException.check(
+    Preconditions.checkArgument(
         wapId == null || wapBranch == null,
         "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]",
         wapId,
         wapBranch);
-
-    if (wapBranch != null) {
-      ValidationException.check(
-          branch == null,
-          "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
-          branch,
-          wapBranch);
-
-      return wapBranch;
-    }
-    return branch;
+    return wapBranch;
   }
 
-  public static boolean wapEnabled(Table table) {
+  private static boolean wapEnabled(Table table) {
     return PropertyUtil.propertyAsBoolean(
         table.properties(),
         TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,

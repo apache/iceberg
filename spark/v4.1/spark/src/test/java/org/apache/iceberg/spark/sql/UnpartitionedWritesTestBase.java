@@ -101,7 +101,7 @@ public abstract class UnpartitionedWritesTestBase extends CatalogTestBase {
             () ->
                 sql("INSERT INTO %s.%s VALUES (4, 'd'), (5, 'e')", tableName, prefix + snapshotId))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot write to table at a specific snapshot");
+        .hasMessageStartingWith("Cannot write to table with time travel");
   }
 
   @TestTemplate
@@ -116,7 +116,7 @@ public abstract class UnpartitionedWritesTestBase extends CatalogTestBase {
                     "INSERT OVERWRITE %s.%s VALUES (4, 'd'), (5, 'e')",
                     tableName, prefix + snapshotId))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot write to table at a specific snapshot");
+        .hasMessageStartingWith("Cannot write to table with time travel");
   }
 
   @TestTemplate

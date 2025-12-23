@@ -59,7 +59,7 @@ public class TestSparkCatalog<
       table = TestTables.load(tableIdentifier.name());
     }
 
-    return new SparkTable(table, false);
+    return new SparkTable(table);
   }
 
   public static void clearTables() {

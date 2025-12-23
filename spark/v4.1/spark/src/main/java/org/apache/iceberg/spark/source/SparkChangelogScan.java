@@ -31,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -77,7 +78,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     this.scan = scan;
     this.readConf = readConf;
     this.expectedSchema = expectedSchema;
-    this.filters = filters != null ? filters : Collections.emptyList();
+    this.filters = filters != null ? filters : ImmutableList.of();
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
     if (emptyScan) {
@@ -106,6 +107,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     return new SparkBatch(
         sparkContext,
         table,
+        table.schema().schemaId(),
         readConf,
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
@@ -133,7 +135,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         table,
         startSnapshotId,
         endSnapshotId,
-        Spark3Util.describe(filters));
+        filtersDesc());
   }
 
   @Override
@@ -145,7 +147,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         expectedSchema.asStruct(),
         startSnapshotId,
         endSnapshotId,
-        Spark3Util.describe(filters));
+        filtersDesc());
   }
 
   @Override
@@ -160,15 +162,19 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
     SparkChangelogScan that = (SparkChangelogScan) o;
     return table.name().equals(that.table.name())
+        && Objects.equals(table.uuid(), that.table.uuid())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field IDs
-        && filters.toString().equals(that.filters.toString())
+        && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(
-        table.name(), readSchema(), filters.toString(), startSnapshotId, endSnapshotId);
+    return Objects.hash(table.name(), readSchema(), filtersDesc(), startSnapshotId, endSnapshotId);
+  }
+
+  private String filtersDesc() {
+    return Spark3Util.describe(filters);
   }
 }

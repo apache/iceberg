@@ -49,7 +49,7 @@ public class PlanUtils {
               }
 
               SparkBatchQueryScan batchQueryScan = (SparkBatchQueryScan) scanRelation.scan();
-              return batchQueryScan.filterExpressions().stream();
+              return Stream.of(batchQueryScan.filter());
             })
         .collect(Collectors.toList());
   }

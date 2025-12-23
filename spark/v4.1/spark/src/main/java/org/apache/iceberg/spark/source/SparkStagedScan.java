@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import org.apache.iceberg.ScanTask;
@@ -28,36 +29,51 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.read.Statistics;
 
 class SparkStagedScan extends SparkScan {
 
-  private final String taskSetId;
+  private final String groupId;
   private final long splitSize;
   private final int splitLookback;
   private final long openFileCost;
 
   private List<ScanTaskGroup<ScanTask>> taskGroups = null; // lazy cache of tasks
 
-  SparkStagedScan(SparkSession spark, Table table, Schema expectedSchema, SparkReadConf readConf) {
-    super(spark, table, readConf, expectedSchema, ImmutableList.of(), null);
-    this.taskSetId = readConf.scanTaskSetId();
+  SparkStagedScan(
+      SparkSession spark,
+      Table table,
+      Schema schema,
+      Schema projection,
+      String groupId,
+      SparkReadConf readConf) {
+    super(spark, table, schema, readConf, projection, ImmutableList.of(), null);
+    this.groupId = groupId;
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.openFileCost = readConf.splitOpenFileCost();
   }
 
   @Override
+  public Statistics estimateStatistics() {
+    long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
+    long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
+    return new Stats(sizeInBytes, rowsCount, Collections.emptyMap());
+  }
+
+  @Override
   protected List<ScanTaskGroup<ScanTask>> taskGroups() {
     if (taskGroups == null) {
       ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
-      List<ScanTask> tasks = taskSetManager.fetchTasks(table(), taskSetId);
+      List<ScanTask> tasks = taskSetManager.fetchTasks(table(), groupId);
       ValidationException.check(
           tasks != null,
-          "Task set manager has no tasks for table %s with task set ID %s",
+          "Task set manager has no tasks for table %s with groupId %s",
           table(),
-          taskSetId);
+          groupId);
 
       this.taskGroups = TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, openFileCost);
     }
@@ -76,7 +92,8 @@ class SparkStagedScan extends SparkScan {
 
     SparkStagedScan that = (SparkStagedScan) other;
     return table().name().equals(that.table().name())
-        && Objects.equals(taskSetId, that.taskSetId)
+        && Objects.equals(table().uuid(), that.table().uuid())
+        && Objects.equals(groupId, that.groupId)
         && readSchema().equals(that.readSchema())
         && splitSize == that.splitSize
         && splitLookback == that.splitLookback
@@ -86,13 +103,11 @@ class SparkStagedScan extends SparkScan {
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(), taskSetId, readSchema(), splitSize, splitSize, openFileCost);
+        table().name(), table().uuid(), groupId, readSchema(), splitSize, openFileCost);
   }
 
   @Override
-  public String toString() {
-    return String.format(
-        "IcebergStagedScan(table=%s, type=%s, taskSetID=%s, caseSensitive=%s)",
-        table(), expectedSchema().asStruct(), taskSetId, caseSensitive());
+  public String description() {
+    return String.format("IcebergStagedScan(table=%s, groupId=%s)", table(), groupId);
   }
 }

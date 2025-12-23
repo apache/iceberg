@@ -23,7 +23,6 @@ import static org.apache.iceberg.IsolationLevel.SNAPSHOT;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -114,6 +113,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
   SparkWrite(
       SparkSession spark,
       Table table,
+      String branch,
       SparkWriteConf writeConf,
       LogicalWriteInfo writeInfo,
       String applicationId,
@@ -128,7 +128,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
     this.applicationId = applicationId;
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
-    this.branch = writeConf.branch();
+    this.branch = branch;
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
@@ -428,19 +428,6 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       }
     }
 
-    private Expression conflictDetectionFilter() {
-      // the list of filter expressions may be empty but is never null
-      List<Expression> scanFilterExpressions = scan.filterExpressions();
-
-      Expression filter = Expressions.alwaysTrue();
-
-      for (Expression expr : scanFilterExpressions) {
-        filter = Expressions.and(filter, expr);
-      }
-
-      return filter;
-    }
-
     @Override
     public void commit(WriterCommitMessage[] messages) {
       commit(messages, null);
@@ -496,7 +483,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
         overwriteFiles.validateFromSnapshot(scanSnapshotId);
       }
 
-      Expression conflictDetectionFilter = conflictDetectionFilter();
+      Expression conflictDetectionFilter = scan.filter();
       overwriteFiles.conflictDetectionFilter(conflictDetectionFilter);
       overwriteFiles.validateNoConflictingData();
       overwriteFiles.validateNoConflictingDeletes();
@@ -522,7 +509,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
         overwriteFiles.validateFromSnapshot(scanSnapshotId);
       }
 
-      Expression conflictDetectionFilter = conflictDetectionFilter();
+      Expression conflictDetectionFilter = scan.filter();
       overwriteFiles.conflictDetectionFilter(conflictDetectionFilter);
       overwriteFiles.validateNoConflictingDeletes();
 

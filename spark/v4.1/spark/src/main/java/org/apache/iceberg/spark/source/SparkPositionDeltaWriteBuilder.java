@@ -29,6 +29,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.TypeUtil;
@@ -48,6 +49,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
 
   private final SparkSession spark;
   private final Table table;
+  private final String branch;
   private final Command command;
   private final SparkBatchQueryScan scan;
   private final IsolationLevel isolationLevel;
@@ -66,13 +68,15 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
       LogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
+    this.branch = branch;
     this.command = command;
     this.scan = (SparkBatchQueryScan) scan;
     this.isolationLevel = isolationLevel;
-    this.writeConf = new SparkWriteConf(spark, table, branch, info.options());
+    this.writeConf = new SparkWriteConf(spark, table, info.options());
     this.info = info;
     this.checkNullability = writeConf.checkNullability();
     this.checkOrdering = writeConf.checkOrdering();
+    SparkTableUtil.validateWriteBranch(spark, table, branch, info.options());
   }
 
   @Override
@@ -93,7 +97,7 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     SparkUtil.validatePartitionTransforms(table.spec());
 
     return new SparkPositionDeltaWrite(
-        spark, table, command, scan, isolationLevel, writeConf, info, dataSchema);
+        spark, table, branch, command, scan, isolationLevel, writeConf, info, dataSchema);
   }
 
   private Schema dataSchema() {

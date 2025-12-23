@@ -32,7 +32,6 @@ import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -54,8 +53,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     this(
         partition.table(),
         partition.taskGroup(),
-        SnapshotUtil.schemaFor(partition.table(), partition.branch()),
-        partition.expectedSchema(),
+        partition.schema(),
+        partition.projection(),
         partition.isCaseSensitive(),
         parquetBatchReadConf,
         orcBatchReadConf,

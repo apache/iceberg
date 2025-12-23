@@ -34,28 +34,28 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
   private final Types.StructType groupingKeyType;
   private final ScanTaskGroup<?> taskGroup;
   private final Broadcast<Table> tableBroadcast;
-  private final String branch;
-  private final String expectedSchemaString;
+  private final int schemaId;
+  private final String projectionString;
   private final boolean caseSensitive;
   private final transient String[] preferredLocations;
   private final boolean cacheDeleteFilesOnExecutors;
 
-  private transient Schema expectedSchema = null;
+  private transient Schema projection = null;
 
   SparkInputPartition(
       Types.StructType groupingKeyType,
       ScanTaskGroup<?> taskGroup,
       Broadcast<Table> tableBroadcast,
-      String branch,
-      String expectedSchemaString,
+      int schemaId,
+      String projectionString,
       boolean caseSensitive,
       String[] preferredLocations,
       boolean cacheDeleteFilesOnExecutors) {
     this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
-    this.branch = branch;
-    this.expectedSchemaString = expectedSchemaString;
+    this.schemaId = schemaId;
+    this.projectionString = projectionString;
     this.caseSensitive = caseSensitive;
     this.preferredLocations = preferredLocations;
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
@@ -84,8 +84,12 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     return tableBroadcast.value();
   }
 
-  public String branch() {
-    return branch;
+  public Schema schema() {
+    if (table().schema().schemaId() == schemaId) {
+      return table().schema();
+    } else {
+      return table().schemas().get(schemaId);
+    }
   }
 
   public boolean isCaseSensitive() {
@@ -96,11 +100,11 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     return cacheDeleteFilesOnExecutors;
   }
 
-  public Schema expectedSchema() {
-    if (expectedSchema == null) {
-      this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
+  public Schema projection() {
+    if (projection == null) {
+      this.projection = SchemaParser.fromJson(projectionString);
     }
 
-    return expectedSchema;
+    return projection;
   }
 }

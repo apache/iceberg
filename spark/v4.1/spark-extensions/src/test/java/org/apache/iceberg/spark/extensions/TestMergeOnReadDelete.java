@@ -294,7 +294,7 @@ public class TestMergeOnReadDelete extends TestDelete {
     Table spyTable = spy(table);
     when(spyTable.newRowDelta()).thenReturn(spyNewRowDelta);
     SparkTable sparkTable =
-        branch == null ? new SparkTable(spyTable, false) : new SparkTable(spyTable, branch, false);
+        branch == null ? new SparkTable(spyTable) : SparkTable.create(spyTable, branch);
 
     ImmutableMap<String, String> config =
         ImmutableMap.of(
