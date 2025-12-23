@@ -53,12 +53,17 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.QueryExecution;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
+import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanHelper;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.QueryExecutionListener;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import scala.PartialFunction;
+import scala.collection.JavaConverters;
 
 public abstract class TestBase extends SparkTestHelperBase {
+
+  private static final AdaptiveSparkPlanHelper SPARK_HELPER = new AdaptiveSparkPlanHelper() {};
 
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
@@ -280,6 +285,25 @@ public abstract class TestBase extends SparkTestHelperBase {
     } else {
       return executedPlan;
     }
+  }
+
+  /** Collect all nodes of a specific plan type from the plan tree. */
+  protected <T extends SparkPlan> List<T> collectPlans(SparkPlan plan, Class<T> planClass) {
+    scala.collection.Seq<T> seq =
+        SPARK_HELPER.collect(
+            plan,
+            new PartialFunction<SparkPlan, T>() {
+              @Override
+              public T apply(SparkPlan p) {
+                return planClass.cast(p);
+              }
+
+              @Override
+              public boolean isDefinedAt(SparkPlan p) {
+                return planClass.isInstance(p);
+              }
+            });
+    return JavaConverters.seqAsJavaListConverter(seq).asJava();
   }
 
   @FunctionalInterface
