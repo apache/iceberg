@@ -18,15 +18,22 @@
  */
 package org.apache.iceberg;
 
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Tasks;
@@ -74,7 +81,7 @@ abstract class FileCleanupStrategy {
    * @param afterExpiration table metadata after snapshot expiration
    * @param cleanupLevel controls which types of files are eligible for deletion
    */
-  public abstract void cleanFiles(
+  public abstract DeleteSummary cleanFiles(
       TableMetadata beforeExpiration,
       TableMetadata afterExpiration,
       ExpireSnapshots.CleanupLevel cleanupLevel);
@@ -103,8 +110,10 @@ abstract class FileCleanupStrategy {
     }
   }
 
-  protected void deleteFiles(Set<String> pathsToDelete, String fileType) {
+  protected void deleteFiles(
+      Set<String> pathsToDelete, DeletedFileType fileType, DeleteSummary summary) {
     if (deleteFunc == null && fileIO instanceof SupportsBulkOperations) {
+      int failures = 0;
       try {
         ((SupportsBulkOperations) fileIO).deleteFiles(pathsToDelete);
       } catch (BulkDeletionFailureException e) {
@@ -112,11 +121,13 @@ abstract class FileCleanupStrategy {
             "Bulk deletion failed for {} of {} {} file(s)",
             e.numberFailedObjects(),
             pathsToDelete.size(),
-            fileType,
+            fileType.displayName(),
             e);
+        failures = e.numberFailedObjects();
       } catch (RuntimeException e) {
         LOG.warn("Bulk deletion failed", e);
       }
+      summary.deletedFiles(fileType, pathsToDelete.size() - failures);
     } else {
       Consumer<String> deleteFuncToUse = deleteFunc == null ? defaultDeleteFunc : deleteFunc;
 
@@ -127,8 +138,89 @@ abstract class FileCleanupStrategy {
           .stopOnFailure()
           .suppressFailureWhenFinished()
           .onFailure(
-              (file, thrown) -> LOG.warn("Delete failed for {} file: {}", fileType, file, thrown))
-          .run(deleteFuncToUse::accept);
+              (file, thrown) ->
+                  LOG.warn("Delete failed for {} file: {}", fileType.displayName(), file, thrown))
+          .run(
+              file -> {
+                deleteFuncToUse.accept(file);
+                summary.deletedFile(fileType);
+              });
+    }
+  }
+
+  enum DeletedFileType {
+    DATA("data"),
+    POSITION_DELETES("position delete"),
+    EQUALITY_DELETES("equality delete"),
+    MANIFEST("manifest"),
+    MANIFEST_LIST("manifest list"),
+    STATISTICS_FILES("statistics files");
+
+    private final String displayName;
+
+    DeletedFileType(String displayName) {
+      this.displayName = displayName;
+    }
+
+    public String displayName() {
+      return displayName;
+    }
+
+    public static DeletedFileType fromContent(FileContent content) {
+      switch (content) {
+        case DATA:
+          return DATA;
+        case POSITION_DELETES:
+          return POSITION_DELETES;
+        case EQUALITY_DELETES:
+          return EQUALITY_DELETES;
+        default:
+          throw new ValidationException("Illegal file content: %s", content);
+      }
+    }
+  }
+
+  static class DeleteSummary {
+    private final Map<DeletedFileType, AtomicLong> counts;
+
+    DeleteSummary() {
+      Map<DeletedFileType, AtomicLong> map = Maps.newEnumMap(DeletedFileType.class);
+      for (DeletedFileType type : DeletedFileType.values()) {
+        map.put(type, new AtomicLong(0L));
+      }
+      this.counts = map;
+    }
+
+    public void deletedFiles(DeletedFileType type, int numFiles) {
+      counts.get(type).addAndGet(numFiles);
+    }
+
+    public void deletedFile(DeletedFileType type) {
+      deletedFiles(type, 1);
+    }
+
+    public long dataFilesCount() {
+      return counts.get(DeletedFileType.DATA).get();
+    }
+
+    public long positionDeleteFilesCount() {
+      return counts.get(DeletedFileType.POSITION_DELETES).get();
+    }
+
+    public long equalityDeleteFilesCount() {
+      return counts.get(DeletedFileType.EQUALITY_DELETES).get();
+    }
+
+    public long manifestsCount() {
+      return counts.get(DeletedFileType.MANIFEST).get();
+    }
+
+    public long manifestListsCount() {
+      return counts.get(DeletedFileType.MANIFEST_LIST).get();
+    }
+
+    public long statisticsFilesCount() {
+      return counts.get(DeletedFileType.STATISTICS_FILES).get();
     }
   }
 
@@ -143,6 +235,46 @@ abstract class FileCleanupStrategy {
     Set<String> statsFileLocationsAfterExpiration = statsFileLocations(afterExpiration);
 
     return Sets.difference(statsFileLocationsBeforeExpiration, statsFileLocationsAfterExpiration);
+  }
+
+  protected static class ExpiredContentFile {
+    private final FileContent content;
+    private final String path;
+
+    public ExpiredContentFile(FileContent content, String path) {
+      this.content = Preconditions.checkNotNull(content, "content is null");
+      this.path = Preconditions.checkNotNull(path, "path is null");
+    }
+
+    public FileContent getContent() {
+      return content;
+    }
+
+    public String getPath() {
+      return path;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+
+      ExpiredContentFile that = (ExpiredContentFile) other;
+      return Objects.equals(content, that.content) && Objects.equals(path, that.path);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(content, path);
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this).add("content", content).add("path", path).toString();
+    }
   }
 
   private Set<String> statsFileLocations(TableMetadata tableMetadata) {

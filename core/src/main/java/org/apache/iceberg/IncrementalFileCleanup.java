@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -48,10 +49,11 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
   @Override
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
-  public void cleanFiles(
+  public DeleteSummary cleanFiles(
       TableMetadata beforeExpiration,
       TableMetadata afterExpiration,
       ExpireSnapshots.CleanupLevel cleanupLevel) {
+    DeleteSummary summary = new DeleteSummary();
     // clean up required underlying files based on the expired snapshots
     // 1. Get a list of the snapshots that were removed
     // 2. Delete any data files that were deleted by those snapshots and are not in the table
@@ -59,7 +61,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     // 4. Delete the manifest lists
     if (ExpireSnapshots.CleanupLevel.NONE == cleanupLevel) {
       LOG.info("Nothing to clean.");
-      return;
+      return summary;
     }
 
     Set<Long> validIds = Sets.newHashSet();
@@ -79,12 +81,12 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
 
     if (expiredIds.isEmpty()) {
       // if no snapshots were expired, skip cleanup
-      return;
+      return summary;
     }
 
     Snapshot latest = beforeExpiration.currentSnapshot();
     if (latest == null) {
-      return;
+      return summary;
     }
 
     List<Snapshot> snapshots = afterExpiration.snapshots();
@@ -259,32 +261,44 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
             });
 
     if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
-      Set<String> filesToDelete =
+      Set<ExpiredContentFile> filesToDelete =
           findFilesToDelete(
               manifestsToScan, manifestsToRevert, validIds, beforeExpiration.specsById());
-      LOG.debug("Deleting {} data files", filesToDelete.size());
-      deleteFiles(filesToDelete, "data");
+      Map<DeletedFileType, Set<String>> groupedFilesToDelete =
+          filesToDelete.stream()
+              .collect(
+                  Collectors.groupingBy(
+                      file -> DeletedFileType.fromContent(file.getContent()),
+                      Collectors.mapping(ExpiredContentFile::getPath, Collectors.toSet())));
+
+      for (Map.Entry<DeletedFileType, Set<String>> entry : groupedFilesToDelete.entrySet()) {
+        Set<String> filesToDeleteGroup = entry.getValue();
+        DeletedFileType fileType = entry.getKey();
+        LOG.debug("Deleting {} {} files", filesToDeleteGroup.size(), fileType.displayName());
+        deleteFiles(filesToDeleteGroup, fileType, summary);
+      }
     }
 
     LOG.debug("Deleting {} manifest files", manifestsToDelete.size());
-    deleteFiles(manifestsToDelete, "manifest");
+    deleteFiles(manifestsToDelete, DeletedFileType.MANIFEST, summary);
     LOG.debug("Deleting {} manifest-list files", manifestListsToDelete.size());
-    deleteFiles(manifestListsToDelete, "manifest list");
+    deleteFiles(manifestListsToDelete, DeletedFileType.MANIFEST_LIST, summary);
 
     if (hasAnyStatisticsFiles(beforeExpiration)) {
       Set<String> expiredStatisticsFilesLocations =
           expiredStatisticsFilesLocations(beforeExpiration, afterExpiration);
       LOG.debug("Deleting {} statistics files", expiredStatisticsFilesLocations.size());
-      deleteFiles(expiredStatisticsFilesLocations, "statistics files");
+      deleteFiles(expiredStatisticsFilesLocations, DeletedFileType.STATISTICS_FILES, summary);
     }
+    return summary;
   }
 
-  private Set<String> findFilesToDelete(
+  private Set<ExpiredContentFile> findFilesToDelete(
       Set<ManifestFile> manifestsToScan,
       Set<ManifestFile> manifestsToRevert,
       Set<Long> validIds,
       Map<Integer, PartitionSpec> specsById) {
-    Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
+    Set<ExpiredContentFile> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .retry(3)
         .suppressFailureWhenFinished()
@@ -295,14 +309,15 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
         .run(
             manifest -> {
               // the manifest has deletes, scan it to find files to delete
-              try (ManifestReader<?> reader = ManifestFiles.open(manifest, fileIO, specsById)) {
-                for (ManifestEntry<?> entry : reader.entries()) {
+              try (ManifestReader<? extends ContentFile<?>> reader =
+                  ManifestFiles.open(manifest, fileIO, specsById)) {
+                for (ManifestEntry<? extends ContentFile<?>> entry : reader.entries()) {
                   // if the snapshot ID of the DELETE entry is no longer valid, the data can be
                   // deleted
                   if (entry.status() == ManifestEntry.Status.DELETED
                       && !validIds.contains(entry.snapshotId())) {
-                    // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().location());
+                    ContentFile<?> file = entry.file();
+                    filesToDelete.add(new ExpiredContentFile(file.content(), file.location()));
                   }
                 }
               } catch (IOException e) {
@@ -320,12 +335,13 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
         .run(
             manifest -> {
               // the manifest has deletes, scan it to find files to delete
-              try (ManifestReader<?> reader = ManifestFiles.open(manifest, fileIO, specsById)) {
-                for (ManifestEntry<?> entry : reader.entries()) {
+              try (ManifestReader<? extends ContentFile<?>> reader =
+                  ManifestFiles.open(manifest, fileIO, specsById)) {
+                for (ManifestEntry<? extends ContentFile<?>> entry : reader.entries()) {
                   // delete any ADDED file from manifests that were reverted
                   if (entry.status() == ManifestEntry.Status.ADDED) {
-                    // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().location());
+                    ContentFile<?> file = entry.file();
+                    filesToDelete.add(new ExpiredContentFile(file.content(), file.location()));
                   }
                 }
               } catch (IOException e) {
