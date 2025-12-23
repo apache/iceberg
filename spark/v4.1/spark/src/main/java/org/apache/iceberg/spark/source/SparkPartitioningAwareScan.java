@@ -48,7 +48,9 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.SortOrder;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.connector.read.SupportsReportOrdering;
 import org.apache.spark.sql.connector.read.SupportsReportPartitioning;
 import org.apache.spark.sql.connector.read.partitioning.KeyGroupedPartitioning;
 import org.apache.spark.sql.connector.read.partitioning.Partitioning;
@@ -57,12 +59,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends SparkScan
-    implements SupportsReportPartitioning {
+    implements SupportsReportPartitioning, SupportsReportOrdering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkPartitioningAwareScan.class);
 
   private final Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
   private final boolean preserveDataGrouping;
+  private final boolean preserveDataOrdering;
 
   private Set<PartitionSpec> specs = null; // lazy cache of scanned specs
   private List<T> tasks = null; // lazy cache of uncombined tasks
@@ -91,6 +94,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
+    this.preserveDataOrdering = readConf.preserveDataOrdering();
 
     if (scan == null) {
       this.specs = Collections.emptySet();
@@ -121,6 +125,30 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
           table().name());
       return new KeyGroupedPartitioning(groupingKeyTransforms(), taskGroups().size());
     }
+  }
+
+  @Override
+  public SortOrder[] outputOrdering() {
+    if (!preserveDataOrdering) {
+      return new SortOrder[0];
+    }
+
+    if (groupingKeyType().fields().isEmpty()) {
+      LOG.info("Not reporting ordering for unpartitioned table {}", table().name());
+      return new SortOrder[0];
+    }
+
+    if (!SortOrderAnalyzer.canReportOrdering(table(), taskGroups(), groupingKeyType())) {
+      LOG.info("Not reporting ordering for table {}", table().name());
+      return new SortOrder[0];
+    }
+
+    org.apache.iceberg.SortOrder sortOrder = table().sortOrder();
+    SortOrder[] ordering = Spark3Util.toOrdering(sortOrder);
+    LOG.info(
+        "Reporting sort order {} for table {}: {}", sortOrder.orderId(), table().name(), ordering);
+
+    return ordering;
   }
 
   @Override
