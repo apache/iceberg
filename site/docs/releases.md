@@ -69,7 +69,7 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 
 ### 1.10.1 release
 
-Apache Iceberg 1.10.1 was released on Dec 21, 2025.
+Apache Iceberg 1.10.1 was released on Dec 22, 2025.
 
 The 1.10.1 release contains bug fixes. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.10.1)
 
