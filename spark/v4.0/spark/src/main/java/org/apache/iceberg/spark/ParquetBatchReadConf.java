@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.io.Serializable;
+import java.util.Optional;
 import org.immutables.value.Value;
 
 @Value.Immutable
@@ -26,4 +27,6 @@ public interface ParquetBatchReadConf extends Serializable {
   int batchSize();
 
   ParquetReaderType readerType();
+
+  Optional<String> factoryClassName();
 }
