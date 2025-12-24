@@ -127,6 +127,9 @@ public class RESTCatalogServlet extends HttpServlet {
         }
       }
     } catch (RESTException e) {
+      if (response.isCommitted()) {
+        return;
+      }
       LOG.error("Error processing REST request", e);
       response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     } catch (Exception e) {
