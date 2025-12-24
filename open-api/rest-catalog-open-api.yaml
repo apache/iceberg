@@ -3374,30 +3374,29 @@ components:
         ## General Configurations
 
         - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
-        - `rest-scan-planning-mode`: Controls the catalog's scan planning mode (server-side configuration). Valid values are:
-          - `client-only`: Client MUST use client-side planning. Server MUST NOT provide server-side planning endpoints or capabilities.
-          - `client-preferred` (default): Client SHOULD use client-side planning. Server MAY provide server-side planning if explicitly requested by client.
-          - `catalog-preferred`: Client SHOULD use server-side planning when available. Server MAY fall back to client-side planning if server doesn't support planning endpoints or client explicitly requests it.
-          - `catalog-only`: Client MUST use server-side planning. Server MUST provide server-side planning endpoints. Client MUST NOT use client-side planning.
-        - `rest-scan-planning-client-preference`: Controls the client's scan planning preference. Valid values are:
-          - `none` (default): Client SHOULD follow the catalog's `rest-scan-planning-mode` recommendation. No explicit preference set.
-          - `client`: Client MUST use client-side planning. Request fails with IllegalStateException if catalog mode is `catalog-only`.
-          - `catalog`: Client MUST use server-side planning. Request fails with IllegalStateException if catalog mode is `client-only`, or with UnsupportedOperationException if server doesn't support planning endpoints.
+        - `scan-planning-mode`: Controls scan planning behavior for table operations. This property can be configured by:
+          - **Server**: Returned in `LoadTableResponse.config()` to advertise server preference/requirement
+          - **Client**: Set in catalog properties to override server configuration
 
-        ### Scan Planning Decision Matrix
+          **Configuration Precedence**: Client config > Server config > Default (`client-preferred`)
 
-        The final scan planning decision is determined by the negotiation between `rest-scan-planning-mode` (catalog requirement) and `rest-scan-planning-client-preference` (client requirement):
+          **Valid values**:
+          - `client-only`: MUST use client-side planning. Fails if paired with server's `catalog-only`.
+          - `client-preferred` (default): Prefer client-side planning but flexible.
+          - `catalog-preferred`: Prefer server-side planning but flexible. Falls back to client if server doesn't support planning endpoints.
+          - `catalog-only`: MUST use server-side planning. Requires server support. Fails if paired with client's `client-only`.
 
-        | Client Preference | client-only | client-preferred | catalog-preferred | catalog-only |
-        |-------------------|-------------|------------------|-------------------|--------------|
-        | **none** (follow catalog) | Client-side | Client-side | Server-side (fallback to client if unavailable) | Server-side (fail if unavailable) |
-        | **client** (MUST client) | Client-side | Client-side | Client-side | **IllegalStateException** |
-        | **catalog** (MUST server) | **IllegalStateException** | Server-side (fail if unavailable) | Server-side (fail if unavailable) | Server-side (fail if unavailable) |
+        ### Scan Planning Negotiation
 
-        Notes:
-        - "Server-side (fallback to client if unavailable)" means the client will attempt server-side planning, but gracefully fall back to client-side if the server doesn't advertise planning endpoints.
-        - "Server-side (fail if unavailable)" means the client will throw UnsupportedOperationException if the server doesn't advertise planning endpoints.
-        - "IllegalStateException" is thrown when client and catalog MUST requirements conflict (e.g., client MUST use client-side but catalog MUST use server-side).
+        When both client and server provide `scan-planning-mode` configuration, the final planning decision is negotiated based on the following rules:
+
+        **Negotiation Rules:**
+        - **Incompatible requirements**: `client-only` + `catalog-only` = **FAIL**
+        - **ONLY beats PREFERRED**: When one side has "ONLY" and the other has "PREFERRED", the ONLY requirement wins (inflexible beats flexible)
+        - **Both PREFERRED**: When both are PREFERRED (different types), client config wins
+        - **Both same**: When both have the same value, use that planning type
+        - **Only one configured**: Use the configured side (client or server)
+        - **Neither configured**: Use default (`client-preferred`)
 
         ## AWS Configurations
 

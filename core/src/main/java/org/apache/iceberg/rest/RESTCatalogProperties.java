@@ -37,16 +37,13 @@ public final class RESTCatalogProperties {
 
   public static final String NAMESPACE_SEPARATOR = "namespace-separator";
 
-  // Configure scan planning mode on the REST catalog/server side
-  public static final String REST_SCAN_PLANNING_MODE = "rest-scan-planning-mode";
-  public static final String REST_SCAN_PLANNING_MODE_DEFAULT =
+  // Configure scan planning mode
+  // Can be set by server in LoadTableResponse.config() or by client in catalog properties
+  // Negotiation rules: ONLY beats PREFERRED, both PREFERRED = client wins
+  // Default when neither client nor server provides: client-preferred
+  public static final String SCAN_PLANNING_MODE = "scan-planning-mode";
+  public static final String SCAN_PLANNING_MODE_DEFAULT =
       ScanPlanningMode.CLIENT_PREFERRED.modeName();
-
-  // Configure client-side scan planning preference
-  public static final String CLIENT_SCAN_PLANNING_PREFERENCE =
-      "rest-scan-planning-client-preference";
-  public static final String CLIENT_SCAN_PLANNING_PREFERENCE_DEFAULT =
-      ClientScanPlanningPreference.NONE.preferenceName();
 
   public enum SnapshotMode {
     ALL,
@@ -54,26 +51,39 @@ public final class RESTCatalogProperties {
   }
 
   /**
-   * Enum to represent the scan planning mode for REST catalog (server-side configuration).
+   * Enum to represent scan planning mode configuration.
    *
-   * <p>This defines what the catalog/server requires or prefers for scan planning using RFC 2119
-   * semantics (MUST, SHOULD, MAY):
+   * <p>Can be configured by:
    *
    * <ul>
-   *   <li>CLIENT_ONLY - Client MUST use client-side planning. Server MUST NOT provide server-side
-   *       planning endpoints.
-   *   <li>CLIENT_PREFERRED (default) - Client SHOULD use client-side planning. Server MAY provide
-   *       server-side planning if explicitly requested.
-   *   <li>CATALOG_PREFERRED - Client SHOULD use server-side planning when available. Server MAY
-   *       fall back to client-side if server doesn't support planning or client explicitly requests
-   *       it.
-   *   <li>CATALOG_ONLY - Client MUST use server-side planning. Server MUST provide server-side
-   *       planning endpoints. Client MUST NOT use client-side planning.
+   *   <li>Server: Returned in LoadTableResponse.config() to advertise server preference/requirement
+   *   <li>Client: Set in catalog properties to set client preference/requirement
    * </ul>
    *
-   * <p>For the complete decision matrix showing how this negotiates with {@link
-   * ClientScanPlanningPreference}, see {@link
-   * org.apache.iceberg.rest.ScanPlanningNegotiator#negotiate}.
+   * <p>When both client and server configure this property, the values are negotiated:
+   *
+   * <p>Values:
+   *
+   * <ul>
+   *   <li>CLIENT_ONLY - MUST use client-side planning. Fails if paired with CATALOG_ONLY from other
+   *       side.
+   *   <li>CLIENT_PREFERRED (default) - Prefer client-side planning but flexible.
+   *   <li>CATALOG_PREFERRED - Prefer server-side planning but flexible. Falls back to client if
+   *       server doesn't support planning endpoints.
+   *   <li>CATALOG_ONLY - MUST use server-side planning. Requires server support. Fails if paired
+   *       with CLIENT_ONLY from other side.
+   * </ul>
+   *
+   * <p>Negotiation rules when both sides are configured:
+   *
+   * <ul>
+   *   <li><b>Incompatible</b>: CLIENT_ONLY + CATALOG_ONLY = FAIL
+   *   <li><b>ONLY beats PREFERRED</b>: One "ONLY" + opposite "PREFERRED" = ONLY wins (inflexible
+   *       beats flexible)
+   *   <li><b>Both PREFERRED</b>: Different PREFERRED types = Client config wins
+   *   <li><b>Both same</b>: Use that planning type
+   *   <li><b>Only one configured</b>: Use the configured side
+   * </ul>
    */
   public enum ScanPlanningMode {
     CLIENT_ONLY("client-only"),
@@ -91,25 +101,33 @@ public final class RESTCatalogProperties {
       return modeName;
     }
 
-    public boolean isClientAllowed() {
-      return this == CLIENT_ONLY || this == CLIENT_PREFERRED;
-    }
-
-    public boolean isCatalogAllowed() {
-      return this == CATALOG_PREFERRED || this == CATALOG_ONLY;
-    }
-
-    public boolean requiresClient() {
+    public boolean isClientOnly() {
       return this == CLIENT_ONLY;
     }
 
-    public boolean requiresCatalog() {
+    public boolean isCatalogOnly() {
       return this == CATALOG_ONLY;
+    }
+
+    public boolean isOnly() {
+      return this == CLIENT_ONLY || this == CATALOG_ONLY;
+    }
+
+    public boolean isPreferred() {
+      return this == CLIENT_PREFERRED || this == CATALOG_PREFERRED;
+    }
+
+    public boolean prefersClient() {
+      return this == CLIENT_ONLY || this == CLIENT_PREFERRED;
+    }
+
+    public boolean prefersCatalog() {
+      return this == CATALOG_ONLY || this == CATALOG_PREFERRED;
     }
 
     public static ScanPlanningMode fromString(String mode) {
       if (mode == null) {
-        return CLIENT_PREFERRED;
+        return CLIENT_ONLY;
       }
       for (ScanPlanningMode planningMode : values()) {
         if (planningMode.modeName.equalsIgnoreCase(mode)) {
@@ -120,56 +138,6 @@ public final class RESTCatalogProperties {
           String.format(
               "Invalid scan planning mode: %s. Valid values are: client-only, client-preferred, catalog-preferred, catalog-only",
               mode));
-    }
-  }
-
-  /**
-   * Enum to represent the client-side scan planning preference.
-   *
-   * <p>This defines what the client wants to do for scan planning using RFC 2119 semantics (MUST,
-   * SHOULD):
-   *
-   * <ul>
-   *   <li>NONE (default) - Client SHOULD follow catalog's {@link ScanPlanningMode} recommendation.
-   *       No explicit preference set. This is the cooperative default behavior.
-   *   <li>CLIENT_PLANNING - Client MUST use client-side planning. Throws {@link
-   *       IllegalStateException} if catalog mode is {@link ScanPlanningMode#CATALOG_ONLY}.
-   *   <li>CATALOG_PLANNING - Client MUST use server-side planning. Throws {@link
-   *       IllegalStateException} if catalog mode is {@link ScanPlanningMode#CLIENT_ONLY}, or {@link
-   *       UnsupportedOperationException} if server doesn't support planning endpoints.
-   * </ul>
-   *
-   * <p>For the complete decision matrix showing how this negotiates with {@link ScanPlanningMode},
-   * see {@link org.apache.iceberg.rest.ScanPlanningNegotiator#negotiate}.
-   */
-  public enum ClientScanPlanningPreference {
-    NONE("none"),
-    CLIENT_PLANNING("client"),
-    CATALOG_PLANNING("catalog");
-
-    private final String preferenceName;
-
-    ClientScanPlanningPreference(String preferenceName) {
-      this.preferenceName = preferenceName;
-    }
-
-    public String preferenceName() {
-      return preferenceName;
-    }
-
-    public static ClientScanPlanningPreference fromString(String pref) {
-      if (pref == null || pref.trim().isEmpty()) {
-        return NONE;
-      }
-      for (ClientScanPlanningPreference preference : values()) {
-        if (preference.preferenceName.equalsIgnoreCase(pref)) {
-          return preference;
-        }
-      }
-      throw new IllegalArgumentException(
-          String.format(
-              "Invalid client scan planning preference: %s. Valid values are: none, client, catalog",
-              pref));
     }
   }
 }

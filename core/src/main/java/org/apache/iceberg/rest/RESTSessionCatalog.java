@@ -159,8 +159,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
-  private RESTCatalogProperties.ScanPlanningMode restScanPlanningMode;
-  private RESTCatalogProperties.ClientScanPlanningPreference clientScanPlanningPreference;
+  private RESTCatalogProperties.ScanPlanningMode clientConfiguredScanPlanningMode;
+  private RESTCatalogProperties.ScanPlanningMode catalogLevelScanPlanningMode;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
@@ -273,21 +273,23 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
             RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
 
-    String scanPlanningConfig =
-        PropertyUtil.propertyAsString(
-            mergedProps,
-            RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
-            RESTCatalogProperties.REST_SCAN_PLANNING_MODE_DEFAULT);
-    this.restScanPlanningMode =
-        RESTCatalogProperties.ScanPlanningMode.fromString(scanPlanningConfig);
+    // Client-configured scan planning mode (from catalog properties, not from server config)
+    // Read from un-merged properties to avoid picking up server-provided defaults
+    String clientScanPlanningConfig =
+        PropertyUtil.propertyAsString(props, RESTCatalogProperties.SCAN_PLANNING_MODE, null);
+    this.clientConfiguredScanPlanningMode =
+        clientScanPlanningConfig != null
+            ? RESTCatalogProperties.ScanPlanningMode.fromString(clientScanPlanningConfig)
+            : null;
 
-    String clientPreferenceConfig =
-        PropertyUtil.propertyAsString(
-            mergedProps,
-            RESTCatalogProperties.CLIENT_SCAN_PLANNING_PREFERENCE,
-            RESTCatalogProperties.CLIENT_SCAN_PLANNING_PREFERENCE_DEFAULT);
-    this.clientScanPlanningPreference =
-        RESTCatalogProperties.ClientScanPlanningPreference.fromString(clientPreferenceConfig);
+    // Also store the catalog-level (possibly server-provided) scan planning mode as a fallback
+    // This comes from ConfigResponse.overrides() and gets merged into mergedProps
+    String catalogLevelConfig =
+        PropertyUtil.propertyAsString(mergedProps, RESTCatalogProperties.SCAN_PLANNING_MODE, null);
+    this.catalogLevelScanPlanningMode =
+        catalogLevelConfig != null
+            ? RESTCatalogProperties.ScanPlanningMode.fromString(catalogLevelConfig)
+            : null;
 
     super.initialize(name, mergedProps);
   }
@@ -521,30 +523,28 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableIdentifier finalIdentifier,
       RESTClient restClient,
       Map<String, String> tableConf) {
-    // Determine effective catalog mode (table-level config overrides catalog config)
-    RESTCatalogProperties.ScanPlanningMode effectiveCatalogMode = restScanPlanningMode;
-    String tableModeConfig = tableConf.get(RESTCatalogProperties.REST_SCAN_PLANNING_MODE);
-    if (tableModeConfig != null) {
-      effectiveCatalogMode = RESTCatalogProperties.ScanPlanningMode.fromString(tableModeConfig);
-    }
+    // Get client-configured mode (set in catalog properties during initialization)
+    RESTCatalogProperties.ScanPlanningMode clientMode = clientConfiguredScanPlanningMode;
 
-    // Determine effective client preference (could optionally support table-level override)
-    RESTCatalogProperties.ClientScanPlanningPreference effectiveClientPref =
-        clientScanPlanningPreference;
-    String tableClientPrefConfig =
-        tableConf.get(RESTCatalogProperties.CLIENT_SCAN_PLANNING_PREFERENCE);
-    if (tableClientPrefConfig != null) {
-      effectiveClientPref =
-          RESTCatalogProperties.ClientScanPlanningPreference.fromString(tableClientPrefConfig);
+    // Get server-provided mode
+    // Priority: table-level config > catalog-level config (from ConfigResponse)
+    String tableLevelModeConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    RESTCatalogProperties.ScanPlanningMode serverMode;
+    if (tableLevelModeConfig != null) {
+      serverMode = RESTCatalogProperties.ScanPlanningMode.fromString(tableLevelModeConfig);
+    } else {
+      // Fall back to catalog-level server config (from ConfigResponse.overrides())
+      serverMode = catalogLevelScanPlanningMode;
     }
 
     // Check server capabilities
     boolean serverSupportsPlanning = endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
 
     // Negotiate scan planning strategy
+    // Rules: ONLY beats PREFERRED, both PREFERRED = client wins, one side only = use it
     ScanPlanningNegotiator.PlanningDecision decision =
         ScanPlanningNegotiator.negotiate(
-            effectiveCatalogMode, effectiveClientPref, serverSupportsPlanning, finalIdentifier);
+            clientMode, serverMode, serverSupportsPlanning, finalIdentifier);
 
     // Apply the decision
     if (decision == ScanPlanningNegotiator.PlanningDecision.USE_CATALOG_PLANNING) {

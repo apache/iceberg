@@ -124,8 +124,7 @@ public class TestRESTScanPlanning {
                                   .collect(Collectors.toList()))
                           .withOverrides(
                               ImmutableMap.of(
-                                  RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
-                                  "catalog-preferred"))
+                                  RESTCatalogProperties.SCAN_PLANNING_MODE, "catalog-preferred"))
                           .build());
                 }
                 Object body = roundTripSerialize(request.body(), "request");
@@ -924,7 +923,7 @@ public class TestRESTScanPlanning {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
             "catalog-preferred"));
     return new CatalogWithAdapter(catalog, adapter);
   }
@@ -975,7 +974,7 @@ public class TestRESTScanPlanning {
     catalog.initialize(
         "test-catalog-only",
         ImmutableMap.of(
-            RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
             "catalog-only",
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO"));
@@ -997,8 +996,7 @@ public class TestRESTScanPlanning {
   public void scanPlanningModeNone() throws IOException {
     // Test NONE mode - should use client-side planning even if server supports it
     CatalogWithAdapter catalogWithAdapter =
-        catalogWithTableLevelConfig(
-            RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "client-only");
+        catalogWithTableLevelConfig(RESTCatalogProperties.SCAN_PLANNING_MODE, "client-only");
 
     Table table = createTableWithScanPlanning(catalogWithAdapter.catalog, "none_mode_test");
     table.newAppend().appendFile(FILE_A).commit();
@@ -1098,13 +1096,12 @@ public class TestRESTScanPlanning {
   public void tableLevelScanPlanningOverride(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
-    // Test REST_SCAN_PLANNING_MODE in LoadTableResponse.config() overrides catalog setting
+    // Test SCAN_PLANNING_MODE in LoadTableResponse.config() overrides catalog setting
     configurePlanningBehavior(planMode);
 
     // Catalog that adds scan planning config to LoadTableResponse (table-level override)
     CatalogWithAdapter catalogWithAdapter =
-        catalogWithTableLevelConfig(
-            RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "catalog-preferred");
+        catalogWithTableLevelConfig(RESTCatalogProperties.SCAN_PLANNING_MODE, "catalog-preferred");
 
     RESTTable table = restTableFor(catalogWithAdapter.catalog, "table_override_test");
     setParserContext(table);
@@ -1132,8 +1129,7 @@ public class TestRESTScanPlanning {
                               Arrays.stream(Route.values())
                                   .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                                   .collect(Collectors.toList()))
-                          .withOverride(
-                              RESTCatalogProperties.REST_SCAN_PLANNING_MODE, "client-only")
+                          .withOverride(RESTCatalogProperties.SCAN_PLANNING_MODE, "client-only")
                           .build());
                 }
 
@@ -1168,10 +1164,9 @@ public class TestRESTScanPlanning {
     catalog.initialize(
         "test",
         ImmutableMap.of(
-            RESTCatalogProperties.REST_SCAN_PLANNING_MODE,
-            "client-only",
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO"));
+            // Don't set SCAN_PLANNING_MODE here - let server config control it
+            // (Setting it here would be client configuration which always takes precedence)
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
     return new CatalogWithAdapter(catalog, adapter);
   }
 }
