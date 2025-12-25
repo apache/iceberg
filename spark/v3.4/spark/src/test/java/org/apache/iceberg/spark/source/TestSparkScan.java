@@ -461,8 +461,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    // notEq can't be answered using column bounds because they are not exact
-    assertThat(scan.planInputPartitions()).hasSize(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
@@ -771,7 +770,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions()).hasSize(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
 
     // NOT NotEqual
     builder = scanBuilder();
@@ -990,7 +989,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    assertThat(scan.planInputPartitions()).hasSize(10);
+    assertThat(scan.planInputPartitions()).hasSize(5);
   }
 
   @TestTemplate
