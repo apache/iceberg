@@ -164,4 +164,15 @@ class CommitState {
     }
     return result;
   }
+
+  /**
+   * Returns a list of all topic partition offsets from the ready buffer for the current commit.
+   * Each TopicPartitionOffset contains topic, partition, startOffset, endOffset, and timestamp.
+   */
+  List<TopicPartitionOffset> topicPartitionOffsets() {
+    return readyBuffer.stream()
+        .filter(payload -> payload.commitId().equals(currentCommitId))
+        .flatMap(payload -> payload.assignments().stream())
+        .collect(Collectors.toList());
+  }
 }

@@ -202,7 +202,10 @@ public class TestSinkWriter {
 
     Offset offset = result.sourceOffsets().get(new TopicPartition("topic", 1));
     assertThat(offset).isNotNull();
-    assertThat(offset.offset()).isEqualTo(101L); // should be 1 more than current offset
+    assertThat(offset.startOffset()).isEqualTo(100L); // start offset
+    assertThat(offset.endOffset()).isEqualTo(101L); // should be 1 more than current offset
+    assertThat(offset.offset())
+        .isEqualTo(101L); // backward compatibility - should be same as endOffset
     assertThat(offset.timestamp()).isEqualTo(now.atOffset(ZoneOffset.UTC));
 
     return result.writerResults();
