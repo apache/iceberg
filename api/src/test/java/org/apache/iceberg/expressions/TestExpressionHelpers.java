@@ -41,6 +41,8 @@ import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
+import static org.apache.iceberg.expressions.Expressions.stDisjoint;
+import static org.apache.iceberg.expressions.Expressions.stIntersects;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
@@ -50,6 +52,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.concurrent.Callable;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -148,7 +152,11 @@ public class TestExpressionHelpers {
     StructType struct =
         StructType.of(
             NestedField.optional(1, "a", Types.IntegerType.get()),
-            NestedField.optional(2, "s", Types.StringType.get()));
+            NestedField.optional(2, "s", Types.StringType.get()),
+            NestedField.optional(3, "geometry", Types.GeometryType.crs84()),
+            NestedField.optional(4, "geography", Types.GeographyType.crs84()));
+    BoundingBox bbox =
+        new BoundingBox(GeospatialBound.createXY(10, 20), GeospatialBound.createXY(30, 40));
     Expression[][] expressions =
         new Expression[][] {
           // (rewritten pred, original pred) pairs
@@ -178,7 +186,11 @@ public class TestExpressionHelpers {
           {or(equal("a", 5), isNull("a")), not(and(notEqual("a", 5), notNull("a")))},
           {or(equal("a", 5), notNull("a")), or(equal("a", 5), not(isNull("a")))},
           {startsWith("s", "hello"), not(notStartsWith("s", "hello"))},
-          {notStartsWith("s", "world"), not(startsWith("s", "world"))}
+          {notStartsWith("s", "world"), not(startsWith("s", "world"))},
+          {stIntersects("geometry", bbox), not(stDisjoint("geometry", bbox))},
+          {stDisjoint("geometry", bbox), not(stIntersects("geometry", bbox))},
+          {stIntersects("geography", bbox), not(stDisjoint("geography", bbox))},
+          {stDisjoint("geography", bbox), not(stIntersects("geography", bbox))},
         };
 
     for (Expression[] pair : expressions) {
