@@ -34,6 +34,7 @@ import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.values.RequiresPreviousReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.ParquetDecodingException;
+import org.apache.parquet.schema.PrimitiveType;
 
 public class VectorizedPageIterator extends BasePageIterator {
   private final boolean setArrowValidityVector;
@@ -100,6 +101,23 @@ public class VectorizedPageIterator extends BasePageIterator {
         case DELTA_BINARY_PACKED:
           valuesReader = new VectorizedDeltaEncodedValuesReader();
           break;
+        case DELTA_LENGTH_BYTE_ARRAY:
+          valuesReader = new VectorizedDeltaLengthByteArrayValuesReader();
+          break;
+        case DELTA_BYTE_ARRAY:
+          valuesReader = new VectorizedDeltaByteArrayValuesReader();
+          break;
+        case BYTE_STREAM_SPLIT:
+          valuesReader = new VectorizedByteStreamSplitValuesReader();
+          break;
+        case RLE:
+          if (desc.getPrimitiveType().getPrimitiveTypeName()
+              == PrimitiveType.PrimitiveTypeName.BOOLEAN) {
+            valuesReader =
+                new VectorizedRunLengthEncodedParquetValuesReader(setArrowValidityVector);
+            break;
+          }
+          // fall through
         default:
           throw new UnsupportedOperationException(
               "Cannot support vectorized reads for column "
