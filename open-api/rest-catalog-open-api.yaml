@@ -164,6 +164,8 @@ paths:
           $ref: '#/components/responses/ForbiddenResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -291,6 +293,8 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -334,6 +338,8 @@ paths:
                   $ref: '#/components/examples/NamespaceAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -370,6 +376,8 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -402,6 +410,8 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -443,6 +453,8 @@ paths:
                   $ref: '#/components/examples/NamespaceNotEmptyError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -508,6 +520,8 @@ paths:
                   $ref: '#/components/examples/UnprocessableEntityDuplicateKey'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -547,6 +561,8 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -608,6 +624,8 @@ paths:
                   $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -696,6 +714,8 @@ paths:
           $ref: '#/components/responses/UnsupportedOperationResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -761,6 +781,8 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -817,6 +839,8 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -870,6 +894,8 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -925,6 +951,8 @@ paths:
                   $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1005,6 +1033,8 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1071,6 +1101,8 @@ paths:
                 $ref: '#/components/schemas/IcebergErrorResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         500:
           description:
             An unknown server-side problem occurred; the commit state is unknown.
@@ -1166,6 +1198,8 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1199,6 +1233,8 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1244,6 +1280,8 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1308,6 +1346,8 @@ paths:
                 $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1352,6 +1392,8 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1415,6 +1457,8 @@ paths:
                 $ref: '#/components/schemas/IcebergErrorResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         500:
           description:
             An unknown server-side problem occurred; the commit state is unknown.
@@ -1508,6 +1552,8 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1555,6 +1601,8 @@ paths:
                   $ref: '#/components/examples/ViewAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1607,6 +1655,8 @@ paths:
                   $ref: '#/components/examples/NoSuchViewError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1655,6 +1705,8 @@ paths:
                 $ref: '#/components/schemas/ErrorModel'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         500:
           description:
             An unknown server-side problem occurred; the commit state is unknown.
@@ -1743,6 +1795,8 @@ paths:
                   $ref: '#/components/examples/NoSuchViewError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1766,6 +1820,8 @@ paths:
           description: Not Found
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1830,6 +1886,8 @@ paths:
                 $ref: '#/components/examples/ViewAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        429:
+          $ref: '#/components/responses/TooManyRequestsResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -4751,6 +4809,23 @@ components:
               "message": "Credentials have timed out",
               "type": "AuthenticationTimeoutException",
               "code": 419
+            }
+          }
+
+    TooManyRequestsResponse:
+      description:
+        The client has sent too many requests in a given amount of time. The client should
+        wait before retrying the request. The service may send a Retry-After header to
+        indicate when to retry.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IcebergErrorResponse'
+          example: {
+            "error": {
+              "message": "Too many requests",
+              "type": "ThrottlingException",
+              "code": 429
             }
           }
 
