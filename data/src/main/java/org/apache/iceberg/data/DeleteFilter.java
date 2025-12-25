@@ -35,6 +35,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
@@ -49,6 +50,11 @@ import org.slf4j.LoggerFactory;
 
 public abstract class DeleteFilter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(DeleteFilter.class);
+
+  // Map of all metadata column field IDs to their NestedField definitions
+  private static final Map<Integer, Types.NestedField> METADATA_COLUMNS_BY_ID =
+      MetadataColumns.metadataColumns().stream()
+          .collect(ImmutableMap.toImmutableMap(Types.NestedField::fieldId, field -> field));
 
   private final String filePath;
   private final List<DeleteFile> posDeletes;
@@ -291,27 +297,37 @@ public abstract class DeleteFilter<T> {
       return requestedSchema;
     }
 
-    // TODO: support adding nested columns. this will currently fail when finding nested columns to
-    // add
-    List<Types.NestedField> columns = Lists.newArrayList(requestedSchema.columns());
+    // Build the schema preserving the requested schema's column order,
+    // then append missing fields, then metadata columns
+    List<Types.NestedField> columns = Lists.newArrayList();
+
+    // Add all columns from requested schema first (preserves order)
+    columns.addAll(requestedSchema.columns());
+
+    // Separate missing IDs into data and metadata columns
+    Set<Integer> missingDataIds = Sets.newLinkedHashSet();
+    Set<Integer> missingMetadataIds = Sets.newLinkedHashSet();
     for (int fieldId : missingIds) {
-      if (fieldId == MetadataColumns.ROW_POSITION.fieldId()
-          || fieldId == MetadataColumns.IS_DELETED.fieldId()) {
-        continue; // add _pos and _deleted at the end
+      if (MetadataColumns.isMetadataColumn(fieldId)) {
+        missingMetadataIds.add(fieldId);
+      } else {
+        missingDataIds.add(fieldId);
       }
+    }
 
-      Types.NestedField field = tableSchema.asStruct().field(fieldId);
+    // Add missing data columns from table schema
+    for (int fieldId : missingDataIds) {
+      Types.NestedField field = tableSchema.findField(fieldId);
       Preconditions.checkArgument(field != null, "Cannot find required field for ID %s", fieldId);
-
       columns.add(field);
     }
 
-    if (missingIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
-      columns.add(MetadataColumns.ROW_POSITION);
-    }
-
-    if (missingIds.contains(MetadataColumns.IS_DELETED.fieldId())) {
-      columns.add(MetadataColumns.IS_DELETED);
+    // Add missing metadata columns
+    for (int fieldId : missingMetadataIds) {
+      Types.NestedField metadataColumn = METADATA_COLUMNS_BY_ID.get(fieldId);
+      Preconditions.checkArgument(
+          metadataColumn != null, "Cannot find metadata column for ID %s", fieldId);
+      columns.add(metadataColumn);
     }
 
     return new Schema(columns);
