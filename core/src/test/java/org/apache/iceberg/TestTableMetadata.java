@@ -1573,6 +1573,7 @@ public class TestTableMetadata {
     TableMetadata freshTable =
         TableMetadata.newTableMetadata(
             schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+
     assertThat(freshTable.currentSchemaId()).isEqualTo(TableMetadata.INITIAL_SCHEMA_ID);
     assertSameSchemaList(ImmutableList.of(schema), freshTable.schemas());
     assertThat(freshTable.schema().asStruct()).isEqualTo(schema.asStruct());
@@ -1584,6 +1585,7 @@ public class TestTableMetadata {
             Types.NestedField.required(1, "y", Types.LongType.get(), "comment"),
             Types.NestedField.required(2, "x", Types.StringType.get()));
     TableMetadata twoSchemasTable = freshTable.updateSchema(schema2);
+
     assertThat(twoSchemasTable.currentSchemaId()).isEqualTo(1);
     assertSameSchemaList(
         ImmutableList.of(schema, new Schema(1, schema2.columns())), twoSchemasTable.schemas());
@@ -1928,7 +1930,7 @@ public class TestTableMetadata {
         TableMetadata.buildFromEmpty()
             .assignUUID(uuid)
             .setLocation("location")
-            .setCurrentSchema(TEST_SCHEMA, 3)
+            .setCurrentSchema(TEST_SCHEMA)
             .addPartitionSpec(PartitionSpec.unpartitioned())
             .addSortOrder(SortOrder.unsorted())
             .discardChanges()
