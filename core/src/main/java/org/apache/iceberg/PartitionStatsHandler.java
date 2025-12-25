@@ -275,7 +275,9 @@ public class PartitionStatsHandler {
    *
    * @param schema The {@link Schema} of the partition statistics file.
    * @param inputFile An {@link InputFile} pointing to the partition stats file.
+   * @deprecated will be removed in 1.12.0, use {@link PartitionStatisticsScan} instead
    */
+  @Deprecated
   public static CloseableIterable<PartitionStats> readPartitionStatsFile(
       Schema schema, InputFile inputFile) {
     Preconditions.checkArgument(schema != null, "Invalid schema: null");
