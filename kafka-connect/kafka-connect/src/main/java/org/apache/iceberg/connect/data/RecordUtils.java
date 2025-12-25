@@ -158,20 +158,55 @@ class RecordUtils {
             .build();
 
     TaskWriter<Record> writer;
-    if (table.spec().isUnpartitioned()) {
-      writer =
-          new UnpartitionedWriter<>(
-              table.spec(), format, writerFactory, fileFactory, table.io(), targetFileSize);
+    boolean isCdcEnabled =
+        (config.tablesCdcField() != null && !config.tablesCdcField().isEmpty())
+            || config.isUpsertMode();
+    if (!isCdcEnabled) {
+      if (table.spec().isUnpartitioned()) {
+        writer =
+            new UnpartitionedWriter<>(
+                table.spec(), format, writerFactory, fileFactory, table.io(), targetFileSize);
+      } else {
+        writer =
+            new PartitionedAppendWriter(
+                table.spec(),
+                format,
+                writerFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema());
+      }
     } else {
-      writer =
-          new PartitionedAppendWriter(
-              table.spec(),
-              format,
-              writerFactory,
-              fileFactory,
-              table.io(),
-              targetFileSize,
-              table.schema());
+      if (table.spec().isUnpartitioned()) {
+        writer =
+            new UnpartitionedDeltaWriter(
+                table.spec(),
+                format,
+                writerFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema(),
+                identifierFieldIds,
+                config.isUpsertMode(),
+                config.tablesUseDv(),
+                config.tablesCdcField());
+      } else {
+        writer =
+            new PartitionedDeltaWriter(
+                table.spec(),
+                format,
+                writerFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema(),
+                identifierFieldIds,
+                config.isUpsertMode(),
+                config.tablesUseDv(),
+                config.tablesCdcField());
+      }
     }
     return writer;
   }
