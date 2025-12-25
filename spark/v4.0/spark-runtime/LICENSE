@@ -535,4 +535,6 @@ This binary artifact contains Azure Security Key Vault Keys.
 
 Copyright: Microsoft Corporation
 Home page: https://github.com/Azure/azure-sdk-for-java
-License: http://opensource.org/licenses/MIT
+License: https://github.com/Azure/azure-sdk-for-java/blob/main/LICENSE.txt (MIT license)
+
+--------------------------------------------------------------------------------
