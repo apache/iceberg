@@ -186,7 +186,6 @@ public class TestFetchPlanningResultResponseParser {
         FetchPlanningResultResponse.builder()
             .withPlanStatus(planStatus)
             .withFileScanTasks(List.of(fileScanTask))
-            .withDeleteFiles(List.of(FILE_A_DELETES))
             // assume this has been set
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
@@ -219,7 +218,6 @@ public class TestFetchPlanningResultResponseParser {
         FetchPlanningResultResponse.builder()
             .withPlanStatus(fromResponse.planStatus())
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();

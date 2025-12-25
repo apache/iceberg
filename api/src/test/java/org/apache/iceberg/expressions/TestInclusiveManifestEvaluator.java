@@ -353,7 +353,7 @@ public class TestInclusiveManifestEvaluator {
 
     shouldRead =
         ManifestEvaluator.forRowFilter(lessThan("id", INT_MAX_VALUE), SPEC, true).eval(FILE);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @Test
@@ -395,7 +395,7 @@ public class TestInclusiveManifestEvaluator {
 
     shouldRead =
         ManifestEvaluator.forRowFilter(greaterThan("id", INT_MAX_VALUE - 4), SPEC, true).eval(FILE);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @Test
@@ -418,7 +418,7 @@ public class TestInclusiveManifestEvaluator {
     shouldRead =
         ManifestEvaluator.forRowFilter(greaterThanOrEqual("id", INT_MAX_VALUE - 4), SPEC, true)
             .eval(FILE);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @Test

@@ -19,7 +19,7 @@
 package org.apache.iceberg.gcp.bigquery;
 
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
-import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROJECT_ID;
+import static org.apache.iceberg.gcp.bigquery.BigQueryProperties.PROJECT_ID;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;

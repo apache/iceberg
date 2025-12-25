@@ -368,7 +368,7 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
         .isTrue();
 
     assertThat(shouldRead(lessThan(day("ts"), INT_MAX_VALUE)))
-        .as("Should read: may possible ids")
+        .as("Should read: many possible ids")
         .isTrue();
   }
 
@@ -406,7 +406,7 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
         .isTrue();
 
     assertThat(shouldRead(greaterThan(day("ts"), INT_MAX_VALUE - 4)))
-        .as("Should read: may possible ids")
+        .as("Should read: many possible ids")
         .isTrue();
   }
 
@@ -425,7 +425,7 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
         .isTrue();
 
     assertThat(shouldRead(greaterThanOrEqual(day("ts"), INT_MAX_VALUE - 4)))
-        .as("Should read: may possible ids")
+        .as("Should read: many possible ids")
         .isTrue();
   }
 

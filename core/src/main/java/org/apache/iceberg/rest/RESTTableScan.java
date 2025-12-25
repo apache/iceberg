@@ -60,7 +60,7 @@ class RESTTableScan extends DataTableScan {
   private final TableIdentifier tableIdentifier;
   private final Set<Endpoint> supportedEndpoints;
   private final ParserContext parserContext;
-  private String currentPlanId = null;
+  private String planId = null;
 
   RESTTableScan(
       Table table,
@@ -149,31 +149,27 @@ class RESTTableScan extends DataTableScan {
             stringStringMap -> {},
             parserContext);
 
+    this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
     switch (planStatus) {
       case COMPLETED:
-        currentPlanId = response.planId();
         return scanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
         Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
-        return fetchPlanningResult(response.planId());
+        return fetchPlanningResult();
       case FAILED:
         throw new IllegalStateException(
-            String.format(
-                "Received status: %s for planId: %s", PlanStatus.FAILED, response.planId()));
+            String.format("Received status: %s for planId: %s", PlanStatus.FAILED, planId));
       case CANCELLED:
         throw new IllegalStateException(
-            String.format(
-                "Received status: %s for planId: %s", PlanStatus.CANCELLED, response.planId()));
+            String.format("Received status: %s for planId: %s", PlanStatus.CANCELLED, planId));
       default:
         throw new IllegalStateException(
-            String.format("Invalid planStatus: %s for planId: %s", planStatus, response.planId()));
+            String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
     }
   }
 
-  private CloseableIterable<FileScanTask> fetchPlanningResult(String planId) {
-    currentPlanId = planId;
-
+  private CloseableIterable<FileScanTask> fetchPlanningResult() {
     RetryPolicy<FetchPlanningResultResponse> retryPolicy =
         RetryPolicy.<FetchPlanningResultResponse>builder()
             .handleResultIf(response -> response.planStatus() == PlanStatus.SUBMITTED)
@@ -260,7 +256,6 @@ class RESTTableScan extends DataTableScan {
   @VisibleForTesting
   @SuppressWarnings("checkstyle:RegexpMultiline")
   public boolean cancelPlan() {
-    String planId = currentPlanId;
     if (planId == null || !supportedEndpoints.contains(Endpoint.V1_CANCEL_TABLE_SCAN_PLAN)) {
       return false;
     }
@@ -272,7 +267,7 @@ class RESTTableScan extends DataTableScan {
           null,
           headers,
           ErrorHandlers.planErrorHandler());
-      currentPlanId = null;
+      this.planId = null;
       return true;
     } catch (Exception e) {
       // Plan might have already completed or failed, which is acceptable

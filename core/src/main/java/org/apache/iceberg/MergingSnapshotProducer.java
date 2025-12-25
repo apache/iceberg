@@ -289,12 +289,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             ContentFileUtil.dvDesc(file));
         break;
       case 3:
-        Preconditions.checkArgument(
-            file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
-            "Must use DVs for position deletes in V%s: %s",
-            formatVersion(),
-            file.location());
-        break;
       case 4:
         Preconditions.checkArgument(
             file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
@@ -991,53 +985,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return new CreateSnapshotEvent(tableName, operation(), snapshotId, sequenceNumber, summary);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private void cleanUncommittedAppends(Set<ManifestFile> committed) {
-    if (!cachedNewDataManifests.isEmpty()) {
-      boolean hasDeletes = false;
-      for (ManifestFile manifest : cachedNewDataManifests) {
-        if (!committed.contains(manifest)) {
-          deleteFile(manifest.path());
-          hasDeletes = true;
-        }
-      }
-
-      if (hasDeletes) {
-        this.cachedNewDataManifests.clear();
-      }
-    }
-
-    boolean hasDeleteDeletes = false;
-    for (ManifestFile cachedNewDeleteManifest : cachedNewDeleteManifests) {
-      if (!committed.contains(cachedNewDeleteManifest)) {
-        deleteFile(cachedNewDeleteManifest.path());
-        hasDeleteDeletes = true;
-      }
-    }
-
-    if (hasDeleteDeletes) {
-      this.cachedNewDeleteManifests.clear();
-    }
-
-    // rewritten manifests are always owned by the table
-    for (ManifestFile manifest : rewrittenAppendManifests) {
-      if (!committed.contains(manifest)) {
-        deleteFile(manifest.path());
-      }
-    }
-
-    // manifests that are not rewritten are only owned by the table if the commit succeeded
-    if (!committed.isEmpty()) {
-      // the commit succeeded if at least one manifest was committed
-      // the table now owns appendManifests; clean up any that are not used
-      for (ManifestFile manifest : appendManifests) {
-        if (!committed.contains(manifest)) {
-          deleteFile(manifest.path());
-        }
-      }
-    }
-  }
-
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     mergeManager.cleanUncommitted(committed);
@@ -1045,6 +992,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     deleteMergeManager.cleanUncommitted(committed);
     deleteFilterManager.cleanUncommitted(committed);
     cleanUncommittedAppends(committed);
+  }
+
+  private void cleanUncommittedAppends(Set<ManifestFile> committed) {
+    deleteUncommitted(cachedNewDataManifests, committed, true /* clear manifests */);
+    deleteUncommitted(cachedNewDeleteManifests, committed, true /* clear manifests */);
+    // rewritten manifests are always owned by the table
+    deleteUncommitted(rewrittenAppendManifests, committed, false);
+
+    // manifests that are not rewritten are only owned by the table if the commit succeeded
+    if (!committed.isEmpty()) {
+      // the commit succeeded if at least one manifest was committed
+      // the table now owns appendManifests; clean up any that are not used
+      deleteUncommitted(appendManifests, committed, false);
+    }
   }
 
   private Iterable<ManifestFile> prepareNewDataManifests() {

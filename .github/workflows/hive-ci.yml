@@ -62,6 +62,7 @@ on:
     - 'CONTRIBUTING.md'
     - '**/LICENSE'
     - '**/NOTICE'
+    - 'doap.rdf'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

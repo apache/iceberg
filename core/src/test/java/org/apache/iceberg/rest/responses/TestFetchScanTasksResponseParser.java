@@ -122,7 +122,6 @@ public class TestFetchScanTasksResponseParser {
     FetchScanTasksResponse response =
         FetchScanTasksResponse.builder()
             .withFileScanTasks(List.of(fileScanTask))
-            .withDeleteFiles(List.of(FILE_A_DELETES))
             // assume you have set this already
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
@@ -149,7 +148,6 @@ public class TestFetchScanTasksResponseParser {
     FetchScanTasksResponse copyResponse =
         FetchScanTasksResponse.builder()
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();

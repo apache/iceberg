@@ -29,7 +29,7 @@ import org.apache.iceberg.types.Type;
  * Factory methods for transforms.
  *
  * <p>Most users should create transforms using a {@link PartitionSpec#builderFor(Schema)} partition
- * spec builder}.
+ * spec builder.
  *
  * @see PartitionSpec#builderFor(Schema) The partition spec builder.
  */

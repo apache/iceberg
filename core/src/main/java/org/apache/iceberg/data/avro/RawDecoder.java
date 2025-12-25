@@ -64,7 +64,7 @@ public class RawDecoder<D> extends MessageDecoder.BaseDecoder<D> {
    * schema used to decode buffers. The {@code writeSchema} must be the schema that was used to
    * encode all buffers decoded by this class.
    *
-   * @deprecated will be removed in 2.0.0; use {@link #create(org.apache.iceberg.Schema, Function,
+   * @deprecated will be removed in 1.12.0; use {@link #create(org.apache.iceberg.Schema, Function,
    *     Schema)} instead
    */
   @Deprecated

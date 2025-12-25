@@ -238,7 +238,6 @@ public class TestPlanTableScanResponseParser {
         PlanTableScanResponse.builder()
             .withPlanStatus(PlanStatus.COMPLETED)
             .withFileScanTasks(List.of(fileScanTask))
-            .withDeleteFiles(List.of(FILE_A_DELETES))
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
@@ -307,7 +306,6 @@ public class TestPlanTableScanResponseParser {
         PlanTableScanResponse.builder()
             .withPlanStatus(PlanStatus.COMPLETED)
             .withFileScanTasks(List.of(taskA, taskB, taskC))
-            .withDeleteFiles(List.of(FILE_A_DELETES, FILE_B_DELETES, FILE_C2_DELETES))
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
@@ -425,7 +423,6 @@ public class TestPlanTableScanResponseParser {
             .withPlanStatus(fromResponse.planStatus())
             .withPlanId(fromResponse.planId())
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
@@ -578,7 +575,6 @@ public class TestPlanTableScanResponseParser {
         PlanTableScanResponse.builder()
             .withPlanStatus(PlanStatus.COMPLETED)
             .withFileScanTasks(List.of(fileScanTask))
-            .withDeleteFiles(List.of(FILE_A_DELETES))
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .withCredentials(credentials)
             .build();
@@ -645,7 +641,6 @@ public class TestPlanTableScanResponseParser {
             .withPlanStatus(fromResponse.planStatus())
             .withPlanId(fromResponse.planId())
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .withCredentials(credentials)

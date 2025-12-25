@@ -110,7 +110,6 @@ public class PlanTableScanResponseParser {
             .withPlanStatus(planStatus)
             .withPlanTasks(planTasks)
             .withFileScanTasks(fileScanTasks)
-            .withDeleteFiles(deleteFiles)
             .withSpecsById(specsById);
 
     if (json.hasNonNull(STORAGE_CREDENTIALS)) {

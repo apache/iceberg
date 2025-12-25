@@ -309,7 +309,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
         .isTrue();
 
     assertThat(shouldRead(lessThan(extract("variant", "$.event_id", "long"), INT_MAX_VALUE)))
-        .as("Should read: may possible ids")
+        .as("Should read: many possible ids")
         .isTrue();
   }
 
@@ -351,7 +351,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
         .isTrue();
 
     assertThat(shouldRead(greaterThan(extract("variant", "$.event_id", "long"), INT_MAX_VALUE - 4)))
-        .as("Should read: may possible ids")
+        .as("Should read: many possible ids")
         .isTrue();
   }
 
@@ -377,7 +377,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     assertThat(
             shouldRead(
                 greaterThanOrEqual(extract("variant", "$.event_id", "long"), INT_MAX_VALUE - 4)))
-        .as("Should read: may possible ids")
+        .as("Should read: many possible ids")
         .isTrue();
   }
 
