@@ -42,6 +42,7 @@ class Worker extends Channel {
   private final IcebergSinkConfig config;
   private final SinkTaskContext context;
   private final SinkWriter sinkWriter;
+  private final Duration pollDuration;
 
   Worker(
       IcebergSinkConfig config,
@@ -59,10 +60,11 @@ class Worker extends Channel {
     this.config = config;
     this.context = context;
     this.sinkWriter = sinkWriter;
+    this.pollDuration = Duration.ofMillis(config.workerPollDurationMs());
   }
 
   void process() {
-    consumeAvailable(Duration.ZERO);
+    consumeAvailable(pollDuration);
   }
 
   @Override
