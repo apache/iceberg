@@ -24,7 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class BaseEncryptedKey implements EncryptedKey {
   private final String keyId;
-  private final ByteBuffer keyMetadata;
+  private final byte[] keyMetadata;
   private final String encryptedById;
   private final Map<String, String> properties;
 
@@ -33,7 +33,7 @@ public class BaseEncryptedKey implements EncryptedKey {
     Preconditions.checkArgument(keyId != null, "Key id cannot be null");
     Preconditions.checkArgument(keyMetadata != null, "Encrypted key metadata cannot be null");
     this.keyId = keyId;
-    this.keyMetadata = keyMetadata;
+    this.keyMetadata = keyMetadata.array();
     this.encryptedById = encryptedById;
     this.properties = properties;
   }
@@ -45,7 +45,7 @@ public class BaseEncryptedKey implements EncryptedKey {
 
   @Override
   public ByteBuffer encryptedKeyMetadata() {
-    return keyMetadata;
+    return ByteBuffer.wrap(keyMetadata);
   }
 
   @Override
