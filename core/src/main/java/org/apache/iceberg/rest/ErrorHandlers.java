@@ -299,7 +299,7 @@ public class ErrorHandlers {
 
       throw new RESTException(
           "Unable to process (code: %s, type: %s): %s",
-          error.code(), error.type() != null ? error.type() : "unknown", error.message());
+          error.code(), error.type(), error.message());
     }
   }
 
@@ -334,7 +334,7 @@ public class ErrorHandlers {
       }
       throw new RESTException(
           "Unable to process (code: %s, type: %s): %s",
-          error.code(), error.type() != null ? error.type() : "unknown", error.message());
+          error.code(), error.type(), error.message());
     }
   }
 }
