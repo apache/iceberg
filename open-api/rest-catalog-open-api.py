@@ -559,6 +559,11 @@ class RegisterTableRequest(BaseModel):
     )
 
 
+class RegisterViewRequest(BaseModel):
+    name: str
+    metadata_location: str = Field(..., alias='metadata-location')
+
+
 class TokenType(BaseModel):
     __root__: Literal[
         'urn:ietf:params:oauth:token-type:access_token',
