@@ -21,6 +21,7 @@ package org.apache.iceberg.transforms;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -104,6 +105,12 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
   }
 
   @Override
+  public boolean canTransform(List<Type> types) {
+    Preconditions.checkArgument(types.size() == 1, "Only one type is accepted");
+    return canTransform(types.get(0));
+  }
+
+  @Override
   public UnboundPredicate<T> project(String name, BoundPredicate<T> predicate) {
     Truncate<T> bound = (Truncate<T>) get(predicate.term().type(), width);
     return bound.project(name, predicate);
@@ -118,6 +125,12 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
   @Override
   public Type getResultType(Type sourceType) {
     return sourceType;
+  }
+
+  @Override
+  public Type getResultType(List<Type> sourceTypes) {
+    Preconditions.checkArgument(sourceTypes.size() == 1, "Only one source type is accepted");
+    return getResultType(sourceTypes.get(0));
   }
 
   @Override
