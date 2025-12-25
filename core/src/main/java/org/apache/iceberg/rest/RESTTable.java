@@ -38,6 +38,8 @@ class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
   private final Set<Endpoint> supportedEndpoints;
+  private final Map<String, String> catalogProperties;
+  private final Object hadoopConf;
 
   RESTTable(
       TableOperations ops,
@@ -47,7 +49,9 @@ class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
       Supplier<Map<String, String>> headers,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
-      Set<Endpoint> supportedEndpoints) {
+      Set<Endpoint> supportedEndpoints,
+      Map<String, String> catalogProperties,
+      Object hadoopConf) {
     super(ops, name, reporter);
     this.reporter = reporter;
     this.client = client;
@@ -55,6 +59,8 @@ class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
     this.supportedEndpoints = supportedEndpoints;
+    this.catalogProperties = catalogProperties;
+    this.hadoopConf = hadoopConf;
   }
 
   @Override
@@ -68,7 +74,10 @@ class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
         operations(),
         tableIdentifier,
         resourcePaths,
-        supportedEndpoints);
+        supportedEndpoints,
+        io(),
+        catalogProperties,
+        hadoopConf);
   }
 
   @Override
