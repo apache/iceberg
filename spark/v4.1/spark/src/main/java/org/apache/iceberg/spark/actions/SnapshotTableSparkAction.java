@@ -124,7 +124,6 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
     StagedSparkTable stagedTable = stageDestTable();
     Table icebergTable = stagedTable.table();
 
-    // TODO: Check the dest table location does not overlap with the source table location
     String sourceTableLocation = sourceTableLocation();
     String destTableLoc = icebergTable.location();
 
