@@ -108,13 +108,13 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     private static final long serialVersionUID = 1L;
 
     private final CatalogLoader catalogLoader;
-    private final String identifier;
+    private final TableIdentifier identifier;
 
     private transient Catalog catalog;
 
     private CatalogTableLoader(CatalogLoader catalogLoader, TableIdentifier tableIdentifier) {
       this.catalogLoader = catalogLoader;
-      this.identifier = tableIdentifier.toString();
+      this.identifier = tableIdentifier;
     }
 
     @Override
@@ -130,7 +130,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     @Override
     public Table loadTable() {
       FlinkEnvironmentContext.init();
-      return catalog.loadTable(TableIdentifier.parse(identifier));
+      return catalog.loadTable(identifier);
     }
 
     @Override
@@ -145,7 +145,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
     @Override
     @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
     public TableLoader clone() {
-      return new CatalogTableLoader(catalogLoader.clone(), TableIdentifier.parse(identifier));
+      return new CatalogTableLoader(catalogLoader.clone(), identifier);
     }
 
     @Override
