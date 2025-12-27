@@ -29,8 +29,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 /** Identifies a table in iceberg catalog. */
 public class TableIdentifier implements Serializable {
 
-    private static final long serialVersionUID = 1L;
-    private static final Splitter DOT = Splitter.on('.');
+
+  private static final long serialVersionUID = 1L;
+  private static final Splitter DOT = Splitter.on('.');
 
   private final Namespace namespace;
   private final String name;
