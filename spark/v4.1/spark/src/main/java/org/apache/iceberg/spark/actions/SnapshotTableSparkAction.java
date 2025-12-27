@@ -125,6 +125,15 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
     Table icebergTable = stagedTable.table();
 
     // TODO: Check the dest table location does not overlap with the source table location
+    String sourceTableLocation = sourceTableLocation();
+    String destTableLoc = icebergTable.location();
+
+    Preconditions.checkArgument(
+          !sourceTableLocation.equals(destTableLoc)
+                  && !destTableLoc.startsWith(sourceTableLocation + "/")
+                  && !sourceTableLocation.startsWith(destTableLoc + "/"),
+          "The dest table location cannot overlap the source table location. "
+                  + "This would mix dest table files with original table files.");
 
     boolean threw = true;
     try {
