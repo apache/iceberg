@@ -468,6 +468,13 @@ public class SparkSessionCatalog<
       Map<String, String> properties)
       throws ViewAlreadyExistsException, NoSuchNamespaceException {
     if (null != asViewCatalog) {
+      // Check if the identifier is already taken in the underlying session catalog.
+      // The session catalog (V2SessionCatalog) is the authority on the namespace.
+      // tableExists() checks for both tables and views (V1 and V2).
+      if (getSessionCatalog().tableExists(ident)) {
+        throw new ViewAlreadyExistsException(ident);
+      }
+
       return asViewCatalog.createView(
           ident,
           sql,
