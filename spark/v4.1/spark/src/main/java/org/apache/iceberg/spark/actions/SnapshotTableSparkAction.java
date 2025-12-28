@@ -131,8 +131,10 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
         !sourceTableLocation.equals(destTableLoc)
             && !destTableLoc.startsWith(sourceTableLocation + "/")
             && !sourceTableLocation.startsWith(destTableLoc + "/"),
-        "The dest table location cannot overlap the source table location. "
-            + "This would mix dest table files with original table files.");
+        "Cannot create a snapshot at location %s because it would overlap with source table location %s."
+            + "Overlapping snapshot and source would mix table files.",
+        destTableLoc,
+        sourceTableLocation);
 
     boolean threw = true;
     try {
