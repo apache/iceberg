@@ -196,6 +196,13 @@ subprojects {
       exclude group: 'com.sun.jersey.contribs'
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
       exclude group: 'org.jetbrains', module: 'annotations'
+      resolutionStrategy {
+        dependencySubstitution {
+          substitute module("org.lz4:lz4-java") using module(libs.lz4Java.get().toString()) because(
+            "Enforce lz4-java that contains CVE-2025-12183 and CVE-2025-66566 fixes"
+          )
+        }
+      }
     }
 
     testArtifacts
