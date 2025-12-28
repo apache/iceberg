@@ -119,22 +119,22 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
         "The destination catalog and identifier cannot be null. "
             + "Make sure to configure the action with a valid destination table identifier via the `as` method.");
 
+    String sourceTableLocation = sourceTableLocation();
+    if (destTableLocation != null) {
+      Preconditions.checkArgument(
+          !sourceTableLocation.equals(destTableLocation)
+              && !destTableLocation.startsWith(sourceTableLocation + "/")
+              && !sourceTableLocation.startsWith(destTableLocation + "/"),
+          "Cannot create a snapshot at location %s because it would overlap with source table location %s. "
+              + "Overlapping snapshot and source would mix table files.",
+          destTableLocation,
+          sourceTableLocation);
+    }
+
     LOG.info(
         "Staging a new Iceberg table {} as a snapshot of {}", destTableIdent(), sourceTableIdent());
     StagedSparkTable stagedTable = stageDestTable();
     Table icebergTable = stagedTable.table();
-
-    String sourceTableLocation = sourceTableLocation();
-    String destTableLoc = icebergTable.location();
-
-    Preconditions.checkArgument(
-        !sourceTableLocation.equals(destTableLoc)
-            && !destTableLoc.startsWith(sourceTableLocation + "/")
-            && !sourceTableLocation.startsWith(destTableLoc + "/"),
-        "Cannot create a snapshot at location %s because it would overlap with source table location %s. "
-            + "Overlapping snapshot and source would mix table files.",
-        destTableLoc,
-        sourceTableLocation);
 
     boolean threw = true;
     try {
