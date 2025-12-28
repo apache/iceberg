@@ -370,7 +370,10 @@ project(':iceberg-core') {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
-    implementation libs.aircompressor
+    implementation(libs.aircompressor) {
+      exclude group: 'org.lz4'
+    }
+    implementation libs.lz4Java
     implementation libs.httpcomponents.httpclient5
     implementation platform(libs.jackson.bom)
     implementation libs.jackson.core
@@ -1229,4 +1232,18 @@ project(':iceberg-bom') {
 
   // Needed to get the "faked" Scala artifacts into the bom
   javaPlatform { allowDependencies() }
+}
+
+subprojects {
+  if (project.name.startsWith('iceberg-spark') ||
+      project.name.startsWith('iceberg-flink') ||
+      project.name.startsWith('iceberg-kafka-connect')) {
+
+    configurations.all {
+      resolutionStrategy.capabilitiesResolution.withCapability("org.lz4:lz4-java") {
+        select("at.yawk.lz4:lz4-java:0")
+        because("Fix lz4-java capability conflict from relocation and CVE fixes")
+      }
+    }
+  }
 }
