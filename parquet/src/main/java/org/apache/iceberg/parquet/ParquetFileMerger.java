@@ -146,8 +146,7 @@ public class ParquetFileMerger {
   }
 
   private static MessageType readSchema(InputFile inputFile) throws IOException {
-    ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile));
-    try (reader) {
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
       return reader.getFooter().getFileMetaData().getSchema();
     }
   }
