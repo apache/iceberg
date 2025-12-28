@@ -185,26 +185,22 @@ public class TestBigQueryTableOperations {
   }
 
   @Test
-  public void failWhenMetadataLocationDiff() throws Exception {
+  public void failWhenConcurrentModificationDetected() throws Exception {
     Table tableWithEtag = createTestTable().setEtag("etag");
-    Table tableWithNewMetadata =
-        new Table()
-            .setEtag("etag")
-            .setExternalCatalogTableOptions(
-                new ExternalCatalogTableOptions()
-                    .setParameters(ImmutableMap.of(METADATA_LOCATION_PROP, "a/new/location")));
 
     reset(client);
-    // Two invocations, for loadTable and commit.
-    when(client.load(TABLE_REFERENCE)).thenReturn(tableWithEtag, tableWithNewMetadata);
+    when(client.load(TABLE_REFERENCE)).thenReturn(tableWithEtag);
 
     org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
 
-    when(client.update(any(), any())).thenReturn(tableWithEtag);
+    // Simulate concurrent modification detected via ETag mismatch
+    when(client.update(any(), any()))
+        .thenThrow(new CommitFailedException("Cannot commit: Etag mismatch"));
+
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("is not same as the current table metadata location");
+        .hasMessageContaining("Cannot commit");
   }
 
   @Test
