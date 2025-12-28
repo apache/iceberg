@@ -124,7 +124,7 @@ public class TestSnapshotTableAction extends CatalogTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot create a snapshot at location");
 
-    String validDestLocation = new Path(actualSourceLocation, "newDestination").toUri().toString();
+    String validDestLocation = new Path(parentLocation, "newDestination").toUri().toString();
     SparkActions.get()
         .snapshotTable(SOURCE_NAME)
         .as(tableName)
