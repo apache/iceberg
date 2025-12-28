@@ -670,6 +670,13 @@ project(':iceberg-delta-lake') {
     }
   }
 
+  configurations.all {
+    resolutionStrategy.capabilitiesResolution.withCapability("org.lz4:lz4-java") {
+      select("at.yawk.lz4:lz4-java:0")
+      because("Resolve lz4-java capability conflict between Spark 3.5 (org.lz4:lz4-java:1.8.0) and Iceberg (at.yawk.lz4:lz4-java:1.10.2)")
+    }
+  }
+
   // The newest version of delta-core uses Spark 3.5.*. The integration test should only be built
   // if iceberg-spark-3.5 is available
   if (sparkVersions.contains("3.5")) {
