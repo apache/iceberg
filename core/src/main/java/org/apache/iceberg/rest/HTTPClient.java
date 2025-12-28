@@ -40,6 +40,7 @@ import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
@@ -122,7 +123,9 @@ public class HTTPClient extends BaseHTTPClient {
     this.authSession = session;
 
     HttpClientBuilder clientBuilder =
-        ApacheHttpClientTelemetry.builder(openTelemetry).build().newHttpClientBuilder();
+        openTelemetry != null
+            ? ApacheHttpClientTelemetry.builder(openTelemetry).build().newHttpClientBuilder()
+            : HttpClients.custom();
 
     clientBuilder.setConnectionManager(connectionManager);
 
@@ -485,7 +488,7 @@ public class HTTPClient extends BaseHTTPClient {
     private HttpHost proxy;
     private CredentialsProvider proxyCredentialsProvider;
     private AuthSession authSession;
-    private OpenTelemetry telemetry = OpenTelemetry.noop();
+    private OpenTelemetry telemetry;
 
     private Builder(Map<String, String> properties) {
       this.properties = properties;
@@ -541,6 +544,7 @@ public class HTTPClient extends BaseHTTPClient {
     }
 
     public Builder withOpenTelemetry(OpenTelemetry openTelemetry) {
+      Preconditions.checkNotNull(openTelemetry, "Invalid openTelemetry for http client: null");
       this.telemetry = openTelemetry;
       return this;
     }
