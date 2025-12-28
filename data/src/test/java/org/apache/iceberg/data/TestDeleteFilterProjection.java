@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.lang.reflect.Method;
 import java.util.List;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
@@ -74,17 +73,97 @@ public class TestDeleteFilterProjection {
                   Types.StringType.get(),
                   Types.StructType.of(optional(202, "mapValue", Types.IntegerType.get())))));
 
+  private static final Schema VERY_DEEP_NESTED_SCHEMA =
+      new Schema(
+          required(1, "id", Types.IntegerType.get()),
+          optional(
+              2,
+              "level1",
+              Types.StructType.of(
+                  optional(
+                      10,
+                      "level2",
+                      Types.StructType.of(
+                          optional(
+                              20,
+                              "level3",
+                              Types.StructType.of(
+                                  optional(
+                                      30,
+                                      "level4",
+                                      Types.StructType.of(
+                                          optional(
+                                              40, "deepValue", Types.StringType.get()))))))))));
+
+  private static final Schema ARRAY_OF_STRUCTS_SCHEMA =
+      new Schema(
+          required(1, "id", Types.IntegerType.get()),
+          optional(
+              2,
+              "arrayOfStructs",
+              Types.ListType.ofOptional(
+                  10,
+                  Types.StructType.of(
+                      optional(20, "structField1", Types.StringType.get()),
+                      optional(
+                          21,
+                          "nestedStruct",
+                          Types.StructType.of(
+                              optional(30, "deepField", Types.IntegerType.get())))))));
+
+  private static final Schema MAP_WITH_STRUCT_VALUES_SCHEMA =
+      new Schema(
+          required(1, "id", Types.IntegerType.get()),
+          optional(
+              2,
+              "mapWithStructValues",
+              Types.MapType.ofOptional(
+                  10,
+                  11,
+                  Types.StringType.get(),
+                  Types.StructType.of(
+                      optional(20, "valueField1", Types.IntegerType.get()),
+                      optional(
+                          21,
+                          "nestedValueStruct",
+                          Types.StructType.of(
+                              optional(30, "deepValueField", Types.StringType.get())))))));
+
+  private static final Schema MIXED_COMPLEX_SCHEMA =
+      new Schema(
+          required(1, "id", Types.IntegerType.get()),
+          optional(
+              2,
+              "struct1",
+              Types.StructType.of(
+                  optional(10, "field1", Types.StringType.get()),
+                  optional(11, "field2", Types.IntegerType.get()))),
+          optional(
+              3,
+              "struct2",
+              Types.StructType.of(
+                  optional(20, "field3", Types.StringType.get()),
+                  optional(21, "field4", Types.IntegerType.get()))),
+          optional(
+              4,
+              "arrayField",
+              Types.ListType.ofOptional(
+                  30, Types.StructType.of(optional(31, "arrayElement", Types.StringType.get())))),
+          optional(
+              5,
+              "mapField",
+              Types.MapType.ofOptional(
+                  40,
+                  41,
+                  Types.StringType.get(),
+                  Types.StructType.of(optional(42, "mapValue", Types.IntegerType.get())))));
+
   private static Schema invokeFileProjection(
       Schema tableSchema,
       Schema requestedSchema,
       List<DeleteFile> posDeletes,
-      List<DeleteFile> eqDeletes)
-      throws Exception {
-    Method method =
-        DeleteFilter.class.getDeclaredMethod(
-            "fileProjection", Schema.class, Schema.class, List.class, List.class, boolean.class);
-    method.setAccessible(true);
-    return (Schema) method.invoke(null, tableSchema, requestedSchema, posDeletes, eqDeletes, false);
+      List<DeleteFile> eqDeletes) {
+    return DeleteFilter.fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes, false);
   }
 
   private static DeleteFile mockEqDelete(Integer... fieldIds) {
@@ -94,7 +173,7 @@ public class TestDeleteFilterProjection {
   }
 
   @Test
-  public void testProjectionWithSingleNestedField() throws Exception {
+  public void testProjectionWithSingleNestedField() {
     Schema requestedSchema = NESTED_SCHEMA.select("id", "data");
     Schema projectedSchema =
         invokeFileProjection(
@@ -112,7 +191,7 @@ public class TestDeleteFilterProjection {
   }
 
   @Test
-  public void testProjectionWithMultipleNestedFields() throws Exception {
+  public void testProjectionWithMultipleNestedFields() {
     Schema requestedSchema = NESTED_SCHEMA.select("id");
     Schema projectedSchema =
         invokeFileProjection(
@@ -126,7 +205,7 @@ public class TestDeleteFilterProjection {
   }
 
   @Test
-  public void testProjectionWithDeepNesting() throws Exception {
+  public void testProjectionWithDeepNesting() {
     Schema requestedSchema = DEEP_NESTED_SCHEMA.select("id");
     Schema projectedSchema =
         invokeFileProjection(
@@ -140,7 +219,7 @@ public class TestDeleteFilterProjection {
   }
 
   @Test
-  public void testProjectionWithListElementField() throws Exception {
+  public void testProjectionWithListElementField() {
     Schema requestedSchema = COMPLEX_SCHEMA.select("id");
     Schema projectedSchema =
         invokeFileProjection(
@@ -154,7 +233,7 @@ public class TestDeleteFilterProjection {
   }
 
   @Test
-  public void testProjectionWithMapValueField() throws Exception {
+  public void testProjectionWithMapValueField() {
     Schema requestedSchema = COMPLEX_SCHEMA.select("id");
     Schema projectedSchema =
         invokeFileProjection(
@@ -168,7 +247,7 @@ public class TestDeleteFilterProjection {
   }
 
   @Test
-  public void testProjectionWithMixedFields() throws Exception {
+  public void testProjectionWithMixedFields() {
     Schema requestedSchema = COMPLEX_SCHEMA.select("id");
     Schema projectedSchema =
         invokeFileProjection(
@@ -182,7 +261,7 @@ public class TestDeleteFilterProjection {
   }
 
   @Test
-  public void testProjectionWithNoDeleteFiles() throws Exception {
+  public void testProjectionWithNoDeleteFiles() {
     Schema requestedSchema = NESTED_SCHEMA.select("id", "data");
     Schema projectedSchema =
         invokeFileProjection(
@@ -194,7 +273,7 @@ public class TestDeleteFilterProjection {
   }
 
   @Test
-  public void testProjectionWithAllFieldsRequested() throws Exception {
+  public void testProjectionWithAllFieldsRequested() {
     Schema projectedSchema =
         invokeFileProjection(
             NESTED_SCHEMA, NESTED_SCHEMA, ImmutableList.of(), ImmutableList.of(mockEqDelete(100)));
@@ -206,25 +285,14 @@ public class TestDeleteFilterProjection {
   }
 
   @Test
-  public void testProjectionWithMetadataColumns() throws Exception {
+  public void testProjectionWithMetadataColumns() {
     Schema requestedSchema = NESTED_SCHEMA.select("id", "data");
 
     // Invoke with position deletes (requires ROW_POSITION metadata column)
-    Method method =
-        DeleteFilter.class.getDeclaredMethod(
-            "fileProjection", Schema.class, Schema.class, List.class, List.class, boolean.class);
-    method.setAccessible(true);
-
     DeleteFile posDelete = Mockito.mock(DeleteFile.class);
     Schema projectedSchema =
-        (Schema)
-            method.invoke(
-                null,
-                NESTED_SCHEMA,
-                requestedSchema,
-                ImmutableList.of(posDelete),
-                ImmutableList.of(),
-                true);
+        DeleteFilter.fileProjection(
+            NESTED_SCHEMA, requestedSchema, ImmutableList.of(posDelete), ImmutableList.of(), true);
 
     assertThat(projectedSchema.findField(MetadataColumns.ROW_POSITION.fieldId()))
         .as("Should include ROW_POSITION metadata column for position deletes")
@@ -233,5 +301,158 @@ public class TestDeleteFilterProjection {
         .isEqualTo("_pos");
     assertThat(projectedSchema.findField(1)).as("Should include requested field id").isNotNull();
     assertThat(projectedSchema.findField(2)).as("Should include requested field data").isNotNull();
+  }
+
+  @Test
+  public void testNestedStructureIsPreserved() {
+    // This test verifies that when a nested field is added via equality delete,
+    // the parent struct is included to preserve the nested structure
+    Schema requestedSchema = NESTED_SCHEMA.select("id", "data");
+
+    Schema projectedSchema =
+        invokeFileProjection(
+            NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete(100)));
+
+    // Verify that field 100 (nestedField) is accessible
+    assertThat(projectedSchema.findField(100))
+        .as("Should include nested field from equality delete")
+        .isNotNull();
+    assertThat(projectedSchema.findField(100).name()).isEqualTo("nestedField");
+
+    // THIS IS THE KEY ASSERTION: The parent struct (field 3) must be present
+    // to preserve the nested structure
+    assertThat(projectedSchema.findField(3))
+        .as(
+            "Should include parent struct field to preserve nested structure. "
+                + "Field 100 (nestedField) should be nested inside field 3 (structData), "
+                + "not added as a top-level field.")
+        .isNotNull();
+
+    // Verify the parent is a struct type
+    Types.NestedField structField = projectedSchema.findField(3);
+    assertThat(structField.type().isStructType()).as("Field 3 should be a struct type").isTrue();
+
+    // Verify the struct contains the nested field
+    Types.StructType structType = structField.type().asStructType();
+    assertThat(structType.field(100))
+        .as("Struct field 3 should contain nested field 100")
+        .isNotNull();
+  }
+
+  @Test
+  public void testVeryDeepNestedStructure() {
+    // Test 4-level deep nesting: level1.level2.level3.level4.deepValue
+    Schema requestedSchema = VERY_DEEP_NESTED_SCHEMA.select("id");
+
+    Schema projectedSchema =
+        invokeFileProjection(
+            VERY_DEEP_NESTED_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete(40)));
+
+    assertThat(projectedSchema.findField(40)).as("Should find deeply nested field 40").isNotNull();
+
+    assertThat(projectedSchema.findField(2))
+        .as("Should include top-level parent struct (level1) to preserve 4-level nesting")
+        .isNotNull();
+  }
+
+  @Test
+  public void testArrayOfStructsNestedField() {
+    // Test array element field: arrayOfStructs.element.nestedStruct.deepField
+    Schema requestedSchema = ARRAY_OF_STRUCTS_SCHEMA.select("id");
+
+    Schema projectedSchema =
+        invokeFileProjection(
+            ARRAY_OF_STRUCTS_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete(30)));
+
+    assertThat(projectedSchema.findField(30))
+        .as("Should find nested field within array element")
+        .isNotNull();
+
+    assertThat(projectedSchema.findField(2))
+        .as("Should include array field to preserve structure")
+        .isNotNull();
+
+    // Verify it's still an array type
+    Types.NestedField arrayField = projectedSchema.findField(2);
+    assertThat(arrayField.type().isListType()).as("Field 2 should still be a list type").isTrue();
+  }
+
+  @Test
+  public void testMapWithStructValuesNestedField() {
+    // Test map value field: mapWithStructValues.value.nestedValueStruct.deepValueField
+    Schema requestedSchema = MAP_WITH_STRUCT_VALUES_SCHEMA.select("id");
+
+    Schema projectedSchema =
+        invokeFileProjection(
+            MAP_WITH_STRUCT_VALUES_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete(30)));
+
+    assertThat(projectedSchema.findField(30))
+        .as("Should find nested field within map value")
+        .isNotNull();
+
+    assertThat(projectedSchema.findField(2))
+        .as("Should include map field to preserve structure")
+        .isNotNull();
+
+    // Verify it's still a map type
+    Types.NestedField mapField = projectedSchema.findField(2);
+    assertThat(mapField.type().isMapType()).as("Field 2 should still be a map type").isTrue();
+  }
+
+  @Test
+  public void testMultipleNestedFieldsFromDifferentParents() {
+    // Test multiple nested fields from different parent structs
+    Schema requestedSchema = MIXED_COMPLEX_SCHEMA.select("id");
+
+    Schema projectedSchema =
+        invokeFileProjection(
+            MIXED_COMPLEX_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete(10, 21, 31, 42)));
+
+    // All nested fields should be found
+    assertThat(projectedSchema.findField(10)).as("Should find field 10").isNotNull();
+    assertThat(projectedSchema.findField(21)).as("Should find field 21").isNotNull();
+    assertThat(projectedSchema.findField(31)).as("Should find field 31").isNotNull();
+    assertThat(projectedSchema.findField(42)).as("Should find field 42").isNotNull();
+
+    // All parent fields should be present
+    assertThat(projectedSchema.findField(2)).as("Should include struct1 parent").isNotNull();
+    assertThat(projectedSchema.findField(3)).as("Should include struct2 parent").isNotNull();
+    assertThat(projectedSchema.findField(4)).as("Should include arrayField parent").isNotNull();
+    assertThat(projectedSchema.findField(5)).as("Should include mapField parent").isNotNull();
+  }
+
+  @Test
+  public void testArrayElementStructFieldOnly() {
+    // Test selecting only one field from array element struct
+    Schema requestedSchema = ARRAY_OF_STRUCTS_SCHEMA.select("id");
+
+    Schema projectedSchema =
+        invokeFileProjection(
+            ARRAY_OF_STRUCTS_SCHEMA,
+            requestedSchema,
+            ImmutableList.of(),
+            ImmutableList.of(mockEqDelete(20)));
+
+    assertThat(projectedSchema.findField(20)).as("Should find structField1").isNotNull();
+
+    assertThat(projectedSchema.findField(2)).as("Should include arrayOfStructs parent").isNotNull();
+
+    // The array element struct should contain field 20 but may or may not contain field 21
+    // depending on implementation - the key is field 20 must be accessible
   }
 }

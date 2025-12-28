@@ -33,6 +33,7 @@ import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -51,7 +52,6 @@ import org.slf4j.LoggerFactory;
 public abstract class DeleteFilter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(DeleteFilter.class);
 
-  // Map of all metadata column field IDs to their NestedField definitions
   private static final Map<Integer, Types.NestedField> METADATA_COLUMNS_BY_ID =
       MetadataColumns.metadataColumns().stream()
           .collect(ImmutableMap.toImmutableMap(Types.NestedField::fieldId, field -> field));
@@ -270,7 +270,8 @@ public abstract class DeleteFilter<T> {
         : Deletes.filterDeleted(records, isDeleted, counter);
   }
 
-  private static Schema fileProjection(
+  @VisibleForTesting
+  static Schema fileProjection(
       Schema tableSchema,
       Schema requestedSchema,
       List<DeleteFile> posDeletes,
@@ -297,13 +298,6 @@ public abstract class DeleteFilter<T> {
       return requestedSchema;
     }
 
-    // Build the schema preserving the requested schema's column order,
-    // then append missing fields, then metadata columns
-    List<Types.NestedField> columns = Lists.newArrayList();
-
-    // Add all columns from requested schema first (preserves order)
-    columns.addAll(requestedSchema.columns());
-
     // Separate missing IDs into data and metadata columns
     Set<Integer> missingDataIds = Sets.newLinkedHashSet();
     Set<Integer> missingMetadataIds = Sets.newLinkedHashSet();
@@ -315,19 +309,71 @@ public abstract class DeleteFilter<T> {
       }
     }
 
-    // Add missing data columns from table schema
-    for (int fieldId : missingDataIds) {
-      Types.NestedField field = tableSchema.findField(fieldId);
-      Preconditions.checkArgument(field != null, "Cannot find required field for ID %s", fieldId);
-      columns.add(field);
+    // Build column names for all requested fields plus missing data fields
+    // We need to use Schema.select() on ALL fields together to properly handle
+    // cases where multiple nested fields come from the same parent struct
+    List<String> allColumnNames = Lists.newArrayList();
+
+    for (Types.NestedField field : requestedSchema.columns()) {
+      String columnName = requestedSchema.findColumnName(field.fieldId());
+      Preconditions.checkArgument(
+          columnName != null, "Cannot find column name for field ID %s", field.fieldId());
+      allColumnNames.add(columnName);
     }
 
-    // Add missing metadata columns
-    for (int fieldId : missingMetadataIds) {
-      Types.NestedField metadataColumn = METADATA_COLUMNS_BY_ID.get(fieldId);
+    for (int fieldId : missingDataIds) {
+      String columnName = tableSchema.findColumnName(fieldId);
       Preconditions.checkArgument(
-          metadataColumn != null, "Cannot find metadata column for ID %s", fieldId);
-      columns.add(metadataColumn);
+          columnName != null, "Cannot find column name for field ID %s", fieldId);
+      allColumnNames.add(columnName);
+    }
+
+    // Use Schema.select to get properly nested structure
+    // Note: this returns fields in table schema order, which may differ from requested order
+    Schema selected = tableSchema.select(allColumnNames);
+
+    // Rebuild columns in requested schema order to maintain column ordering
+    return rebuildSchemaInRequestedOrder(requestedSchema, selected, missingMetadataIds);
+  }
+
+  private static Schema rebuildSchemaInRequestedOrder(
+      Schema requestedSchema, Schema selected, Set<Integer> missingMetadataIds) {
+    List<Types.NestedField> columns = Lists.newArrayList();
+    Set<Integer> addedFieldIds = Sets.newHashSet();
+
+    // First, add all columns from requested schema (preserves order)
+    for (Types.NestedField requestedField : requestedSchema.columns()) {
+      // Metadata columns don't exist in tableSchema/selected, use the requested field directly
+      if (MetadataColumns.isMetadataColumn(requestedField.fieldId())) {
+        columns.add(requestedField);
+        addedFieldIds.add(requestedField.fieldId());
+      } else {
+        Types.NestedField selectedField = selected.findField(requestedField.fieldId());
+        Preconditions.checkArgument(
+            selectedField != null,
+            "Cannot find requested field %s in selected schema",
+            requestedField.fieldId());
+        columns.add(selectedField);
+        addedFieldIds.add(selectedField.fieldId());
+      }
+    }
+
+    // Then add any new top-level fields needed for nested equality delete columns
+    for (Types.NestedField selectedField : selected.columns()) {
+      if (!addedFieldIds.contains(selectedField.fieldId())) {
+        columns.add(selectedField);
+        addedFieldIds.add(selectedField.fieldId());
+      }
+    }
+
+    // Finally, add metadata columns (they don't exist in tableSchema)
+    for (int fieldId : missingMetadataIds) {
+      if (!addedFieldIds.contains(fieldId)) {
+        Types.NestedField metadataColumn = METADATA_COLUMNS_BY_ID.get(fieldId);
+        Preconditions.checkArgument(
+            metadataColumn != null, "Cannot find metadata column for ID %s", fieldId);
+        columns.add(metadataColumn);
+      }
     }
 
     return new Schema(columns);
