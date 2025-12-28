@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.junit.jupiter.api.AfterEach;
@@ -69,35 +73,47 @@ public class TestSnapshotTableAction extends CatalogTestBase {
 
   @TestTemplate
   public void testSnapshotWithOverlappingLocation() throws IOException {
-    String parentLocation = Files.createTempDirectory(temp, "junit").toFile().toString();
-    String sourceLocation = parentLocation + "/source";
+    String catalogType = catalogConfig.get(ICEBERG_CATALOG_TYPE);
+    assumeThat(catalogType).isNotEqualTo(ICEBERG_CATALOG_TYPE_HADOOP);
+
+    String sourceLocation =
+        Files.createTempDirectory(temp, "junit").resolve("source").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         SOURCE_NAME, sourceLocation);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+    String actualSourceLocation =
+        spark
+            .sql(String.format("DESCRIBE EXTENDED %s", SOURCE_NAME))
+            .filter("col_name = 'Location'")
+            .select("data_type")
+            .first()
+            .getString(0);
 
     assertThatThrownBy(
             () ->
                 SparkActions.get()
                     .snapshotTable(SOURCE_NAME)
                     .as(tableName)
-                    .tableLocation(sourceLocation)
+                    .tableLocation(actualSourceLocation)
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot create a snapshot at location");
+        .hasMessageStartingWith(
+            "The snapshot table location cannot be same as the source table location.");
 
-    String destAsSubdir = sourceLocation + "/nested";
+    String destAsSubdirectory = new Path(actualSourceLocation, "nested").toUri().toString();
     assertThatThrownBy(
             () ->
                 SparkActions.get()
                     .snapshotTable(SOURCE_NAME)
                     .as(tableName)
-                    .tableLocation(destAsSubdir)
+                    .tableLocation(destAsSubdirectory)
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot create a snapshot at location");
 
+    String parentLocation = new Path(actualSourceLocation).getParent().toUri().toString();
     assertThatThrownBy(
             () ->
                 SparkActions.get()
@@ -108,13 +124,12 @@ public class TestSnapshotTableAction extends CatalogTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot create a snapshot at location");
 
-    String validDestLocation = Files.createTempDirectory(temp, "newJunit").toFile().toString();
+    String validDestLocation = new Path(actualSourceLocation, "newDestination").toUri().toString();
     SparkActions.get()
         .snapshotTable(SOURCE_NAME)
         .as(tableName)
         .tableLocation(validDestLocation)
         .execute();
-
     assertThat(sql("SELECT * FROM %s", tableName)).hasSize(2);
   }
 }
