@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -64,5 +65,56 @@ public class TestSnapshotTableAction extends CatalogTestBase {
                 }))
         .execute();
     assertThat(snapshotThreadsIndex.get()).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testSnapshotWithOverlappingLocation() throws IOException {
+    String parentLocation = Files.createTempDirectory(temp, "junit").toFile().toString();
+    String sourceLocation = parentLocation + "/source";
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        SOURCE_NAME, sourceLocation);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableLocation(sourceLocation)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot create a snapshot at location");
+
+    String destAsSubdir = sourceLocation + "/nested";
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableLocation(destAsSubdir)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot create a snapshot at location");
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableLocation(parentLocation)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot create a snapshot at location");
+
+    String validDestLocation = Files.createTempDirectory(temp, "newJunit").toFile().toString();
+    SparkActions.get()
+        .snapshotTable(SOURCE_NAME)
+        .as(tableName)
+        .tableLocation(validDestLocation)
+        .execute();
+
+    assertThat(sql("SELECT * FROM %s", tableName)).hasSize(2);
   }
 }
