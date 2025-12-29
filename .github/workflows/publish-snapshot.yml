@@ -42,3 +42,33 @@ jobs:
         run: ./gradlew :iceberg-api:publishGreprPublicationToGitHubPackagesRepository
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish iceberg-flink-2.0 package
+        run: ./gradlew :iceberg-flink:iceberg-flink-2.0:publishGreprPublicationToGitHubPackagesRepository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish iceberg-core package
+        run: ./gradlew :iceberg-core:publishGreprPublicationToGitHubPackagesRepository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish iceberg-data package
+        run: ./gradlew :iceberg-data:publishGreprPublicationToGitHubPackagesRepository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish iceberg-hive-metastore package
+        run: ./gradlew :iceberg-hive-metastore:publishGreprPublicationToGitHubPackagesRepository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish iceberg-parquet package
+        run: ./gradlew :iceberg-parquet:publishGreprPublicationToGitHubPackagesRepository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish iceberg-orc package
+        run: ./gradlew :iceberg-orc:publishGreprPublicationToGitHubPackagesRepository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -62,7 +62,7 @@ class IcebergFilesCommitterFactory
 
   @Override
   public ChainingStrategy getChainingStrategy() {
-    return ChainingStrategy.ALWAYS;
+    return ChainingStrategy.HEAD;
   }
 
   @Override
