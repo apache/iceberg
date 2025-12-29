@@ -1247,6 +1247,7 @@ subprojects {
       project.name.startsWith('iceberg-kafka-connect')) {
 
     configurations.all {
+      exclude group: 'org.lz4', module: 'lz4-java'
       resolutionStrategy.capabilitiesResolution.withCapability("org.lz4:lz4-java") {
         select("at.yawk.lz4:lz4-java:0")
         because("Fix lz4-java capability conflict from relocation and CVE fixes")
