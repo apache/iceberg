@@ -83,7 +83,7 @@ Iceberg also adds row-level SQL updates to Spark, [`MERGE INTO`](spark-writes.md
 
 ```sql
 MERGE INTO local.db.target t USING (SELECT * FROM updates) u ON t.id = u.id
-WHEN MATCHED THEN UPDATE SET t.count = t.count + u.count
+WHEN MATCHED THEN UPDATE SET t.data = u.data
 WHEN NOT MATCHED THEN INSERT *;
 ```
 
