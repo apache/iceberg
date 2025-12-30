@@ -52,8 +52,8 @@ services:
       - ./notebooks:/home/iceberg/notebooks/notebooks
       - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     environment:
-      - AWS_ACCESS_KEY_ID=rustfsadmin
-      - AWS_SECRET_ACCESS_KEY=rustfsadmin
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
       - AWS_REGION=us-east-1
     ports:
       - 8888:8888
@@ -68,8 +68,8 @@ services:
     ports:
       - 8181:8181
     environment:
-      - AWS_ACCESS_KEY_ID=rustfsadmin
-      - AWS_SECRET_ACCESS_KEY=rustfsadmin
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
       - AWS_REGION=us-east-1
       - CATALOG_WAREHOUSE=s3://warehouse/
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
@@ -98,12 +98,12 @@ services:
     networks:
       iceberg_net:
     environment:
-      - AWS_ACCESS_KEY_ID=rustfsadmin
-      - AWS_SECRET_ACCESS_KEY=rustfsadmin
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
       - AWS_REGION=us-east-1
     entrypoint: |
       /bin/sh -c "
-      until (/usr/bin/mc alias set rustfs http://rustfs:9000 rustfsadmin rustfsadmin) do echo '...waiting...' && sleep 1; done;
+      until (/usr/bin/mc alias set rustfs http://rustfs:9000 admin password) do echo '...waiting...' && sleep 1; done;
       /usr/bin/mc rm -r --force rustfs/warehouse;
       /usr/bin/mc mb rustfs/warehouse;
       /usr/bin/mc policy set public rustfs/warehouse;
