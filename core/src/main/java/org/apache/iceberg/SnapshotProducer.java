@@ -439,7 +439,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             .run(
                 taskOps -> {
                   Snapshot newSnapshot = apply();
-                  stagedSnapshot.set(newSnapshot);
                   TableMetadata.Builder update = TableMetadata.buildFrom(base);
                   if (base.snapshot(newSnapshot.snapshotId()) != null) {
                     // this is a rollback operation
@@ -465,6 +464,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   // to ensure that if a concurrent operation assigns the UUID, this operation will
                   // not fail.
                   taskOps.commit(base, updated.withUUID());
+
+                  // Set the staged snapshot AFTER successful commit to ensure cleanup uses
+                  // the actually committed snapshot, not one from a failed/no-op attempt
+                  stagedSnapshot.set(newSnapshot);
                 });
 
       } catch (CommitStateUnknownException commitStateUnknownException) {
