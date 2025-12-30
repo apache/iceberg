@@ -36,7 +36,7 @@ buildscript {
     classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.4'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.4.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.17.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.18.0'
   }
 }
 
@@ -377,6 +377,7 @@ project(':iceberg-core') {
     implementation libs.jackson.databind
     implementation libs.caffeine
     implementation libs.roaringbitmap
+    implementation libs.failsafe
     compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -576,6 +577,7 @@ project(':iceberg-azure') {
 
     compileOnly platform(libs.azuresdk.bom)
     compileOnly "com.azure:azure-storage-file-datalake"
+    compileOnly "com.azure:azure-security-keyvault-keys"
     compileOnly "com.azure:azure-identity"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -730,6 +732,7 @@ project(':iceberg-gcp') {
     compileOnly platform(libs.google.libraries.bom)
     compileOnly "com.google.cloud:google-cloud-storage"
     compileOnly "com.google.cloud:google-cloud-kms"
+    compileOnly(libs.gcs.analytics.core)
 
     testImplementation "com.google.cloud:google-cloud-nio"
 
@@ -746,6 +749,8 @@ project(':iceberg-gcp') {
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.mockito.junit.jupiter
+    testImplementation libs.testcontainers
+    testImplementation libs.testcontainers.junit.jupiter
   }
 
   sourceSets {

@@ -129,7 +129,7 @@ public class AvroSchemaUtil {
   }
 
   /**
-   * @deprecated will be removed in 2.0.0; use applyNameMapping and pruneColumns(Schema, Set)
+   * @deprecated will be removed in 1.12.0; use applyNameMapping and pruneColumns(Schema, Set)
    *     instead.
    */
   @Deprecated

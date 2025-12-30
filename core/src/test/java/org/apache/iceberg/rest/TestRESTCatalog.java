@@ -118,7 +118,10 @@ import org.mockito.stubbing.Answer;
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
   private static final ResourcePaths RESOURCE_PATHS =
-      ResourcePaths.forCatalogProperties(Maps.newHashMap());
+      ResourcePaths.forCatalogProperties(
+          ImmutableMap.of(
+              RESTCatalogProperties.NAMESPACE_SEPARATOR,
+              RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8));
 
   @TempDir public Path temp;
 
@@ -944,8 +947,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 .build())
         .commit();
 
-    ResourcePaths paths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
-
     Table refsTable = catalog.loadTable(TABLE);
 
     // don't call snapshots() directly as that would cause to load all snapshots. Instead,
@@ -960,7 +961,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // verify that the table was loaded with the refs argument
     verify(adapter, times(1))
         .execute(
-            reqMatcher(HTTPMethod.GET, paths.table(TABLE), Map.of(), Map.of("snapshots", "refs")),
+            reqMatcher(
+                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "refs")),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -969,7 +971,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(refsTable.snapshots()).containsExactlyInAnyOrderElementsOf(table.snapshots());
     verify(adapter, times(1))
         .execute(
-            reqMatcher(HTTPMethod.GET, paths.table(TABLE), Map.of(), Map.of("snapshots", "all")),
+            reqMatcher(
+                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "all")),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1038,8 +1041,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .toBranch(branch)
         .commit();
 
-    ResourcePaths paths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
-
     Table refsTable = catalog.loadTable(TABLE);
 
     // don't call snapshots() directly as that would cause to load all snapshots. Instead,
@@ -1054,7 +1055,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // verify that the table was loaded with the refs argument
     verify(adapter, times(1))
         .execute(
-            reqMatcher(HTTPMethod.GET, paths.table(TABLE), Map.of(), Map.of("snapshots", "refs")),
+            reqMatcher(
+                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "refs")),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1064,7 +1066,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .containsExactlyInAnyOrderElementsOf(table.snapshots());
     verify(adapter, times(1))
         .execute(
-            reqMatcher(HTTPMethod.GET, paths.table(TABLE), Map.of(), Map.of("snapshots", "all")),
+            reqMatcher(
+                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "all")),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -2943,7 +2946,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThatThrownBy(() -> catalog().loadTable(TABLE)).isInstanceOf(NullPointerException.class);
 
     TableIdentifier metadataTableIdentifier =
-        TableIdentifier.of(TABLE.namespace().toString(), TABLE.name(), "partitions");
+        TableIdentifier.of(NS.toString(), TABLE.name(), "partitions");
 
     // TODO: This won't throw when client side of freshness-aware loading is implemented
     assertThatThrownBy(() -> catalog().loadTable(metadataTableIdentifier))
@@ -3307,6 +3310,111 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     local.createTable(ident, schema);
     assertThat(local.tableExists(ident)).isTrue();
     local.dropTable(ident);
+  }
+
+  @Test
+  public void nestedNamespaceWithLegacySeparator() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    // Simulate that the server doesn't send the namespace separator in the overrides
+    Mockito.doAnswer(
+            invocation -> {
+              ConfigResponse configResponse = (ConfigResponse) invocation.callRealMethod();
+
+              Map<String, String> overridesWithoutNamespaceSeparator = configResponse.overrides();
+              overridesWithoutNamespaceSeparator.remove(RESTCatalogProperties.NAMESPACE_SEPARATOR);
+
+              return ConfigResponse.builder()
+                  .withDefaults(configResponse.defaults())
+                  .withOverrides(overridesWithoutNamespaceSeparator)
+                  .withEndpoints(configResponse.endpoints())
+                  .withIdempotencyKeyLifetime(configResponse.idempotencyKeyLifetime())
+                  .build();
+            })
+        .when(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    RESTCatalog catalog = catalog(adapter);
+
+    ResourcePaths pathsWithLegacySeparator = ResourcePaths.forCatalogProperties(ImmutableMap.of());
+
+    runConfigurableNamespaceSeparatorTest(
+        catalog, adapter, pathsWithLegacySeparator, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+  }
+
+  @Test
+  public void nestedNamespaceWithOverriddenSeparator() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    // When initializing the catalog, the adapter always sends an override for the namespace
+    // separator.
+    Mockito.doAnswer(
+            invocation -> {
+              ConfigResponse configResponse = (ConfigResponse) invocation.callRealMethod();
+
+              assertThat(configResponse.overrides())
+                  .containsEntry(
+                      RESTCatalogProperties.NAMESPACE_SEPARATOR,
+                      RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+
+              return configResponse;
+            })
+        .when(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, ResourcePaths.config()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    RESTCatalog catalog = catalog(adapter);
+
+    runConfigurableNamespaceSeparatorTest(
+        catalog, adapter, RESOURCE_PATHS, RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
+  }
+
+  private void runConfigurableNamespaceSeparatorTest(
+      RESTCatalog catalog,
+      RESTCatalogAdapter adapter,
+      ResourcePaths expectedPaths,
+      String expectedSeparator) {
+    Namespace nestedNamespace = Namespace.of("ns1", "ns2", "ns3");
+    Namespace parentNamespace = Namespace.of("ns1", "ns2");
+    TableIdentifier table = TableIdentifier.of(nestedNamespace, "tbl");
+
+    catalog.createNamespace(nestedNamespace);
+
+    catalog.createTable(table, SCHEMA);
+
+    assertThat(catalog.listNamespaces(parentNamespace)).containsExactly(nestedNamespace);
+
+    // Verify the namespace separator in the path
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.POST, expectedPaths.tables(nestedNamespace)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    // Verify the namespace separator in query parameters
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(
+                HTTPMethod.GET,
+                expectedPaths.namespaces(),
+                Map.of(),
+                Map.of(
+                    "parent",
+                    RESTUtil.namespaceToQueryParam(parentNamespace, expectedSeparator),
+                    "pageToken",
+                    ""),
+                null),
+            eq(ListNamespacesResponse.class),
+            any(),
+            any());
   }
 
   private RESTCatalog createCatalogWithIdempAdapter(ConfigResponse cfg, boolean expectOnMutations) {

@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAUL
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -64,6 +65,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -700,11 +702,6 @@ public class CatalogHandlers {
             .withPlanStatus(PlanStatus.COMPLETED)
             .withPlanId(planId)
             .withFileScanTasks(initial.first())
-            .withDeleteFiles(
-                initial.first().stream()
-                    .flatMap(task -> task.deletes().stream())
-                    .distinct()
-                    .collect(Collectors.toList()))
             .withSpecsById(table.specs());
 
     if (!nextPlanTasks.isEmpty()) {
@@ -733,11 +730,6 @@ public class CatalogHandlers {
     Pair<List<FileScanTask>, String> initial = IN_MEMORY_PLANNING_STATE.initialScanTasksFor(planId);
     return FetchPlanningResultResponse.builder()
         .withPlanStatus(PlanStatus.COMPLETED)
-        .withDeleteFiles(
-            initial.first().stream()
-                .flatMap(task -> task.deletes().stream())
-                .distinct()
-                .collect(Collectors.toList()))
         .withFileScanTasks(initial.first())
         .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(initial.second()))
         .withSpecsById(table.specs())
@@ -762,11 +754,6 @@ public class CatalogHandlers {
         .withFileScanTasks(fileScanTasks)
         .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(planTask))
         .withSpecsById(table.specs())
-        .withDeleteFiles(
-            fileScanTasks.stream()
-                .flatMap(task -> task.deletes().stream())
-                .distinct()
-                .collect(Collectors.toList()))
         .build();
   }
 
@@ -820,35 +807,38 @@ public class CatalogHandlers {
    */
   private static Pair<List<FileScanTask>, String> planFilesFor(
       Scan<?, FileScanTask, ?> scan, String planId, String tableId, int tasksPerPlanTask) {
-    Iterable<FileScanTask> planTasks = scan.planFiles();
-    String planTaskPrefix = planId + "-" + tableId + "-";
+    try (CloseableIterable<FileScanTask> planTasks = scan.planFiles()) {
+      String planTaskPrefix = planId + "-" + tableId + "-";
 
-    // Handle empty table scans
-    if (!planTasks.iterator().hasNext()) {
-      String planTaskKey = planTaskPrefix + "0";
-      // Add empty scan to planning state so async calls know the scan completed
-      IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, Collections.emptyList());
-      return Pair.of(Collections.emptyList(), planTaskKey);
-    }
-
-    Iterable<List<FileScanTask>> taskGroupings = Iterables.partition(planTasks, tasksPerPlanTask);
-    int planTaskSequence = 0;
-    String previousPlanTask = null;
-    String firstPlanTaskKey = null;
-    List<FileScanTask> initialFileScanTasks = null;
-    for (List<FileScanTask> taskGrouping : taskGroupings) {
-      String planTaskKey = planTaskPrefix + planTaskSequence++;
-      IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, taskGrouping);
-      if (previousPlanTask != null) {
-        IN_MEMORY_PLANNING_STATE.addNextPlanTask(previousPlanTask, planTaskKey);
-      } else {
-        firstPlanTaskKey = planTaskKey;
-        initialFileScanTasks = taskGrouping;
+      // Handle empty table scans
+      if (!planTasks.iterator().hasNext()) {
+        String planTaskKey = planTaskPrefix + "0";
+        // Add empty scan to planning state so async calls know the scan completed
+        IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, Collections.emptyList());
+        return Pair.of(Collections.emptyList(), planTaskKey);
       }
 
-      previousPlanTask = planTaskKey;
+      Iterable<List<FileScanTask>> taskGroupings = Iterables.partition(planTasks, tasksPerPlanTask);
+      int planTaskSequence = 0;
+      String previousPlanTask = null;
+      String firstPlanTaskKey = null;
+      List<FileScanTask> initialFileScanTasks = null;
+      for (List<FileScanTask> taskGrouping : taskGroupings) {
+        String planTaskKey = planTaskPrefix + planTaskSequence++;
+        IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, taskGrouping);
+        if (previousPlanTask != null) {
+          IN_MEMORY_PLANNING_STATE.addNextPlanTask(previousPlanTask, planTaskKey);
+        } else {
+          firstPlanTaskKey = planTaskKey;
+          initialFileScanTasks = taskGrouping;
+        }
+
+        previousPlanTask = planTaskKey;
+      }
+      return Pair.of(initialFileScanTasks, firstPlanTaskKey);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
-    return Pair.of(initialFileScanTasks, firstPlanTaskKey);
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")

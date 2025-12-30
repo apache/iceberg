@@ -86,7 +86,6 @@ public class FetchPlanningResultResponseParser {
         .withPlanStatus(planStatus)
         .withPlanTasks(planTasks)
         .withFileScanTasks(fileScanTasks)
-        .withDeleteFiles(deleteFiles)
         .withSpecsById(specsById)
         .build();
   }

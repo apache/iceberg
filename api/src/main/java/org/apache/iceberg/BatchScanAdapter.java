@@ -25,11 +25,11 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.MetricsReporter;
 
 /** An adapter that allows using {@link TableScan} as {@link BatchScan}. */
-class BatchScanAdapter implements BatchScan {
+public class BatchScanAdapter implements BatchScan {
 
   private final TableScan scan;
 
-  BatchScanAdapter(TableScan scan) {
+  public BatchScanAdapter(TableScan scan) {
     this.scan = scan;
   }
 
