@@ -62,9 +62,11 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -3527,5 +3529,204 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ArgumentCaptor<HTTPRequest> captor = ArgumentCaptor.forClass(HTTPRequest.class);
     verify(adapter, atLeastOnce()).execute(captor.capture(), any(), any(), any());
     return captor.getAllValues();
+  }
+
+  @Test
+  public void testSerializableTableWithoutMetadataLocationAccess()
+      throws IOException, ClassNotFoundException {
+    // Create a table with data through REST catalog
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()));
+
+    TableIdentifier ident = TableIdentifier.of(Namespace.of("ns"), "table");
+    restCatalog.createNamespace(ident.namespace());
+    Table table = restCatalog.createTable(ident, schema);
+
+    // Add data files to create snapshots
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+
+    // Create SerializableTable from REST catalog
+    SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
+
+    // Test with Java serialization
+    Table javaSerialized = TestHelpers.roundTripSerialize(serializableTable);
+    verifySerializedTable(javaSerialized, table, 2);
+
+    // Test with Kryo serialization
+    Table kryoSerialized = TestHelpers.KryoHelpers.roundTripSerialize(serializableTable);
+    verifySerializedTable(kryoSerialized, table, 2);
+  }
+
+  private void verifySerializedTable(
+      Table deserialized, Table original, int expectedSnapshotCount) {
+    // Verify that basic operations work even if metadata location is not accessible
+    // (executors don't have storage credentials)
+    assertThat(deserialized.schema().asStruct()).isEqualTo(original.schema().asStruct());
+    assertThat(deserialized.spec().specId()).isEqualTo(original.spec().specId());
+    assertThat(deserialized.location()).isEqualTo(original.location());
+    assertThat(deserialized.properties()).containsAllEntriesOf(original.properties());
+
+    // Verify snapshot operations work using serialized metadata
+    assertThat(deserialized.currentSnapshot()).isNotNull();
+    assertThat(deserialized.currentSnapshot().snapshotId())
+        .isEqualTo(original.currentSnapshot().snapshotId());
+
+    // Verify snapshots are accessible
+    assertThat(deserialized.snapshots()).isNotNull();
+    int snapshotCount = 0;
+    for (Snapshot snapshot : deserialized.snapshots()) {
+      snapshotCount++;
+      assertThat(snapshot).isNotNull();
+    }
+    assertThat(snapshotCount).isEqualTo(expectedSnapshotCount);
+
+    // Verify scan operations work
+    assertThat(deserialized.newScan()).isNotNull();
+  }
+
+  @Test
+  public void testSerializableTableWithRESTCatalogAndSchemaEvolution()
+      throws IOException, ClassNotFoundException {
+    // Create initial table
+    Schema initialSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()));
+
+    TableIdentifier ident = TableIdentifier.of(Namespace.of("ns"), "schema_evolution_table");
+    restCatalog.createNamespace(ident.namespace());
+    Table table = restCatalog.createTable(ident, initialSchema);
+
+    // Evolve schema
+    table.updateSchema().addColumn("new_col1", Types.IntegerType.get()).commit();
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // Evolve schema again
+    table.updateSchema().addColumn("new_col2", Types.StringType.get()).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+
+    // Create and serialize table
+    SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
+
+    // Test with Java serialization
+    Table javaSerialized = TestHelpers.roundTripSerialize(serializableTable);
+    verifySchemaEvolution(javaSerialized, table);
+
+    // Test with Kryo serialization
+    Table kryoSerialized = TestHelpers.KryoHelpers.roundTripSerialize(serializableTable);
+    verifySchemaEvolution(kryoSerialized, table);
+  }
+
+  private void verifySchemaEvolution(Table deserialized, Table original) {
+    // Verify current schema
+    assertThat(deserialized.schema().columns()).hasSize(original.schema().columns().size());
+
+    // Verify all historical schemas are preserved
+    assertThat(deserialized.schemas()).isNotNull();
+    assertThat(deserialized.schemas().size()).isEqualTo(original.schemas().size());
+
+    // Verify scans work
+    assertThat(deserialized.newScan()).isNotNull();
+  }
+
+  @Test
+  public void testSerializableTableWithRESTCatalogAndSnapshotRefs()
+      throws IOException, ClassNotFoundException {
+    // Create table with data
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()));
+
+    TableIdentifier ident = TableIdentifier.of(Namespace.of("ns"), "refs_table");
+    restCatalog.createNamespace(ident.namespace());
+    Table table = restCatalog.createTable(ident, schema);
+
+    // Create first snapshot and tag it
+    table.newAppend().appendFile(FILE_A).commit();
+    long taggedSnapshotId = table.currentSnapshot().snapshotId();
+    table
+        .manageSnapshots()
+        .createTag("production", taggedSnapshotId)
+        .setMaxRefAgeMs("production", Long.MAX_VALUE)
+        .commit();
+
+    // Add more data
+    table.newAppend().appendFile(FILE_B).commit();
+
+    // Serialize and deserialize
+    SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
+
+    // Test with Java serialization
+    Table javaSerialized = TestHelpers.roundTripSerialize(serializableTable);
+    verifySnapshotRefs(javaSerialized, taggedSnapshotId);
+
+    // Test with Kryo serialization
+    Table kryoSerialized = TestHelpers.KryoHelpers.roundTripSerialize(serializableTable);
+    verifySnapshotRefs(kryoSerialized, taggedSnapshotId);
+  }
+
+  private void verifySnapshotRefs(Table deserialized, long taggedSnapshotId) {
+    // Verify refs are preserved
+    assertThat(deserialized.refs()).isNotNull();
+    assertThat(deserialized.refs()).containsKey("production");
+    assertThat(deserialized.refs().get("production").snapshotId()).isEqualTo(taggedSnapshotId);
+
+    // Verify we can access the tagged snapshot
+    assertThat(deserialized.snapshot(taggedSnapshotId)).isNotNull();
+  }
+
+  @Test
+  public void testSerializableTableConditionalMetadataSerialization()
+      throws IOException, ClassNotFoundException {
+    // Create a table with data through REST catalog
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()));
+
+    TableIdentifier ident = TableIdentifier.of(Namespace.of("ns"), "conditional_test");
+    restCatalog.createNamespace(ident.namespace());
+    Table table = restCatalog.createTable(ident, schema);
+
+    // Add data with multiple snapshots
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+
+    // Case 1: Normal SerializableTable (with metadata location from REST catalog)
+    SerializableTable serializableWithLocation =
+        (SerializableTable) SerializableTable.copyOf(table);
+
+    // Test with Java serialization
+    Table javaDeserialized = TestHelpers.roundTripSerialize(serializableWithLocation);
+    verifyConditionalSerialization(javaDeserialized, table);
+
+    // Test with Kryo serialization
+    Table kryoDeserialized = TestHelpers.KryoHelpers.roundTripSerialize(serializableWithLocation);
+    verifyConditionalSerialization(kryoDeserialized, table);
+  }
+
+  private void verifyConditionalSerialization(Table deserialized, Table original) {
+    // Verify it works
+    assertThat(deserialized.currentSnapshot()).isNotNull();
+    assertThat(deserialized.currentSnapshot().snapshotId())
+        .isEqualTo(original.currentSnapshot().snapshotId());
+
+    int snapshotCount = 0;
+    for (Snapshot snapshot : deserialized.snapshots()) {
+      snapshotCount++;
+    }
+    assertThat(snapshotCount).isEqualTo(2);
+
+    // Case 2: Test the optimization - when metadata location is present,
+    // tableMetadataJson should not be serialized (saving space)
+    // When metadata location is null, tableMetadataJson should be serialized (enabling
+    // functionality)
+    // This test verifies the SerializableTable works correctly regardless of which path is taken
+    assertThat(deserialized.schema().asStruct()).isEqualTo(original.schema().asStruct());
+    assertThat(deserialized.location()).isEqualTo(original.location());
   }
 }

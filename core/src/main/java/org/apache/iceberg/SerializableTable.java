@@ -66,6 +66,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private final UUID uuid;
   private final int formatVersion;
   private final Try<LocationProvider> locationProviderTry;
+  private final TableMetadata tableMetadata;
 
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
@@ -89,6 +90,14 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
     this.formatVersion = formatVersion(table);
+
+    // Only store full TableMetadata if metadata location is not available
+    // and the table is a REST table.
+    if (metadataFileLocation == null && isRESTTable(table)) {
+      this.tableMetadata = getTableMetadata(table);
+    } else {
+      this.tableMetadata = null;
+    }
   }
 
   /**
@@ -136,13 +145,21 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     if (lazyTable == null) {
       synchronized (this) {
         if (lazyTable == null) {
-          if (metadataFileLocation == null) {
+          TableOperations ops;
+
+          if (tableMetadata != null) {
+            // Use serialized TableMetadata (REST catalog without metadata location)
+            // This avoids storage access when the server doesn't provide metadataFileLocation
+            ops = new StaticTableOperations(tableMetadata, io, locationProvider());
+          } else if (metadataFileLocation != null) {
+            // Read from storage using metadata location (traditional catalogs)
+            // This is more efficient when metadata location is available
+            ops = new StaticTableOperations(metadataFileLocation, io, locationProvider());
+          } else {
             throw new UnsupportedOperationException(
-                "Cannot load metadata: metadata file location is null");
+                "Cannot load metadata: both tableMetadata and metadataFileLocation are null");
           }
 
-          TableOperations ops =
-              new StaticTableOperations(metadataFileLocation, io, locationProvider());
           this.lazyTable = newTable(ops, name);
         }
       }
@@ -184,6 +201,20 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     } catch (IllegalArgumentException e) {
       return UNKNOWN_FORMAT_VERSION;
     }
+  }
+
+  private TableMetadata getTableMetadata(Table table) {
+    if (table instanceof HasTableOperations) {
+      return ((HasTableOperations) table).operations().current();
+    }
+    return null;
+  }
+
+  private boolean isRESTTable(Table table) {
+    // Check if the table is a REST table by examining its class name
+    // This avoids adding a direct dependency on the REST module
+    String className = table.getClass().getName();
+    return className.equals("org.apache.iceberg.rest.RESTTable");
   }
 
   @Override
