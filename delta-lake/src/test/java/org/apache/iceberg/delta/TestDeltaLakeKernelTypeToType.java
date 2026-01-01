@@ -65,8 +65,7 @@ public class TestDeltaLakeKernelTypeToType {
 
   @Test
   public void testAtomicTypeConversion() {
-    Type converted =
-        new DeltaLakeKernelTypeToType(deltaAtomicSchema).convertType(deltaAtomicSchema);
+    Type converted = new DeltaLakeKernelTypeToType(deltaAtomicSchema).convertType();
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
 
     assertToAtomicSchema(convertedSchema);
@@ -104,7 +103,7 @@ public class TestDeltaLakeKernelTypeToType {
         new StructType()
             .add("nullableByte", ByteType.BYTE)
             .add("requiredShort", ShortType.SHORT, false);
-    Type converted = new DeltaLakeKernelTypeToType(deltaSchema).convertType(deltaSchema);
+    Type converted = new DeltaLakeKernelTypeToType(deltaSchema).convertType();
 
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
 
@@ -120,7 +119,7 @@ public class TestDeltaLakeKernelTypeToType {
         new StructType()
             .add("nullableTimestamp", TimestampType.TIMESTAMP)
             .add("requiredTimestampNtz", TimestampNTZType.TIMESTAMP_NTZ, false);
-    Type converted = new DeltaLakeKernelTypeToType(deltaSchema).convertType(deltaSchema);
+    Type converted = new DeltaLakeKernelTypeToType(deltaSchema).convertType();
 
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
 
@@ -145,7 +144,7 @@ public class TestDeltaLakeKernelTypeToType {
     StructType deltaSchema =
         new StructType() // Spec v3 is required
             .add("nullableVariant", VariantType.VARIANT);
-    Type converted = new DeltaLakeKernelTypeToType(deltaSchema).convertType(deltaSchema);
+    Type converted = new DeltaLakeKernelTypeToType(deltaSchema).convertType();
 
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
 
@@ -158,7 +157,7 @@ public class TestDeltaLakeKernelTypeToType {
     StructType deltaSchema =
         new StructType().add("testDoubleArray", new ArrayType(DoubleType.DOUBLE, true), false);
 
-    Type converted = new DeltaLakeKernelTypeToType(deltaSchema).convertType(deltaSchema);
+    Type converted = new DeltaLakeKernelTypeToType(deltaSchema).convertType();
 
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
 
@@ -175,7 +174,7 @@ public class TestDeltaLakeKernelTypeToType {
     StructType deltaSchema =
         new StructType()
             .add("testStringLongMap", new MapType(StringType.STRING, LongType.LONG, false), false);
-    Type converted = new DeltaLakeKernelTypeToType(deltaSchema).convertType(deltaSchema);
+    Type converted = new DeltaLakeKernelTypeToType(deltaSchema).convertType();
 
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
 
@@ -199,8 +198,7 @@ public class TestDeltaLakeKernelTypeToType {
                 "testStringStructMap",
                 new MapType(StringType.STRING, deltaAtomicSchema, false),
                 false);
-    Type converted =
-        new DeltaLakeKernelTypeToType(deltaNestedSchema).convertType(deltaNestedSchema);
+    Type converted = new DeltaLakeKernelTypeToType(deltaNestedSchema).convertType();
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
 
     assertThat(convertedSchema.findType("testInnerAtomicSchema"))

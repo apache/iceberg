@@ -57,7 +57,11 @@ public class DeltaLakeKernelTypeToType {
     this.nextId = root.fields().size();
   }
 
-  public Type convertType(DataType type) {
+  public Type convertType() {
+    return convertType(root);
+  }
+
+  private Type convertType(DataType type) {
     if (type instanceof StructType) {
       List<StructField> fields = ((StructType) type).fields();
       List<Type> fieldResults = Lists.newArrayListWithExpectedSize(fields.size());
