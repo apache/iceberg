@@ -23,6 +23,7 @@ import io.delta.kernel.Table;
 import io.delta.kernel.defaults.engine.DefaultEngine;
 import io.delta.kernel.engine.Engine;
 import io.delta.kernel.exceptions.TableNotFoundException;
+import io.delta.kernel.internal.SnapshotImpl;
 import io.delta.kernel.types.StructType;
 import java.util.List;
 import java.util.Map;
@@ -116,13 +117,12 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
         "Make sure to configure the action with a valid deltaLakeConfiguration");
 
     // TODO get initial snapshot
-    Snapshot latestSnapshot = getLatestDeltaSnapshot();
-    Schema icebergSchema = convertToIcebergSchema(latestSnapshot.getSchema());
+    SnapshotImpl deltaSnapshot = getLatestDeltaSnapshot();
+    Schema icebergSchema = convertToIcebergSchema(deltaSnapshot.getSchema());
     PartitionSpec partitionSpec =
-        buildPartitionSpec(icebergSchema, latestSnapshot.getPartitionColumnNames());
+        buildPartitionSpec(icebergSchema, deltaSnapshot.getPartitionColumnNames());
 
     // TODO
-    // 1. Table props
     // 2. Delta log to Iceberg history
     // 3. Delta versions and Delta tags
     Transaction transaction =
@@ -131,7 +131,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
             icebergSchema,
             partitionSpec,
             newTableLocation,
-            buildTablePropertiesWithDelta(latestSnapshot, deltaTableLocation, icebergSchema));
+            buildTablePropertiesWithDelta(deltaSnapshot, deltaTableLocation, icebergSchema));
 
     transaction.commitTransaction();
     long totalDataFiles = 0;
@@ -151,16 +151,22 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     return new Schema(converted.asNestedType().asStructType().fields());
   }
 
-  private Snapshot getLatestDeltaSnapshot() {
+  private SnapshotImpl getLatestDeltaSnapshot() {
     Snapshot latestSnapshot;
     try {
       latestSnapshot = deltaTable.getLatestSnapshot(deltaEngine);
+
+      if (!(latestSnapshot instanceof SnapshotImpl)) {
+        throw new IllegalStateException(
+            "Unsupported impl of delta Snapshot: " + latestSnapshot.getClass());
+      }
+
+      return (SnapshotImpl) latestSnapshot;
     } catch (TableNotFoundException e) {
       throw new IllegalArgumentException(
           String.format(
               "Delta Lake table does not exist at the given location: %s", deltaTableLocation));
     }
-    return latestSnapshot;
   }
 
   private PartitionSpec buildPartitionSpec(Schema schema, List<String> partitionNames) {
@@ -176,15 +182,19 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   }
 
   private Map<String, String> buildTablePropertiesWithDelta(
-      Snapshot deltaSnapshot, String originalLocation, Schema icebergSchema) {
-    LOG.info("try pull props from delta snapshot {}", deltaSnapshot);
-    // TODO deltaSnapshot.getMetadata().getConfiguration()
+      SnapshotImpl deltaSnapshot, String originalLocation, Schema icebergSchema) {
     icebergPropertiesBuilder.putAll(
         org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap.of(
             SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
     icebergPropertiesBuilder.put(
         TableProperties.DEFAULT_NAME_MAPPING,
         NameMappingParser.toJson(MappingUtil.create(icebergSchema)));
+
+    Map<String, String> configuration = deltaSnapshot.getMetadata().getConfiguration();
+    icebergPropertiesBuilder.putAll(configuration);
+    if (!configuration.isEmpty()) {
+      System.out.println(configuration);
+    }
 
     return icebergPropertiesBuilder.build();
   }
