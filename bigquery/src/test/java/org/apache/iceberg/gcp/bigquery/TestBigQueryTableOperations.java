@@ -201,6 +201,9 @@ public class TestBigQueryTableOperations {
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("Cannot commit");
+
+    // Verify table is loaded only once
+    verify(client, times(1)).load(TABLE_REFERENCE);
   }
 
   @Test
