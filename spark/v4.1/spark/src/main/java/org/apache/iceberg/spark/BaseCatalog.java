@@ -18,15 +18,25 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.Set;
+import org.apache.iceberg.rest.functions.RestFunctionService;
+import org.apache.iceberg.spark.functions.SparkFunctions;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.iceberg.spark.udf.SqlFunctionCatalog;
+import org.apache.iceberg.spark.udf.SqlFunctionSpec;
+import org.apache.iceberg.spark.udf.SqlFunctionSpecParser;
+import org.apache.iceberg.spark.udf.SqlUdfCatalogFunction;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.ProcedureCatalog;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
+import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -37,11 +47,16 @@ abstract class BaseCatalog
         HasIcebergCatalog,
         SupportsFunctions,
         ViewCatalog,
-        SupportsReplaceView {
+        SupportsReplaceView,
+        SqlFunctionCatalog {
   private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
   private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
   private boolean useNullableQuerySchema = USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT;
+  private String functionsRestUri = null;
+  private String functionsRestAuth = null;
+  private RestFunctionService restFunctions = null;
+  private java.util.List<String> cachedRestFunctionNames = null;
 
   @Override
   public UnboundProcedure loadProcedure(Identifier ident) {
@@ -77,7 +92,7 @@ abstract class BaseCatalog
     // the corresponding functions to generate transforms for partitioning
     // with an empty namespace, such as `bucket`.
     // Otherwise, use `system` namespace.
-    return namespace.length == 0 || isSystemNamespace(namespace);
+    return namespace.length == 0 || isSystemNamespace(namespace) || namespaceExists(namespace);
   }
 
   @Override
@@ -92,6 +107,13 @@ abstract class BaseCatalog
             options,
             USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS,
             USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT);
+
+    // Opt-in config for REST-backed function listing/loading (read-only Stage 1: list/load specs)
+    this.functionsRestUri = options.get("functions.rest.uri");
+    this.functionsRestAuth = options.get("functions.rest.auth");
+    if (functionsRestUri != null && !functionsRestUri.isEmpty()) {
+      this.restFunctions = new RestFunctionService(functionsRestUri, functionsRestAuth);
+    }
   }
 
   @Override
@@ -101,5 +123,75 @@ abstract class BaseCatalog
 
   private static boolean isSystemNamespace(String[] namespace) {
     return namespace.length == 1 && namespace[0].equalsIgnoreCase("system");
+  }
+
+  @Override
+  public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
+    if (isFunctionNamespace(namespace)) {
+      Set<String> names = new java.util.LinkedHashSet<>();
+      names.addAll(SparkFunctions.list());
+
+      if (restFunctions != null) {
+        if (cachedRestFunctionNames == null) {
+          cachedRestFunctionNames = restFunctions.listFunctions(namespace);
+        }
+
+        for (String fn : cachedRestFunctionNames) {
+          if (!names.contains(fn)) {
+            names.add(fn);
+          }
+        }
+      }
+
+      return names.stream().map(name -> Identifier.of(namespace, name)).toArray(Identifier[]::new);
+    } else if (isExistingNamespace(namespace)) {
+      return new Identifier[0];
+    }
+    throw new NoSuchNamespaceException(namespace);
+  }
+
+  @Override
+  public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
+    String[] namespace = ident.namespace();
+    String name = ident.name();
+
+    if (!isFunctionNamespace(namespace)) {
+      throw new NoSuchFunctionException(ident);
+    }
+
+    // Try built-ins first
+    UnboundFunction builtin = SparkFunctions.load(name);
+    if (builtin != null) {
+      return builtin;
+    }
+
+    // For Iceberg SQL UDFs, return a bindable placeholder so Spark's analyzer does not fail early.
+    // The actual semantics are provided by the Spark extensions rewrite rule using loadSqlFunction.
+    try {
+      SqlFunctionSpec spec = loadSqlFunction(ident);
+      return new SqlUdfCatalogFunction(name(), ident, spec);
+    } catch (NoSuchFunctionException e) {
+      throw e;
+    }
+  }
+
+  @Override
+  public SqlFunctionSpec loadSqlFunction(Identifier ident) throws NoSuchFunctionException {
+    String[] namespace = ident.namespace();
+    String name = ident.name();
+    if (!isFunctionNamespace(namespace)) {
+      throw new NoSuchFunctionException(ident);
+    }
+
+    if (restFunctions == null) {
+      throw new NoSuchFunctionException(ident);
+    }
+
+    try {
+      String json = restFunctions.getFunctionSpecJson(namespace, name);
+      return SqlFunctionSpecParser.parseScalar(json);
+    } catch (RuntimeException e) {
+      throw new NoSuchFunctionException(ident);
+    }
   }
 }
