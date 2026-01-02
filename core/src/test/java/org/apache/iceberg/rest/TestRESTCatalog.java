@@ -3323,9 +3323,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   public void testIdempotentDuplicateCreateReturnsCached() {
     String key = "dup-create-key";
     Namespace ns = Namespace.of("ns_dup");
-    TableIdentifier ident = TableIdentifier.of(ns, "t_dup");
-    restCatalog.createNamespace(ns, ImmutableMap.of());
-    Pair<RESTClient, Map<String, String>> httpAndHeaders = httpAndHeaders(key);
+    Pair<TableIdentifier, Pair<RESTClient, Map<String, String>>> env =
+        prepareIdempotentEnv(key, ns, "t_dup");
+    TableIdentifier ident = env.first();
+    Pair<RESTClient, Map<String, String>> httpAndHeaders = env.second();
     RESTClient http = httpAndHeaders.first();
     Map<String, String> headers = httpAndHeaders.second();
     CreateTableRequest req = createReq(ident);
@@ -3364,9 +3365,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     try {
       String key = "expired-create-key";
       Namespace ns = Namespace.of("ns_exp");
-      TableIdentifier ident = TableIdentifier.of(ns, "t_exp");
-      restCatalog.createNamespace(ns, ImmutableMap.of());
-      Pair<RESTClient, Map<String, String>> httpAndHeaders = httpAndHeaders(key);
+      Pair<TableIdentifier, Pair<RESTClient, Map<String, String>>> env =
+          prepareIdempotentEnv(key, ns, "t_exp");
+      TableIdentifier ident = env.first();
+      Pair<RESTClient, Map<String, String>> httpAndHeaders = env.second();
       RESTClient http = httpAndHeaders.first();
       Map<String, String> headers = httpAndHeaders.second();
       CreateTableRequest req = createReq(ident);
@@ -3410,9 +3412,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     String key = "idemp-create-503";
     adapterForRESTServer.simulate503OnFirstSuccessForKey(key);
     Namespace ns = Namespace.of("ns_idemp");
-    TableIdentifier ident = TableIdentifier.of(ns, "t_idemp");
-    restCatalog.createNamespace(ns, ImmutableMap.of());
-    Pair<RESTClient, Map<String, String>> httpAndHeaders = httpAndHeaders(key);
+    Pair<TableIdentifier, Pair<RESTClient, Map<String, String>>> env =
+        prepareIdempotentEnv(key, ns, "t_idemp");
+    TableIdentifier ident = env.first();
+    Pair<RESTClient, Map<String, String>> httpAndHeaders = env.second();
     RESTClient http = httpAndHeaders.first();
     Map<String, String> headers = httpAndHeaders.second();
     CreateTableRequest req = createReq(ident);
@@ -3450,9 +3453,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   public void testIdempotentDropDuplicateNoop() {
     String key = "idemp-drop-void";
     Namespace ns = Namespace.of("ns_void");
-    TableIdentifier ident = TableIdentifier.of(ns, "t_void");
-    restCatalog.createNamespace(ns, ImmutableMap.of());
-    Pair<RESTClient, Map<String, String>> httpAndHeaders = httpAndHeaders(key);
+    Pair<TableIdentifier, Pair<RESTClient, Map<String, String>>> env =
+        prepareIdempotentEnv(key, ns, "t_void");
+    TableIdentifier ident = env.first();
+    Pair<RESTClient, Map<String, String>> httpAndHeaders = env.second();
     RESTClient http = httpAndHeaders.first();
     Map<String, String> headers = httpAndHeaders.second();
 
@@ -3643,6 +3647,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     AuthSession httpSession = am.initSession(httpBase, conf);
     RESTClient http = httpBase.withAuthSession(httpSession);
     return Pair.of(http, headers);
+  }
+
+  private Pair<TableIdentifier, Pair<RESTClient, Map<String, String>>> prepareIdempotentEnv(
+      String key, Namespace ns, String tableName) {
+    TableIdentifier ident = TableIdentifier.of(ns, tableName);
+    restCatalog.createNamespace(ns, ImmutableMap.of());
+    return Pair.of(ident, httpAndHeaders(key));
   }
 
   private static CreateTableRequest createReq(TableIdentifier ident) {
