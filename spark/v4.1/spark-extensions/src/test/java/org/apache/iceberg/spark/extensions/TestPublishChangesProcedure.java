@@ -160,6 +160,25 @@ public class TestPublishChangesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testApplyDuplicateWapId() {
+
+    String wapId = "wap_id_1";
+
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')", tableName, WRITE_AUDIT_PUBLISH_ENABLED);
+
+    spark.conf().set("spark.wap.id", wapId);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    assertThatThrownBy(
+            () -> sql("CALL %s.system.publish_changes('%s', '%s')", catalogName, tableIdent, wapId))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot apply non-unique WAP ID. Found 2 snapshots with WAP ID 'wap_id_1'");
+  }
+
+  @TestTemplate
   public void testInvalidApplyWapChangesCases() {
     assertThatThrownBy(
             () ->
