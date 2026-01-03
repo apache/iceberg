@@ -576,6 +576,18 @@ public class RewriteTablePathUtil {
   public interface PositionDeleteReaderWriter extends Serializable {
     CloseableIterable<Record> reader(InputFile inputFile, FileFormat format, PartitionSpec spec);
 
+    default PositionDeleteWriter<Record> writer(
+        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
+        throws IOException {
+      return writer(outputFile, format, spec, partition, null);
+    }
+
+    /**
+     * @deprecated This method is deprecated as of version 1.11.0 and will be removed in 1.12.0.
+     *     Position deletes that include row data are no longer supported. Use {@link
+     *     #writer(OutputFile, FileFormat, PartitionSpec, StructLike)} instead.
+     */
+    @Deprecated
     PositionDeleteWriter<Record> writer(
         OutputFile outputFile,
         FileFormat format,

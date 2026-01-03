@@ -78,16 +78,16 @@ public class TestManifestCaching {
     assertThat(cache.estimatedCacheSize())
         .as("All manifest files should be cached")
         .isEqualTo(numFiles);
-    assertThat(cache.stats().loadCount())
+    assertThat(cache.stats().loadSuccessCount())
         .as("All manifest files should be recently loaded")
         .isEqualTo(numFiles);
-    long missCount = cache.stats().missCount();
+    long missCount = ManifestFiles.contentCacheStats(table.io()).missCount();
 
     // planFiles and verify that cache size still the same
     TableScan scan2 = table.newScan();
     assertThat(scan2.planFiles()).hasSize(numFiles);
     assertThat(cache.estimatedCacheSize()).isEqualTo(numFiles);
-    assertThat(cache.stats().missCount())
+    assertThat(ManifestFiles.contentCacheStats(table.io()).missCount())
         .as("All manifest file reads should hit cache")
         .isEqualTo(missCount);
 
@@ -115,10 +115,14 @@ public class TestManifestCaching {
     assertThat(cache.maxTotalBytes()).isEqualTo(1);
     assertThat(scan.planFiles()).hasSize(numFiles);
     assertThat(cache.estimatedCacheSize()).isEqualTo(0);
-    assertThat(cache.stats().loadCount())
+    assertThat(cache.stats().loadSuccessCount())
         .as("File should not be loaded through cache")
         .isEqualTo(0);
-    assertThat(cache.stats().requestCount()).as("Cache should not serve file").isEqualTo(0);
+    assertThat(
+            ManifestFiles.contentCacheStats(table.io()).hitCount()
+                + ManifestFiles.contentCacheStats(table.io()).missCount())
+        .as("Cache should not serve file")
+        .isEqualTo(0);
     ManifestFiles.dropCache(scan.table().io());
   }
 

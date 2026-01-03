@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
@@ -90,12 +91,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private String tableKeyId;
   private int encryptionDekLength;
 
-  // keys loaded from the latest metadata
-  private Optional<List<EncryptedKey>> encryptedKeysFromMetadata = Optional.empty();
-
-  // keys added to EM (e.g. as a result of a FileAppend) but not committed into the latest metadata
-  // yet
-  private Optional<List<EncryptedKey>> encryptedKeysPending = Optional.empty();
+  private List<EncryptedKey> encryptedKeys = List.of();
 
   protected HiveTableOperations(
       Configuration conf,
@@ -156,12 +152,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       encryptionProperties.put(
           TableProperties.ENCRYPTION_DEK_LENGTH, String.valueOf(encryptionDekLength));
 
-      List<EncryptedKey> keys = Lists.newLinkedList();
-      encryptedKeysFromMetadata.ifPresent(keys::addAll);
-      encryptedKeysPending.ifPresent(keys::addAll);
-
       encryptionManager =
-          EncryptionUtil.createEncryptionManager(keys, encryptionProperties, keyManagementClient);
+          EncryptionUtil.createEncryptionManager(
+              encryptedKeys, encryptionProperties, keyManagementClient);
     } else {
       return PlaintextEncryptionManager.instance();
     }
@@ -174,6 +167,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     String metadataLocation = null;
     String tableKeyIdFromHMS = null;
     String dekLengthFromHMS = null;
+    String metadataHashFromHMS = null;
     try {
       Table table = metaClients.run(client -> client.getTable(database, tableName));
 
@@ -189,6 +183,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       produce unencrypted files. Table key ID is taken directly from HMS catalog */
       tableKeyIdFromHMS = table.getParameters().get(TableProperties.ENCRYPTION_TABLE_KEY);
       dekLengthFromHMS = table.getParameters().get(TableProperties.ENCRYPTION_DEK_LENGTH);
+      metadataHashFromHMS = table.getParameters().get(METADATA_HASH_PROP);
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
         throw new NoSuchTableException("No such table: %s.%s", database, tableName);
@@ -207,7 +202,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
 
     if (tableKeyIdFromHMS != null) {
-      checkEncryptionProperties(tableKeyIdFromHMS, dekLengthFromHMS);
+      checkIntegrityForEncryption(tableKeyIdFromHMS, dekLengthFromHMS, metadataHashFromHMS);
 
       tableKeyId = tableKeyIdFromHMS;
       encryptionDekLength =
@@ -215,24 +210,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               ? Integer.parseInt(dekLengthFromHMS)
               : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
 
-      encryptedKeysFromMetadata = Optional.ofNullable(current().encryptionKeys());
+      encryptedKeys =
+          Optional.ofNullable(current().encryptionKeys())
+              .map(Lists::newLinkedList)
+              .orElseGet(Lists::newLinkedList);
 
       if (encryptionManager != null) {
-        encryptedKeysPending = Optional.of(Lists.newLinkedList());
-
         Set<String> keyIdsFromMetadata =
-            encryptedKeysFromMetadata.orElseGet(Lists::newLinkedList).stream()
-                .map(EncryptedKey::keyId)
-                .collect(Collectors.toSet());
+            encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
 
         for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
           if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
-            encryptedKeysPending.get().add(keyFromEM);
+            encryptedKeys.add(keyFromEM);
           }
         }
-
-      } else {
-        encryptedKeysPending = Optional.empty();
       }
 
       // Force re-creation of encryption manager with updated keys
@@ -245,6 +236,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
+    final TableMetadata tableMetadata;
     encryptionPropsFromMetadata(metadata.properties());
 
     String newMetadataLocation;
@@ -257,19 +249,21 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         builder.addEncryptionKey(entry.getValue());
       }
 
-      newMetadataLocation = writeNewMetadataIfRequired(newTable, builder.build());
+      tableMetadata = builder.build();
     } else {
-      newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
+      tableMetadata = metadata;
     }
 
-    boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
+    newMetadataLocation = writeNewMetadataIfRequired(newTable, tableMetadata);
+
+    boolean hiveEngineEnabled = hiveEngineEnabled(tableMetadata, conf);
     boolean keepHiveStats = conf.getBoolean(ConfigProperties.KEEP_HIVE_STATS, false);
 
     BaseMetastoreOperations.CommitStatus commitStatus =
         BaseMetastoreOperations.CommitStatus.FAILURE;
     boolean updateHiveTable = false;
 
-    HiveLock lock = lockObject(base != null ? base : metadata);
+    HiveLock lock = lockObject(base != null ? base : tableMetadata);
     try {
       lock.lock();
 
@@ -293,14 +287,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       } else {
         tbl =
             newHmsTable(
-                metadata.property(HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.currentUser()));
+                tableMetadata.property(HiveCatalog.HMS_TABLE_OWNER, HiveHadoopUtil.currentUser()));
         LOG.debug("Committing new table: {}", fullName);
       }
 
       tbl.setSd(
           HiveOperationsBase.storageDescriptor(
-              metadata.schema(),
-              metadata.location(),
+              tableMetadata.schema(),
+              tableMetadata.location(),
               hiveEngineEnabled)); // set to pickup any schema changes
 
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
@@ -316,18 +310,25 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       if (base != null) {
         removedProps =
             base.properties().keySet().stream()
-                .filter(key -> !metadata.properties().containsKey(key))
+                .filter(key -> !tableMetadata.properties().containsKey(key))
                 .collect(Collectors.toSet());
       }
 
       if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
-        throw new RuntimeException("Cannot remove key in encrypted table");
+        throw new IllegalArgumentException("Cannot remove key in encrypted table");
+      }
+
+      if (base != null
+          && !Objects.equals(
+              base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY),
+              metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY))) {
+        throw new IllegalArgumentException("Cannot modify key in encrypted table");
       }
 
       HMSTablePropertyHelper.updateHmsTableForIcebergTable(
           newMetadataLocation,
           tbl,
-          metadata,
+          tableMetadata,
           removedProps,
           hiveEngineEnabled,
           maxHiveTablePropertySize,
@@ -384,7 +385,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
           // issue for example, and triggers this exception. So we need double-check to make sure
           // this is really a concurrent modification. Hitting this exception means no pending
           // requests, if any, can succeed later, so it's safe to check status in strict mode
-          commitStatus = checkCommitStatusStrict(newMetadataLocation, metadata);
+          commitStatus = checkCommitStatusStrict(newMetadataLocation, tableMetadata);
           if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE) {
             throw new CommitFailedException(
                 e, "The table %s.%s has been modified concurrently", database, tableName);
@@ -395,7 +396,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               database,
               tableName,
               e);
-          commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+          commitStatus = checkCommitStatus(newMetadataLocation, tableMetadata);
         }
 
         switch (commitStatus) {
@@ -567,8 +568,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     }
   }
 
-  private void checkEncryptionProperties(String encryptionKeyIdFromHMS, String dekLengthFromHMS) {
-    Map<String, String> propertiesFromMetadata = current().properties();
+  private void checkIntegrityForEncryption(
+      String encryptionKeyIdFromHMS, String dekLengthFromHMS, String metadataHashFromHMS) {
+    TableMetadata metadata = current();
+    if (StringUtils.isNotEmpty(metadataHashFromHMS)) {
+      HMSTablePropertyHelper.verifyMetadataHash(metadata, metadataHashFromHMS);
+      return;
+    }
+
+    LOG.warn(
+        "Full metadata integrity check skipped because no metadata hash was recorded in HMS for table {}."
+            + " Falling back to encryption property based check.",
+        tableName);
+
+    Map<String, String> propertiesFromMetadata = metadata.properties();
 
     String encryptionKeyIdFromMetadata =
         propertiesFromMetadata.get(TableProperties.ENCRYPTION_TABLE_KEY);

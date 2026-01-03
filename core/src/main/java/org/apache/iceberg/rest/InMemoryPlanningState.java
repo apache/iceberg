@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.exceptions.NoSuchPlanIdException;
 import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -43,10 +44,12 @@ class InMemoryPlanningState {
 
   private final Map<String, List<FileScanTask>> planTaskToFileScanTasks;
   private final Map<String, String> planTaskToNext;
+  private final Map<String, PlanStatus> asyncPlanningStates;
 
   private InMemoryPlanningState() {
     this.planTaskToFileScanTasks = Maps.newConcurrentMap();
     this.planTaskToNext = Maps.newConcurrentMap();
+    this.asyncPlanningStates = Maps.newConcurrentMap();
   }
 
   static InMemoryPlanningState getInstance() {
@@ -66,6 +69,44 @@ class InMemoryPlanningState {
 
   void addNextPlanTask(String currentTask, String nextTask) {
     planTaskToNext.put(currentTask, nextTask);
+  }
+
+  void addAsyncPlan(String plan) {
+    PlanStatus existingStatus = asyncPlanningStates.get(plan);
+    Preconditions.checkArgument(
+        existingStatus == null, "Plan %s already exists with status %s", plan, existingStatus);
+    asyncPlanningStates.put(plan, PlanStatus.SUBMITTED);
+  }
+
+  PlanStatus asyncPlanStatus(String plan) {
+    PlanStatus existingStatus = asyncPlanningStates.get(plan);
+    if (existingStatus == null) {
+      throw new NoSuchPlanIdException("Cannot find plan with id %s", plan);
+    }
+
+    return asyncPlanningStates.get(plan);
+  }
+
+  void markAsyncPlanAsComplete(String plan) {
+    PlanStatus existingStatus = asyncPlanningStates.get(plan);
+    Preconditions.checkArgument(existingStatus != null, "Cannot find plan %s", plan);
+    Preconditions.checkArgument(
+        existingStatus == PlanStatus.SUBMITTED,
+        "Cannot mark plan %s as completed as it is %s",
+        plan,
+        existingStatus);
+    asyncPlanningStates.put(plan, PlanStatus.COMPLETED);
+  }
+
+  void markAsyncPlanFailed(String plan) {
+    PlanStatus existingStatus = asyncPlanningStates.get(plan);
+    Preconditions.checkArgument(existingStatus != null, "Cannot find plan %s", plan);
+    Preconditions.checkArgument(
+        existingStatus == PlanStatus.SUBMITTED,
+        "Cannot mark plan %s as completed as it is %s",
+        plan,
+        existingStatus);
+    asyncPlanningStates.put(plan, PlanStatus.FAILED);
   }
 
   List<FileScanTask> fileScanTasksForPlanTask(String planTaskKey) {
@@ -120,13 +161,27 @@ class InMemoryPlanningState {
     return Pair.of(initialEntry.getValue(), initialEntry.getKey());
   }
 
-  void removePlan(String planId) {
+  void cancelPlan(String planId) {
     planTaskToNext.entrySet().removeIf(entry -> entry.getKey().contains(planId));
     planTaskToFileScanTasks.entrySet().removeIf(entry -> entry.getKey().contains(planId));
+    // Clear the ongoing plan status in case the planID is an async one.
+    if (asyncPlanningStates.containsKey(planId)) {
+      PlanStatus existingStatus = asyncPlanningStates.get(planId);
+      // No need to fail cancellation if the plan could not be found
+      if (existingStatus == null) {
+        return;
+      }
+
+      // No need to fail cancellation if the plan already terminated
+      if (existingStatus == PlanStatus.SUBMITTED) {
+        asyncPlanningStates.put(planId, PlanStatus.CANCELLED);
+      }
+    }
   }
 
   void clear() {
     planTaskToFileScanTasks.clear();
     planTaskToNext.clear();
+    asyncPlanningStates.clear();
   }
 }

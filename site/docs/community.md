@@ -47,7 +47,7 @@ Iceberg has four mailing lists:
 
 ### Slack
 
-We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link](https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A).
+We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link](https://join.slack.com/t/apache-iceberg/shared_invite/zt-3kclosz6r-3heAW3d~_PHefmN2A_~cAg).
 
 Please note that this link may occasionally break when Slack does an upgrade. If you encounter problems using it, please let us know by sending an email to <dev@iceberg.apache.org>.
 
@@ -87,6 +87,15 @@ Hosts are required to ensure that:
 3. Each meetup should have at least two talks with speakers representing different companies/organizations
 4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
 5. All [Community Guidelines](#community-guidelines) must be respected
+
+Meetups *must* be small events under the [ASF branding guidelines](https://www.apache.org/foundation/marks/events.html#dates) and are typically small, informal gatherings. If you're unsure whether an event is a meetup, meetups usually:
+
+* Rely on a curated selection of talks, where organizers work with the community to include a diverse representation of speakers, topics, and companies. Due to the small number of submissions, meetups might use, but don't require, a CfP.
+* Are single-tracked and accommodate only a handful of sessions.
+* Have at most 2-3 hours of content, plus networking time.
+* Are sponsored by 1-3 companies providing food, drinks, or meeting space; not by selling booth space or marketing opportunities. They don't require substantial financial support.
+
+If you don't know whether an event qualifies as a meetup, please ask the PMC through the private mailing list! (Be sure to do this *before* using the Apache Iceberg brand or trademark.)
 
 ## Community Guidelines
 

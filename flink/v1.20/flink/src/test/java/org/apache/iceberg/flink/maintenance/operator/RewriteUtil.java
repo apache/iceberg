@@ -22,6 +22,7 @@ import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_F
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
@@ -38,6 +39,11 @@ class RewriteUtil {
 
   static List<DataFileRewritePlanner.PlannedGroup> planDataFileRewrite(TableLoader tableLoader)
       throws Exception {
+    return planDataFileRewrite(tableLoader, ImmutableMap.of(MIN_INPUT_FILES, "2"));
+  }
+
+  static List<DataFileRewritePlanner.PlannedGroup> planDataFileRewrite(
+      TableLoader tableLoader, Map<String, String> rewriterOptions) throws Exception {
     try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
         testHarness =
             ProcessFunctionTestHarnesses.forProcessFunction(
@@ -48,7 +54,7 @@ class RewriteUtil {
                     tableLoader,
                     11,
                     10_000_000L,
-                    ImmutableMap.of(MIN_INPUT_FILES, "2"),
+                    rewriterOptions,
                     Expressions.alwaysTrue()))) {
       testHarness.open();
 

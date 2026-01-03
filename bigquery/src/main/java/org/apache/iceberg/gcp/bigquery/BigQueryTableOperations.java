@@ -21,7 +21,6 @@ package org.apache.iceberg.gcp.bigquery;
 import com.google.api.services.bigquery.model.ExternalCatalogTableOptions;
 import com.google.api.services.bigquery.model.Table;
 import com.google.api.services.bigquery.model.TableReference;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -178,16 +177,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
     }
 
     options.setParameters(buildTableParameters(newMetadataLocation, metadata));
-    try {
-      client.update(tableReference, table);
-    } catch (ValidationException e) {
-      if (e.getMessage().toLowerCase(Locale.ENGLISH).contains("etag mismatch")) {
-        throw new CommitFailedException(
-            "Updating table failed due to conflict updates (etag mismatch). Retry the update");
-      }
-
-      throw e;
-    }
+    client.update(tableReference, table);
   }
 
   // To make the table queryable from Hive, the user would likely be setting the HIVE_ENGINE_ENABLED

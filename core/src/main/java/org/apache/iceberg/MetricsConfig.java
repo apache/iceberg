@@ -84,7 +84,7 @@ public final class MetricsConfig implements Serializable {
    * Creates a metrics config from table configuration.
    *
    * @param props table configuration
-   * @deprecated use {@link MetricsConfig#forTable(Table)}
+   * @deprecated use {@link MetricsConfig#forTable(Table)}. Will be removed in 2.0.0
    */
   @Deprecated
   public static MetricsConfig fromProperties(Map<String, String> props) {
