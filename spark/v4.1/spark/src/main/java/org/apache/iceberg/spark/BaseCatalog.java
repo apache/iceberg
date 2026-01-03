@@ -92,7 +92,13 @@ abstract class BaseCatalog
     // the corresponding functions to generate transforms for partitioning
     // with an empty namespace, such as `bucket`.
     // Otherwise, use `system` namespace.
-    return namespace.length == 0 || isSystemNamespace(namespace) || namespaceExists(namespace);
+    //
+    // Note: user namespaces (e.g. `default`) are NOT function namespaces for built-in Iceberg
+    // functions. They may only be treated as function namespaces when REST-backed SQL functions
+    // are enabled (see functions.rest.uri).
+    return namespace.length == 0
+        || isSystemNamespace(namespace)
+        || (restFunctions != null && namespaceExists(namespace));
   }
 
   @Override
@@ -129,7 +135,10 @@ abstract class BaseCatalog
   public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
     if (isFunctionNamespace(namespace)) {
       Set<String> names = new java.util.LinkedHashSet<>();
-      names.addAll(SparkFunctions.list());
+      // Built-in Iceberg functions are only exposed in empty/system namespaces.
+      if (namespace.length == 0 || isSystemNamespace(namespace)) {
+        names.addAll(SparkFunctions.list());
+      }
 
       if (restFunctions != null) {
         if (cachedRestFunctionNames == null) {
@@ -159,10 +168,12 @@ abstract class BaseCatalog
       throw new NoSuchFunctionException(ident);
     }
 
-    // Try built-ins first
-    UnboundFunction builtin = SparkFunctions.load(name);
-    if (builtin != null) {
-      return builtin;
+    // Try built-ins first, but only for empty/system namespaces.
+    if (namespace.length == 0 || isSystemNamespace(namespace)) {
+      UnboundFunction builtin = SparkFunctions.load(name);
+      if (builtin != null) {
+        return builtin;
+      }
     }
 
     // For Iceberg SQL UDFs, return a bindable placeholder so Spark's analyzer does not fail early.
