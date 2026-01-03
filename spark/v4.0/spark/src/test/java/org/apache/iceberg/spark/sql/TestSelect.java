@@ -111,7 +111,9 @@ public class TestSelect extends CatalogTestBase {
         ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
     assertEquals(
-        "Should return all expected rows", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @TestTemplate
@@ -123,7 +125,9 @@ public class TestSelect extends CatalogTestBase {
     table.updateProperties().set("read.split.target-size", "1024").commit();
     spark.sql("REFRESH TABLE " + tableName);
     assertEquals(
-        "Should return all expected rows", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
 
     // Query failed when `SPLIT_SIZE` < 0
     table.updateProperties().set(SPLIT_SIZE, "-1").commit();
@@ -164,8 +168,10 @@ public class TestSelect extends CatalogTestBase {
     // verify that LIMIT is properly applied in case SupportsPushDownLimit.isPartiallyPushed() is
     // ever overridden in SparkScanBuilder
     assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 1", tableName)).containsExactly(first);
-    assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 2", tableName)).containsExactly(first, second);
-    assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 3", tableName)).containsExactly(first, second, third);
+    assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 2", tableName))
+        .containsExactly(first, second);
+    assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 3", tableName))
+        .containsExactly(first, second, third);
   }
 
   @TestTemplate
@@ -173,7 +179,9 @@ public class TestSelect extends CatalogTestBase {
     List<Object[]> expected = ImmutableList.of(row(1L), row(2L), row(3L));
 
     assertEquals(
-        "Should return all expected rows", expected, sql("SELECT id FROM %s ORDER BY id", tableName));
+        "Should return all expected rows",
+        expected,
+        sql("SELECT id FROM %s ORDER BY id", tableName));
 
     assertThat(scanEventCount).as("Should create only one scan").isEqualTo(1);
     assertThat(lastScanEvent.filter())
