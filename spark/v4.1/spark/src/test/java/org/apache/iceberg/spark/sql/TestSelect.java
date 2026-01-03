@@ -111,7 +111,9 @@ public class TestSelect extends CatalogTestBase {
         ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
     assertEquals(
-        "Should return all expected rows", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @TestTemplate
@@ -123,7 +125,9 @@ public class TestSelect extends CatalogTestBase {
     table.updateProperties().set("read.split.target-size", "1024").commit();
     spark.sql("REFRESH TABLE " + tableName);
     assertEquals(
-        "Should return all expected rows", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
 
     // Query failed when `SPLIT_SIZE` < 0
     table.updateProperties().set(SPLIT_SIZE, "-1").commit();
@@ -157,19 +161,26 @@ public class TestSelect extends CatalogTestBase {
 
   @TestTemplate
   public void selectWithLimit() {
-    // Note: without ORDER BY, the specific rows returned are not deterministic, especially when
-    // remote scan planning or split planning changes the physical scan order. This test only
-    // asserts that the LIMIT is enforced.
-    assertThat(sql("SELECT * FROM %s LIMIT 1", tableName)).hasSize(1);
-    assertThat(sql("SELECT * FROM %s LIMIT 2", tableName)).hasSize(2);
-    assertThat(sql("SELECT * FROM %s LIMIT 3", tableName)).hasSize(3);
+    Object[] first = row(1L, "a", 1.0F);
+    Object[] second = row(2L, "b", 2.0F);
+    Object[] third = row(3L, "c", Float.NaN);
+
+    // verify that LIMIT is properly applied in case SupportsPushDownLimit.isPartiallyPushed() is
+    // ever overridden in SparkScanBuilder
+    assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 1", tableName)).containsExactly(first);
+    assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 2", tableName))
+        .containsExactly(first, second);
+    assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 3", tableName))
+        .containsExactly(first, second, third);
   }
 
   @TestTemplate
   public void testProjection() {
     List<Object[]> expected = ImmutableList.of(row(1L), row(2L), row(3L));
     assertEquals(
-        "Should return all expected rows", expected, sql("SELECT id FROM %s ORDER BY id", tableName));
+        "Should return all expected rows",
+        expected,
+        sql("SELECT id FROM %s ORDER BY id", tableName));
 
     assertThat(scanEventCount).as("Should create only one scan").isEqualTo(1);
     assertThat(lastScanEvent.filter())
@@ -693,7 +704,8 @@ public class TestSelect extends CatalogTestBase {
     java.sql.Date dateTwo = java.sql.Date.valueOf("2023-03-03");
     assertThat(sql("SELECT date FROM %s where date > to_date('2021-01-01')", tableName))
         .containsExactlyInAnyOrder(row(dateOne), row(dateTwo));
-    assertThat(sql("SELECT timestamp FROM %s where timestamp > to_timestamp('2021-01-01')", tableName))
+    assertThat(
+            sql("SELECT timestamp FROM %s where timestamp > to_timestamp('2021-01-01')", tableName))
         .containsExactlyInAnyOrder(
             row(new Timestamp(dateOne.getTime())), row(new Timestamp(dateTwo.getTime())));
 
