@@ -528,3 +528,13 @@ This binary artifact contains Eclipse MicroProfile OpenAPI.
 
 Home page: https://github.com/microprofile/microprofile-open-api
 License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Azure Security Key Vault Keys.
+
+Copyright: Microsoft Corporation
+Home page: https://github.com/Azure/azure-sdk-for-java
+License: https://github.com/Azure/azure-sdk-for-java/blob/main/LICENSE.txt (MIT license)
+
+--------------------------------------------------------------------------------
