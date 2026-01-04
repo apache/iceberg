@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import org.apache.iceberg.EmptyStructLike;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,7 @@ public class TestLiteralSerialization {
           Literal.of(new byte[] {1, 2, 3}).to(Types.FixedType.ofLength(3)),
           Literal.of(new byte[] {3, 4, 5, 6}).to(Types.BinaryType.get()),
           Literal.of(new BigDecimal("122.50")),
+          Literal.of(EmptyStructLike.get()),
         };
 
     for (Literal<?> lit : literals) {
