@@ -191,6 +191,21 @@ public class PropertyUtil {
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
+  public static Map<String, String> mergeProperties(
+      Map<String, String> properties, Map<String, String> overrides) {
+    if (overrides == null || overrides.isEmpty()) {
+      return properties;
+    }
+
+    if (properties == null || properties.isEmpty()) {
+      return overrides;
+    }
+
+    Map<String, String> merged = Maps.newHashMap(properties);
+    merged.putAll(overrides);
+    return merged;
+  }
+
   public static Map<String, String> applySchemaChanges(
       Map<String, String> properties,
       List<String> deletedColumns,
