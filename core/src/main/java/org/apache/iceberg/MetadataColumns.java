@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -128,6 +129,10 @@ public class MetadataColumns {
 
   public static Set<Integer> metadataFieldIds() {
     return META_IDS;
+  }
+
+  public static Collection<NestedField> metadataColumns() {
+    return META_COLUMNS.values();
   }
 
   public static NestedField metadataColumn(Table table, String name) {
