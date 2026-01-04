@@ -30,9 +30,9 @@ configure(sparkProjects) {
   configurations {
     all {
       resolutionStrategy {
-        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:${libs.versions.jackson214.get()}"
-        force "com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson214.get()}"
-        force "com.fasterxml.jackson.core:jackson-core:${libs.versions.jackson214.get()}"
+        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:${libs.versions.jackson215.get()}"
+        force "com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson215.get()}"
+        force "com.fasterxml.jackson.core:jackson-core:${libs.versions.jackson215.get()}"
       }
     }
   }
