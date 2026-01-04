@@ -20,6 +20,7 @@ package org.apache.iceberg.transforms;
 
 import com.google.errorprone.annotations.Immutable;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
@@ -131,11 +132,23 @@ enum Timestamps implements Transform<Long, Integer> {
   }
 
   @Override
+  public boolean canTransform(List<Type> types) {
+    Preconditions.checkArgument(types.size() == 1, "Only one type is accepted");
+    return canTransform(types.get(0));
+  }
+
+  @Override
   public Type getResultType(Type sourceType) {
     if (granularity == ChronoUnit.DAYS) {
       return Types.DateType.get();
     }
     return Types.IntegerType.get();
+  }
+
+  @Override
+  public Type getResultType(List<Type> sourceTypes) {
+    Preconditions.checkArgument(sourceTypes.size() == 1, "Only one source type is accepted");
+    return getResultType(sourceTypes.get(0));
   }
 
   ChronoUnit granularity() {
