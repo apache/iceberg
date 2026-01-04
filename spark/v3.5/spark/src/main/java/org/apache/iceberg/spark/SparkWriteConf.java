@@ -42,6 +42,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableUtil;
@@ -162,6 +163,22 @@ public class SparkWriteConf {
     return outputSpecId;
   }
 
+  public SortOrder outputSortOrder() {
+    int outputSortOrderId =
+        confParser
+            .intConf()
+            .option(SparkWriteOptions.OUTPUT_SORT_ORDER_ID)
+            .defaultValue(SortOrder.unsorted().orderId())
+            .parse();
+
+    Preconditions.checkArgument(
+        table.sortOrders().containsKey(outputSortOrderId),
+        "Output sort order id %s is not a valid sort order id for table",
+        outputSortOrderId);
+
+    return table.sortOrders().get(outputSortOrderId);
+  }
+
   public FileFormat dataFileFormat() {
     String valueAsString =
         confParser
@@ -278,6 +295,21 @@ public class SparkWriteConf {
 
     return SparkWriteUtil.writeRequirements(
         table, distributionMode(), fanoutWriterEnabled(), dataAdvisoryPartitionSize());
+  }
+
+  public SparkWriteRequirements rewriteFilesWriteRequirements() {
+    Preconditions.checkNotNull(
+        rewrittenFileSetId(), "Can only use rewrite files write requirements during rewrite job!");
+
+    SortOrder outputSortOrder = outputSortOrder();
+    if (outputSortOrder.isSorted()) {
+      LOG.info(
+          "Found explicit sort order {} set in job configuration. Going to apply that to the sort-order-id of the rewritten files",
+          Spark3Util.describe(outputSortOrder));
+      return writeRequirements().withTableSortOrder(outputSortOrder);
+    }
+
+    return writeRequirements();
   }
 
   @VisibleForTesting
