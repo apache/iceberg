@@ -48,9 +48,11 @@ class RollbackToSnapshotProcedure extends BaseProcedure {
       requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter SNAPSHOT_ID_PARAM =
       requiredInParameter("snapshot_id", DataTypes.LongType);
+  private static final ProcedureParameter ROLLBACK_SCHEMA_PARAM =
+      optionalInParameter("rollback_schema", DataTypes.BooleanType, "false");
 
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {TABLE_PARAM, SNAPSHOT_ID_PARAM};
+      new ProcedureParameter[] {TABLE_PARAM, SNAPSHOT_ID_PARAM, ROLLBACK_SCHEMA_PARAM};
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -87,6 +89,7 @@ class RollbackToSnapshotProcedure extends BaseProcedure {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
     long snapshotId = input.asLong(SNAPSHOT_ID_PARAM);
+    boolean rollbackSchema = input.asBoolean(ROLLBACK_SCHEMA_PARAM, false);
 
     return modifyIcebergTable(
         tableIdent,
@@ -94,6 +97,10 @@ class RollbackToSnapshotProcedure extends BaseProcedure {
           Snapshot previousSnapshot = table.currentSnapshot();
 
           table.manageSnapshots().rollbackTo(snapshotId).commit();
+
+          if (rollbackSchema) {
+            table.updateSchema().rollbackTo(table.currentSnapshot().schemaId()).commit();
+          }
 
           InternalRow outputRow = newInternalRow(previousSnapshot.snapshotId(), snapshotId);
           return asScanIterator(OUTPUT_TYPE, outputRow);
