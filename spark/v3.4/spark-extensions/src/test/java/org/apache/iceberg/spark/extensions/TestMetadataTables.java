@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData.Record;
@@ -53,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -74,6 +76,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestMetadataTables extends ExtensionsTestBase {
   @Parameter(index = 3)
   private int formatVersion;
+
+  private static final BaseEncoding LOWER_HEX = BaseEncoding.base16().lowerCase();
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
   protected static Object[][] parameters() {
@@ -989,5 +993,45 @@ public class TestMetadataTables extends ExtensionsTestBase {
 
     assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
         .containsExactly(firstEntry, secondEntry, thirdEntry, fourthEntry, fifthEntry);
+  }
+
+  @TestTemplate
+  public void testReadableMetricsWithUUIDBounds() throws Exception {
+    // 1. Create table via Spark SQL (Spark-compatible)
+    sql(
+        "CREATE TABLE %s (dummy INT) USING iceberg TBLPROPERTIES ('format-version'='%s')",
+        tableName, formatVersion);
+
+    // 2. Load Iceberg table and evolve schema to UUID
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+
+    table.updateSchema().deleteColumn("dummy").addColumn("id", Types.UUIDType.get()).commit();
+
+    // 3. Insert data via Spark (forces Iceberg to write UUID metrics)
+    UUID uuid = UUID.randomUUID();
+
+    sql("INSERT INTO %s VALUES ('%s')", tableName, uuid.toString());
+
+    // 4. Query readable_metrics
+    //    BEFORE FIX: crashes with
+    //    java.lang.ClassCastException: java.util.UUID → java.lang.CharSequence
+    Dataset<Row> df = spark.sql("SELECT readable_metrics FROM " + tableName + ".all_files");
+
+    // After fix: must not throw
+    List<Row> rows = df.collectAsList();
+    assertThat(rows).hasSize(1);
+
+    Row readableMetrics = rows.get(0).getStruct(0);
+    assertThat(readableMetrics).isNotNull();
+
+    Row idMetrics = readableMetrics.getStruct(readableMetrics.fieldIndex("id"));
+
+    // Accessing bounds must not throw
+    Object lowerBound = idMetrics.get(idMetrics.fieldIndex("lower_bound"));
+    Object upperBound = idMetrics.get(idMetrics.fieldIndex("upper_bound"));
+
+    // Do NOT assert exact type — only that Spark can read safely
+    assertThat(lowerBound).isNotNull();
+    assertThat(upperBound).isNotNull();
   }
 }
