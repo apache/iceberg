@@ -243,7 +243,7 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
             1024L,
             properties,
             100,
-            new DynamicWriterMetrics(new UnregisteredMetricsGroup()),
+            new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
             0,
             0);
     return dynamicWriter;
