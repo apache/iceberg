@@ -136,8 +136,7 @@ class DynamicWriteResultAggregator
     }
 
     output.collect(
-        new StreamRecord<>(
-            new CommittableSummary<>(subTaskId, count, checkpointId, count, count, 0)));
+        new StreamRecord<>(new CommittableSummary<>(subTaskId, count, checkpointId, count, 0)));
     committables.forEach(
         c ->
             output.collect(
