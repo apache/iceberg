@@ -55,15 +55,19 @@ abstract class DynamicRecordInternalSerializerTestBase
   static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).bucket("id", 10).build();
 
   private boolean writeFullSchemaAndSpec;
+  private final boolean writeLongUTF;
 
-  DynamicRecordInternalSerializerTestBase(boolean writeFullSchemaAndSpec) {
+  DynamicRecordInternalSerializerTestBase(boolean writeFullSchemaAndSpec, boolean writeLongUTF) {
     this.writeFullSchemaAndSpec = writeFullSchemaAndSpec;
+    this.writeLongUTF = writeLongUTF;
   }
 
   @Override
   protected TypeSerializer<DynamicRecordInternal> createSerializer() {
     return new DynamicRecordInternalSerializer(
-        new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1), writeFullSchemaAndSpec);
+        new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1),
+        writeFullSchemaAndSpec,
+        writeLongUTF);
   }
 
   @BeforeEach

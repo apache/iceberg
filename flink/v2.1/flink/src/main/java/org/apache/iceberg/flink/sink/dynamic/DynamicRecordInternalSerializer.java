@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSchemaCompatibility;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
@@ -34,6 +35,9 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.flink.util.SerializerHelper;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 @Internal
@@ -43,18 +47,27 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
 
   private final TableSerializerCache serializerCache;
   private final boolean writeSchemaAndSpec;
+  private final boolean writeLongUTF;
 
   DynamicRecordInternalSerializer(
       TableSerializerCache serializerCache, boolean writeSchemaAndSpec) {
+    this(serializerCache, writeSchemaAndSpec, true);
+  }
+
+  @VisibleForTesting
+  DynamicRecordInternalSerializer(
+      TableSerializerCache serializerCache, boolean writeSchemaAndSpec, boolean writeLongUTF) {
     this.serializerCache = serializerCache;
     this.writeSchemaAndSpec = writeSchemaAndSpec;
+    this.writeLongUTF = writeLongUTF;
   }
 
   @Override
   public TypeSerializer<DynamicRecordInternal> duplicate() {
     return new DynamicRecordInternalSerializer(
         new TableSerializerCache(serializerCache.catalogLoader(), serializerCache.maximumSize()),
-        writeSchemaAndSpec);
+        writeSchemaAndSpec,
+        writeLongUTF);
   }
 
   @Override
@@ -68,7 +81,12 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     dataOutputView.writeUTF(toSerialize.tableName());
     dataOutputView.writeUTF(toSerialize.branch());
     if (writeSchemaAndSpec) {
-      dataOutputView.writeUTF(SchemaParser.toJson(toSerialize.schema()));
+      if (writeLongUTF) {
+        SerializerHelper.writeLongUTF(dataOutputView, SchemaParser.toJson(toSerialize.schema()));
+      } else {
+        dataOutputView.writeUTF(SchemaParser.toJson(toSerialize.schema()));
+      }
+
       dataOutputView.writeUTF(PartitionSpecParser.toJson(toSerialize.spec()));
     } else {
       dataOutputView.writeInt(toSerialize.schema().schemaId());
@@ -108,7 +126,12 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     final PartitionSpec spec;
     final RowDataSerializer rowDataSerializer;
     if (writeSchemaAndSpec) {
-      schema = SchemaParser.fromJson(dataInputView.readUTF());
+      if (writeLongUTF) {
+        schema = SchemaParser.fromJson(SerializerHelper.readLongUTF(dataInputView));
+      } else {
+        schema = SchemaParser.fromJson(dataInputView.readUTF());
+      }
+
       spec = PartitionSpecParser.fromJson(schema, dataInputView.readUTF());
       rowDataSerializer = serializerCache.serializer(tableName, schema, spec);
     } else {
@@ -152,7 +175,12 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     final PartitionSpec spec;
     final RowDataSerializer rowDataSerializer;
     if (writeSchemaAndSpec) {
-      schema = SchemaParser.fromJson(dataInputView.readUTF());
+      if (writeLongUTF) {
+        schema = SchemaParser.fromJson(SerializerHelper.readLongUTF(dataInputView));
+      } else {
+        schema = SchemaParser.fromJson(dataInputView.readUTF());
+      }
+
       spec = PartitionSpecParser.fromJson(schema, dataInputView.readUTF());
       reuse.setSchema(schema);
       reuse.setSpec(spec);
@@ -245,25 +273,32 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
 
   @Override
   public TypeSerializerSnapshot<DynamicRecordInternal> snapshotConfiguration() {
-    return new DynamicRecordInternalTypeSerializerSnapshot(writeSchemaAndSpec);
+    return new DynamicRecordInternalTypeSerializerSnapshot(writeSchemaAndSpec, serializerCache);
   }
 
   public static class DynamicRecordInternalTypeSerializerSnapshot
       implements TypeSerializerSnapshot<DynamicRecordInternal> {
 
-    private boolean writeSchemaAndSpec;
+    private static final int MOST_RECENT_VERSION = 1;
 
-    // Zero args constructor is required to instantiate this class on restore
+    private boolean writeSchemaAndSpec;
+    private int version;
+    private TableSerializerCache serializerCache;
+
+    // Zero args constructor is required to instantiate this class on restore via readSnapshot(..)
     @SuppressWarnings({"unused", "checkstyle:RedundantModifier"})
     public DynamicRecordInternalTypeSerializerSnapshot() {}
 
-    DynamicRecordInternalTypeSerializerSnapshot(boolean writeSchemaAndSpec) {
+    DynamicRecordInternalTypeSerializerSnapshot(
+        boolean writeSchemaAndSpec, TableSerializerCache serializerCache) {
       this.writeSchemaAndSpec = writeSchemaAndSpec;
+      this.serializerCache = serializerCache;
+      this.version = MOST_RECENT_VERSION;
     }
 
     @Override
     public int getCurrentVersion() {
-      return 0;
+      return version;
     }
 
     @Override
@@ -274,22 +309,62 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     @Override
     public void readSnapshot(int readVersion, DataInputView in, ClassLoader userCodeClassLoader)
         throws IOException {
+      this.version = readVersion;
       this.writeSchemaAndSpec = in.readBoolean();
     }
 
     @Override
     public TypeSerializerSchemaCompatibility<DynamicRecordInternal> resolveSchemaCompatibility(
         TypeSerializerSnapshot<DynamicRecordInternal> oldSerializerSnapshot) {
-      return TypeSerializerSchemaCompatibility.compatibleAsIs();
+      if (oldSerializerSnapshot.getCurrentVersion() == getCurrentVersion()) {
+        return TypeSerializerSchemaCompatibility.compatibleAsIs();
+      }
+
+      // Old TypeSerializerSnapshots do not contain the serializer cache, but the newest one does.
+      // This will also ensure that we always use the up-to-date cache alongside with its catalog
+      // configuration.
+      Preconditions.checkNotNull(serializerCache, "serializerCache should not be null");
+      try {
+        DynMethods.builder("initializeSerializerCache")
+            .hiddenImpl(
+                DynamicRecordInternalTypeSerializerSnapshot.class, TableSerializerCache.class)
+            .build()
+            .invoke(oldSerializerSnapshot, serializerCache);
+      } catch (Exception e) {
+        throw new RuntimeException(
+            "Failed to initialize serializerCache for reading data with old serializer", e);
+      }
+
+      // This will first read data with the old serializer, then switch to the most recent one.
+      return TypeSerializerSchemaCompatibility.compatibleAfterMigration();
     }
 
     @Override
     public TypeSerializer<DynamicRecordInternal> restoreSerializer() {
-      // Note: We pass in a null serializer cache which would create issues if we tried to use this
-      // restored serializer, but since we are using {@code
-      // TypeSerializerSchemaCompatibility.compatibleAsIs()} above, this serializer will never be
-      // used. A new one will be created via {@code DynamicRecordInternalType}.
-      return new DynamicRecordInternalSerializer(null, writeSchemaAndSpec);
+      if (getCurrentVersion() < MOST_RECENT_VERSION) {
+        // If this serializer is not the most recent one, we need to read old data with the correct
+        // parameters.
+        return new DynamicRecordInternalSerializer(serializerCache, writeSchemaAndSpec, false);
+      }
+
+      // In all other cases, we just use the newest serializer.
+      return new DynamicRecordInternalSerializer(serializerCache, writeSchemaAndSpec, true);
     }
+
+    /**
+     * We need to lazily initialize the cache from the up-to-date serializer which has the current
+     * CatalogLoader available.
+     *
+     * <p>This method must not be removed!
+     */
+    @SuppressWarnings("unused")
+    private void initializeSerializerCache(TableSerializerCache cache) {
+      this.serializerCache = cache;
+    }
+  }
+
+  @VisibleForTesting
+  TableSerializerCache getSerializerCache() {
+    return serializerCache;
   }
 }
