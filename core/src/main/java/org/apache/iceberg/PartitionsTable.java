@@ -87,10 +87,15 @@ public class PartitionsTable extends BaseMetadataTable {
                 Types.TimestampType.withZone(),
                 "Commit time of snapshot that last updated this partition"),
             Types.NestedField.optional(
-                10,
-                "last_updated_snapshot_id",
-                Types.LongType.get(),
-                "Id of snapshot that last updated this partition"));
+                    10,
+                    "last_updated_snapshot_id",
+                    Types.LongType.get(),
+                    "Id of snapshot that last updated this partition"),
+            Types.NestedField.required(
+                    12,
+                    "total_delete_file_size_in_bytes",
+                    Types.LongType.get(),
+                    "Total size in bytes of delete files"));
     this.unpartitionedTable = Partitioning.partitionType(table).fields().isEmpty();
   }
 
@@ -111,7 +116,8 @@ public class PartitionsTable extends BaseMetadataTable {
           "equality_delete_record_count",
           "equality_delete_file_count",
           "last_updated_at",
-          "last_updated_snapshot_id");
+          "last_updated_snapshot_id",
+          "total_delete_file_size_in_bytes");
     }
     return schema;
   }
@@ -163,7 +169,9 @@ public class PartitionsTable extends BaseMetadataTable {
         partition.eqDeleteRecordCount,
         partition.eqDeleteFileCount,
         partition.lastUpdatedAt,
-        partition.lastUpdatedSnapshotId);
+        partition.lastUpdatedSnapshotId,
+        partition.deleteFileSizeInBytes);
+
   }
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
@@ -281,6 +289,7 @@ public class PartitionsTable extends BaseMetadataTable {
     private int eqDeleteFileCount;
     private Long lastUpdatedAt;
     private Long lastUpdatedSnapshotId;
+    private long deleteFileSizeInBytes;
 
     Partition(StructLike key, Types.StructType keyType) {
       this.partitionData = toPartitionData(key, keyType);
@@ -314,10 +323,12 @@ public class PartitionsTable extends BaseMetadataTable {
         case POSITION_DELETES:
           this.posDeleteRecordCount += file.recordCount();
           this.posDeleteFileCount += 1;
+          this.deleteFileSizeInBytes += file.fileSizeInBytes();
           break;
         case EQUALITY_DELETES:
           this.eqDeleteRecordCount += file.recordCount();
           this.eqDeleteFileCount += 1;
+          this.deleteFileSizeInBytes += file.fileSizeInBytes();
           break;
         default:
           throw new UnsupportedOperationException(
