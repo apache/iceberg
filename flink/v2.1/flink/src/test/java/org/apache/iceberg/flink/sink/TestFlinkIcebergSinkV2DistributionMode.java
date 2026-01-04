@@ -562,6 +562,39 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
     }
   }
 
+  @TestTemplate
+  public void testHashDistributionWithPartitionNotInEqualityFields() {
+    assumeThat(partitioned).isTrue();
+
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
+
+    if (isTableSchema) {
+      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_TABLE_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .distributionMode(DistributionMode.HASH)
+          .upsert(false)
+          .equalityFieldColumns(ImmutableList.of("id"))
+          .append();
+    } else {
+      IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+          .table(table)
+          .tableLoader(tableLoader)
+          .writeParallelism(writeParallelism)
+          .distributionMode(DistributionMode.HASH)
+          .upsert(false)
+          .equalityFieldColumns(ImmutableList.of("id"))
+          .append();
+    }
+
+    assertThatThrownBy(env::execute)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(
+            "In 'hash' distribution mode with equality fields set, source column 'data' of partition field '1000: data: identity(2)' should be included in equality fields: '[id]'");
+  }
+
   private BoundedTestSource<Row> createRangeDistributionBoundedSource(
       List<List<Row>> rowsPerCheckpoint) {
     return new BoundedTestSource<>(rowsPerCheckpoint);
