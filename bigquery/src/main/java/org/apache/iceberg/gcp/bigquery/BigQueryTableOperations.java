@@ -48,6 +48,9 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
   private final FileIO fileIO;
   private final TableReference tableReference;
 
+  /** Table loaded in doRefresh() for reuse in updateTable() to avoid redundant API call. */
+  private volatile Table refreshedTable;
+
   BigQueryTableOperations(
       BigQueryMetastoreClient client, FileIO fileIO, TableReference tableReference) {
     this.client = client;
@@ -60,9 +63,12 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
   public void doRefresh() {
     // Must default to null.
     String metadataLocation = null;
+    this.refreshedTable = null;
     try {
-      metadataLocation =
-          loadMetadataLocationOrThrow(client.load(tableReference).getExternalCatalogTableOptions());
+      Table table = client.load(tableReference);
+      this.refreshedTable = table;
+
+      metadataLocation = loadMetadataLocationOrThrow(table.getExternalCatalogTableOptions());
     } catch (NoSuchTableException e) {
       if (currentMetadataLocation() != null) {
         // Re-throws the exception because the table must exist in this case.
@@ -86,7 +92,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
       if (base == null) {
         createTable(newMetadataLocation, metadata);
       } else {
-        updateTable(base.metadataFileLocation(), newMetadataLocation, metadata);
+        updateTable(newMetadataLocation, metadata);
       }
       commitStatus = BaseMetastoreOperations.CommitStatus.SUCCESS;
     } catch (CommitFailedException | CommitStateUnknownException e) {
@@ -149,9 +155,15 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
   }
 
   /** Update table properties with concurrent update detection using etag. */
-  private void updateTable(
-      String oldMetadataLocation, String newMetadataLocation, TableMetadata metadata) {
-    Table table = client.load(tableReference);
+  private void updateTable(String newMetadataLocation, TableMetadata metadata) {
+    Table table = this.refreshedTable;
+    if (table == null) {
+      LOG.warn("Table not set from doRefresh() for {}, loading from BigQuery", tableName());
+      table = client.load(tableReference);
+    }
+
+    this.refreshedTable = null;
+
     if (table.getEtag().isEmpty()) {
       throw new ValidationException(
           "Etag of legacy table %s is empty, manually update the table via the BigQuery API or"
@@ -160,21 +172,6 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
     }
     ExternalCatalogTableOptions options = table.getExternalCatalogTableOptions();
     addConnectionIfProvided(table, metadata.properties());
-
-    // If `metadataLocationFromMetastore` is different from metadata location of base, it means
-    // someone has updated metadata location in metastore, which is a conflict update.
-    String metadataLocationFromMetastore =
-        options.getParameters().getOrDefault(METADATA_LOCATION_PROP, "");
-    if (!metadataLocationFromMetastore.isEmpty()
-        && !metadataLocationFromMetastore.equals(oldMetadataLocation)) {
-      throw new CommitFailedException(
-          "Cannot commit base metadata location '%s' is not same as the current table metadata location '%s' for"
-              + " %s.%s",
-          oldMetadataLocation,
-          metadataLocationFromMetastore,
-          tableReference.getDatasetId(),
-          tableReference.getTableId());
-    }
 
     options.setParameters(buildTableParameters(newMetadataLocation, metadata));
     client.update(tableReference, table);
