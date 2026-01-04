@@ -162,7 +162,8 @@ abstract class BaseSparkAction<ThisT> {
                 "length",
                 "0 as sequenceNumber",
                 "partition_spec_id as partitionSpecId",
-                "added_snapshot_id as addedSnapshotId")
+                "added_snapshot_id as addedSnapshotId",
+                "key_metadata as keyMetadata")
             .dropDuplicates("path")
             .repartition(numShufflePartitions) // avoid adaptive execution combining tasks
             .as(ManifestFileBean.ENCODER);
