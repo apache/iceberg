@@ -22,7 +22,6 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
@@ -110,9 +109,9 @@ public class PlanTableScanRequestParser {
     Long minRowsRequested = JsonUtil.getLongOrNull(MIN_ROWS_REQUESTED, json);
     List<String> select = JsonUtil.getStringListOrNull(SELECT, json);
 
-    Expression filter = null;
+    JsonNode filterJson = null;
     if (json.has(FILTER)) {
-      filter = ExpressionParser.fromJson(json.get(FILTER));
+      filterJson = json.get(FILTER);
     }
 
     boolean caseSensitive = true;
@@ -130,7 +129,7 @@ public class PlanTableScanRequestParser {
     return PlanTableScanRequest.builder()
         .withSnapshotId(snapshotId)
         .withSelect(select)
-        .withFilter(filter)
+        .withFilterJson(filterJson)
         .withCaseSensitive(caseSensitive)
         .withUseSnapshotSchema(useSnapshotSchema)
         .withStartSnapshotId(startSnapshotId)
