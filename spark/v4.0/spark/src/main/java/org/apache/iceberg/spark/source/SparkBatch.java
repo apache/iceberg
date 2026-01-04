@@ -91,16 +91,24 @@ class SparkBatch implements Batch {
     InputPartition[] partitions = new InputPartition[taskGroups.size()];
 
     for (int index = 0; index < taskGroups.size(); index++) {
+      ScanTaskGroup<?> taskGroup = taskGroups.get(index);
+
+      Integer reportableSortOrderId = null;
+      if (readConf.preserveDataOrdering()) {
+        reportableSortOrderId = table.sortOrder().orderId();
+      }
+
       partitions[index] =
           new SparkInputPartition(
               groupingKeyType,
-              taskGroups.get(index),
+              taskGroup,
               tableBroadcast,
               branch,
               expectedSchemaString,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
-              cacheDeleteFilesOnExecutors);
+              cacheDeleteFilesOnExecutors,
+              reportableSortOrderId);
     }
 
     return partitions;
@@ -160,6 +168,12 @@ class SparkBatch implements Batch {
   private boolean supportsParquetBatchReads(ScanTask task) {
     if (task instanceof ScanTaskGroup) {
       ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+
+      // Vectorized readers cannot merge sorted data from multiple files
+      if (readConf.preserveDataOrdering() && taskGroup.tasks().size() > 1) {
+        return false;
+      }
+
       return taskGroup.tasks().stream().allMatch(this::supportsParquetBatchReads);
 
     } else if (task.isFileScanTask() && !task.isDataTask()) {
@@ -200,6 +214,12 @@ class SparkBatch implements Batch {
   private boolean supportsOrcBatchReads(ScanTask task) {
     if (task instanceof ScanTaskGroup) {
       ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+
+      // Vectorized readers cannot merge sorted data from multiple files
+      if (readConf.preserveDataOrdering() && taskGroup.tasks().size() > 1) {
+        return false;
+      }
+
       return taskGroup.tasks().stream().allMatch(this::supportsOrcBatchReads);
 
     } else if (task.isFileScanTask() && !task.isDataTask()) {
