@@ -818,6 +818,128 @@ public class TestRecordConverter {
   }
 
   @Test
+  public void testAddColumnOptionalityForMapInferredColumns() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(ID_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = ImmutableMap.of("new_col", "test_value");
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.name()).isEqualTo("new_col");
+    assertThat(addCol.isOptional()).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testAddColumnOptionalityForStructWithRequiredFields(boolean forceOptional) {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(ID_SCHEMA);
+    when(config.schemaForceOptional()).thenReturn(forceOptional);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema valueSchema = SchemaBuilder.struct().field("new_col", Schema.STRING_SCHEMA).build();
+    Struct data = new Struct(valueSchema).put("new_col", "test_value");
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.name()).isEqualTo("new_col");
+    assertThat(addCol.isOptional()).isEqualTo(forceOptional);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testAddColumnOptionalityForStructWithOptionalFields(boolean forceOptional) {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(ID_SCHEMA);
+    when(config.schemaForceOptional()).thenReturn(forceOptional);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema valueSchema =
+        SchemaBuilder.struct().field("new_col", Schema.OPTIONAL_STRING_SCHEMA).build();
+    Struct data = new Struct(valueSchema).put("new_col", "test_value");
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.name()).isEqualTo("new_col");
+    assertThat(addCol.isOptional()).isTrue();
+  }
+
+  @Test
+  public void testAddColumnOptionalityForStructRequiredFieldWithNoForceOptional() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(ID_SCHEMA);
+    when(config.schemaForceOptional()).thenReturn(false);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema valueSchema =
+        SchemaBuilder.struct()
+            .field("req_col", Schema.STRING_SCHEMA)
+            .field("opt_col", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Struct data = new Struct(valueSchema).put("req_col", "test1").put("opt_col", "test2");
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(2);
+    Map<String, AddColumn> colMap = Maps.newHashMap();
+    addCols.forEach(col -> colMap.put(col.name(), col));
+
+    assertThat(colMap.get("req_col").isOptional()).isFalse();
+    assertThat(colMap.get("opt_col").isOptional()).isTrue();
+  }
+
+  @Test
+  public void testAddColumnOptionalityForNestedStructFields() {
+    org.apache.iceberg.Schema baseSchema =
+        new org.apache.iceberg.Schema(NestedField.required(1, "base", IntegerType.get()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(baseSchema);
+    when(config.schemaForceOptional()).thenReturn(false);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema nestedSchema =
+        SchemaBuilder.struct()
+            .field("req_nested", Schema.STRING_SCHEMA)
+            .field("opt_nested", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Schema valueSchema =
+        SchemaBuilder.struct().field("base", Schema.INT32_SCHEMA).field("nested", nestedSchema);
+
+    Struct nestedStruct =
+        new Struct(nestedSchema).put("req_nested", "test1").put("opt_nested", "test2");
+    Struct data = new Struct(valueSchema).put("base", 1).put("nested", nestedStruct);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<AddColumn> addCols = consumer.addColumns();
+
+    assertThat(addCols).hasSize(1);
+    AddColumn nestedCol = addCols.iterator().next();
+    assertThat(nestedCol.name()).isEqualTo("nested");
+    assertThat(nestedCol.type()).isInstanceOf(StructType.class);
+
+    StructType nestedType = nestedCol.type().asStructType();
+    assertThat(nestedType.field("req_nested").isRequired()).isTrue();
+    assertThat(nestedType.field("opt_nested").isOptional()).isTrue();
+  }
+
+  @Test
   public void testEvolveTypeDetectionStruct() {
     org.apache.iceberg.Schema tableSchema =
         new org.apache.iceberg.Schema(
