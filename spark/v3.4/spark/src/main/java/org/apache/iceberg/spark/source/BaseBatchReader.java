@@ -122,6 +122,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         // read performance as every batch read doesn't have to pay the cost of allocating memory.
         .reuseContainers()
         .withNameMapping(nameMapping())
+        .vectorizedReaderFactory(parquetConf.factoryClassName().orElse(null))
         .build();
   }
 
