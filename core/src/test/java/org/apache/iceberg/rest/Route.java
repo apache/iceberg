@@ -30,6 +30,7 @@ import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
+import org.apache.iceberg.rest.requests.PostEventsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -44,6 +45,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.rest.responses.EventsResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 
@@ -130,8 +132,13 @@ enum Route {
       ResourcePaths.V1_TABLE_SCAN_PLAN_TASKS,
       FetchScanTasksRequest.class,
       FetchScanTasksResponse.class),
-  CANCEL_PLAN_TABLE_SCAN(
-      HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_TABLE_SCAN_PLAN, null, null);
+    CANCEL_PLAN_TABLE_SCAN(
+      HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_TABLE_SCAN_PLAN, null, null),
+
+    EVENTS_POST(
+      HTTPRequest.HTTPMethod.POST, ResourcePaths.V1_EVENTS, PostEventsRequest.class, EventsResponse.class),
+
+    EVENTS_GET(HTTPRequest.HTTPMethod.GET, ResourcePaths.V1_EVENTS, null, EventsResponse.class);
 
   private final HTTPRequest.HTTPMethod method;
   private final int requiredLength;
