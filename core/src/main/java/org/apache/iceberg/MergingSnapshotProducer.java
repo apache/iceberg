@@ -968,7 +968,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
-    Snapshot justSaved = ops().refresh().snapshot(snapshotId);
+
+    Snapshot justSaved = ops().current().snapshot(snapshotId);
+    if (justSaved == null) {
+      justSaved = ops().refresh().snapshot(snapshotId);
+    }
+
     long sequenceNumber = TableMetadata.INVALID_SEQUENCE_NUMBER;
     Map<String, String> summary;
     if (justSaved == null) {
