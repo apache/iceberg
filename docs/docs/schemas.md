@@ -41,8 +41,8 @@ Iceberg tables support the following types:
 | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
 | **`variant`**          | Semi-structured data (JSON-like)                                     | Added in v3                 |
-| **`geometry(C)`**      | Geospatial features with CRS parameter                               | Linear edge-interpolation such as planar; added in v3                 |
-| **`geography(C, A)`**  | Geospatial features with CRS and edge algorithm                      | Non-linear edge-interpolation such as spherical; added in v3              |
+| **`geometry(C)`**      | Geospatial features with CRS parameter                               | Linear edge-interpolation; added in v3                 |
+| **`geography(C, A)`**  | Geospatial features with CRS and edge algorithm                      | Non-linear edge-interpolation; added in v3              |
 | **`unknown`**          | Placeholder type for undetermined columns                            | Must be optional; added in v3                    |
 | **`struct<...>`**  | A record with named fields of any data type                              |                                                  |
 | **`list<E>`**      | A list with elements of any data type                                    |                                                  |
