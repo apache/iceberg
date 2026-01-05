@@ -19,11 +19,16 @@
 package org.apache.iceberg.gcp;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -48,6 +53,15 @@ public class GCPProperties implements Serializable {
   public static final String GCS_NO_AUTH = "gcs.no-auth";
   public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT =
       "gcs.oauth2.refresh-credentials-endpoint";
+
+  // Impersonation properties
+  public static final String GCS_IMPERSONATE_SERVICE_ACCOUNT = "gcs.impersonate.service-account";
+  public static final String GCS_IMPERSONATE_LIFETIME_SECONDS = "gcs.impersonate.lifetime-seconds";
+  public static final String GCS_IMPERSONATE_DELEGATES = "gcs.impersonate.delegates";
+  public static final String GCS_IMPERSONATE_SCOPES = "gcs.impersonate.scopes";
+  public static final int GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT = 3600;
+  private static final List<String> GCS_IMPERSONATE_SCOPES_DEFAULT =
+      ImmutableList.of("https://www.googleapis.com/auth/cloud-platform");
 
   /** Controls whether vended credentials should be refreshed or not. Defaults to true. */
   public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED =
@@ -85,7 +99,44 @@ public class GCPProperties implements Serializable {
   private boolean gcsOauth2RefreshCredentialsEnabled;
   private boolean gcsAnalyticsCoreEnabled;
 
+  private String gcsImpersonateServiceAccount;
+  private int gcsImpersonateLifetimeSeconds;
+  private List<String> gcsImpersonateDelegates;
+  private List<String> gcsImpersonateScopes;
+
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
+
+  @VisibleForTesting
+  List<String> parseCommaSeparatedList(String input, List<String> defaultValue) {
+    if (input == null || input.trim().isEmpty()) {
+      return defaultValue;
+    }
+    return Arrays.stream(input.split(","))
+        .map(String::trim)
+        .filter(str -> !str.isEmpty())
+        .distinct()
+        .collect(Collectors.toList());
+  }
+
+  @VisibleForTesting
+  List<String> expandScopes(List<String> inputScopes) {
+    if (inputScopes == null || inputScopes.isEmpty()) {
+      return inputScopes;
+    }
+    return inputScopes.stream()
+        .map(
+            inputScope -> {
+              if (inputScope.startsWith("https://")) {
+                return inputScope;
+              }
+              if (inputScope.startsWith("http://")) {
+                return inputScope.replace("http://", "https://");
+              }
+
+              return "https://www.googleapis.com/auth/" + inputScope;
+            })
+        .collect(Collectors.toList());
+  }
 
   public GCPProperties() {
     this.allProperties = ImmutableMap.of();
@@ -132,6 +183,18 @@ public class GCPProperties implements Serializable {
     gcsDeleteBatchSize =
         PropertyUtil.propertyAsInt(
             properties, GCS_DELETE_BATCH_SIZE, GCS_DELETE_BATCH_SIZE_DEFAULT);
+
+    gcsImpersonateServiceAccount = properties.get(GCS_IMPERSONATE_SERVICE_ACCOUNT);
+    gcsImpersonateLifetimeSeconds =
+        PropertyUtil.propertyAsInt(
+            properties, GCS_IMPERSONATE_LIFETIME_SECONDS, GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT);
+    gcsImpersonateDelegates =
+        parseCommaSeparatedList(properties.get(GCS_IMPERSONATE_DELEGATES), null);
+    List<String> rawScopes =
+        parseCommaSeparatedList(
+            properties.get(GCS_IMPERSONATE_SCOPES), GCS_IMPERSONATE_SCOPES_DEFAULT);
+    gcsImpersonateScopes = expandScopes(rawScopes);
+
     gcsAnalyticsCoreEnabled =
         PropertyUtil.propertyAsBoolean(properties, GCS_ANALYTICS_CORE_ENABLED, false);
   }
@@ -178,6 +241,22 @@ public class GCPProperties implements Serializable {
 
   public Optional<Date> oauth2TokenExpiresAt() {
     return Optional.ofNullable(gcsOAuth2TokenExpiresAt);
+  }
+
+  public Optional<String> impersonateServiceAccount() {
+    return Optional.ofNullable(gcsImpersonateServiceAccount);
+  }
+
+  public int impersonateLifetimeSeconds() {
+    return gcsImpersonateLifetimeSeconds;
+  }
+
+  public List<String> impersonateDelegates() {
+    return gcsImpersonateDelegates;
+  }
+
+  public List<String> impersonateScopes() {
+    return gcsImpersonateScopes;
   }
 
   public int deleteBatchSize() {
