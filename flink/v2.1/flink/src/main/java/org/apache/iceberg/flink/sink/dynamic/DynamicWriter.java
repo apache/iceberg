@@ -145,6 +145,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
               return taskWriterFactory.create();
             })
         .write(element.rowData());
+    metrics.mainMetricsGroup().getNumRecordsSendCounter().inc();
   }
 
   @Override
