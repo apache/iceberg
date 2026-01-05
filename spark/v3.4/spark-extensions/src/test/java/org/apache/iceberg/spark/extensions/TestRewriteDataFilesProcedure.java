@@ -1181,9 +1181,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     // Now insert multiple small batches to the BRANCH ONLY (creates many small files)
     for (int i = 0; i < 10; i++) {
-      sql(
-          "INSERT INTO %s.branch_%s VALUES (%d, 'branch', 'data')",
-          tableName, branchName, i + 100);
+      sql("INSERT INTO %s.branch_%s VALUES (%d, 'branch', 'data')", tableName, branchName, i + 100);
     }
 
     // Refresh table and get branch snapshot before compaction
@@ -1213,9 +1211,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .as("Branch compaction should rewrite the 10 small files on the branch, not main's files")
         .isGreaterThan(0);
 
-    assertThat(filesAdded)
-        .as("Branch compaction should add compacted files")
-        .isGreaterThan(0);
+    assertThat(filesAdded).as("Branch compaction should add compacted files").isGreaterThan(0);
 
     table.refresh();
 

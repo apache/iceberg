@@ -1231,9 +1231,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     // Insert multiple small batches to the BRANCH ONLY (creates many small files)
     for (int i = 0; i < 10; i++) {
-      sql(
-          "INSERT INTO %s.branch_%s VALUES (%d, 'branch', 'data')",
-          tableName, branchName, i + 100);
+      sql("INSERT INTO %s.branch_%s VALUES (%d, 'branch', 'data')", tableName, branchName, i + 100);
     }
 
     // Refresh table and get branch snapshot before compaction
