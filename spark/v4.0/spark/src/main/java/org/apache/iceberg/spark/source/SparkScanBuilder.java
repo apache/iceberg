@@ -34,6 +34,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RequiresRemoteScanPlanning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SparkDistributedDataScan;
@@ -71,6 +72,7 @@ import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsPushDownAggregates;
+import org.apache.spark.sql.connector.read.SupportsPushDownLimit;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
@@ -85,7 +87,8 @@ public class SparkScanBuilder
         SupportsPushDownAggregates,
         SupportsPushDownV2Filters,
         SupportsPushDownRequiredColumns,
-        SupportsReportStatistics {
+        SupportsReportStatistics,
+        SupportsPushDownLimit {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
   private static final Predicate[] NO_PREDICATES = new Predicate[0];
@@ -102,6 +105,7 @@ public class SparkScanBuilder
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Predicate[] pushedPredicates = NO_PREDICATES;
+  private Integer limit = null;
 
   SparkScanBuilder(
       SparkSession spark,
@@ -739,6 +743,10 @@ public class SparkScanBuilder
               TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(splitOpenFileCost));
     }
 
+    if (null != limit) {
+      configuredScan = configuredScan.minRowsRequested(limit.longValue());
+    }
+
     return configuredScan;
   }
 
@@ -753,10 +761,18 @@ public class SparkScanBuilder
   }
 
   private BatchScan newBatchScan() {
-    if (table instanceof BaseTable && readConf.distributedPlanningEnabled()) {
+    if (table instanceof RequiresRemoteScanPlanning) {
+      return table.newBatchScan();
+    } else if (table instanceof BaseTable && readConf.distributedPlanningEnabled()) {
       return new SparkDistributedDataScan(spark, table, readConf);
     } else {
       return table.newBatchScan();
     }
+  }
+
+  @Override
+  public boolean pushLimit(int pushedLimit) {
+    this.limit = pushedLimit;
+    return true;
   }
 }

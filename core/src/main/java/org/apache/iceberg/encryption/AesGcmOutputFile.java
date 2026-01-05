@@ -50,6 +50,6 @@ public class AesGcmOutputFile implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return new AesGcmInputFile(targetFile.toInputFile(), dataKey, fileAADPrefix);
+    throw new IllegalStateException("File length unknown, creating an AesGcmInputFile is not safe");
   }
 }

@@ -67,6 +67,55 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 </dependencies>
 ```
 
+### 1.10.1 release
+
+Apache Iceberg 1.10.1 was released on Dec 22, 2025.
+
+The 1.10.1 release contains bug fixes. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.10.1)
+
+* API
+    - API: required nested fields within optional structs can produce null ([\#13804](https://github.com/apache/iceberg/pull/13804))
+    - API: Detect whether required fields nested within optionals can produce nulls ([\#14270](https://github.com/apache/iceberg/pull/14270))
+* Core
+    - Prevent dropping a namespace when it contains views ([\#14456](https://github.com/apache/iceberg/pull/14456))
+    - Fix overflow due to default value on timestamp nanos ([\#14359](https://github.com/apache/iceberg/pull/14359))
+    - Fix the unpartitioned check in replace partitions ([\#14186](https://github.com/apache/iceberg/pull/14186))
+    - Fix for respecting custom location providers in SerializableTable and actions ([\#14280](https://github.com/apache/iceberg/pull/14280))
+    - Fix `NAN_VALUE_COUNTS` serialization for ContentFile ([\#14721](https://github.com/apache/iceberg/pull/14721))
+    - Handle unknown type during deletes ([\#14356](https://github.com/apache/iceberg/pull/14356))
+    - REST: Fix validation of PlanTableScanRequest ([\#14561](https://github.com/apache/iceberg/pull/14561))
+    - REST: Fix validation of PlanTableScanResponse ([\#14562](https://github.com/apache/iceberg/pull/14562))
+    - REST: Fix RESTFileScanTaskParser to handle empty delete file references list ([\#14568](https://github.com/apache/iceberg/pull/14568))
+    - REST: Fix serde of tasks with multiple deletes ([\#14573](https://github.com/apache/iceberg/pull/14573))
+    - REST: Align PlanTableScanRequest filter with the OpenAPI spec ([\#14658](https://github.com/apache/iceberg/pull/14658))
+    - REST: Make plan status consistent with the REST spec ([\#14643](https://github.com/apache/iceberg/pull/14643))
+* Parquet
+    - Fix NameMapping loss in `ParquetUtil.footerMetrics` ([\#14617](https://github.com/apache/iceberg/pull/14617))
+    - Add variant type support to `ParquetTypeVisitor` ([\#14588](https://github.com/apache/iceberg/pull/14588))
+    - Fix variant type filtering in `ParquetMetricsRowGroupFilter` ([\#14081](https://github.com/apache/iceberg/pull/14081))
+    - handle NPE for `VariantLogicalType` in `TypeWithSchemaVisitor` ([\#14261](https://github.com/apache/iceberg/pull/14261))
+    - Fix `UUID` `ClassCastException` when reading Parquet files with UUIDs ([\#14027](https://github.com/apache/iceberg/pull/14027))
+* Flink
+    - Ensure `DynamicCommitter` idempotence in the presence of failures ([\#14182](https://github.com/apache/iceberg/pull/14182))
+    - Backport Ensure `DynamicCommitter` idempotence in the presence of failures ([\#14213](https://github.com/apache/iceberg/pull/14213))
+    - Prevent recreation of `ManifestOutputFileFactory` during flushing ([\#14358](https://github.com/apache/iceberg/pull/14358))
+    - Backport Prevent recreation of `ManifestOutputFileFactory` during flushing ([\#14385](https://github.com/apache/iceberg/pull/14385))
+    - Fix cache refreshing in `DynamicIcebergSink` ([\#14406](https://github.com/apache/iceberg/pull/14406))
+    - Port fix cache refreshing in `DynamicIcebergSink` ([\#14765](https://github.com/apache/iceberg/pull/14765))
+* Spark
+    - 3.4: Pass format-version when creating a snapshot ([\#14170](https://github.com/apache/iceberg/pull/14170))
+    - 3.5: Pass format-version when creating a snapshot ([\#14169](https://github.com/apache/iceberg/pull/14169))
+    - 4.0: Pass format-version when creating a snapshot in table migration actions ([\#14163](https://github.com/apache/iceberg/pull/14163))
+    - Fix Z-order UDF to correctly handle `DateType` ([\#14108](https://github.com/apache/iceberg/pull/14108))
+* Kafka Connect
+    - Merge control topic and last persisted offsets ([\#14525](https://github.com/apache/iceberg/pull/14525))
+* Vendor integrations
+    - AWS: Configure builder for reuse of HTTP connection pool in SDK v2 ([\#14161](https://github.com/apache/iceberg/pull/14161))
+    - AWS: Fix leaked credentials when contacting multiple catalogs ([\#14178](https://github.com/apache/iceberg/pull/14178))
+    - AWS: Exclude logging dependencies from the bundle ([\#14225](https://github.com/apache/iceberg/pull/14225))
+
+## Past releases
+
 ### 1.10.0 release
 
 Apache Iceberg 1.10.0 was released on September 11, 2025.
@@ -195,8 +244,6 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
     - Netty: 4.2.1.Final -> 4.2.2.Final
     - Comet: 0.5.0 -> 0.8.1
     - Apache httpclient: 5.4.3 -> 5.4.4
-
-## Past releases
 
 ### 1.9.2 release
 

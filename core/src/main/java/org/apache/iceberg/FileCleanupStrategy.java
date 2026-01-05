@@ -59,7 +59,23 @@ abstract class FileCleanupStrategy {
     this.deleteFunc = deleteFunc;
   }
 
-  public abstract void cleanFiles(TableMetadata beforeExpiration, TableMetadata afterExpiration);
+  /**
+   * Clean up files that are only reachable by expired snapshots.
+   *
+   * <p>This method is responsible for identifying and deleting files that are safe to remove based
+   * on the table metadata state before and after snapshot expiration. The cleanup level controls
+   * which types of files are eligible for deletion.
+   *
+   * <p>Note that {@link ExpireSnapshots.CleanupLevel#NONE} is handled before reaching this method
+   *
+   * @param beforeExpiration table metadata before snapshot expiration
+   * @param afterExpiration table metadata after snapshot expiration
+   * @param cleanupLevel controls which types of files are eligible for deletion
+   */
+  public abstract void cleanFiles(
+      TableMetadata beforeExpiration,
+      TableMetadata afterExpiration,
+      ExpireSnapshots.CleanupLevel cleanupLevel);
 
   private static final Schema MANIFEST_PROJECTION =
       ManifestFile.schema()

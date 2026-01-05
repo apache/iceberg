@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.catalyst.expressions.Literal
@@ -31,9 +30,9 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan.resolveOperators {
       case m @ MergeIntoTable(_, _, _, matchedActions, _, notMatchedBySourceActions)
-        if m.resolved && m.rewritable && m.aligned &&
-          (matchedActions.nonEmpty || notMatchedBySourceActions.nonEmpty) &&
-          shouldUpdatePlan(m.targetTable) =>
+          if m.resolved && m.rewritable && m.aligned &&
+            (matchedActions.nonEmpty || notMatchedBySourceActions.nonEmpty) &&
+            shouldUpdatePlan(m.targetTable) =>
         updateMergeIntoForRowLineage(m)
     }
   }
@@ -47,8 +46,11 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
 
         val matchedAssignmentsForLineage = matchedActions.map {
           case UpdateAction(cond, assignments) =>
-            UpdateAction(cond, assignments ++ Seq(Assignment(rowId, rowId),
-              Assignment(lastUpdatedSequenceNumber, Literal(null))))
+            UpdateAction(
+              cond,
+              assignments ++ Seq(
+                Assignment(rowId, rowId),
+                Assignment(lastUpdatedSequenceNumber, Literal(null))))
 
           case deleteAction => deleteAction
         }
@@ -58,8 +60,11 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
         // during alignment in ResolveRowLevelCommandAssignments.
         val notMatchedBySourceActionsForLineage = notMatchedBySourceActions.map {
           case UpdateAction(cond, assignments) =>
-            UpdateAction(cond, assignments ++ Seq(Assignment(rowId, rowId),
-              Assignment(lastUpdatedSequenceNumber, Literal(null))))
+            UpdateAction(
+              cond,
+              assignments ++ Seq(
+                Assignment(rowId, rowId),
+                Assignment(lastUpdatedSequenceNumber, Literal(null))))
 
           case deleteAction => deleteAction
         }

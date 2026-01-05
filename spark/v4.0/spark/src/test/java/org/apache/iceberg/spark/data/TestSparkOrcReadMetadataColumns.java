@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,6 +37,7 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -46,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
+import org.apache.iceberg.spark.source.BatchReaderUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcConf;
@@ -74,7 +77,11 @@ public class TestSparkOrcReadMetadataColumns {
           MetadataColumns.ROW_POSITION,
           MetadataColumns.IS_DELETED);
 
+  private static final DeleteFilter<InternalRow> NO_DELETES_FILTER =
+      new TestHelpers.CustomizedDeleteFilter(false, DATA_SCHEMA, PROJECTION_SCHEMA);
+
   private static final int NUM_ROWS = 1000;
+  private static final int RECORDS_PER_BATCH = 10;
   private static final List<InternalRow> DATA_ROWS;
   private static final List<InternalRow> EXPECTED_ROWS;
 
@@ -128,13 +135,35 @@ public class TestSparkOrcReadMetadataColumns {
 
   @TestTemplate
   public void testReadRowNumbers() throws IOException {
-    readAndValidate(null, null, null, EXPECTED_ROWS);
+    readAndValidate(null, null, null, EXPECTED_ROWS, NO_DELETES_FILTER);
+  }
+
+  @TestTemplate
+  public void testReadRowNumbersWithDelete() throws IOException {
+    assumeThat(vectorized).isTrue();
+
+    List<InternalRow> expectedRowsAfterDelete = Lists.newArrayList();
+    EXPECTED_ROWS.forEach(row -> expectedRowsAfterDelete.add(row.copy()));
+    // remove row at position 98, 99, 100, 101, 102, this crosses two row groups [0, 100) and [100,
+    // 200)
+    for (int i = 98; i <= 102; i++) {
+      expectedRowsAfterDelete.get(i).update(3, true);
+    }
+
+    DeleteFilter<InternalRow> deleteFilter =
+        new TestHelpers.CustomizedDeleteFilter(true, DATA_SCHEMA, PROJECTION_SCHEMA);
+
+    readAndValidate(null, null, null, expectedRowsAfterDelete, deleteFilter);
   }
 
   @TestTemplate
   public void testReadRowNumbersWithFilter() throws IOException {
     readAndValidate(
-        Expressions.greaterThanOrEqual("id", 500), null, null, EXPECTED_ROWS.subList(500, 1000));
+        Expressions.greaterThanOrEqual("id", 500),
+        null,
+        null,
+        EXPECTED_ROWS.subList(500, 1000),
+        NO_DELETES_FILTER);
   }
 
   @TestTemplate
@@ -157,12 +186,17 @@ public class TestSparkOrcReadMetadataColumns {
           null,
           splitOffsets.get(i),
           splitLengths.get(i),
-          EXPECTED_ROWS.subList(i * 100, (i + 1) * 100));
+          EXPECTED_ROWS.subList(i * 100, (i + 1) * 100),
+          NO_DELETES_FILTER);
     }
   }
 
   private void readAndValidate(
-      Expression filter, Long splitStart, Long splitLength, List<InternalRow> expected)
+      Expression filter,
+      Long splitStart,
+      Long splitLength,
+      List<InternalRow> expected,
+      DeleteFilter<InternalRow> deleteFilter)
       throws IOException {
     Schema projectionWithoutMetadataFields =
         TypeUtil.selectNot(PROJECTION_SCHEMA, MetadataColumns.metadataFieldIds());
@@ -173,10 +207,12 @@ public class TestSparkOrcReadMetadataColumns {
 
       if (vectorized) {
         builder =
-            builder.createBatchedReaderFunc(
-                readOrcSchema ->
-                    VectorizedSparkOrcReaders.buildReader(
-                        PROJECTION_SCHEMA, readOrcSchema, ImmutableMap.of()));
+            builder
+                .recordsPerBatch(RECORDS_PER_BATCH)
+                .createBatchedReaderFunc(
+                    readOrcSchema ->
+                        VectorizedSparkOrcReaders.buildReader(
+                            PROJECTION_SCHEMA, readOrcSchema, ImmutableMap.of()));
       } else {
         builder =
             builder.createReaderFunc(
@@ -192,7 +228,7 @@ public class TestSparkOrcReadMetadataColumns {
       }
 
       if (vectorized) {
-        reader = batchesToRows(builder.build());
+        reader = batchesToRows(BatchReaderUtil.applyDeleteFilter(builder.build(), deleteFilter));
       } else {
         reader = builder.build();
       }

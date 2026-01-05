@@ -474,7 +474,7 @@ public class TestInclusiveMetricsEvaluator {
     assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, lessThan("id", INT_MAX_VALUE)).eval(FILE);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @Test
@@ -513,7 +513,7 @@ public class TestInclusiveMetricsEvaluator {
 
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, greaterThan("id", INT_MAX_VALUE - 4)).eval(FILE);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @Test
@@ -535,7 +535,7 @@ public class TestInclusiveMetricsEvaluator {
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE - 4))
             .eval(FILE);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @Test

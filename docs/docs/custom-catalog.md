@@ -28,6 +28,8 @@ It's possible to read an iceberg table either from an hdfs path or from a hive t
 - [Custom LocationProvider](#custom-location-provider-implementation)
 - [Custom IcebergSource](#custom-icebergsource)
 
+Note: To work with encrypted tables, custom catalogs must address a number of security [requirements](encryption.md#catalog-security-requirements).
+
 ### Custom table operations implementation
 Extend `BaseMetastoreTableOperations` to provide implementation on how to read and write metadata
 

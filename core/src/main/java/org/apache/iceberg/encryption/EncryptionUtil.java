@@ -22,16 +22,24 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class EncryptionUtil {
+  private static final Set<String> ENCRYPTION_TABLE_PROPERTIES =
+      ImmutableSet.<String>builder()
+          .add(TableProperties.ENCRYPTION_TABLE_KEY)
+          .add(TableProperties.ENCRYPTION_DEK_LENGTH)
+          .build();
 
   private EncryptionUtil() {}
 
@@ -107,6 +115,14 @@ public class EncryptionUtil {
     return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
   }
 
+  public static ByteBuffer setFileLength(ByteBuffer keyMetadata, long fileLength) {
+    if (keyMetadata == null) {
+      return null;
+    }
+
+    return StandardKeyMetadata.parse(keyMetadata).copyWithLength(fileLength).buffer();
+  }
+
   /**
    * Decrypt the key metadata for a manifest list.
    *
@@ -173,5 +189,19 @@ public class EncryptionUtil {
         encryptor.encrypt(mlkMetadataBytes, keyTimestamp.getBytes(StandardCharsets.UTF_8));
 
     return ByteBuffer.wrap(encryptedKeyMetadata);
+  }
+
+  public static void checkCompatibility(Map<String, String> tableProperties, int formatVersion) {
+    if (formatVersion >= 3) {
+      return;
+    }
+
+    Set<String> encryptionProperties =
+        Sets.intersection(ENCRYPTION_TABLE_PROPERTIES, tableProperties.keySet());
+    Preconditions.checkArgument(
+        encryptionProperties.isEmpty(),
+        "Invalid properties for v%s: %s",
+        formatVersion,
+        encryptionProperties);
   }
 }

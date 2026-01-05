@@ -20,7 +20,6 @@ package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Iterator;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -46,7 +45,6 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LockManagers;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
@@ -215,16 +213,7 @@ public class HadoopTables implements Tables, Configurable {
 
   private static synchronized LockManager createOrGetLockManager(HadoopTables table) {
     if (lockManager == null) {
-      Map<String, String> properties = Maps.newHashMap();
-      Iterator<Map.Entry<String, String>> configEntries = table.conf.iterator();
-      while (configEntries.hasNext()) {
-        Map.Entry<String, String> entry = configEntries.next();
-        String key = entry.getKey();
-        if (key.startsWith(LOCK_PROPERTY_PREFIX)) {
-          properties.put(key.substring(LOCK_PROPERTY_PREFIX.length()), entry.getValue());
-        }
-      }
-
+      Map<String, String> properties = table.conf.getPropsWithPrefix(LOCK_PROPERTY_PREFIX);
       lockManager = LockManagers.from(properties);
     }
 

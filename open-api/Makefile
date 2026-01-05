@@ -16,15 +16,23 @@
 # under the License.
 
 install:
-	pip install -r requirements.txt
+	uv venv --python 3.12 --allow-existing  # Match --target-python-version in the `generate` target
+	uv pip install -r requirements.txt
 
-lint:
-	openapi-spec-validator --errors all rest-catalog-open-api.yaml
+validate-spec:
+	uv run openapi-spec-validator --errors all rest-catalog-open-api.yaml
+	uv run openapi-spec-validator --errors all ../aws/src/main/resources/s3-signer-open-api.yaml
+
+lint-spec:
+	uv run yamllint --strict rest-catalog-open-api.yaml
+	uv run yamllint --strict ../aws/src/main/resources/s3-signer-open-api.yaml
+
+lint: validate-spec lint-spec
 
 generate:
-	datamodel-codegen \
-                --enum-field-as-literal all \
-	        --target-python-version 3.9 \
+	uv run datamodel-codegen \
+			--enum-field-as-literal all \
+	        --target-python-version 3.12 \
 	        --use-schema-description \
 	        --field-constraints \
 	        --input rest-catalog-open-api.yaml \

@@ -82,6 +82,27 @@ public class TestPlanTableScanRequestParser {
   }
 
   @Test
+  public void invalidMinRowsRequested() {
+    assertThatThrownBy(
+            () ->
+                PlanTableScanRequestParser.fromJson(
+                    "{\"snapshot-id\":1,\"case-sensitive\":true,\"use-snapshot-schema\":false,\"min-rows-requested\":\"23\"}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a long value: min-rows-requested: \"23\"");
+
+    assertThatThrownBy(
+            () ->
+                PlanTableScanRequestParser.fromJson(
+                    "{\"snapshot-id\":1,\"case-sensitive\":true,\"use-snapshot-schema\":false,\"min-rows-requested\":-1}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid scan: minRowsRequested is negative");
+
+    assertThatThrownBy(() -> PlanTableScanRequest.builder().withMinRowsRequested(-1L).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid scan: minRowsRequested is negative");
+  }
+
+  @Test
   public void roundTripSerdeWithSelectField() {
     PlanTableScanRequest request =
         PlanTableScanRequest.builder()
@@ -111,13 +132,53 @@ public class TestPlanTableScanRequestParser {
 
     String expectedJson =
         "{\"snapshot-id\":1,"
-            + "\"filter\":\"false\","
+            + "\"filter\":false,"
             + "\"case-sensitive\":true,"
             + "\"use-snapshot-schema\":false}";
 
     String json = PlanTableScanRequestParser.toJson(request, false);
     assertThat(json).isEqualTo(expectedJson);
     assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), false))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithoutMinRowsRequested() {
+    PlanTableScanRequest request = PlanTableScanRequest.builder().withSnapshotId(1L).build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"snapshot-id\" : 1,\n"
+            + "  \"case-sensitive\" : true,\n"
+            + "  \"use-snapshot-schema\" : false\n"
+            + "}";
+
+    String json = PlanTableScanRequestParser.toJson(request, true);
+    assertThat(json).isEqualTo(expectedJson);
+    PlanTableScanRequest planTableScanRequest = PlanTableScanRequestParser.fromJson(json);
+    assertThat(planTableScanRequest.minRowsRequested()).isNull();
+    assertThat(PlanTableScanRequestParser.toJson(planTableScanRequest, true))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithMinRowsRequested() {
+    PlanTableScanRequest request =
+        PlanTableScanRequest.builder().withSnapshotId(1L).withMinRowsRequested(23L).build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"snapshot-id\" : 1,\n"
+            + "  \"case-sensitive\" : true,\n"
+            + "  \"use-snapshot-schema\" : false,\n"
+            + "  \"min-rows-requested\" : 23\n"
+            + "}";
+
+    String json = PlanTableScanRequestParser.toJson(request, true);
+    assertThat(json).isEqualTo(expectedJson);
+    PlanTableScanRequest planTableScanRequest = PlanTableScanRequestParser.fromJson(json);
+    assertThat(planTableScanRequest.minRowsRequested()).isEqualTo(23);
+    assertThat(PlanTableScanRequestParser.toJson(planTableScanRequest, true))
         .isEqualTo(expectedJson);
   }
 
@@ -151,16 +212,18 @@ public class TestPlanTableScanRequestParser {
             .withCaseSensitive(false)
             .withUseSnapshotSchema(true)
             .withStatsFields(Lists.newArrayList("col1", "col2"))
+            .withMinRowsRequested(23L)
             .build();
 
     String expectedJson =
         "{\"start-snapshot-id\":1,"
             + "\"end-snapshot-id\":2,"
             + "\"select\":[\"col1\",\"col2\"],"
-            + "\"filter\":\"true\","
+            + "\"filter\":true,"
             + "\"case-sensitive\":false,"
             + "\"use-snapshot-schema\":true,"
-            + "\"stats-fields\":[\"col1\",\"col2\"]}";
+            + "\"stats-fields\":[\"col1\",\"col2\"],"
+            + "\"min-rows-requested\":23}";
 
     String json = PlanTableScanRequestParser.toJson(request, false);
     assertThat(json).isEqualTo(expectedJson);
@@ -178,14 +241,46 @@ public class TestPlanTableScanRequestParser {
             .withCaseSensitive(false)
             .withUseSnapshotSchema(true)
             .withStatsFields(Lists.newArrayList("stat1"))
+            .withMinRowsRequested(23L)
             .build();
 
-    String str = request.toString();
-    assertThat(str).contains("snapshotId=123");
-    assertThat(str).contains("select=[colA, colB]");
-    assertThat(str).contains("filter=true");
-    assertThat(str).contains("caseSensitive=false");
-    assertThat(str).contains("useSnapshotSchema=true");
-    assertThat(str).contains("statsFields=[stat1]");
+    assertThat(request)
+        .asString()
+        .contains("snapshotId=123")
+        .contains("select=[colA, colB]")
+        .contains("filter=true")
+        .contains("caseSensitive=false")
+        .contains("useSnapshotSchema=true")
+        .contains("statsFields=[stat1]")
+        .contains("minRowsRequested=23");
+  }
+
+  @Test
+  public void roundTripSerdeWithFilterExpression() {
+    PlanTableScanRequest request =
+        PlanTableScanRequest.builder()
+            .withSnapshotId(1L)
+            .withFilter(Expressions.equal("id", 1))
+            .build();
+
+    String expectedJson =
+        "{\"snapshot-id\":1,"
+            + "\"filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1},"
+            + "\"case-sensitive\":true,"
+            + "\"use-snapshot-schema\":false}";
+
+    String json = PlanTableScanRequestParser.toJson(request, false);
+    assertThat(json).isEqualTo(expectedJson);
+    assertThat(PlanTableScanRequestParser.toJson(PlanTableScanRequestParser.fromJson(json), false))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void testFilterFieldWithExplicitNullThrowsError() {
+    String json = "{\"snapshot-id\":123,\"filter\":null,\"case-sensitive\":true}";
+
+    assertThatThrownBy(() -> PlanTableScanRequestParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse expression from non-object: null");
   }
 }
