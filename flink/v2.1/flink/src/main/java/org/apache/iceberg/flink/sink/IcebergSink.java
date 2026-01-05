@@ -163,6 +163,8 @@ public class IcebergSink
   private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
 
   private final Table table;
+  // This should only be used for logging/error messages. For any actual logic always use
+  // equalityFieldIds instead.
   private final Set<String> equalityFieldColumns;
 
   private IcebergSink(
