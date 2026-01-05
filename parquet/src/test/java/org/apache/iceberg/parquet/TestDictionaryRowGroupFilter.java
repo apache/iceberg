@@ -608,7 +608,7 @@ public class TestDictionaryRowGroupFilter {
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("id", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
@@ -656,7 +656,7 @@ public class TestDictionaryRowGroupFilter {
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThan("id", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
@@ -679,7 +679,7 @@ public class TestDictionaryRowGroupFilter {
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
@@ -835,7 +835,7 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, lessThan("struct_not_null.int_field", INT_MAX_VALUE))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
@@ -891,7 +891,7 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThan("struct_not_null.int_field", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
@@ -918,7 +918,7 @@ public class TestDictionaryRowGroupFilter {
         new ParquetDictionaryRowGroupFilter(
                 SCHEMA, greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE - 4))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
