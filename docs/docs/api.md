@@ -188,7 +188,6 @@ MapType map = MapType.ofOptional(
 ListType list = ListType.ofRequired(1, IntegerType.get());
 ```
 
-
 ## Expressions
 
 Iceberg's expressions are used to configure table scans. To create expressions, use the factory methods in [`Expressions`](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/expressions/Expressions.html).
