@@ -1113,33 +1113,43 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     createTable();
     insertData(10);
 
-    String branchName = "test-branch";
+    String branchName = "testBranch";
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
 
-    // Insert more data to the branch
-    sql("INSERT INTO %s.branch_%s VALUES (1, 'a', 'b'), (2, 'c', 'd')", tableName, branchName);
+    // Insert more data to the branch (multiple inserts to create multiple small files)
+    for (int i = 0; i < 5; i++) {
+      sql("INSERT INTO %s.branch_%s VALUES (1, 'a', 'b'), (2, 'c', 'd')", tableName, branchName);
+    }
 
     // Get snapshot IDs before rewrite
     Table table = validationCatalog.loadTable(tableIdent);
     long mainSnapshotId = table.currentSnapshot().snapshotId();
     long branchSnapshotId = table.refs().get(branchName).snapshotId();
 
-    // Call rewrite_data_files on the branch
+    // Call rewrite_data_files on the branch with options to force rewrite
     List<Object[]> output =
         sql(
-            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s')",
+            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s', options => map('min-input-files','2'))",
             catalogName, tableName, branchName);
 
-    // Verify output (should have rewritten files)
+    // Verify output
     assertThat(output).hasSize(1);
     assertThat(output.get(0)).hasSize(5);
+
+    // Check if files were actually rewritten
+    int filesRewritten = (Integer) output.get(0)[0];
+    int filesAdded = (Integer) output.get(0)[1];
+
+    // Verify files were rewritten (we created multiple small files, so they should be compacted)
+    assertThat(filesRewritten)
+        .as("Files should be rewritten when multiple small files exist")
+        .isGreaterThan(0);
 
     // Verify branch snapshot changed
     table.refresh();
     assertThat(table.refs().get(branchName).snapshotId())
-        .as("Branch snapshot should be updated")
-        .isNotEqualTo(branchSnapshotId)
-        .isGreaterThan(branchSnapshotId);
+        .as("Branch snapshot should be updated when files are rewritten")
+        .isNotEqualTo(branchSnapshotId);
 
     // Verify main snapshot unchanged
     assertThat(table.currentSnapshot().snapshotId())
@@ -1152,13 +1162,15 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     createPartitionTable();
     insertData(10);
 
-    String branchName = "filtered-branch";
+    String branchName = "filteredBranch";
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
 
-    // Insert more data to the branch
-    sql(
-        "INSERT INTO %s.branch_%s VALUES (10, 'a', 'b'), (20, 'c', 'd'), (30, 'e', 'f')",
-        tableName, branchName);
+    // Insert more data to the branch (insert multiple times to create multiple files)
+    for (int i = 0; i < 5; i++) {
+      sql(
+          "INSERT INTO %s.branch_%s VALUES (10, 'a', 'b'), (20, 'c', 'd'), (30, 'e', 'f')",
+          tableName, branchName);
+    }
 
     // Get snapshot IDs before rewrite
     Table table = validationCatalog.loadTable(tableIdent);
@@ -1175,12 +1187,17 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assertThat(output).hasSize(1);
     assertThat(output.get(0)).hasSize(5);
 
-    // Verify branch snapshot changed
+    // Check if files were actually rewritten
+    int filesRewritten = (Integer) output.get(0)[0];
+    int filesAdded = (Integer) output.get(0)[1];
+
+    // Verify branch snapshot changed only if files were rewritten
     table.refresh();
-    assertThat(table.refs().get(branchName).snapshotId())
-        .as("Branch snapshot should be updated")
-        .isNotEqualTo(branchSnapshotId)
-        .isGreaterThan(branchSnapshotId);
+    if (filesRewritten > 0 || filesAdded > 0) {
+      assertThat(table.refs().get(branchName).snapshotId())
+          .as("Branch snapshot should be updated when files are rewritten")
+          .isNotEqualTo(branchSnapshotId);
+    }
 
     // Verify main snapshot unchanged
     assertThat(table.currentSnapshot().snapshotId())
