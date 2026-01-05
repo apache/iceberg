@@ -1055,4 +1055,85 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   private List<Object[]> currentData(String table) {
     return rowsToJava(spark.sql("SELECT * FROM " + table + " order by c1, c2, c3").collectAsList());
   }
+
+  @TestTemplate
+  public void testRewriteDataFilesOnBranch() {
+    createTable();
+    insertData(10);
+
+    String branchName = "test-branch";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    // Insert more data to the branch
+    sql("INSERT INTO %s.branch_%s VALUES (1, 'a', 'b'), (2, 'c', 'd')", tableName, branchName);
+
+    // Get snapshot IDs before rewrite
+    Table table = validationCatalog.loadTable(tableIdent);
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+    long branchSnapshotId = table.refs().get(branchName).snapshotId();
+
+    // Call rewrite_data_files on the branch
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s')",
+            catalogName, tableName, branchName);
+
+    // Verify output (should have rewritten files)
+    assertThat(output).hasSize(1);
+    assertThat(output.get(0)).hasSize(5);
+
+    // Verify branch snapshot changed
+    table.refresh();
+    assertThat(table.refs().get(branchName).snapshotId())
+        .as("Branch snapshot should be updated")
+        .isNotEqualTo(branchSnapshotId)
+        .isGreaterThan(branchSnapshotId);
+
+    // Verify main snapshot unchanged
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("Main snapshot should remain unchanged")
+        .isEqualTo(mainSnapshotId);
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesOnBranchWithFilter() {
+    createPartitionTable();
+    insertData(10);
+
+    String branchName = "filtered-branch";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    // Insert more data to the branch
+    sql(
+        "INSERT INTO %s.branch_%s VALUES (10, 'a', 'b'), (20, 'c', 'd'), (30, 'e', 'f')",
+        tableName,
+        branchName);
+
+    // Get snapshot IDs before rewrite
+    Table table = validationCatalog.loadTable(tableIdent);
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+    long branchSnapshotId = table.refs().get(branchName).snapshotId();
+
+    // Call rewrite_data_files on the branch with filter
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s', where => 'c1 >= 10')",
+            catalogName, tableName, branchName);
+
+    // Verify output
+    assertThat(output).hasSize(1);
+    assertThat(output.get(0)).hasSize(5);
+
+    // Verify branch snapshot changed
+    table.refresh();
+    assertThat(table.refs().get(branchName).snapshotId())
+        .as("Branch snapshot should be updated")
+        .isNotEqualTo(branchSnapshotId)
+        .isGreaterThan(branchSnapshotId);
+
+    // Verify main snapshot unchanged
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("Main snapshot should remain unchanged")
+        .isEqualTo(mainSnapshotId);
+  }
 }

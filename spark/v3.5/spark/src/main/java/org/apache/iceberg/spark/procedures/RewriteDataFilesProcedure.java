@@ -131,8 +131,9 @@ class RewriteDataFilesProcedure extends BaseProcedure {
           }
 
           if (strategy != null || sortOrderString != null) {
-            action = (RewriteDataFilesSparkAction)
-                checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
+            action =
+                (RewriteDataFilesSparkAction)
+                    checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
           }
 
           action = (RewriteDataFilesSparkAction) checkAndApplyFilter(action, where, tableIdent);
