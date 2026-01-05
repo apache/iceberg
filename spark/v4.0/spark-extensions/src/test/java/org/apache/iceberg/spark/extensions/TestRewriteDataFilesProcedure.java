@@ -1156,8 +1156,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     // Insert more data to the branch
     sql(
         "INSERT INTO %s.branch_%s VALUES (10, 'a', 'b'), (20, 'c', 'd'), (30, 'e', 'f')",
-        tableName,
-        branchName);
+        tableName, branchName);
 
     // Get snapshot IDs before rewrite
     Table table = validationCatalog.loadTable(tableIdent);
