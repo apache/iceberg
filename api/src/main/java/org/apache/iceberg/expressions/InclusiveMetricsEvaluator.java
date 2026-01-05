@@ -329,9 +329,9 @@ public class InclusiveMetricsEvaluator {
       // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
       // However, when min == max and the file has no nulls or NaN values, we can safely prune
       // if that value equals the literal.
-      T uniqueValue = getUniqueValue(term);
+      T value = uniqueValue(term);
 
-      if (uniqueValue != null && lit.comparator().compare(uniqueValue, lit.value()) == 0) {
+      if (value != null && lit.comparator().compare(value, lit.value()) == 0) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -391,9 +391,9 @@ public class InclusiveMetricsEvaluator {
       // them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
       // However, when min == max and the file has no nulls or NaN values, we can safely prune
       // if that value is in the exclusion set.
-      T uniqueValue = getUniqueValue(term);
+      T value = uniqueValue(term);
 
-      if (uniqueValue != null && literalSet.contains(uniqueValue)) {
+      if (value != null && literalSet.contains(value)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -507,10 +507,10 @@ public class InclusiveMetricsEvaluator {
     }
 
     /**
-     * Returns the column's single value if all rows contain the same value, no nulls, no NaNs, and
-     * lower bound equals upper bound. Returns null otherwise.
+     * Returns the column's single value if all rows contain the same value. Defined as a column
+     * with no nulls, no NaNs, and lower bound equals upper bound. Returns null otherwise.
      */
-    private <T> T getUniqueValue(Bound<T> term) {
+    private <T> T uniqueValue(Bound<T> term) {
       int id = term.ref().fieldId();
       if (mayContainNull(id)) {
         return null;

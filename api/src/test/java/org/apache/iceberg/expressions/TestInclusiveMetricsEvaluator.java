@@ -987,7 +987,7 @@ public class TestInclusiveMetricsEvaluator {
     boolean shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, notEqual("required", "aaa")).eval(rangeOfValues);
     assertThat(shouldRead)
-        .as("Should read: file has range of values, optimization doesn't apply")
+        .as("Should read: file has range of values, cannot exclude based on literal")
         .isTrue();
 
     DataFile singleValueFile =
@@ -1004,7 +1004,7 @@ public class TestInclusiveMetricsEvaluator {
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, notEqual("required", "abc")).eval(singleValueFile);
     assertThat(shouldRead)
-        .as("Should prune: file contains single value equal to literal")
+        .as("Should not read: file contains single value equal to literal")
         .isFalse();
 
     shouldRead =
@@ -1076,7 +1076,7 @@ public class TestInclusiveMetricsEvaluator {
     boolean shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, notIn("required", "aaa", "bbb")).eval(rangeOfValues);
     assertThat(shouldRead)
-        .as("Should read: file has range of values, optimization doesn't apply")
+        .as("Should read: file has range of values, cannot exclude based on literal")
         .isTrue();
 
     DataFile singleValueFile =
@@ -1094,7 +1094,7 @@ public class TestInclusiveMetricsEvaluator {
         new InclusiveMetricsEvaluator(SCHEMA, notIn("required", "abc", "def"))
             .eval(singleValueFile);
     assertThat(shouldRead)
-        .as("Should prune: file contains single value in exclusion list")
+        .as("Should not read: file contains single value in exclusion list")
         .isFalse();
 
     shouldRead =
