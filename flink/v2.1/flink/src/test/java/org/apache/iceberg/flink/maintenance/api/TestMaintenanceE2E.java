@@ -77,4 +77,43 @@ class TestMaintenanceE2E extends OperatorTestBase {
       closeJobClient(jobClient);
     }
   }
+
+  @Test
+  void testE2eUseCoordinator() throws Exception {
+    TableMaintenance.forTable(env, tableLoader())
+        .uidSuffix("E2eTestUID")
+        .rateLimit(Duration.ofMinutes(10))
+        .lockCheckDelay(Duration.ofSeconds(10))
+        .add(
+            ExpireSnapshots.builder()
+                .scheduleOnCommitCount(10)
+                .maxSnapshotAge(Duration.ofMinutes(10))
+                .retainLast(5)
+                .deleteBatchSize(5)
+                .parallelism(8))
+        .add(
+            RewriteDataFiles.builder()
+                .scheduleOnDataFileCount(10)
+                .partialProgressEnabled(true)
+                .partialProgressMaxCommits(10)
+                .maxRewriteBytes(1000L)
+                .targetFileSizeBytes(1000L)
+                .minFileSizeBytes(1000L)
+                .maxFileSizeBytes(1000L)
+                .minInputFiles(10)
+                .deleteFileThreshold(10)
+                .rewriteAll(false)
+                .maxFileGroupSizeBytes(1000L))
+        .append();
+
+    JobClient jobClient = null;
+    try {
+      jobClient = env.executeAsync();
+
+      // Just make sure that we are able to instantiate the flow
+      assertThat(jobClient).isNotNull();
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
 }
