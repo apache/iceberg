@@ -40,6 +40,7 @@ public class RewriteDataFilesCommitManager {
   private final long startingSnapshotId;
   private final boolean useStartingSequenceNumber;
   private final Map<String, String> snapshotProperties;
+  private final String branch;
 
   // constructor used for testing
   public RewriteDataFilesCommitManager(Table table) {
@@ -47,12 +48,12 @@ public class RewriteDataFilesCommitManager {
   }
 
   public RewriteDataFilesCommitManager(Table table, long startingSnapshotId) {
-    this(table, startingSnapshotId, RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
+    this(table, startingSnapshotId, RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER_DEFAULT, null);
   }
 
   public RewriteDataFilesCommitManager(
       Table table, long startingSnapshotId, boolean useStartingSequenceNumber) {
-    this(table, startingSnapshotId, useStartingSequenceNumber, ImmutableMap.of());
+    this(table, startingSnapshotId, useStartingSequenceNumber, ImmutableMap.of(), null);
   }
 
   public RewriteDataFilesCommitManager(
@@ -60,10 +61,20 @@ public class RewriteDataFilesCommitManager {
       long startingSnapshotId,
       boolean useStartingSequenceNumber,
       Map<String, String> snapshotProperties) {
+    this(table, startingSnapshotId, useStartingSequenceNumber, snapshotProperties, null);
+  }
+
+  public RewriteDataFilesCommitManager(
+      Table table,
+      long startingSnapshotId,
+      boolean useStartingSequenceNumber,
+      Map<String, String> snapshotProperties,
+      String branch) {
     this.table = table;
     this.startingSnapshotId = startingSnapshotId;
     this.useStartingSequenceNumber = useStartingSequenceNumber;
     this.snapshotProperties = snapshotProperties;
+    this.branch = branch;
   }
 
   /**
@@ -93,6 +104,10 @@ public class RewriteDataFilesCommitManager {
     danglingDVs.forEach(rewrite::deleteFile);
 
     snapshotProperties.forEach(rewrite::set);
+
+    if (branch != null) {
+      rewrite.toBranch(branch);
+    }
 
     rewrite.commit();
   }
