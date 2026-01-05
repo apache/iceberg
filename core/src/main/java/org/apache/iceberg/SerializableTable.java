@@ -91,9 +91,8 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.uuid = table.uuid();
     this.formatVersion = formatVersion(table);
 
-    // Only store full TableMetadata if metadata location is not available
-    // and the table is a REST table.
-    if (metadataFileLocation == null && isRESTTable(table)) {
+    // Only store full TableMetadata if the table requires remote scan planning.
+    if (table instanceof RequiresRemoteScanPlanning) {
       this.tableMetadata = getTableMetadata(table);
     } else {
       this.tableMetadata = null;
@@ -148,12 +147,11 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
           TableOperations ops;
 
           if (tableMetadata != null) {
-            // Use serialized TableMetadata (REST catalog without metadata location)
-            // This avoids storage access when the server doesn't provide metadataFileLocation
+            // Use serialized TableMetadata (tables requiring remote scan planning)
+            // This avoids storage access for distributed query planning
             ops = new StaticTableOperations(tableMetadata, io, locationProvider());
           } else if (metadataFileLocation != null) {
-            // Read from storage using metadata location (traditional catalogs)
-            // This is more efficient when metadata location is available
+            // Read from storage using metadata location
             ops = new StaticTableOperations(metadataFileLocation, io, locationProvider());
           } else {
             throw new UnsupportedOperationException(
@@ -208,13 +206,6 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
       return ((HasTableOperations) table).operations().current();
     }
     return null;
-  }
-
-  private boolean isRESTTable(Table table) {
-    // Check if the table is a REST table by examining its class name
-    // This avoids adding a direct dependency on the REST module
-    String className = table.getClass().getName();
-    return className.equals("org.apache.iceberg.rest.RESTTable");
   }
 
   @Override

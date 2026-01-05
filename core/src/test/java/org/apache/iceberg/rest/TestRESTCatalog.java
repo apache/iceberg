@@ -3532,8 +3532,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testSerializableTableWithoutMetadataLocationAccess()
-      throws IOException, ClassNotFoundException {
+  public void testSerializableTableWithRESTCatalog() throws IOException, ClassNotFoundException {
     // Create a table with data through REST catalog
     Schema schema =
         new Schema(
@@ -3562,8 +3561,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   private void verifySerializedTable(
       Table deserialized, Table original, int expectedSnapshotCount) {
-    // Verify that basic operations work even if metadata location is not accessible
-    // (executors don't have storage credentials)
+    // Verify that basic operations work using serialized table metadata
+    // (tables requiring remote scan planning serialize full metadata)
     assertThat(deserialized.schema().asStruct()).isEqualTo(original.schema().asStruct());
     assertThat(deserialized.spec().specId()).isEqualTo(original.spec().specId());
     assertThat(deserialized.location()).isEqualTo(original.location());
@@ -3721,11 +3720,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
     assertThat(snapshotCount).isEqualTo(2);
 
-    // Case 2: Test the optimization - when metadata location is present,
-    // tableMetadataJson should not be serialized (saving space)
-    // When metadata location is null, tableMetadataJson should be serialized (enabling
-    // functionality)
-    // This test verifies the SerializableTable works correctly regardless of which path is taken
+    // Test the optimization - when table requires remote scan planning,
+    // tableMetadata is always serialized (enabling distributed query planning)
+    // For other tables, tableMetadata is not serialized (saving space)
+    // This test verifies the SerializableTable works correctly for both cases
     assertThat(deserialized.schema().asStruct()).isEqualTo(original.schema().asStruct());
     assertThat(deserialized.location()).isEqualTo(original.location());
   }
