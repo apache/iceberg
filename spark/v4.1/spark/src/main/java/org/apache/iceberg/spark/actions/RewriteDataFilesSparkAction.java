@@ -169,7 +169,8 @@ public class RewriteDataFilesSparkAction
       return EMPTY_RESULT;
     }
 
-    long startingSnapshotId = table.currentSnapshot().snapshotId();
+    long startingSnapshotId =
+        branch != null ? table.snapshot(branch).snapshotId() : table.currentSnapshot().snapshotId();
 
     init(startingSnapshotId);
 

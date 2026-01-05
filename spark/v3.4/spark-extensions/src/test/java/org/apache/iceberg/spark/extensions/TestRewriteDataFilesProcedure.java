@@ -1153,4 +1153,88 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .as("Main snapshot should remain unchanged")
         .isEqualTo(mainSnapshotId);
   }
+
+  @TestTemplate
+  public void testBranchCompactionDoesNotAffectMain() {
+    createTable();
+
+    // Insert 10 rows on main branch (creates 1 file)
+    insertData(10);
+
+    // Capture main branch state BEFORE creating branch
+    Table table = validationCatalog.loadTable(tableIdent);
+    long mainSnapshotIdBeforeBranch = table.currentSnapshot().snapshotId();
+
+    // Create branch from current main state
+    String branchName = "compactionBranch";
+    sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
+
+    // CRITICAL: Add more data to MAIN to make it diverge from branch
+    // This ensures main's currentSnapshot != branch's snapshot
+    for (int i = 0; i < 5; i++) {
+      sql("INSERT INTO %s VALUES (%d, 'main-diverge', 'data')", tableName, i + 1000);
+    }
+
+    // Refresh to get new main snapshot after divergence
+    table.refresh();
+    long mainSnapshotAfterDivergence = table.currentSnapshot().snapshotId();
+
+    // Now insert multiple small batches to the BRANCH ONLY (creates many small files)
+    for (int i = 0; i < 10; i++) {
+      sql(
+          "INSERT INTO %s.branch_%s VALUES (%d, 'branch', 'data')",
+          tableName, branchName, i + 100);
+    }
+
+    // Refresh table and get branch snapshot before compaction
+    table.refresh();
+    long branchSnapshotBeforeCompaction = table.refs().get(branchName).snapshotId();
+
+    // Verify that branch and main have diverged
+    assertThat(branchSnapshotBeforeCompaction)
+        .as("Branch and main should have different snapshots")
+        .isNotEqualTo(mainSnapshotAfterDivergence);
+
+    // THE BUG: This call will use table.currentSnapshot() which returns MAIN's snapshot
+    // So it will try to compact main's files (which don't need compaction)
+    // instead of branch's 10 small files (which do need compaction)
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s', options => map('min-input-files','2'))",
+            catalogName, tableName, branchName);
+
+    // THIS ASSERTION SHOULD FAIL WITH CURRENT BUGGY CODE:
+    // Since the planner uses main's snapshot (which has no small files to compact),
+    // it will find 0 files to rewrite, even though the branch has 10 small files!
+    int filesRewritten = (Integer) output.get(0)[0];
+    int filesAdded = (Integer) output.get(0)[1];
+
+    assertThat(filesRewritten)
+        .as("Branch compaction should rewrite the 10 small files on the branch, not main's files")
+        .isGreaterThan(0);
+
+    assertThat(filesAdded)
+        .as("Branch compaction should add compacted files")
+        .isGreaterThan(0);
+
+    table.refresh();
+
+    // CRITICAL CHECKS: Main branch should be completely unaffected
+
+    // 1. Main snapshot ID should not change from after-divergence state
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("Main snapshot ID must remain unchanged after branch compaction")
+        .isEqualTo(mainSnapshotAfterDivergence);
+
+    // 2. Main data should have original 10 + 5 divergence rows = 15 rows
+    List<Object[]> mainDataAfter = currentData(tableName);
+    assertThat(mainDataAfter.size())
+        .as("Main should have 15 rows (10 original + 5 divergence inserts)")
+        .isEqualTo(15);
+
+    // 3. Branch snapshot should change
+    assertThat(table.refs().get(branchName).snapshotId())
+        .as("Branch snapshot must be updated after compaction")
+        .isNotEqualTo(branchSnapshotBeforeCompaction);
+  }
 }
