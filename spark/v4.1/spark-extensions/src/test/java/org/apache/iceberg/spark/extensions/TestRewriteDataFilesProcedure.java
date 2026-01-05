@@ -1278,8 +1278,15 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .isEqualTo(15);
 
     // 3. Branch snapshot should change
-    assertThat(table.refs().get(branchName).snapshotId())
+    long branchSnapshotAfterCompaction = table.refs().get(branchName).snapshotId();
+    assertThat(branchSnapshotAfterCompaction)
         .as("Branch snapshot must be updated after compaction")
         .isNotEqualTo(branchSnapshotBeforeCompaction);
+
+    // 4. Verify the new branch snapshot is a child of the previous branch snapshot
+    // This ensures the compaction was committed to the branch, not main
+    assertThat(table.snapshot(branchSnapshotAfterCompaction).parentId())
+        .as("New branch snapshot must be a child of the previous branch snapshot")
+        .isEqualTo(branchSnapshotBeforeCompaction);
   }
 }
