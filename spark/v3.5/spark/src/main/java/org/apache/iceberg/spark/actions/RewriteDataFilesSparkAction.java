@@ -169,6 +169,11 @@ public class RewriteDataFilesSparkAction
       return EMPTY_RESULT;
     }
 
+    Preconditions.checkArgument(
+        branch == null || table.snapshot(branch) != null,
+        "Cannot rewrite data files for branch %s: branch does not exist",
+        branch);
+
     long startingSnapshotId =
         branch != null ? table.snapshot(branch).snapshotId() : table.currentSnapshot().snapshotId();
 
