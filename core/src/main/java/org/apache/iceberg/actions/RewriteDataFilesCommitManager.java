@@ -48,12 +48,12 @@ public class RewriteDataFilesCommitManager {
   }
 
   public RewriteDataFilesCommitManager(Table table, long startingSnapshotId) {
-    this(table, startingSnapshotId, RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER_DEFAULT, null);
+    this(table, startingSnapshotId, RewriteDataFiles.USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
   }
 
   public RewriteDataFilesCommitManager(
       Table table, long startingSnapshotId, boolean useStartingSequenceNumber) {
-    this(table, startingSnapshotId, useStartingSequenceNumber, ImmutableMap.of(), null);
+    this(table, startingSnapshotId, useStartingSequenceNumber, ImmutableMap.of());
   }
 
   public RewriteDataFilesCommitManager(
