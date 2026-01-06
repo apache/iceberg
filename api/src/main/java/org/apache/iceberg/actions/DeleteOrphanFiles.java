@@ -145,7 +145,7 @@ public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrpha
 
     /** Returns the total number of orphan files. */
     default long orphanFilesCount() {
-      return 0;
+      return -1;
     }
   }
 
