@@ -1242,9 +1242,6 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .as("Branch and main should have different snapshots")
         .isNotEqualTo(mainSnapshotAfterDivergence);
 
-    // THE BUG: This call will use table.currentSnapshot() which returns MAIN's snapshot
-    // So it will try to compact main's files (which don't need compaction)
-    // instead of branch's 10 small files (which do need compaction)
     List<Object[]> output =
         sql(
             "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s', options => map('min-input-files','2'))",
