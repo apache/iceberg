@@ -106,6 +106,7 @@ public class SparkTable
           "identifier-fields");
   private static final Set<TableCapability> CAPABILITIES =
       ImmutableSet.of(
+          TableCapability.AUTOMATIC_SCHEMA_EVOLUTION,
           TableCapability.BATCH_READ,
           TableCapability.BATCH_WRITE,
           TableCapability.MICRO_BATCH_READ,
