@@ -72,6 +72,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -189,14 +190,15 @@ public class CatalogHandlers {
     }
   }
 
-  public static void setIdempotencyLifetimeFromIso(String isoDuration) {
+  @VisibleForTesting
+  static void setIdempotencyLifetimeFromIso(String isoDuration) {
     if (isoDuration == null) {
       return;
     }
     try {
       idempotencyLifetimeMillis = Duration.parse(isoDuration).toMillis();
     } catch (Exception e) {
-      // ignore parse errors; keep default
+      throw new IllegalArgumentException("Invalid idempotency lifetime: " + isoDuration, e);
     }
   }
 

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
@@ -117,7 +118,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   private AuthSession authSession = AuthSession.EMPTY;
   private PlanningBehavior planningBehavior;
-  private final java.util.Set<String> simulate503OnFirstSuccessKeys = Sets.newConcurrentHashSet();
+  private final Set<String> simulate503OnFirstSuccessKeys = Sets.newConcurrentHashSet();
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
