@@ -136,12 +136,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
           }
 
           if (strategy != null || sortOrderString != null) {
-            action =
-                (RewriteDataFilesSparkAction)
-                    checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
+            action = checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
           }
 
-          action = (RewriteDataFilesSparkAction) checkAndApplyFilter(action, where, tableIdent);
+          action = checkAndApplyFilter(action, where, tableIdent);
 
           RewriteDataFiles.Result result = action.execute();
 
@@ -149,8 +147,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
         });
   }
 
-  private RewriteDataFiles checkAndApplyFilter(
-      RewriteDataFiles action, String where, Identifier ident) {
+  private RewriteDataFilesSparkAction checkAndApplyFilter(
+      RewriteDataFilesSparkAction action, String where, Identifier ident) {
     if (where != null) {
       Expression expression = filterExpression(ident, where);
       return action.filter(expression);
@@ -158,8 +156,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return action;
   }
 
-  private RewriteDataFiles checkAndApplyStrategy(
-      RewriteDataFiles action, String strategy, String sortOrderString, Schema schema) {
+  private RewriteDataFilesSparkAction checkAndApplyStrategy(
+      RewriteDataFilesSparkAction action, String strategy, String sortOrderString, Schema schema) {
     List<Zorder> zOrderTerms = Lists.newArrayList();
     List<ExtendedParser.RawOrderField> sortOrderFields = Lists.newArrayList();
     if (sortOrderString != null) {
@@ -196,13 +194,13 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       }
     }
     if (strategy.equalsIgnoreCase("binpack")) {
-      RewriteDataFiles rewriteDataFiles = action.binPack();
+      RewriteDataFilesSparkAction binPackAction = action.binPack();
       if (sortOrderString != null) {
         // calling below method to throw the error as user has set both binpack strategy and sort
         // order
-        return rewriteDataFiles.sort(buildSortOrder(sortOrderFields, schema));
+        return binPackAction.sort(buildSortOrder(sortOrderFields, schema));
       }
-      return rewriteDataFiles;
+      return binPackAction;
     } else {
       throw new IllegalArgumentException(
           "unsupported strategy: " + strategy + ". Only binpack or sort is supported");
