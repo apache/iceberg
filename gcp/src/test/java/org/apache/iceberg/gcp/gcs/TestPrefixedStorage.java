@@ -75,6 +75,47 @@ public class TestPrefixedStorage {
   }
 
   @Test
+  public void impersonationPropertiesAreRead() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_PROJECT_ID, "myProject",
+            GCPProperties.GCS_IMPERSONATE_SERVICE_ACCOUNT,
+                "test-sa@project.iam.gserviceaccount.com",
+            GCPProperties.GCS_IMPERSONATE_DELEGATES, "delegate-sa@project.iam.gserviceaccount.com",
+            GCPProperties.GCS_IMPERSONATE_LIFETIME_SECONDS, "1800",
+            GCPProperties.GCS_IMPERSONATE_SCOPES, "bigquery,devstorage.read_only");
+
+    GCPProperties gcpProperties = new GCPProperties(properties);
+
+    assertThat(gcpProperties.impersonateServiceAccount())
+        .contains("test-sa@project.iam.gserviceaccount.com");
+    assertThat(gcpProperties.impersonateDelegates())
+        .contains("delegate-sa@project.iam.gserviceaccount.com");
+    assertThat(gcpProperties.impersonateLifetimeSeconds()).isEqualTo(1800);
+    assertThat(gcpProperties.impersonateScopes())
+        .containsExactly(
+            "https://www.googleapis.com/auth/bigquery",
+            "https://www.googleapis.com/auth/devstorage.read_only");
+  }
+
+  @Test
+  public void impersonationPropertiesWithDefaults() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_PROJECT_ID, "myProject",
+            GCPProperties.GCS_IMPERSONATE_SERVICE_ACCOUNT,
+                "test-sa@project.iam.gserviceaccount.com");
+
+    GCPProperties gcpProperties = new GCPProperties(properties);
+
+    assertThat(gcpProperties.impersonateServiceAccount())
+        .contains("test-sa@project.iam.gserviceaccount.com");
+    assertThat(gcpProperties.impersonateDelegates()).isNull();
+    assertThat(gcpProperties.impersonateLifetimeSeconds())
+        .isEqualTo(GCPProperties.GCS_IMPERSONATE_LIFETIME_SECONDS_DEFAULT);
+  }
+
+  @Test
   public void gcsFileSystem() {
     Map<String, String> properties =
         ImmutableMap.of(
