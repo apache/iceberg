@@ -96,7 +96,6 @@ public class RewriteDataFilesSparkAction
   private boolean removeDanglingDeletes;
   private boolean useStartingSequenceNumber;
   private boolean caseSensitive;
-  private String branch = null;
   private BinPackRewriteFilePlanner planner = null;
   private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> runner = null;
 
@@ -158,24 +157,13 @@ public class RewriteDataFilesSparkAction
     return this;
   }
 
-  public RewriteDataFilesSparkAction toBranch(String targetBranch) {
-    this.branch = targetBranch;
-    return this;
-  }
-
   @Override
   public RewriteDataFiles.Result execute() {
     if (table.currentSnapshot() == null) {
       return EMPTY_RESULT;
     }
 
-    Preconditions.checkArgument(
-        branch == null || table.snapshot(branch) != null,
-        "Cannot rewrite data files for branch %s: branch does not exist",
-        branch);
-
-    long startingSnapshotId =
-        branch != null ? table.snapshot(branch).snapshotId() : table.currentSnapshot().snapshotId();
+    long startingSnapshotId = table.currentSnapshot().snapshotId();
 
     init(startingSnapshotId);
 
@@ -242,7 +230,7 @@ public class RewriteDataFilesSparkAction
   @VisibleForTesting
   RewriteDataFilesCommitManager commitManager(long startingSnapshotId) {
     return new RewriteDataFilesCommitManager(
-        table, startingSnapshotId, useStartingSequenceNumber, commitSummary(), branch);
+        table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
   }
 
   private Builder doExecute(

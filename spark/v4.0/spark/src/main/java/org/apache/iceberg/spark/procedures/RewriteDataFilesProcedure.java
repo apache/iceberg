@@ -31,9 +31,7 @@ import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
-import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
-import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -64,12 +62,10 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       optionalInParameter("options", STRING_MAP);
   private static final ProcedureParameter WHERE_PARAM =
       optionalInParameter("where", DataTypes.StringType);
-  private static final ProcedureParameter BRANCH_PARAM =
-      optionalInParameter("branch", DataTypes.StringType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        TABLE_PARAM, STRATEGY_PARAM, SORT_ORDER_PARAM, OPTIONS_PARAM, WHERE_PARAM, BRANCH_PARAM
+        TABLE_PARAM, STRATEGY_PARAM, SORT_ORDER_PARAM, OPTIONS_PARAM, WHERE_PARAM
       };
 
   // counts are not nullable since the action result is never null
@@ -118,30 +114,17 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     String sortOrderString = input.asString(SORT_ORDER_PARAM, null);
     Map<String, String> options = input.asStringMap(OPTIONS_PARAM, ImmutableMap.of());
     String where = input.asString(WHERE_PARAM, null);
-    String explicitBranch = input.asString(BRANCH_PARAM, null);
-
-    // Load SparkTable to extract branch from identifier
-    SparkTable sparkTable = loadSparkTable(tableIdent);
-    String branchFromTable = sparkTable.branch();
-    String branch = explicitBranch != null ? explicitBranch : branchFromTable;
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          RewriteDataFilesSparkAction action =
-              (RewriteDataFilesSparkAction) actions().rewriteDataFiles(table).options(options);
-
-          if (branch != null) {
-            action = action.toBranch(branch);
-          }
+          RewriteDataFiles action = actions().rewriteDataFiles(table).options(options);
 
           if (strategy != null || sortOrderString != null) {
-            action =
-                (RewriteDataFilesSparkAction)
-                    checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
+            action = checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
           }
 
-          action = (RewriteDataFilesSparkAction) checkAndApplyFilter(action, where, tableIdent);
+          action = checkAndApplyFilter(action, where, tableIdent);
 
           RewriteDataFiles.Result result = action.execute();
 
