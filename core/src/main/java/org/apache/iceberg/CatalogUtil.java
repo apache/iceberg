@@ -112,6 +112,11 @@ public class CatalogUtil {
     }
 
     LOG.info("{} Manifests to delete ", manifestsToDelete.size());
+    if (LOG.isDebugEnabled()) {
+      for (ManifestFile manifest : manifestsToDelete) {
+        LOG.debug("Deleting manifest file: {}", manifest.path());
+      }
+    }
 
     // run all of the deletes
 
