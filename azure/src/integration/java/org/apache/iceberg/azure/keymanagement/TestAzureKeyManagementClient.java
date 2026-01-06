@@ -25,6 +25,10 @@ import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.security.keyvault.keys.KeyClient;
 import com.azure.security.keyvault.keys.KeyClientBuilder;
 import com.azure.security.keyvault.keys.models.KeyType;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import org.apache.iceberg.encryption.KeyManagementClient;
@@ -41,13 +45,13 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 public class TestAzureKeyManagementClient {
   private static final String ICEBERG_TEST_KEY_NAME = "iceberg-test-key";
 
-  private static KeyClient keyClient;
+  private static final String keyVaultUri = System.getenv("AZURE_KEYVAULT_URL");
 
   private static KeyManagementClient azureKeyManagementClient;
+  private static KeyClient keyClient;
 
   @BeforeAll
   public static void beforeClass() {
-    String keyVaultUri = System.getenv("AZURE_KEYVAULT_URL");
     keyClient =
         new KeyClientBuilder()
             .vaultUrl(keyVaultUri)
@@ -80,5 +84,29 @@ public class TestAzureKeyManagementClient {
   @Test
   public void keyGenerationNotSupported() {
     assertThat(azureKeyManagementClient.supportsKeyGeneration()).isFalse();
+  }
+
+  @Test
+  public void testSerialization() throws Exception {
+    try (AzureKeyManagementClient keyManagementClient = new AzureKeyManagementClient()) {
+      keyManagementClient.initialize(ImmutableMap.of(AZURE_KEYVAULT_URL, keyVaultUri));
+
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      try (ObjectOutputStream writer = new ObjectOutputStream(out)) {
+        writer.writeObject(keyManagementClient);
+      }
+
+      AzureKeyManagementClient result;
+      ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
+      try (ObjectInputStream reader = new ObjectInputStream(in)) {
+        result = (AzureKeyManagementClient) reader.readObject();
+      }
+
+      ByteBuffer key = ByteBuffer.wrap("super-secret-table-master-key".getBytes());
+      ByteBuffer encryptedKey = result.wrapKey(key, ICEBERG_TEST_KEY_NAME);
+
+      assertThat(keyManagementClient.unwrapKey(encryptedKey, ICEBERG_TEST_KEY_NAME)).isEqualTo(key);
+      assertThat(result.unwrapKey(encryptedKey, ICEBERG_TEST_KEY_NAME)).isEqualTo(key);
+    }
   }
 }
