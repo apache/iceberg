@@ -194,6 +194,7 @@ class Coordinator extends Channel {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void commitToTable(
       TableReference tableReference,
       List<Envelope> envelopeList,
