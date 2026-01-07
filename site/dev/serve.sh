@@ -23,4 +23,4 @@ set -e
 
 ./dev/lint.sh
 
-"${VENV_DIR}/bin/python3" -m mkdocs serve --dirty --watch .
+"${VENV_DIR}/bin/python3" -m mkdocs serve --livereload --watch .
