@@ -1114,34 +1114,39 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     String branchName = "testBranch";
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
 
-    // Insert more data to the branch (multiple inserts to create multiple small files)
-    for (int i = 0; i < 5; i++) {
-      sql("INSERT INTO %s.branch_%s VALUES (1, 'a', 'b'), (2, 'c', 'd')", tableName, branchName);
-    }
+    List<Object[]> expectedRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
 
     // Get snapshot IDs before rewrite
     Table table = validationCatalog.loadTable(tableIdent);
     long mainSnapshotId = table.currentSnapshot().snapshotId();
     long branchSnapshotId = table.refs().get(branchName).snapshotId();
 
-    // Call rewrite_data_files on the branch with options to force rewrite
+    // Call rewrite_data_files on the branch
     List<Object[]> output =
         sql(
-            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s', options => map('min-input-files','2'))",
+            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s')",
             catalogName, tableName, branchName);
 
-    // Verify output
-    assertThat(output).hasSize(1);
-    assertThat(output.get(0)).hasSize(5);
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data file",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
 
-    // Check if files were actually rewritten
-    int filesRewritten = (Integer) output.get(0)[0];
-    int filesAdded = (Integer) output.get(0)[1];
-
-    // Verify files were rewritten (we created multiple small files, so they should be compacted)
-    assertThat(filesRewritten)
-        .as("Files should be rewritten when multiple small files exist")
-        .isGreaterThan(0);
+    // Verify branch data is preserved after compaction
+    List<Object[]> actualRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
     // Verify branch snapshot changed
     table.refresh();
@@ -1163,39 +1168,46 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     String branchName = "filteredBranch";
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
 
-    // Insert more data to the branch (insert multiple times to create multiple files)
-    for (int i = 0; i < 5; i++) {
-      sql(
-          "INSERT INTO %s.branch_%s VALUES (10, 'a', 'b'), (20, 'c', 'd'), (30, 'e', 'f')",
-          tableName, branchName);
-    }
+    List<Object[]> expectedRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
 
     // Get snapshot IDs before rewrite
     Table table = validationCatalog.loadTable(tableIdent);
     long mainSnapshotId = table.currentSnapshot().snapshotId();
     long branchSnapshotId = table.refs().get(branchName).snapshotId();
 
-    // Call rewrite_data_files on the branch with filter
+    // Call rewrite_data_files on the branch with filter (select only partition c2 = 'bar')
     List<Object[]> output =
         sql(
-            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s', where => 'c1 >= 10')",
+            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s', where => 'c2 = \"bar\"')",
             catalogName, tableName, branchName);
 
-    // Verify output
-    assertThat(output).hasSize(1);
-    assertThat(output.get(0)).hasSize(5);
+    assertEquals(
+        "Action should rewrite 5 data files from single matching partition"
+            + "(containing c2 = bar) and add 1 data file",
+        row(5, 1),
+        Arrays.copyOf(output.get(0), 2));
 
-    // Check if files were actually rewritten
-    int filesRewritten = (Integer) output.get(0)[0];
-    int filesAdded = (Integer) output.get(0)[1];
+    // Verify branch data is preserved after compaction
+    List<Object[]> actualRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    // Verify branch snapshot changed only if files were rewritten
+    // Verify branch snapshot changed after rewrite
     table.refresh();
-    if (filesRewritten > 0 || filesAdded > 0) {
-      assertThat(table.refs().get(branchName).snapshotId())
-          .as("Branch snapshot should be updated when files are rewritten")
-          .isNotEqualTo(branchSnapshotId);
-    }
+    assertThat(table.refs().get(branchName).snapshotId())
+        .as("Branch snapshot should be updated when files are rewritten")
+        .isNotEqualTo(branchSnapshotId);
 
     // Verify main snapshot unchanged
     assertThat(table.currentSnapshot().snapshotId())
@@ -1206,35 +1218,32 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testBranchCompactionDoesNotAffectMain() {
     createTable();
-
-    // Insert 10 rows on main branch (creates 1 file)
+    // create 10 files under non-partitioned table
     insertData(10);
 
-    // Capture main branch state BEFORE creating branch
     Table table = validationCatalog.loadTable(tableIdent);
-    long mainSnapshotIdBeforeBranch = table.currentSnapshot().snapshotId();
 
     // Create branch from current main state
     String branchName = "compactionBranch";
     sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName);
 
-    // CRITICAL: Add more data to MAIN to make it diverge from branch
-    // This ensures main's currentSnapshot != branch's snapshot
-    for (int i = 0; i < 5; i++) {
-      sql("INSERT INTO %s VALUES (%d, 'main-diverge', 'data')", tableName, i + 1000);
-    }
+    // Add more data to MAIN to make it diverge from branch
+    insertData(tableName, 10);
 
     // Refresh to get new main snapshot after divergence
     table.refresh();
     long mainSnapshotAfterDivergence = table.currentSnapshot().snapshotId();
+    List<Object[]> expectedMainRecords = currentData();
 
-    // Now insert multiple small batches to the BRANCH ONLY (creates many small files)
-    for (int i = 0; i < 10; i++) {
-      sql("INSERT INTO %s.branch_%s VALUES (%d, 'branch', 'data')", tableName, branchName, i + 100);
-    }
+    // Get branch data before compaction
+    List<Object[]> expectedBranchRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
 
-    // Refresh table and get branch snapshot before compaction
-    table.refresh();
     long branchSnapshotBeforeCompaction = table.refs().get(branchName).snapshotId();
 
     // Verify that branch and main have diverged
@@ -1244,44 +1253,46 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     List<Object[]> output =
         sql(
-            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s', options => map('min-input-files','2'))",
+            "CALL %s.system.rewrite_data_files(table => '%s', branch => '%s')",
             catalogName, tableName, branchName);
 
-    // THIS ASSERTION SHOULD FAIL WITH CURRENT BUGGY CODE:
-    // Since the planner uses main's snapshot (which has no small files to compact),
-    // it will find 0 files to rewrite, even though the branch has 10 small files!
-    int filesRewritten = (Integer) output.get(0)[0];
-    int filesAdded = (Integer) output.get(0)[1];
-
-    assertThat(filesRewritten)
-        .as("Branch compaction should rewrite the 10 small files on the branch, not main's files")
-        .isGreaterThan(0);
-
-    assertThat(filesAdded).as("Branch compaction should add compacted files").isGreaterThan(0);
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data file",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
 
     table.refresh();
 
-    // CRITICAL CHECKS: Main branch should be completely unaffected
-
-    // 1. Main snapshot ID should not change from after-divergence state
+    // Verify main snapshot unchanged
     assertThat(table.currentSnapshot().snapshotId())
         .as("Main snapshot ID must remain unchanged after branch compaction")
         .isEqualTo(mainSnapshotAfterDivergence);
 
-    // 2. Main data should have original 10 + 5 divergence rows = 15 rows
-    List<Object[]> mainDataAfter = currentData(tableName);
-    assertThat(mainDataAfter.size())
-        .as("Main should have 15 rows (10 original + 5 divergence inserts)")
-        .isEqualTo(15);
+    // Verify main data unchanged
+    List<Object[]> actualMainRecords = currentData();
+    assertEquals(
+        "Main data after compaction should not change", expectedMainRecords, actualMainRecords);
 
-    // 3. Branch snapshot should change
+    // Verify branch data unchanged
+    List<Object[]> actualBranchRecords =
+        rowsToJava(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.branch_%s ORDER BY c1, c2, c3", tableName, branchName))
+                .collectAsList());
+    assertEquals(
+        "Branch data after compaction should not change",
+        expectedBranchRecords,
+        actualBranchRecords);
+
+    // Verify branch snapshot changed
     long branchSnapshotAfterCompaction = table.refs().get(branchName).snapshotId();
     assertThat(branchSnapshotAfterCompaction)
         .as("Branch snapshot must be updated after compaction")
         .isNotEqualTo(branchSnapshotBeforeCompaction);
 
-    // 4. Verify the new branch snapshot is a child of the previous branch snapshot
-    // This ensures the compaction was committed to the branch, not main
+    // Verify the new branch snapshot is a child of the previous branch snapshot
     assertThat(table.snapshot(branchSnapshotAfterCompaction).parentId())
         .as("New branch snapshot must be a child of the previous branch snapshot")
         .isEqualTo(branchSnapshotBeforeCompaction);
