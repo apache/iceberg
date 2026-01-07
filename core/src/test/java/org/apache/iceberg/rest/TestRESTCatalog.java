@@ -3532,16 +3532,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testSerializableTableWithRESTCatalog() throws IOException, ClassNotFoundException {
-    // Create a table with data through REST catalog
+  public void serializableTable() throws IOException, ClassNotFoundException {
     Schema schema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
             required(2, "data", Types.StringType.get()));
-
-    TableIdentifier ident = TableIdentifier.of(Namespace.of("ns"), "table");
-    restCatalog.createNamespace(ident.namespace());
-    Table table = restCatalog.createTable(ident, schema);
+    restCatalog.createNamespace(TABLE.namespace());
+    Table table = restCatalog.createTable(TABLE, schema);
 
     // Add data files to create snapshots
     table.newAppend().appendFile(FILE_A).commit();
@@ -3587,8 +3584,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testSerializableTableWithRESTCatalogAndSchemaEvolution()
-      throws IOException, ClassNotFoundException {
+  public void serializableTableWithSchemaEvolution() throws IOException, ClassNotFoundException {
     // Create initial table
     Schema initialSchema =
         new Schema(
@@ -3632,8 +3628,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testSerializableTableWithRESTCatalogAndSnapshotRefs()
-      throws IOException, ClassNotFoundException {
+  public void serializableTableSnapshotRefs() throws IOException, ClassNotFoundException {
     // Create table with data
     Schema schema =
         new Schema(
@@ -3679,7 +3674,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testSerializableTableConditionalMetadataSerialization()
+  public void serializableTableConditionalMetadataSerialization()
       throws IOException, ClassNotFoundException {
     // Create a table with data through REST catalog
     Schema schema =

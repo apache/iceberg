@@ -93,7 +93,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
     // Only store full TableMetadata if the table requires remote scan planning.
     if (table instanceof RequiresRemoteScanPlanning) {
-      this.tableMetadata = getTableMetadata(table);
+      this.tableMetadata = tableMetadata(table);
     } else {
       this.tableMetadata = null;
     }
@@ -155,7 +155,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
             ops = new StaticTableOperations(metadataFileLocation, io, locationProvider());
           } else {
             throw new UnsupportedOperationException(
-                "Cannot load metadata: both tableMetadata and metadataFileLocation are null");
+                "Cannot load metadata: both table metadata and metadata file location are null");
           }
 
           this.lazyTable = newTable(ops, name);
@@ -201,7 +201,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     }
   }
 
-  private TableMetadata getTableMetadata(Table table) {
+  private TableMetadata tableMetadata(Table table) {
     if (table instanceof HasTableOperations) {
       return ((HasTableOperations) table).operations().current();
     }
