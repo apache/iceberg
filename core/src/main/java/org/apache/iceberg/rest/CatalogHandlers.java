@@ -100,8 +100,11 @@ import org.apache.iceberg.view.ViewBuilder;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewOperations;
 import org.apache.iceberg.view.ViewRepresentation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class CatalogHandlers {
+  private static final Logger LOG = LoggerFactory.getLogger(CatalogHandlers.class);
   private static final Schema EMPTY_SCHEMA = new Schema();
   private static final String INITIAL_PAGE_TOKEN = "";
   private static final InMemoryPlanningState IN_MEMORY_PLANNING_STATE =
@@ -155,6 +158,7 @@ public class CatalogHandlers {
       results = catalog.listNamespaces(parent);
     }
 
+    LOG.info("Namespaces listed under parent: {}", parent);
     return ListNamespacesResponse.builder().addAll(results).build();
   }
 
@@ -170,6 +174,11 @@ public class CatalogHandlers {
 
     Pair<List<Namespace>, String> page = paginate(results, pageToken, Integer.parseInt(pageSize));
 
+    LOG.debug(
+        "Namespaces listed under parent: {} with pagination: (pageToken={}, pageSize={})",
+        parent,
+        pageToken,
+        pageSize);
     return ListNamespacesResponse.builder()
         .addAll(page.first())
         .nextPageToken(page.second())
@@ -180,6 +189,8 @@ public class CatalogHandlers {
       SupportsNamespaces catalog, CreateNamespaceRequest request) {
     Namespace namespace = request.namespace();
     catalog.createNamespace(namespace, request.properties());
+    LOG.info(
+        "Namespace created successfully: {} with properties: {}", namespace, request.properties());
     return CreateNamespaceResponse.builder()
         .withNamespace(namespace)
         .setProperties(catalog.loadNamespaceMetadata(namespace))
@@ -195,6 +206,7 @@ public class CatalogHandlers {
   public static GetNamespaceResponse loadNamespace(
       SupportsNamespaces catalog, Namespace namespace) {
     Map<String, String> properties = catalog.loadNamespaceMetadata(namespace);
+    LOG.info("Namespace loaded successfully: {} with properties: {}", namespace, properties);
     return GetNamespaceResponse.builder()
         .withNamespace(namespace)
         .setProperties(properties)
@@ -206,6 +218,7 @@ public class CatalogHandlers {
     if (!dropped) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
+    LOG.info("Namespace dropped successfully: {}", namespace);
   }
 
   public static UpdateNamespacePropertiesResponse updateNamespaceProperties(
@@ -227,6 +240,8 @@ public class CatalogHandlers {
       catalog.removeProperties(namespace, removals);
     }
 
+    LOG.info(
+        "Namespace properties updated successfully: {} updated properties: {}", namespace, updates);
     return UpdateNamespacePropertiesResponse.builder()
         .addMissing(missing)
         .addUpdated(updates.keySet())
@@ -236,6 +251,7 @@ public class CatalogHandlers {
 
   public static ListTablesResponse listTables(Catalog catalog, Namespace namespace) {
     List<TableIdentifier> idents = catalog.listTables(namespace);
+    LOG.info("Tables listed under namespace: {}", namespace);
     return ListTablesResponse.builder().addAll(idents).build();
   }
 
@@ -246,6 +262,11 @@ public class CatalogHandlers {
     Pair<List<TableIdentifier>, String> page =
         paginate(results, pageToken, Integer.parseInt(pageSize));
 
+    LOG.debug(
+        "Tables listed under namespace: {} with pagination: (pageToken={}, pageSize={})",
+        namespace,
+        pageToken,
+        pageToken);
     return ListTablesResponse.builder().addAll(page.first()).nextPageToken(page.second()).build();
   }
 
@@ -285,6 +306,11 @@ public class CatalogHandlers {
             location,
             properties);
 
+    LOG.info(
+        "Table creation staged successfully: {} with properties: {} at location: {}",
+        ident,
+        properties,
+        request.location());
     return LoadTableResponse.builder().withTableMetadata(metadata).build();
   }
 
@@ -303,6 +329,11 @@ public class CatalogHandlers {
             .create();
 
     if (table instanceof BaseTable) {
+      LOG.info(
+          "Table created successfully: {} with properties: {} at location: {}",
+          ident,
+          request.properties(),
+          request.location());
       return LoadTableResponse.builder()
           .withTableMetadata(((BaseTable) table).operations().current())
           .build();
@@ -318,6 +349,10 @@ public class CatalogHandlers {
     TableIdentifier identifier = TableIdentifier.of(namespace, request.name());
     Table table = catalog.registerTable(identifier, request.metadataLocation());
     if (table instanceof BaseTable) {
+      LOG.info(
+          "Table registered successfully: {} at location: {}",
+          identifier,
+          request.metadataLocation());
       return LoadTableResponse.builder()
           .withTableMetadata(((BaseTable) table).operations().current())
           .build();
@@ -331,6 +366,7 @@ public class CatalogHandlers {
     if (!dropped) {
       throw new NoSuchTableException("Table does not exist: %s", ident);
     }
+    LOG.info("Table dropped successfully: {}", ident);
   }
 
   public static void purgeTable(Catalog catalog, TableIdentifier ident) {
@@ -338,6 +374,7 @@ public class CatalogHandlers {
     if (!dropped) {
       throw new NoSuchTableException("Table does not exist: %s", ident);
     }
+    LOG.info("Table purged successfully: {}", ident);
   }
 
   public static void tableExists(Catalog catalog, TableIdentifier ident) {
@@ -378,7 +415,7 @@ public class CatalogHandlers {
         default:
           throw new IllegalArgumentException(String.format("Invalid snapshot mode: %s", mode));
       }
-
+      LOG.info("Table loaded successfully: {} from location: {}", ident, table.location());
       return LoadTableResponse.builder().withTableMetadata(metadata).build();
     } else if (table instanceof BaseMetadataTable) {
       // metadata tables are loaded on the client side, return NoSuchTableException for now
@@ -413,11 +450,14 @@ public class CatalogHandlers {
       }
     }
 
+    LOG.info(
+        "Table updated successfully: {} with snapshot: {}", ident, finalMetadata.currentSnapshot());
     return LoadTableResponse.builder().withTableMetadata(finalMetadata).build();
   }
 
   public static void renameTable(Catalog catalog, RenameTableRequest request) {
     catalog.renameTable(request.source(), request.destination());
+    LOG.info("Table renamed successfully from: {} to: {}", request.source(), request.destination());
   }
 
   private static boolean isCreate(UpdateTableRequest request) {
@@ -507,6 +547,7 @@ public class CatalogHandlers {
   }
 
   public static ListTablesResponse listViews(ViewCatalog catalog, Namespace namespace) {
+    LOG.info("Views listed under namespace: {}", namespace);
     return ListTablesResponse.builder().addAll(catalog.listViews(namespace)).build();
   }
 
@@ -517,6 +558,11 @@ public class CatalogHandlers {
     Pair<List<TableIdentifier>, String> page =
         paginate(results, pageToken, Integer.parseInt(pageSize));
 
+    LOG.debug(
+        "Views listed under namespace: {} with pagination: (pageToken={}, pageSize={})",
+        namespace,
+        pageToken,
+        pageToken);
     return ListTablesResponse.builder().addAll(page.first()).nextPageToken(page.second()).build();
   }
 
@@ -550,6 +596,8 @@ public class CatalogHandlers {
         .forEach(r -> viewBuilder.withQuery(r.dialect(), r.sql()));
 
     View view = viewBuilder.create();
+    TableIdentifier viewId = TableIdentifier.of(namespace, request.name());
+    LOG.info("View created successfully: {} at location: {}", viewId, request.location());
 
     return viewResponse(view);
   }
@@ -570,6 +618,7 @@ public class CatalogHandlers {
 
   public static LoadViewResponse loadView(ViewCatalog catalog, TableIdentifier viewIdentifier) {
     View view = catalog.loadView(viewIdentifier);
+    LOG.info("View loaded successfully: {} from location: {}", viewIdentifier, view.location());
     return viewResponse(view);
   }
 
@@ -578,6 +627,11 @@ public class CatalogHandlers {
     View view = catalog.loadView(ident);
     ViewMetadata metadata = commit(asBaseView(view).operations(), request);
 
+    LOG.info(
+        "View updated successfully: {} at location: {} , current version: {}",
+        ident,
+        view.location(),
+        view.currentVersion().versionId());
     return ImmutableLoadViewResponse.builder()
         .metadata(metadata)
         .metadataLocation(metadata.metadataFileLocation())
@@ -586,6 +640,7 @@ public class CatalogHandlers {
 
   public static void renameView(ViewCatalog catalog, RenameTableRequest request) {
     catalog.renameView(request.source(), request.destination());
+    LOG.info("View renamed successfully from: {} to: {}", request.source(), request.destination());
   }
 
   public static void dropView(ViewCatalog catalog, TableIdentifier viewIdentifier) {
@@ -593,6 +648,7 @@ public class CatalogHandlers {
     if (!dropped) {
       throw new NoSuchViewException("View does not exist: %s", viewIdentifier);
     }
+    LOG.info("View dropped successfully: {}", viewIdentifier);
   }
 
   static ViewMetadata commit(ViewOperations ops, UpdateTableRequest request) {
