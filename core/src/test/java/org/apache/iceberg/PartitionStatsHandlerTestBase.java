@@ -180,8 +180,8 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     partitionData.set(13, new BigDecimal("12345678901234567890.1234567890"));
     partitionData.set(14, Literal.of("10:10:10").to(Types.TimeType.get()).value());
 
-    PartitionStats partitionStats = randomStats(partitionData);
-    List<PartitionStats> expected = Collections.singletonList(partitionStats);
+    PartitionStatistics partitionStats = randomStats(partitionData);
+    List<PartitionStatistics> expected = Collections.singletonList(partitionStats);
     PartitionStatisticsFile statisticsFile =
         PartitionStatsHandler.writePartitionStatsFile(testTable, 42L, dataSchema, expected);
 
@@ -214,34 +214,34 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
     Schema dataSchema = PartitionStatsHandler.schema(partitionSchema, formatVersion);
 
-    ImmutableList.Builder<PartitionStats> partitionListBuilder = ImmutableList.builder();
+    ImmutableList.Builder<PartitionStatistics> partitionListBuilder = ImmutableList.builder();
     for (int i = 0; i < 5; i++) {
-      PartitionStats stats =
+      PartitionStatistics stats =
           randomStats(dataSchema.findField(PARTITION_FIELD_ID).type().asStructType());
-      stats.set(POSITION_DELETE_RECORD_COUNT_POSITION, null);
-      stats.set(POSITION_DELETE_FILE_COUNT_POSITION, null);
-      stats.set(EQUALITY_DELETE_RECORD_COUNT_POSITION, null);
-      stats.set(EQUALITY_DELETE_FILE_COUNT_POSITION, null);
-      stats.set(TOTAL_RECORD_COUNT_POSITION, null);
-      stats.set(LAST_UPDATED_AT_POSITION, null);
-      stats.set(LAST_UPDATED_SNAPSHOT_ID_POSITION, null);
-      stats.set(DV_COUNT_POSITION, null);
+      stats.set(PartitionStatistics.POSITION_DELETE_RECORD_COUNT_POSITION, null);
+      stats.set(PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION, null);
+      stats.set(PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION, null);
+      stats.set(PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION, null);
+      stats.set(PartitionStatistics.TOTAL_RECORD_COUNT_POSITION, null);
+      stats.set(PartitionStatistics.LAST_UPDATED_AT_POSITION, null);
+      stats.set(PartitionStatistics.LAST_UPDATED_SNAPSHOT_ID_POSITION, null);
+      stats.set(PartitionStatistics.DV_COUNT_POSITION, null);
 
       partitionListBuilder.add(stats);
     }
 
-    List<PartitionStats> expected = partitionListBuilder.build();
+    List<PartitionStatistics> expected = partitionListBuilder.build();
 
     assertThat(expected.get(0))
         .extracting(
-            PartitionStats::positionDeleteRecordCount,
-            PartitionStats::positionDeleteFileCount,
-            PartitionStats::equalityDeleteRecordCount,
-            PartitionStats::equalityDeleteFileCount,
-            PartitionStats::totalRecords,
-            PartitionStats::lastUpdatedAt,
-            PartitionStats::lastUpdatedSnapshotId,
-            PartitionStats::dvCount)
+            PartitionStatistics::positionDeleteRecordCount,
+            PartitionStatistics::positionDeleteFileCount,
+            PartitionStatistics::equalityDeleteRecordCount,
+            PartitionStatistics::equalityDeleteFileCount,
+            PartitionStatistics::totalRecords,
+            PartitionStatistics::lastUpdatedAt,
+            PartitionStatistics::lastUpdatedSnapshotId,
+            PartitionStatistics::dvCount)
         .isEqualTo(
             Arrays.asList(
                 0L, 0, 0L, 0, null, null, null, 0)); // null counters must be initialized to zero.
@@ -715,6 +715,31 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static boolean isEqual(
       Comparator<StructLike> partitionComparator, PartitionStats stats1, PartitionStats stats2) {
+    if (stats1 == stats2) {
+      return true;
+    } else if (stats1 == null || stats2 == null) {
+      return false;
+    }
+
+    return partitionComparator.compare(stats1.partition(), stats2.partition()) == 0
+        && stats1.specId() == stats2.specId()
+        && stats1.dataRecordCount() == stats2.dataRecordCount()
+        && stats1.dataFileCount() == stats2.dataFileCount()
+        && stats1.totalDataFileSizeInBytes() == stats2.totalDataFileSizeInBytes()
+        && stats1.positionDeleteRecordCount() == stats2.positionDeleteRecordCount()
+        && stats1.positionDeleteFileCount() == stats2.positionDeleteFileCount()
+        && stats1.equalityDeleteRecordCount() == stats2.equalityDeleteRecordCount()
+        && stats1.equalityDeleteFileCount() == stats2.equalityDeleteFileCount()
+        && Objects.equals(stats1.totalRecords(), stats2.totalRecords())
+        && Objects.equals(stats1.lastUpdatedAt(), stats2.lastUpdatedAt())
+        && Objects.equals(stats1.lastUpdatedSnapshotId(), stats2.lastUpdatedSnapshotId());
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private static boolean isEqual(
+      Comparator<StructLike> partitionComparator,
+      PartitionStats stats1,
+      PartitionStatistics stats2) {
     if (stats1 == stats2) {
       return true;
     } else if (stats1 == null || stats2 == null) {
