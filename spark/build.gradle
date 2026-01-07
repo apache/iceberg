@@ -35,3 +35,7 @@ if (sparkVersions.contains("4.0")) {
 if (sparkVersions.contains("4.1")) {
     apply from: file("$projectDir/v4.1/build.gradle")
 }
+
+if (sparkVersions.contains("4.2")) {
+    apply from: file("$projectDir/v4.2/build.gradle")
+}

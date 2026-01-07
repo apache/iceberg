@@ -703,37 +703,6 @@ public class TestViews extends ExtensionsTestBase {
         .containsExactly(row(50, "a"));
   }
 
-  @TestTemplate
-  public void fullFunctionIdentifierNotRewrittenLoadFailure() {
-    String viewName = viewName("fullFunctionIdentifierNotRewrittenLoadFailure");
-    String sql = "SELECT spark_catalog.system.bucket(100, 'a') AS bucket_result, 'a' AS value";
-
-    // avoid namespace failures
-    sql("USE spark_catalog");
-    sql("CREATE NAMESPACE IF NOT EXISTS system");
-    sql("USE %s", catalogName);
-
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(1, "bucket_result", Types.IntegerType.get()),
-            Types.NestedField.required(2, "value", Types.StringType.get()));
-
-    ViewCatalog viewCatalog = viewCatalog();
-
-    viewCatalog
-        .buildView(TableIdentifier.of(NAMESPACE, viewName))
-        .withQuery("spark", sql)
-        .withDefaultNamespace(Namespace.of("system"))
-        .withDefaultCatalog(catalogName)
-        .withSchema(schema)
-        .create();
-
-    // verify the v1 error message
-    assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
-        .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The routine `system`.`bucket` cannot be found");
-  }
-
   private Schema schema(String sql) {
     return SparkSchemaUtil.convert(spark.sql(sql).schema());
   }

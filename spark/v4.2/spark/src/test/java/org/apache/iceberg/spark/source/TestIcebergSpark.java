@@ -123,7 +123,7 @@ public class TestIcebergSpark {
 
   @Test
   public void testRegisterCharBucketUDF() {
-    IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_char_16", new CharType(5), 16);
+    IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_char_16", CharType.apply(5), 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_char_16('hello')").collectAsList();
     assertThat(results)
         .singleElement()
@@ -135,7 +135,7 @@ public class TestIcebergSpark {
 
   @Test
   public void testRegisterVarCharBucketUDF() {
-    IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_varchar_16", new VarcharType(5), 16);
+    IcebergSpark.registerBucketUDF(spark, "iceberg_bucket_varchar_16", VarcharType.apply(5), 16);
     List<Row> results = spark.sql("SELECT iceberg_bucket_varchar_16('hello')").collectAsList();
     assertThat(results)
         .singleElement()
