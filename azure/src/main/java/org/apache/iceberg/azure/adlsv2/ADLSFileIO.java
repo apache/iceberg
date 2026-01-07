@@ -76,9 +76,6 @@ public class ADLSFileIO implements DelegateFileIO {
   /**
    * Constructor with custom DataLakeFileSystemClient supplier.
    *
-   * <p>Calling {@link ADLSFileIO#initialize(Map)} will overwrite the properties and azureProperties
-   * set in this constructor, but the clientSupplier will continue to be used.
-   *
    * <p>Unlike the no-arg constructor, this constructor initializes properties and azureProperties
    * immediately, allowing immediate use without calling {@link ADLSFileIO#initialize(Map)}.
    *
