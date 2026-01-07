@@ -46,6 +46,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.parquet.Parquet;
@@ -329,6 +330,26 @@ public class TestTableEncryption extends CatalogTestBase {
     if (!foundManifestListFile) {
       throw new RuntimeException("No manifest list files found for table " + tableName);
     }
+  }
+
+  @TestTemplate
+  public void testDropTableWithPurge() {
+    List<Object[]> dataFileTable =
+        sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
+    List<String> dataFiles =
+        Streams.concat(dataFileTable.stream())
+            .map(row -> (String) row[0])
+            .collect(Collectors.toList());
+    assertThat(dataFiles).isNotEmpty();
+    assertThat(dataFiles)
+        .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isTrue());
+
+    sql("DROP TABLE %s PURGE", tableName);
+
+    assertThatThrownBy(() -> catalog.loadTable(tableIdent))
+        .isInstanceOf(NoSuchTableException.class);
+    assertThat(dataFiles)
+        .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isFalse());
   }
 
   private void checkMetadataFileEncryption(InputFile file) throws IOException {
