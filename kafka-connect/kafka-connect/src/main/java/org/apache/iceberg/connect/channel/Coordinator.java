@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -227,6 +228,22 @@ class Coordinator extends Channel {
                   return minOffset == null || envelope.offset() >= minOffset;
                 })
             .map(envelope -> (DataWritten) envelope.event().payload())
+            .filter(
+                payload -> {
+                  UUID expectedUuid = tableReference.uuid();
+                  UUID payloadTableUuid = payload.tableReference().uuid();
+
+                  if (expectedUuid != null && !expectedUuid.equals(payloadTableUuid)) {
+                    LOG.warn(
+                        "Skipping commit event {} due to target table mismatch.  Expected: {} Received: {}",
+                        payload.commitId(),
+                        tableReference.uuid(),
+                        payloadTableUuid);
+                    return false;
+                  }
+
+                  return true;
+                })
             .collect(Collectors.toList());
 
     List<DataFile> dataFiles =
