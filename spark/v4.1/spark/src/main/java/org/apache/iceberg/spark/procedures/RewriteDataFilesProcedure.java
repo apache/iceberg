@@ -128,8 +128,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          RewriteDataFilesSparkAction action =
-              (RewriteDataFilesSparkAction) actions().rewriteDataFiles(table).options(options);
+          RewriteDataFilesSparkAction action = actions().rewriteDataFiles(table).options(options);
 
           if (branch != null) {
             action = action.toBranch(branch);
