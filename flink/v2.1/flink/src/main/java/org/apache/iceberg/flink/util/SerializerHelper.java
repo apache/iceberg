@@ -16,20 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.source.split;
+package org.apache.iceberg.flink.util;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UTFDataFormatException;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.memory.DataInputDeserializer;
+import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputSerializer;
+import org.apache.flink.core.memory.DataOutputView;
 
 /**
  * Helper class to serialize and deserialize strings longer than 65K. The inspiration is mostly
  * taken from the class org.apache.flink.core.memory.DataInputSerializer.readUTF and
  * org.apache.flink.core.memory.DataOutputSerializer.writeUTF.
  */
-class SerializerHelper implements Serializable {
+@Internal
+public class SerializerHelper implements Serializable {
 
   private SerializerHelper() {}
 
@@ -47,7 +51,7 @@ class SerializerHelper implements Serializable {
    * @param out the output stream to write the string to.
    * @param str the string value to be written.
    */
-  public static void writeLongUTF(DataOutputSerializer out, String str) throws IOException {
+  public static void writeLongUTF(DataOutputView out, String str) throws IOException {
     int strlen = str.length();
     long utflen = 0;
     int ch;
@@ -85,7 +89,7 @@ class SerializerHelper implements Serializable {
    * @return the string value read from the input stream.
    * @throws IOException if an I/O error occurs when reading from the input stream.
    */
-  public static String readLongUTF(DataInputDeserializer in) throws IOException {
+  public static String readLongUTF(DataInputView in) throws IOException {
     int utflen = in.readInt();
     byte[] bytearr = new byte[utflen];
     char[] chararr = new char[utflen];
@@ -168,8 +172,7 @@ class SerializerHelper implements Serializable {
     }
   }
 
-  private static void writeUTFBytes(DataOutputSerializer out, String str, int utflen)
-      throws IOException {
+  private static void writeUTFBytes(DataOutputView out, String str, int utflen) throws IOException {
     int strlen = str.length();
     int ch;
 
