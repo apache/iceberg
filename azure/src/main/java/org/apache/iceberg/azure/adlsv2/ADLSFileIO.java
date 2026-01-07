@@ -127,30 +127,25 @@ public class ADLSFileIO implements DelegateFileIO {
   }
 
   public DataLakeFileSystemClient client(String path) {
-    if (clientSupplier != null) {
-      return clientSupplier.get();
-    } else {
-      ADLSLocation location = new ADLSLocation(path);
-      return client(location);
-    }
+    ADLSLocation location = new ADLSLocation(path);
+    return client(location);
   }
 
   @VisibleForTesting
   DataLakeFileSystemClient client(ADLSLocation location) {
     if (clientSupplier != null) {
       return clientSupplier.get();
-    } else {
-      DataLakeFileSystemClientBuilder clientBuilder =
-          new DataLakeFileSystemClientBuilder().httpClient(HTTP);
-
-      location.container().ifPresent(clientBuilder::fileSystemName);
-      Optional.ofNullable(vendedAdlsCredentialProvider)
-          .map(p -> new VendedAzureSasCredentialPolicy(location.host(), p))
-          .ifPresent(clientBuilder::addPolicy);
-      azureProperties.applyClientConfiguration(location.host(), clientBuilder);
-
-      return clientBuilder.buildClient();
     }
+    DataLakeFileSystemClientBuilder clientBuilder =
+        new DataLakeFileSystemClientBuilder().httpClient(HTTP);
+
+    location.container().ifPresent(clientBuilder::fileSystemName);
+    Optional.ofNullable(vendedAdlsCredentialProvider)
+        .map(p -> new VendedAzureSasCredentialPolicy(location.host(), p))
+        .ifPresent(clientBuilder::addPolicy);
+    azureProperties.applyClientConfiguration(location.host(), clientBuilder);
+
+    return clientBuilder.buildClient();
   }
 
   private DataLakeFileClient fileClient(String path) {
