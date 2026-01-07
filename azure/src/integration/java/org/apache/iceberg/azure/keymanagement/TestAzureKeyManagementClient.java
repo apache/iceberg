@@ -45,7 +45,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 public class TestAzureKeyManagementClient {
   private static final String ICEBERG_TEST_KEY_NAME = "iceberg-test-key";
 
-  private static final String keyVaultUri = System.getenv("AZURE_KEYVAULT_URL");
+  private static final String KEY_VAULT_URI = System.getenv("AZURE_KEYVAULT_URL");
 
   private static KeyManagementClient azureKeyManagementClient;
   private static KeyClient keyClient;
@@ -54,12 +54,12 @@ public class TestAzureKeyManagementClient {
   public static void beforeClass() {
     keyClient =
         new KeyClientBuilder()
-            .vaultUrl(keyVaultUri)
+            .vaultUrl(KEY_VAULT_URI)
             .credential(new DefaultAzureCredentialBuilder().build())
             .buildClient();
     keyClient.createKey(ICEBERG_TEST_KEY_NAME, KeyType.RSA);
     azureKeyManagementClient = new AzureKeyManagementClient();
-    azureKeyManagementClient.initialize(ImmutableMap.of(AZURE_KEYVAULT_URL, keyVaultUri));
+    azureKeyManagementClient.initialize(ImmutableMap.of(AZURE_KEYVAULT_URL, KEY_VAULT_URI));
   }
 
   @AfterAll
@@ -89,7 +89,7 @@ public class TestAzureKeyManagementClient {
   @Test
   public void testSerialization() throws Exception {
     try (AzureKeyManagementClient keyManagementClient = new AzureKeyManagementClient()) {
-      keyManagementClient.initialize(ImmutableMap.of(AZURE_KEYVAULT_URL, keyVaultUri));
+      keyManagementClient.initialize(ImmutableMap.of(AZURE_KEYVAULT_URL, KEY_VAULT_URI));
 
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       try (ObjectOutputStream writer = new ObjectOutputStream(out)) {
