@@ -39,8 +39,8 @@ import org.openjdk.jmh.annotations.Setup;
  * Benchmark to compare performance of reading Parquet dictionary encoded data with a flat schema
  * using vectorized Iceberg read path and the built-in file source in Spark.
  *
- * <p>To run this benchmark for spark-4.1: <code>
- *   ./gradlew -DsparkVersions=4.1 :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
+ * <p>To run this benchmark for spark-4.2 : <code>
+ *   ./gradlew -DsparkVersions=4.2  :iceberg-spark:iceberg-spark-4.2 _2.13:jmh \
  *       -PjmhIncludeRegex=VectorizedReadDictionaryEncodedFlatParquetDataBenchmark \
  *       -PjmhOutputPath=benchmark/results.txt
  * </code>

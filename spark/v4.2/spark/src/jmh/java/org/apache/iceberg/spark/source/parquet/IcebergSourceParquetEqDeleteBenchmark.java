@@ -27,8 +27,8 @@ import org.openjdk.jmh.annotations.Param;
  * A benchmark that evaluates the non-vectorized read and vectorized read with equality delete in
  * the Spark data source for Iceberg.
  *
- * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-4.1: <code>
- *   ./gradlew -DsparkVersions=4.1 :iceberg-spark:iceberg-spark-4.1:jmh
+ * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-4.2 : <code>
+ *   ./gradlew -DsparkVersions=4.2  :iceberg-spark:iceberg-spark-4.2 :jmh
  *       -PjmhIncludeRegex=IcebergSourceParquetEqDeleteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-parquet-eq-delete-benchmark-result.txt
  * </code>
