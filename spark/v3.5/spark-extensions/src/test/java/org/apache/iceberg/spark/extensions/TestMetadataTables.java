@@ -25,8 +25,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,6 +37,7 @@ import org.apache.avro.generic.GenericData.Record;
 import org.apache.commons.collections.ListUtils;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.HasTableOperations;
@@ -50,16 +53,17 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.metrics.Metrics;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -76,8 +80,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestMetadataTables extends ExtensionsTestBase {
   @Parameter(index = 3)
   private int formatVersion;
-
-  private static final BaseEncoding LOWER_HEX = BaseEncoding.base16().lowerCase();
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
   protected static Object[][] parameters() {
@@ -997,24 +999,43 @@ public class TestMetadataTables extends ExtensionsTestBase {
 
   @TestTemplate
   public void testReadableMetricsWithUUIDBounds() throws Exception {
-    // 1. Create table via Spark SQL (Spark-compatible)
+    // 1. Create table shell via SQL (Spark-compatible)
     sql(
-        "CREATE TABLE %s (dummy INT) USING iceberg TBLPROPERTIES ('format-version'='%s')",
+        "CREATE TABLE %s (dummy int) USING iceberg TBLPROPERTIES ('format-version'='%s')",
         tableName, formatVersion);
 
-    // 2. Load Iceberg table and evolve schema to UUID
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
+    // 2. Evolve schema to UUID using Iceberg API
     table.updateSchema().deleteColumn("dummy").addColumn("id", Types.UUIDType.get()).commit();
 
-    // 3. Insert data via Spark (forces Iceberg to write UUID metrics)
-    UUID uuid = UUID.randomUUID();
+    int fieldId = table.schema().findField("id").fieldId();
 
-    sql("INSERT INTO %s VALUES ('%s')", tableName, uuid.toString());
+    // 3. Create UUID lower/upper bounds
+    UUID lower = UUID.randomUUID();
+    UUID upper = UUID.randomUUID();
 
-    // 4. Query readable_metrics
-    //    BEFORE FIX: crashes with
-    //    java.lang.ClassCastException: java.util.UUID → java.lang.CharSequence
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(fieldId, Conversions.toByteBuffer(Types.UUIDType.get(), lower));
+
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(fieldId, Conversions.toByteBuffer(Types.UUIDType.get(), upper));
+
+    Metrics metrics = new Metrics(1L, null, null, null, null, lowerBounds, upperBounds);
+
+    // 4. Create a DataFile with UUID metrics ONLY
+    DataFile dataFile =
+        DataFiles.builder(table.spec())
+            .withPath("/tmp/uuid-metrics.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withMetrics(metrics)
+            .build();
+
+    table.newFastAppend().appendFile(dataFile).commit();
+
+    // 5. This query crashed BEFORE the fix
+    //    java.lang.ClassCastException: UUID → CharSequence
     Dataset<Row> df = spark.sql("SELECT readable_metrics FROM " + tableName + ".all_files");
 
     // After fix: must not throw
@@ -1030,8 +1051,14 @@ public class TestMetadataTables extends ExtensionsTestBase {
     Object lowerBound = idMetrics.get(idMetrics.fieldIndex("lower_bound"));
     Object upperBound = idMetrics.get(idMetrics.fieldIndex("upper_bound"));
 
-    // Do NOT assert exact type — only that Spark can read safely
-    assertThat(lowerBound).isNotNull();
-    assertThat(upperBound).isNotNull();
+    assertThat(lowerBound).isInstanceOf(String.class);
+    assertThat(upperBound).isInstanceOf(String.class);
+
+    // Validate exact readable_metrics values
+    String expectedLower = lower.toString();
+    String expectedUpper = upper.toString();
+
+    assertThat(lowerBound).isEqualTo(expectedLower);
+    assertThat(upperBound).isEqualTo(expectedUpper);
   }
 }

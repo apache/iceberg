@@ -1054,13 +1054,14 @@ public class TestMetadataTables extends ExtensionsTestBase {
     Object lowerBound = idMetrics.get(idMetrics.fieldIndex("lower_bound"));
     Object upperBound = idMetrics.get(idMetrics.fieldIndex("upper_bound"));
 
-    // We do NOT assert exact type — only that Spark can read it safely
-    if (lowerBound != null) {
-      assertThat(lowerBound).isInstanceOf(String.class);
-    }
+    assertThat(lowerBound).isInstanceOf(String.class);
+    assertThat(upperBound).isInstanceOf(String.class);
 
-    if (upperBound != null) {
-      assertThat(upperBound).isInstanceOf(String.class);
-    }
+    // Validate exact readable_metrics values
+    String expectedLower = lower.toString();
+    String expectedUpper = upper.toString();
+
+    assertThat(lowerBound).isEqualTo(expectedLower);
+    assertThat(upperBound).isEqualTo(expectedUpper);
   }
 }
