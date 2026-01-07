@@ -84,6 +84,18 @@ public interface Table {
   }
 
   /**
+   * Create a new {@link PartitionStatisticsScan} for this table.
+   *
+   * <p>Once a partition statistics scan is created, it can be refined to project columns and filter
+   * data.
+   *
+   * @return a partition statistics scan for this table
+   */
+  default PartitionStatisticsScan newPartitionStatisticsScan() {
+    throw new UnsupportedOperationException("Partition statistics scan is not supported");
+  }
+
+  /**
    * Return the {@link Schema schema} for this table.
    *
    * @return this table's schema

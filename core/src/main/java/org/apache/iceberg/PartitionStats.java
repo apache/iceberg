@@ -20,6 +20,12 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
+/**
+ * Class to hold partition statistics values.
+ *
+ * @deprecated will be removed in 1.12.0. Use {@link BasePartitionStatistics instead}
+ */
+@Deprecated
 public class PartitionStats implements StructLike {
 
   private static final int STATS_COUNT = 13;
