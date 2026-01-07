@@ -2685,6 +2685,8 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackUsesCorrectRunnerBasedOnOption() {
+    assumeThat(useParquetFileMerger).isTrue();
+
     Table table = createTable(4);
     shouldHaveFiles(table, 4);
 
@@ -2714,43 +2716,12 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testParquetFileMergerExplicitlyEnabledAndDisabled() {
-    Table table = createTable(4);
-    shouldHaveFiles(table, 4);
-
-    long countBefore = currentData().size();
-
-    // Test explicitly enabling ParquetFileMerger
-    RewriteDataFiles.Result resultEnabled =
-        basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
-            .binPack()
-            .execute();
-
-    assertThat(resultEnabled.rewrittenDataFilesCount()).isEqualTo(4);
-    assertThat(resultEnabled.addedDataFilesCount()).isGreaterThan(0);
-    assertThat(currentData()).hasSize((int) countBefore);
-
-    // Write more data for second test
-    writeRecords(4, SCALE);
-
-    // Test explicitly disabling ParquetFileMerger
-    RewriteDataFiles.Result resultDisabled =
-        basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "false")
-            .binPack()
-            .execute();
-
-    assertThat(resultDisabled.rewrittenDataFilesCount()).isGreaterThan(0);
-    assertThat(resultDisabled.addedDataFilesCount()).isGreaterThan(0);
-  }
-
-  @TestTemplate
   public void testParquetFileMergerProduceConsistentRowLineageWithBinPackMerger()
       throws IOException {
     // Test that both binpack and ParquetFileMerger convert virtual row IDs to physical
     // and produce equivalent results for row lineage preservation
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    assumeThat(useParquetFileMerger).isTrue();
 
     // Test binpack approach
     Table binpackTable = createTable(4);
@@ -2855,7 +2826,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     // First merge: converts virtual row IDs to physical
     RewriteDataFiles.Result firstMerge =
         basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
+            .option(
+                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
             .binPack()
             .execute();
 
@@ -2891,7 +2863,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     // Second merge: should preserve physical row IDs via binary copy
     RewriteDataFiles.Result secondMerge =
         basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
+            .option(
+                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
             .binPack()
             .execute();
 
@@ -2937,7 +2910,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     // Merge using ParquetFileMerger - should handle all partitions correctly
     RewriteDataFiles.Result result =
         basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
+            .option(
+                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
             .binPack()
             .execute();
 
@@ -2974,7 +2948,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, String.valueOf(targetFileSize))
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
+            .option(
+                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
             .binPack()
             .execute();
 
@@ -3009,7 +2984,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     // Merge all files
     RewriteDataFiles.Result result =
         basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
+            .option(
+                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
             .binPack()
             .execute();
 
@@ -3052,7 +3028,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     // First merge: converts virtual row IDs to physical
     RewriteDataFiles.Result firstMerge =
         basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
+            .option(
+                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
             .binPack()
             .execute();
 
@@ -3074,7 +3051,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     // Second merge: should preserve physical row IDs via binary copy
     RewriteDataFiles.Result secondMerge =
         basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
+            .option(
+                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
             .binPack()
             .execute();
 

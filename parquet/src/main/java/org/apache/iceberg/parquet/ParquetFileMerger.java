@@ -107,9 +107,7 @@ public class ParquetFileMerger {
    * <ul>
    *   <li>All files must have compatible schemas (identical {@link MessageType})
    *   <li>Files must not be encrypted
-   *   <li>Files must not have associated delete files or delete vectors
    *   <li>All files have the same partition spec
-   *   <li>Table must not have a sort order (including z-ordered tables)
    *   <li>No files exceed the target output size (not splitting large files)
    * </ul>
    *

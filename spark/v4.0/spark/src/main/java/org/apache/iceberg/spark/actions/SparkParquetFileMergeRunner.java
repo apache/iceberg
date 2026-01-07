@@ -107,7 +107,7 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
    * @param group the file group to validate
    * @return MessageType schema if files can be merged, null otherwise
    */
-  private MessageType canMergeAndGetSchema(RewriteFileGroup group) {
+  MessageType canMergeAndGetSchema(RewriteFileGroup group) {
     // Check if group expects exactly one output file
     if (group.expectedOutputFiles() != 1) {
       return null;

@@ -44,6 +44,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -188,6 +189,7 @@ public class TestParquetFileMerger {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(mergedInput))) {
       mergedSchema = reader.getFooter().getFileMetaData().getSchema();
     }
+
     assertThat(mergedSchema.containsField(MetadataColumns.ROW_ID.name()))
         .as("Merged file should have _row_id column")
         .isTrue();
@@ -234,6 +236,7 @@ public class TestParquetFileMerger {
     for (int i = 0; i < 100; i++) {
       records.add(createRecord(i, "data" + i));
     }
+
     createParquetFileWithData(output1, SCHEMA, records, 1024); // Small row group size
 
     // Merge with row lineage
@@ -334,6 +337,7 @@ public class TestParquetFileMerger {
         ParquetFileReader.open(ParquetIO.file(Files.localInput(mergedFile)))) {
       mergedSchema = reader.getFooter().getFileMetaData().getSchema();
     }
+
     assertThat(mergedSchema.containsField(MetadataColumns.ROW_ID.name()))
         .as("Merged file should not have _row_id column when no lineage provided")
         .isFalse();
@@ -757,7 +761,7 @@ public class TestParquetFileMerger {
       long rowGroupSize,
       String compression)
       throws IOException {
-    var writerBuilder =
+    Parquet.DataWriteBuilder writerBuilder =
         writeData(outputFile)
             .schema(schema)
             .withSpec(PartitionSpec.unpartitioned())
@@ -768,7 +772,7 @@ public class TestParquetFileMerger {
       writerBuilder.set(TableProperties.PARQUET_COMPRESSION, compression);
     }
 
-    var writer = writerBuilder.overwrite().build();
+    DataWriter<Record> writer = writerBuilder.overwrite().build();
     try {
       for (Record record : records) {
         writer.write(record);

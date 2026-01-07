@@ -25,7 +25,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.util.Collections;
-import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -61,42 +60,6 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
   }
 
   @Test
-  public void testDescriptionReturnsParquetMerge() {
-    Table table = TABLES.create(SCHEMA, tableLocation);
-    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
-
-    assertThat(runner.description()).isEqualTo("PARQUET-MERGE");
-  }
-
-  @Test
-  public void testInheritsFromSparkBinPackFileRewriteRunner() {
-    Table table = TABLES.create(SCHEMA, tableLocation);
-    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
-
-    // Verify inheritance
-    assertThat(runner).isInstanceOf(SparkBinPackFileRewriteRunner.class);
-  }
-
-  @Test
-  public void testValidOptionsInheritedFromParent() {
-    Table table = TABLES.create(SCHEMA, tableLocation);
-    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
-
-    // Should inherit validOptions from parent
-    Set<String> validOptions = runner.validOptions();
-    assertThat(validOptions).isNotNull();
-  }
-
-  @Test
-  public void testInitMethodInheritedFromParent() {
-    Table table = TABLES.create(SCHEMA, tableLocation);
-    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
-
-    // Should not throw exception when init is called
-    runner.init(Collections.emptyMap());
-  }
-
-  @Test
   public void testCanMergeAndGetSchemaReturnsFalseForSortedTable() {
     // Create a table with a sort order
     Table table = TABLES.create(SCHEMA, tableLocation);
@@ -120,17 +83,13 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
     when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1));
     when(group.expectedOutputFiles()).thenReturn(1);
     when(group.maxOutputFileSize()).thenReturn(Long.MAX_VALUE);
+    when(group.fileScanTasks()).thenReturn(Collections.emptyList());
 
-    // This validation would normally be done in SparkParquetFileMergeRunner.canMergeAndGetSchema
-    // but we're testing the sort order check that happens before calling ParquetFileMerger
-    // Since table has sort order, validation should fail early
-    if (table.sortOrder().isSorted()) {
-      // Should fail due to sort order
-      assertThat(true).isTrue();
-    } else {
-      // If we got here, the sort order check didn't work
-      assertThat(false).isTrue();
-    }
+    // Create runner and test canMergeAndGetSchema
+    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
+
+    // Should return null because table has sort order
+    assertThat(runner.canMergeAndGetSchema(group)).isNull();
   }
 
   @Test
@@ -145,16 +104,19 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
     RewriteFileGroup group = mock(RewriteFileGroup.class);
     FileScanTask task1 = mock(FileScanTask.class);
     DeleteFile deleteFile = mock(DeleteFile.class);
+    DataFile parquetFile1 = mock(DataFile.class);
 
     when(task1.deletes()).thenReturn(Lists.newArrayList(deleteFile)); // Has delete files
     when(group.fileScanTasks()).thenReturn(Lists.newArrayList(task1));
+    when(group.expectedOutputFiles()).thenReturn(1);
+    when(parquetFile1.format()).thenReturn(FileFormat.PARQUET);
+    when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1));
 
-    // This validation would normally be done in SparkParquetFileMergeRunner.canMergeAndGetSchema
-    // but we're testing the delete file check that happens before calling ParquetFileMerger
-    boolean hasDeletes = group.fileScanTasks().stream().anyMatch(task -> !task.deletes().isEmpty());
+    // Create runner and test canMergeAndGetSchema
+    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
 
-    // Should be true because files have delete files
-    assertThat(hasDeletes).isTrue();
+    // Should return null because files have delete files
+    assertThat(runner.canMergeAndGetSchema(group)).isNull();
   }
 
   @Test
@@ -209,15 +171,23 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
     // Verify the table has a sort order
     assertThat(table.sortOrder().isSorted()).isTrue();
 
-    // This validation would normally be done in SparkParquetFileMergeRunner.canMergeAndGetSchema
-    // but we're testing the multi-column sort order check
-    // Since table has sort order, validation should fail early
-    if (table.sortOrder().isSorted()) {
-      // Should fail due to sort order
-      assertThat(true).isTrue();
-    } else {
-      // If we got here, the sort order check didn't work
-      assertThat(false).isTrue();
-    }
+    // Create a mock RewriteFileGroup
+    RewriteFileGroup group = mock(RewriteFileGroup.class);
+    DataFile parquetFile1 = mock(DataFile.class);
+
+    when(parquetFile1.format()).thenReturn(FileFormat.PARQUET);
+    when(parquetFile1.specId()).thenReturn(0);
+    when(parquetFile1.fileSizeInBytes()).thenReturn(100L);
+    when(parquetFile1.path()).thenReturn(tableLocation + "/data/file1.parquet");
+    when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1));
+    when(group.expectedOutputFiles()).thenReturn(1);
+    when(group.maxOutputFileSize()).thenReturn(Long.MAX_VALUE);
+    when(group.fileScanTasks()).thenReturn(Collections.emptyList());
+
+    // Create runner and test canMergeAndGetSchema
+    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
+
+    // Should return null because table has multi-column sort order
+    assertThat(runner.canMergeAndGetSchema(group)).isNull();
   }
 }
