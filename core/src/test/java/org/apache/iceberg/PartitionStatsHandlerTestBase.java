@@ -182,13 +182,29 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
 
     PartitionStatistics partitionStats = randomStats(partitionData);
     List<PartitionStatistics> expected = Collections.singletonList(partitionStats);
-    PartitionStatisticsFile statisticsFile =
-        PartitionStatsHandler.writePartitionStatsFile(testTable, 42L, dataSchema, expected);
 
-    List<PartitionStats> written;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, testTable.io().newInputFile(statisticsFile.path()))) {
+    // Add a dummy file to the table to have a snapshot
+    DataFile dataFile =
+        DataFiles.builder(spec)
+            .withPath("some_path")
+            .withPartition(partitionData)
+            .withFileSizeInBytes(15)
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(1)
+            .build();
+    testTable.newAppend().appendFile(dataFile).commit();
+    long snapshotId = testTable.currentSnapshot().snapshotId();
+
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(
+            PartitionStatsHandler.writePartitionStatsFile(
+                testTable, snapshotId, dataSchema, expected))
+        .commit();
+
+    List<PartitionStatistics> written;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable.newPartitionStatisticsScan().useSnapshot(snapshotId).scan()) {
       written = Lists.newArrayList(recordIterator);
     }
 
@@ -246,13 +262,27 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
             Arrays.asList(
                 0L, 0, 0L, 0, null, null, null, 0)); // null counters must be initialized to zero.
 
-    PartitionStatisticsFile statisticsFile =
-        PartitionStatsHandler.writePartitionStatsFile(testTable, 42L, dataSchema, expected);
+    // Add a dummy file to the table to have a snapshot
+    DataFile dataFile =
+        DataFiles.builder(spec)
+            .withPath("some_path")
+            .withFileSizeInBytes(15)
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(1)
+            .build();
+    testTable.newAppend().appendFile(dataFile).commit();
+    long snapshotId = testTable.currentSnapshot().snapshotId();
 
-    List<PartitionStats> written;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            dataSchema, testTable.io().newInputFile(statisticsFile.path()))) {
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(
+            PartitionStatsHandler.writePartitionStatsFile(
+                testTable, snapshotId, dataSchema, expected))
+        .commit();
+
+    List<PartitionStatistics> written;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable.newPartitionStatisticsScan().useSnapshot(snapshotId).scan()) {
       written = Lists.newArrayList(recordIterator);
     }
 
@@ -464,27 +494,24 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
 
     testTable.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
 
-    PartitionStatisticsFile statisticsFile =
-        PartitionStatsHandler.computeAndWriteStatsFile(testTable);
-    testTable.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
 
-    assertThat(
-            PartitionStatsHandler.readPartitionStatsFile(
-                PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2),
-                testTable.io().newInputFile(statisticsFile.path())))
+    assertThat(testTable.newPartitionStatisticsScan().scan())
         .allMatch(s -> (s.dataRecordCount() != 0 && s.dataFileCount() != 0));
 
     testTable.newDelete().deleteFile(dataFile1).commit();
     testTable.newDelete().deleteFile(dataFile2).commit();
 
-    PartitionStatisticsFile statisticsFileNew =
-        PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
 
     // stats must be decremented to zero as all the files removed from table.
-    assertThat(
-            PartitionStatsHandler.readPartitionStatsFile(
-                PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2),
-                testTable.io().newInputFile(statisticsFileNew.path())))
+    assertThat(testTable.newPartitionStatisticsScan().scan())
         .allMatch(s -> (s.dataRecordCount() == 0 && s.dataFileCount() == 0));
   }
 
@@ -616,15 +643,15 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     testTable.updatePartitionStatistics().setPartitionStatistics(invalidStatisticsFile).commit();
 
     testTable.newAppend().appendFile(dataFile).commit();
-    PartitionStatisticsFile statisticsFile =
-        PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+    testTable
+        .updatePartitionStatistics()
+        .setPartitionStatistics(PartitionStatsHandler.computeAndWriteStatsFile(testTable))
+        .commit();
 
     // read the partition entries from the stats file
-    List<PartitionStats> partitionStats;
-    try (CloseableIterable<PartitionStats> recordIterator =
-        PartitionStatsHandler.readPartitionStatsFile(
-            PartitionStatsHandler.schema(partitionType, 2),
-            testTable.io().newInputFile(statisticsFile.path()))) {
+    List<PartitionStatistics> partitionStats;
+    try (CloseableIterable<PartitionStatistics> recordIterator =
+        testTable.newPartitionStatisticsScan().scan()) {
       partitionStats = Lists.newArrayList(recordIterator);
     }
 
@@ -715,31 +742,6 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static boolean isEqual(
       Comparator<StructLike> partitionComparator, PartitionStats stats1, PartitionStats stats2) {
-    if (stats1 == stats2) {
-      return true;
-    } else if (stats1 == null || stats2 == null) {
-      return false;
-    }
-
-    return partitionComparator.compare(stats1.partition(), stats2.partition()) == 0
-        && stats1.specId() == stats2.specId()
-        && stats1.dataRecordCount() == stats2.dataRecordCount()
-        && stats1.dataFileCount() == stats2.dataFileCount()
-        && stats1.totalDataFileSizeInBytes() == stats2.totalDataFileSizeInBytes()
-        && stats1.positionDeleteRecordCount() == stats2.positionDeleteRecordCount()
-        && stats1.positionDeleteFileCount() == stats2.positionDeleteFileCount()
-        && stats1.equalityDeleteRecordCount() == stats2.equalityDeleteRecordCount()
-        && stats1.equalityDeleteFileCount() == stats2.equalityDeleteFileCount()
-        && Objects.equals(stats1.totalRecords(), stats2.totalRecords())
-        && Objects.equals(stats1.lastUpdatedAt(), stats2.lastUpdatedAt())
-        && Objects.equals(stats1.lastUpdatedSnapshotId(), stats2.lastUpdatedSnapshotId());
-  }
-
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private static boolean isEqual(
-      Comparator<StructLike> partitionComparator,
-      PartitionStats stats1,
-      PartitionStatistics stats2) {
     if (stats1 == stats2) {
       return true;
     } else if (stats1 == null || stats2 == null) {
