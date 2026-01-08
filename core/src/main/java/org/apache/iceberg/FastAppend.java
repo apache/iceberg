@@ -36,6 +36,7 @@ import org.apache.iceberg.util.DataFileSet;
 class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final String tableName;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
+  private final SnapshotSummary.Builder manifestsSummary = SnapshotSummary.builder();
   private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
@@ -165,6 +166,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     if (snapshot != null) {
       manifests.addAll(snapshot.allManifests(ops().io()));
     }
+
+    summaryBuilder.merge(buildManifestCountSummary(manifestsSummary, manifests));
 
     return manifests;
   }

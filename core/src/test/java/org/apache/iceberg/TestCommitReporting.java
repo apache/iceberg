@@ -195,4 +195,68 @@ public class TestCommitReporting extends TestBase {
     assertThat(metrics.manifestsReplaced().value()).isEqualTo(2L);
     assertThat(metrics.manifestEntriesProcessed().value()).isEqualTo(2L);
   }
+
+  @TestTemplate
+  public void snapshotProducerManifestMetrics() {
+    String tableName = "snapshot-producer-manifest-metrics";
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+
+    // Test FastAppend: first append - creates 1 manifest, keeps 0
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    CommitReport report = reporter.lastCommitReport();
+    assertThat(report).isNotNull();
+    assertThat(report.operation()).isEqualTo("append");
+    assertThat(report.snapshotId()).isEqualTo(1L);
+
+    CommitMetricsResult metrics = report.commitMetrics();
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(0L);
+
+    // Test FastAppend: second append - creates 1 new manifest, keeps 1
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    report = reporter.lastCommitReport();
+    metrics = report.commitMetrics();
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(1L);
+
+    // Test MergeAppend: creates 1 new manifest, keeps 2
+    table.newAppend().appendFile(FILE_C).commit();
+
+    report = reporter.lastCommitReport();
+    assertThat(report.operation()).isEqualTo("append");
+    metrics = report.commitMetrics();
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(2L);
+
+    // Test RowDelta with delete file: creates 1 delete manifest, keeps 3 data manifests
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
+
+    report = reporter.lastCommitReport();
+    assertThat(report.operation()).isEqualTo("delete");
+    metrics = report.commitMetrics();
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(3L);
+
+    // Test RowDelta with data and delete: creates 2 manifests (1 data + 1 delete), keeps 4
+    table.newRowDelta().addRows(FILE_D).addDeletes(fileBDeletes()).commit();
+
+    report = reporter.lastCommitReport();
+    assertThat(report.operation()).isEqualTo("overwrite");
+    metrics = report.commitMetrics();
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(2L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(4L);
+
+    // Test Delete: creates 1 manifest (rewritten), keeps 5
+    table.newDelete().deleteFile(FILE_C).commit();
+
+    report = reporter.lastCommitReport();
+    assertThat(report.operation()).isEqualTo("delete");
+    metrics = report.commitMetrics();
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(5L);
+  }
 }

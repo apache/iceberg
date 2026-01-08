@@ -1070,6 +1070,10 @@ public class TestRowDelta extends TestBase {
         .containsEntry(TOTAL_DELETE_FILES_PROP, "3")
         .containsEntry(ADDED_POS_DELETES_PROP, String.valueOf(posDeletesCount))
         .containsEntry(TOTAL_POS_DELETES_PROP, String.valueOf(posDeletesCount))
+        // 4 manifests created: 1 data manifest + 3 delete manifests (one per partition spec)
+        // 3 manifests kept: 3 data manifests from previous appends
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "4")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "3")
         .hasEntrySatisfying(
             CHANGED_PARTITION_PREFIX + "data_bucket=0",
             v -> assertThat(v).contains(ADDED_DELETE_FILES_PROP + "=1"))
