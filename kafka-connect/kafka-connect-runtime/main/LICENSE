@@ -722,7 +722,7 @@ License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-netty-shaded  Version: 1.71.0
+Group: io.grpc  Name: grpc-netty-shaded  Version: 1.76.2
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
