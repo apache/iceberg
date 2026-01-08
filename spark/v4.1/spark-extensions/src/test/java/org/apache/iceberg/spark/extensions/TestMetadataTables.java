@@ -1003,7 +1003,6 @@ public class TestMetadataTables extends ExtensionsTestBase {
     sql(
         "CREATE TABLE %s (dummy int) USING iceberg TBLPROPERTIES ('format-version'='%s')",
         tableName, formatVersion);
-
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
     // 2. Evolve schema to UUID using Iceberg API
@@ -1014,10 +1013,8 @@ public class TestMetadataTables extends ExtensionsTestBase {
     // 3. Create UUID lower/upper bounds
     UUID lower = UUID.randomUUID();
     UUID upper = UUID.randomUUID();
-
     Map<Integer, ByteBuffer> lowerBounds =
         ImmutableMap.of(fieldId, Conversions.toByteBuffer(Types.UUIDType.get(), lower));
-
     Map<Integer, ByteBuffer> upperBounds =
         ImmutableMap.of(fieldId, Conversions.toByteBuffer(Types.UUIDType.get(), upper));
 
@@ -1031,7 +1028,6 @@ public class TestMetadataTables extends ExtensionsTestBase {
             .withRecordCount(1)
             .withMetrics(metrics)
             .build();
-
     table.newFastAppend().appendFile(dataFile).commit();
 
     // 5. This query crashed BEFORE the fix
