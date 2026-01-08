@@ -80,7 +80,7 @@ netty-buffer = "4.2.9.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.8"
 parquet = "1.17.0"
-roaringbitmap = "1.3.0"
+roaringbitmap = "1.6.0"
 scala-collection-compat = "2.14.0"
 slf4j = "2.0.17"
 snowflake-jdbc = "3.28.0"
@@ -170,7 +170,7 @@ orc-core = { module = "org.apache.orc:orc-core", version.ref = "orc" }
 parquet-avro = { module = "org.apache.parquet:parquet-avro", version.ref = "parquet" }
 parquet-column = { module = "org.apache.parquet:parquet-column", version.ref = "parquet" }
 parquet-hadoop = { module = "org.apache.parquet:parquet-hadoop", version.ref = "parquet" }
-roaringbitmap = { module = "org.roaringbitmap:RoaringBitmap", version.ref = "roaringbitmap" }
+roaringbitmap = { module = "com.github.RoaringBitmap.RoaringBitmap:roaringbitmap", version.ref = "roaringbitmap" }
 scala-collection-compat = { module = "org.scala-lang.modules:scala-collection-compat_2.13", version.ref = "scala-collection-compat"}
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
