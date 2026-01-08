@@ -66,13 +66,6 @@ public class SnapshotSummary {
   public static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
   public static final String KEPT_MANIFESTS_COUNT = "manifests-kept";
   public static final String PROCESSED_MANIFEST_ENTRY_COUNT = "entries-processed";
-
-  /**
-   * The key for storing materialized view refresh state in snapshot summary.
-   *
-   * <p>The value is a JSON-encoded RefreshState containing the view version ID, source states, and
-   * refresh timestamp. This metadata enables freshness evaluation for materialized views.
-   */
   public static final String REFRESH_STATE_PROP = "refresh-state";
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
