@@ -34,6 +34,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.data.GenericRecord;
@@ -98,5 +100,30 @@ public abstract class PartitionStatisticsTestBase {
     record.set(0, val1);
     record.set(1, val2);
     return record;
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  protected static boolean isEqual(
+      Comparator<StructLike> partitionComparator,
+      PartitionStatistics stats1,
+      PartitionStatistics stats2) {
+    if (stats1 == stats2) {
+      return true;
+    } else if (stats1 == null || stats2 == null) {
+      return false;
+    }
+
+    return partitionComparator.compare(stats1.partition(), stats2.partition()) == 0
+        && Objects.equals(stats1.specId(), stats2.specId())
+        && Objects.equals(stats1.dataRecordCount(), stats2.dataRecordCount())
+        && Objects.equals(stats1.dataFileCount(), stats2.dataFileCount())
+        && Objects.equals(stats1.totalDataFileSizeInBytes(), stats2.totalDataFileSizeInBytes())
+        && Objects.equals(stats1.positionDeleteRecordCount(), stats2.positionDeleteRecordCount())
+        && Objects.equals(stats1.positionDeleteFileCount(), stats2.positionDeleteFileCount())
+        && Objects.equals(stats1.equalityDeleteRecordCount(), stats2.equalityDeleteRecordCount())
+        && Objects.equals(stats1.equalityDeleteFileCount(), stats2.equalityDeleteFileCount())
+        && Objects.equals(stats1.totalRecords(), stats2.totalRecords())
+        && Objects.equals(stats1.lastUpdatedAt(), stats2.lastUpdatedAt())
+        && Objects.equals(stats1.lastUpdatedSnapshotId(), stats2.lastUpdatedSnapshotId());
   }
 }
