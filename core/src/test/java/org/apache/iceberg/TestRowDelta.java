@@ -60,7 +60,10 @@ public class TestRowDelta extends TestBase {
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
     return TestHelpers.V2_AND_ABOVE.stream()
-        .flatMap(v -> Stream.of(new Object[] {v, "main"}, new Object[] {v, "testBranch"}))
+        .flatMap(
+            v ->
+                Stream.of(
+                    new Object[] {v, SnapshotRef.MAIN_BRANCH}, new Object[] {v, "testBranch"}))
         .collect(Collectors.toList());
   }
 
@@ -1761,7 +1764,7 @@ public class TestRowDelta extends TestBase {
   public void testConcurrentManifestRewriteWithRemoveRowsRemoval() throws IOException {
     assumeThat(formatVersion).isEqualTo(2);
     // Manifest rewrite isn't supported on branches currently
-    assumeThat(branch).isEqualTo("main");
+    assumeThat(branch).isEqualTo(SnapshotRef.MAIN_BRANCH);
 
     DataFile dataFile = newDataFile("data_bucket=0");
     DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");

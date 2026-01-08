@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.LocationUtil;
@@ -120,7 +121,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
             "type",
             "nessie",
             "ref",
-            "main",
+            SnapshotRef.MAIN_BRANCH,
             CatalogProperties.URI,
             uri,
             CatalogProperties.WAREHOUSE_LOCATION,
