@@ -1013,19 +1013,17 @@ public class TestViewMetadata {
     // simulates a case where the same view update is applied twice and the schema ID is set to -1
     // (indicating that the schema ID should be automatically assigned)
     // this scenario can happen with concurrent updates in REST cases where the same update is
-    // applied twice. The view version gets a new ID assigned because
-    // ViewMetadata#sameViewVersion(current, updated) isn't true, because the current's schemaId was
-    // initially re-assigned from -1 to 0 and the schemaId of updated is -1
+    // applied twice.
     ViewMetadata updated =
         ViewMetadata.buildFrom(metadata)
             .setLocation("custom-location")
             .addSchema(schema)
             .addVersion(viewVersion)
-            .setCurrentVersionId(2)
+            .setCurrentVersionId(1)
             .build();
 
-    assertThat(updated.versions()).hasSize(2);
-    assertThat(updated.currentVersion().versionId()).isEqualTo(2);
+    assertThat(updated.versions()).hasSize(1);
+    assertThat(updated.currentVersion().versionId()).isEqualTo(1);
     assertThat(updated.currentVersion().schemaId()).isEqualTo(0);
   }
 

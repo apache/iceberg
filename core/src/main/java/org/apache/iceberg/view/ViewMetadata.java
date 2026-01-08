@@ -358,7 +358,9 @@ public interface ViewMetadata extends Serializable {
           && Objects.equals(one.representations(), two.representations())
           && Objects.equals(one.defaultCatalog(), two.defaultCatalog())
           && Objects.equals(one.defaultNamespace(), two.defaultNamespace())
-          && one.schemaId() == two.schemaId();
+          && (one.schemaId() == two.schemaId()
+              || (two.schemaId() == LAST_ADDED
+                  && Objects.equals(lastAddedSchemaId, one.schemaId())));
     }
 
     public Builder addSchema(Schema schema) {
