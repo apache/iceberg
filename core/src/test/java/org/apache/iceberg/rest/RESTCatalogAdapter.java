@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.http.HttpHeaders;
@@ -61,7 +60,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -118,18 +116,12 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   private AuthSession authSession = AuthSession.EMPTY;
   private PlanningBehavior planningBehavior;
-  private final Set<String> simulate503OnFirstSuccessKeys = Sets.newConcurrentHashSet();
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
     this.asNamespaceCatalog =
         catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
     this.asViewCatalog = catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
-  }
-
-  /** Test helper to simulate a transient 503 after the first successful mutation for a key. */
-  public void simulate503OnFirstSuccessForKey(String key) {
-    simulate503OnFirstSuccessKeys.add(key);
   }
 
   private static OAuthTokenResponse handleOAuthRequest(Object body) {
@@ -616,23 +608,9 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         vars.putAll(request.queryParameters());
         vars.putAll(routeAndVars.second());
 
-        Optional<HTTPHeaders.HTTPHeader> keyHeader =
-            request.headers().firstEntry(RESTUtil.IDEMPOTENCY_KEY_HEADER);
-        boolean isMutation =
-            request.method() == HTTPMethod.POST || request.method() == HTTPMethod.DELETE;
-
         T resp =
             handleRequest(
                 routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
-
-        // For tests: simulate a transient 503 after the first successful mutation for a key.
-        if (isMutation && keyHeader.isPresent()) {
-          String key = keyHeader.get().value();
-          if (simulate503OnFirstSuccessKeys.remove(key)) {
-            throw new CommitStateUnknownException(
-                new RuntimeException("simulated transient 503 after success"));
-          }
-        }
         return resp;
       } catch (RuntimeException e) {
         configureResponseFromException(e, errorBuilder);

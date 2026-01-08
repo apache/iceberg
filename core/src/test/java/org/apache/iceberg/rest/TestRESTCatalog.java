@@ -69,6 +69,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
@@ -78,6 +79,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
@@ -124,12 +126,107 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               RESTCatalogProperties.NAMESPACE_SEPARATOR,
               RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8));
 
+  /**
+   * Test-only adapter that keeps request/response round-trip serialization and header validation
+   * from the base test setup, while also allowing specific tests to inject transient failures.
+   */
+  private static class HeaderValidatingAdapter extends RESTCatalogAdapter {
+    private final HTTPHeaders catalogHeaders;
+    private final HTTPHeaders contextHeaders;
+    private final Set<String> simulate503OnFirstSuccessKeys =
+        org.apache.iceberg.relocated.com.google.common.collect.Sets.newConcurrentHashSet();
+
+    HeaderValidatingAdapter(
+        Catalog catalog, HTTPHeaders catalogHeaders, HTTPHeaders contextHeaders) {
+      super(catalog);
+      this.catalogHeaders = catalogHeaders;
+      this.contextHeaders = contextHeaders;
+    }
+
+    /** Test helper to simulate a transient 503 after the first successful mutation for a key. */
+    public void simulate503OnFirstSuccessForKey(String key) {
+      simulate503OnFirstSuccessKeys.add(key);
+    }
+
+    @Override
+    public <T extends RESTResponse> T execute(
+        HTTPRequest request,
+        Class<T> responseType,
+        Consumer<ErrorResponse> errorHandler,
+        Consumer<Map<String, String>> responseHeaders) {
+      if (!ResourcePaths.tokens().equals(request.path())) {
+        if (ResourcePaths.config().equals(request.path())) {
+          assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
+        } else {
+          assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
+        }
+      }
+
+      Object body = roundTripSerialize(request.body(), "request");
+      HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
+      T response = super.execute(req, responseType, errorHandler, responseHeaders);
+      return roundTripSerialize(response, "response");
+    }
+
+    @Override
+    protected <T extends RESTResponse> T execute(
+        HTTPRequest request,
+        Class<T> responseType,
+        Consumer<ErrorResponse> errorHandler,
+        Consumer<Map<String, String>> responseHeaders,
+        ParserContext parserContext) {
+      ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
+      Pair<Route, Map<String, String>> routeAndVars = Route.from(request.method(), request.path());
+      if (routeAndVars != null) {
+        try {
+          ImmutableMap.Builder<String, String> vars = ImmutableMap.builder();
+          vars.putAll(request.queryParameters());
+          vars.putAll(routeAndVars.second());
+
+          T resp =
+              handleRequest(
+                  routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
+
+          // For tests: simulate a transient 503 after the first successful mutation for a key.
+          Optional<HTTPHeaders.HTTPHeader> keyHeader =
+              request.headers().firstEntry(RESTUtil.IDEMPOTENCY_KEY_HEADER);
+          boolean isMutation =
+              request.method() == HTTPMethod.POST || request.method() == HTTPMethod.DELETE;
+          if (isMutation && keyHeader.isPresent()) {
+            String key = keyHeader.get().value();
+            if (simulate503OnFirstSuccessKeys.remove(key)) {
+              throw new CommitStateUnknownException(
+                  new RuntimeException("simulated transient 503 after success"));
+            }
+          }
+
+          return resp;
+        } catch (RuntimeException e) {
+          configureResponseFromException(e, errorBuilder);
+        }
+
+      } else {
+        errorBuilder
+            .responseCode(400)
+            .withType("BadRequestException")
+            .withMessage(
+                String.format("No route for request: %s %s", request.method(), request.path()));
+      }
+
+      ErrorResponse error = errorBuilder.build();
+      errorHandler.accept(error);
+
+      // if the error handler doesn't throw an exception, throw a generic one
+      throw new RESTException("Unhandled error: %s", error);
+    }
+  }
+
   @TempDir public Path temp;
 
   private RESTCatalog restCatalog;
   private InMemoryCatalog backendCatalog;
   private Server httpServer;
-  private RESTCatalogAdapter adapterForRESTServer;
+  private HeaderValidatingAdapter adapterForRESTServer;
 
   @BeforeEach
   public void createCatalog() throws Exception {
@@ -156,31 +253,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 "test-value"));
 
     adapterForRESTServer =
-        Mockito.spy(
-            new RESTCatalogAdapter(backendCatalog) {
-              @Override
-              public <T extends RESTResponse> T execute(
-                  HTTPRequest request,
-                  Class<T> responseType,
-                  Consumer<ErrorResponse> errorHandler,
-                  Consumer<Map<String, String>> responseHeaders) {
-                // this doesn't use a Mockito spy because this is used for catalog tests, which have
-                // different method calls
-                if (!ResourcePaths.tokens().equals(request.path())) {
-                  if (ResourcePaths.config().equals(request.path())) {
-                    assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
-                  } else {
-                    assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
-                  }
-                }
-
-                Object body = roundTripSerialize(request.body(), "request");
-                HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
-                T response = super.execute(req, responseType, errorHandler, responseHeaders);
-                T responseAfterSerialization = roundTripSerialize(response, "response");
-                return responseAfterSerialization;
-              }
-            });
+        Mockito.spy(new HeaderValidatingAdapter(backendCatalog, catalogHeaders, contextHeaders));
 
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);

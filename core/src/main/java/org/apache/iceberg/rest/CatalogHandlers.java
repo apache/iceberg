@@ -150,6 +150,10 @@ public class CatalogHandlers {
 
     String key = keyHeader.get().value();
 
+    // "Leader" is the request thread that wins the IDEMPOTENCY_STORE.compute(...) and creates (or
+    // replaces) the IN_PROGRESS entry for this Idempotency-Key. Only the leader executes the
+    // action and finalizes the entry; concurrent requests for the same key ("followers") wait on
+    // the latch and then replay the finalized result/error.
     AtomicBoolean isLeader = new AtomicBoolean(false);
     IdempotencyEntry entry =
         IDEMPOTENCY_STORE.compute(
@@ -172,7 +176,7 @@ public class CatalogHandlers {
 
     if (!isLeader.get()) {
       // In-flight coalescing: wait for the leader request to finalize
-      entry.awaitFinalized();
+      entry.awaitFinalization();
       if (entry.error != null) {
         throw entry.error;
       }
@@ -236,7 +240,7 @@ public class CatalogHandlers {
       this.latch.countDown();
     }
 
-    void awaitFinalized() {
+    void awaitFinalization() {
       try {
         this.latch.await();
       } catch (InterruptedException ie) {
