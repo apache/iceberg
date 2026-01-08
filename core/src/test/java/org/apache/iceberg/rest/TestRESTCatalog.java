@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.assertj.core.api.InstanceOfAssertFactories.map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -75,6 +76,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
@@ -90,9 +92,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -102,6 +108,7 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
@@ -3387,6 +3394,155 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  public void testIdempotentDuplicateCreateReturnsCached() {
+    String key = "dup-create-key";
+    Namespace ns = Namespace.of("ns_dup");
+    Pair<TableIdentifier, Pair<RESTClient, Map<String, String>>> env =
+        prepareIdempotentEnv(key, ns, "t_dup");
+    TableIdentifier ident = env.first();
+    Pair<RESTClient, Map<String, String>> httpAndHeaders = env.second();
+    RESTClient http = httpAndHeaders.first();
+    Map<String, String> headers = httpAndHeaders.second();
+    CreateTableRequest req = createReq(ident);
+
+    // First create succeeds
+    LoadTableResponse first =
+        http.post(
+            ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
+            req,
+            LoadTableResponse.class,
+            headers,
+            ErrorHandlers.tableErrorHandler());
+    assertThat(first).isNotNull();
+
+    // Verify request shape (method, path, headers including Idempotency-Key)
+    verifyCreatePost(ns, headers);
+
+    // Duplicate with same key returns cached 200 OK
+    LoadTableResponse second =
+        http.post(
+            ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
+            req,
+            LoadTableResponse.class,
+            headers,
+            ErrorHandlers.tableErrorHandler());
+    assertThat(second).isNotNull();
+  }
+
+  @Test
+  public void testIdempotencyKeyLifetimeExpiredTreatsAsNew() {
+    // Set TTL to 0 so cached success expires immediately
+    CatalogHandlers.setIdempotencyLifetimeFromIso("PT0S");
+    try {
+      String key = "expired-create-key";
+      Namespace ns = Namespace.of("ns_exp");
+      Pair<TableIdentifier, Pair<RESTClient, Map<String, String>>> env =
+          prepareIdempotentEnv(key, ns, "t_exp");
+      TableIdentifier ident = env.first();
+      Pair<RESTClient, Map<String, String>> httpAndHeaders = env.second();
+      RESTClient http = httpAndHeaders.first();
+      Map<String, String> headers = httpAndHeaders.second();
+      CreateTableRequest req = createReq(ident);
+
+      // First create succeeds
+      LoadTableResponse created =
+          http.post(
+              ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
+              req,
+              LoadTableResponse.class,
+              headers,
+              ErrorHandlers.tableErrorHandler());
+      assertThat(created).isNotNull();
+
+      // Verify request shape (method, path, headers including Idempotency-Key)
+      verifyCreatePost(ns, headers);
+
+      // TTL expired -> duplicate with same key should be treated as new and fail with AlreadyExists
+      assertThatThrownBy(
+              () ->
+                  http.post(
+                      ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
+                      req,
+                      LoadTableResponse.class,
+                      headers,
+                      ErrorHandlers.tableErrorHandler()))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageContaining(ident.toString());
+    } finally {
+      // Restore default TTL for other tests
+      CatalogHandlers.setIdempotencyLifetimeFromIso("PT30M");
+    }
+  }
+
+  @Test
+  public void testIdempotentCreateReplayAfterSimulated503() {
+    // Use a fixed key and simulate 503 after first success for that key
+    String key = "idemp-create-503";
+    adapterForRESTServer.simulate503OnFirstSuccessForKey(key);
+    Namespace ns = Namespace.of("ns_idemp");
+    Pair<TableIdentifier, Pair<RESTClient, Map<String, String>>> env =
+        prepareIdempotentEnv(key, ns, "t_idemp");
+    TableIdentifier ident = env.first();
+    Pair<RESTClient, Map<String, String>> httpAndHeaders = env.second();
+    RESTClient http = httpAndHeaders.first();
+    Map<String, String> headers = httpAndHeaders.second();
+    CreateTableRequest req = createReq(ident);
+
+    // First attempt: server finalizes success but responds 503
+    assertThatThrownBy(
+            () ->
+                http.post(
+                    ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
+                    req,
+                    LoadTableResponse.class,
+                    headers,
+                    ErrorHandlers.tableErrorHandler()))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("simulated transient 503");
+
+    // Verify request shape (method, path, headers including Idempotency-Key)
+    verifyCreatePost(ns, headers);
+
+    // Retry with same key: server should replay 200 OK
+    LoadTableResponse replay =
+        http.post(
+            ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
+            req,
+            LoadTableResponse.class,
+            headers,
+            ErrorHandlers.tableErrorHandler());
+    assertThat(replay).isNotNull();
+  }
+
+  @Test
+  public void testIdempotentDropDuplicateNoop() {
+    String key = "idemp-drop-void";
+    Namespace ns = Namespace.of("ns_void");
+    Pair<TableIdentifier, Pair<RESTClient, Map<String, String>>> env =
+        prepareIdempotentEnv(key, ns, "t_void");
+    TableIdentifier ident = env.first();
+    Pair<RESTClient, Map<String, String>> httpAndHeaders = env.second();
+    RESTClient http = httpAndHeaders.first();
+    Map<String, String> headers = httpAndHeaders.second();
+
+    // Create a table to drop
+    restCatalog.createTable(
+        ident,
+        new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get())),
+        PartitionSpec.unpartitioned());
+
+    String path = ResourcePaths.forCatalogProperties(ImmutableMap.of()).table(ident);
+
+    // First drop: table exists -> drop succeeds
+    http.delete(path, null, headers, ErrorHandlers.tableErrorHandler());
+    assertThat(restCatalog.tableExists(ident)).isFalse();
+
+    // Second drop with the same key: should be a no-op (no exception)
+    assertThatCode(() -> http.delete(path, null, headers, ErrorHandlers.tableErrorHandler()))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
   public void nestedNamespaceWithLegacySeparator() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
@@ -3527,6 +3683,64 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return local;
   }
 
+  private Pair<RESTClient, Map<String, String>> httpAndHeaders(String idempotencyKey) {
+    Map<String, String> headers =
+        ImmutableMap.of(
+            RESTUtil.IDEMPOTENCY_KEY_HEADER,
+            idempotencyKey,
+            "Authorization",
+            "Bearer client-credentials-token:sub=user",
+            "test-header",
+            "test-value");
+
+    Map<String, String> conf =
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            httpServer.getURI().toString(),
+            HTTPClient.REST_SOCKET_TIMEOUT_MS,
+            "600000",
+            HTTPClient.REST_CONNECTION_TIMEOUT_MS,
+            "600000",
+            "header.test-header",
+            "test-value");
+    RESTClient httpBase =
+        HTTPClient.builder(conf)
+            .uri(conf.get(CatalogProperties.URI))
+            .withHeaders(RESTUtil.configHeaders(conf))
+            .build();
+    AuthManager am = AuthManagers.loadAuthManager("test", conf);
+    AuthSession httpSession = am.initSession(httpBase, conf);
+    RESTClient http = httpBase.withAuthSession(httpSession);
+    return Pair.of(http, headers);
+  }
+
+  private Pair<TableIdentifier, Pair<RESTClient, Map<String, String>>> prepareIdempotentEnv(
+      String key, Namespace ns, String tableName) {
+    TableIdentifier ident = TableIdentifier.of(ns, tableName);
+    restCatalog.createNamespace(ns, ImmutableMap.of());
+    return Pair.of(ident, httpAndHeaders(key));
+  }
+
+  private static CreateTableRequest createReq(TableIdentifier ident) {
+    return CreateTableRequest.builder()
+        .withName(ident.name())
+        .withSchema(new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get())))
+        .withPartitionSpec(PartitionSpec.unpartitioned())
+        .build();
+  }
+
+  private void verifyCreatePost(Namespace ns, Map<String, String> headers) {
+    verify(adapterForRESTServer, atLeastOnce())
+        .execute(
+            reqMatcherContainsHeaders(
+                HTTPMethod.POST,
+                ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
+                headers),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
   @Test
   @Override
   public void testLoadTableWithMissingMetadataFile(@TempDir Path tempDir) {
@@ -3616,6 +3830,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 && req.headers().equals(HTTPHeaders.of(headers))
                 && req.queryParameters().equals(parameters)
                 && Objects.equals(req.body(), body));
+  }
+
+  static HTTPRequest reqMatcherContainsHeaders(
+      HTTPMethod method, String path, Map<String, String> headers) {
+    return argThat(
+        req ->
+            req.method() == method
+                && req.path().equals(path)
+                && req.headers().entries().containsAll(HTTPHeaders.of(headers).entries()));
   }
 
   private static List<HTTPRequest> allRequests(RESTCatalogAdapter adapter) {
