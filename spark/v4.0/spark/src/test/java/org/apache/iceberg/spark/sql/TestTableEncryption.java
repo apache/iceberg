@@ -346,8 +346,7 @@ public class TestTableEncryption extends CatalogTestBase {
 
     sql("DROP TABLE %s PURGE", tableName);
 
-    assertThatThrownBy(() -> catalog.loadTable(tableIdent))
-        .isInstanceOf(NoSuchTableException.class);
+    assertThat(catalog.tableExists(tableIdent)).as("Table should not exist").isFalse();
     assertThat(dataFiles)
         .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isFalse());
   }
