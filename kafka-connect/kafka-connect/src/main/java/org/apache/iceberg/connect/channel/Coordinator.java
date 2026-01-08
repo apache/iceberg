@@ -208,7 +208,7 @@ class Coordinator extends Channel {
       return;
     }
 
-    if (table.uuid() != null && !table.uuid().equals(tableReference.uuid())) {
+    if (!Objects.equals(table.uuid(), tableReference.uuid())) {
       LOG.warn(
           "Skipping commits to table {} due to target table mismatch.  Expected: {} Received: {}",
           tableIdentifier,
