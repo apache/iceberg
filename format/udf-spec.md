@@ -124,6 +124,7 @@ Notes:
    and any field or element marked as required MUST NOT be null. Engines MUST reject results that violate these rules.
 6. All variable names used in definitions must match the global parameter name list, and this requirement applies across
    all versions and overloads.
+7. All parameters with defaults MUST be contiguous and MUST appear at the end of the parameter list. 
 
 #### Parameter-Type
 Primitive types are encoded using the [Iceberg Type JSON Representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization),
