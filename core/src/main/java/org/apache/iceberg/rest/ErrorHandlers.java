@@ -235,8 +235,6 @@ public class ErrorHandlers {
           throw new NoSuchNamespaceException("%s", error.message());
         case 409:
           throw new AlreadyExistsException("%s", error.message());
-        case 422:
-          throw new RESTException("Unable to process: %s", error.message());
       }
 
       super.accept(error);
