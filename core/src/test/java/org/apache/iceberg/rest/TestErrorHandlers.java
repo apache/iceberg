@@ -43,10 +43,7 @@ class TestErrorHandlers {
 
   @Test
   public void testErrorHandlerWithCodeOnly() {
-    ErrorResponse error =
-        ErrorResponse.builder()
-            .responseCode(422)
-            .build();
+    ErrorResponse error = ErrorResponse.builder().responseCode(422).build();
 
     assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
         .isInstanceOf(RESTException.class)
@@ -56,10 +53,7 @@ class TestErrorHandlers {
   @Test
   public void testErrorHandlerWithCodeAndMessageOnly() {
     ErrorResponse error =
-        ErrorResponse.builder()
-            .responseCode(422)
-            .withMessage("Invalid input")
-            .build();
+        ErrorResponse.builder().responseCode(422).withMessage("Invalid input").build();
 
     assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
         .isInstanceOf(RESTException.class)
@@ -69,10 +63,7 @@ class TestErrorHandlers {
   @Test
   public void testErrorHandlerWithCodeAndTypeOnly() {
     ErrorResponse error =
-        ErrorResponse.builder()
-            .responseCode(422)
-            .withType("ValidationException")
-            .build();
+        ErrorResponse.builder().responseCode(422).withType("ValidationException").build();
 
     assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
         .isInstanceOf(RESTException.class)
@@ -99,10 +90,7 @@ class TestErrorHandlers {
   @Test
   public void testNamespaceErrorHandlerFallsBackToDefaultFor422WithOptionalFields() {
     ErrorResponse error =
-        ErrorResponse.builder()
-            .responseCode(422)
-            .withMessage("Invalid input")
-            .build();
+        ErrorResponse.builder().responseCode(422).withMessage("Invalid input").build();
 
     // NamespaceErrorHandler should fall back to DefaultErrorHandler for 422,
     // even when type is missing
