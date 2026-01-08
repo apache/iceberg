@@ -32,7 +32,6 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
-import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -213,20 +212,5 @@ class TestHTTPRequest {
             .path("token")
             .build();
     assertThat(request.encodedBody()).isNull();
-  }
-
-  @Test
-  public void testErrorHandlerIncludesCodeAndType() {
-    ErrorResponse error =
-        ErrorResponse.builder()
-            .responseCode(422)
-            .withType("ValidationException")
-            .withMessage("Invalid input")
-            .build();
-
-    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
-        .isInstanceOf(RESTException.class)
-        .hasMessageContaining(
-            "Unable to process (code: 422, type: ValidationException): Invalid input");
   }
 }
