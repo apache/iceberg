@@ -34,6 +34,7 @@ public class ViewProperties {
   public static final String COMMENT = "comment";
   public static final String REPLACE_DROP_DIALECT_ALLOWED = "replace.drop-dialect.allowed";
   public static final boolean REPLACE_DROP_DIALECT_ALLOWED_DEFAULT = false;
+  public static final String MAX_STALENESS_MS = "max-staleness-ms";
 
   private ViewProperties() {}
 }

@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.JsonUtil;
@@ -37,6 +39,7 @@ public class ViewVersionParser {
   private static final String SCHEMA_ID = "schema-id";
   private static final String DEFAULT_CATALOG = "default-catalog";
   private static final String DEFAULT_NAMESPACE = "default-namespace";
+  private static final String STORAGE_TABLE = "storage-table";
 
   private ViewVersionParser() {}
 
@@ -61,6 +64,11 @@ public class ViewVersionParser {
       ViewRepresentationParser.toJson(representation, generator);
     }
     generator.writeEndArray();
+
+    if (version.storageTable() != null) {
+      generator.writeFieldName(STORAGE_TABLE);
+      TableIdentifierParser.toJson(version.storageTable(), generator);
+    }
 
     generator.writeEndObject();
   }
@@ -99,6 +107,11 @@ public class ViewVersionParser {
     Namespace defaultNamespace =
         Namespace.of(JsonUtil.getStringArray(JsonUtil.get(DEFAULT_NAMESPACE, node)));
 
+    TableIdentifier storageTable = null;
+    if (node.has(STORAGE_TABLE)) {
+      storageTable = TableIdentifierParser.fromJson(node.get(STORAGE_TABLE));
+    }
+
     return ImmutableViewVersion.builder()
         .versionId(versionId)
         .timestampMillis(timestamp)
@@ -106,6 +119,7 @@ public class ViewVersionParser {
         .summary(summary)
         .defaultNamespace(defaultNamespace)
         .defaultCatalog(defaultCatalog)
+        .storageTable(storageTable)
         .representations(representations.build())
         .build();
   }
