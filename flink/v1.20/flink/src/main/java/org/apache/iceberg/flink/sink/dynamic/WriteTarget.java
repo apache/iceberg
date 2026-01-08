@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
@@ -44,7 +45,7 @@ class WriteTarget implements Serializable {
       boolean upsertMode,
       Set<Integer> equalityFields) {
     this.tableName = tableName;
-    this.branch = branch != null ? branch : "main";
+    this.branch = branch != null ? branch : SnapshotRef.MAIN_BRANCH;
     this.schemaId = schemaId;
     this.specId = specId;
     this.upsertMode = upsertMode;
