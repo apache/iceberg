@@ -369,6 +369,12 @@ public interface ViewMetadata extends Serializable {
     private int addSchemaInternal(Schema schema) {
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
       if (schemasById.containsKey(newSchemaId)) {
+        if (null == lastAddedSchemaId) {
+          // set the last added schema id in case the same view version is being added with
+          // schemaId=-1
+          this.lastAddedSchemaId = newSchemaId;
+        }
+
         // this schema existed or was already added in the builder
         return newSchemaId;
       }
