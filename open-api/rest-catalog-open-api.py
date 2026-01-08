@@ -136,11 +136,11 @@ class ExpressionType(BaseModel):
 
 
 class TrueExpression(BaseModel):
-    type: str = Field('true', const=True)
+    type: Literal['true'] = Field('true', const=True)
 
 
 class FalseExpression(BaseModel):
-    type: str = Field('false', const=True)
+    type: Literal['false'] = Field('false', const=True)
 
 
 class Reference(BaseModel):
@@ -297,17 +297,19 @@ class AssignUUIDUpdate(BaseUpdate):
     Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
     """
 
-    action: str = Field('assign-uuid', const=True)
+    action: Literal['assign-uuid'] = Field('assign-uuid', const=True)
     uuid: str
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
-    action: str = Field('upgrade-format-version', const=True)
+    action: Literal['upgrade-format-version'] = Field(
+        'upgrade-format-version', const=True
+    )
     format_version: int = Field(..., alias='format-version')
 
 
 class SetCurrentSchemaUpdate(BaseUpdate):
-    action: str = Field('set-current-schema', const=True)
+    action: Literal['set-current-schema'] = Field('set-current-schema', const=True)
     schema_id: int = Field(
         ...,
         alias='schema-id',
@@ -316,12 +318,12 @@ class SetCurrentSchemaUpdate(BaseUpdate):
 
 
 class AddPartitionSpecUpdate(BaseUpdate):
-    action: str = Field('add-spec', const=True)
+    action: Literal['add-spec'] = Field('add-spec', const=True)
     spec: PartitionSpec
 
 
 class SetDefaultSpecUpdate(BaseUpdate):
-    action: str = Field('set-default-spec', const=True)
+    action: Literal['set-default-spec'] = Field('set-default-spec', const=True)
     spec_id: int = Field(
         ...,
         alias='spec-id',
@@ -330,12 +332,14 @@ class SetDefaultSpecUpdate(BaseUpdate):
 
 
 class AddSortOrderUpdate(BaseUpdate):
-    action: str = Field('add-sort-order', const=True)
+    action: Literal['add-sort-order'] = Field('add-sort-order', const=True)
     sort_order: SortOrder = Field(..., alias='sort-order')
 
 
 class SetDefaultSortOrderUpdate(BaseUpdate):
-    action: str = Field('set-default-sort-order', const=True)
+    action: Literal['set-default-sort-order'] = Field(
+        'set-default-sort-order', const=True
+    )
     sort_order_id: int = Field(
         ...,
         alias='sort-order-id',
@@ -344,52 +348,49 @@ class SetDefaultSortOrderUpdate(BaseUpdate):
 
 
 class AddSnapshotUpdate(BaseUpdate):
-    action: str = Field('add-snapshot', const=True)
+    action: Literal['add-snapshot'] = Field('add-snapshot', const=True)
     snapshot: Snapshot
 
 
-class SetSnapshotRefUpdate(BaseModel):
-    action: str = Field(..., const=True)
+class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
+    action: Literal['set-snapshot-ref'] = Field('set-snapshot-ref', const=True)
     ref_name: str = Field(..., alias='ref-name')
-    type: Literal['tag', 'branch']
-    snapshot_id: int = Field(..., alias='snapshot-id')
-    max_ref_age_ms: int | None = Field(None, alias='max-ref-age-ms')
-    max_snapshot_age_ms: int | None = Field(None, alias='max-snapshot-age-ms')
-    min_snapshots_to_keep: int | None = Field(None, alias='min-snapshots-to-keep')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
-    action: str = Field('remove-snapshots', const=True)
+    action: Literal['remove-snapshots'] = Field('remove-snapshots', const=True)
     snapshot_ids: list[int] = Field(..., alias='snapshot-ids')
 
 
 class RemoveSnapshotRefUpdate(BaseUpdate):
-    action: str = Field('remove-snapshot-ref', const=True)
+    action: Literal['remove-snapshot-ref'] = Field('remove-snapshot-ref', const=True)
     ref_name: str = Field(..., alias='ref-name')
 
 
 class SetLocationUpdate(BaseUpdate):
-    action: str = Field('set-location', const=True)
+    action: Literal['set-location'] = Field('set-location', const=True)
     location: str
 
 
 class SetPropertiesUpdate(BaseUpdate):
-    action: str = Field('set-properties', const=True)
+    action: Literal['set-properties'] = Field('set-properties', const=True)
     updates: dict[str, str]
 
 
 class RemovePropertiesUpdate(BaseUpdate):
-    action: str = Field('remove-properties', const=True)
+    action: Literal['remove-properties'] = Field('remove-properties', const=True)
     removals: list[str]
 
 
 class AddViewVersionUpdate(BaseUpdate):
-    action: str = Field('add-view-version', const=True)
+    action: Literal['add-view-version'] = Field('add-view-version', const=True)
     view_version: ViewVersion = Field(..., alias='view-version')
 
 
 class SetCurrentViewVersionUpdate(BaseUpdate):
-    action: str = Field('set-current-view-version', const=True)
+    action: Literal['set-current-view-version'] = Field(
+        'set-current-view-version', const=True
+    )
     view_version_id: int = Field(
         ...,
         alias='view-version-id',
@@ -398,32 +399,38 @@ class SetCurrentViewVersionUpdate(BaseUpdate):
 
 
 class RemoveStatisticsUpdate(BaseUpdate):
-    action: str = Field('remove-statistics', const=True)
+    action: Literal['remove-statistics'] = Field('remove-statistics', const=True)
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionStatisticsUpdate(BaseUpdate):
-    action: str = Field('remove-partition-statistics', const=True)
+    action: Literal['remove-partition-statistics'] = Field(
+        'remove-partition-statistics', const=True
+    )
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionSpecsUpdate(BaseUpdate):
-    action: str = Field('remove-partition-specs', const=True)
+    action: Literal['remove-partition-specs'] = Field(
+        'remove-partition-specs', const=True
+    )
     spec_ids: list[int] = Field(..., alias='spec-ids')
 
 
 class RemoveSchemasUpdate(BaseUpdate):
-    action: str = Field('remove-schemas', const=True)
+    action: Literal['remove-schemas'] = Field('remove-schemas', const=True)
     schema_ids: list[int] = Field(..., alias='schema-ids')
 
 
 class AddEncryptionKeyUpdate(BaseUpdate):
-    action: str = Field('add-encryption-key', const=True)
+    action: Literal['add-encryption-key'] = Field('add-encryption-key', const=True)
     encryption_key: EncryptedKey = Field(..., alias='encryption-key')
 
 
 class RemoveEncryptionKeyUpdate(BaseUpdate):
-    action: str = Field('remove-encryption-key', const=True)
+    action: Literal['remove-encryption-key'] = Field(
+        'remove-encryption-key', const=True
+    )
     key_id: str = Field(..., alias='key-id')
 
 
@@ -436,7 +443,7 @@ class AssertCreate(TableRequirement):
     The table must not already exist; used for create transactions
     """
 
-    type: str = Field(..., const=True)
+    type: Literal['assert-create'] = Field(..., const=True)
 
 
 class AssertTableUUID(TableRequirement):
@@ -444,7 +451,7 @@ class AssertTableUUID(TableRequirement):
     The table UUID must match the requirement's `uuid`
     """
 
-    type: str = Field(..., const=True)
+    type: Literal['assert-table-uuid'] = Field(..., const=True)
     uuid: str
 
 
@@ -456,7 +463,9 @@ class AssertRefSnapshotId(TableRequirement):
 
     """
 
-    type: str = Field('assert-ref-snapshot-id', const=True)
+    type: Literal['assert-ref-snapshot-id'] = Field(
+        'assert-ref-snapshot-id', const=True
+    )
     ref: str
     snapshot_id: int = Field(..., alias='snapshot-id')
 
@@ -466,7 +475,9 @@ class AssertLastAssignedFieldId(TableRequirement):
     The table's last assigned column id must match the requirement's `last-assigned-field-id`
     """
 
-    type: str = Field('assert-last-assigned-field-id', const=True)
+    type: Literal['assert-last-assigned-field-id'] = Field(
+        'assert-last-assigned-field-id', const=True
+    )
     last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
 
 
@@ -475,7 +486,9 @@ class AssertCurrentSchemaId(TableRequirement):
     The table's current schema id must match the requirement's `current-schema-id`
     """
 
-    type: str = Field('assert-current-schema-id', const=True)
+    type: Literal['assert-current-schema-id'] = Field(
+        'assert-current-schema-id', const=True
+    )
     current_schema_id: int = Field(..., alias='current-schema-id')
 
 
@@ -484,7 +497,9 @@ class AssertLastAssignedPartitionId(TableRequirement):
     The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
     """
 
-    type: str = Field('assert-last-assigned-partition-id', const=True)
+    type: Literal['assert-last-assigned-partition-id'] = Field(
+        'assert-last-assigned-partition-id', const=True
+    )
     last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
 
 
@@ -493,7 +508,9 @@ class AssertDefaultSpecId(TableRequirement):
     The table's default spec id must match the requirement's `default-spec-id`
     """
 
-    type: str = Field('assert-default-spec-id', const=True)
+    type: Literal['assert-default-spec-id'] = Field(
+        'assert-default-spec-id', const=True
+    )
     default_spec_id: int = Field(..., alias='default-spec-id')
 
 
@@ -502,7 +519,9 @@ class AssertDefaultSortOrderId(TableRequirement):
     The table's default sort order id must match the requirement's `default-sort-order-id`
     """
 
-    type: str = Field('assert-default-sort-order-id', const=True)
+    type: Literal['assert-default-sort-order-id'] = Field(
+        'assert-default-sort-order-id', const=True
+    )
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
 
 
@@ -511,7 +530,7 @@ class AssertViewUUID(BaseModel):
     The view UUID must match the requirement's `uuid`
     """
 
-    type: str = Field('assert-view-uuid', const=True)
+    type: Literal['assert-view-uuid'] = Field('assert-view-uuid', const=True)
     uuid: str
 
 
@@ -619,6 +638,7 @@ class OAuthTokenExchangeRequest(BaseModel):
 class OAuthTokenRequest(BaseModel):
     __root__: OAuthClientCredentialsRequest | OAuthTokenExchangeRequest = Field(
         ...,
+        deprecated=True,
         description='The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.',
     )
 
@@ -960,27 +980,6 @@ class PlanTask(BaseModel):
     )
 
 
-class ResidualFilter1(BaseModel):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
-
-
-class ResidualFilter2(TrueExpression, ResidualFilter1):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
-
-
-class ResidualFilter3(FalseExpression, ResidualFilter1):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
-
-
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: dict[str, str] | None = Field(
@@ -996,13 +995,15 @@ class RenameTableRequest(BaseModel):
 
 
 class TransformTerm(BaseModel):
-    type: str = Field('transform', const=True)
+    type: Literal['transform'] = Field('transform', const=True)
     transform: Transform
     term: Reference
 
 
 class SetPartitionStatisticsUpdate(BaseUpdate):
-    action: str = Field('set-partition-statistics', const=True)
+    action: Literal['set-partition-statistics'] = Field(
+        'set-partition-statistics', const=True
+    )
     partition_statistics: PartitionStatisticsFile = Field(
         ..., alias='partition-statistics'
     )
@@ -1042,7 +1043,7 @@ class ValueMap(BaseModel):
 
 
 class DataFile(ContentFile):
-    content: str = Field(..., const=True)
+    content: Literal['data'] = Field(..., const=True)
     first_row_id: int | None = Field(
         None,
         alias='first-row-id',
@@ -1093,10 +1094,11 @@ class Term(BaseModel):
 
 
 class SetStatisticsUpdate(BaseUpdate):
-    action: str = Field('set-statistics', const=True)
+    action: Literal['set-statistics'] = Field('set-statistics', const=True)
     snapshot_id: int | None = Field(
         None,
         alias='snapshot-id',
+        deprecated=True,
         description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
     )
     statistics: StatisticsFile
@@ -1121,27 +1123,6 @@ class SetExpression(BaseModel):
     values: list[PrimitiveTypeValue]
 
 
-class ResidualFilter6(SetExpression, ResidualFilter1):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
-
-
-class ResidualFilter7(LiteralExpression, ResidualFilter1):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
-
-
-class ResidualFilter8(UnaryExpression, ResidualFilter1):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
-
-
 class StructField(BaseModel):
     id: int
     name: str
@@ -1153,19 +1134,19 @@ class StructField(BaseModel):
 
 
 class StructType(BaseModel):
-    type: str = Field('struct', const=True)
+    type: Literal['struct'] = Field('struct', const=True)
     fields: list[StructField]
 
 
 class ListType(BaseModel):
-    type: str = Field('list', const=True)
+    type: Literal['list'] = Field('list', const=True)
     element_id: int = Field(..., alias='element-id')
     element: Type
     element_required: bool = Field(..., alias='element-required')
 
 
 class MapType(BaseModel):
-    type: str = Field('map', const=True)
+    type: Literal['map'] = Field('map', const=True)
     key_id: int = Field(..., alias='key-id')
     key: Type
     value_id: int = Field(..., alias='value-id')
@@ -1196,7 +1177,7 @@ class AndOrExpression(BaseModel):
 
 
 class NotExpression(BaseModel):
-    type: str = Field('not', const=True)
+    type: Literal['not'] = Field('not', const=True)
     child: Expression
 
 
@@ -1244,11 +1225,12 @@ class ViewMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
-    action: str = Field('add-schema', const=True)
+    action: Literal['add-schema'] = Field('add-schema', const=True)
     schema_: Schema = Field(..., alias='schema')
     last_column_id: int | None = Field(
         None,
         alias='last-column-id',
+        deprecated=True,
         description="This optional field is **DEPRECATED for REMOVAL** since it more safe to handle this internally, and shouldn't be exposed to the clients.\nThe highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.",
     )
 
@@ -1524,26 +1506,6 @@ class PlanTableScanRequest(BaseModel):
     )
 
 
-class ResidualFilter(BaseModel):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
-
-    __root__: (
-        ResidualFilter2
-        | ResidualFilter3
-        | ResidualFilter4
-        | ResidualFilter5
-        | ResidualFilter6
-        | ResidualFilter7
-        | ResidualFilter8
-    ) = Field(
-        ...,
-        description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
-    )
-
-
 class FileScanTask(BaseModel):
     data_file: DataFile = Field(..., alias='data-file')
     delete_file_references: list[int] | None = Field(
@@ -1551,7 +1513,7 @@ class FileScanTask(BaseModel):
         alias='delete-file-references',
         description='A list of indices in the delete files array (0-based)',
     )
-    residual_filter: ResidualFilter | None = Field(
+    residual_filter: Expression | None = Field(
         None,
         alias='residual-filter',
         description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
@@ -1561,20 +1523,6 @@ class FileScanTask(BaseModel):
 class Schema(StructType):
     schema_id: int | None = Field(None, alias='schema-id')
     identifier_field_ids: list[int] | None = Field(None, alias='identifier-field-ids')
-
-
-class ResidualFilter4(AndOrExpression, ResidualFilter1):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
-
-
-class ResidualFilter5(NotExpression, ResidualFilter1):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
 
 
 class CompletedPlanningResult(ScanTasks):
@@ -1620,7 +1568,6 @@ PlanTableScanResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
-ResidualFilter.update_forward_refs()
 CompletedPlanningResult.update_forward_refs()
 FetchScanTasksResult.update_forward_refs()
 CompletedPlanningWithIDResult.update_forward_refs()

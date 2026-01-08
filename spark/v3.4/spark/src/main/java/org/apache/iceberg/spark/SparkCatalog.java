@@ -797,6 +797,7 @@ public class SparkCatalog extends BaseCatalog {
     EnvironmentContext.put(
         EnvironmentContext.ENGINE_VERSION, sparkSession.sparkContext().version());
     EnvironmentContext.put(CatalogProperties.APP_ID, sparkSession.sparkContext().applicationId());
+    EnvironmentContext.put(CatalogProperties.APP_NAME, sparkSession.sparkContext().appName());
   }
 
   @Override
