@@ -159,7 +159,9 @@ public class RewriteDataFilesSparkAction
   }
 
   public RewriteDataFilesSparkAction toBranch(String targetBranch) {
-    this.branch = targetBranch;
+    if (targetBranch != null) {
+      this.branch = targetBranch;
+    }
     return this;
   }
 
