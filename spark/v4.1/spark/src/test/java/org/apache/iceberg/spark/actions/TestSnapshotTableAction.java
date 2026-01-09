@@ -123,8 +123,32 @@ public class TestSnapshotTableAction extends CatalogTestBase {
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot create a snapshot at location");
+  }
 
-    String validDestLocation = new Path(parentLocation, "newDestination").toUri().toString();
+  @TestTemplate
+  public void testSnapshotWithNonOverlappingLocation() throws IOException {
+    String catalogType = catalogConfig.get(ICEBERG_CATALOG_TYPE);
+    assumeThat(catalogType).isNotEqualTo(ICEBERG_CATALOG_TYPE_HADOOP);
+
+    String sourceLocation =
+        Files.createTempDirectory(temp, "junit").resolve("source").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        SOURCE_NAME, sourceLocation);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+    String actualSourceLocation =
+        spark
+            .sql(String.format("DESCRIBE EXTENDED %s", SOURCE_NAME))
+            .filter("col_name = 'Location'")
+            .select("data_type")
+            .first()
+            .getString(0);
+
+    String validDestLocation =
+        new Path(new Path(actualSourceLocation).getParent().toUri().toString(), "newDestination")
+            .toUri()
+            .toString();
     SparkActions.get()
         .snapshotTable(SOURCE_NAME)
         .as(tableName)
