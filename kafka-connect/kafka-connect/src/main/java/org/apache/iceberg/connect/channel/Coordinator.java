@@ -208,12 +208,13 @@ class Coordinator extends Channel {
       return;
     }
 
-    if (!Objects.equals(table.uuid(), tableReference.uuid())) {
+    if (tableReference.uuid() != null && !tableReference.uuid().equals(table.uuid())) {
       LOG.warn(
           "Skipping commits to table {} due to target table mismatch.  Expected: {} Received: {}",
           tableIdentifier,
           table.uuid(),
           tableReference.uuid());
+      return;
     }
 
     String branch = config.tableConfig(tableIdentifier.toString()).commitBranch();
