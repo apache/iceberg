@@ -24,7 +24,6 @@ import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.parquet.ParquetVariantUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.variants.PhysicalType;
@@ -40,36 +39,20 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.unsafe.types.VariantVal;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Analyzes variant data across buffered rows to determine an optimal shredding schema.
- **
+ *
  * <ul>
- *   <li>If a field appears consistently with a consistent type → create both {@code value} and
- *       {@code typed_value}
- *   <li>If a field appears with inconsistent types → only create {@code value}
- *   <li>Drop fields that occur in less than the configured threshold of sampled rows
- *   <li>Cap the maximum fields to shred
+ *   <li>shred to the most common type
  * </ul>
  */
 public class VariantShreddingAnalyzer {
-  private static final Logger LOG = LoggerFactory.getLogger(VariantShreddingAnalyzer.class);
+  private static final String TYPED_VALUE = "typed_value";
+  private static final String VALUE = "value";
+  private static final String ELEMENT = "element";
 
-  private final double minOccurrenceThreshold;
-  private final int maxFields;
-
-  /**
-   * Creates a new analyzer with the specified configuration.
-   *
-   * @param minOccurrenceThreshold minimum occurrence threshold (e.g., 0.1 for 10%)
-   * @param maxFields maximum number of fields to shred
-   */
-  public VariantShreddingAnalyzer(double minOccurrenceThreshold, int maxFields) {
-    this.minOccurrenceThreshold = minOccurrenceThreshold;
-    this.maxFields = maxFields;
-  }
+  public VariantShreddingAnalyzer() {}
 
   /**
    * Analyzes buffered variant values to determine the optimal shredding schema.
@@ -79,17 +62,13 @@ public class VariantShreddingAnalyzer {
    * @return the shredded schema type, or null if no shredding should be performed
    */
   public Type analyzeAndCreateSchema(List<InternalRow> bufferedRows, int variantFieldIndex) {
-    if (bufferedRows.isEmpty()) {
-      return null;
-    }
-
     List<VariantValue> variantValues = extractVariantValues(bufferedRows, variantFieldIndex);
     if (variantValues.isEmpty()) {
       return null;
     }
 
-    FieldStats stats = analyzeFields(variantValues);
-    return buildShreddedSchema(stats, variantValues.size());
+    PathNode root = buildPathTree(variantValues);
+    return buildTypedValue(root, root.info.getMostCommonType());
   }
 
   private static List<VariantValue> extractVariantValues(
@@ -100,12 +79,12 @@ public class VariantShreddingAnalyzer {
       if (!row.isNullAt(variantFieldIndex)) {
         VariantVal variantVal = row.getVariant(variantFieldIndex);
         if (variantVal != null) {
-            VariantValue variantValue =
-                VariantValue.from(
-                    VariantMetadata.from(
-                        ByteBuffer.wrap(variantVal.getMetadata()).order(ByteOrder.LITTLE_ENDIAN)),
-                    ByteBuffer.wrap(variantVal.getValue()).order(ByteOrder.LITTLE_ENDIAN));
-            values.add(variantValue);
+          VariantValue variantValue =
+              VariantValue.from(
+                  VariantMetadata.from(
+                      ByteBuffer.wrap(variantVal.getMetadata()).order(ByteOrder.LITTLE_ENDIAN)),
+                  ByteBuffer.wrap(variantVal.getValue()).order(ByteOrder.LITTLE_ENDIAN));
+          values.add(variantValue);
         }
       }
     }
@@ -113,433 +92,231 @@ public class VariantShreddingAnalyzer {
     return values;
   }
 
-  private static FieldStats analyzeFields(List<VariantValue> variantValues) {
-    FieldStats stats = new FieldStats();
+  private static PathNode buildPathTree(List<VariantValue> variantValues) {
+    PathNode root = new PathNode(null);
+    root.info = new FieldInfo();
 
     for (VariantValue value : variantValues) {
-      if (value.type() == PhysicalType.OBJECT) {
-        VariantObject obj = value.asObject();
-        for (String fieldName : obj.fieldNames()) {
-          VariantValue fieldValue = obj.get(fieldName);
-          if (fieldValue != null) {
-            stats.recordField(fieldName, fieldValue);
-          }
-        }
-      }
+      traverse(root, value);
     }
 
-    return stats;
+    return root;
   }
 
-  private Type buildShreddedSchema(FieldStats stats, int totalRows) {
-    int minOccurrences = (int) Math.ceil(totalRows * minOccurrenceThreshold);
-
-    // Get fields that meet the occurrence threshold
-    Set<String> candidateFields = Sets.newTreeSet();
-    for (Map.Entry<String, FieldInfo> entry : stats.fieldInfoMap.entrySet()) {
-      String fieldName = entry.getKey();
-      FieldInfo info = entry.getValue();
-
-      if (info.occurrenceCount >= minOccurrences) {
-        candidateFields.add(fieldName);
-      } else {
-        LOG.debug(
-            "Field '{}' appears only {} times out of {} (< {}%), dropping",
-            fieldName,
-            info.occurrenceCount,
-            totalRows,
-            (int) (minOccurrenceThreshold * 100));
-      }
+  private static void traverse(PathNode node, VariantValue value) {
+    if (value == null) {
+      return;
     }
 
-    if (candidateFields.isEmpty()) {
-      return null;
-    }
+    node.info.observe(value);
 
-    // Build the typed_value struct with field count limit
-    Types.GroupBuilder<GroupType> objectBuilder = Types.buildGroup(Type.Repetition.OPTIONAL);
-    int fieldCount = 0;
-
-    for (String fieldName : candidateFields) {
-      FieldInfo info = stats.fieldInfoMap.get(fieldName);
-
-      if (info.hasConsistentType()) {
-        Type shreddedFieldType = createShreddedFieldType(fieldName, info);
-        if (shreddedFieldType != null) {
-          if (fieldCount + 2 > maxFields) {
-            LOG.debug(
-                "Reached maximum field limit ({}) while processing field '{}', stopping",
-                maxFields,
-                fieldName);
-            break;
+    if (value.type() == PhysicalType.OBJECT) {
+      VariantObject obj = value.asObject();
+      for (String fieldName : obj.fieldNames()) {
+        VariantValue fieldValue = obj.get(fieldName);
+        if (fieldValue != null) {
+          PathNode childNode = node.objectChildren.computeIfAbsent(fieldName, PathNode::new);
+          if (childNode.info == null) {
+            childNode.info = new FieldInfo();
           }
-          objectBuilder.addField(shreddedFieldType);
-          fieldCount += 2;
+          traverse(childNode, fieldValue);
         }
-      } else {
-        Type valueOnlyField = createValueOnlyField(fieldName);
-        if (fieldCount + 1 > maxFields) {
-          LOG.debug(
-              "Reached maximum field limit ({}) while processing field '{}', stopping",
-              maxFields,
-              fieldName);
-          break;
+      }
+    } else if (value.type() == PhysicalType.ARRAY) {
+      VariantArray array = value.asArray();
+      int numElements = array.numElements();
+      if (node.arrayElement == null) {
+        node.arrayElement = new PathNode(null);
+        node.arrayElement.info = new FieldInfo();
+      }
+      for (int i = 0; i < numElements; i++) {
+        VariantValue element = array.get(i);
+        if (element != null) {
+          traverse(node.arrayElement, element);
         }
-        objectBuilder.addField(valueOnlyField);
-        fieldCount += 1;
-        LOG.debug(
-            "Field '{}' has inconsistent types ({}), creating value-only field",
-            fieldName,
-            info.observedTypes);
       }
     }
-
-    if (fieldCount == 0) {
-      return null;
-    }
-
-    LOG.info("Created shredded schema with {} fields for {} candidate fields", fieldCount, candidateFields.size());
-    return objectBuilder.named("typed_value");
   }
 
-  private static Type createShreddedFieldType(String fieldName, FieldInfo info) {
-    PhysicalType physicalType = info.getConsistentType();
-    if (physicalType == null) {
-      return null;
-    }
+  private static Type buildFieldGroup(PathNode node) {
+    Type typedValue = buildTypedValue(node, node.info.getMostCommonType());
+    return Types.buildGroup(Type.Repetition.REQUIRED)
+        .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+        .named(VALUE)
+        .addField(typedValue)
+        .named(node.fieldName);
+  }
 
-    // For array types, analyze the first value to determine element type
+  private static Type buildTypedValue(PathNode node, PhysicalType physicalType) {
     Type typedValue;
     if (physicalType == PhysicalType.ARRAY) {
-      typedValue = createArrayTypedValue(info);
-    } else if (physicalType == PhysicalType.DECIMAL4
-        || physicalType == PhysicalType.DECIMAL8
-        || physicalType == PhysicalType.DECIMAL16) {
-      // For decimals, infer precision and scale from actual values
-      typedValue = createDecimalTypedValue(info, physicalType);
+      typedValue = createArrayTypedValue(node);
     } else if (physicalType == PhysicalType.OBJECT) {
-      // For nested objects, attempt recursive shredding
-      typedValue = createNestedObjectTypedValue(info);
+      typedValue = createObjectTypedValue(node);
     } else {
-      // Convert the physical type to a Parquet type for typed_value
-      typedValue = convertPhysicalTypeToParquet(physicalType);
+      typedValue = createPrimitiveTypedValue(node.info, physicalType);
     }
 
-    if (typedValue == null) {
-      // If we can't create a typed_value (e.g., inconsistent decimal scales),
-      // create a value-only field instead of skipping the field entirely
-      return Types.buildGroup(Type.Repetition.REQUIRED)
-          .optional(PrimitiveType.PrimitiveTypeName.BINARY)
-          .named("value")
-          .named(fieldName);
-    }
-
-    return Types.buildGroup(Type.Repetition.REQUIRED)
-        .optional(PrimitiveType.PrimitiveTypeName.BINARY)
-        .named("value")
-        .addField(typedValue)
-        .named(fieldName);
+    return typedValue;
   }
 
-  private static Type createDecimalTypedValue(FieldInfo info, PhysicalType decimalType) {
-    // Analyze decimal values to determine precision and scale
-    // All values must have the same scale to be considered consistent
-    Integer consistentScale = null;
-    int maxPrecision = 0;
-
-    for (VariantValue value : info.observedValues) {
-      if (value.type() == decimalType) {
-        try {
-          VariantPrimitive<?> primitive = value.asPrimitive();
-          Object decimalValue = primitive.get();
-          if (decimalValue instanceof BigDecimal) {
-            BigDecimal bd = (BigDecimal) decimalValue;
-            int precision = bd.precision();
-            int scale = bd.scale();
-            
-            // Check scale consistency
-            if (consistentScale == null) {
-              consistentScale = scale;
-            } else if (consistentScale != scale) {
-              // Different scales mean inconsistent types - no typed_value
-              LOG.debug(
-                  "Decimal values have inconsistent scales ({} vs {}), skipping typed_value",
-                  consistentScale,
-                  scale);
-              return null;
-            }
-            
-            maxPrecision = Math.max(maxPrecision, precision);
-          }
-        } catch (Exception e) {
-          LOG.debug("Failed to analyze decimal value", e);
-        }
-      }
-    }
-
-    if (maxPrecision == 0 || consistentScale == null) {
-      LOG.debug("Could not determine decimal precision/scale, skipping typed_value");
+  private static Type createObjectTypedValue(PathNode node) {
+    if (node.objectChildren.isEmpty()) {
       return null;
     }
 
-    // Determine the appropriate Parquet type based on precision
-    PrimitiveType.PrimitiveTypeName primitiveType;
+    Types.GroupBuilder<GroupType> builder = Types.buildGroup(Type.Repetition.OPTIONAL);
+    for (PathNode child : node.objectChildren.values()) {
+      builder.addField(buildFieldGroup(child));
+    }
+
+    return builder.named(TYPED_VALUE);
+  }
+
+  private static Type createArrayTypedValue(PathNode node) {
+    PathNode elementNode = node.arrayElement;
+    PhysicalType elementType = elementNode.info.getMostCommonType();
+    Type elementTypedValue = buildTypedValue(elementNode, elementType);
+
+    GroupType elementGroup =
+        Types.buildGroup(Type.Repetition.REQUIRED)
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .named(VALUE)
+            .addField(elementTypedValue)
+            .named(ELEMENT);
+
+    return Types.optionalList().element(elementGroup).named(TYPED_VALUE);
+  }
+
+  private static class PathNode {
+    private final String fieldName;
+    private final Map<String, PathNode> objectChildren = Maps.newTreeMap();
+    private PathNode arrayElement = null;
+    private FieldInfo info = null;
+
+    private PathNode(String fieldName) {
+      this.fieldName = fieldName;
+    }
+  }
+
+  /** Use DECIMAL with maximum precision and scale as the shredding type */
+  private static Type createDecimalTypedValue(FieldInfo info) {
+    int maxPrecision = info.maxDecimalPrecision;
+    int maxScale = info.maxDecimalScale;
+
     if (maxPrecision <= 9) {
-      primitiveType = PrimitiveType.PrimitiveTypeName.INT32;
+      return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+          .as(LogicalTypeAnnotation.decimalType(maxScale, maxPrecision))
+          .named(TYPED_VALUE);
     } else if (maxPrecision <= 18) {
-      primitiveType = PrimitiveType.PrimitiveTypeName.INT64;
+      return Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+          .as(LogicalTypeAnnotation.decimalType(maxScale, maxPrecision))
+          .named(TYPED_VALUE);
     } else {
-      primitiveType = PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
+      return Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+          .length(16)
+          .as(LogicalTypeAnnotation.decimalType(maxScale, maxPrecision))
+          .named(TYPED_VALUE);
     }
-
-    return Types.optional(primitiveType)
-        .as(LogicalTypeAnnotation.decimalType(consistentScale, maxPrecision))
-        .named("typed_value");
   }
 
-  private static Type createNestedObjectTypedValue(FieldInfo info) {
-    // For nested objects, we can recursively analyze their fields
-    // For now, we'll create a simpler representation
-    // A full implementation would recursively build the object structure
-
-    // Get a sample object to analyze its fields
-    for (VariantValue value : info.observedValues) {
-      if (value.type() == PhysicalType.OBJECT) {
-        try {
-          VariantObject obj = value.asObject();
-          int numFields = obj.numFields();
-
-          // Only shred simple nested objects (not too many fields)
-          if (numFields > 0 && numFields <= 20) {
-            // Analyze fields in the nested object
-            Map<String, Set<PhysicalType>> nestedFieldTypes = Maps.newHashMap();
-
-            for (String fieldName : obj.fieldNames()) {
-              VariantValue fieldValue = obj.get(fieldName);
-              if (fieldValue != null) {
-                nestedFieldTypes
-                    .computeIfAbsent(fieldName, k -> Sets.newHashSet())
-                    .add(fieldValue.type());
-              }
-            }
-
-            // Build nested struct with fields that have consistent types
-            Types.GroupBuilder<GroupType> nestedBuilder =
-                Types.buildGroup(Type.Repetition.OPTIONAL);
-            int fieldCount = 0;
-
-            for (Map.Entry<String, Set<PhysicalType>> entry : nestedFieldTypes.entrySet()) {
-              String fieldName = entry.getKey();
-              Set<PhysicalType> types = entry.getValue();
-
-              // Only include fields with consistent types
-              if (types.size() == 1) {
-                PhysicalType fieldType = types.iterator().next();
-                Type fieldParquetType = convertPhysicalTypeToParquet(fieldType);
-                if (fieldParquetType != null) {
-                  GroupType nestedField =
-                      Types.buildGroup(Type.Repetition.REQUIRED)
-                          .optional(PrimitiveType.PrimitiveTypeName.BINARY)
-                          .named("value")
-                          .addField(fieldParquetType)
-                          .named(fieldName);
-                  nestedBuilder.addField(nestedField);
-                  fieldCount++;
-                }
-              }
-            }
-
-            if (fieldCount > 0) {
-              return nestedBuilder.named("typed_value");
-            }
-          }
-        } catch (Exception e) {
-          LOG.debug("Failed to analyze nested object", e);
-        }
-        break;
-      }
-    }
-
-    LOG.debug("Skipping nested object - complex structure or analysis failed");
-    return null;
-  }
-
-  private static Type createArrayTypedValue(FieldInfo info) {
-    // Get a sample array value to analyze element types
-    for (VariantValue value : info.observedValues) {
-      if (value.type() == PhysicalType.ARRAY) {
-        try {
-          VariantArray array = value.asArray();
-          int numElements = array.numElements();
-          if (numElements > 0) {
-            // Analyze elements to determine if they have consistent type
-            Set<PhysicalType> elementTypes = Sets.newHashSet();
-            for (int i = 0; i < numElements; i++) {
-              elementTypes.add(array.get(i).type());
-            }
-
-            // If all elements have consistent type, create typed array
-            if (elementTypes.size() == 1
-                || (elementTypes.size() == 2
-                    && elementTypes.contains(PhysicalType.BOOLEAN_TRUE)
-                    && elementTypes.contains(PhysicalType.BOOLEAN_FALSE))) {
-              PhysicalType elementType = elementTypes.iterator().next();
-              if (elementType == PhysicalType.BOOLEAN_FALSE
-                  || elementType == PhysicalType.BOOLEAN_TRUE) {
-                elementType = PhysicalType.BOOLEAN_TRUE;
-              }
-              Type elementParquetType = convertPhysicalTypeToParquet(elementType);
-              if (elementParquetType != null) {
-                // Create list with typed element
-                GroupType element =
-                    Types.buildGroup(Type.Repetition.REQUIRED)
-                        .optional(PrimitiveType.PrimitiveTypeName.BINARY)
-                        .named("value")
-                        .addField(elementParquetType)
-                        .named("element");
-                return Types.optionalList().element(element).named("typed_value");
-              }
-            }
-          }
-        } catch (Exception e) {
-          LOG.debug("Failed to analyze array elements", e);
-        }
-        break;
-      }
-    }
-    return null;
-  }
-
-  private static Type createValueOnlyField(String fieldName) {
-    // Create a field with only the value field (no typed_value)
-    return Types.buildGroup(Type.Repetition.REQUIRED)
-        .optional(PrimitiveType.PrimitiveTypeName.BINARY)
-        .named("value")
-        .named(fieldName);
-  }
-
-  private static Type convertPhysicalTypeToParquet(PhysicalType physicalType) {
-    switch (physicalType) {
+  private static Type createPrimitiveTypedValue(FieldInfo info, PhysicalType primitiveType) {
+    switch (primitiveType) {
       case BOOLEAN_TRUE:
       case BOOLEAN_FALSE:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named("typed_value");
+        return Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(TYPED_VALUE);
 
       case INT8:
         return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
             .as(LogicalTypeAnnotation.intType(8, true))
-            .named("typed_value");
+            .named(TYPED_VALUE);
 
       case INT16:
         return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
             .as(LogicalTypeAnnotation.intType(16, true))
-            .named("typed_value");
+            .named(TYPED_VALUE);
 
       case INT32:
         return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
             .as(LogicalTypeAnnotation.intType(32, true))
-            .named("typed_value");
+            .named(TYPED_VALUE);
 
       case INT64:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("typed_value");
+        return Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(TYPED_VALUE);
 
       case FLOAT:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named("typed_value");
+        return Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(TYPED_VALUE);
 
       case DOUBLE:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named("typed_value");
+        return Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(TYPED_VALUE);
 
       case STRING:
         return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
             .as(LogicalTypeAnnotation.stringType())
-            .named("typed_value");
+            .named(TYPED_VALUE);
 
       case BINARY:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named("typed_value");
+        return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(TYPED_VALUE);
 
       case DATE:
         return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
             .as(LogicalTypeAnnotation.dateType())
-            .named("typed_value");
+            .named(TYPED_VALUE);
 
       case TIMESTAMPTZ:
         return Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
-            .named("typed_value");
+            .named(TYPED_VALUE);
 
       case TIMESTAMPNTZ:
         return Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.MICROS))
-            .named("typed_value");
+            .named(TYPED_VALUE);
 
       case DECIMAL4:
       case DECIMAL8:
       case DECIMAL16:
-        // Decimals are now handled in createDecimalTypedValue()
-        // This case should not be reached for consistent decimal types
-        LOG.debug("Decimal type {} should be handled by createDecimalTypedValue()", physicalType);
-        return null;
-
-      case ARRAY:
-        // Arrays are now handled in createArrayTypedValue()
-        LOG.debug("Array type should be handled by createArrayTypedValue()");
-        return null;
-
-      case OBJECT:
-        // Nested objects are now handled in createNestedObjectTypedValue()
-        LOG.debug("Object type should be handled by createNestedObjectTypedValue()");
-        return null;
+        return createDecimalTypedValue(info);
 
       default:
-        LOG.debug("Unknown physical type: {}", physicalType);
-        return null;
+        throw new UnsupportedOperationException(
+            "Unknown primitive physical type: " + primitiveType);
     }
   }
 
-  /** Tracks statistics about fields across multiple variant values. */
-  private static class FieldStats {
-    private final Map<String, FieldInfo> fieldInfoMap = Maps.newHashMap();
-
-    void recordField(String fieldName, VariantValue value) {
-      FieldInfo info = fieldInfoMap.computeIfAbsent(fieldName, k -> new FieldInfo());
-      info.observe(value);
-    }
-  }
-
-  /** Tracks occurrence count and type consistency for a single field. */
+  /** Tracks occurrence count and types for a single field. */
   private static class FieldInfo {
-    private int occurrenceCount = 0;
     private final Set<PhysicalType> observedTypes = Sets.newHashSet();
-    private final List<VariantValue> observedValues = new java.util.ArrayList<>();
+    private final Map<PhysicalType, Integer> typeCounts = Maps.newHashMap();
+    private int maxDecimalPrecision = 0;
+    private int maxDecimalScale = 0;
 
     void observe(VariantValue value) {
-      occurrenceCount++;
-      observedTypes.add(value.type());
-      observedValues.add(value);
+      // Use BOOLEAN_TRUE for both TRUE/FALSE values
+      PhysicalType type =
+          value.type() == PhysicalType.BOOLEAN_FALSE ? PhysicalType.BOOLEAN_TRUE : value.type();
+      observedTypes.add(type);
+      typeCounts.compute(type, (k, v) -> (v == null) ? 1 : v + 1);
+
+      // Track max precision and scale for decimal types
+      if (type == PhysicalType.DECIMAL4
+          || type == PhysicalType.DECIMAL8
+          || type == PhysicalType.DECIMAL16) {
+        VariantPrimitive<?> primitive = value.asPrimitive();
+        Object decimalValue = primitive.get();
+        if (decimalValue instanceof BigDecimal) {
+          BigDecimal bd = (BigDecimal) decimalValue;
+          maxDecimalPrecision = Math.max(maxDecimalPrecision, bd.precision());
+          maxDecimalScale = Math.max(maxDecimalScale, bd.scale());
+        }
+      }
     }
 
-    boolean hasConsistentType() {
-      // Handle boolean types specially - both TRUE and FALSE map to BOOLEAN
-      if (observedTypes.size() == 2
-          && observedTypes.contains(PhysicalType.BOOLEAN_TRUE)
-          && observedTypes.contains(PhysicalType.BOOLEAN_FALSE)) {
-        return true;
-      }
-      return observedTypes.size() == 1;
-    }
-
-    PhysicalType getConsistentType() {
-      if (!hasConsistentType()) {
-        return null;
-      }
-
-      // Handle boolean types
-      if (observedTypes.contains(PhysicalType.BOOLEAN_TRUE)
-          || observedTypes.contains(PhysicalType.BOOLEAN_FALSE)) {
-        return PhysicalType.BOOLEAN_TRUE; // Use TRUE as canonical boolean type
-      }
-
-      return observedTypes.iterator().next();
+    PhysicalType getMostCommonType() {
+      return typeCounts.entrySet().stream()
+          .max(Map.Entry.comparingByValue())
+          .map(Map.Entry::getKey)
+          .orElse(null);
     }
   }
 }
-
