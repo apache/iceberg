@@ -190,7 +190,7 @@ public class TestCoordinator extends ChannelTestBase {
             new DataWritten(
                 StructType.of(),
                 commitId,
-                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), UUID.randomUUID()),
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
                 dataFiles,
                 deleteFiles));
     bytes = AvroUtil.encode(commitResponse);
