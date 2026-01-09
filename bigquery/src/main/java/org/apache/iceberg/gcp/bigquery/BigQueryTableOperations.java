@@ -33,6 +33,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +50,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
   private final TableReference tableReference;
 
   /** Table loaded in doRefresh() for reuse in updateTable() to avoid redundant API call. */
-  private volatile Table refreshedTable;
+  private volatile Table metastoreTable;
 
   BigQueryTableOperations(
       BigQueryMetastoreClient client, FileIO fileIO, TableReference tableReference) {
@@ -63,12 +64,12 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
   public void doRefresh() {
     // Must default to null.
     String metadataLocation = null;
-    this.refreshedTable = null;
+    this.metastoreTable = null;
     try {
-      Table table = client.load(tableReference);
-      this.refreshedTable = table;
+      this.metastoreTable = client.load(tableReference);
 
-      metadataLocation = loadMetadataLocationOrThrow(table.getExternalCatalogTableOptions());
+      metadataLocation =
+          loadMetadataLocationOrThrow(metastoreTable.getExternalCatalogTableOptions());
     } catch (NoSuchTableException e) {
       if (currentMetadataLocation() != null) {
         // Re-throws the exception because the table must exist in this case.
@@ -156,25 +157,24 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
 
   /** Update table properties with concurrent update detection using etag. */
   private void updateTable(String newMetadataLocation, TableMetadata metadata) {
-    Table table = this.refreshedTable;
-    if (table == null) {
-      LOG.warn("Table not set from doRefresh() for {}, loading from BigQuery", tableName());
-      table = client.load(tableReference);
-    }
+    Preconditions.checkState(
+        metastoreTable != null,
+        "Table %s must be loaded during refresh before commit",
+        tableName());
 
-    this.refreshedTable = null;
-
-    if (table.getEtag().isEmpty()) {
+    if (metastoreTable.getEtag().isEmpty()) {
       throw new ValidationException(
           "Etag of legacy table %s is empty, manually update the table via the BigQuery API or"
               + " recreate and retry",
           tableName());
     }
-    ExternalCatalogTableOptions options = table.getExternalCatalogTableOptions();
-    addConnectionIfProvided(table, metadata.properties());
+    ExternalCatalogTableOptions options = metastoreTable.getExternalCatalogTableOptions();
+    addConnectionIfProvided(metastoreTable, metadata.properties());
 
     options.setParameters(buildTableParameters(newMetadataLocation, metadata));
-    client.update(tableReference, table);
+    client.update(tableReference, metastoreTable);
+
+    this.metastoreTable = null;
   }
 
   // To make the table queryable from Hive, the user would likely be setting the HIVE_ENGINE_ENABLED
