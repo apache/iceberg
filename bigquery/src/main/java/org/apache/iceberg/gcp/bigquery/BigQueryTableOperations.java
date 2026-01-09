@@ -172,7 +172,6 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
 
     options.setParameters(buildTableParameters(newMetadataLocation, metadata));
     client.update(tableReference, metastoreTable);
-
     this.metastoreTable = null;
   }
 
