@@ -67,7 +67,6 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
     this.metastoreTable = null;
     try {
       this.metastoreTable = client.load(tableReference);
-
       metadataLocation =
           loadMetadataLocationOrThrow(metastoreTable.getExternalCatalogTableOptions());
     } catch (NoSuchTableException e) {
