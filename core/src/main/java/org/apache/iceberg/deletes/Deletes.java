@@ -29,13 +29,20 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
@@ -124,6 +131,18 @@ public class Deletes {
   public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
       CloseableIterable<T> posDeletes) {
     return toPositionIndexes(posDeletes, null /* unknown delete file */);
+  }
+
+  public static PositionDeleteIndex readDV(
+      DeleteFile deleteFile, FileIO fileIO, EncryptionManager encryptionManager) {
+    Preconditions.checkArgument(
+        ContentFileUtil.isDV(deleteFile), "Delete file must be a deletion vector");
+    InputFile inputFile =
+        EncryptingFileIO.combine(fileIO, encryptionManager).newInputFile(deleteFile);
+    long offset = deleteFile.contentOffset();
+    int length = deleteFile.contentSizeInBytes().intValue();
+    byte[] bytes = IOUtil.readBytes(inputFile, offset, length);
+    return PositionDeleteIndex.deserialize(bytes, deleteFile);
   }
 
   /**

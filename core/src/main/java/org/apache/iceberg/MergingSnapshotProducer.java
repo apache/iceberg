@@ -30,6 +30,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
+import org.apache.iceberg.deletes.Deletes;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -37,7 +42,9 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -55,6 +62,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -269,7 +277,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     DeleteFileSet deleteFiles =
         newDeleteFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DeleteFileSet.create());
     if (deleteFiles.add(file)) {
-      addedFilesSummary.addedFile(spec, file);
       hasNewDeleteFiles = true;
       if (ContentFileUtil.isDV(file)) {
         newDVRefs.add(file.referencedDataFile());
@@ -1068,7 +1075,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       newDeleteFilesBySpec.forEach(
           (specId, deleteFiles) -> {
             PartitionSpec spec = ops().current().spec(specId);
-            List<ManifestFile> newDeleteManifests = writeDeleteManifests(deleteFiles, spec);
+            DeleteFileSet dedupedAndMergedDeletes = mergeDVsAndUpdateSummary(deleteFiles, spec);
+            List<ManifestFile> newDeleteManifests =
+                writeDeleteManifests(dedupedAndMergedDeletes, spec);
             cachedNewDeleteManifests.addAll(newDeleteManifests);
           });
 
@@ -1076,6 +1085,81 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     return cachedNewDeleteManifests;
+  }
+
+  private DeleteFileSet mergeDVsAndUpdateSummary(DeleteFileSet deleteFiles, PartitionSpec spec) {
+    // Filter out DVs and group them by referenced data file
+    Map<String, List<DeleteFile>> dvsByReferencedLocation =
+        deleteFiles.stream()
+            .filter(ContentFileUtil::isDV)
+            .collect(
+                Collectors.toMap(
+                    DeleteFile::referencedDataFile,
+                    Lists::newArrayList,
+                    (existingDVs, newDVs) -> {
+                      existingDVs.addAll(newDVs);
+                      return existingDVs;
+                    }));
+
+    // Merge DVs
+    Map<String, List<DeleteFile>> dvsThatNeedMerging =
+        dvsByReferencedLocation.entrySet().stream()
+            .filter(e -> e.getValue().size() > 1)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    List<DeleteFile> newDVs = Lists.newArrayList();
+    Tasks.foreach(dvsThatNeedMerging.entrySet())
+        .executeWith(ThreadPools.getDeleteWorkerPool())
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .run(
+            dvsToMergeForDataFile ->
+                newDVs.add(
+                    mergeAndWriteDV(
+                        dvsToMergeForDataFile.getKey(), dvsToMergeForDataFile.getValue(), spec)));
+
+    // Remove the merged DVs from the tracking set
+    for (List<DeleteFile> dvsThatWereMerged : dvsThatNeedMerging.values()) {
+      dvsThatWereMerged.forEach(deleteFiles::remove);
+    }
+
+    // Add the new DVs to the tracking set
+    deleteFiles.addAll(newDVs);
+
+    // Update summaries for all delete files including eq. deletes for this partition spec
+    deleteFiles.forEach(file -> addedFilesSummary.addedFile(spec, file));
+    return deleteFiles;
+  }
+
+  private DeleteFile mergeAndWriteDV(
+      String referencedDataFile, List<DeleteFile> dvs, PartitionSpec spec) {
+    DeleteFile firstDV = dvs.get(0);
+    PositionDeleteIndex positionDeleteIndex =
+        Deletes.readDV(firstDV, ops().io(), ops().encryption());
+    for (int i = 1; i < dvs.size(); i++) {
+      DeleteFile dv = dvs.get(i);
+      Preconditions.checkArgument(
+          Objects.equals(dv.dataSequenceNumber(), firstDV.dataSequenceNumber()),
+          "Cannot merge added DVs when data sequence numbers are different, expected all to be added with sequence %s, but got %s",
+          firstDV.dataSequenceNumber(),
+          dv.dataSequenceNumber());
+      positionDeleteIndex.merge(Deletes.readDV(dvs.get(i), ops().io(), ops().encryption()));
+    }
+
+    try {
+      DVFileWriter dvFileWriter =
+          new BaseDVFileWriter(
+              OutputFileFactory.builderFor(ops(), spec(firstDV.specId()), FileFormat.PUFFIN, 1, 1)
+                  .build(),
+              path -> null);
+      dvFileWriter.delete(referencedDataFile, positionDeleteIndex, spec, firstDV.partition());
+      dvFileWriter.close();
+      DeleteWriteResult result = dvFileWriter.result();
+      return Delegates.pendingDeleteFile(
+          Iterables.getOnlyElement(result.deleteFiles()), firstDV.dataSequenceNumber());
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
