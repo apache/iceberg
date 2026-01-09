@@ -159,6 +159,8 @@ public interface ViewMetadata extends Serializable {
     // internal change tracking
     private Integer lastAddedVersionId = null;
     private Integer lastAddedSchemaId = null;
+    private Integer lastSeenExistingSchemaId = null;
+    private Integer lastSeenExistingVersionId = null;
     private ViewHistoryEntry historyEntry = null;
     private ViewVersion previousViewVersion = null;
 
@@ -228,9 +230,10 @@ public interface ViewMetadata extends Serializable {
     public Builder setCurrentVersionId(int newVersionId) {
       if (newVersionId == LAST_ADDED) {
         ValidationException.check(
-            lastAddedVersionId != null,
+            lastAddedVersionId != null || lastSeenExistingVersionId != null,
             "Cannot set last version id: no current version id has been set");
-        return setCurrentVersionId(lastAddedVersionId);
+        return setCurrentVersionId(
+            null != lastAddedVersionId ? lastAddedVersionId : lastSeenExistingVersionId);
       }
 
       if (currentVersionId == newVersionId) {
@@ -290,13 +293,19 @@ public interface ViewMetadata extends Serializable {
             changes(MetadataUpdate.AddViewVersion.class)
                 .anyMatch(added -> added.viewVersion().versionId() == newVersionId);
         this.lastAddedVersionId = addedInBuilder ? newVersionId : null;
+        this.lastSeenExistingVersionId = newVersionId;
         return newVersionId;
       }
 
       if (version.schemaId() == LAST_ADDED) {
         ValidationException.check(
-            lastAddedSchemaId != null, "Cannot set last added schema: no schema has been added");
-        version = ImmutableViewVersion.builder().from(version).schemaId(lastAddedSchemaId).build();
+            lastAddedSchemaId != null || null != lastSeenExistingSchemaId,
+            "Cannot set last added schema: no schema has been added");
+        version =
+            ImmutableViewVersion.builder()
+                .from(version)
+                .schemaId(null != lastAddedSchemaId ? lastAddedSchemaId : lastSeenExistingSchemaId)
+                .build();
       }
 
       Preconditions.checkArgument(
@@ -360,7 +369,7 @@ public interface ViewMetadata extends Serializable {
           && Objects.equals(one.defaultNamespace(), two.defaultNamespace())
           && (one.schemaId() == two.schemaId()
               || (two.schemaId() == LAST_ADDED
-                  && Objects.equals(lastAddedSchemaId, one.schemaId())));
+                  && Objects.equals(lastSeenExistingSchemaId, one.schemaId())));
     }
 
     public Builder addSchema(Schema schema) {
@@ -371,12 +380,7 @@ public interface ViewMetadata extends Serializable {
     private int addSchemaInternal(Schema schema) {
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
       if (schemasById.containsKey(newSchemaId)) {
-        if (null == lastAddedSchemaId) {
-          // set the last added schema id in case the same view version is being added with
-          // schemaId=-1
-          this.lastAddedSchemaId = newSchemaId;
-        }
-
+        this.lastSeenExistingSchemaId = newSchemaId;
         // this schema existed or was already added in the builder
         return newSchemaId;
       }
