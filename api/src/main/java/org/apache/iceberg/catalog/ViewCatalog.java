@@ -112,7 +112,8 @@ public interface ViewCatalog {
    * @param identifier a view identifier
    * @param metadataFileLocation the location of a metadata file
    * @return a View instance
-   * @throws AlreadyExistsException if the view already exists in the catalog.
+   * @throws AlreadyExistsException if a table/view with the same identifier already exists in the
+   *     catalog.
    */
   default View registerView(TableIdentifier identifier, String metadataFileLocation) {
     throw new UnsupportedOperationException("Registering views is not supported");
