@@ -65,11 +65,6 @@ class ParquetVariantWriters {
     return new PrimitiveWriter<>(writer, Sets.immutableEnumSet(Arrays.asList(types)));
   }
 
-  static ParquetValueWriter<VariantValue> decimal(
-      ParquetValueWriter<?> writer, int expectedScale, PhysicalType... types) {
-    return new DecimalWriter(writer, expectedScale, Sets.immutableEnumSet(Arrays.asList(types)));
-  }
-
   @SuppressWarnings("unchecked")
   static ParquetValueWriter<VariantValue> shredded(
       int valueDefinitionLevel,
@@ -245,49 +240,6 @@ class ParquetVariantWriters {
     @SuppressWarnings("unchecked")
     public void write(int repetitionLevel, VariantValue value) {
       writer.write(repetitionLevel, (T) value.asPrimitive().get());
-    }
-
-    @Override
-    public List<TripleWriter<?>> columns() {
-      return writer.columns();
-    }
-
-    @Override
-    public void setColumnStore(ColumnWriteStore columnStore) {
-      writer.setColumnStore(columnStore);
-    }
-  }
-
-  /**
-   * A TypedWriter for decimals that validates scale before writing.
-   * If the scale doesn't match, it returns false from canWrite() to trigger fallback to value field.
-   */
-  private static class DecimalWriter implements TypedWriter {
-    private final Set<PhysicalType> types;
-    private final ParquetValueWriter<java.math.BigDecimal> writer;
-    private final int expectedScale;
-
-    private DecimalWriter(
-        ParquetValueWriter<?> writer, int expectedScale, Set<PhysicalType> types) {
-      this.types = types;
-      this.writer = (ParquetValueWriter<java.math.BigDecimal>) writer;
-      this.expectedScale = expectedScale;
-    }
-
-    @Override
-    public Set<PhysicalType> types() {
-      return types;
-    }
-
-    @Override
-    public void write(int repetitionLevel, VariantValue value) {
-      java.math.BigDecimal decimal = (java.math.BigDecimal) value.asPrimitive().get();
-      // Validate scale matches before writing
-      if (decimal.scale() != expectedScale) {
-        throw new IllegalArgumentException(
-            "Cannot write decimal with scale " + decimal.scale() + " to schema expecting scale " + expectedScale);
-      }
-      writer.write(repetitionLevel, decimal);
     }
 
     @Override

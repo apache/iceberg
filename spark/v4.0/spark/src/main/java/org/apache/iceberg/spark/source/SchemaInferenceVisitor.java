@@ -20,16 +20,10 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.parquet.ParquetVariantUtil;
-import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.data.ParquetWithSparkSchemaVisitor;
 import org.apache.iceberg.variants.Variant;
-import org.apache.iceberg.variants.VariantMetadata;
-import org.apache.iceberg.variants.VariantValue;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -43,13 +37,10 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.VariantType;
-import org.apache.spark.unsafe.types.VariantVal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * A visitor that infers variant shredding schemas by analyzing buffered rows of data.
- */
+/** A visitor that infers variant shredding schemas by analyzing buffered rows of data. */
 public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaInferenceVisitor.class);
 
@@ -61,20 +52,7 @@ public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> 
       List<InternalRow> bufferedRows, StructType sparkSchema, Map<String, String> properties) {
     this.bufferedRows = bufferedRows;
     this.sparkSchema = sparkSchema;
-
-    double minOccurrenceThreshold =
-        Double.parseDouble(
-            properties.getOrDefault(
-                SparkSQLProperties.VARIANT_MIN_OCCURRENCE_THRESHOLD,
-                String.valueOf(SparkSQLProperties.VARIANT_MIN_OCCURRENCE_THRESHOLD_DEFAULT)));
-
-    int maxFields =
-        Integer.parseInt(
-            properties.getOrDefault(
-                SparkSQLProperties.VARIANT_MAX_SHREDDED_FIELDS,
-                String.valueOf(SparkSQLProperties.VARIANT_MAX_SHREDDED_FIELDS_DEFAULT)));
-
-    this.analyzer = new VariantShreddingAnalyzer(minOccurrenceThreshold, maxFields);
+    this.analyzer = new VariantShreddingAnalyzer();
   }
 
   @Override
@@ -151,10 +129,6 @@ public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> 
   public Type variant(VariantType sVariant, GroupType variant) {
     int variantFieldIndex = getFieldIndex(currentPath());
 
-    // Apply heuristics to determine the shredding schema:
-    // - Fields must appear in at least the configured percentage of rows
-    // - Type consistency determines if typed_value is created
-    // - Maximum field count to avoid overly wide schemas
     if (!bufferedRows.isEmpty() && variantFieldIndex >= 0) {
       Type shreddedType = analyzer.analyzeAndCreateSchema(bufferedRows, variantFieldIndex);
       if (shreddedType != null) {
@@ -190,8 +164,7 @@ public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> 
     } else {
       // Nested field - navigate through struct hierarchy
       // For now, we only support direct struct nesting (not arrays/maps)
-      LOG.debug(
-          "Attempting to resolve nested variant field path: {}", String.join(".", path));
+      LOG.debug("Attempting to resolve nested variant field path: {}", String.join(".", path));
       // TODO: Implement full nested field resolution when needed
       // This would require tracking the current struct context during traversal
       // and maintaining a stack of field indices

@@ -198,31 +198,27 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
     @Override
     public Optional<ParquetValueWriter<?>> visit(DecimalLogicalTypeAnnotation decimal) {
       ParquetValueWriter<VariantValue> writer;
-      int scale = decimal.getScale();
       switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
           writer =
-              ParquetVariantWriters.decimal(
+              ParquetVariantWriters.primitive(
                   ParquetValueWriters.decimalAsFixed(
-                      desc, decimal.getPrecision(), scale),
-                  scale,
+                      desc, decimal.getPrecision(), decimal.getScale()),
                   PhysicalType.DECIMAL16);
           return Optional.of(writer);
         case INT64:
           writer =
-              ParquetVariantWriters.decimal(
+              ParquetVariantWriters.primitive(
                   ParquetValueWriters.decimalAsLong(
-                      desc, decimal.getPrecision(), scale),
-                  scale,
+                      desc, decimal.getPrecision(), decimal.getScale()),
                   PhysicalType.DECIMAL8);
           return Optional.of(writer);
         case INT32:
           writer =
-              ParquetVariantWriters.decimal(
+              ParquetVariantWriters.primitive(
                   ParquetValueWriters.decimalAsInteger(
-                      desc, decimal.getPrecision(), scale),
-                  scale,
+                      desc, decimal.getPrecision(), decimal.getScale()),
                   PhysicalType.DECIMAL4);
           return Optional.of(writer);
       }

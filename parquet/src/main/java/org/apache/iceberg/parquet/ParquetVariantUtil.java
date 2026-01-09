@@ -57,7 +57,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 
-public class ParquetVariantUtil {
+class ParquetVariantUtil {
   private ParquetVariantUtil() {}
 
   /**
@@ -212,7 +212,7 @@ public class ParquetVariantUtil {
    * @param value a variant value
    * @return a Parquet schema that can fully shred the value
    */
-  public static Type toParquetSchema(VariantValue value) {
+  static Type toParquetSchema(VariantValue value) {
     return VariantVisitor.visit(value, new ParquetSchemaProducer());
   }
 
