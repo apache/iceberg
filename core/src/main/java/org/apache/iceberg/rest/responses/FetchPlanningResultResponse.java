@@ -24,24 +24,34 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.PlanStatus;
+import org.apache.iceberg.rest.credentials.Credential;
 
 public class FetchPlanningResultResponse extends BaseScanTaskResponse {
   private final PlanStatus planStatus;
+  private final List<Credential> credentials;
 
   private FetchPlanningResultResponse(
       PlanStatus planStatus,
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
-      Map<Integer, PartitionSpec> specsById) {
+      Map<Integer, PartitionSpec> specsById,
+      List<Credential> credentials) {
     super(planTasks, fileScanTasks, deleteFiles, specsById);
     this.planStatus = planStatus;
+    this.credentials = credentials;
     validate();
   }
 
   public PlanStatus planStatus() {
     return planStatus;
+  }
+
+  public List<Credential> credentials() {
+    return credentials != null ? credentials : ImmutableList.of();
   }
 
   public static Builder builder() {
@@ -66,16 +76,22 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     private Builder() {}
 
     private PlanStatus planStatus;
+    private final List<Credential> credentials = Lists.newArrayList();
 
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
       return this;
     }
 
+    public Builder withCredentials(List<Credential> credentialsToAdd) {
+      credentials.addAll(credentialsToAdd);
+      return this;
+    }
+
     @Override
     public FetchPlanningResultResponse build() {
       return new FetchPlanningResultResponse(
-          planStatus, planTasks(), fileScanTasks(), deleteFiles(), specsById());
+          planStatus, planTasks(), fileScanTasks(), deleteFiles(), specsById(), credentials);
     }
   }
 }
