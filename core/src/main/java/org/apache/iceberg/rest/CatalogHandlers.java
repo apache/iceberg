@@ -126,12 +126,11 @@ public class CatalogHandlers {
   private CatalogHandlers() {}
 
   @SuppressWarnings("unchecked")
-  public static <T extends RESTResponse> T withIdempotency(
-      HTTPRequest httpRequest, Supplier<T> action) {
+  static <T extends RESTResponse> T withIdempotency(HTTPRequest httpRequest, Supplier<T> action) {
     return withIdempotencyInternal(httpRequest, action);
   }
 
-  public static void withIdempotency(HTTPRequest httpRequest, Runnable action) {
+  static void withIdempotency(HTTPRequest httpRequest, Runnable action) {
     withIdempotencyInternal(
         httpRequest,
         () -> {
@@ -150,17 +149,18 @@ public class CatalogHandlers {
 
     String key = keyHeader.get().value();
 
-    // "Leader" is the request thread that wins the IDEMPOTENCY_STORE.compute(...) and creates (or
-    // replaces) the IN_PROGRESS entry for this Idempotency-Key. Only the leader executes the
-    // action and finalizes the entry; concurrent requests for the same key ("followers") wait on
-    // the latch and then replay the finalized result/error.
-    AtomicBoolean isLeader = new AtomicBoolean(false);
+    // The "first" request for this Idempotency-Key is the one that wins
+    // IDEMPOTENCY_STORE.compute(...)
+    // and creates (or replaces) the IN_PROGRESS entry. Only that request executes the action and
+    // finalizes the entry; concurrent requests for the same key wait on the latch and then replay
+    // the finalized result/error.
+    AtomicBoolean isFirst = new AtomicBoolean(false);
     IdempotencyEntry entry =
         IDEMPOTENCY_STORE.compute(
             key,
             (k, current) -> {
               if (current == null || current.isExpired()) {
-                isLeader.set(true);
+                isFirst.set(true);
                 return IdempotencyEntry.inProgress();
               }
               return current;
@@ -174,8 +174,8 @@ public class CatalogHandlers {
       return (T) entry.responseBody;
     }
 
-    if (!isLeader.get()) {
-      // In-flight coalescing: wait for the leader request to finalize
+    if (!isFirst.get()) {
+      // In-flight coalescing: wait for the first request to finalize
       entry.awaitFinalization();
       if (entry.error != null) {
         throw entry.error;
@@ -183,7 +183,7 @@ public class CatalogHandlers {
       return (T) entry.responseBody;
     }
 
-    // Leader request: execute the action and finalize the entry
+    // First request: execute the action and finalize the entry
     try {
       T res = action.get();
       entry.finalizeSuccess(res);
