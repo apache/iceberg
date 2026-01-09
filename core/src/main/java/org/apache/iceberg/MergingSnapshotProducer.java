@@ -111,6 +111,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private boolean hasNewDeleteFiles = false;
 
   private boolean caseSensitive = true;
+  private boolean foundDuplicateDVs = false;
 
   MergingSnapshotProducer(String tableName, TableOperations ops) {
     super(ops);
@@ -279,7 +280,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (deleteFiles.add(file)) {
       hasNewDeleteFiles = true;
       if (ContentFileUtil.isDV(file)) {
-        newDVRefs.add(file.referencedDataFile());
+        if (!newDVRefs.add(file.referencedDataFile())) {
+          this.foundDuplicateDVs = true;
+        }
       }
     }
   }
@@ -1075,19 +1078,25 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       newDeleteFilesBySpec.forEach(
           (specId, deleteFiles) -> {
             PartitionSpec spec = ops().current().spec(specId);
-            DeleteFileSet dedupedAndMergedDeletes = mergeDVsAndUpdateSummary(deleteFiles, spec);
-            List<ManifestFile> newDeleteManifests =
-                writeDeleteManifests(dedupedAndMergedDeletes, spec);
+            if (foundDuplicateDVs) {
+              mergeDVsAndUpdateDeleteFiles(deleteFiles, spec);
+            }
+
+            // Update summaries for all delete files including eq. deletes for this partition spec
+            deleteFiles.forEach(file -> addedFilesSummary.addedFile(spec, file));
+
+            List<ManifestFile> newDeleteManifests = writeDeleteManifests(deleteFiles, spec);
             cachedNewDeleteManifests.addAll(newDeleteManifests);
           });
 
       this.hasNewDeleteFiles = false;
+      this.foundDuplicateDVs = false;
     }
 
     return cachedNewDeleteManifests;
   }
 
-  private DeleteFileSet mergeDVsAndUpdateSummary(DeleteFileSet deleteFiles, PartitionSpec spec) {
+  private void mergeDVsAndUpdateDeleteFiles(DeleteFileSet deleteFiles, PartitionSpec spec) {
     // Filter out DVs and group them by referenced data file
     Map<String, List<DeleteFile>> dvsByReferencedLocation =
         deleteFiles.stream()
@@ -1125,10 +1134,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     // Add the new DVs to the tracking set
     deleteFiles.addAll(newDVs);
-
-    // Update summaries for all delete files including eq. deletes for this partition spec
-    deleteFiles.forEach(file -> addedFilesSummary.addedFile(spec, file));
-    return deleteFiles;
   }
 
   private DeleteFile mergeAndWriteDV(
