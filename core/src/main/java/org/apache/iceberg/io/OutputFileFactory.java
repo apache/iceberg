@@ -26,6 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -88,7 +89,15 @@ public class OutputFileFactory {
   }
 
   public static Builder builderFor(Table table, int partitionId, long taskId) {
-    return new Builder(table, partitionId, taskId);
+    String formatAsString =
+        table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+    PartitionSpec spec = table.spec();
+    return builderFor(
+        ((HasTableOperations) table).operations(),
+        spec,
+        FileFormat.fromString(formatAsString),
+        partitionId,
+        taskId);
   }
 
   public static Builder builderFor(
@@ -134,21 +143,7 @@ public class OutputFileFactory {
     private FileFormat format;
     private String suffix;
     private Supplier<FileIO> ioSupplier;
-    private Table table;
     private TableOperations ops;
-
-    private Builder(Table table, int partitionId, long taskId) {
-      this.table = table;
-      this.partitionId = partitionId;
-      this.taskId = taskId;
-      this.defaultSpec = table.spec();
-      this.operationId = UUID.randomUUID().toString();
-
-      String formatAsString =
-          table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-      this.format = FileFormat.fromString(formatAsString);
-      this.ioSupplier = table::io;
-    }
 
     private Builder(
         TableOperations ops, PartitionSpec spec, FileFormat format, int partitionId, long taskId) {
@@ -194,9 +189,8 @@ public class OutputFileFactory {
     }
 
     public OutputFileFactory build() {
-      LocationProvider locations =
-          table != null ? table.locationProvider() : ops.locationProvider();
-      EncryptionManager encryption = table != null ? table.encryption() : ops.encryption();
+      LocationProvider locations = ops.locationProvider();
+      EncryptionManager encryption = ops.encryption();
       return new OutputFileFactory(
           defaultSpec,
           format,
