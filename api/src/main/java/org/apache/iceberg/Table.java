@@ -176,6 +176,17 @@ public interface Table {
   UpdateSchema updateSchema();
 
   /**
+   * Create a new {@link UpdateSchema} to alter the columns of a specific branch.
+   *
+   * @param branch the branch to update
+   * @return a new {@link UpdateSchema}
+   */
+  default UpdateSchema updateSchema(String branch) {
+    throw new UnsupportedOperationException(
+        "Updating schema on a branch is not supported by " + getClass().getName());
+  }
+
+  /**
    * Create a new {@link UpdatePartitionSpec} to alter the partition spec of this table and commit
    * the change.
    *

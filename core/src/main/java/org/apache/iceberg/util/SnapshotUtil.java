@@ -459,7 +459,14 @@ public class SnapshotUtil {
     }
 
     SnapshotRef snapshotRef = table.refs().get(ref);
-    if (null == snapshotRef || snapshotRef.isBranch()) {
+    if (snapshotRef == null) {
+      return table.schema();
+    }
+
+    if (snapshotRef.isBranch()) {
+      if (snapshotRef.schemaId() != null) {
+        return table.schemas().get(snapshotRef.schemaId());
+      }
       return table.schema();
     }
 
@@ -483,7 +490,14 @@ public class SnapshotUtil {
     }
 
     SnapshotRef snapshotRef = metadata.ref(ref);
-    if (snapshotRef == null || snapshotRef.isBranch()) {
+    if (snapshotRef == null) {
+      return metadata.schema();
+    }
+
+    if (snapshotRef.isBranch()) {
+      if (metadata.refs().get(ref).schemaId() != null) {
+        return metadata.schemas().get(metadata.refs().get(ref).schemaId());
+      }
       return metadata.schema();
     }
 

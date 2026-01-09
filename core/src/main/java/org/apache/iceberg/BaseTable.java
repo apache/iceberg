@@ -156,6 +156,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public UpdateSchema updateSchema(String branch) {
+    return new SchemaUpdate(ops, branch);
+  }
+
+  @Override
   public UpdatePartitionSpec updateSpec() {
     return new BaseUpdatePartitionSpec(ops);
   }

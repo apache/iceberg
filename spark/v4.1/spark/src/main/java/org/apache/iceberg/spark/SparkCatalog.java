@@ -351,12 +351,39 @@ public class SparkCatalog extends BaseCatalog {
       }
     }
 
+    org.apache.iceberg.Table table = null;
     try {
-      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
+      table = icebergCatalog.loadTable(buildIdentifier(ident));
       commitChanges(
-          table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
+          table,
+          SnapshotRef.MAIN_BRANCH,
+          setLocation,
+          setSnapshotId,
+          pickSnapshotId,
+          propertyChanges,
+          schemaChanges);
       return new SparkTable(table, true /* refreshEagerly */);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
+      try {
+        table = icebergCatalog.loadTable(namespaceAsIdent);
+      } catch (Exception ignored) {
+        // the namespace does not identify a table, so it cannot be a table with a snapshot selector
+        // throw the original exception
+        throw e;
+      }
+      Matcher branchRef = BRANCH.matcher(ident.name());
+      if (branchRef.matches()) {
+        commitChanges(
+            table,
+            branchRef.group(1),
+            setLocation,
+            setSnapshotId,
+            pickSnapshotId,
+            propertyChanges,
+            schemaChanges);
+        return new SparkTable(table, branchRef.group(1), !cacheEnabled);
+      }
       throw new NoSuchTableException(ident);
     }
   }
@@ -806,6 +833,7 @@ public class SparkCatalog extends BaseCatalog {
 
   private static void commitChanges(
       org.apache.iceberg.Table table,
+      String branchName,
       SetProperty setLocation,
       SetProperty setSnapshotId,
       SetProperty pickSnapshotId,
@@ -839,7 +867,7 @@ public class SparkCatalog extends BaseCatalog {
     }
 
     if (!schemaChanges.isEmpty()) {
-      Spark3Util.applySchemaChanges(transaction.updateSchema(), schemaChanges).commit();
+      Spark3Util.applySchemaChanges(transaction.updateSchema(branchName), schemaChanges).commit();
     }
 
     transaction.commitTransaction();

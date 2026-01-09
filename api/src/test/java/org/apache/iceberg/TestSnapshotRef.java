@@ -103,4 +103,89 @@ public class TestSnapshotRef {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Max reference age must be greater than 0");
   }
+
+  @Test
+  public void testSchemaIdDefault() {
+    SnapshotRef tagRef = SnapshotRef.tagBuilder(1L).build();
+    assertThat(tagRef.schemaId()).isNull();
+
+    SnapshotRef branchRef = SnapshotRef.branchBuilder(1L).build();
+    assertThat(branchRef.schemaId()).isNull();
+  }
+
+  @Test
+  public void testSchemaIdWithValue() {
+    SnapshotRef tagRef = SnapshotRef.tagBuilder(1L).schemaId(5).build();
+    assertThat(tagRef.schemaId()).isEqualTo(5);
+
+    SnapshotRef branchRef = SnapshotRef.branchBuilder(1L).schemaId(10).build();
+    assertThat(branchRef.schemaId()).isEqualTo(10);
+  }
+
+  @Test
+  public void testSchemaIdValidation() {
+    assertThatThrownBy(() -> SnapshotRef.branchBuilder(1L).schemaId(-1).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("schemaId must be greater than or equal to 0");
+
+    assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).schemaId(-5).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("schemaId must be greater than or equal to 0");
+  }
+
+  @Test
+  public void testBuilderFromPreservesSchemaId() {
+    SnapshotRef original =
+        SnapshotRef.branchBuilder(1L)
+            .minSnapshotsToKeep(5)
+            .maxSnapshotAgeMs(100L)
+            .maxRefAgeMs(200L)
+            .schemaId(3)
+            .build();
+
+    SnapshotRef copied = SnapshotRef.builderFrom(original).build();
+    assertThat(copied.schemaId()).isEqualTo(3);
+    assertThat(copied).isEqualTo(original);
+  }
+
+  @Test
+  public void testBuilderFromWithNewSnapshotPreservesSchemaId() {
+    SnapshotRef original =
+        SnapshotRef.branchBuilder(1L)
+            .minSnapshotsToKeep(5)
+            .maxSnapshotAgeMs(100L)
+            .maxRefAgeMs(200L)
+            .schemaId(3)
+            .build();
+
+    SnapshotRef updated = SnapshotRef.builderFrom(original, 2L).build();
+    assertThat(updated.snapshotId()).isEqualTo(2L);
+    assertThat(updated.schemaId()).isEqualTo(3);
+    assertThat(updated.minSnapshotsToKeep()).isEqualTo(5);
+    assertThat(updated.maxSnapshotAgeMs()).isEqualTo(100L);
+    assertThat(updated.maxRefAgeMs()).isEqualTo(200L);
+  }
+
+  @Test
+  public void testEqualsAndHashCodeWithSchemaId() {
+    SnapshotRef ref1 = SnapshotRef.branchBuilder(1L).schemaId(5).build();
+    SnapshotRef ref2 = SnapshotRef.branchBuilder(1L).schemaId(5).build();
+    SnapshotRef ref3 = SnapshotRef.branchBuilder(1L).schemaId(10).build();
+    SnapshotRef ref4 = SnapshotRef.branchBuilder(1L).build();
+
+    assertThat(ref1).isEqualTo(ref2);
+    assertThat(ref1.hashCode()).isEqualTo(ref2.hashCode());
+
+    assertThat(ref1).isNotEqualTo(ref3);
+    assertThat(ref1).isNotEqualTo(ref4);
+  }
+
+  @Test
+  public void testToStringIncludesSchemaId() {
+    SnapshotRef ref = SnapshotRef.branchBuilder(1L).schemaId(5).build();
+    assertThat(ref.toString()).contains("schemaId=5");
+
+    SnapshotRef refWithoutSchema = SnapshotRef.branchBuilder(1L).build();
+    assertThat(refWithoutSchema.toString()).contains("schemaId=null");
+  }
 }

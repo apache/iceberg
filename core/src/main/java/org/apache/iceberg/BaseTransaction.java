@@ -159,6 +159,11 @@ public class BaseTransaction implements Transaction {
   }
 
   @Override
+  public UpdateSchema updateSchema(String branch) {
+    return appendUpdate(new SchemaUpdate(transactionOps, branch));
+  }
+
+  @Override
   public UpdatePartitionSpec updateSpec() {
     return appendUpdate(new BaseUpdatePartitionSpec(transactionOps));
   }
@@ -635,6 +640,11 @@ public class BaseTransaction implements Transaction {
     @Override
     public UpdateSchema updateSchema() {
       return BaseTransaction.this.updateSchema();
+    }
+
+    @Override
+    public UpdateSchema updateSchema(String branch) {
+      return BaseTransaction.this.updateSchema(branch);
     }
 
     @Override

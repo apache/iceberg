@@ -24,6 +24,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -224,13 +225,15 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       // if the validation passed, update the table schema
       update.commit();
     } else {
+      Schema targetSchema = SnapshotUtil.schemaFor(table, writeConf.branch());
+
       Schema schema =
           writeIncludesRowLineage
-              ? MetadataColumns.schemaWithRowLineage(table.schema())
-              : table.schema();
+              ? MetadataColumns.schemaWithRowLineage(targetSchema)
+              : targetSchema;
       writeSchema = SparkSchemaUtil.convert(schema, dsSchema, caseSensitive);
       TypeUtil.validateWriteSchema(
-          table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
+          targetSchema, writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     }
 
     return writeSchema;

@@ -32,18 +32,21 @@ public class SnapshotRef implements Serializable {
   private final Integer minSnapshotsToKeep;
   private final Long maxSnapshotAgeMs;
   private final Long maxRefAgeMs;
+  private final Integer schemaId;
 
   private SnapshotRef(
       long snapshotId,
       SnapshotRefType type,
       Integer minSnapshotsToKeep,
       Long maxSnapshotAgeMs,
-      Long maxRefAgeMs) {
+      Long maxRefAgeMs,
+      Integer schemaId) {
     this.snapshotId = snapshotId;
     this.type = type;
     this.minSnapshotsToKeep = minSnapshotsToKeep;
     this.maxSnapshotAgeMs = maxSnapshotAgeMs;
     this.maxRefAgeMs = maxRefAgeMs;
+    this.schemaId = schemaId;
   }
 
   public long snapshotId() {
@@ -74,6 +77,10 @@ public class SnapshotRef implements Serializable {
     return maxRefAgeMs;
   }
 
+  public Integer schemaId() {
+    return schemaId;
+  }
+
   @Override
   public boolean equals(Object other) {
     if (other == this) {
@@ -89,7 +96,8 @@ public class SnapshotRef implements Serializable {
         && Objects.equals(ref.type(), type)
         && Objects.equals(ref.maxRefAgeMs(), maxRefAgeMs)
         && Objects.equals(ref.minSnapshotsToKeep(), minSnapshotsToKeep)
-        && Objects.equals(ref.maxSnapshotAgeMs(), maxSnapshotAgeMs);
+        && Objects.equals(ref.maxSnapshotAgeMs(), maxSnapshotAgeMs)
+        && Objects.equals(ref.schemaId(), schemaId);
   }
 
   @Override
@@ -99,7 +107,8 @@ public class SnapshotRef implements Serializable {
         this.type,
         this.maxRefAgeMs,
         this.maxSnapshotAgeMs,
-        this.minSnapshotsToKeep);
+        this.minSnapshotsToKeep,
+        this.schemaId);
   }
 
   public static Builder tagBuilder(long snapshotId) {
@@ -114,7 +123,8 @@ public class SnapshotRef implements Serializable {
     return new Builder(ref.type(), ref.snapshotId())
         .minSnapshotsToKeep(ref.minSnapshotsToKeep())
         .maxSnapshotAgeMs(ref.maxSnapshotAgeMs())
-        .maxRefAgeMs(ref.maxRefAgeMs());
+        .maxRefAgeMs(ref.maxRefAgeMs())
+        .schemaId(ref.schemaId);
   }
 
   /**
@@ -130,7 +140,8 @@ public class SnapshotRef implements Serializable {
     return new Builder(ref.type(), snapshotId)
         .minSnapshotsToKeep(ref.minSnapshotsToKeep())
         .maxSnapshotAgeMs(ref.maxSnapshotAgeMs())
-        .maxRefAgeMs(ref.maxRefAgeMs());
+        .maxRefAgeMs(ref.maxRefAgeMs())
+        .schemaId(ref.schemaId);
   }
 
   public static Builder builderFor(long snapshotId, SnapshotRefType type) {
@@ -144,6 +155,7 @@ public class SnapshotRef implements Serializable {
     private Integer minSnapshotsToKeep;
     private Long maxSnapshotAgeMs;
     private Long maxRefAgeMs;
+    private Integer schemaId;
 
     Builder(SnapshotRefType type, long snapshotId) {
       Preconditions.checkArgument(type != null, "Snapshot reference type must not be null");
@@ -178,8 +190,16 @@ public class SnapshotRef implements Serializable {
       return this;
     }
 
+    public Builder schemaId(Integer value) {
+      Preconditions.checkArgument(
+          value == null || value >= 0, "schemaId must be greater than or equal to 0");
+      this.schemaId = value;
+      return this;
+    }
+
     public SnapshotRef build() {
-      return new SnapshotRef(snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs);
+      return new SnapshotRef(
+          snapshotId, type, minSnapshotsToKeep, maxSnapshotAgeMs, maxRefAgeMs, schemaId);
     }
   }
 
@@ -191,6 +211,7 @@ public class SnapshotRef implements Serializable {
         .add("minSnapshotsToKeep", minSnapshotsToKeep)
         .add("maxSnapshotAgeMs", maxSnapshotAgeMs)
         .add("maxRefAgeMs", maxRefAgeMs)
+        .add("schemaId", schemaId)
         .toString();
   }
 }

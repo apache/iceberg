@@ -65,9 +65,14 @@ class SchemaUpdate implements UpdateSchema {
   private boolean allowIncompatibleChanges = false;
   private Set<String> identifierFieldNames;
   private boolean caseSensitive = true;
+  private String targetBranch = SnapshotRef.MAIN_BRANCH;
 
   SchemaUpdate(TableOperations ops) {
     this(ops, ops.current());
+  }
+
+  SchemaUpdate(TableOperations ops, String branch) {
+    this(ops, ops.current(), branch);
   }
 
   /** For testing only. */
@@ -77,6 +82,15 @@ class SchemaUpdate implements UpdateSchema {
 
   private SchemaUpdate(TableOperations ops, TableMetadata base) {
     this(ops, base, base.schema(), base.lastColumnId());
+  }
+
+  private SchemaUpdate(TableOperations ops, TableMetadata base, String branch) {
+    this(
+        ops,
+        base,
+        org.apache.iceberg.util.SnapshotUtil.schemaFor(base, branch),
+        base.lastColumnId());
+    this.targetBranch = branch;
   }
 
   private SchemaUpdate(TableOperations ops, TableMetadata base, Schema schema, int lastColumnId) {
@@ -469,7 +483,12 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public void commit() {
-    TableMetadata update = applyChangesToMetadata(base.updateSchema(apply()));
+    TableMetadata update;
+    if (targetBranch.equals(SnapshotRef.MAIN_BRANCH)) {
+      update = applyChangesToMetadata(base.updateSchema(apply()));
+    } else {
+      update = applyChangesToMetadata(base.updateSchema(apply(), targetBranch));
+    }
     ops.commit(base, update);
   }
 
