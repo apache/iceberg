@@ -90,6 +90,10 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
+    - name: Build REST catalog Docker image for integration tests
+      run: |
+        ./gradlew :iceberg-open-api:shadowJar -Pquick=true
+        docker build -t apache/iceberg-rest-fixture -f docker/iceberg-rest-fixture/Dockerfile .
     - run: |
         ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions=3 \
           :iceberg-kafka-connect:iceberg-kafka-connect-events:check \
