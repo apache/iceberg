@@ -54,6 +54,7 @@ import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.SystemFunctionPushDownHelper;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -1158,6 +1159,19 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assertThat(table.currentSnapshot().snapshotId())
         .as("Main snapshot should remain unchanged")
         .isEqualTo(mainSnapshotId);
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesToNullBranchFails() {
+    createTable();
+    insertData(10);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThatThrownBy(() -> SparkActions.get(spark).rewriteDataFiles(table).toBranch(null))
+        .as("Invalid branch")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid branch name: null");
   }
 
   @TestTemplate

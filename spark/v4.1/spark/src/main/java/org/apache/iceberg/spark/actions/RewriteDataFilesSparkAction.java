@@ -31,6 +31,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -96,7 +97,7 @@ public class RewriteDataFilesSparkAction
   private boolean removeDanglingDeletes;
   private boolean useStartingSequenceNumber;
   private boolean caseSensitive;
-  private String branch = null;
+  private String branch = SnapshotRef.MAIN_BRANCH;
   private BinPackRewriteFilePlanner planner = null;
   private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> runner = null;
 
@@ -159,9 +160,8 @@ public class RewriteDataFilesSparkAction
   }
 
   public RewriteDataFilesSparkAction toBranch(String targetBranch) {
-    if (targetBranch != null) {
-      this.branch = targetBranch;
-    }
+    Preconditions.checkArgument(targetBranch != null, "Invalid branch name: null");
+    this.branch = targetBranch;
     return this;
   }
 
@@ -172,12 +172,11 @@ public class RewriteDataFilesSparkAction
     }
 
     Preconditions.checkArgument(
-        branch == null || table.snapshot(branch) != null,
+        table.snapshot(branch) != null,
         "Cannot rewrite data files for branch %s: branch does not exist",
         branch);
 
-    long startingSnapshotId =
-        branch != null ? table.snapshot(branch).snapshotId() : table.currentSnapshot().snapshotId();
+    long startingSnapshotId = table.snapshot(branch).snapshotId();
 
     init(startingSnapshotId);
 
