@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotTableAction extends CatalogTestBase {
   private static final String SOURCE_NAME = "spark_catalog.default.source";
+  private static final String SOURCE = "source";
 
   @AfterEach
   public void removeTables() {
@@ -73,11 +73,12 @@ public class TestSnapshotTableAction extends CatalogTestBase {
 
   @TestTemplate
   public void testSnapshotWithOverlappingLocation() throws IOException {
+    //  Hadoop Catalogs do not Support Custom Table Locations
     String catalogType = catalogConfig.get(ICEBERG_CATALOG_TYPE);
     assumeThat(catalogType).isNotEqualTo(ICEBERG_CATALOG_TYPE_HADOOP);
 
     String sourceLocation =
-        Files.createTempDirectory(temp, "junit").resolve("source").toFile().toString();
+        Files.createTempDirectory(temp, "junit").resolve(SOURCE).toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         SOURCE_NAME, sourceLocation);
@@ -102,7 +103,7 @@ public class TestSnapshotTableAction extends CatalogTestBase {
         .hasMessageStartingWith(
             "The snapshot table location cannot be same as the source table location.");
 
-    String destAsSubdirectory = new Path(actualSourceLocation, "nested").toUri().toString();
+    String destAsSubdirectory = actualSourceLocation + "/nested";
     assertThatThrownBy(
             () ->
                 SparkActions.get()
@@ -113,7 +114,8 @@ public class TestSnapshotTableAction extends CatalogTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot create a snapshot at location");
 
-    String parentLocation = new Path(actualSourceLocation).getParent().toUri().toString();
+    String parentLocation =
+        actualSourceLocation.substring(0, actualSourceLocation.length() - ("/" + SOURCE).length());
     assertThatThrownBy(
             () ->
                 SparkActions.get()
@@ -127,11 +129,12 @@ public class TestSnapshotTableAction extends CatalogTestBase {
 
   @TestTemplate
   public void testSnapshotWithNonOverlappingLocation() throws IOException {
+    //  Hadoop Catalogs do not Support Custom Table Locations
     String catalogType = catalogConfig.get(ICEBERG_CATALOG_TYPE);
     assumeThat(catalogType).isNotEqualTo(ICEBERG_CATALOG_TYPE_HADOOP);
 
     String sourceLocation =
-        Files.createTempDirectory(temp, "junit").resolve("source").toFile().toString();
+        Files.createTempDirectory(temp, "junit").resolve(SOURCE).toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         SOURCE_NAME, sourceLocation);
@@ -146,9 +149,8 @@ public class TestSnapshotTableAction extends CatalogTestBase {
             .getString(0);
 
     String validDestLocation =
-        new Path(new Path(actualSourceLocation).getParent().toUri().toString(), "newDestination")
-            .toUri()
-            .toString();
+        actualSourceLocation.substring(0, actualSourceLocation.length() - SOURCE.length())
+            + "newDestination";
     SparkActions.get()
         .snapshotTable(SOURCE_NAME)
         .as(tableName)
