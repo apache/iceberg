@@ -26,11 +26,9 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 
@@ -93,7 +91,9 @@ public class OutputFileFactory {
         table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
     PartitionSpec spec = table.spec();
     return builderFor(
-        ((HasTableOperations) table).operations(),
+        table.locationProvider(),
+        table.encryption(),
+        table::io,
         spec,
         FileFormat.fromString(formatAsString),
         partitionId,
@@ -101,8 +101,15 @@ public class OutputFileFactory {
   }
 
   public static Builder builderFor(
-      TableOperations ops, PartitionSpec spec, FileFormat format, int partitionId, long taskId) {
-    return new Builder(ops, spec, format, partitionId, taskId);
+      LocationProvider locationProvider,
+      EncryptionManager encryptionManager,
+      Supplier<FileIO> ioSupplier,
+      PartitionSpec spec,
+      FileFormat format,
+      int partitionId,
+      long taskId) {
+    return new Builder(
+        locationProvider, encryptionManager, ioSupplier, spec, format, partitionId, taskId);
   }
 
   private String generateFilename() {
@@ -138,17 +145,25 @@ public class OutputFileFactory {
   public static class Builder {
     private final int partitionId;
     private final long taskId;
+    private final LocationProvider locations;
+    private final EncryptionManager encryption;
     private PartitionSpec defaultSpec;
     private String operationId;
     private FileFormat format;
     private String suffix;
     private Supplier<FileIO> ioSupplier;
-    private TableOperations ops;
 
     private Builder(
-        TableOperations ops, PartitionSpec spec, FileFormat format, int partitionId, long taskId) {
-      this.ops = ops;
-      this.ioSupplier = ops::io;
+        LocationProvider locationProvider,
+        EncryptionManager encryptionManager,
+        Supplier<FileIO> ioSupplier,
+        PartitionSpec spec,
+        FileFormat format,
+        int partitionId,
+        long taskId) {
+      this.locations = locationProvider;
+      this.encryption = encryptionManager;
+      this.ioSupplier = ioSupplier;
       this.partitionId = partitionId;
       this.taskId = taskId;
       this.defaultSpec = spec;
@@ -189,8 +204,6 @@ public class OutputFileFactory {
     }
 
     public OutputFileFactory build() {
-      LocationProvider locations = ops.locationProvider();
-      EncryptionManager encryption = ops.encryption();
       return new OutputFileFactory(
           defaultSpec,
           format,
