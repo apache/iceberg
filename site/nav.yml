@@ -89,7 +89,6 @@ nav:
         - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
         - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Releases: releases.md
-  - Blog: blog/
   - Project:
     - Contributing: contribute.md
     - Multi-engine support: multi-engine-support.md
@@ -107,7 +106,7 @@ nav:
     - Community: community.md
     - Talks: talks.md
     - Vendors: vendors.md
-  
+  - Blog: blog/
   - Specification:
     - Terms: terms.md
     - REST Catalog Spec: rest-catalog-spec.md
