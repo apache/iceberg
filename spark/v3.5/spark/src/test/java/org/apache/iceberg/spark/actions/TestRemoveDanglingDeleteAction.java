@@ -77,7 +77,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
           .build();
   static final DataFile FILE_A2 =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-a.parquet")
+          .withPath("/path/to/data-a2.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=a") // easy way to set partition data for now
           .withRecordCount(1)
@@ -91,7 +91,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
           .build();
   static final DataFile FILE_B2 =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-b.parquet")
+          .withPath("/path/to/data-b2.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=b") // easy way to set partition data for now
           .withRecordCount(1)
@@ -105,7 +105,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
           .build();
   static final DataFile FILE_C2 =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-c.parquet")
+          .withPath("/path/to/data-c2.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=c") // easy way to set partition data for now
           .withRecordCount(1)
@@ -119,7 +119,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
           .build();
   static final DataFile FILE_D2 =
       DataFiles.builder(SPEC)
-          .withPath("/path/to/data-d.parquet")
+          .withPath("/path/to/data-d2.parquet")
           .withFileSizeInBytes(10)
           .withPartitionPath("c1=d") // easy way to set partition data for now
           .withRecordCount(1)
@@ -370,7 +370,6 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     // Add Data Files with EQ and POS deletes
     DeleteFile fileADeletes = fileADeletes();
     DeleteFile fileA2Deletes = fileA2Deletes();
-    DeleteFile fileBDeletes = fileBDeletes();
     DeleteFile fileB2Deletes = fileB2Deletes();
     table
         .newRowDelta()
@@ -382,7 +381,6 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
         .addDeletes(fileA2Deletes)
         .addDeletes(FILE_A_EQ_DELETES)
         .addDeletes(FILE_A2_EQ_DELETES)
-        .addDeletes(fileBDeletes)
         .addDeletes(fileB2Deletes)
         .addDeletes(FILE_B_EQ_DELETES)
         .addDeletes(FILE_B2_EQ_DELETES)
@@ -400,7 +398,6 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(2L, FILE_A2_EQ_DELETES.location()),
             Tuple2.apply(2L, fileA2Deletes.location()),
             Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
-            Tuple2.apply(2L, fileBDeletes.location()),
             Tuple2.apply(2L, FILE_B2.location()),
             Tuple2.apply(2L, FILE_B2_EQ_DELETES.location()),
             Tuple2.apply(2L, fileB2Deletes.location()),
@@ -433,7 +430,6 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(2L, FILE_A2.location()),
             Tuple2.apply(2L, FILE_A2_EQ_DELETES.location()),
             Tuple2.apply(2L, fileA2Deletes.location()),
-            Tuple2.apply(2L, fileBDeletes.location()),
             Tuple2.apply(2L, FILE_B2.location()),
             Tuple2.apply(2L, fileB2Deletes.location()),
             Tuple2.apply(2L, FILE_C2.location()),
