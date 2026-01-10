@@ -36,7 +36,10 @@ public interface CommitReport extends MetricsReport {
   String operation();
 
   @Nullable
-  Expression filter();
+  @Value.Default
+  default Expression filter() {
+    return null;
+  }
 
   CommitMetricsResult commitMetrics();
 
