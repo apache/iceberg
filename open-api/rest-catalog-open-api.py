@@ -662,16 +662,6 @@ class Metrics(BaseModel):
     __root__: dict[str, MetricResult]
 
 
-class CommitReport(BaseModel):
-    table_name: str = Field(..., alias='table-name')
-    snapshot_id: int = Field(..., alias='snapshot-id')
-    sequence_number: int = Field(..., alias='sequence-number')
-    operation: str
-    filter: Expression | None = None
-    metrics: Metrics
-    metadata: dict[str, str] | None = None
-
-
 class OAuthError(BaseModel):
     """
     The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.
@@ -1020,10 +1010,6 @@ class FailedPlanningResult(IcebergErrorResponse):
     """
 
     status: Literal['failed'] = Field(..., const=True)
-
-
-class ReportMetricsRequest2(CommitReport):
-    report_type: str = Field(..., alias='report-type')
 
 
 class StatisticsFile(BaseModel):
@@ -1458,6 +1444,16 @@ class ScanReport(BaseModel):
     metadata: dict[str, str] | None = None
 
 
+class CommitReport(BaseModel):
+    table_name: str = Field(..., alias='table-name')
+    snapshot_id: int = Field(..., alias='snapshot-id')
+    sequence_number: int = Field(..., alias='sequence-number')
+    operation: str
+    filter: Expression | None = None
+    metrics: Metrics
+    metadata: dict[str, str] | None = None
+
+
 class CommitTableResponse(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: TableMetadata
@@ -1546,6 +1542,10 @@ class FetchScanTasksResult(ScanTasks):
 
 
 class ReportMetricsRequest1(ScanReport):
+    report_type: str = Field(..., alias='report-type')
+
+
+class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
 
