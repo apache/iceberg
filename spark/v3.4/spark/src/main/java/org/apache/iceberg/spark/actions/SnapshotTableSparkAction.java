@@ -124,16 +124,16 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
     StagedSparkTable stagedTable = stageDestTable();
     Table icebergTable = stagedTable.table();
 
-      String sourceTableLocation = sourceTableLocation();
-      String stagedTableLocation = icebergTable.location();
-      Preconditions.checkArgument(
-              !sourceTableLocation.equals(stagedTableLocation)
-                      && !stagedTableLocation.startsWith(sourceTableLocation + "/")
-                      && !sourceTableLocation.startsWith(stagedTableLocation + "/"),
-              "Cannot create a snapshot at location %s because it would overlap with source table location %s. "
-                      + "Overlapping snapshot and source would mix table files.",
-              stagedTableLocation,
-              sourceTableLocation);
+    String sourceTableLocation = sourceTableLocation();
+    String stagedTableLocation = icebergTable.location();
+    Preconditions.checkArgument(
+        !sourceTableLocation.equals(stagedTableLocation)
+            && !stagedTableLocation.startsWith(sourceTableLocation + "/")
+            && !sourceTableLocation.startsWith(stagedTableLocation + "/"),
+        "Cannot create a snapshot at location %s because it would overlap with source table location %s. "
+            + "Overlapping snapshot and source would mix table files.",
+        stagedTableLocation,
+        sourceTableLocation);
 
     boolean threw = true;
     try {
