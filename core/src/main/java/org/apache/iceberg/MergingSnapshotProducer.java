@@ -1145,23 +1145,49 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       DeleteFile dv = dvs.get(i);
       Preconditions.checkArgument(
           Objects.equals(dv.dataSequenceNumber(), firstDV.dataSequenceNumber()),
-          "Cannot merge added DVs when data sequence numbers are different, expected all to be added with sequence %s, but got %s",
+          "Cannot merge duplicate added DVs when data sequence numbers are different,"
+              + "expected all to be added with sequence %s, but got %s",
           firstDV.dataSequenceNumber(),
           dv.dataSequenceNumber());
+
+      Preconditions.checkArgument(
+          Objects.equals(dv.partition(), firstDV.partition()),
+          "Cannot merge duplicate added DVs when partition tuples are different");
       positionDeleteIndex.merge(Deletes.readDV(dvs.get(i), ops().io(), ops().encryption()));
     }
 
+    return writeDV(
+        referencedDataFile,
+        positionDeleteIndex,
+        spec,
+        firstDV.partition(),
+        firstDV.dataSequenceNumber());
+  }
+
+  private DeleteFile writeDV(
+      String referencedDataFile,
+      PositionDeleteIndex positionDeleteIndex,
+      PartitionSpec spec,
+      StructLike partition,
+      Long dataSequenceNumber) {
     try {
       DVFileWriter dvFileWriter =
           new BaseDVFileWriter(
-              OutputFileFactory.builderFor(ops(), spec(firstDV.specId()), FileFormat.PUFFIN, 1, 1)
+              OutputFileFactory.builderFor(
+                      ops().locationProvider(),
+                      ops().encryption(),
+                      ops()::io,
+                      spec,
+                      FileFormat.PUFFIN,
+                      1,
+                      1)
                   .build(),
               path -> null);
-      dvFileWriter.delete(referencedDataFile, positionDeleteIndex, spec, firstDV.partition());
+      dvFileWriter.delete(referencedDataFile, positionDeleteIndex, spec, partition);
       dvFileWriter.close();
       DeleteWriteResult result = dvFileWriter.result();
       return Delegates.pendingDeleteFile(
-          Iterables.getOnlyElement(result.deleteFiles()), firstDV.dataSequenceNumber());
+          Iterables.getOnlyElement(result.deleteFiles()), dataSequenceNumber);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
