@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
@@ -33,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
-import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -120,10 +120,15 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     String where = input.asString(WHERE_PARAM, null);
     String explicitBranch = input.asString(BRANCH_PARAM, null);
 
-    // Load SparkTable to extract branch from identifier
-    SparkTable sparkTable = loadSparkTable(tableIdent);
-    String branchFromTable = sparkTable.branch();
-    String branch = explicitBranch != null ? explicitBranch : branchFromTable;
+    // Determine target branch: explicit parameter > table branch > main branch
+    String targetBranch = explicitBranch;
+    if (targetBranch == null) {
+      targetBranch = loadSparkTable(tableIdent).branch();
+    }
+    if (targetBranch == null) {
+      targetBranch = SnapshotRef.MAIN_BRANCH;
+    }
+    String branch = targetBranch;
 
     return modifyIcebergTable(
         tableIdent,
