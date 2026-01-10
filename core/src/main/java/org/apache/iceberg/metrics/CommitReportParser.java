@@ -21,6 +21,8 @@ package org.apache.iceberg.metrics;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -29,6 +31,7 @@ public class CommitReportParser {
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String OPERATION = "operation";
+  private static final String FILTER = "filter";
   private static final String METRICS = "metrics";
   private static final String METADATA = "metadata";
 
@@ -67,6 +70,12 @@ public class CommitReportParser {
     gen.writeNumberField(SEQUENCE_NUMBER, commitReport.sequenceNumber());
     gen.writeStringField(OPERATION, commitReport.operation());
 
+    Expression filter = commitReport.filter();
+    if (filter != null) {
+      gen.writeFieldName(FILTER);
+      ExpressionParser.toJson(filter, gen);
+    }
+
     gen.writeFieldName(METRICS);
     CommitMetricsResultParser.toJson(commitReport.commitMetrics(), gen);
 
@@ -91,6 +100,10 @@ public class CommitReportParser {
             .sequenceNumber(JsonUtil.getLong(SEQUENCE_NUMBER, json))
             .operation(JsonUtil.getString(OPERATION, json))
             .commitMetrics(CommitMetricsResultParser.fromJson(JsonUtil.get(METRICS, json)));
+
+    if (json.has(FILTER)) {
+      builder.filter(ExpressionParser.fromJson(JsonUtil.get(FILTER, json)));
+    }
 
     if (json.has(METADATA)) {
       builder.metadata(JsonUtil.getStringMap(METADATA, json));

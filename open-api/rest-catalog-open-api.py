@@ -667,6 +667,7 @@ class CommitReport(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
     sequence_number: int = Field(..., alias='sequence-number')
     operation: str
+    filter: Expression | None = None
     metrics: Metrics
     metadata: dict[str, str] | None = None
 

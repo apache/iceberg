@@ -3933,6 +3933,8 @@ components:
           format: int64
         operation:
           type: string
+        filter:
+          $ref: '#/components/schemas/Expression'
         metrics:
           $ref: '#/components/schemas/Metrics'
         metadata:

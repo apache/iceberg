@@ -57,6 +57,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -246,6 +247,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    * @return a string operation
    */
   protected abstract String operation();
+
+  /**
+   * Returns the row filter expression used for delete or overwrite operations.
+   *
+   * @return the filter expression, or null if not applicable
+   */
+  protected Expression rowFilter() {
+    return null;
+  }
 
   /**
    * Validate the current metadata.
@@ -555,6 +565,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   .snapshotId(createSnapshotEvent.snapshotId())
                   .operation(createSnapshotEvent.operation())
                   .sequenceNumber(createSnapshotEvent.sequenceNumber())
+                  .filter(rowFilter())
                   .metadata(EnvironmentContext.get())
                   .commitMetrics(
                       CommitMetricsResult.from(commitMetrics(), createSnapshotEvent.summary()))

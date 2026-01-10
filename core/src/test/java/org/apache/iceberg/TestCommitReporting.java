@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.apache.iceberg.ScanPlanningAndReportingTestBase.TestMetricsReporter;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.CommitMetricsResult;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -194,5 +195,59 @@ public class TestCommitReporting extends TestBase {
     assertThat(metrics.manifestsKept().value()).isEqualTo(0L);
     assertThat(metrics.manifestsReplaced().value()).isEqualTo(2L);
     assertThat(metrics.manifestEntriesProcessed().value()).isEqualTo(2L);
+  }
+
+  @TestTemplate
+  public void deleteWithRowFilter() {
+    String tableName = "delete-with-row-filter";
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+
+    // add data files first
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    CommitReport appendReport = reporter.lastCommitReport();
+    assertThat(appendReport.operation()).isEqualTo("append");
+    // append operations have alwaysFalse() as the default filter (no rows to delete)
+    assertThat(appendReport.filter()).isEqualTo(Expressions.alwaysFalse());
+
+    // delete using row filter
+    table.newDelete().deleteFromRowFilter(Expressions.equal("data", "a")).commit();
+
+    CommitReport deleteReport = reporter.lastCommitReport();
+    assertThat(deleteReport).isNotNull();
+    assertThat(deleteReport.operation()).isEqualTo("delete");
+    // verify the filter is captured in the commit report
+    assertThat(deleteReport.filter()).isNotNull();
+    assertThat(deleteReport.filter().toString()).isEqualTo("ref(name=\"data\") == \"a\"");
+  }
+
+  @TestTemplate
+  public void overwriteWithRowFilter() {
+    String tableName = "overwrite-with-row-filter";
+    Table table =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
+
+    // add data files first
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // overwrite using row filter
+    table
+        .newOverwrite()
+        .overwriteByRowFilter(Expressions.equal("data", "a"))
+        .addFile(FILE_B)
+        .commit();
+
+    CommitReport report = reporter.lastCommitReport();
+    assertThat(report).isNotNull();
+    assertThat(report.operation()).isEqualTo("overwrite");
+    // verify the filter is captured in the commit report
+    assertThat(report.filter()).isNotNull();
+    assertThat(report.filter().toString()).isEqualTo("ref(name=\"data\") == \"a\"");
+
+    CommitMetricsResult metrics = report.commitMetrics();
+    assertThat(metrics.addedDataFiles().value()).isEqualTo(1L);
   }
 }
