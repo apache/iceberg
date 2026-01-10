@@ -3549,15 +3549,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // Test with Java serialization
     Table javaSerialized = TestHelpers.roundTripSerialize(serializableTable);
-    verifySerializedTable(javaSerialized, table, 2);
+    verifySerializedTable(javaSerialized, table);
 
     // Test with Kryo serialization
     Table kryoSerialized = TestHelpers.KryoHelpers.roundTripSerialize(serializableTable);
-    verifySerializedTable(kryoSerialized, table, 2);
+    verifySerializedTable(kryoSerialized, table);
   }
 
-  private void verifySerializedTable(
-      Table deserialized, Table original, int expectedSnapshotCount) {
+  private void verifySerializedTable(Table deserialized, Table original) {
     // Verify that basic operations work using serialized table metadata
     // (tables requiring remote scan planning serialize full metadata)
     assertThat(deserialized.schema().asStruct()).isEqualTo(original.schema().asStruct());
@@ -3571,13 +3570,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isEqualTo(original.currentSnapshot().snapshotId());
 
     // Verify snapshots are accessible
-    assertThat(deserialized.snapshots()).isNotNull();
-    int snapshotCount = 0;
-    for (Snapshot snapshot : deserialized.snapshots()) {
-      snapshotCount++;
-      assertThat(snapshot).isNotNull();
-    }
-    assertThat(snapshotCount).isEqualTo(expectedSnapshotCount);
+    assertThat(deserialized.snapshots()).isNotNull().hasSameSizeAs(original.snapshots());
 
     // Verify scan operations work
     assertThat(deserialized.newScan()).isNotNull();
@@ -3617,11 +3610,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   private void verifySchemaEvolution(Table deserialized, Table original) {
     // Verify current schema
-    assertThat(deserialized.schema().columns()).hasSize(original.schema().columns().size());
+    assertThat(deserialized.schema().columns()).hasSameSizeAs(original.schema().columns());
 
     // Verify all historical schemas are preserved
-    assertThat(deserialized.schemas()).isNotNull();
-    assertThat(deserialized.schemas().size()).isEqualTo(original.schemas().size());
+    assertThat(deserialized.schemas()).isNotNull().hasSameSizeAs(original.schemas());
 
     // Verify scans work
     assertThat(deserialized.newScan()).isNotNull();
@@ -3656,21 +3648,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // Test with Java serialization
     Table javaSerialized = TestHelpers.roundTripSerialize(serializableTable);
-    verifySnapshotRefs(javaSerialized, taggedSnapshotId);
+    assertThat(javaSerialized.refs()).containsEntry("production", table.refs().get("production"));
+    assertThat(javaSerialized.snapshot(taggedSnapshotId)).isNotNull();
 
     // Test with Kryo serialization
     Table kryoSerialized = TestHelpers.KryoHelpers.roundTripSerialize(serializableTable);
-    verifySnapshotRefs(kryoSerialized, taggedSnapshotId);
-  }
-
-  private void verifySnapshotRefs(Table deserialized, long taggedSnapshotId) {
-    // Verify refs are preserved
-    assertThat(deserialized.refs()).isNotNull();
-    assertThat(deserialized.refs()).containsKey("production");
-    assertThat(deserialized.refs().get("production").snapshotId()).isEqualTo(taggedSnapshotId);
-
-    // Verify we can access the tagged snapshot
-    assertThat(deserialized.snapshot(taggedSnapshotId)).isNotNull();
+    assertThat(kryoSerialized.refs()).containsEntry("production", table.refs().get("production"));
+    assertThat(kryoSerialized.snapshot(taggedSnapshotId)).isNotNull();
   }
 
   @Test
@@ -3708,12 +3692,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(deserialized.currentSnapshot()).isNotNull();
     assertThat(deserialized.currentSnapshot().snapshotId())
         .isEqualTo(original.currentSnapshot().snapshotId());
-
-    int snapshotCount = 0;
-    for (Snapshot snapshot : deserialized.snapshots()) {
-      snapshotCount++;
-    }
-    assertThat(snapshotCount).isEqualTo(2);
+    assertThat(deserialized.snapshots()).isNotNull().hasSameSizeAs(original.snapshots());
 
     // Test the optimization - when table requires remote scan planning,
     // tableMetadata is always serialized (enabling distributed query planning)
