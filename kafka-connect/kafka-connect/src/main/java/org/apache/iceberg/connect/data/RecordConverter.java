@@ -30,6 +30,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
@@ -473,6 +474,8 @@ class RecordConverter {
       return parseOffsetDateTime((String) value);
     } else if (value instanceof OffsetDateTime) {
       return (OffsetDateTime) value;
+    } else if (value instanceof ZonedDateTime) {
+      return (OffsetDateTime) ((ZonedDateTime) value).toOffsetDateTime();
     } else if (value instanceof LocalDateTime) {
       return ((LocalDateTime) value).atOffset(ZoneOffset.UTC);
     } else if (value instanceof Date) {
