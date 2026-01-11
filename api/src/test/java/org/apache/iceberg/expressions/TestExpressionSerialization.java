@@ -61,7 +61,17 @@ public class TestExpressionSerialization {
           Expressions.notIn("s", "abc", "xyz").bind(schema.asStruct()),
           Expressions.isNull("a").bind(schema.asStruct()),
           Expressions.startsWith("s", "abc").bind(schema.asStruct()),
-          Expressions.notStartsWith("s", "xyz").bind(schema.asStruct())
+          Expressions.notStartsWith("s", "xyz").bind(schema.asStruct()),
+          // IDReference tests
+          Expressions.equal(Expressions.ref("a", 34), 5),
+          Expressions.in(Expressions.ref("s", 35), "abc", "xyz"),
+          Expressions.notNull(Expressions.ref("a", 34)),
+          Expressions.isNull(Expressions.ref("a", 34)),
+          Expressions.startsWith(Expressions.ref("s", 35), "test"),
+          // IDReference bound tests
+          Expressions.equal(Expressions.ref("a", 34), 5).bind(schema.asStruct()),
+          Expressions.in(Expressions.ref("s", 35), "abc", "xyz").bind(schema.asStruct()),
+          Expressions.notNull(Expressions.ref("a", 34)).bind(schema.asStruct())
         };
 
     for (Expression expression : expressions) {
@@ -196,6 +206,15 @@ public class TestExpressionSerialization {
       NamedReference rref = (NamedReference) right;
 
       return lref.name().equals(rref.name());
+    } else if (left instanceof IDReference) {
+      if (!(right instanceof IDReference)) {
+        return false;
+      }
+
+      IDReference lref = (IDReference) left;
+      IDReference rref = (IDReference) right;
+
+      return lref.id() == rref.id() && lref.name().equals(rref.name());
     } else if (left instanceof BoundReference) {
       if (!(right instanceof BoundReference)) {
         return false;
