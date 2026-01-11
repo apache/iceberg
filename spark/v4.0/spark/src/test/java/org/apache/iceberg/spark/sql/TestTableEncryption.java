@@ -56,6 +56,7 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
+import org.apache.spark.SparkException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -248,14 +249,28 @@ public class TestTableEncryption extends CatalogTestBase {
   public void testKeyDelete() {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s UNSET TBLPROPERTIES (`encryption.key-id`)", tableName))
-        .hasMessageContaining("Cannot remove key in encrypted table");
+        .isInstanceOf(SparkException.class)
+        .hasMessage("Unsupported table change: Cannot remove key ID from an encrypted table");
   }
 
   @TestTemplate
   public void testKeyAlter() {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='abcd')", tableName))
-        .hasMessageContaining("Cannot modify key in encrypted table");
+        .isInstanceOf(SparkException.class)
+        .hasMessage("Unsupported table change: Cannot modify key ID of an encrypted table");
+  }
+
+  @TestTemplate
+  public void testReplaceKeyChange() {
+    // Replacing a table with a different encryption key is disallowed
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "REPLACE TABLE %s (id bigint) USING iceberg TBLPROPERTIES ('encryption.key-id'='%s')",
+                    tableName, UnitestKMS.MASTER_KEY_NAME2))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot modify key ID of an encrypted table");
   }
 
   @TestTemplate
