@@ -3374,6 +3374,29 @@ components:
         ## General Configurations
 
         - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
+        - `scan-planning-mode`: Controls scan planning behavior for table operations. This property can be configured by:
+          - **Server**: Returned in `LoadTableResponse.config()` to advertise server preference/requirement
+          - **Client**: Set in catalog properties to override server configuration
+
+          **Configuration Precedence**: Client config > Server config > Default (`client-preferred`)
+
+          **Valid values**:
+          - `client-only`: MUST use client-side planning. Fails if paired with server's `catalog-only`.
+          - `client-preferred` (default): Prefer client-side planning but flexible.
+          - `catalog-preferred`: Prefer server-side planning but flexible. Falls back to client if server doesn't support planning endpoints.
+          - `catalog-only`: MUST use server-side planning. Requires server support. Fails if paired with client's `client-only`.
+
+        ### Scan Planning Negotiation
+
+        When both client and server provide `scan-planning-mode` configuration, the final planning decision is negotiated based on the following rules:
+
+        **Negotiation Rules:**
+        - **Incompatible requirements**: `client-only` + `catalog-only` = **FAIL**
+        - **ONLY beats PREFERRED**: When one side has "ONLY" and the other has "PREFERRED", the ONLY requirement wins (inflexible beats flexible)
+        - **Both PREFERRED**: When both are PREFERRED (different types), client config wins
+        - **Both same**: When both have the same value, use that planning type
+        - **Only one configured**: Use the configured side (client or server)
+        - **Neither configured**: Use default (`client-preferred`)
 
         ## AWS Configurations
 

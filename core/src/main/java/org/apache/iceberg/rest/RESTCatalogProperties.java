@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
 public final class RESTCatalogProperties {
 
   private RESTCatalogProperties() {}
@@ -37,12 +40,107 @@ public final class RESTCatalogProperties {
 
   public static final String NAMESPACE_SEPARATOR = "namespace-separator";
 
-  // Enable planning on the REST server side
-  public static final String REST_SCAN_PLANNING_ENABLED = "rest-scan-planning-enabled";
-  public static final boolean REST_SCAN_PLANNING_ENABLED_DEFAULT = false;
+  // Configure scan planning mode
+  // Can be set by server in LoadTableResponse.config() or by client in catalog properties
+  // Negotiation rules: ONLY beats PREFERRED, both PREFERRED = client wins
+  // Default when neither client nor server provides: client-preferred
+  public static final String SCAN_PLANNING_MODE = "scan-planning-mode";
+  public static final String SCAN_PLANNING_MODE_DEFAULT =
+      ScanPlanningMode.CLIENT_PREFERRED.modeName();
 
   public enum SnapshotMode {
     ALL,
     REFS
+  }
+
+  /**
+   * Enum to represent scan planning mode configuration.
+   *
+   * <p>Can be configured by:
+   *
+   * <ul>
+   *   <li>Server: Returned in LoadTableResponse.config() to advertise server preference/requirement
+   *   <li>Client: Set in catalog properties to set client preference/requirement
+   * </ul>
+   *
+   * <p>When both client and server configure this property, the values are negotiated:
+   *
+   * <p>Values:
+   *
+   * <ul>
+   *   <li>CLIENT_ONLY - MUST use client-side planning. Fails if paired with CATALOG_ONLY from other
+   *       side.
+   *   <li>CLIENT_PREFERRED (default) - Prefer client-side planning but flexible.
+   *   <li>CATALOG_PREFERRED - Prefer server-side planning but flexible. Falls back to client if
+   *       server doesn't support planning endpoints.
+   *   <li>CATALOG_ONLY - MUST use server-side planning. Requires server support. Fails if paired
+   *       with CLIENT_ONLY from other side.
+   * </ul>
+   *
+   * <p>Negotiation rules when both sides are configured:
+   *
+   * <ul>
+   *   <li><b>Incompatible</b>: CLIENT_ONLY + CATALOG_ONLY = FAIL
+   *   <li><b>ONLY beats PREFERRED</b>: One "ONLY" + opposite "PREFERRED" = ONLY wins (inflexible
+   *       beats flexible)
+   *   <li><b>Both PREFERRED</b>: Different PREFERRED types = Client config wins
+   *   <li><b>Both same</b>: Use that planning type
+   *   <li><b>Only one configured</b>: Use the configured side
+   * </ul>
+   */
+  public enum ScanPlanningMode {
+    CLIENT_ONLY("client-only"),
+    CLIENT_PREFERRED("client-preferred"),
+    CATALOG_PREFERRED("catalog-preferred"),
+    CATALOG_ONLY("catalog-only");
+
+    private final String modeName;
+
+    ScanPlanningMode(String modeName) {
+      this.modeName = modeName;
+    }
+
+    public String modeName() {
+      return modeName;
+    }
+
+    public boolean isClientOnly() {
+      return this == CLIENT_ONLY;
+    }
+
+    public boolean isCatalogOnly() {
+      return this == CATALOG_ONLY;
+    }
+
+    public boolean isOnly() {
+      return this == CLIENT_ONLY || this == CATALOG_ONLY;
+    }
+
+    public boolean isPreferred() {
+      return this == CLIENT_PREFERRED || this == CATALOG_PREFERRED;
+    }
+
+    public boolean prefersClient() {
+      return this == CLIENT_ONLY || this == CLIENT_PREFERRED;
+    }
+
+    public boolean prefersCatalog() {
+      return this == CATALOG_ONLY || this == CATALOG_PREFERRED;
+    }
+
+    public static ScanPlanningMode fromString(String mode) {
+      if (mode == null) {
+        return CLIENT_PREFERRED;
+      }
+      for (ScanPlanningMode planningMode : values()) {
+        if (planningMode.modeName.equalsIgnoreCase(mode)) {
+          return planningMode;
+        }
+      }
+      String validModes =
+          Arrays.stream(values()).map(ScanPlanningMode::modeName).collect(Collectors.joining(", "));
+      throw new IllegalArgumentException(
+          String.format("Invalid scan planning mode: %s. Valid values are: %s", mode, validModes));
+    }
   }
 }
