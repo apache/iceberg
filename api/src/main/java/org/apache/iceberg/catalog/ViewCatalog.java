@@ -107,6 +107,19 @@ public interface ViewCatalog {
   default void invalidateView(TableIdentifier identifier) {}
 
   /**
+   * Register a view with the catalog if it does not exist.
+   *
+   * @param identifier a view identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @return a View instance
+   * @throws AlreadyExistsException if a table/view with the same identifier already exists in the
+   *     catalog.
+   */
+  default View registerView(TableIdentifier identifier, String metadataFileLocation) {
+    throw new UnsupportedOperationException("Registering views is not supported");
+  }
+
+  /**
    * Initialize a view catalog given a custom name and a map of catalog properties.
    *
    * <p>A custom view catalog implementation must have a no-arg constructor. A compute engine like
