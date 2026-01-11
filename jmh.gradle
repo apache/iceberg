@@ -58,6 +58,11 @@ if (sparkVersions.contains("4.1")) {
     jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-4.1_2.13"))
 }
 
+if (sparkVersions.contains("4.2")) {
+    jmhProjects.add(project(":iceberg-spark:iceberg-spark-4.2_2.13"))
+    jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-4.2_2.13"))
+}
+
 configure(jmhProjects) {
   apply plugin: 'me.champeau.jmh'
   apply plugin: 'io.morethan.jmhreport'
