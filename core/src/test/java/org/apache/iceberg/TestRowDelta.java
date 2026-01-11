@@ -39,10 +39,16 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
+import org.apache.iceberg.deletes.Deletes;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -1883,6 +1889,46 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testDVsAreMergedForDuplicateReferenceFiles() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile), branch);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    List<PositionDelete<?>> firstDeletes = Lists.newArrayList();
+    // First delete deletes positions 0 and 1
+    for (int i = 0; i < 2; i++) {
+      firstDeletes.add(PositionDelete.create().set(dataFile.location(), i));
+    }
+
+    DeleteFile deleteFile1 = writeDV(firstDeletes, dataFile.partition(), fileFactory);
+    List<PositionDelete<?>> secondDeletes = Lists.newArrayList();
+    // Second delete deletes positions 2 and 3 for same data file
+    for (int i = 2; i < 4; i++) {
+      secondDeletes.add(PositionDelete.create().set(dataFile.location(), i));
+    }
+
+    DeleteFile deleteFile2 = writeDV(secondDeletes, dataFile.partition(), fileFactory);
+    RowDelta rowDelta1 = table.newRowDelta().addDeletes(deleteFile1).addDeletes(deleteFile2);
+
+    commit(table, rowDelta1, branch);
+
+    Iterable<DeleteFile> addedDeleteFiles =
+        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+    assertThat(Iterables.size(addedDeleteFiles)).isEqualTo(1);
+    DeleteFile mergedDV = Iterables.getOnlyElement(addedDeleteFiles);
+    assertThat(mergedDV).isNotNull();
+    assertThat(mergedDV.recordCount()).as("The cardinality of the DV should be 4").isEqualTo(4);
+    PositionDeleteIndex positionDeleteIndex =
+        Deletes.readDV(mergedDV, table.io(), table.encryption());
+    for (int i = 0; i < 4; i++) {
+      assertThat(positionDeleteIndex.isDeleted(i)).isTrue();
+    }
+  }
+
+  @TestTemplate
   public void testManifestMergingAfterUpgradeToV3() {
     assumeThat(formatVersion).isEqualTo(2);
 
@@ -1958,5 +2004,19 @@ public class TestRowDelta extends TestBase {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  private DeleteFile writeDV(
+      List<PositionDelete<?>> deletes, StructLike partition, OutputFileFactory fileFactory)
+      throws IOException {
+
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
+    try (DVFileWriter closeableWriter = writer) {
+      for (PositionDelete<?> delete : deletes) {
+        closeableWriter.delete(delete.path().toString(), delete.pos(), table.spec(), partition);
+      }
+    }
+
+    return Iterables.getOnlyElement(writer.result().deleteFiles());
   }
 }
