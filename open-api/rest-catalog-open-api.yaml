@@ -162,6 +162,8 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          $ref: '#/components/responses/NoSuchWarehouseResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -4657,6 +4659,22 @@ components:
               "message": "Not authorized to make this request",
               "type": "NotAuthorizedException",
               "code": 403
+            }
+          }
+
+    #  Note that this is a representative example response for use as a shorthand in the spec.
+    #  The fields `message` and `type` as indicated here are not presently prescriptive.
+    NoSuchWarehouseResponse:
+      description: Not Found - The given warehouse does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IcebergErrorResponse'
+          example: {
+            "error": {
+              "message": "The given warehouse does not exist",
+              "type": "NoSuchWarehouseException",
+              "code": 404
             }
           }
 
