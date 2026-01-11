@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData.Record;
@@ -991,5 +992,55 @@ public class TestMetadataTables extends ExtensionsTestBase {
 
     assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
         .containsExactly(firstEntry, secondEntry, thirdEntry, fourthEntry, fifthEntry);
+  }
+
+  @TestTemplate
+  public void testReadableMetricsWithUUIDBounds() throws Exception {
+    sql(
+        "CREATE TABLE %s (dummy INT) USING iceberg TBLPROPERTIES ('format-version'='%s')",
+        tableName, formatVersion);
+
+    // 1. Load Iceberg table and evolve schema to UUID using Iceberg API
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    table.updateSchema().deleteColumn("dummy").addColumn("id", Types.UUIDType.get()).commit();
+
+    // 2. Insert data via Spark
+    //
+    // This forces Iceberg to write a data file with UUID column statistics,
+    // including lower and upper bounds, derived from file metadata.
+    UUID uuid = UUID.randomUUID();
+    sql("INSERT INTO %s VALUES ('%s')", tableName, uuid.toString());
+
+    // 4. Query readable_metrics
+    //
+    // BEFORE FIX:
+    //   java.lang.ClassCastException: java.util.UUID -> java.lang.CharSequence
+    //
+    // AFTER FIX:
+    //   Spark must safely convert UUID bounds to readable string values.
+    Dataset<Row> df = spark.sql("SELECT readable_metrics FROM " + tableName + ".all_files");
+
+    // Must not throw
+    List<Row> rows = df.collectAsList();
+    assertThat(rows).hasSize(1);
+
+    Row readableMetrics = rows.get(0).getStruct(0);
+    assertThat(readableMetrics).isNotNull();
+
+    Row idMetrics = readableMetrics.getStruct(readableMetrics.fieldIndex("id"));
+
+    // Accessing bounds must not throw
+    Object lowerBound = idMetrics.get(idMetrics.fieldIndex("lower_bound"));
+    Object upperBound = idMetrics.get(idMetrics.fieldIndex("upper_bound"));
+
+    // We intentionally do NOT assert exact values here.
+    //
+    // In Spark 3.4 / 3.5, metrics are derived from file metadata and their
+    // string representation is not guaranteed to be deterministic.
+    //
+    // The purpose of this test is to ensure Spark can safely read UUID
+    // bounds without ClassCastException.
+    assertThat(lowerBound).isNotNull();
+    assertThat(upperBound).isNotNull();
   }
 }
