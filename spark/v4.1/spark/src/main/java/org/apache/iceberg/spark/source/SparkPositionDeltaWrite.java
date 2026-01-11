@@ -88,9 +88,11 @@ import org.apache.spark.sql.connector.write.DeltaWrite;
 import org.apache.spark.sql.connector.write.DeltaWriter;
 import org.apache.spark.sql.connector.write.DeltaWriterFactory;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
+import org.apache.spark.sql.connector.write.MergeSummary;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
+import org.apache.spark.sql.connector.write.WriteSummary;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.StructType;
@@ -207,6 +209,11 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
+      commit(messages, null);
+    }
+
+    @Override
+    public void commit(WriterCommitMessage[] messages, WriteSummary summary) {
       RowDelta rowDelta = table.newRowDelta();
 
       CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
@@ -270,7 +277,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
                 scan.snapshotId(),
                 conflictDetectionFilter,
                 isolationLevel);
-        commitOperation(rowDelta, commitMsg);
+        commitOperation(rowDelta, commitMsg, summary);
 
       } else {
         String commitMsg =
@@ -279,7 +286,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
                 "position delta with %d data files and %d delete files (no validation required)",
                 addedDataFilesCount,
                 addedDeleteFilesCount);
-        commitOperation(rowDelta, commitMsg);
+        commitOperation(rowDelta, commitMsg, summary);
       }
     }
 
@@ -316,7 +323,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       return files;
     }
 
-    private void commitOperation(SnapshotUpdate<?> operation, String description) {
+    private void commitOperation(
+        SnapshotUpdate<?> operation, String description, WriteSummary summary) {
       LOG.info("Committing {} to table {}", description, table);
       if (applicationId != null) {
         operation.set("spark.app.id", applicationId);
@@ -325,6 +333,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       extraSnapshotMetadata.forEach(operation::set);
 
       CommitMetadata.commitProperties().forEach(operation::set);
+
+      if (summary instanceof MergeSummary) {
+        setMergeSummaryProperties(operation, (MergeSummary) summary);
+      }
 
       if (wapEnabled && wapId != null) {
         // write-audit-publish is enabled for this table and job
@@ -345,6 +357,31 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       } catch (Exception e) {
         cleanupOnAbort = e instanceof CleanableFailure;
         throw e;
+      }
+    }
+
+    private void setMergeSummaryProperties(SnapshotUpdate<?> operation, MergeSummary mergeSummary) {
+      setIfPositive(operation, "numTargetRowsCopied", mergeSummary.numTargetRowsCopied());
+      setIfPositive(operation, "numTargetRowsDeleted", mergeSummary.numTargetRowsDeleted());
+      setIfPositive(operation, "numTargetRowsUpdated", mergeSummary.numTargetRowsUpdated());
+      setIfPositive(operation, "numTargetRowsInserted", mergeSummary.numTargetRowsInserted());
+      setIfPositive(
+          operation, "numTargetRowsMatchedUpdated", mergeSummary.numTargetRowsMatchedUpdated());
+      setIfPositive(
+          operation, "numTargetRowsMatchedDeleted", mergeSummary.numTargetRowsMatchedDeleted());
+      setIfPositive(
+          operation,
+          "numTargetRowsNotMatchedBySourceUpdated",
+          mergeSummary.numTargetRowsNotMatchedBySourceUpdated());
+      setIfPositive(
+          operation,
+          "numTargetRowsNotMatchedBySourceDeleted",
+          mergeSummary.numTargetRowsNotMatchedBySourceDeleted());
+    }
+
+    private void setIfPositive(SnapshotUpdate<?> operation, String key, long value) {
+      if (value >= 0) {
+        operation.set(key, String.valueOf(value));
       }
     }
   }
