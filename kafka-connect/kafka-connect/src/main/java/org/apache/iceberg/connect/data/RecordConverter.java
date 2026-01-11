@@ -506,6 +506,8 @@ class RecordConverter {
       return (LocalDateTime) value;
     } else if (value instanceof OffsetDateTime) {
       return ((OffsetDateTime) value).toLocalDateTime();
+    } else if (value instanceof ZonedDateTime) {
+      return ((ZonedDateTime) value).toLocalDateTime();
     } else if (value instanceof Date) {
       return DateTimeUtil.timestampFromMicros(((Date) value).getTime() * 1000);
     }

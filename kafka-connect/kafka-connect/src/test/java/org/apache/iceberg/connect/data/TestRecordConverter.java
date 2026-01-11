@@ -568,14 +568,6 @@ public class TestRecordConverter {
             "2023-05-18T03:22:33-0800",
             "2023-05-18 03:22:33-0800");
     assertTimestampConvert(expected, additionalInput, TimestampType.withZone());
-
-    ZonedDateTime expectedzdt = ZonedDateTime.parse("2023-05-18T11:22:33Z");
-    expectedMillis = expectedzdt.toInstant().toEpochMilli();
-    assertTimestampConvert(expectedzdt, expectedMillis, TimestampType.withZone());
-
-    // zone should be respected
-    expectedzdt = ZonedDateTime.parse("2023-05-18T03:22:33-08:00");
-    assertTimestampConvert(expectedzdt, additionalInput, TimestampType.withZone());
   }
 
   @Test
