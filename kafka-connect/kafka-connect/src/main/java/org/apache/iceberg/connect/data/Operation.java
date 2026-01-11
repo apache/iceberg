@@ -26,7 +26,7 @@ public enum Operation {
   // this purpose.
 
   /** Insertion operation. */
-  INSERT("C", (byte) 0),
+  INSERT("I", (byte) 0),
 
   /** Update operation with the previous content of the updated row. */
   UPDATE("U", (byte) 1),
@@ -100,16 +100,12 @@ public enum Operation {
 
   public static Operation fromString(String shortString) {
     switch (shortString.toUpperCase(Locale.ROOT)) {
-      case "C":
-      case "R":
-        return INSERT;
       case "U":
         return UPDATE;
       case "D":
         return DELETE;
       default:
-        throw new UnsupportedOperationException(
-            "Unsupported short string '" + shortString + "' for row kind.");
+        return INSERT;
     }
   }
 }
