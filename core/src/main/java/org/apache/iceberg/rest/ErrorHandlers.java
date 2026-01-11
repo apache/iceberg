@@ -238,8 +238,6 @@ public class ErrorHandlers {
           throw new NoSuchNamespaceException("%s", error.message());
         case 409:
           throw new AlreadyExistsException("%s", error.message());
-        case 422:
-          throw new RESTException("Unable to process: %s", error.message());
       }
 
       super.accept(error);
@@ -300,7 +298,9 @@ public class ErrorHandlers {
           throw new ServiceUnavailableException("Service unavailable: %s", error.message());
       }
 
-      throw new RESTException("Unable to process: %s", error.message());
+      throw new RESTException(
+          "Unable to process (code: %s, type: %s): %s",
+          error.code(), error.type(), error.message());
     }
   }
 
@@ -333,7 +333,9 @@ public class ErrorHandlers {
                 "Malformed request: %s: %s", error.type(), error.message());
         }
       }
-      throw new RESTException("Unable to process: %s", error.message());
+      throw new RESTException(
+          "Unable to process (code: %s, type: %s): %s",
+          error.code(), error.type(), error.message());
     }
   }
 }
