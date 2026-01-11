@@ -119,41 +119,14 @@ public class SingleValueParser {
         }
         return uuid;
       case DATE:
-        Preconditions.checkArgument(
-            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        return DateTimeUtil.isoDateToDays(defaultValue.textValue());
+        return parseDateValue(type, defaultValue);
       case TIME:
-        Preconditions.checkArgument(
-            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        return DateTimeUtil.isoTimeToMicros(defaultValue.textValue());
+        return parseTimeValue(type, defaultValue);
       case TIMESTAMP:
-        Preconditions.checkArgument(
-            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          String timestampTz = defaultValue.textValue();
-          Preconditions.checkArgument(
-              DateTimeUtil.isUTCTimestamptz(timestampTz),
-              "Cannot parse default as a %s value: %s, offset must be +00:00",
-              type,
-              defaultValue);
-          return DateTimeUtil.isoTimestamptzToMicros(timestampTz);
-        } else {
-          return DateTimeUtil.isoTimestampToMicros(defaultValue.textValue());
-        }
+        return parseTimestampValue(type, defaultValue);
       case TIMESTAMP_NANO:
-        Preconditions.checkArgument(
-            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
-          String timestampTzNano = defaultValue.textValue();
-          Preconditions.checkArgument(
-              DateTimeUtil.isUTCTimestamptz(timestampTzNano),
-              "Cannot parse default as a %s value: %s, offset must be +00:00",
-              type,
-              defaultValue);
-          return DateTimeUtil.isoTimestamptzToNanos(timestampTzNano);
-        } else {
-          return DateTimeUtil.isoTimestampToNanos(defaultValue.textValue());
-        }
+        return parseTimestampNanoValue(type, defaultValue);
+
       case FIXED:
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
@@ -412,6 +385,70 @@ public class SingleValueParser {
         break;
       default:
         throw new UnsupportedOperationException(String.format("Type: %s is not supported", type));
+    }
+  }
+
+  private static Object parseDateValue(Type type, JsonNode value) {
+    if (value.isTextual()) {
+      return DateTimeUtil.isoDateToDays(value.textValue());
+    } else if (value.isIntegralNumber() && value.canConvertToInt()) {
+      return value.intValue();
+    } else {
+      throw new IllegalArgumentException(
+          String.format("Cannot parse default as a %s value: %s", type, value));
+    }
+  }
+
+  private static Object parseTimeValue(Type type, JsonNode value) {
+    if (value.isTextual()) {
+      return DateTimeUtil.isoTimeToMicros(value.textValue());
+    } else if (value.isIntegralNumber() && value.canConvertToLong()) {
+      return value.longValue();
+    } else {
+      throw new IllegalArgumentException(
+          String.format("Cannot parse default as a %s value: %s", type, value));
+    }
+  }
+
+  private static Object parseTimestampValue(Type type, JsonNode value) {
+    if (value.isTextual()) {
+      if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+        String timestampTz = value.textValue();
+        Preconditions.checkArgument(
+            DateTimeUtil.isUTCTimestamptz(timestampTz),
+            "Cannot parse default as a %s value: %s, offset must be +00:00",
+            type,
+            value);
+        return DateTimeUtil.isoTimestamptzToMicros(timestampTz);
+      } else {
+        return DateTimeUtil.isoTimestampToMicros(value.textValue());
+      }
+    } else if (value.isIntegralNumber() && value.canConvertToLong()) {
+      return value.longValue();
+    } else {
+      throw new IllegalArgumentException(
+          String.format("Cannot parse default as a %s value: %s", type, value));
+    }
+  }
+
+  private static Object parseTimestampNanoValue(Type type, JsonNode value) {
+    if (value.isTextual()) {
+      if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
+        String timestampTzNano = value.textValue();
+        Preconditions.checkArgument(
+            DateTimeUtil.isUTCTimestamptz(timestampTzNano),
+            "Cannot parse default as a %s value: %s, offset must be +00:00",
+            type,
+            value);
+        return DateTimeUtil.isoTimestamptzToNanos(timestampTzNano);
+      } else {
+        return DateTimeUtil.isoTimestampToNanos(value.textValue());
+      }
+    } else if (value.isIntegralNumber() && value.canConvertToLong()) {
+      return value.longValue();
+    } else {
+      throw new IllegalArgumentException(
+          String.format("Cannot parse default as a %s value: %s", type, value));
     }
   }
 }
