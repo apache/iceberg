@@ -986,9 +986,26 @@ paths:
         - in: query
           name: referenced-by
           description:
-            The fully qualified name of the view (i.e namespace name and view name) that referenced the table.
-            
-            nested namespaces are separated by a unit separator (`0x1F`) byte.
+            A comma-separated list of fully qualified view names (namespace and view name) representing the view
+            reference chain when a table is loaded via a view. The list should be ordered with the outermost view
+            first, followed by any intermediate views it references, down to the view that directly references the table.
+            For a simple case where a view directly references the table, the list contains a single view identifier.
+            For nested views (a view referencing another view which references the table), the list contains multiple
+            view identifiers representing the complete dependency chain.
+
+            Each view identifier has the format namespace.viewName where multipart namespace parts must be separated
+            by the namespace separator as indicated via the /config override namespace-separator, which defaults to
+            the unit separator 0x1F byte (url encoded %1F). To be compatible with older clients, servers must use
+            both the advertised separator and 0x1F as valid separators when decoding namespaces.
+            The namespace-separator should be provided in a url encoded form.
+
+            The namespace and view name are separated by a dot. When parsing, the dot separator is located by
+            finding the first dot character after the last namespace separator.
+
+            Multiple view identifiers are separated by commas. Servers should split the parameter value on comma characters
+            to parse individual view identifiers. If view names contain commas, they must be percent-encoded as %2C.
+
+            Example with multiple views - prod%1Fanalytics.monthly_view,prod%1Fanalytics.quarterly_view
           required: false
           schema:
             type: string
