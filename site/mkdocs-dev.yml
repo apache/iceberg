@@ -90,6 +90,7 @@ nav:
     - Community: community.md
     - Talks: talks.md
     - Vendors: vendors.md
+  - Blog: blog/
   - Specification:
     - Terms: terms.md
     - REST Catalog Spec: rest-catalog-spec.md

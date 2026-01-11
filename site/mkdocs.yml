@@ -48,6 +48,11 @@ theme:
 
 plugins:
   - search
+  - blog:
+      blog_dir: blog
+      blog_toc: true
+      post_date_format: long
+      post_url_format: "{slug}"
   - macros
   - monorepo
   - privacy
