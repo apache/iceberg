@@ -25,7 +25,10 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Path;
 import java.util.UUID;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateLocation;
 import org.apache.iceberg.catalog.Catalog;
@@ -1967,5 +1970,40 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog().namespaceExists(viewIdent.namespace()))
         .as("Namespace should not exist")
         .isFalse();
+  }
+
+  @Test
+  public void registerTableThatAlreadyExistsAsView() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "tbl");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    tableCatalog().createTable(identifier, SCHEMA);
+    assertThat(tableCatalog().tableExists(identifier)).as("Table should exist").isTrue();
+    Table table = tableCatalog().loadTable(identifier);
+    TableOperations ops = ((BaseTable) table).operations();
+    String metadataLocation = ops.current().metadataFileLocation();
+
+    // don't purge the metadata
+    tableCatalog().dropTable(identifier, false);
+    assertThat(tableCatalog().tableExists(identifier)).as("Table should not exist").isFalse();
+
+    catalog()
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+
+    assertThatThrownBy(() -> tableCatalog().registerTable(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("View with same name already exists: %s", identifier);
+
+    assertThat(tableCatalog().tableExists(identifier)).as("Table should not exist").isFalse();
+    assertThat(catalog().dropView(identifier)).isTrue();
   }
 }

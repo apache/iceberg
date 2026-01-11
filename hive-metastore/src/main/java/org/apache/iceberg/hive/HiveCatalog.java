@@ -911,4 +911,27 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       return super.create();
     }
   }
+
+  @Override
+  public org.apache.iceberg.Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(
+        identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register an empty metadata file location as a table");
+
+    // throw an exception in case the table identifier already exists as a table/view
+    if (tableExists(identifier)) {
+      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+          "Table already exists: %s", identifier);
+    }
+
+    if (viewExists(identifier)) {
+      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+          "View with same name already exists: %s", identifier);
+    }
+
+    return super.registerTable(identifier, metadataFileLocation);
+  }
 }
