@@ -66,6 +66,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private final UUID uuid;
   private final int formatVersion;
   private final Try<LocationProvider> locationProviderTry;
+  private final TableMetadata tableMetadata;
 
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
@@ -89,6 +90,13 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
     this.formatVersion = formatVersion(table);
+
+    // Only store full TableMetadata if the table requires remote scan planning.
+    if (table instanceof RequiresRemoteScanPlanning) {
+      this.tableMetadata = tableMetadata(table);
+    } else {
+      this.tableMetadata = null;
+    }
   }
 
   /**
@@ -136,13 +144,20 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     if (lazyTable == null) {
       synchronized (this) {
         if (lazyTable == null) {
-          if (metadataFileLocation == null) {
+          TableOperations ops;
+
+          if (tableMetadata != null) {
+            // Use serialized TableMetadata (tables requiring remote scan planning)
+            // This avoids storage access for distributed query planning
+            ops = new StaticTableOperations(tableMetadata, io, locationProvider());
+          } else if (metadataFileLocation != null) {
+            // Read from storage using metadata location
+            ops = new StaticTableOperations(metadataFileLocation, io, locationProvider());
+          } else {
             throw new UnsupportedOperationException(
-                "Cannot load metadata: metadata file location is null");
+                "Cannot load metadata: both table metadata and metadata file location are null");
           }
 
-          TableOperations ops =
-              new StaticTableOperations(metadataFileLocation, io, locationProvider());
           this.lazyTable = newTable(ops, name);
         }
       }
@@ -184,6 +199,13 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     } catch (IllegalArgumentException e) {
       return UNKNOWN_FORMAT_VERSION;
     }
+  }
+
+  private TableMetadata tableMetadata(Table table) {
+    if (table instanceof HasTableOperations) {
+      return ((HasTableOperations) table).operations().current();
+    }
+    return null;
   }
 
   @Override
