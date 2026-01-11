@@ -1,6 +1,6 @@
 ---
 date: 2026-01-10
-title: Iceberg Summit 2026 - Call for Papers Open!
+title: Announcing Iceberg Summit 2026
 authors:
   - iceberg-pmc
 categories:
@@ -30,7 +30,7 @@ Mark your calendars! On **April 8 and 9, 2026**, the Apache Iceberg community wi
 
 <!-- more -->
 
-## Two Full Days of Iceberg
+## Two Full Days of Apache Iceberg
 
 Following the tremendous success of the first in-person Iceberg Summit in 2025, we're excited to expand the event to **TWO full in-person days** for 2026. The community showed up in incredible ways last year, and we're ready to make this year even bigger and better.
 
@@ -39,6 +39,11 @@ This third edition of Iceberg Summit is sanctioned by the Apache Software Founda
 ## Call for Papers is OPEN!
 
 The most exciting news? **The Call for Papers is officially open!**
+
+!!! info "Important Dates"
+    - **Call for Papers Closes**: January 18, 2026, 11:59 PM PT
+    - **Speaker Announcements**: February 6, 2026
+    - **Event Dates**: April 8-9, 2026
 
 If you've been working on something exciting in the Iceberg ecosystem, now's the perfect time to start crafting your submission. Whether you're:
 
@@ -49,12 +54,6 @@ If you've been working on something exciting in the Iceberg ecosystem, now's the
 - **Sharing thought leadership** about the future of data architecture
 
 **We want to hear from YOU!**
-
-### Important Dates
-
-- **Call for Papers Closes**: January 18, 2026, 11:59 PM PT
-- **Speaker Announcements**: February 6, 2026
-- **Event Dates**: April 8-9, 2026
 
 ### Session Formats
 
