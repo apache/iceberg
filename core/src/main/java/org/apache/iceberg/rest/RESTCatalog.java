@@ -325,4 +325,9 @@ public class RESTCatalog
   public void invalidateView(TableIdentifier identifier) {
     viewSessionCatalog.invalidateView(identifier);
   }
+
+  @Override
+  public View registerView(TableIdentifier identifier, String metadataFileLocation) {
+    return viewSessionCatalog.registerView(identifier, metadataFileLocation);
+  }
 }
