@@ -14,7 +14,7 @@
 # limitations under the License.
 
 authors:
-  iceberg-contributors:
-    name: Apache Iceberg Contributors
-    description: Contributors to Apache Iceberg
+  iceberg-pmc:
+    name: Apache Iceberg PMC
+    description: Apache Iceberg PMC
     avatar: assets/images/iceberg-logo-icon.png
