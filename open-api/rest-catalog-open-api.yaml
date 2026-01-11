@@ -3497,7 +3497,9 @@ components:
 
     Projection:
       type: object
-      description: Defines a projection for a column.
+      description: >
+        Defines a projection for a column.
+        If action is not specified, the column is projected as-is.
       properties:
         field-id:
           type: integer
@@ -3506,7 +3508,6 @@ components:
           $ref: '#/components/schemas/Action'
       required:
         - field-id
-        - action
 
     Action:
       description: Defines the specific action to be executed for computing the projection.

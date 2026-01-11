@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Extra, Field
@@ -1188,7 +1188,7 @@ class ApplyTransform(BaseModel):
     Replace the field with the result of a transform expression. Produce the original field name with the transformed values.
     """
 
-    term: Optional[Term] = None
+    term: Term | None = None
 
 
 class UnaryExpression(BaseModel):
@@ -1280,44 +1280,24 @@ class SetExpression(BaseModel):
 
 
 class Action(BaseModel):
-    __root__: Union[
-        MaskHashSha256, ReplaceWithNull, MaskAlphanumeric, ApplyTransform
-    ] = Field(
-        ...,
-        description='Defines the specific action to be executed for computing the projection.',
+    __root__: MaskHashSha256 | ReplaceWithNull | MaskAlphanumeric | ApplyTransform = (
+        Field(
+            ...,
+            description='Defines the specific action to be executed for computing the projection.',
+        )
     )
-
-
-class ResidualFilter6(SetExpression, ResidualFilter1):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
-
-
-class ResidualFilter7(LiteralExpression, ResidualFilter1):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
-
-
-class ResidualFilter8(UnaryExpression, ResidualFilter1):
-    """
-    An optional filter to be applied to rows in this file scan task.
-    If the residual is not present, the client must produce the residual or use the original filter.
-    """
 
 
 class Projection(BaseModel):
     """
-    Defines a projection for a column.
+    Defines a projection for a column. If action is not specified, the column is projected as-is.
+
     """
 
     field_id: int = Field(
         ..., alias='field-id', description='field id of the column being projected.'
     )
-    action: Action
+    action: Action | None = None
 
 
 class StructField(BaseModel):
@@ -1528,12 +1508,12 @@ class ReadRestrictions(BaseModel):
 
     """
 
-    required_column_projections: Optional[List[Projection]] = Field(
+    required_column_projections: list[Projection] | None = Field(
         None,
         alias='required-column-projections',
         description="A list of projections that MUST be applied prior to any query-specified projections. If this property is absent, no mandatory projection applies, and a reader MAY project any subset of columns of the table, including all columns.\n1. A reader MUST project only columns listed in the required-column-projections.\n  - If a listed column has a transform, the reader MUST apply it and replace\n    all references to the underlying column with the transformed value\n    (for example, truncate[4](cc) MUST be projected as truncate[4](cc) AS cc,\n    and all references to cc during query evaluation post applying required-row-filter MUST resolve to this alias).\n  - Columns not listed in the required-column-projections MUST NOT be read.\n\n2. A column MUST appear at most once in the required-column-projections.\n3. If a projected column's corresponding entry includes an action that the reader cannot evaluate,\n  the reader MUST fail rather than ignore the transform.\n\n4. An identity transform is equivalent to projecting the column directly.\n5. The data type of the projected column MUST match the data type defined for the transform result.\n",
     )
-    required_row_filter: Optional[Expression] = Field(
+    required_row_filter: Expression | None = Field(
         None,
         alias='required-row-filter',
         description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. A reader MUST discard any row for which the filter evaluates to false or null, and\n  no information derived from discarded rows MAY be included in the query result.\n\n2. Row filters MUST be evaluated against the original, untransformed column values.\n  Required projections MUST be applied only after row filters are applied.\n\n3. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.\n4. If this property is absent, null, or always true then no mandatory filtering is required.\n',
@@ -1585,9 +1565,7 @@ class LoadTableResult(BaseModel):
     storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
     )
-    read_restrictions: Optional[ReadRestrictions] = Field(
-        None, alias='read-restrictions'
-    )
+    read_restrictions: ReadRestrictions | None = Field(None, alias='read-restrictions')
 
 
 class ScanTasks(BaseModel):
