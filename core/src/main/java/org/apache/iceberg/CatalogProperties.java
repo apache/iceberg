@@ -49,6 +49,28 @@ public class CatalogProperties {
   public static final boolean CACHE_CASE_SENSITIVE_DEFAULT = true;
 
   /**
+   * Controls policy of table cache
+   *
+   * <p>Behavior of specific values of cache.strategy:
+   *
+   * <ul>
+   *   <li>EXPIRE_AFTER_ACCESS - cache entry is removed from the cache after a specified time has
+   *       passed since its last access
+   *   <li>EXPIRE_AFTER_WRITE - cache entry is removed from the cache after a specified time has
+   *       passed since its last write operation
+   * </ul>
+   */
+  public static final String CACHE_EXPIRATION_POLICY = "cache.expiration-policy";
+
+  public enum CacheExpirationPolicy {
+    EXPIRE_AFTER_ACCESS,
+    EXPIRE_AFTER_WRITE
+  }
+
+  public static final CacheExpirationPolicy CACHE_EXPIRATION_POLICY_DEFAULT =
+      CacheExpirationPolicy.EXPIRE_AFTER_ACCESS;
+
+  /**
    * Controls the duration for which entries in the catalog are cached.
    *
    * <p>Behavior of specific values of cache.expiration-interval-ms:
@@ -56,8 +78,8 @@ public class CatalogProperties {
    * <ul>
    *   <li>Zero - Caching and cache expiration are both disabled
    *   <li>Negative Values - Cache expiration is turned off and entries expire only on refresh etc
-   *   <li>Positive Values - Cache entries expire if not accessed via the cache after this many
-   *       milliseconds
+   *   <li>Positive Values - Cache entries expire this milliseconds based on the cache expiration
+   *       policy
    * </ul>
    */
   public static final String CACHE_EXPIRATION_INTERVAL_MS = "cache.expiration-interval-ms";
