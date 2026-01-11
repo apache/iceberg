@@ -331,6 +331,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           replacedRecords);
     }
 
+    Integer schemaId = base.currentSchemaId();
+    if (!targetBranch.equals(SnapshotRef.MAIN_BRANCH)
+        && base.refs().containsKey(targetBranch)
+        && base.refs().get(targetBranch).schemaId() != null) {
+      schemaId = base.refs().get(targetBranch).schemaId();
+    }
+
     return new BaseSnapshot(
         sequenceNumber,
         snapshotId(),
@@ -338,7 +345,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         System.currentTimeMillis(),
         operation(),
         summary(base),
-        base.currentSchemaId(),
+        schemaId,
         manifestList.location(),
         nextRowId,
         assignedRows,
