@@ -32,6 +32,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.temporal.Temporal;
 import java.util.Base64;
 import java.util.Collection;
@@ -603,6 +604,7 @@ public class TestRecordConverter {
             expectedMillis,
             new Date(expectedMillis),
             OffsetDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC),
+            ZonedDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC),
             LocalDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC));
 
     assertTimestampConvert(expected, inputList, type);
