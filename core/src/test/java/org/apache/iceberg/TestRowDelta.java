@@ -35,8 +35,10 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
@@ -54,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -1889,7 +1892,7 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
-  public void testDVsAreMergedForDuplicateReferenceFiles() throws IOException {
+  public void testDuplicateDVsAreMerged() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
     DataFile dataFile = newDataFile("data_bucket=0");
@@ -1897,20 +1900,9 @@ public class TestRowDelta extends TestBase {
 
     OutputFileFactory fileFactory =
         OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
-    List<PositionDelete<?>> firstDeletes = Lists.newArrayList();
-    // First delete deletes positions 0 and 1
-    for (int i = 0; i < 2; i++) {
-      firstDeletes.add(PositionDelete.create().set(dataFile.location(), i));
-    }
 
-    DeleteFile deleteFile1 = writeDV(firstDeletes, dataFile.partition(), fileFactory);
-    List<PositionDelete<?>> secondDeletes = Lists.newArrayList();
-    // Second delete deletes positions 2 and 3 for same data file
-    for (int i = 2; i < 4; i++) {
-      secondDeletes.add(PositionDelete.create().set(dataFile.location(), i));
-    }
-
-    DeleteFile deleteFile2 = writeDV(secondDeletes, dataFile.partition(), fileFactory);
+    DeleteFile deleteFile1 = dvWithPositions(dataFile, fileFactory, 0, 2);
+    DeleteFile deleteFile2 = dvWithPositions(dataFile, fileFactory, 2, 4);
     RowDelta rowDelta1 = table.newRowDelta().addDeletes(deleteFile1).addDeletes(deleteFile2);
 
     commit(table, rowDelta1, branch);
@@ -1919,13 +1911,104 @@ public class TestRowDelta extends TestBase {
         latestSnapshot(table, branch).addedDeleteFiles(table.io());
     assertThat(Iterables.size(addedDeleteFiles)).isEqualTo(1);
     DeleteFile mergedDV = Iterables.getOnlyElement(addedDeleteFiles);
-    assertThat(mergedDV).isNotNull();
-    assertThat(mergedDV.recordCount()).as("The cardinality of the DV should be 4").isEqualTo(4);
-    PositionDeleteIndex positionDeleteIndex =
-        Deletes.readDV(mergedDV, table.io(), table.encryption());
-    for (int i = 0; i < 4; i++) {
-      assertThat(positionDeleteIndex.isDeleted(i)).isTrue();
-    }
+
+    assertDVHasDeletedPositions(mergedDV, LongStream.range(0, 4).boxed()::iterator);
+  }
+
+  @TestTemplate
+  public void testDuplicateDVsAreMergedForMultipleReferenceFiles() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile1 = newDataFile("data_bucket=0");
+    DataFile dataFile2 = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile1).addRows(dataFile2), branch);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+
+    // For each data file, create two DVs covering positions [0,2) and [2,4)
+    DeleteFile deleteFile1a = dvWithPositions(dataFile1, fileFactory, 0, 2);
+    DeleteFile deleteFile1b = dvWithPositions(dataFile1, fileFactory, 2, 4);
+    DeleteFile deleteFile2a = dvWithPositions(dataFile2, fileFactory, 0, 2);
+    DeleteFile deleteFile2b = dvWithPositions(dataFile2, fileFactory, 2, 4);
+
+    // Commit all four duplicate DVs
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(deleteFile1a)
+            .addDeletes(deleteFile1b)
+            .addDeletes(deleteFile2a)
+            .addDeletes(deleteFile2b);
+
+    commit(table, rowDelta, branch);
+
+    // Expect two merged DVs, one per data file
+    Iterable<DeleteFile> addedDeleteFiles =
+        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+    List<DeleteFile> mergedDVs = Lists.newArrayList(addedDeleteFiles);
+
+    assertThat(mergedDVs).hasSize(2);
+
+    DeleteFile committedDVForDataFile1 =
+        Iterables.getOnlyElement(
+            mergedDVs.stream()
+                .filter(dv -> Objects.equals(dv.referencedDataFile(), dataFile1.location()))
+                .collect(Collectors.toList()));
+    assertDVHasDeletedPositions(committedDVForDataFile1, LongStream.range(0, 4).boxed()::iterator);
+
+    DeleteFile committedDVForDataFile2 =
+        Iterables.getOnlyElement(
+            mergedDVs.stream()
+                .filter(dv -> Objects.equals(dv.referencedDataFile(), dataFile2.location()))
+                .collect(Collectors.toList()));
+    assertDVHasDeletedPositions(committedDVForDataFile2, LongStream.range(0, 4).boxed()::iterator);
+  }
+
+  @TestTemplate
+  public void testDuplicateDVsAreMergedAndEqDelete() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile), branch);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+
+    // Two DVs for the same data file: [0,2) and [2,4) => 4 deleted positions total
+    DeleteFile dv1 = dvWithPositions(dataFile, fileFactory, 0, 2);
+    DeleteFile dv2 = dvWithPositions(dataFile, fileFactory, 2, 4);
+
+    // One equality delete file for the same partition
+    DeleteFile eqDelete =
+        newEqualityDeleteFile(
+            table.spec().specId(),
+            "data_bucket=0",
+            table.schema().asStruct().fields().get(0).fieldId());
+
+    RowDelta rowDelta = table.newRowDelta().addDeletes(eqDelete).addDeletes(dv1).addDeletes(dv2);
+
+    commit(table, rowDelta, branch);
+
+    Iterable<DeleteFile> addedDeleteFiles =
+        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+    List<DeleteFile> committedDeletes = Lists.newArrayList(addedDeleteFiles);
+
+    // 1 DV + 1 equality delete
+    assertThat(committedDeletes).hasSize(2);
+
+    DeleteFile committedDV =
+        Iterables.getOnlyElement(
+            committedDeletes.stream().filter(ContentFileUtil::isDV).collect(Collectors.toList()));
+    assertDVHasDeletedPositions(committedDV, LongStream.range(0, 4).boxed()::iterator);
+
+    DeleteFile committedEqDelete =
+        Iterables.getOnlyElement(
+            committedDeletes.stream()
+                .filter(df -> df.content() == FileContent.EQUALITY_DELETES)
+                .collect(Collectors.toList()));
+    assertThat(committedEqDelete).isNotNull();
+    assertThat(committedEqDelete.content()).isEqualTo(FileContent.EQUALITY_DELETES);
   }
 
   @TestTemplate
@@ -2003,6 +2086,28 @@ public class TestRowDelta extends TestBase {
       return Lists.newArrayList(tasks);
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  private DeleteFile dvWithPositions(
+      DataFile dataFile, OutputFileFactory fileFactory, int fromInclusive, int toExclusive)
+      throws IOException {
+
+    List<PositionDelete<?>> deletes = Lists.newArrayList();
+    for (int i = fromInclusive; i < toExclusive; i++) {
+      deletes.add(PositionDelete.create().set(dataFile.location(), i));
+    }
+    return writeDV(deletes, dataFile.partition(), fileFactory);
+  }
+
+  private void assertDVHasDeletedPositions(DeleteFile dv, Iterable<Long> positions)
+      throws IOException {
+    assertThat(dv).isNotNull();
+
+    PositionDeleteIndex index = Deletes.readDV(dv, table.io(), table.encryption());
+
+    for (long pos : positions) {
+      assertThat(index.isDeleted(pos)).as("Expected position %s to be deleted", pos).isTrue();
     }
   }
 
