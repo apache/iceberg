@@ -472,6 +472,16 @@ public class StrictMetricsEvaluator {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
+    @Override
+    public <T> Boolean endsWith(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEndsWith(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
     private boolean isNestedColumn(int id) {
       return struct.field(id) == null;
     }
