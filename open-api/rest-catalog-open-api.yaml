@@ -980,6 +980,30 @@ paths:
           schema:
             type: string
             enum: [ all, refs ]
+        - in: query
+          name: referenced-by
+          description:
+            A comma-separated list of fully qualified view names (namespace and view name) that directly or indirectly
+            reference the table. This list is used when views are nested (a view references another view which references
+            the table). The list should be ordered with the outermost view first, followed by the views it references,
+            down the dependency chain to the view that directly references the table.
+
+            Each view identifier has the format namespace.viewName where multipart namespace parts must be separated
+            by the namespace separator as indicated via the /config override namespace-separator, which defaults to
+            the unit separator 0x1F byte (url encoded %1F). To be compatible with older clients, servers must use
+            both the advertised separator and 0x1F as valid separators when decoding namespaces.
+            The namespace-separator should be provided in a url encoded form.
+
+            The namespace and view name are separated by a dot. When parsing, the dot separator is located by
+            finding the first dot character after the last namespace separator.
+
+            Multiple view identifiers are separated by commas. Servers should split the parameter value on comma characters
+            to parse individual view identifiers. If view names contain commas, they must be percent-encoded as %2C.
+
+            Example with multiple views - prod%1Fanalytics.monthly_view,prod%1Fanalytics.quarterly_view
+          required: false
+          schema:
+            type: string
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
