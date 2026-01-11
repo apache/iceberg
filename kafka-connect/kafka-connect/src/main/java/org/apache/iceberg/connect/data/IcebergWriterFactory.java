@@ -104,9 +104,10 @@ class IcebergWriterFactory {
       spec = SchemaUtils.createPartitionSpec(schema, partitionBy);
     } catch (Exception e) {
       LOG.error(
-          "Unable to create partition spec {}, table {} will be unpartitioned",
+          "Unable to create partition spec {} for table {}, table will be unpartitioned: {}",
           partitionBy,
           identifier,
+          e.getMessage(),
           e);
       spec = PartitionSpec.unpartitioned();
     }
