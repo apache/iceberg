@@ -230,4 +230,33 @@ public interface UpdateRequirement {
       }
     }
   }
+
+  class AssertLastSequenceNumber implements UpdateRequirement {
+    private final long lastSequenceNumber;
+    private final boolean hasParent;
+
+    public AssertLastSequenceNumber(long lastSequenceNumber, boolean hasParent) {
+      this.lastSequenceNumber = lastSequenceNumber;
+      this.hasParent = hasParent;
+    }
+
+    public long lastSequenceNumber() {
+      return lastSequenceNumber;
+    }
+
+    public boolean hasParent() {
+      return hasParent;
+    }
+
+    @Override
+    public void validate(TableMetadata base) {
+      if (base.formatVersion() != 1
+          && hasParent
+          && base.lastSequenceNumber() >= lastSequenceNumber) {
+        throw new CommitFailedException(
+            "Requirement failed: table's last sequence id %d larger than new snapshot's last sequence id %d",
+            base.lastSequenceNumber(), lastSequenceNumber);
+      }
+    }
+  }
 }
