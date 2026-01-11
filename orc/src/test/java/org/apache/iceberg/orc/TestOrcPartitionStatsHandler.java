@@ -44,13 +44,6 @@ public class TestOrcPartitionStatsHandler extends PartitionStatsHandlerTestBase 
   }
 
   @Override
-  public void testPartitionStats() throws Exception {
-    assertThatThrownBy(super::testPartitionStats)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot write using unregistered internal data format: ORC");
-  }
-
-  @Override
   public void testLatestStatsFile() throws Exception {
     assertThatThrownBy(super::testLatestStatsFile)
         .isInstanceOf(UnsupportedOperationException.class)
@@ -72,22 +65,8 @@ public class TestOrcPartitionStatsHandler extends PartitionStatsHandlerTestBase 
   }
 
   @Override
-  public void testReadingStatsWithInvalidSchema() {
-    assertThatThrownBy(super::testReadingStatsWithInvalidSchema)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot write using unregistered internal data format: ORC");
-  }
-
-  @Override
   public void testFullComputeFallbackWithInvalidStats() {
     assertThatThrownBy(super::testFullComputeFallbackWithInvalidStats)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot write using unregistered internal data format: ORC");
-  }
-
-  @Override
-  public void testV2toV3SchemaEvolution() {
-    assertThatThrownBy(super::testV2toV3SchemaEvolution)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot write using unregistered internal data format: ORC");
   }

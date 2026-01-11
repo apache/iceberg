@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.avro.SupportsIndexProjection;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
 public class BasePartitionStatistics extends SupportsIndexProjection
@@ -39,6 +40,22 @@ public class BasePartitionStatistics extends SupportsIndexProjection
   private Integer dvCount;
 
   private static final int STATS_COUNT = 13;
+
+  public BasePartitionStatistics(StructLike partition, int specId) {
+    super(STATS_COUNT);
+
+    this.partition = partition;
+    this.specId = specId;
+
+    this.dataRecordCount = 0L;
+    this.dataFileCount = 0;
+    this.totalDataFileSizeInBytes = 0L;
+    this.positionDeleteRecordCount = 0L;
+    this.positionDeleteFileCount = 0;
+    this.equalityDeleteRecordCount = 0L;
+    this.equalityDeleteFileCount = 0;
+    this.dvCount = 0;
+  }
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   public BasePartitionStatistics(Types.StructType projection) {
@@ -108,6 +125,140 @@ public class BasePartitionStatistics extends SupportsIndexProjection
   @Override
   public Integer dvCount() {
     return dvCount;
+  }
+
+  /**
+   * Updates the partition stats from the data/delete file.
+   *
+   * @param file the {@link ContentFile} from the manifest entry.
+   * @param snapshot the snapshot corresponding to the live entry.
+   */
+  void liveEntry(ContentFile<?> file, Snapshot snapshot) {
+    Preconditions.checkArgument(specId == file.specId(), "Spec IDs must match");
+
+    switch (file.content()) {
+      case DATA:
+        this.dataRecordCount += file.recordCount();
+        this.dataFileCount += 1;
+        this.totalDataFileSizeInBytes += file.fileSizeInBytes();
+        break;
+      case POSITION_DELETES:
+        this.positionDeleteRecordCount += file.recordCount();
+        if (file.format() == FileFormat.PUFFIN) {
+          this.dvCount += 1;
+        } else {
+          this.positionDeleteFileCount += 1;
+        }
+
+        break;
+      case EQUALITY_DELETES:
+        this.equalityDeleteRecordCount += file.recordCount();
+        this.equalityDeleteFileCount += 1;
+        break;
+      default:
+        throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+    }
+
+    if (snapshot != null) {
+      updateSnapshotInfo(snapshot.snapshotId(), snapshot.timestampMillis());
+    }
+
+    // Note: Not computing the `TOTAL_RECORD_COUNT` for now as it needs scanning the data.
+  }
+
+  /**
+   * Updates the modified time and snapshot ID for the deleted manifest entry.
+   *
+   * @param snapshot the snapshot corresponding to the deleted manifest entry.
+   */
+  void deletedEntry(Snapshot snapshot) {
+    if (snapshot != null) {
+      updateSnapshotInfo(snapshot.snapshotId(), snapshot.timestampMillis());
+    }
+  }
+
+  /**
+   * Decrement the counters as it was included in the previous stats and updates the modified time
+   * and snapshot ID for the deleted manifest entry.
+   *
+   * @param snapshot the snapshot corresponding to the deleted manifest entry.
+   */
+  void deletedEntryForIncrementalCompute(ContentFile<?> file, Snapshot snapshot) {
+    Preconditions.checkArgument(specId == file.specId(), "Spec IDs must match");
+
+    switch (file.content()) {
+      case DATA:
+        this.dataRecordCount -= file.recordCount();
+        this.dataFileCount -= 1;
+        this.totalDataFileSizeInBytes -= file.fileSizeInBytes();
+        break;
+      case POSITION_DELETES:
+        this.positionDeleteRecordCount -= file.recordCount();
+        if (file.format() == FileFormat.PUFFIN) {
+          this.dvCount -= 1;
+        } else {
+          this.positionDeleteFileCount -= 1;
+        }
+
+        break;
+      case EQUALITY_DELETES:
+        this.equalityDeleteRecordCount -= file.recordCount();
+        this.equalityDeleteFileCount -= 1;
+        break;
+      default:
+        throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+    }
+
+    if (snapshot != null) {
+      updateSnapshotInfo(snapshot.snapshotId(), snapshot.timestampMillis());
+    }
+  }
+
+  /**
+   * Appends statistics from given entry to current entry.
+   *
+   * @param entry the entry from which statistics will be sourced.
+   */
+  void appendStats(PartitionStatistics entry) {
+    Preconditions.checkArgument(entry.specId() != null, "Invalid spec ID: null");
+    Preconditions.checkArgument(entry.specId().equals(this.specId), "Spec IDs must match");
+
+    // This is expected to be called on the compute/write path where we use full schemas, hence
+    // these members can't be null.
+    this.dataRecordCount += entry.dataRecordCount();
+    this.dataFileCount += entry.dataFileCount();
+    this.totalDataFileSizeInBytes += entry.totalDataFileSizeInBytes();
+    this.positionDeleteRecordCount += entry.positionDeleteRecordCount();
+    this.positionDeleteFileCount += entry.positionDeleteFileCount();
+    this.equalityDeleteRecordCount += entry.equalityDeleteRecordCount();
+    this.equalityDeleteFileCount += entry.equalityDeleteFileCount();
+
+    if (entry.dvCount() != null) {
+      if (this.dvCount == null) {
+        this.dvCount = entry.dvCount();
+      } else {
+        this.dvCount += entry.dvCount();
+      }
+    }
+
+    if (entry.totalRecords() != null) {
+      if (totalRecordCount == null) {
+        this.totalRecordCount = entry.totalRecords();
+      } else {
+        this.totalRecordCount += entry.totalRecords();
+      }
+    }
+
+    if (entry.lastUpdatedAt() != null) {
+      updateSnapshotInfo(entry.lastUpdatedSnapshotId(), entry.lastUpdatedAt());
+    }
+  }
+
+  private void updateSnapshotInfo(long snapshotId, long updatedAt) {
+    if (lastUpdatedAt == null || lastUpdatedAt < updatedAt) {
+      this.lastUpdatedAt = updatedAt;
+      this.lastUpdatedSnapshotId = snapshotId;
+    }
   }
 
   @Override

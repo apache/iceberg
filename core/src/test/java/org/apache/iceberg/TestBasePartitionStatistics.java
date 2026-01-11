@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestPartitionStats {
+public class TestBasePartitionStatistics {
 
   private static final PartitionData PARTITION =
       new PartitionData(
@@ -32,9 +32,10 @@ public class TestPartitionStats {
 
   @Test
   public void testAppendWithAllValues() {
-    PartitionStats stats1 =
+    BasePartitionStatistics stats1 =
         createStats(100L, 15, 1000L, 2L, 500, 1L, 200, 15L, 1625077800000L, 12345L);
-    PartitionStats stats2 = createStats(200L, 7, 500L, 1L, 100, 0L, 50, 7L, 1625077900000L, 12346L);
+    BasePartitionStatistics stats2 =
+        createStats(200L, 7, 500L, 1L, 100, 0L, 50, 7L, 1625077900000L, 12346L);
 
     stats1.appendStats(stats2);
 
@@ -43,8 +44,10 @@ public class TestPartitionStats {
 
   @Test
   public void testAppendWithThisNullOptionalField() {
-    PartitionStats stats1 = createStats(100L, 15, 1000L, 2L, 500, 1L, 200, null, null, null);
-    PartitionStats stats2 = createStats(100L, 7, 500L, 1L, 100, 0L, 50, 7L, 1625077900000L, 12346L);
+    BasePartitionStatistics stats1 =
+        createStats(100L, 15, 1000L, 2L, 500, 1L, 200, null, null, null);
+    BasePartitionStatistics stats2 =
+        createStats(100L, 7, 500L, 1L, 100, 0L, 50, 7L, 1625077900000L, 12346L);
 
     stats1.appendStats(stats2);
 
@@ -53,8 +56,9 @@ public class TestPartitionStats {
 
   @Test
   public void testAppendWithBothNullOptionalFields() {
-    PartitionStats stats1 = createStats(100L, 15, 1000L, 2L, 500, 1L, 200, null, null, null);
-    PartitionStats stats2 = createStats(100L, 7, 500L, 1L, 100, 0L, 50, null, null, null);
+    BasePartitionStatistics stats1 =
+        createStats(100L, 15, 1000L, 2L, 500, 1L, 200, null, null, null);
+    BasePartitionStatistics stats2 = createStats(100L, 7, 500L, 1L, 100, 0L, 50, null, null, null);
 
     stats1.appendStats(stats2);
 
@@ -63,9 +67,9 @@ public class TestPartitionStats {
 
   @Test
   public void testAppendWithOtherNullOptionalFields() {
-    PartitionStats stats1 =
+    BasePartitionStatistics stats1 =
         createStats(100L, 15, 1000L, 2L, 500, 1L, 200, 15L, 1625077900000L, 12346L);
-    PartitionStats stats2 = createStats(100L, 7, 500L, 1L, 100, 0L, 50, null, null, null);
+    BasePartitionStatistics stats2 = createStats(100L, 7, 500L, 1L, 100, 0L, 50, null, null, null);
 
     stats1.appendStats(stats2);
 
@@ -74,8 +78,8 @@ public class TestPartitionStats {
 
   @Test
   public void testAppendEmptyStats() {
-    PartitionStats stats1 = new PartitionStats(PARTITION, 1);
-    PartitionStats stats2 = new PartitionStats(PARTITION, 1);
+    BasePartitionStatistics stats1 = new BasePartitionStatistics(PARTITION, 1);
+    BasePartitionStatistics stats2 = new BasePartitionStatistics(PARTITION, 1);
 
     stats1.appendStats(stats2);
 
@@ -84,15 +88,15 @@ public class TestPartitionStats {
 
   @Test
   public void testAppendWithDifferentSpec() {
-    PartitionStats stats1 = new PartitionStats(PARTITION, 1);
-    PartitionStats stats2 = new PartitionStats(PARTITION, 2);
+    BasePartitionStatistics stats1 = new BasePartitionStatistics(PARTITION, 1);
+    BasePartitionStatistics stats2 = new BasePartitionStatistics(PARTITION, 2);
 
     assertThatThrownBy(() -> stats1.appendStats(stats2))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Spec IDs must match");
   }
 
-  private PartitionStats createStats(
+  private BasePartitionStatistics createStats(
       long dataRecordCount,
       int dataFileCount,
       long totalDataFileSizeInBytes,
@@ -104,7 +108,7 @@ public class TestPartitionStats {
       Long lastUpdatedAt,
       Long lastUpdatedSnapshotId) {
 
-    PartitionStats stats = new PartitionStats(PARTITION, 1);
+    BasePartitionStatistics stats = new BasePartitionStatistics(PARTITION, 1);
     stats.set(2, dataRecordCount);
     stats.set(3, dataFileCount);
     stats.set(4, totalDataFileSizeInBytes);
@@ -119,7 +123,7 @@ public class TestPartitionStats {
     return stats;
   }
 
-  private void validateStats(PartitionStats stats, Object... expectedValues) {
+  private void validateStats(PartitionStatistics stats, Object... expectedValues) {
     // Spec id and partition data should be unchanged
     assertThat(stats.get(0, PartitionData.class)).isEqualTo(PARTITION);
     assertThat(stats.get(1, Integer.class)).isEqualTo(1);
