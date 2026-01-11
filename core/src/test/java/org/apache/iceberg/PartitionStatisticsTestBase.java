@@ -85,15 +85,15 @@ public abstract class PartitionStatisticsTestBase {
         Types.NestedField.optional(11, LAST_UPDATED_SNAPSHOT_ID.name(), Types.LongType.get()));
   }
 
-  protected PartitionStats randomStats(Types.StructType partitionType) {
+  protected PartitionStatistics randomStats(Types.StructType partitionType) {
     PartitionData partitionData = new PartitionData(partitionType);
     partitionData.set(0, RANDOM.nextInt());
 
     return randomStats(partitionData);
   }
 
-  protected PartitionStats randomStats(PartitionData partitionData) {
-    PartitionStats stats = new PartitionStats(partitionData, RANDOM.nextInt(10));
+  protected PartitionStatistics randomStats(PartitionData partitionData) {
+    PartitionStatistics stats = new BasePartitionStatistics(partitionData, RANDOM.nextInt(10));
     stats.set(DATA_RECORD_COUNT_POSITION, RANDOM.nextLong());
     stats.set(DATA_FILE_COUNT_POSITION, RANDOM.nextInt());
     stats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
