@@ -31,7 +31,6 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,6 +38,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.IOUtil;
@@ -227,9 +227,8 @@ public class TestGcsFileIO {
     InputFile in = fileIO.newInputFile(location);
 
     assertThatThrownBy(() -> in.newStream().read())
-        .isInstanceOf(IOException.class)
-        .hasCauseInstanceOf(StorageException.class)
-        .hasMessageContaining("404 Not Found");
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("does not exist");
   }
 
   @Test

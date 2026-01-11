@@ -22,12 +22,14 @@ import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobSourceOption;
+import com.google.cloud.storage.StorageException;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.RangeReadable;
@@ -86,6 +88,24 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
     channel = openChannel();
   }
 
+  private void handleStorageException(StorageException storageException) throws NotFoundException {
+    if (storageException.getCode() == 404) {
+      throw new NotFoundException(storageException, "Blob does not exist: %s", blobId);
+    }
+    LOG.error("Storage operation failed for blob {}", blobId, storageException);
+    throw new RuntimeException(storageException);
+  }
+
+  private void handleIOException(IOException ioException) throws NotFoundException, IOException {
+    if (ioException.getCause() instanceof StorageException) {
+      StorageException storageException = (StorageException) ioException.getCause();
+      if (storageException.getCode() == 404) {
+        throw new NotFoundException(storageException, "Blob does not exist: %s", blobId);
+      }
+    }
+    throw ioException;
+  }
+
   private ReadChannel openChannel() {
     List<BlobSourceOption> sourceOptions = Lists.newArrayList();
 
@@ -96,11 +116,14 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
         .userProject()
         .ifPresent(userProject -> sourceOptions.add(BlobSourceOption.userProject(userProject)));
 
-    ReadChannel result = storage.reader(blobId, sourceOptions.toArray(new BlobSourceOption[0]));
-
-    gcpProperties.channelReadChunkSize().ifPresent(result::setChunkSize);
-
-    return result;
+    try {
+      ReadChannel result = storage.reader(blobId, sourceOptions.toArray(new BlobSourceOption[0]));
+      gcpProperties.channelReadChunkSize().ifPresent(result::setChunkSize);
+      return result;
+    } catch (StorageException storageException) {
+      handleStorageException(storageException);
+      return null; // Never reached
+    }
   }
 
   @Override
@@ -127,7 +150,11 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
     singleByteBuffer.position(0);
 
     pos += 1;
-    channel.read(singleByteBuffer);
+    try {
+      channel.read(singleByteBuffer);
+    } catch (IOException ioException) {
+      handleIOException(ioException);
+    }
     readBytes.increment();
     readOperations.increment();
 
@@ -138,7 +165,12 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
   public int read(byte[] b, int off, int len) throws IOException {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     byteBuffer = byteBuffer != null && byteBuffer.array() == b ? byteBuffer : ByteBuffer.wrap(b);
-    int bytesRead = read(channel, byteBuffer, off, len);
+    int bytesRead = 0;
+    try {
+      bytesRead = read(channel, byteBuffer, off, len);
+    } catch (IOException ioException) {
+      handleIOException(ioException);
+    }
     pos += bytesRead;
     readBytes.increment(bytesRead);
     readOperations.increment();
@@ -161,12 +193,22 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
   @Override
   public int readTail(byte[] buffer, int offset, int length) throws IOException {
     if (blobSize == null) {
-      blobSize = storage.get(blobId).getSize();
+      try {
+        blobSize = storage.get(blobId).getSize();
+      } catch (StorageException storageException) {
+        handleStorageException(storageException);
+      }
     }
     long startPosition = Math.max(0, blobSize - length);
     try (ReadChannel readChannel = openChannel()) {
       readChannel.seek(startPosition);
       return read(readChannel, ByteBuffer.wrap(buffer), offset, length);
+    } catch (StorageException e) {
+      if (e.getCode() == 404) {
+        throw new NotFoundException(e, "Blob does not exist: %s", blobId);
+      }
+      LOG.error("Failed to read from blob {}", blobId, e);
+      throw new IOException(e);
     }
   }
 
@@ -174,7 +216,12 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
       throws IOException {
     buffer.position(off);
     buffer.limit(Math.min(off + len, buffer.capacity()));
-    return readChannel.read(buffer);
+    try {
+      return readChannel.read(buffer);
+    } catch (IOException ioException) {
+      handleIOException(ioException);
+      return -1; // Never reached
+    }
   }
 
   @Override
