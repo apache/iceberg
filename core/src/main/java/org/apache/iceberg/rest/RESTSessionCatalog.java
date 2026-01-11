@@ -46,6 +46,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.ContextAwareTableCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -396,21 +397,73 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private LoadTableResponse loadInternal(
-      SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
+      SessionContext context,
+      TableIdentifier identifier,
+      SnapshotMode mode,
+      Map<String, Object> viewContext) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+
     return client
         .withAuthSession(contextualSession)
         .get(
             paths.table(identifier),
-            snapshotModeToParam(mode),
+            referencedByToQueryParam(snapshotModeToParam(mode), viewContext),
             LoadTableResponse.class,
             Map.of(),
             ErrorHandlers.tableErrorHandler());
   }
 
+  private Map<String, String> referencedByToQueryParam(
+      Map<String, String> params, Map<String, Object> context) {
+    if (context.isEmpty() || !context.containsKey(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY)) {
+      return params;
+    }
+
+    Map<String, String> queryParams = Maps.newHashMap(params);
+    Object viewIdentifierObj = context.get(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY);
+
+    if (!(viewIdentifierObj instanceof List)) {
+      throw new IllegalStateException(
+          "Invalid view identifier in context, expected List<TableIdentifier>: "
+              + viewIdentifierObj);
+    }
+
+    @SuppressWarnings("unchecked")
+    List<TableIdentifier> viewIdentifiers = (List<TableIdentifier>) viewIdentifierObj;
+
+    if (viewIdentifiers.isEmpty()) {
+      return params;
+    }
+
+    // Format per REST API spec:
+    // - Namespace parts joined by namespace separator (0x1F, URL-encoded as %1F)
+    // - Namespace and view name separated by dot (.)
+    // - Multiple views separated by comma (,)
+    // - Commas in view names must be percent-encoded as %2C
+    List<String> formattedViews = Lists.newArrayListWithCapacity(viewIdentifiers.size());
+    for (TableIdentifier viewId : viewIdentifiers) {
+      // Encode namespace using RESTUtil which handles the namespace separator
+      String encodedNamespace = RESTUtil.encodeNamespace(viewId.namespace());
+
+      // Encode view name - commas must be encoded as %2C
+      String encodedViewName = RESTUtil.encodeString(viewId.name());
+
+      // Combine: encodedNamespace + "." + encodedViewName
+      // Note: RESTUtil.encodeString already encodes the dot if present in the view name,
+      // but we add an unencoded dot as the separator
+      formattedViews.add(encodedNamespace + "." + encodedViewName);
+    }
+
+    // Join multiple views with comma
+    queryParams.put("referenced-by", String.join(",", formattedViews));
+
+    return queryParams;
+  }
+
   @Override
-  public Table loadTable(SessionContext context, TableIdentifier identifier) {
+  public Table loadTableWithContext(
+      SessionContext sessionContext, TableIdentifier identifier, Map<String, Object> context) {
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_TABLE,
@@ -418,24 +471,22 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             new NoSuchTableException(
                 "Unable to load table %s.%s: Server does not support endpoint %s",
                 name(), identifier, Endpoint.V1_LOAD_TABLE));
-
     checkIdentifierIsValid(identifier);
 
     MetadataTableType metadataType;
     LoadTableResponse response;
-    TableIdentifier loadedIdent;
-    try {
-      response = loadInternal(context, identifier, snapshotMode);
-      loadedIdent = identifier;
-      metadataType = null;
+    TableIdentifier loadedIdent = identifier;
 
+    try {
+      response = loadInternal(sessionContext, identifier, snapshotMode, context);
+      metadataType = null;
     } catch (NoSuchTableException original) {
-      metadataType = MetadataTableType.from(identifier.name());
+      metadataType = MetadataTableType.from(loadedIdent.name());
       if (metadataType != null) {
         // attempt to load a metadata table using the identifier's namespace as the base table
-        TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
+        TableIdentifier baseIdent = TableIdentifier.of(loadedIdent.namespace().levels());
         try {
-          response = loadInternal(context, baseIdent, snapshotMode);
+          response = loadInternal(sessionContext, baseIdent, snapshotMode, context);
           loadedIdent = baseIdent;
         } catch (NoSuchTableException ignored) {
           // the base table does not exist
@@ -449,7 +500,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     TableIdentifier finalIdentifier = loadedIdent;
     Map<String, String> tableConf = response.config();
-    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession contextualSession = authManager.contextualSession(sessionContext, catalogAuth);
     AuthSession tableSession =
         authManager.tableSession(finalIdentifier, tableConf, contextualSession);
     TableMetadata tableMetadata;
@@ -461,7 +512,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .setPreviousFileLocation(null)
               .setSnapshotsSupplier(
                   () ->
-                      loadInternal(context, finalIdentifier, SnapshotMode.ALL)
+                      loadInternal(sessionContext, finalIdentifier, SnapshotMode.ALL, context)
                           .tableMetadata()
                           .snapshots())
               .discardChanges()
@@ -477,7 +528,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             paths.table(finalIdentifier),
             Map::of,
             mutationHeaders,
-            tableFileIO(context, tableConf, response.credentials()),
+            tableFileIO(sessionContext, tableConf, response.credentials()),
             tableMetadata,
             endpoints);
 
@@ -519,6 +570,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           endpoints);
     }
     return null;
+  }
+
+  @Override
+  public Table loadTable(SessionContext context, TableIdentifier identifier) {
+    return loadTableWithContext(context, identifier, Map.of());
   }
 
   private void trackFileIO(RESTTableOperations ops) {
@@ -904,7 +960,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         throw new AlreadyExistsException("View with same name already exists: %s", ident);
       }
 
-      LoadTableResponse response = loadInternal(context, ident, snapshotMode);
+      LoadTableResponse response = loadInternal(context, ident, snapshotMode, Map.of());
       String fullName = fullTableName(ident);
 
       Map<String, String> tableConf = response.config();
