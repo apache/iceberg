@@ -645,6 +645,30 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return true;
   }
 
+  /**
+   * Updates manifest count in the snapshot summary builder.
+   *
+   * @param summaryBuilder the summary builder to update
+   * @param manifests the list of manifests in the new snapshot
+   */
+  protected SnapshotSummary.Builder buildManifestCountSummary(
+      SnapshotSummary.Builder summaryBuilder, List<ManifestFile> manifests) {
+    int manifestsCreated = 0;
+    int manifestsKept = 0;
+
+    for (ManifestFile manifest : manifests) {
+      if (manifest.snapshotId() == snapshotId()) {
+        manifestsCreated++;
+      } else {
+        manifestsKept++;
+      }
+    }
+
+    summaryBuilder.set(SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(manifestsCreated));
+    summaryBuilder.set(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(manifestsKept));
+    return summaryBuilder;
+  }
+
   protected List<ManifestFile> writeDataManifests(Collection<DataFile> files, PartitionSpec spec) {
     return writeDataManifests(files, null /* inherit data seq */, spec);
   }
