@@ -1181,19 +1181,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       PartitionSpec spec,
       StructLike partition,
       Long dataSequenceNumber) {
-    try {
-      DVFileWriter dvFileWriter =
-          new BaseDVFileWriter(
-              OutputFileFactory.builderFor(
-                      ops().locationProvider(),
-                      ops().encryption(),
-                      ops()::io,
-                      spec,
-                      FileFormat.PUFFIN,
-                      1,
-                      1)
-                  .build(),
-              path -> null);
+    try (DVFileWriter dvFileWriter =
+        new BaseDVFileWriter(
+            OutputFileFactory.builderFor(ops(), spec, FileFormat.PUFFIN, 1, 1).build(),
+            path -> null)) {
       dvFileWriter.delete(referencedDataFile, positionDeleteIndex, spec, partition);
       dvFileWriter.close();
       DeleteWriteResult result = dvFileWriter.result();

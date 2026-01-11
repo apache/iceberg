@@ -29,6 +29,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 
@@ -90,7 +91,7 @@ public class OutputFileFactory {
     String formatAsString =
         table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
     PartitionSpec spec = table.spec();
-    return builderFor(
+    return new Builder(
         table.locationProvider(),
         table.encryption(),
         table::io,
@@ -101,15 +102,9 @@ public class OutputFileFactory {
   }
 
   public static Builder builderFor(
-      LocationProvider locationProvider,
-      EncryptionManager encryptionManager,
-      Supplier<FileIO> ioSupplier,
-      PartitionSpec spec,
-      FileFormat format,
-      int partitionId,
-      long taskId) {
+      TableOperations ops, PartitionSpec spec, FileFormat format, int partitionId, long taskId) {
     return new Builder(
-        locationProvider, encryptionManager, ioSupplier, spec, format, partitionId, taskId);
+        ops.locationProvider(), ops.encryption(), ops::io, spec, format, partitionId, taskId);
   }
 
   private String generateFilename() {
