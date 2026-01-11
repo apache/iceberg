@@ -289,13 +289,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                     // There would necessarily be at least one here in this condition
                     DeleteFile firstMatchingDV =
                         deleteFiles.stream()
-                            .filter(df -> df.referencedDataFile().equals(referencedFile))
+                            .filter(ContentFileUtil::isDV)
+                            .filter(
+                                deleteFile ->
+                                    Objects.equals(referencedFile, deleteFile.referencedDataFile()))
                             .findFirst()
-                            .orElseThrow(
-                                () ->
-                                    new IllegalStateException(
-                                        "Expected at least one delete file for " + referencedFile));
-
+                            .get();
                     return DeleteFileSet.of(List.of(firstMatchingDV));
                   });
           duplicateDVs.add(file);
@@ -1182,9 +1181,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       PartitionSpec spec,
       StructLike partition,
       Long dataSequenceNumber) {
-    DVFileWriter dvFileWriter;
     try {
-      dvFileWriter =
+      DVFileWriter dvFileWriter =
           new BaseDVFileWriter(
               OutputFileFactory.builderFor(
                       ops().locationProvider(),
@@ -1203,10 +1201,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
           Iterables.getOnlyElement(result.deleteFiles()), dataSequenceNumber);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
-    } finally {
-      if (dvFileWriter != null) {
-        dvFileWriter.close();
-      }
     }
   }
 
