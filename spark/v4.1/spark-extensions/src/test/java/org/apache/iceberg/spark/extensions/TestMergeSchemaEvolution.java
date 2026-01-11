@@ -26,6 +26,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -150,7 +151,7 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
-  public void testMergeWithSchemaEvolutionNestedStruct() {
+  public void testMergeWithSchemaEvolutionNestedStructSourceHasMoreFields() {
     assumeThat(branch).as("Schema evolution does not work for branches currently").isNull();
 
     createAndInitTable(
@@ -179,6 +180,44 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
             row(1, row(100, "aa", 1000)), // updated with nested field
             row(2, row(20, "b", null)), // kept, c3 is null
             row(3, row(300, "cc", 3000))); // new
+    assertEquals(
+        "Should have expected rows with nested struct evolution",
+        expectedRows,
+        sql("SELECT id, s FROM %s ORDER BY id", selectTarget()));
+  }
+
+  // TODO: Enable This Test when Spark v4.1 is updated to 4.1.1
+  @Disabled("Spark 4.1.1: Nested Case where source has few fields then target")
+  @TestTemplate
+  public void testMergeWithSchemaEvolutionNestedStructSourceHasFewerFields() {
+    assumeThat(branch).as("Schema evolution does not work for branches currently").isNull();
+
+    createAndInitTable(
+        "id INT, s STRUCT<c1:INT,c2:STRING,c3:INT>",
+        "{ \"id\": 1, \"s\": { \"c1\": 100, \"c2\": \"aa\", \"c3\": 1000 } }\n"
+            + "{ \"id\": 2, \"s\": { \"c1\": 200, \"c2\": \"bb\", \"c3\": 2000 } }");
+
+    createOrReplaceView(
+        "source",
+        "id INT, s STRUCT<c1:INT,c2:STRING>",
+        "{ \"id\": 1, \"s\": { \"c1\": 10, \"c2\": \"a\" } }\n"
+            + "{ \"id\": 3, \"s\": { \"c1\": 30, \"c2\": \"c\" } }");
+
+    sql(
+        "MERGE WITH SCHEMA EVOLUTION INTO %s AS t USING source AS s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET * "
+            + "WHEN NOT MATCHED THEN "
+            + "  INSERT *",
+        commitTarget());
+
+    // Rows should have null for missing c3 nested field from source
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(1, row(10, "a", 1000)), // updated, c3 is retained
+            row(2, row(200, "bb", 2000)), // kept
+            row(3, row(30, "c", null))); // new, c3 is null
     assertEquals(
         "Should have expected rows with nested struct evolution",
         expectedRows,
