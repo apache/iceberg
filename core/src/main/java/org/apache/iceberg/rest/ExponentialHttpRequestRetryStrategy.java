@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.Set;
@@ -80,6 +81,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  */
 class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
   private final int maxRetries;
+  private final Set<Class<? extends IOException>> retriableExceptions;
   private final Set<Class<? extends IOException>> nonRetriableExceptions;
   private final Set<Integer> retriableCodes;
   private final Set<Integer> idempotentRetriableCodes;
@@ -97,6 +99,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
             HttpStatus.SC_BAD_GATEWAY,
             HttpStatus.SC_GATEWAY_TIMEOUT,
             HttpStatus.SC_REQUEST_TIMEOUT);
+    this.retriableExceptions = ImmutableSet.of(SocketTimeoutException.class);
     this.nonRetriableExceptions =
         ImmutableSet.of(
             InterruptedIOException.class,
@@ -115,7 +118,9 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
       return false;
     }
 
-    if (nonRetriableExceptions.contains(exception.getClass())) {
+    if (retriableExceptions.contains(exception.getClass())) {
+      // Skip the non-retriable tests if it's explicitly retriable.
+    } else if (nonRetriableExceptions.contains(exception.getClass())) {
       return false;
     } else {
       for (Class<? extends IOException> rejectException : nonRetriableExceptions) {
