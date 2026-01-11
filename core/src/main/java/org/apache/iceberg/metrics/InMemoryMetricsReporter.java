@@ -35,4 +35,11 @@ public class InMemoryMetricsReporter implements MetricsReporter {
         "Metrics report is not a scan report");
     return (ScanReport) metricsReport;
   }
+
+  public RemoveSnapshotsReport removeSnapshotsReport() {
+    Preconditions.checkArgument(
+        metricsReport == null || metricsReport instanceof RemoveSnapshotsReport,
+        "Metrics report is not a remove snapshots report");
+    return (RemoveSnapshotsReport) metricsReport;
+  }
 }
