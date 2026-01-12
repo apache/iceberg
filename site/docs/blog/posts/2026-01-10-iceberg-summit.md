@@ -77,10 +77,10 @@ We're accepting several types of submissions:
 
 What are you waiting for? Head over to [Sessionize](https://sessionize.com/iceberg-summit-2026/) to submit your proposal.
 
-**Need help crafting your submission?** Join us for Speaker Office Hours in the [Iceberg Community Slack](https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A) #abstracts channel:
+**Need help crafting your submission?** Join us on the [Iceberg Community Slack](https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A) #abstracts channel for feedback and advice.
 
-- Session 1: Wednesday, December 17, 2025 @ 8:00 AM PT
-- Session 2: Wednesday, January 7, 2026 @ 8:00 AM PT
+- ~~Session 1: Wednesday, December 17, 2025 @ 8:00 AM PT~~
+- ~~Session 2: Wednesday, January 7, 2026 @ 8:00 AM PT~~
 - Session 3: Wednesday, January 14, 2026 @ 8:00 AM PT
 
 ## Spread the Word
