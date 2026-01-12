@@ -475,7 +475,7 @@ class RecordConverter {
     } else if (value instanceof OffsetDateTime) {
       return (OffsetDateTime) value;
     } else if (value instanceof ZonedDateTime) {
-      return (OffsetDateTime) ((ZonedDateTime) value).toOffsetDateTime();
+      return ((ZonedDateTime) value).toOffsetDateTime();
     } else if (value instanceof LocalDateTime) {
       return ((LocalDateTime) value).atOffset(ZoneOffset.UTC);
     } else if (value instanceof Date) {
