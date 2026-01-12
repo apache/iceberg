@@ -75,7 +75,7 @@ We're accepting several types of submissions:
 
 ### Submit Your Talk
 
-Head over to [Sessionize](https://sessionize.com/iceberg-summit-2026/) to submit your proposal. The Selection Committee will review all submissions to curate an outstanding program.
+What are you waiting for? Head over to [Sessionize](https://sessionize.com/iceberg-summit-2026/) to submit your proposal.
 
 **Need help crafting your submission?** Join us for Speaker Office Hours in the [Iceberg Community Slack](https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A) #abstracts channel:
 
