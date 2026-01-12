@@ -153,9 +153,12 @@ public class TestTableMetadata {
 
     Map<String, SnapshotRef> refs =
         ImmutableMap.of(
-            "main", SnapshotRef.branchBuilder(currentSnapshotId).build(),
-            "previous", SnapshotRef.tagBuilder(previousSnapshotId).build(),
-            "test", SnapshotRef.branchBuilder(previousSnapshotId).build());
+            SnapshotRef.MAIN_BRANCH,
+            SnapshotRef.branchBuilder(currentSnapshotId).build(),
+            "previous",
+            SnapshotRef.tagBuilder(previousSnapshotId).build(),
+            "test",
+            SnapshotRef.branchBuilder(previousSnapshotId).build());
 
     List<StatisticsFile> statisticsFiles =
         ImmutableList.of(
@@ -402,7 +405,8 @@ public class TestTableMetadata {
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
     Map<String, SnapshotRef> refs =
-        ImmutableMap.of("main", SnapshotRef.branchBuilder(previousSnapshotId).build());
+        ImmutableMap.of(
+            SnapshotRef.MAIN_BRANCH, SnapshotRef.branchBuilder(previousSnapshotId).build());
 
     assertThatThrownBy(
             () ->
@@ -450,7 +454,7 @@ public class TestTableMetadata {
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
     Map<String, SnapshotRef> refs =
-        ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
+        ImmutableMap.of(SnapshotRef.MAIN_BRANCH, SnapshotRef.branchBuilder(snapshotId).build());
 
     assertThatThrownBy(
             () ->
@@ -492,7 +496,7 @@ public class TestTableMetadata {
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
     Map<String, SnapshotRef> refs =
-        ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
+        ImmutableMap.of(SnapshotRef.MAIN_BRANCH, SnapshotRef.branchBuilder(snapshotId).build());
 
     assertThatThrownBy(
             () ->

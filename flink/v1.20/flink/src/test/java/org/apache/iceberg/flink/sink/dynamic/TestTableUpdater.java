@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -66,7 +67,11 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
             catalog1.createTable(identifier, schema, spec, locationOverride, tableProperties);
 
     tableUpdater.update(
-        tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned(), tableCreator);
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        tableCreator);
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
     assertThat(catalog.loadTable(tableIdentifier).properties().get("key")).isEqualTo("value");
     assertThat(catalog.loadTable(tableIdentifier).location()).isEqualTo(locationOverride);
@@ -89,7 +94,11 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     // Make sure that the cache is invalidated and the table refreshed without an error
     Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
         tableUpdater.update(
-            tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
+            tableIdentifier,
+            SnapshotRef.MAIN_BRANCH,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            TableCreator.DEFAULT);
     assertThat(result.f0.resolvedTableSchema().sameSchema(SCHEMA)).isTrue();
     assertThat(result.f0.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
     assertThat(result.f1).isEqualTo(PartitionSpec.unpartitioned());
@@ -121,7 +130,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     TableUpdater tableUpdater = new TableUpdater(cache, catalog, false);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 10).build();
-    tableUpdater.update(tableIdentifier, "main", SCHEMA, spec, TableCreator.DEFAULT);
+    tableUpdater.update(
+        tableIdentifier, SnapshotRef.MAIN_BRANCH, SCHEMA, spec, TableCreator.DEFAULT);
 
     Table table = catalog.loadTable(tableIdentifier);
     assertThat(table).isNotNull();
@@ -141,7 +151,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
         tableUpdater
             .update(
                 tableIdentifier,
-                "main",
+                SnapshotRef.MAIN_BRANCH,
                 SCHEMA2,
                 PartitionSpec.unpartitioned(),
                 TableCreator.DEFAULT)
@@ -163,7 +173,11 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
     // Initialize cache
     tableUpdater.update(
-        tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
 
     // Update table behind the scenes
     catalog.dropTable(tableIdentifier);
@@ -177,7 +191,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
             tableUpdater
                 .update(
                     tableIdentifier,
-                    "main",
+                    SnapshotRef.MAIN_BRANCH,
                     SCHEMA2,
                     PartitionSpec.unpartitioned(),
                     TableCreator.DEFAULT)
@@ -203,7 +217,11 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
     Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
         tableUpdater.update(
-            tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
+            tableIdentifier,
+            SnapshotRef.MAIN_BRANCH,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            TableCreator.DEFAULT);
 
     assertThat(result.f0.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
     Schema tableSchema = catalog.loadTable(tableIdentifier).schema();
@@ -226,7 +244,11 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
     Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
         tableUpdater.update(
-            tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
+            tableIdentifier,
+            SnapshotRef.MAIN_BRANCH,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            TableCreator.DEFAULT);
 
     assertThat(namespaceCatalog.namespaceExists(Namespace.of("new_namespace"))).isTrue();
 
@@ -251,7 +273,11 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
     Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
         tableUpdater.update(
-            tableIdentifier, "main", SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
+            tableIdentifier,
+            SnapshotRef.MAIN_BRANCH,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            TableCreator.DEFAULT);
 
     assertThat(namespaceCatalog.namespaceExists(namespace)).isTrue();
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();

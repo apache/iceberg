@@ -52,6 +52,16 @@ public abstract class RecordWrapperTestBase {
           required(101, "ts0", Types.TimestampType.withoutZone()),
           required(102, "ts1", Types.TimestampType.withoutZone()));
 
+  private static final Types.StructType TIMESTAMP_NS_WITHOUT_ZONE =
+      Types.StructType.of(
+          required(101, "ts0", Types.TimestampNanoType.withoutZone()),
+          required(102, "ts1", Types.TimestampNanoType.withoutZone()));
+
+  private static final Types.StructType TIMESTAMP_NS_WITH_ZONE =
+      Types.StructType.of(
+          required(101, "ts0", Types.TimestampNanoType.withZone()),
+          required(102, "ts1", Types.TimestampNanoType.withZone()));
+
   protected static final Types.StructType TIME =
       Types.StructType.of(
           required(100, "time0", Types.TimeType.get()),
@@ -65,6 +75,16 @@ public abstract class RecordWrapperTestBase {
   @Test
   public void testTimestampWithoutZone() {
     generateAndValidate(new Schema(TIMESTAMP_WITHOUT_ZONE.fields()));
+  }
+
+  @Test
+  public void testTimestampNanoWithoutZone() {
+    generateAndValidate(new Schema(TIMESTAMP_NS_WITHOUT_ZONE.fields()));
+  }
+
+  @Test
+  public void testTimestampNanoWithZone() {
+    generateAndValidate(new Schema(TIMESTAMP_NS_WITH_ZONE.fields()));
   }
 
   @Test

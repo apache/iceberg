@@ -27,6 +27,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileWriterFactory;
@@ -95,7 +96,7 @@ class RecordUtils {
   }
 
   public static TaskWriter<Record> createTableWriter(
-      Table table, String tableName, IcebergSinkConfig config) {
+      Table table, TableReference tableReference, IcebergSinkConfig config) {
     Map<String, String> tableProps = Maps.newHashMap(table.properties());
     tableProps.putAll(config.writeProps());
 
@@ -113,7 +114,7 @@ class RecordUtils {
     Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
 
     // override the identifier fields if the config is set
-    List<String> idCols = config.tableConfig(tableName).idColumns();
+    List<String> idCols = config.tableConfig(tableReference.identifier().name()).idColumns();
     if (!idCols.isEmpty()) {
       identifierFieldIds =
           idCols.stream()
