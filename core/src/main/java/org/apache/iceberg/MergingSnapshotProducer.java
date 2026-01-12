@@ -1095,21 +1095,23 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // the new merged one
       if (!duplicateDVsForDataFile.isEmpty()) {
         Map<String, DeleteFile> mergedDVs = mergeDuplicateDVs();
-        for (Map.Entry<String, DeleteFile> mergedDV : mergedDVs.entrySet()) {
-          String referencedFile = mergedDV.getKey();
-          DeleteFile newDV = mergedDV.getValue();
-          DeleteFileSet duplicateDVs = duplicateDVsForDataFile.get(referencedFile);
-          DeleteFileSet allDeleteFilesForSpec = newDeleteFilesBySpec.get(newDV.specId());
-          allDeleteFilesForSpec.removeAll(duplicateDVs);
-          allDeleteFilesForSpec.add(newDV);
-        }
+        mergedDVs.forEach(
+            (referencedFile, newDV) -> {
+              DeleteFileSet duplicateDVs = duplicateDVsForDataFile.get(referencedFile);
+              DeleteFileSet allDeleteFilesForSpec = newDeleteFilesBySpec.get(newDV.specId());
+              LOG.warn(
+                  "Merged {} duplicate deletion vectors for data file {} in table {}. The merged DVs are orphaned, and writers should merge DVs per file before committing",
+                  duplicateDVs.size(),
+                  referencedFile,
+                  tableName);
+              allDeleteFilesForSpec.removeAll(duplicateDVs);
+              allDeleteFilesForSpec.add(newDV);
+            });
       }
 
       newDeleteFilesBySpec.forEach(
           (specId, deleteFiles) -> {
             PartitionSpec spec = ops().current().spec(specId);
-            // Update summaries for all added delete files including eq. deletes for this partition
-            // spec
             deleteFiles.forEach(file -> addedFilesSummary.addedFile(spec, file));
             List<ManifestFile> newDeleteManifests = writeDeleteManifests(deleteFiles, spec);
             cachedNewDeleteManifests.addAll(newDeleteManifests);
