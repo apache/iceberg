@@ -37,6 +37,28 @@ Once you have those, save the yaml below into a file named `docker-compose.yml`:
 
 ```yaml
 
+x-image:
+  &ozone-image
+  image: ${OZONE_IMAGE:-apache/ozone}:${OZONE_IMAGE_VERSION:-2.1.0}${OZONE_IMAGE_FLAVOR:-}
+
+x-common-config:
+  &ozone-common-config
+  OZONE-SITE.XML_hdds.datanode.dir: "/data/hdds"
+  OZONE-SITE.XML_ozone.metadata.dirs: "/data/metadata"
+  OZONE-SITE.XML_ozone.om.address: "ozone-om"
+  OZONE-SITE.XML_ozone.om.http-address: "ozone-om:9874"
+  OZONE-SITE.XML_ozone.recon.address: "ozone-recon:9891"
+  OZONE-SITE.XML_ozone.recon.db.dir: "/data/metadata/recon"
+  OZONE-SITE.XML_ozone.replication: "1"
+  OZONE-SITE.XML_ozone.scm.block.client.address: "ozone-scm"
+  OZONE-SITE.XML_ozone.scm.client.address: "ozone-scm"
+  OZONE-SITE.XML_ozone.scm.datanode.id.dir: "/data/metadata"
+  OZONE-SITE.XML_ozone.scm.names: "ozone-scm"
+  OZONE-SITE.XML_hdds.scm.safemode.min.datanode: "1"
+  OZONE-SITE.XML_hdds.scm.safemode.healthy.pipeline.pct: "0"
+  OZONE-SITE.XML_ozone.s3g.domain.name: "s3.ozone"
+  no_proxy: "ozone-om,ozone-recon,ozone-scm,ozone-s3g,localhost,127.0.0.1"
+
 services:
   spark-iceberg:
     image: tabulario/spark-iceberg
@@ -46,7 +68,7 @@ services:
       iceberg_net:
     depends_on:
       - rest
-      - minio
+      - ozone-s3g
     volumes:
       - ./warehouse:/home/iceberg/warehouse
       - ./notebooks:/home/iceberg/notebooks/notebooks
@@ -72,41 +94,76 @@ services:
       - AWS_REGION=us-east-1
       - CATALOG_WAREHOUSE=s3://warehouse/
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_ENDPOINT=http://minio:9000
-  minio:
-    image: minio/minio
-    container_name: minio
+      - CATALOG_S3_ENDPOINT=http://s3.ozone:9878
+
+  ozone-datanode:
+    <<: *ozone-image
+    ports:
+      - 9864
+    command: ["ozone", "datanode"]
     environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=password
-      - MINIO_DOMAIN=minio
+      <<: *ozone-common-config
+    networks:
+      iceberg_net:
+
+  ozone-om:
+    <<: *ozone-image
+    ports:
+      - 9874:9874
+    environment:
+      <<: *ozone-common-config
+      CORE-SITE.XML_hadoop.proxyuser.hadoop.hosts: "*"
+      CORE-SITE.XML_hadoop.proxyuser.hadoop.groups: "*"
+      ENSURE_OM_INITIALIZED: /data/metadata/om/current/VERSION
+      WAITFOR: ozone-scm:9876
+    command: ["ozone", "om"]
+    networks:
+      iceberg_net:
+
+  ozone-scm:
+    <<: *ozone-image
+    ports:
+      - 9876:9876
+    environment:
+      <<: *ozone-common-config
+      ENSURE_SCM_INITIALIZED: /data/metadata/scm/current/VERSION
+    command: ["ozone", "scm"]
+    networks:
+      iceberg_net:
+
+  ozone-recon:
+    <<: *ozone-image
+    ports:
+      - 9888:9888
+    environment:
+      <<: *ozone-common-config
+    command: ["ozone", "recon"]
+    networks:
+      iceberg_net:
+
+  ozone-s3g:
+    <<: *ozone-image
+    ports:
+      - 9878:9878
+    environment:
+      <<: *ozone-common-config
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        ozone s3g &
+        s3g_pid=$$!
+        until ozone sh volume list >/dev/null 2>&1; do echo '...waiting...' && sleep 1; done;
+        ozone sh bucket delete /s3v/warehouse || true
+        ozone sh bucket create /s3v/warehouse
+        wait "$$s3g_pid"
     networks:
       iceberg_net:
         aliases:
-          - warehouse.minio
-    ports:
-      - 9001:9001
-      - 9000:9000
-    command: ["server", "/data", "--console-address", ":9001"]
-  mc:
-    depends_on:
-      - minio
-    image: minio/mc
-    container_name: mc
-    networks:
-      iceberg_net:
-    environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-    entrypoint: |
-      /bin/sh -c "
-      until (/usr/bin/mc alias set minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
-      /usr/bin/mc rm -r --force minio/warehouse;
-      /usr/bin/mc mb minio/warehouse;
-      /usr/bin/mc policy set public minio/warehouse;
-      tail -f /dev/null
-      "
+          - s3.ozone
+          - warehouse.s3.ozone
+
 networks:
   iceberg_net:
 
@@ -149,6 +206,7 @@ using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database n
 === "SparkSQL"
 
     ```sql
+    CREATE NAMESPACE IF NOT EXISTS demo.nyc;
     CREATE TABLE demo.nyc.taxis
     (
       vendor_id bigint,
