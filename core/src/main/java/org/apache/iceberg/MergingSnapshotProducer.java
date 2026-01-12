@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.Deletes;
@@ -277,30 +278,39 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     DeleteFileSet deleteFiles =
         newDeleteFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DeleteFileSet.create());
-    if (deleteFiles.add(file)) {
-      hasNewDeleteFiles = true;
-      if (ContentFileUtil.isDV(file)) {
-        if (!newDVRefs.add(file.referencedDataFile())) {
-          DeleteFileSet duplicateDVs =
-              duplicateDVsForDataFile.computeIfAbsent(
-                  file.referencedDataFile(),
-                  referencedFile -> {
-                    // Find any delete file that references the same data file.
-                    // There would necessarily be at least one here in this condition
-                    DeleteFile firstMatchingDV =
-                        deleteFiles.stream()
-                            .filter(ContentFileUtil::isDV)
-                            .filter(
-                                deleteFile ->
-                                    Objects.equals(referencedFile, deleteFile.referencedDataFile()))
-                            .findFirst()
-                            .get();
-                    return DeleteFileSet.of(List.of(firstMatchingDV));
-                  });
-          duplicateDVs.add(file);
-        }
-      }
+
+    if (!deleteFiles.add(file)) {
+      return;
     }
+
+    hasNewDeleteFiles = true;
+    if (ContentFileUtil.isDV(file)) {
+      addDV(file, deleteFiles);
+    }
+  }
+
+  private void addDV(DeleteFile newDV, DeleteFileSet deleteFiles) {
+    String referencedFile = newDV.referencedDataFile();
+
+    if (newDVRefs.add(referencedFile)) {
+      return;
+    }
+    // newDV is a duplicate DV for the given referenced file
+    DeleteFileSet duplicateDVs =
+        duplicateDVsForDataFile.computeIfAbsent(
+            referencedFile,
+            referencedDataFile -> {
+              DeleteFile previouslyAddedDV =
+                  Iterables.getOnlyElement(
+                      deleteFiles.stream()
+                          .filter(ContentFileUtil::isDV)
+                          .filter(dv -> !dv.equals(newDV)) // exclude the new DV that was just added
+                          .filter(dv -> Objects.equals(referencedDataFile, dv.referencedDataFile()))
+                          .collect(Collectors.toList()));
+              return DeleteFileSet.of(List.of(previouslyAddedDV));
+            });
+
+    duplicateDVs.add(newDV);
   }
 
   protected void validateNewDeleteFile(DeleteFile file) {
@@ -1124,8 +1134,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return cachedNewDeleteManifests;
   }
 
-  // Find duplicate DVs for a given partition spec, and return a Pair of the new DVs and the DVs
-  // that were merged
+  // Returns the merged DV for a given data file that had duplicate DVs
   private Map<String, DeleteFile> mergeDuplicateDVs() {
     Map<String, DeleteFile> mergedDVs = Maps.newConcurrentMap();
     Tasks.foreach(duplicateDVsForDataFile.entrySet())
@@ -1143,6 +1152,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return mergedDVs;
   }
 
+  // Merges the set of DVs for a given referenced files into a single DV
+  // and produces a single Puffin file
   private DeleteFile mergeAndWriteDV(String referencedDataFile, DeleteFileSet dvs) {
     Iterator<DeleteFile> dvIterator = dvs.iterator();
     DeleteFile firstDV = dvIterator.next();
