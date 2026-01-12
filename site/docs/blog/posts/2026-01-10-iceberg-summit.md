@@ -38,14 +38,7 @@ This third edition of Iceberg Summit is sanctioned by the Apache Software Founda
 
 ## Call for Papers is OPEN!
 
-The most exciting news? **The Call for Papers is officially open!**
-
-!!! info "Important Dates"
-    - **Call for Papers Closes**: January 18, 2026, 11:59 PM PT
-    - **Speaker Announcements**: February 6, 2026
-    - **Event Dates**: April 8-9, 2026
-
-If you've been working on something exciting in the Iceberg ecosystem, now's the perfect time to start crafting your submission. Whether you're:
+If you've been working on something exciting in the Iceberg ecosystem, now's the perfect time to start crafting your submission for a chance to share your work with the entire community. Whether you're:
 
 - **Building on top of Iceberg** in production
 - **Implementing new features** or exploring what's next
@@ -54,6 +47,13 @@ If you've been working on something exciting in the Iceberg ecosystem, now's the
 - **Sharing thought leadership** about the future of data architecture
 
 **We want to hear from YOU!**
+
+[Submit Now!](https://sessionize.com/iceberg-summit-2026/) The Call for Papers is still open!
+
+!!! info "Important Dates"
+    - **Call for Papers Closes**: January 18, 2026, 11:59 PM PT
+    - **Speaker Announcements**: February 6, 2026
+    - **Event Dates**: April 8-9, 2026
 
 ### Session Formats
 
