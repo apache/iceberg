@@ -1368,6 +1368,49 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
+  public void testExpireSnapshotsWithoutOrphans() {
+    // orphan check should be skipped since all snapshots are ancestors of main branch
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+    table.newAppend().appendFile(FILE_C).commit();
+
+    assertThat(table.snapshots()).hasSize(3);
+
+    long timeAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    removeSnapshots(table).expireOlderThan(timeAfterCommits).retainLast(1).commit();
+
+    assertThat(table.snapshots()).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testExpireSnapshotsWithOrphans() {
+    // Staged commit creates an orphan snapshot not reachable from any branch
+    // should detect orphans exist and run orphan check
+    assumeThat(incrementalCleanup).isFalse();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot first = table.currentSnapshot();
+
+    long expireTime = waitUntilAfter(first.timestampMillis());
+    waitUntilAfter(expireTime);
+
+    // creating staged orphan snapshot
+    table.newAppend().appendFile(FILE_B).stageOnly().commit();
+    Snapshot orphan = table.ops().current().snapshots().get(1);
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    assertThat(table.snapshots()).hasSize(3);
+
+    // since the orphan is newer than expireTime, it should not be removed
+    removeSnapshots(table).expireOlderThan(expireTime).commit();
+
+    assertThat(table.snapshots()).hasSize(2);
+    assertThat(table.snapshot(orphan.snapshotId())).isNotNull();
+  }
+
+  @TestTemplate
   public void testUnreferencedSnapshotParentOfTag() {
     table.newAppend().appendFile(FILE_A).commit();
 

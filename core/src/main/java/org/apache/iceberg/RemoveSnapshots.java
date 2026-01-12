@@ -221,8 +221,13 @@ class RemoveSnapshots implements ExpireSnapshots {
           refsForId);
     }
 
-    idsToRetain.addAll(computeAllBranchSnapshotsToRetain(retainedRefs.values()));
-    idsToRetain.addAll(unreferencedSnapshotsToRetain(retainedRefs.values()));
+    Set<Long> referencedSnapshotIds = Sets.newHashSet();
+    computeAllBranchSnapshotsToRetain(retainedRefs.values(), idsToRetain, referencedSnapshotIds);
+
+    // Only check for unreferenced snapshots if some snapshots might be orphaned
+    if (referencedSnapshotIds.size() < base.snapshots().size()) {
+      idsToRetain.addAll(unreferencedSnapshotsToRetain(referencedSnapshotIds));
+    }
 
     TableMetadata.Builder updatedMetaBuilder = TableMetadata.buildFrom(base);
 
@@ -296,53 +301,51 @@ class RemoveSnapshots implements ExpireSnapshots {
     return retainedRefs;
   }
 
-  private Set<Long> computeAllBranchSnapshotsToRetain(Collection<SnapshotRef> refs) {
-    Set<Long> branchSnapshotsToRetain = Sets.newHashSet();
+  private void computeAllBranchSnapshotsToRetain(
+      Collection<SnapshotRef> refs, Set<Long> idsToRetain, Set<Long> referencedSnapshotIds) {
     for (SnapshotRef ref : refs) {
       if (ref.isBranch()) {
         long expireSnapshotsOlderThan =
             ref.maxSnapshotAgeMs() != null ? now - ref.maxSnapshotAgeMs() : defaultExpireOlderThan;
         int minSnapshotsToKeep =
             ref.minSnapshotsToKeep() != null ? ref.minSnapshotsToKeep() : defaultMinNumSnapshots;
-        branchSnapshotsToRetain.addAll(
-            computeBranchSnapshotsToRetain(
-                ref.snapshotId(), expireSnapshotsOlderThan, minSnapshotsToKeep));
+        computeBranchSnapshotsToRetain(
+            ref.snapshotId(),
+            expireSnapshotsOlderThan,
+            minSnapshotsToKeep,
+            idsToRetain,
+            referencedSnapshotIds);
+      } else {
+        referencedSnapshotIds.add(ref.snapshotId());
       }
     }
-
-    return branchSnapshotsToRetain;
   }
 
-  private Set<Long> computeBranchSnapshotsToRetain(
-      long snapshot, long expireSnapshotsOlderThan, int minSnapshotsToKeep) {
-    Set<Long> idsToRetain = Sets.newHashSet();
+  private void computeBranchSnapshotsToRetain(
+      long snapshot,
+      long expireSnapshotsOlderThan,
+      int minSnapshotsToKeep,
+      Set<Long> idsToRetain,
+      Set<Long> referencedSnapshotIds) {
+    boolean stillRetaining = true;
+
     for (Snapshot ancestor : SnapshotUtil.ancestorsOf(snapshot, base::snapshot)) {
-      if (idsToRetain.size() < minSnapshotsToKeep
-          || ancestor.timestampMillis() >= expireSnapshotsOlderThan) {
-        idsToRetain.add(ancestor.snapshotId());
-      } else {
-        return idsToRetain;
+      referencedSnapshotIds.add(ancestor.snapshotId());
+      if (stillRetaining) {
+        if (idsToRetain.size() < minSnapshotsToKeep
+            || ancestor.timestampMillis() >= expireSnapshotsOlderThan) {
+          idsToRetain.add(ancestor.snapshotId());
+        } else {
+          stillRetaining = false;
+        }
       }
     }
-
-    return idsToRetain;
   }
 
-  private Set<Long> unreferencedSnapshotsToRetain(Collection<SnapshotRef> refs) {
-    Set<Long> referencedSnapshots = Sets.newHashSet();
-    for (SnapshotRef ref : refs) {
-      if (ref.isBranch()) {
-        for (Snapshot snapshot : SnapshotUtil.ancestorsOf(ref.snapshotId(), base::snapshot)) {
-          referencedSnapshots.add(snapshot.snapshotId());
-        }
-      } else {
-        referencedSnapshots.add(ref.snapshotId());
-      }
-    }
-
+  private Set<Long> unreferencedSnapshotsToRetain(Set<Long> referencedSnapshotIds) {
     Set<Long> snapshotsToRetain = Sets.newHashSet();
     for (Snapshot snapshot : base.snapshots()) {
-      if (!referencedSnapshots.contains(snapshot.snapshotId())
+      if (!referencedSnapshotIds.contains(snapshot.snapshotId())
           && // unreferenced
           snapshot.timestampMillis() >= defaultExpireOlderThan) { // not old enough to expire
         snapshotsToRetain.add(snapshot.snapshotId());
