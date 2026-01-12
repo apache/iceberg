@@ -146,6 +146,7 @@ public class AliyunOSSMockLocalStore {
     inputStreamToFile(dataStream, dataFile);
 
     ObjectMetadata metadata = new ObjectMetadata();
+    metadata.setKey(fileName);
     metadata.setContentLength(dataFile.length());
     metadata.setContentMD5(md5sum(dataFile.getAbsolutePath()));
     metadata.setContentType(
@@ -192,6 +193,32 @@ public class AliyunOSSMockLocalStore {
 
     File metaFile = new File(bucketDir, filename + META_FILE);
     return objectMapper.readValue(metaFile, ObjectMetadata.class);
+  }
+
+  List<ObjectMetadata> listObjects(String bucketName, String prefix) throws IOException {
+    File bucketDir = new File(root, bucketName);
+    if (!bucketDir.exists()) {
+      return Lists.newArrayList();
+    }
+    List<ObjectMetadata> objects = Lists.newArrayList();
+    try (Stream<Path> paths = Files.walk(bucketDir.toPath())) {
+      paths
+          .filter(Files::isRegularFile)
+          .filter(path -> path.getFileName().toString().endsWith(META_FILE))
+          .forEach(
+              path -> {
+                try {
+                  ObjectMetadata metadata =
+                      objectMapper.readValue(path.toFile(), ObjectMetadata.class);
+                  if (prefix == null || prefix.isEmpty() || metadata.getKey().startsWith(prefix)) {
+                    objects.add(metadata);
+                  }
+                } catch (IOException e) {
+                  LOG.warn("Failed to read metadata for file: {}", path, e);
+                }
+              });
+    }
+    return objects;
   }
 
   private List<Bucket> findBucketsByFilter(final DirectoryStream.Filter<Path> filter) {

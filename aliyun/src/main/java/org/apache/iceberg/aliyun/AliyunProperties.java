@@ -76,11 +76,22 @@ public class AliyunProperties implements Serializable {
    */
   public static final String OSS_STAGING_DIRECTORY = "oss.staging-dir";
 
+  /**
+   * The maximum number of objects to delete in a single OSS deleteObjects request. This controls
+   * the batch size for bulk deletion operations to optimize performance and avoid request size
+   * limits.
+   *
+   * <p>Default value is 1000, see
+   * https://www.alibabacloud.com/help/en/oss/developer-reference/delete-objects-4?spm=a2c63.p38356.help-menu-31815.d_1_1_1_1_2_6.12d47ca4Kxissw#section-v6n-zym-tax
+   */
+  public static final String OSS_DELETE_BATCH_SIZE = "oss.delete-batch-size";
+
   private final String ossEndpoint;
   private final String accessKeyId;
   private final String accessKeySecret;
   private final String securityToken;
   private final String ossStagingDirectory;
+  private final int ossDeleteBatchSize;
 
   public AliyunProperties() {
     this(ImmutableMap.of());
@@ -92,6 +103,7 @@ public class AliyunProperties implements Serializable {
     this.accessKeyId = properties.get(CLIENT_ACCESS_KEY_ID);
     this.accessKeySecret = properties.get(CLIENT_ACCESS_KEY_SECRET);
     this.securityToken = properties.get(CLIENT_SECURITY_TOKEN);
+    this.ossDeleteBatchSize = PropertyUtil.propertyAsInt(properties, OSS_DELETE_BATCH_SIZE, 1000);
 
     this.ossStagingDirectory =
         PropertyUtil.propertyAsString(
@@ -116,5 +128,9 @@ public class AliyunProperties implements Serializable {
 
   public String ossStagingDirectory() {
     return ossStagingDirectory;
+  }
+
+  public int ossDeleteBatchSize() {
+    return ossDeleteBatchSize;
   }
 }

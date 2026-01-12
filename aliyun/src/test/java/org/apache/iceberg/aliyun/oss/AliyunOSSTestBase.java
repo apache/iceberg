@@ -44,10 +44,22 @@ public abstract class AliyunOSSTestBase {
   }
 
   protected String location(String key) {
-    return String.format("oss://%s/%s%s", bucketName, keyPrefix, key);
+    return location(bucketName, key);
+  }
+
+  protected String location(String bucket, String key) {
+    return String.format("oss://%s/%s%s", bucket, keyPrefix, key);
   }
 
   protected SerializableSupplier<OSS> ossClient() {
     return ossClient;
+  }
+
+  protected void setUpBucket(String bucket) {
+    OSS_TEST_EXTENSION.setUpBucket(bucket);
+  }
+
+  protected void tearDownBucket(String bucket) {
+    OSS_TEST_EXTENSION.tearDownBucket(bucket);
   }
 }

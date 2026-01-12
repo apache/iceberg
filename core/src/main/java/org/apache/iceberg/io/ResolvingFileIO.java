@@ -55,6 +55,7 @@ public class ResolvingFileIO
   private static final int BATCH_SIZE = 100_000;
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
   private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
+  private static final String OSS_FILE_IO_IMPL = "org.apache.iceberg.aliyun.oss.OSSFileIO";
   private static final String GCS_FILE_IO_IMPL = "org.apache.iceberg.gcp.gcs.GCSFileIO";
   private static final String ADLS_FILE_IO_IMPL = "org.apache.iceberg.azure.adlsv2.ADLSFileIO";
   private static final Map<String, String> SCHEME_TO_FILE_IO =
@@ -62,6 +63,7 @@ public class ResolvingFileIO
           "s3", S3_FILE_IO_IMPL,
           "s3a", S3_FILE_IO_IMPL,
           "s3n", S3_FILE_IO_IMPL,
+          "oss", OSS_FILE_IO_IMPL,
           "gs", GCS_FILE_IO_IMPL,
           "abfs", ADLS_FILE_IO_IMPL,
           "abfss", ADLS_FILE_IO_IMPL,

@@ -22,6 +22,8 @@ import java.util.Map;
 
 public class ObjectMetadata {
 
+  private String key;
+
   private long contentLength;
 
   // In millis
@@ -41,6 +43,14 @@ public class ObjectMetadata {
 
   // The following getters and setters are required for Jackson ObjectMapper serialization and
   // deserialization.
+
+  public String getKey() {
+    return key;
+  }
+
+  public void setKey(String key) {
+    this.key = key;
+  }
 
   public long getContentLength() {
     return contentLength;

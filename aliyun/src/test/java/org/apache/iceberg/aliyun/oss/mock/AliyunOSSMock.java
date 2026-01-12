@@ -28,14 +28,25 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.StringReader;
 import java.net.InetSocketAddress;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
 
 public class AliyunOSSMock {
 
@@ -44,6 +55,11 @@ public class AliyunOSSMock {
 
   static final String PROP_HTTP_PORT = "server.port";
   static final int PORT_HTTP_PORT_DEFAULT = 9393;
+
+  // SET to 2 to test list prefix with paging
+  static final int LIST_OBJECT_MAX_KEYS = 2;
+
+  static final String SPECIAL_KEY_TRIGGER_MOCK_SERVER_ERROR = "mock-internal-error-key";
 
   private final AliyunOSSMockLocalStore localStore;
   private final HttpServer httpServer;
@@ -72,6 +88,8 @@ public class AliyunOSSMock {
     httpServer.stop(0);
   }
 
+  private static final Map<String, List<ObjectMetadata>> LIST_PREFIX_PAGES = Maps.newHashMap();
+
   private class AliyunHttpHandler implements HttpHandler {
 
     @Override
@@ -87,9 +105,15 @@ public class AliyunOSSMock {
         if (httpExchange.getRequestMethod().equals("DELETE")) {
           deleteBucket(bucketName, httpExchange);
         }
+        if (httpExchange.getRequestMethod().equals("GET")) {
+          listObjects(bucketName, httpExchange);
+        }
+        if (httpExchange.getRequestMethod().equals("POST")) {
+          deleteObjects(bucketName, httpExchange);
+        }
       } else {
         // object operations
-        String objectName = requests[1];
+        String objectName = request.substring(bucketName.length() + 1);
         if (objectName.contains("?")) {
           objectName = objectName.substring(0, objectName.indexOf("?"));
         }
@@ -121,7 +145,10 @@ public class AliyunOSSMock {
     }
 
     private void deleteBucket(String bucketName, HttpExchange httpExchange) throws IOException {
-      verifyBucketExistence(bucketName, httpExchange);
+      boolean bucketExist = verifyBucketExistence(bucketName, httpExchange);
+      if (!bucketExist) {
+        return;
+      }
       try {
         localStore.deleteBucket(bucketName);
       } catch (Exception e) {
@@ -135,8 +162,10 @@ public class AliyunOSSMock {
 
     private void putObject(String bucketName, String objectName, HttpExchange httpExchange)
         throws IOException {
-      verifyBucketExistence(bucketName, httpExchange);
-
+      boolean bucketExist = verifyBucketExistence(bucketName, httpExchange);
+      if (!bucketExist) {
+        return;
+      }
       try (InputStream inputStream = httpExchange.getRequestBody()) {
         ObjectMetadata metadata =
             localStore.putObject(
@@ -150,7 +179,10 @@ public class AliyunOSSMock {
         httpExchange.getResponseHeaders().add("ETag", metadata.getContentMD5());
         httpExchange
             .getResponseHeaders()
-            .add("Last-Modified", createDate(metadata.getLastModificationDate()));
+            .add(
+                "Last-Modified",
+                createDate(
+                    metadata.getLastModificationDate(), DateTimeFormatter.RFC_1123_DATE_TIME));
         handleResponse(httpExchange, 200, "OK", "text/plain");
       } catch (Exception e) {
         handleResponse(httpExchange, 500, "Internal Server Error", "text/plain");
@@ -159,7 +191,10 @@ public class AliyunOSSMock {
 
     private void deleteObject(String bucketName, String objectName, HttpExchange httpExchange)
         throws IOException {
-      verifyBucketExistence(bucketName, httpExchange);
+      boolean bucketExist = verifyBucketExistence(bucketName, httpExchange);
+      if (!bucketExist) {
+        return;
+      }
       localStore.deleteObject(bucketName, objectName);
 
       handleResponse(httpExchange, 200, "OK", "text/plain");
@@ -167,7 +202,10 @@ public class AliyunOSSMock {
 
     private void getObjectMeta(String bucketName, String objectName, HttpExchange httpExchange)
         throws IOException {
-      verifyBucketExistence(bucketName, httpExchange);
+      boolean bucketExist = verifyBucketExistence(bucketName, httpExchange);
+      if (!bucketExist) {
+        return;
+      }
       ObjectMetadata metadata = verifyObjectExistence(bucketName, objectName);
 
       if (metadata == null) {
@@ -178,7 +216,10 @@ public class AliyunOSSMock {
         httpExchange.getResponseHeaders().add("ETag", metadata.getContentMD5());
         httpExchange
             .getResponseHeaders()
-            .add("Last-Modified", createDate(metadata.getLastModificationDate()));
+            .add(
+                "Last-Modified",
+                createDate(
+                    metadata.getLastModificationDate(), DateTimeFormatter.RFC_1123_DATE_TIME));
         httpExchange
             .getResponseHeaders()
             .add("Content-Length", Long.toString(metadata.getContentLength()));
@@ -249,7 +290,10 @@ public class AliyunOSSMock {
         httpExchange.getResponseHeaders().add("ETag", metadata.getContentMD5());
         httpExchange
             .getResponseHeaders()
-            .add("Last-Modified", createDate(metadata.getLastModificationDate()));
+            .add(
+                "Last-Modified",
+                createDate(
+                    metadata.getLastModificationDate(), DateTimeFormatter.RFC_1123_DATE_TIME));
         httpExchange.getResponseHeaders().add("Content-Type", metadata.getContentType());
         httpExchange.getResponseHeaders().add("Content-Length", Long.toString(bytesToRead));
         httpExchange.sendResponseHeaders(206, bytesToRead);
@@ -264,7 +308,10 @@ public class AliyunOSSMock {
         httpExchange.getResponseHeaders().add("ETag", metadata.getContentMD5());
         httpExchange
             .getResponseHeaders()
-            .add("Last-Modified", createDate(metadata.getLastModificationDate()));
+            .add(
+                "Last-Modified",
+                createDate(
+                    metadata.getLastModificationDate(), DateTimeFormatter.RFC_1123_DATE_TIME));
         httpExchange.getResponseHeaders().add("Content-Type", metadata.getContentType());
         httpExchange.sendResponseHeaders(200, metadata.getContentLength());
 
@@ -276,7 +323,107 @@ public class AliyunOSSMock {
       }
     }
 
-    private void verifyBucketExistence(String bucketName, HttpExchange httpExchange)
+    private void listObjects(String bucketName, HttpExchange httpExchange) throws IOException {
+      boolean bucketExist = verifyBucketExistence(bucketName, httpExchange);
+      if (!bucketExist) {
+        return;
+      }
+      // Parse query parameters for ListObjectsV2
+      String query = httpExchange.getRequestURI().getQuery();
+      String prefix = null;
+      String listType = null;
+      String continuationToken = null;
+      if (query != null) {
+        String[] params = query.split("&");
+        for (String param : params) {
+          if (param.startsWith("prefix=")) {
+            prefix = param.substring("prefix=".length());
+            try {
+              prefix = java.net.URLDecoder.decode(prefix, "UTF-8");
+            } catch (Exception e) {
+              handleResponse(httpExchange, 400, "Bad Request - Cannot decode prefix", "text/plain");
+              return;
+            }
+          } else if (param.startsWith("list-type=")) {
+            listType = param.substring("list-type=".length());
+          } else if (param.startsWith("continuation-token=")) {
+            continuationToken = param.substring("continuation-token=".length());
+          }
+        }
+      }
+
+      // Only handle ListObjectsV2 requests
+      if (!"2".equals(listType)) {
+        handleResponse(
+            httpExchange, 400, "Bad Request - Only ListObjectsV2 supported", "text/plain");
+        return;
+      }
+      if (continuationToken == null) {
+        continuationToken = UUID.randomUUID().toString();
+        LIST_PREFIX_PAGES.put(
+            continuationToken, Lists.newLinkedList(localStore.listObjects(bucketName, prefix)));
+      }
+      int keyCount =
+          Math.min(LIST_OBJECT_MAX_KEYS, LIST_PREFIX_PAGES.get(continuationToken).size());
+      List<ObjectMetadata> objects = LIST_PREFIX_PAGES.get(continuationToken).subList(0, keyCount);
+      boolean isTruncated = LIST_PREFIX_PAGES.get(continuationToken).size() > keyCount;
+      String result =
+          generateListObjectsResponse(
+              bucketName, prefix, continuationToken, keyCount, isTruncated, objects);
+      updateListPrefixPages(continuationToken, keyCount);
+      handleResponse(httpExchange, 200, result, "application/xml");
+    }
+
+    private String generateListObjectsResponse(
+        String bucketName,
+        String prefix,
+        String continuationToken,
+        int keyCount,
+        boolean isTruncated,
+        List<ObjectMetadata> objects) {
+      // Generate XML response for ListObjectsV2
+      StringBuilder xmlResponse = new StringBuilder();
+      xmlResponse.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+      xmlResponse.append("<ListBucketResult>\n");
+      xmlResponse.append("  <Name>").append(bucketName).append("</Name>\n");
+      xmlResponse.append("  <Prefix>").append(prefix != null ? prefix : "").append("</Prefix>\n");
+      xmlResponse.append("  <KeyCount>").append(keyCount).append("</KeyCount>\n");
+      xmlResponse.append("  <MaxKeys>").append(LIST_OBJECT_MAX_KEYS).append("</MaxKeys>\n");
+      xmlResponse.append("  <IsTruncated>").append(isTruncated).append("</IsTruncated>\n");
+      if (isTruncated) {
+        xmlResponse
+            .append("  <NextContinuationToken>")
+            .append(continuationToken)
+            .append("</NextContinuationToken>\n");
+      }
+      for (ObjectMetadata metadata : objects) {
+        xmlResponse.append("  <Contents>\n");
+        xmlResponse
+            .append("    <LastModified>")
+            .append(
+                createDate(
+                    metadata.getLastModificationDate(), DateTimeFormatter.ISO_OFFSET_DATE_TIME))
+            .append("</LastModified>\n");
+        xmlResponse.append("    <Key>").append(metadata.getKey()).append("</Key>\n");
+        xmlResponse.append("    <ETag>\"").append(metadata.getContentMD5()).append("\"</ETag>\n");
+        xmlResponse.append("    <Size>").append(metadata.getContentLength()).append("</Size>\n");
+        xmlResponse.append("    <StorageClass>STANDARD</StorageClass>\n");
+        xmlResponse.append("  </Contents>\n");
+      }
+      xmlResponse.append("</ListBucketResult>\n");
+      return xmlResponse.toString();
+    }
+
+    private void updateListPrefixPages(String continuationToken, int keyCount) {
+      for (int i = 0; i < keyCount; i++) {
+        LIST_PREFIX_PAGES.get(continuationToken).remove(0);
+        if (LIST_PREFIX_PAGES.get(continuationToken).isEmpty()) {
+          LIST_PREFIX_PAGES.remove(continuationToken);
+        }
+      }
+    }
+
+    private boolean verifyBucketExistence(String bucketName, HttpExchange httpExchange)
         throws IOException {
       Bucket bucket = localStore.getBucket(bucketName);
       if (bucket == null) {
@@ -284,7 +431,9 @@ public class AliyunOSSMock {
             createErrorResponse(
                 OSSErrorCode.NO_SUCH_BUCKET, "The specified bucket does not exist.");
         handleResponse(httpExchange, 404, errorMessage, "application/xml");
+        return false;
       }
+      return true;
     }
 
     private ObjectMetadata verifyObjectExistence(String bucketName, String fileName) {
@@ -318,10 +467,71 @@ public class AliyunOSSMock {
       return builder.toString();
     }
 
-    private String createDate(long timestamp) {
+    private String createDate(long timestamp, DateTimeFormatter dateTimeFormatter) {
       java.util.Date date = new java.util.Date(timestamp);
       ZonedDateTime dateTime = date.toInstant().atZone(ZoneId.of("GMT"));
-      return dateTime.format(DateTimeFormatter.RFC_1123_DATE_TIME);
+      return dateTime.format(dateTimeFormatter);
+    }
+
+    private void deleteObjects(String bucketName, HttpExchange httpExchange) throws IOException {
+      boolean bucketExist = verifyBucketExistence(bucketName, httpExchange);
+      if (!bucketExist) {
+        return;
+      }
+      List<String> keysToDelete = parseDeleteObjectsRequest(httpExchange);
+      List<String> deletedObjects = Lists.newArrayList();
+      List<String> failedDeletions = Lists.newArrayList();
+      for (String key : keysToDelete) {
+        if (key.contains(SPECIAL_KEY_TRIGGER_MOCK_SERVER_ERROR)) {
+          // mock server internal error causing one of the object deletion failed
+          failedDeletions.add(key);
+        } else {
+          localStore.deleteObject(bucketName, key);
+          deletedObjects.add(key);
+        }
+      }
+      String xmlResponse = generateDeleteObjectsResponse(deletedObjects, failedDeletions);
+      handleResponse(httpExchange, 200, xmlResponse, "application/xml");
+    }
+
+    private List<String> parseDeleteObjectsRequest(HttpExchange httpExchange) throws IOException {
+      List<String> keys = Lists.newArrayList();
+      try {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        String requestBody = new String(httpExchange.getRequestBody().readAllBytes());
+        Document document = builder.parse(new InputSource(new StringReader(requestBody)));
+        NodeList objectNodes = document.getElementsByTagName("Object");
+        for (int i = 0; i < objectNodes.getLength(); i++) {
+          Element objectElement = (Element) objectNodes.item(i);
+          String key = objectElement.getElementsByTagName("Key").item(0).getTextContent();
+          keys.add(key);
+        }
+      } catch (Exception e) {
+        throw new IOException("Invalid XML in delete objects request", e);
+      }
+      return keys;
+    }
+
+    private String generateDeleteObjectsResponse(
+        List<String> deletedObjects, List<String> failedDeletions) {
+      StringBuilder xml = new StringBuilder();
+      xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+      xml.append("<DeleteResult>\n");
+      for (String key : deletedObjects) {
+        xml.append("  <Deleted>\n");
+        xml.append("    <Key>").append(key).append("</Key>\n");
+        xml.append("  </Deleted>\n");
+      }
+      for (String key : failedDeletions) {
+        xml.append("  <Error>\n");
+        xml.append("    <Key>").append(key).append("</Key>\n");
+        xml.append("    <Code>InternalError</Code>\n");
+        xml.append("    <Message>Mock Internal Error</Message>\n");
+        xml.append("  </Error>\n");
+      }
+      xml.append("</DeleteResult>\n");
+      return xml.toString();
     }
   }
 
