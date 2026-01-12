@@ -44,19 +44,6 @@ public abstract class PartitionStatisticsTestBase {
 
   @TempDir private File temp;
 
-  // positions in StructLike
-  protected static final int DATA_RECORD_COUNT_POSITION = 2;
-  protected static final int DATA_FILE_COUNT_POSITION = 3;
-  protected static final int TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION = 4;
-  protected static final int POSITION_DELETE_RECORD_COUNT_POSITION = 5;
-  protected static final int POSITION_DELETE_FILE_COUNT_POSITION = 6;
-  protected static final int EQUALITY_DELETE_RECORD_COUNT_POSITION = 7;
-  protected static final int EQUALITY_DELETE_FILE_COUNT_POSITION = 8;
-  protected static final int TOTAL_RECORD_COUNT_POSITION = 9;
-  protected static final int LAST_UPDATED_AT_POSITION = 10;
-  protected static final int LAST_UPDATED_SNAPSHOT_ID_POSITION = 11;
-  protected static final int DV_COUNT_POSITION = 12;
-
   protected static final Schema SCHEMA =
       new Schema(
           optional(1, "c1", Types.IntegerType.get()),
@@ -85,18 +72,19 @@ public abstract class PartitionStatisticsTestBase {
         Types.NestedField.optional(11, LAST_UPDATED_SNAPSHOT_ID.name(), Types.LongType.get()));
   }
 
-  protected PartitionStats randomStats(Types.StructType partitionType) {
+  protected PartitionStatistics randomStats(Types.StructType partitionType) {
     PartitionData partitionData = new PartitionData(partitionType);
     partitionData.set(0, RANDOM.nextInt());
 
     return randomStats(partitionData);
   }
 
-  protected PartitionStats randomStats(PartitionData partitionData) {
-    PartitionStats stats = new PartitionStats(partitionData, RANDOM.nextInt(10));
-    stats.set(DATA_RECORD_COUNT_POSITION, RANDOM.nextLong());
-    stats.set(DATA_FILE_COUNT_POSITION, RANDOM.nextInt());
-    stats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
+  protected PartitionStatistics randomStats(PartitionData partitionData) {
+    PartitionStatistics stats = new BasePartitionStatistics(partitionData, RANDOM.nextInt(10));
+    stats.set(PartitionStatistics.DATA_RECORD_COUNT_POSITION, RANDOM.nextLong());
+    stats.set(PartitionStatistics.DATA_FILE_COUNT_POSITION, RANDOM.nextInt());
+    stats.set(
+        PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
     return stats;
   }
 
