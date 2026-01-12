@@ -43,8 +43,12 @@ import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTaskWriter.class);
+
   private final List<DataFile> completedDataFiles = Lists.newArrayList();
   private final List<DeleteFile> completedDeleteFiles = Lists.newArrayList();
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
@@ -347,8 +351,17 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
             try {
               io.deleteFile(currentFile.encryptingOutputFile());
             } catch (UncheckedIOException e) {
-              // the file may not have been created, and it isn't worth failing the job to clean up,
-              // skip deleting
+              // the file may not have been created or cannot be deleted, and it isn't worth failing
+              // the job to clean up, skip deleting
+              Tasks.foreach(currentFile.encryptingOutputFile())
+                  .suppressFailureWhenFinished()
+                  .onFailure(
+                      (file, exc) ->
+                          LOG.warn(
+                              "Failed to delete the uncommitted empty file during writer clean up: {}",
+                              file,
+                              exc))
+                  .run(io::deleteFile);
             }
           } else {
             complete(currentWriter);
