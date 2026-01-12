@@ -45,31 +45,31 @@ public interface TrackingInfo {
   }
 
   Types.NestedField STATUS =
-      Types.NestedField.required(0, "status", Types.IntegerType.get(), "Entry status");
+      Types.NestedField.required(
+          0, "status", Types.IntegerType.get(), "Entry status: 0=existing, 1=added, 2=deleted");
   Types.NestedField SNAPSHOT_ID =
       Types.NestedField.optional(
           1,
           "snapshot_id",
           Types.LongType.get(),
-          "Snapshot ID where the file was added, or deleted if status is 2. Inherited when null.");
+          "Snapshot ID where the file was added or deleted");
   Types.NestedField SEQUENCE_NUMBER =
       Types.NestedField.optional(
-          3,
-          "sequence_number",
-          Types.LongType.get(),
-          "Data sequence number of the file. Inherited when null and status is 1 (added). Must be equal to file_sequence_number if content_type is 3 or 4.");
+          3, "sequence_number", Types.LongType.get(), "Data sequence number of the file");
   Types.NestedField FILE_SEQUENCE_NUMBER =
       Types.NestedField.optional(
           4,
           "file_sequence_number",
           Types.LongType.get(),
-          "File sequence number indicating when the file was added. Inherited when null and status is added. Must be equal to sequence_number if content_type is 3 or 4.");
+          "File sequence number indicating when the file was added");
   Types.NestedField FIRST_ROW_ID =
       Types.NestedField.optional(
-          142,
-          "first_row_id",
-          Types.LongType.get(),
-          "The _row_id for the first row in the data file if content_type is 0. If content_type is 3, this is the starting _row_id to assign to rows added by ADDED data files.");
+          142, "first_row_id", Types.LongType.get(), "ID of the first row in the data file");
+
+  static Types.StructType schema() {
+    return Types.StructType.of(
+        STATUS, SNAPSHOT_ID, SEQUENCE_NUMBER, FILE_SEQUENCE_NUMBER, FIRST_ROW_ID);
+  }
 
   /**
    * Returns the status of the entry.
@@ -84,35 +84,21 @@ public interface TrackingInfo {
    */
   Status status();
 
-  /**
-   * Returns the snapshot ID where the file was added or deleted.
-   *
-   * <p>Inherited when null.
-   */
+  /** Returns the snapshot ID where the file was added or deleted. */
   Long snapshotId();
 
-  /**
-   * Returns the data sequence number of the file.
-   *
-   * <p>Inherited when null and status is 1 (added). Must be equal to file_sequence_number if
-   * content_type is 3 or 4.
-   */
-  Long sequenceNumber();
+  /** Returns the data sequence number of the file. */
+  Long dataSequenceNumber();
 
-  /**
-   * Returns the file sequence number indicating when the file was added.
-   *
-   * <p>Inherited when null and status is added. Must be equal to sequence_number if content_type is
-   * 3 or 4.
-   */
+  /** Returns the file sequence number indicating when the file was added. */
   Long fileSequenceNumber();
 
-  /**
-   * Returns the starting row ID for the file.
-   *
-   * <p>If content_type is 0 (DATA), this is the _row_id for the first row in the data file. If
-   * content_type is 3 (DATA_MANIFEST), this is the starting _row_id to assign to rows added by
-   * ADDED data files.
-   */
+  /** Returns the ID of the first row in the data file. */
   Long firstRowId();
+
+  /** Returns the path of the manifest which this entry was read from. */
+  String manifestLocation();
+
+  /** Returns the ordinal position of this entry within the manifest. */
+  long manifestPos();
 }

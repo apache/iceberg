@@ -44,7 +44,7 @@ public class V4ManifestReaders {
     InheritableTrackedMetadata metadata =
         InheritableTrackedMetadataFactory.create(snapshotId, sequenceNumber);
 
-    return new V4ManifestReader(inputFile, metadata, firstRowId);
+    return new V4ManifestReader(inputFile, FileFormat.AVRO, metadata, firstRowId);
   }
 
   /**
@@ -56,7 +56,7 @@ public class V4ManifestReaders {
    * @return a V4ManifestReader for the leaf manifest
    */
   public static V4ManifestReader readLeaf(
-      TrackedFile<?> manifestEntry, FileIO io, Map<Integer, PartitionSpec> specsById) {
+      TrackedFile manifestEntry, FileIO io, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         manifestEntry.contentType() == FileContent.DATA_MANIFEST
             || manifestEntry.contentType() == FileContent.DELETE_MANIFEST,
@@ -71,6 +71,6 @@ public class V4ManifestReaders {
     TrackingInfo tracking = manifestEntry.trackingInfo();
     Long firstRowId = tracking != null ? tracking.firstRowId() : null;
 
-    return new V4ManifestReader(inputFile, metadata, firstRowId);
+    return new V4ManifestReader(inputFile, FileFormat.AVRO, metadata, firstRowId);
   }
 }

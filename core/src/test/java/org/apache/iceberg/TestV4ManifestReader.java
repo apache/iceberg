@@ -42,13 +42,13 @@ public class TestV4ManifestReader {
 
   @Test
   public void testReadFlatManifest() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L, 50000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L, 50000L);
     file1.setStatus(TrackingInfo.Status.ADDED);
     file1.setSnapshotId(SNAPSHOT_ID);
     file1.setSequenceNumber(SEQUENCE_NUMBER);
     file1.setFileSequenceNumber(SEQUENCE_NUMBER);
 
-    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L, 100000L);
+    TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L, 100000L);
     file2.setStatus(TrackingInfo.Status.EXISTING);
     file2.setSnapshotId(SNAPSHOT_ID - 1);
     file2.setSequenceNumber(SEQUENCE_NUMBER - 1);
@@ -59,11 +59,11 @@ public class TestV4ManifestReader {
     V4ManifestReader reader =
         V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
 
-    List<TrackedFile<?>> files = Lists.newArrayList(reader);
+    List<TrackedFile> files = Lists.newArrayList(reader);
 
     assertThat(files).hasSize(2);
 
-    TrackedFile<?> read1 = files.get(0);
+    TrackedFile read1 = files.get(0);
     assertThat(read1.location()).isNotNull();
     assertThat(read1.location()).endsWith("file1.parquet");
     assertThat(read1.recordCount()).isEqualTo(1000L);
@@ -71,7 +71,7 @@ public class TestV4ManifestReader {
     assertThat(read1.pos()).isNotNull();
     assertThat(read1.pos()).isEqualTo(0L);
 
-    TrackedFile<?> read2 = files.get(1);
+    TrackedFile read2 = files.get(1);
     assertThat(read2.location()).endsWith("file2.parquet");
     assertThat(read2.recordCount()).isEqualTo(2000L);
     assertThat(read2.pos()).isEqualTo(1L);
@@ -79,7 +79,7 @@ public class TestV4ManifestReader {
 
   @Test
   public void testInheritSnapshotId() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L, 50000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L, 50000L);
     file1.setStatus(TrackingInfo.Status.ADDED);
 
     String manifestPath = writeManifest(file1);
@@ -87,25 +87,25 @@ public class TestV4ManifestReader {
     V4ManifestReader reader =
         V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
 
-    List<TrackedFile<?>> files = Lists.newArrayList(reader);
+    List<TrackedFile> files = Lists.newArrayList(reader);
 
     assertThat(files).hasSize(1);
-    TrackedFile<?> read = files.get(0);
+    TrackedFile read = files.get(0);
 
     TrackingInfo tracking = read.trackingInfo();
     assertThat(tracking).isNotNull();
     assertThat(tracking.snapshotId()).isEqualTo(SNAPSHOT_ID);
-    assertThat(tracking.sequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
+    assertThat(tracking.dataSequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
     assertThat(tracking.fileSequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
   }
 
   @Test
   public void testInheritSequenceNumberForAddedOnly() throws IOException {
-    GenericTrackedFile added = createDataFile("added.parquet", 1000L, 50000L);
+    TrackedFileStruct added = createDataFile("added.parquet", 1000L, 50000L);
     added.setStatus(TrackingInfo.Status.ADDED);
     added.setSnapshotId(SNAPSHOT_ID);
 
-    GenericTrackedFile existing = createDataFile("existing.parquet", 2000L, 100000L);
+    TrackedFileStruct existing = createDataFile("existing.parquet", 2000L, 100000L);
     existing.setStatus(TrackingInfo.Status.EXISTING);
     existing.setSnapshotId(SNAPSHOT_ID - 1);
     existing.setSequenceNumber(SEQUENCE_NUMBER - 10);
@@ -116,26 +116,26 @@ public class TestV4ManifestReader {
     V4ManifestReader reader =
         V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
 
-    List<TrackedFile<?>> files = Lists.newArrayList(reader);
+    List<TrackedFile> files = Lists.newArrayList(reader);
 
     assertThat(files).hasSize(2);
 
-    TrackedFile<?> readAdded = files.get(0);
+    TrackedFile readAdded = files.get(0);
     assertThat(readAdded.trackingInfo().status()).isEqualTo(TrackingInfo.Status.ADDED);
-    assertThat(readAdded.trackingInfo().sequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
+    assertThat(readAdded.trackingInfo().dataSequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
 
-    TrackedFile<?> readExisting = files.get(1);
+    TrackedFile readExisting = files.get(1);
     assertThat(readExisting.trackingInfo().status()).isEqualTo(TrackingInfo.Status.EXISTING);
-    assertThat(readExisting.trackingInfo().sequenceNumber()).isEqualTo(SEQUENCE_NUMBER - 10);
+    assertThat(readExisting.trackingInfo().dataSequenceNumber()).isEqualTo(SEQUENCE_NUMBER - 10);
   }
 
   @Test
   public void testRowIdAssignment() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L, 50000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L, 50000L);
     file1.setStatus(TrackingInfo.Status.ADDED);
     file1.setSnapshotId(SNAPSHOT_ID);
 
-    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L, 100000L);
+    TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L, 100000L);
     file2.setStatus(TrackingInfo.Status.ADDED);
     file2.setSnapshotId(SNAPSHOT_ID);
 
@@ -145,28 +145,28 @@ public class TestV4ManifestReader {
     V4ManifestReader reader =
         V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, startingRowId);
 
-    List<TrackedFile<?>> files = Lists.newArrayList(reader);
+    List<TrackedFile> files = Lists.newArrayList(reader);
 
     assertThat(files).hasSize(2);
 
-    TrackedFile<?> read1 = files.get(0);
+    TrackedFile read1 = files.get(0);
     assertThat(read1.trackingInfo().firstRowId()).isEqualTo(1000L);
 
-    TrackedFile<?> read2 = files.get(1);
+    TrackedFile read2 = files.get(1);
     assertThat(read2.trackingInfo().firstRowId()).isEqualTo(2000L);
   }
 
   @Test
   public void testLiveEntriesFilterDeleted() throws IOException {
-    GenericTrackedFile added = createDataFile("added.parquet", 1000L, 50000L);
+    TrackedFileStruct added = createDataFile("added.parquet", 1000L, 50000L);
     added.setStatus(TrackingInfo.Status.ADDED);
     added.setSnapshotId(SNAPSHOT_ID);
 
-    GenericTrackedFile deleted = createDataFile("deleted.parquet", 2000L, 100000L);
+    TrackedFileStruct deleted = createDataFile("deleted.parquet", 2000L, 100000L);
     deleted.setStatus(TrackingInfo.Status.DELETED);
     deleted.setSnapshotId(SNAPSHOT_ID);
 
-    GenericTrackedFile existing = createDataFile("existing.parquet", 3000L, 150000L);
+    TrackedFileStruct existing = createDataFile("existing.parquet", 3000L, 150000L);
     existing.setStatus(TrackingInfo.Status.EXISTING);
     existing.setSnapshotId(SNAPSHOT_ID - 1);
 
@@ -175,13 +175,13 @@ public class TestV4ManifestReader {
     V4ManifestReader reader =
         V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
 
-    List<TrackedFile<?>> liveFiles = Lists.newArrayList(reader.liveEntries());
+    List<TrackedFile> liveFiles = Lists.newArrayList(reader.liveFiles());
 
     assertThat(liveFiles).hasSize(2);
 
     List<String> locations = Lists.newArrayList();
     List<TrackingInfo.Status> statuses = Lists.newArrayList();
-    for (TrackedFile<?> file : liveFiles) {
+    for (TrackedFile file : liveFiles) {
       locations.add(file.location());
       statuses.add(file.trackingInfo().status());
     }
@@ -196,7 +196,7 @@ public class TestV4ManifestReader {
 
   @Test
   public void testColumnProjection() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L, 50000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L, 50000L);
     file1.setStatus(TrackingInfo.Status.ADDED);
     file1.setSnapshotId(SNAPSHOT_ID);
     file1.setSortOrderId(5);
@@ -207,31 +207,31 @@ public class TestV4ManifestReader {
         V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null)
             .select(ImmutableList.of("location", "record_count"));
 
-    List<TrackedFile<?>> files = Lists.newArrayList(reader);
+    List<TrackedFile> files = Lists.newArrayList(reader);
 
     assertThat(files).hasSize(1);
-    TrackedFile<?> read = files.get(0);
+    TrackedFile read = files.get(0);
     assertThat(read.location()).endsWith("file1.parquet");
     assertThat(read.recordCount()).isEqualTo(1000L);
   }
 
   @Test
   public void testPositionTracking() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L, 50000L);
-    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L, 100000L);
-    GenericTrackedFile file3 = createDataFile("file3.parquet", 3000L, 150000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L, 50000L);
+    TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L, 100000L);
+    TrackedFileStruct file3 = createDataFile("file3.parquet", 3000L, 150000L);
 
     String manifestPath = writeManifest(file1, file2, file3);
 
     V4ManifestReader reader =
         V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
 
-    List<TrackedFile<?>> files = Lists.newArrayList(reader.entries());
+    List<TrackedFile> files = Lists.newArrayList(reader.allFiles());
 
     assertThat(files).hasSize(3);
 
     List<Long> positions = Lists.newArrayList();
-    for (TrackedFile<?> file : files) {
+    for (TrackedFile file : files) {
       assertThat(file.pos()).isNotNull();
       positions.add(file.pos());
     }
@@ -239,8 +239,8 @@ public class TestV4ManifestReader {
     assertThat(positions).containsExactlyInAnyOrder(0L, 1L, 2L);
   }
 
-  private GenericTrackedFile createDataFile(String filename, long recordCount, long fileSize) {
-    GenericTrackedFile file = new GenericTrackedFile();
+  private TrackedFileStruct createDataFile(String filename, long recordCount, long fileSize) {
+    TrackedFileStruct file = new TrackedFileStruct();
     file.setContentType(FileContent.DATA);
     file.setLocation("s3://bucket/table/data/" + filename);
     file.setFileFormat(FileFormat.PARQUET);
@@ -250,15 +250,15 @@ public class TestV4ManifestReader {
     return file;
   }
 
-  private String writeManifest(GenericTrackedFile... files) throws IOException {
+  private String writeManifest(TrackedFileStruct... files) throws IOException {
     OutputFile outputFile = io.newOutputFile("manifest-" + System.nanoTime() + ".parquet");
 
-    try (FileAppender<GenericTrackedFile> appender =
+    try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.PARQUET, outputFile)
-            .schema(new Schema(GenericTrackedFile.BASE_TYPE.fields()))
+            .schema(new Schema(TrackedFileStruct.BASE_TYPE.fields()))
             .named("tracked_file")
             .build()) {
-      for (GenericTrackedFile file : files) {
+      for (TrackedFileStruct file : files) {
         appender.add(file);
       }
     }

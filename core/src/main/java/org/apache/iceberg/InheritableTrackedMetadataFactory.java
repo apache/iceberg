@@ -43,35 +43,48 @@ class InheritableTrackedMetadataFactory {
    * @param manifestEntry the DATA_MANIFEST or DELETE_MANIFEST tracked file from root
    * @return inheritable metadata instance
    */
-  static InheritableTrackedMetadata fromTrackedFile(TrackedFile<?> manifestEntry) {
+  static InheritableTrackedMetadata fromTrackedFile(TrackedFile manifestEntry) {
     Preconditions.checkArgument(
         manifestEntry.contentType() == FileContent.DATA_MANIFEST
             || manifestEntry.contentType() == FileContent.DELETE_MANIFEST,
-        "Can only create metadata from manifest entries, got: %s",
+        "Can only create metadata from tracked files for manifests, got: %s",
         manifestEntry.contentType());
 
     TrackingInfo tracking = manifestEntry.trackingInfo();
-    Long snapshotId = tracking != null ? tracking.snapshotId() : null;
-    Long sequenceNumber = tracking != null ? tracking.sequenceNumber() : null;
+    Preconditions.checkNotNull(
+        tracking,
+        "Manifest tracked file is missing tracking info and appears to be uncommitted: %s",
+        manifestEntry.location());
 
-    Preconditions.checkArgument(
-        snapshotId != null, "Manifest entry must have snapshot ID: %s", manifestEntry.location());
+    Long snapshotId = tracking.snapshotId();
+    Long sequenceNumber = tracking.dataSequenceNumber();
+    String manifestLocation = manifestEntry.location();
+
+    Preconditions.checkNotNull(
+        snapshotId, "Manifest tracked file must have snapshot ID: %s", manifestLocation);
 
     return new BaseInheritableTrackedMetadata(
-        snapshotId, sequenceNumber != null ? sequenceNumber : 0L);
+        snapshotId, sequenceNumber != null ? sequenceNumber : 0L, manifestLocation);
   }
 
   static class BaseInheritableTrackedMetadata implements InheritableTrackedMetadata {
     private final long snapshotId;
     private final long sequenceNumber;
+    private final String manifestLocation;
 
     private BaseInheritableTrackedMetadata(long snapshotId, long sequenceNumber) {
+      this(snapshotId, sequenceNumber, null);
+    }
+
+    private BaseInheritableTrackedMetadata(
+        long snapshotId, long sequenceNumber, String manifestLocation) {
       this.snapshotId = snapshotId;
       this.sequenceNumber = sequenceNumber;
+      this.manifestLocation = manifestLocation;
     }
 
     @Override
-    public TrackedFile<?> apply(TrackedFile<?> entry) {
+    public TrackedFileStruct apply(TrackedFileStruct entry) {
       TrackingInfo tracking = entry.trackingInfo();
 
       if (tracking == null || tracking.snapshotId() == null) {
@@ -80,12 +93,16 @@ class InheritableTrackedMetadataFactory {
 
       // in v1 tables, the sequence number is not persisted and can be safely defaulted to 0
       // in v2+ tables, the sequence number should be inherited iff the entry status is ADDED
-      if (tracking == null || tracking.sequenceNumber() == null) {
+      if (tracking == null || tracking.dataSequenceNumber() == null) {
         if (sequenceNumber == 0
             || (tracking != null && tracking.status() == TrackingInfo.Status.ADDED)) {
           entry.setSequenceNumber(sequenceNumber);
           entry.setFileSequenceNumber(sequenceNumber);
         }
+      }
+
+      if (manifestLocation != null) {
+        entry.setManifestLocation(manifestLocation);
       }
 
       return entry;

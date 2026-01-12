@@ -52,6 +52,17 @@ public interface ManifestStats {
           Types.LongType.get(),
           "Minimum sequence number of files in this manifest");
 
+  static Types.StructType schema() {
+    return Types.StructType.of(
+        ADDED_FILES_COUNT,
+        EXISTING_FILES_COUNT,
+        DELETED_FILES_COUNT,
+        ADDED_ROWS_COUNT,
+        EXISTING_ROWS_COUNT,
+        DELETED_ROWS_COUNT,
+        MIN_SEQUENCE_NUMBER);
+  }
+
   /** Returns the number of files added by this manifest. */
   int addedFilesCount();
 

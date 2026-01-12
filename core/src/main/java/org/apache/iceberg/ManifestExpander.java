@@ -33,7 +33,6 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanMetrics;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -75,7 +74,7 @@ public class ManifestExpander extends CloseableGroup {
   private Expression dataFilter;
   private Expression fileFilter;
   private Evaluator fileFilterEvaluator;
-  private Map<String, List<TrackedFile<?>>> deletesByPath;
+  private Map<String, List<TrackedFile>> deletesByPath;
 
   private boolean ignoreDeleted;
 
@@ -105,15 +104,15 @@ public class ManifestExpander extends CloseableGroup {
     addCloseable(rootReader);
   }
 
-  private Map<String, List<TrackedFile<?>>> buildDeleteIndex() {
+  private Map<String, List<TrackedFile>> buildDeleteIndex() {
     if (deletesByPath != null) {
       return deletesByPath;
     }
 
-    Map<String, List<TrackedFile<?>>> index = Maps.newHashMap();
+    Map<String, List<TrackedFile>> index = Maps.newHashMap();
 
-    try (CloseableIterable<TrackedFile<?>> allFiles = allTrackedFiles()) {
-      for (TrackedFile<?> entry : allFiles) {
+    try (CloseableIterable<TrackedFile> allFiles = allTrackedFiles()) {
+      for (TrackedFile entry : allFiles) {
         if (entry.contentType() == FileContent.POSITION_DELETES && entry.referencedFile() != null) {
           index.computeIfAbsent(entry.referencedFile(), k -> Lists.newArrayList()).add(entry);
         }
@@ -126,25 +125,25 @@ public class ManifestExpander extends CloseableGroup {
     return index;
   }
 
-  private List<TrackedFile<?>> deleteFilesForDataFile(TrackedFile<?> dataFile) {
-    Map<String, List<TrackedFile<?>>> index = buildDeleteIndex();
-    List<TrackedFile<?>> deletes = index.get(dataFile.location());
+  private List<TrackedFile> deleteFilesForDataFile(TrackedFile dataFile) {
+    Map<String, List<TrackedFile>> index = buildDeleteIndex();
+    List<TrackedFile> deletes = index.get(dataFile.location());
 
     if (deletes == null || deletes.isEmpty()) {
       return Collections.emptyList();
     }
 
     TrackingInfo dataTracking = dataFile.trackingInfo();
-    Long dataSeq = dataTracking != null ? dataTracking.sequenceNumber() : null;
+    Long dataSeq = dataTracking != null ? dataTracking.dataSequenceNumber() : null;
 
     if (dataSeq == null) {
       return deletes;
     }
 
-    List<TrackedFile<?>> filtered = Lists.newArrayList();
-    for (TrackedFile<?> delete : deletes) {
+    List<TrackedFile> filtered = Lists.newArrayList();
+    for (TrackedFile delete : deletes) {
       TrackingInfo deleteTracking = delete.trackingInfo();
-      Long deleteSeq = deleteTracking != null ? deleteTracking.sequenceNumber() : null;
+      Long deleteSeq = deleteTracking != null ? deleteTracking.dataSequenceNumber() : null;
 
       if (deleteSeq == null || deleteSeq <= dataSeq) {
         filtered.add(delete);
@@ -220,7 +219,7 @@ public class ManifestExpander extends CloseableGroup {
    * }
    *
    * private FileScanTask createFileScanTask(DataFileScanInfo scanInfo) {
-   *     TrackedFile<?> tf = scanInfo.dataFile();
+   *     TrackedFile tf = scanInfo.dataFile();
    *     PartitionSpec spec = specsById.get(tf.partitionSpecId());
    *
    *     // TrackedFile.asDataFile(spec) extracts partition from contentStats internally
@@ -242,7 +241,7 @@ public class ManifestExpander extends CloseableGroup {
    * }
    *
    * private DeleteFile[] convertDeleteFiles(
-   *     List<TrackedFile<?>> deleteTrackedFiles,
+   *     List<TrackedFile> deleteTrackedFiles,
    *     PartitionSpec spec) {
    *     DeleteFile[] deleteFiles = new DeleteFile[deleteTrackedFiles.size()];
    *     for (int i = 0; i < deleteTrackedFiles.size(); i++) {
@@ -262,7 +261,7 @@ public class ManifestExpander extends CloseableGroup {
    * @return iterable of DataFileScanInfo (data file + matched deletes)
    */
   public CloseableIterable<DataFileScanInfo> planDataFiles() {
-    CloseableIterable<TrackedFile<?>> allFiles =
+    CloseableIterable<TrackedFile> allFiles =
         CloseableIterable.concat(Lists.newArrayList(directFiles(), expandManifests()));
 
     allFiles = CloseableIterable.filter(allFiles, tf -> tf.contentType() == FileContent.DATA);
@@ -276,7 +275,7 @@ public class ManifestExpander extends CloseableGroup {
     return CloseableIterable.transform(
         allFiles,
         dataFile -> {
-          List<TrackedFile<?>> deletes = deleteFilesForDataFile(dataFile);
+          List<TrackedFile> deletes = deleteFilesForDataFile(dataFile);
           return new DataFileScanInfo(dataFile, deletes);
         });
   }
@@ -303,19 +302,19 @@ public class ManifestExpander extends CloseableGroup {
    * </ol>
    */
   public static class DataFileScanInfo {
-    private final TrackedFile<?> dataFile;
-    private final List<TrackedFile<?>> deleteFiles;
+    private final TrackedFile dataFile;
+    private final List<TrackedFile> deleteFiles;
 
-    DataFileScanInfo(TrackedFile<?> dataFile, List<TrackedFile<?>> deleteFiles) {
+    DataFileScanInfo(TrackedFile dataFile, List<TrackedFile> deleteFiles) {
       this.dataFile = dataFile;
       this.deleteFiles = deleteFiles;
     }
 
-    public TrackedFile<?> dataFile() {
+    public TrackedFile dataFile() {
       return dataFile;
     }
 
-    public List<TrackedFile<?>> deleteFiles() {
+    public List<TrackedFile> deleteFiles() {
       return deleteFiles;
     }
   }
@@ -337,13 +336,13 @@ public class ManifestExpander extends CloseableGroup {
    *
    * @return iterable of all tracked files
    */
-  public CloseableIterable<TrackedFile<?>> allTrackedFiles() {
+  public CloseableIterable<TrackedFile> allTrackedFiles() {
     return CloseableIterable.concat(Lists.newArrayList(directFiles(), expandManifests()));
   }
 
-  private CloseableIterable<TrackedFile<?>> applyStatusFilters(
-      CloseableIterable<TrackedFile<?>> entries) {
-    CloseableIterable<TrackedFile<?>> filtered = entries;
+  private CloseableIterable<TrackedFile> applyStatusFilters(
+      CloseableIterable<TrackedFile> entries) {
+    CloseableIterable<TrackedFile> filtered = entries;
 
     if (ignoreDeleted) {
       filtered =
@@ -368,8 +367,7 @@ public class ManifestExpander extends CloseableGroup {
     return filtered;
   }
 
-  private CloseableIterable<TrackedFile<?>> applyFileFilter(
-      CloseableIterable<TrackedFile<?>> entries) {
+  private CloseableIterable<TrackedFile> applyFileFilter(CloseableIterable<TrackedFile> entries) {
     if (fileFilter == null || fileFilter == alwaysTrue()) {
       return entries;
     }
@@ -377,7 +375,7 @@ public class ManifestExpander extends CloseableGroup {
     return CloseableIterable.filter(entries, this::evaluateFileFilter);
   }
 
-  private boolean evaluateFileFilter(TrackedFile<?> file) {
+  private boolean evaluateFileFilter(TrackedFile file) {
     if (fileFilterEvaluator == null) {
       fileFilterEvaluator = new Evaluator(FILE_METADATA_TYPE, fileFilter, caseSensitive);
     }
@@ -390,9 +388,9 @@ public class ManifestExpander extends CloseableGroup {
    * <p>These are DATA, POSITION_DELETES, or EQUALITY_DELETES entries stored directly in the root
    * manifest
    */
-  private CloseableIterable<TrackedFile<?>> directFiles() {
+  private CloseableIterable<TrackedFile> directFiles() {
     return CloseableIterable.filter(
-        rootReader.liveEntries(),
+        rootReader.liveFiles(),
         tf ->
             tf.contentType() == FileContent.DATA
                 || tf.contentType() == FileContent.POSITION_DELETES
@@ -406,26 +404,24 @@ public class ManifestExpander extends CloseableGroup {
    * ExecutorService is provided via planWith(), manifests are read in parallel using
    * ParallelIterable. Otherwise, manifests are read serially.
    *
-   * <p>Applies manifest DVs (MANIFEST_DV entries) to skip deleted positions in leaf manifests.
+   * <p>If a manifest entry has a manifest_dv field set, it is used to filter out deleted positions
+   * in the leaf manifest without rewriting the manifest file.
    */
-  private CloseableIterable<TrackedFile<?>> expandManifests() {
-    List<TrackedFile<?>> rootEntries = Lists.newArrayList(rootReader.liveEntries());
+  private CloseableIterable<TrackedFile> expandManifests() {
+    List<TrackedFile> rootEntries = Lists.newArrayList(rootReader.liveFiles());
 
-    Map<String, TrackedFile<?>> dvByTarget = indexManifestDVs(rootEntries);
+    List<CloseableIterable<TrackedFile>> allLeafFiles = Lists.newArrayList();
 
-    List<CloseableIterable<TrackedFile<?>>> allLeafFiles = Lists.newArrayList();
-
-    for (TrackedFile<?> manifestEntry : rootEntries) {
+    for (TrackedFile manifestEntry : rootEntries) {
       if (manifestEntry.contentType() == FileContent.DATA_MANIFEST
           || manifestEntry.contentType() == FileContent.DELETE_MANIFEST) {
-        TrackedFile<?> dv = dvByTarget.get(manifestEntry.location());
 
         V4ManifestReader leafReader =
             V4ManifestReaders.readLeaf(manifestEntry, io, specsById)
                 .select(columns)
-                .withDeletionVector(dv);
+                .withManifestDV(manifestEntry.manifestDV());
         addCloseable(leafReader);
-        allLeafFiles.add(leafReader.liveEntries());
+        allLeafFiles.add(leafReader.liveFiles());
       }
     }
 
@@ -434,21 +430,5 @@ public class ManifestExpander extends CloseableGroup {
     } else {
       return CloseableIterable.concat(allLeafFiles);
     }
-  }
-
-  private Map<String, TrackedFile<?>> indexManifestDVs(List<TrackedFile<?>> rootEntries) {
-    Map<String, TrackedFile<?>> index = Maps.newHashMap();
-
-    for (TrackedFile<?> entry : rootEntries) {
-      if (entry.contentType() == FileContent.MANIFEST_DV) {
-        String target = entry.referencedFile();
-        TrackedFile<?> existing = index.put(target, entry);
-
-        Preconditions.checkState(
-            existing == null, "Multiple MANIFEST_DVs found for manifest: %s", target);
-      }
-    }
-
-    return index;
   }
 }

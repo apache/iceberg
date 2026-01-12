@@ -28,23 +28,20 @@ import org.apache.iceberg.types.Types;
  *
  * <p>TrackedFile is the V4 equivalent of ContentFile. It provides a unified representation for all
  * entry types in a V4 manifest: data files, delete files, manifests, and deletion vectors.
- *
- * @param <F> the concrete class of a TrackedFile instance
  */
-public interface TrackedFile<F> {
+public interface TrackedFile {
   // Field IDs from V4 specification
+  Types.NestedField TRACKING_INFO =
+      Types.NestedField.required(
+          147, "tracking_info", TrackingInfo.schema(), "Tracking information for this entry");
   Types.NestedField CONTENT_TYPE =
       Types.NestedField.required(
           134,
           "content_type",
           Types.IntegerType.get(),
-          "Type of content: 0=DATA, 1=POSITION_DELETES, 2=EQUALITY_DELETES, 3=DATA_MANIFEST, 4=DELETE_MANIFEST, 5=MANIFEST_DV");
+          "Type of content: 0=DATA, 1=POSITION_DELETES, 2=EQUALITY_DELETES, 3=DATA_MANIFEST, 4=DELETE_MANIFEST");
   Types.NestedField LOCATION =
-      Types.NestedField.optional(
-          100,
-          "location",
-          Types.StringType.get(),
-          "Location of the file. Optional if content_type is 5 and deletion_vector.inline_content is not null");
+      Types.NestedField.required(100, "location", Types.StringType.get(), "Location of the file");
   Types.NestedField FILE_FORMAT =
       Types.NestedField.required(
           101,
@@ -53,7 +50,7 @@ public interface TrackedFile<F> {
           "String file format name: avro, orc, parquet, or puffin");
   Types.NestedField PARTITION_SPEC_ID =
       Types.NestedField.required(
-          148,
+          149,
           "partition_spec_id",
           Types.IntegerType.get(),
           "ID of partition spec used to write manifest or data/delete files");
@@ -71,10 +68,13 @@ public interface TrackedFile<F> {
           "Number of records in this file, or the cardinality of a deletion vector");
   Types.NestedField FILE_SIZE_IN_BYTES =
       Types.NestedField.optional(
-          104,
-          "file_size_in_bytes",
-          Types.LongType.get(),
-          "Total file size in bytes. Must be defined if location is defined");
+          104, "file_size_in_bytes", Types.LongType.get(), "Total file size in bytes.");
+  Types.NestedField CONTENT_STATS =
+      Types.NestedField.optional(
+          146,
+          "content_stats",
+          Types.StructType.of(), // TODO: Define ContentStats structure per V4 proposal
+          "Content statistics for this entry");
   Types.NestedField KEY_METADATA =
       Types.NestedField.optional(
           131,
@@ -87,6 +87,12 @@ public interface TrackedFile<F> {
           "split_offsets",
           Types.ListType.ofRequired(133, Types.LongType.get()),
           "Split offsets for the data file. Must be sorted ascending");
+  Types.NestedField CONTENT_INFO =
+      Types.NestedField.optional(
+          148,
+          "content_info",
+          ContentInfo.schema(),
+          "Content info. Required when content_type is POSITION_DELETES, must be null otherwise");
   Types.NestedField EQUALITY_IDS =
       Types.NestedField.optional(
           135,
@@ -98,8 +104,21 @@ public interface TrackedFile<F> {
           143,
           "referenced_file",
           Types.StringType.get(),
-          "Location of data file that a DV references if content_type is 1 or 5."
-              + " Location of affiliated data manifest if content_type is 4 or null if delete manifest is unaffiliated");
+          "Location of data file that a DV references if content_type is POSITION_DELETES. "
+              + "Location of affiliated data manifest if content_type is DELETE_MANIFEST, or null if unaffiliated");
+  Types.NestedField MANIFEST_STATS =
+      Types.NestedField.optional(
+          150,
+          "manifest_stats",
+          ManifestStats.schema(),
+          "Manifest statistics. Required for DATA_MANIFEST and DELETE_MANIFEST");
+  Types.NestedField MANIFEST_DV =
+      Types.NestedField.optional(
+          151,
+          "manifest_dv",
+          Types.BinaryType.get(),
+          "Serialized deletion vector marking deleted entry positions in the referenced manifest. "
+              + "Optional for DATA_MANIFEST and DELETE_MANIFEST, must be null for other content types");
 
   /**
    * Returns the path of the manifest which this file is referenced in or null if it was not read
@@ -118,28 +137,22 @@ public interface TrackedFile<F> {
   /**
    * Returns the type of content stored by this entry.
    *
-   * <p>One of: DATA, POSITION_DELETES, EQUALITY_DELETES, DATA_MANIFEST, DELETE_MANIFEST, or
-   * MANIFEST_DV.
+   * <p>One of: DATA, POSITION_DELETES, EQUALITY_DELETES, DATA_MANIFEST, or DELETE_MANIFEST.
    */
   FileContent contentType();
 
-  /**
-   * Returns the location of the file.
-   *
-   * <p>Optional if content_type is MANIFEST_DV and deletion_vector has inline content.
-   */
+  /** Returns the location of the file. */
   String location();
 
   /** Returns the format of the file (avro, orc, parquet, or puffin). */
   FileFormat fileFormat();
 
   /**
-   * Returns the deletion vector for this entry.
+   * Returns the content info.
    *
-   * <p>Must be defined if content_type is POSITION_DELETES or MANIFEST_DV. Must be null for all
-   * other types.
+   * <p>Must be defined if content_type is POSITION_DELETES, must be null otherwise.
    */
-  DeletionVector deletionVector();
+  ContentInfo contentInfo();
 
   /** Returns the ID of the partition spec used to write this file or manifest. */
   int partitionSpecId();
@@ -175,6 +188,17 @@ public interface TrackedFile<F> {
    */
   ManifestStats manifestStats();
 
+  /**
+   * Returns the manifest deletion vector for this entry.
+   *
+   * <p>When present, this is a serialized deletion vector where each set bit position corresponds
+   * to an entry in the manifest that should be treated as deleted. This allows marking manifest
+   * entries as deleted without rewriting the manifest file.
+   *
+   * <p>Optional for DATA_MANIFEST and DELETE_MANIFEST content types, must be null otherwise.
+   */
+  ByteBuffer manifestDV();
+
   /** Returns metadata about how this file is encrypted, or null if stored in plain text. */
   ByteBuffer keyMetadata();
 
@@ -195,9 +219,9 @@ public interface TrackedFile<F> {
   /**
    * Returns the location of the referenced file.
    *
-   * <p>For POSITION_DELETES or MANIFEST_DV: location of data file that the DV references.
+   * <p>For POSITION_DELETES: location of the data file that the deletion vector references.
    *
-   * <p>For DELETE_MANIFEST: location of affiliated data manifest, or null if unaffiliated.
+   * <p>For DELETE_MANIFEST: location of the affiliated data manifest, or null if unaffiliated.
    */
   String referencedFile();
 
@@ -207,14 +231,14 @@ public interface TrackedFile<F> {
    * <p>Manifest readers can reuse file instances; use this method to copy data when collecting
    * files from tasks.
    */
-  F copy();
+  TrackedFile copy();
 
   /**
    * Copies this tracked file without stats.
    *
    * <p>Use this method to copy data without stats when collecting files.
    */
-  F copyWithoutStats();
+  TrackedFile copyWithoutStats();
 
   /**
    * Copies this tracked file with stats only for specific columns.
@@ -225,7 +249,7 @@ public interface TrackedFile<F> {
    * @param requestedColumnIds column IDs for which to keep stats
    * @return a copy of this tracked file, with content stats for only the requested columns
    */
-  F copyWithStats(Set<Integer> requestedColumnIds);
+  TrackedFile copyWithStats(Set<Integer> requestedColumnIds);
 
   /**
    * Returns the ordinal position in the manifest.
@@ -237,44 +261,20 @@ public interface TrackedFile<F> {
   /**
    * Converts this tracked file to a DataFile.
    *
-   * <p>Only valid when content_type is DATA. Extracts partition from contentStats using the
-   * provided spec.
+   * <p>Only valid when content_type is DATA.
    *
-   * @param spec the partition spec (needed to know which transforms to apply)
    * @return a DataFile representation
    * @throws IllegalStateException if content_type is not DATA
-   * @throws UnsupportedOperationException if ContentStats not yet implemented
    */
-  DataFile asDataFile(PartitionSpec spec);
+  DataFile asDataFile();
 
   /**
    * Converts this tracked file to a DeleteFile.
    *
-   * <p>Only valid when content_type is POSITION_DELETES or EQUALITY_DELETES. Extracts partition
-   * from contentStats using the provided spec.
+   * <p>Only valid when content_type is POSITION_DELETES or EQUALITY_DELETES.
    *
-   * @param spec the partition spec (needed to know which transforms to apply)
    * @return a DeleteFile representation
    * @throws IllegalStateException if content_type is not a delete type
-   * @throws UnsupportedOperationException if ContentStats not yet implemented
    */
-  DeleteFile asDeleteFile(PartitionSpec spec);
-
-  /** Set the status for this tracked file entry. */
-  void setStatus(TrackingInfo.Status status);
-
-  /** Set the snapshot ID for this tracked file entry. */
-  void setSnapshotId(Long snapshotId);
-
-  /** Set the data sequence number for this tracked file entry. */
-  void setSequenceNumber(Long sequenceNumber);
-
-  /** Set the file sequence number for this tracked file entry. */
-  void setFileSequenceNumber(Long fileSequenceNumber);
-
-  /** Set the first row ID for this tracked file entry. */
-  void setFirstRowId(Long firstRowId);
-
-  /** Set the ordinal position in the manifest. */
-  void setPos(Long position);
+  DeleteFile asDeleteFile();
 }

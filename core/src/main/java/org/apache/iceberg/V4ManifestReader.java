@@ -21,81 +21,90 @@ package org.apache.iceberg;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.roaringbitmap.RoaringBitmap;
 
 /**
  * Reader for V4 manifest files containing TrackedFile entries.
  *
  * <p>Supports reading both root manifests and leaf manifests. Returns TrackedFile entries which can
- * represent data files, delete files, or manifest references. TODO: implement caching.
+ * represent data files, delete files, or manifest references.
  */
-class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile<?>> {
+class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
 
   private final InputFile file;
+  private final FileFormat format;
   private final InheritableTrackedMetadata inheritableMetadata;
   private final Long manifestFirstRowId;
 
-  private Collection<String> columns = null;
-  private TrackedFile<?> manifestDV = null;
+  private ByteBuffer manifestDV = null;
+
+  @SuppressWarnings("UnusedVariable")
+  private List<String> columns = ALL_COLUMNS;
 
   protected V4ManifestReader(
-      InputFile file, InheritableTrackedMetadata inheritableMetadata, Long manifestFirstRowId) {
+      InputFile file,
+      FileFormat format,
+      InheritableTrackedMetadata inheritableMetadata,
+      Long manifestFirstRowId) {
     this.file = file;
+    this.format = format;
     this.inheritableMetadata = inheritableMetadata;
     this.manifestFirstRowId = manifestFirstRowId;
   }
 
-  public V4ManifestReader select(Collection<String> newColumns) {
-    this.columns = newColumns;
-    return this;
-  }
-
-  public V4ManifestReader withDeletionVector(TrackedFile<?> dv) {
+  /**
+   * Sets the manifest deletion vector to filter entries.
+   *
+   * @param dv serialized deletion vector of deleted entry positions, or null for no filtering
+   */
+  public V4ManifestReader withManifestDV(ByteBuffer dv) {
     this.manifestDV = dv;
     return this;
   }
 
-  public CloseableIterable<TrackedFile<?>> entries() {
-    return entries(false);
+  /**
+   * Selects columns to read from the manifest. Currently unused - reads all columns.
+   *
+   * @param selectedColumns columns to read
+   * @return this reader for method chaining
+   */
+  public V4ManifestReader select(List<String> selectedColumns) {
+    this.columns = selectedColumns;
+    return this;
   }
 
-  public CloseableIterable<TrackedFile<?>> liveEntries() {
-    return entries(true);
+  public CloseableIterable<TrackedFile> allFiles() {
+    return open();
   }
 
-  private CloseableIterable<TrackedFile<?>> entries(boolean onlyLive) {
-    CloseableIterable<TrackedFile<?>> entries = open(columns);
-    return onlyLive ? filterLiveEntries(entries) : entries;
+  public CloseableIterable<TrackedFile> liveFiles() {
+    return filterLiveFiles(open());
   }
 
-  private CloseableIterable<TrackedFile<?>> open(Collection<String> cols) {
-    Schema projection = buildProjection(cols);
+  private CloseableIterable<TrackedFile> open() {
+    Schema projection = new Schema(TrackedFileStruct.BASE_TYPE.fields());
 
-    FileFormat format = FileFormat.fromFileName(file.location());
-
-    CloseableIterable<GenericTrackedFile> entries =
+    CloseableIterable<TrackedFileStruct> entries =
         InternalData.read(format, file)
             .project(projection)
-            .setRootType(GenericTrackedFile.class)
+            .setRootType(TrackedFileStruct.class)
             .build();
 
     addCloseable(entries);
 
-    CloseableIterable<TrackedFile<?>> transformed =
+    CloseableIterable<TrackedFileStruct> transformed =
         CloseableIterable.transform(entries, inheritableMetadata::apply);
 
     transformed = CloseableIterable.transform(transformed, rowIdAssigner(manifestFirstRowId));
@@ -109,68 +118,38 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
               transformed,
               entry -> {
                 Long pos = entry.pos();
-                // positions are 0-based and should not exceed Integer.MAX_VALUE
-                return pos == null || !deletedPositions.contains(pos.intValue());
+                Preconditions.checkNotNull(
+                    pos, "Position should not be null when applying manifest deletion vector");
+                return !deletedPositions.contains(pos.intValue());
               });
     }
 
-    return transformed;
+    return CloseableIterable.transform(transformed, e -> e);
   }
 
-  private static RoaringBitmap deserializeManifestDV(TrackedFile<?> manifestDV) {
-    Preconditions.checkArgument(
-        manifestDV.contentType() == FileContent.MANIFEST_DV,
-        "Expected MANIFEST_DV, got: %s",
-        manifestDV.contentType());
+  private static RoaringBitmap deserializeManifestDV(ByteBuffer dv) {
+    byte[] bytes = ByteBuffers.toByteArray(dv);
 
-    DeletionVector dvInfo = manifestDV.deletionVector();
-    Preconditions.checkNotNull(dvInfo, "MANIFEST_DV must have deletion_vector");
-
-    Preconditions.checkNotNull(
-        dvInfo.inlineContent(),
-        "Manifest DV must have inline content (External not supported): %s",
-        manifestDV.referencedFile());
-
-    ByteBuffer buffer = dvInfo.inlineContent();
-    byte[] bytes = new byte[buffer.remaining()];
-    buffer.asReadOnlyBuffer().get(bytes);
-
-    RoaringBitmap bitmap = new RoaringBitmap();
+    RoaringBitmap deletedPositions = new RoaringBitmap();
     try {
-      bitmap.deserialize(new DataInputStream(new ByteArrayInputStream(bytes)));
+      deletedPositions.deserialize(new DataInputStream(new ByteArrayInputStream(bytes)));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to deserialize Roaring bitmap from manifest DV");
+      throw new UncheckedIOException("Failed to deserialize manifest DV", e);
     }
-    return bitmap;
+
+    return deletedPositions;
   }
 
-  private Schema buildProjection(Collection<String> cols) {
-    if (cols == null || cols.containsAll(ALL_COLUMNS)) {
-      return new Schema(GenericTrackedFile.BASE_TYPE.fields());
-    }
-
-    List<Types.NestedField> fields = Lists.newArrayList();
-    for (String column : cols) {
-      Types.NestedField field = GenericTrackedFile.BASE_TYPE.field(column);
-      if (field != null) {
-        fields.add(field);
-      }
-    }
-
-    return new Schema(fields);
-  }
-
-  private CloseableIterable<TrackedFile<?>> filterLiveEntries(
-      CloseableIterable<TrackedFile<?>> entries) {
+  private CloseableIterable<TrackedFile> filterLiveFiles(CloseableIterable<TrackedFile> files) {
     return CloseableIterable.filter(
-        entries,
+        files,
         entry -> {
           TrackingInfo tracking = entry.trackingInfo();
           return tracking == null || tracking.status() != TrackingInfo.Status.DELETED;
         });
   }
 
-  private static Function<TrackedFile<?>, TrackedFile<?>> rowIdAssigner(Long firstRowId) {
+  private static Function<TrackedFileStruct, TrackedFileStruct> rowIdAssigner(Long firstRowId) {
     if (firstRowId == null) {
       return entry -> entry;
     }
@@ -179,12 +158,13 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       private long nextRowId = firstRowId;
 
       @Override
-      public TrackedFile<?> apply(TrackedFile<?> entry) {
+      public TrackedFileStruct apply(TrackedFileStruct entry) {
         if (entry.contentType() == FileContent.DATA) {
           TrackingInfo tracking = entry.trackingInfo();
-          if (tracking != null
-              && tracking.status() != TrackingInfo.Status.DELETED
-              && tracking.firstRowId() == null) {
+          Preconditions.checkNotNull(
+              tracking, "Tracking info should not be null for committed data files");
+
+          if (tracking.status() != TrackingInfo.Status.DELETED && tracking.firstRowId() == null) {
             entry.setFirstRowId(nextRowId);
             nextRowId += entry.recordCount();
           }
@@ -194,26 +174,24 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     };
   }
 
-  private CloseableIterable<TrackedFile<?>> assignPositions(
-      CloseableIterable<TrackedFile<?>> entries) {
+  private CloseableIterable<TrackedFileStruct> assignPositions(
+      CloseableIterable<TrackedFileStruct> entries) {
     return CloseableIterable.transform(
         entries,
         new Function<>() {
           private long position = 0;
 
           @Override
-          public TrackedFile<?> apply(TrackedFile<?> entry) {
-            entry.setPos(position++);
+          public TrackedFileStruct apply(TrackedFileStruct entry) {
+            entry.setPos(position);
+            position++;
             return entry;
           }
         });
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  public CloseableIterator<TrackedFile<?>> iterator() {
-    return (CloseableIterator<TrackedFile<?>>)
-        (CloseableIterator<?>)
-            CloseableIterable.transform(liveEntries(), TrackedFile::copy).iterator();
+  public CloseableIterator<TrackedFile> iterator() {
+    return CloseableIterable.transform(liveFiles(), TrackedFile::copy).iterator();
   }
 }
