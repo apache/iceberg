@@ -29,8 +29,8 @@ interface InheritableTrackedMetadata extends Serializable {
   /**
    * Apply inheritable metadata to a tracked file entry.
    *
-   * @param entry the tracked file entry
+   * @param entry the tracked file entry (mutable TrackedFileStruct)
    * @return the entry with metadata applied
    */
-  TrackedFile<?> apply(TrackedFile<?> entry);
+  TrackedFileStruct apply(TrackedFileStruct entry);
 }

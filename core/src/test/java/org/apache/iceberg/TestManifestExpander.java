@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -62,10 +61,10 @@ public class TestManifestExpander {
 
   @Test
   public void testRootWithOnlyDirectFiles() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L);
     file1.setStatus(TrackingInfo.Status.ADDED);
 
-    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L);
+    TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L);
     file2.setStatus(TrackingInfo.Status.EXISTING);
 
     String rootPath = writeRootManifest(file1, file2);
@@ -74,7 +73,7 @@ public class TestManifestExpander {
         V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
-    List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
+    List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
     assertThat(allFiles).hasSize(2);
     assertThat(allFiles.get(0).contentType()).isEqualTo(FileContent.DATA);
@@ -83,11 +82,11 @@ public class TestManifestExpander {
 
   @Test
   public void testRootWithOnlyManifests() throws IOException {
-    GenericTrackedFile dataFile1 = createDataFile("data1.parquet", 1000L);
-    GenericTrackedFile dataFile2 = createDataFile("data2.parquet", 2000L);
+    TrackedFileStruct dataFile1 = createDataFile("data1.parquet", 1000L);
+    TrackedFileStruct dataFile2 = createDataFile("data2.parquet", 2000L);
     String dataManifestPath = writeLeafManifest(dataFile1, dataFile2);
 
-    GenericTrackedFile manifestEntry = createManifestEntry(dataManifestPath, 2, 2000L);
+    TrackedFileStruct manifestEntry = createManifestEntry(dataManifestPath, 2, 2000L);
 
     String rootPath = writeRootManifest(manifestEntry);
 
@@ -95,7 +94,7 @@ public class TestManifestExpander {
         V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
-    List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
+    List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
     assertThat(allFiles).hasSize(2);
     assertThat(allFiles.get(0).location()).endsWith("data1.parquet");
@@ -104,14 +103,14 @@ public class TestManifestExpander {
 
   @Test
   public void testRootWithMixedDirectAndManifests() throws IOException {
-    GenericTrackedFile directFile = createDataFile("direct.parquet", 500L);
+    TrackedFileStruct directFile = createDataFile("direct.parquet", 500L);
     directFile.setStatus(TrackingInfo.Status.ADDED);
 
-    GenericTrackedFile leafFile1 = createDataFile("leaf1.parquet", 1000L);
-    GenericTrackedFile leafFile2 = createDataFile("leaf2.parquet", 2000L);
+    TrackedFileStruct leafFile1 = createDataFile("leaf1.parquet", 1000L);
+    TrackedFileStruct leafFile2 = createDataFile("leaf2.parquet", 2000L);
     String leafManifestPath = writeLeafManifest(leafFile1, leafFile2);
 
-    GenericTrackedFile manifestEntry = createManifestEntry(leafManifestPath, 2, 3000L);
+    TrackedFileStruct manifestEntry = createManifestEntry(leafManifestPath, 2, 3000L);
 
     String rootPath = writeRootManifest(directFile, manifestEntry);
 
@@ -119,12 +118,12 @@ public class TestManifestExpander {
         V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
-    List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
+    List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
     assertThat(allFiles).hasSize(3);
 
     List<String> locations = Lists.newArrayList();
-    for (TrackedFile<?> file : allFiles) {
+    for (TrackedFile file : allFiles) {
       locations.add(file.location());
     }
 
@@ -136,15 +135,15 @@ public class TestManifestExpander {
 
   @Test
   public void testMultipleDataManifests() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L);
-    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L);
+    TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L);
     String manifest1Path = writeLeafManifest(file1, file2);
 
-    GenericTrackedFile file3 = createDataFile("file3.parquet", 3000L);
+    TrackedFileStruct file3 = createDataFile("file3.parquet", 3000L);
     String manifest2Path = writeLeafManifest(file3);
 
-    GenericTrackedFile manifestEntry1 = createManifestEntry(manifest1Path, 2, 3000L);
-    GenericTrackedFile manifestEntry2 = createManifestEntry(manifest2Path, 1, 3000L);
+    TrackedFileStruct manifestEntry1 = createManifestEntry(manifest1Path, 2, 3000L);
+    TrackedFileStruct manifestEntry2 = createManifestEntry(manifest2Path, 1, 3000L);
 
     String rootPath = writeRootManifest(manifestEntry1, manifestEntry2);
 
@@ -152,7 +151,7 @@ public class TestManifestExpander {
         V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
-    List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
+    List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
     assertThat(allFiles).hasSize(3);
     assertThat(allFiles).allMatch(tf -> tf.contentType() == FileContent.DATA);
@@ -160,11 +159,11 @@ public class TestManifestExpander {
 
   @Test
   public void testDeleteManifests() throws IOException {
-    GenericTrackedFile deleteFile1 = createDeleteFile("delete1.parquet", 100L);
-    GenericTrackedFile deleteFile2 = createDeleteFile("delete2.parquet", 200L);
+    TrackedFileStruct deleteFile1 = createDeleteFile("delete1.parquet", 100L);
+    TrackedFileStruct deleteFile2 = createDeleteFile("delete2.parquet", 200L);
     String deleteManifestPath = writeLeafManifest(deleteFile1, deleteFile2);
 
-    GenericTrackedFile manifestEntry = createDeleteManifestEntry(deleteManifestPath, 2, 300L);
+    TrackedFileStruct manifestEntry = createDeleteManifestEntry(deleteManifestPath, 2, 300L);
 
     String rootPath = writeRootManifest(manifestEntry);
 
@@ -172,7 +171,7 @@ public class TestManifestExpander {
         V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
-    List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
+    List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
     assertThat(allFiles).hasSize(2);
     assertThat(allFiles).allMatch(tf -> tf.contentType() == FileContent.POSITION_DELETES);
@@ -180,14 +179,14 @@ public class TestManifestExpander {
 
   @Test
   public void testMixedDataAndDeleteManifests() throws IOException {
-    GenericTrackedFile dataFile = createDataFile("data.parquet", 1000L);
+    TrackedFileStruct dataFile = createDataFile("data.parquet", 1000L);
     String dataManifestPath = writeLeafManifest(dataFile);
 
-    GenericTrackedFile deleteFile = createDeleteFile("delete.parquet", 100L);
+    TrackedFileStruct deleteFile = createDeleteFile("delete.parquet", 100L);
     String deleteManifestPath = writeLeafManifest(deleteFile);
 
-    GenericTrackedFile dataManifestEntry = createManifestEntry(dataManifestPath, 1, 1000L);
-    GenericTrackedFile deleteManifestEntry = createDeleteManifestEntry(deleteManifestPath, 1, 100L);
+    TrackedFileStruct dataManifestEntry = createManifestEntry(dataManifestPath, 1, 1000L);
+    TrackedFileStruct deleteManifestEntry = createDeleteManifestEntry(deleteManifestPath, 1, 100L);
 
     String rootPath = writeRootManifest(dataManifestEntry, deleteManifestEntry);
 
@@ -195,7 +194,7 @@ public class TestManifestExpander {
         V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
-    List<TrackedFile<?>> allFiles = Lists.newArrayList(reader.allTrackedFiles());
+    List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
 
     assertThat(allFiles).hasSize(2);
 
@@ -209,8 +208,8 @@ public class TestManifestExpander {
 
   @Test
   public void testPlanDataFilesOnlyReturnsData() throws IOException {
-    GenericTrackedFile dataFile = createDataFile("data.parquet", 1000L);
-    GenericTrackedFile deleteFile = createDeleteFile("delete.parquet", 100L);
+    TrackedFileStruct dataFile = createDataFile("data.parquet", 1000L);
+    TrackedFileStruct deleteFile = createDeleteFile("delete.parquet", 100L);
 
     String rootPath = writeRootManifest(dataFile, deleteFile);
 
@@ -228,13 +227,13 @@ public class TestManifestExpander {
 
   @Test
   public void testIgnoreDeleted() throws IOException {
-    GenericTrackedFile added = createDataFile("added.parquet", 1000L);
+    TrackedFileStruct added = createDataFile("added.parquet", 1000L);
     added.setStatus(TrackingInfo.Status.ADDED);
 
-    GenericTrackedFile deleted = createDataFile("deleted.parquet", 2000L);
+    TrackedFileStruct deleted = createDataFile("deleted.parquet", 2000L);
     deleted.setStatus(TrackingInfo.Status.DELETED);
 
-    GenericTrackedFile existing = createDataFile("existing.parquet", 3000L);
+    TrackedFileStruct existing = createDataFile("existing.parquet", 3000L);
     existing.setStatus(TrackingInfo.Status.EXISTING);
 
     String rootPath = writeRootManifest(added, deleted, existing);
@@ -252,10 +251,10 @@ public class TestManifestExpander {
 
   @Test
   public void testIgnoreExisting() throws IOException {
-    GenericTrackedFile added = createDataFile("added.parquet", 1000L);
+    TrackedFileStruct added = createDataFile("added.parquet", 1000L);
     added.setStatus(TrackingInfo.Status.ADDED);
 
-    GenericTrackedFile existing = createDataFile("existing.parquet", 2000L);
+    TrackedFileStruct existing = createDataFile("existing.parquet", 2000L);
     existing.setStatus(TrackingInfo.Status.EXISTING);
 
     String rootPath = writeRootManifest(added, existing);
@@ -273,11 +272,11 @@ public class TestManifestExpander {
 
   @Test
   public void testPlanDataFilesFromManifests() throws IOException {
-    GenericTrackedFile dataFile1 = createDataFile("data1.parquet", 1000L);
-    GenericTrackedFile dataFile2 = createDataFile("data2.parquet", 2000L);
+    TrackedFileStruct dataFile1 = createDataFile("data1.parquet", 1000L);
+    TrackedFileStruct dataFile2 = createDataFile("data2.parquet", 2000L);
     String dataManifestPath = writeLeafManifest(dataFile1, dataFile2);
 
-    GenericTrackedFile manifestEntry = createManifestEntry(dataManifestPath, 2, 3000L);
+    TrackedFileStruct manifestEntry = createManifestEntry(dataManifestPath, 2, 3000L);
 
     String rootPath = writeRootManifest(manifestEntry);
 
@@ -295,10 +294,10 @@ public class TestManifestExpander {
   @Test
   public void testDeleteMatching() throws IOException {
     String dataFilePath = "s3://bucket/table/data/file1.parquet";
-    GenericTrackedFile dataFile = createDataFile("file1.parquet", 1000L);
+    TrackedFileStruct dataFile = createDataFile("file1.parquet", 1000L);
     dataFile.setLocation(dataFilePath);
 
-    GenericTrackedFile deleteFile = createDeleteFile("delete1.parquet", 50L);
+    TrackedFileStruct deleteFile = createDeleteFile("delete1.parquet", 50L);
     deleteFile.setReferencedFile(dataFilePath);
 
     String rootPath = writeRootManifest(dataFile, deleteFile);
@@ -321,13 +320,13 @@ public class TestManifestExpander {
   @Test
   public void testMultipleDeletesMatchToSameFile() throws IOException {
     String dataFilePath = "s3://bucket/table/data/file1.parquet";
-    GenericTrackedFile dataFile = createDataFile("file1.parquet", 1000L);
+    TrackedFileStruct dataFile = createDataFile("file1.parquet", 1000L);
     dataFile.setLocation(dataFilePath);
 
-    GenericTrackedFile deleteFile1 = createDeleteFile("delete1.parquet", 50L);
+    TrackedFileStruct deleteFile1 = createDeleteFile("delete1.parquet", 50L);
     deleteFile1.setReferencedFile(dataFilePath);
 
-    GenericTrackedFile deleteFile2 = createDeleteFile("delete2.parquet", 30L);
+    TrackedFileStruct deleteFile2 = createDeleteFile("delete2.parquet", 30L);
     deleteFile2.setReferencedFile(dataFilePath);
 
     String rootPath = writeRootManifest(dataFile, deleteFile1, deleteFile2);
@@ -345,9 +344,9 @@ public class TestManifestExpander {
 
   @Test
   public void testDeleteWithoutReferencedFileNotMatched() throws IOException {
-    GenericTrackedFile dataFile = createDataFile("data.parquet", 1000L);
+    TrackedFileStruct dataFile = createDataFile("data.parquet", 1000L);
 
-    GenericTrackedFile deleteFile = createDeleteFile("delete.parquet", 50L);
+    TrackedFileStruct deleteFile = createDeleteFile("delete.parquet", 50L);
 
     String rootPath = writeRootManifest(dataFile, deleteFile);
 
@@ -364,7 +363,7 @@ public class TestManifestExpander {
 
   @Test
   public void testDataFileWithNoDeletes() throws IOException {
-    GenericTrackedFile dataFile = createDataFile("data.parquet", 1000L);
+    TrackedFileStruct dataFile = createDataFile("data.parquet", 1000L);
 
     String rootPath = writeRootManifest(dataFile);
 
@@ -382,15 +381,15 @@ public class TestManifestExpander {
   @Test
   public void testSequenceNumberFiltering() throws IOException {
     String dataFilePath = "s3://bucket/table/data/file1.parquet";
-    GenericTrackedFile dataFile = createDataFile("file1.parquet", 1000L);
+    TrackedFileStruct dataFile = createDataFile("file1.parquet", 1000L);
     dataFile.setLocation(dataFilePath);
     dataFile.setSequenceNumber(100L);
 
-    GenericTrackedFile delete1 = createDeleteFile("delete1.parquet", 50L);
+    TrackedFileStruct delete1 = createDeleteFile("delete1.parquet", 50L);
     delete1.setReferencedFile(dataFilePath);
     delete1.setSequenceNumber(95L);
 
-    GenericTrackedFile delete2 = createDeleteFile("delete2.parquet", 30L);
+    TrackedFileStruct delete2 = createDeleteFile("delete2.parquet", 30L);
     delete2.setReferencedFile(dataFilePath);
     delete2.setSequenceNumber(105L);
 
@@ -408,8 +407,8 @@ public class TestManifestExpander {
     assertThat(scanInfos.get(0).deleteFiles().get(0).location()).endsWith("delete1.parquet");
   }
 
-  private GenericTrackedFile createDataFile(String filename, long recordCount) {
-    GenericTrackedFile file = new GenericTrackedFile();
+  private TrackedFileStruct createDataFile(String filename, long recordCount) {
+    TrackedFileStruct file = new TrackedFileStruct();
     file.setContentType(FileContent.DATA);
     file.setLocation("s3://bucket/table/data/" + filename);
     file.setFileFormat(FileFormat.PARQUET);
@@ -421,8 +420,8 @@ public class TestManifestExpander {
     return file;
   }
 
-  private GenericTrackedFile createDeleteFile(String filename, long recordCount) {
-    GenericTrackedFile file = new GenericTrackedFile();
+  private TrackedFileStruct createDeleteFile(String filename, long recordCount) {
+    TrackedFileStruct file = new TrackedFileStruct();
     file.setContentType(FileContent.POSITION_DELETES);
     file.setLocation("s3://bucket/table/deletes/" + filename);
     file.setFileFormat(FileFormat.PARQUET);
@@ -434,9 +433,9 @@ public class TestManifestExpander {
     return file;
   }
 
-  private GenericTrackedFile createManifestEntry(
+  private TrackedFileStruct createManifestEntry(
       String manifestLocation, int fileCount, long totalRows) {
-    GenericTrackedFile entry = new GenericTrackedFile();
+    TrackedFileStruct entry = new TrackedFileStruct();
     entry.setContentType(FileContent.DATA_MANIFEST);
     entry.setLocation(manifestLocation);
     entry.setFileFormat(FileFormat.PARQUET);
@@ -444,13 +443,15 @@ public class TestManifestExpander {
     entry.setRecordCount(fileCount);
     entry.setFileSizeInBytes(10000L);
 
-    entry.setAddedFilesCount(fileCount);
-    entry.setExistingFilesCount(0);
-    entry.setDeletedFilesCount(0);
-    entry.setAddedRowsCount(totalRows);
-    entry.setExistingRowsCount(0L);
-    entry.setDeletedRowsCount(0L);
-    entry.setMinSequenceNumber(SEQUENCE_NUMBER);
+    TrackedFileStruct.ManifestStatsStruct stats = new TrackedFileStruct.ManifestStatsStruct();
+    stats.setAddedFilesCount(fileCount);
+    stats.setExistingFilesCount(0);
+    stats.setDeletedFilesCount(0);
+    stats.setAddedRowsCount(totalRows);
+    stats.setExistingRowsCount(0L);
+    stats.setDeletedRowsCount(0L);
+    stats.setMinSequenceNumber(SEQUENCE_NUMBER);
+    entry.setManifestStats(stats);
 
     entry.setStatus(TrackingInfo.Status.ADDED);
     entry.setSnapshotId(SNAPSHOT_ID);
@@ -460,9 +461,9 @@ public class TestManifestExpander {
     return entry;
   }
 
-  private GenericTrackedFile createDeleteManifestEntry(
+  private TrackedFileStruct createDeleteManifestEntry(
       String manifestLocation, int fileCount, long totalRows) {
-    GenericTrackedFile entry = new GenericTrackedFile();
+    TrackedFileStruct entry = new TrackedFileStruct();
     entry.setContentType(FileContent.DELETE_MANIFEST);
     entry.setLocation(manifestLocation);
     entry.setFileFormat(FileFormat.PARQUET);
@@ -470,13 +471,15 @@ public class TestManifestExpander {
     entry.setRecordCount(fileCount);
     entry.setFileSizeInBytes(5000L);
 
-    entry.setAddedFilesCount(fileCount);
-    entry.setExistingFilesCount(0);
-    entry.setDeletedFilesCount(0);
-    entry.setAddedRowsCount(totalRows);
-    entry.setExistingRowsCount(0L);
-    entry.setDeletedRowsCount(0L);
-    entry.setMinSequenceNumber(SEQUENCE_NUMBER);
+    TrackedFileStruct.ManifestStatsStruct deleteStats = new TrackedFileStruct.ManifestStatsStruct();
+    deleteStats.setAddedFilesCount(fileCount);
+    deleteStats.setExistingFilesCount(0);
+    deleteStats.setDeletedFilesCount(0);
+    deleteStats.setAddedRowsCount(totalRows);
+    deleteStats.setExistingRowsCount(0L);
+    deleteStats.setDeletedRowsCount(0L);
+    deleteStats.setMinSequenceNumber(SEQUENCE_NUMBER);
+    entry.setManifestStats(deleteStats);
 
     entry.setStatus(TrackingInfo.Status.ADDED);
     entry.setSnapshotId(SNAPSHOT_ID);
@@ -486,23 +489,23 @@ public class TestManifestExpander {
     return entry;
   }
 
-  private String writeRootManifest(GenericTrackedFile... entries) throws IOException {
+  private String writeRootManifest(TrackedFileStruct... entries) throws IOException {
     return writeManifest("root-manifest", entries);
   }
 
-  private String writeLeafManifest(GenericTrackedFile... entries) throws IOException {
+  private String writeLeafManifest(TrackedFileStruct... entries) throws IOException {
     return writeManifest("leaf-manifest", entries);
   }
 
-  private String writeManifest(String prefix, GenericTrackedFile... entries) throws IOException {
+  private String writeManifest(String prefix, TrackedFileStruct... entries) throws IOException {
     OutputFile outputFile = io.newOutputFile(prefix + "-" + System.nanoTime() + ".parquet");
 
-    try (FileAppender<GenericTrackedFile> appender =
+    try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.PARQUET, outputFile)
-            .schema(new Schema(GenericTrackedFile.BASE_TYPE.fields()))
+            .schema(new Schema(TrackedFileStruct.BASE_TYPE.fields()))
             .named("tracked_file")
             .build()) {
-      for (GenericTrackedFile entry : entries) {
+      for (TrackedFileStruct entry : entries) {
         appender.add(entry);
       }
     }
@@ -512,16 +515,17 @@ public class TestManifestExpander {
 
   @Test
   public void testManifestDVFiltersPositions() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L);
-    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L);
-    GenericTrackedFile file3 = createDataFile("file3.parquet", 3000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L);
+    TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L);
+    TrackedFileStruct file3 = createDataFile("file3.parquet", 3000L);
     String leafManifestPath = writeLeafManifest(file1, file2, file3);
 
-    GenericTrackedFile manifestEntry = createManifestEntry(leafManifestPath, 3, 6000L);
+    // Create manifest entry with inline manifest DV that marks position 1 as deleted
+    TrackedFileStruct manifestEntry = createManifestEntry(leafManifestPath, 3, 6000L);
+    ByteBuffer manifestDvBitmap = serializeManifestDV(new long[] {1});
+    manifestEntry.setManifestDV(manifestDvBitmap);
 
-    GenericTrackedFile manifestDV = createManifestDV(leafManifestPath, new long[] {1});
-
-    String rootPath = writeRootManifest(manifestEntry, manifestDV);
+    String rootPath = writeRootManifest(manifestEntry);
 
     V4ManifestReader rootReader =
         V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
@@ -539,10 +543,10 @@ public class TestManifestExpander {
 
   @Test
   public void testManifestWithoutDV() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L);
     String leafManifestPath = writeLeafManifest(file1);
 
-    GenericTrackedFile manifestEntry = createManifestEntry(leafManifestPath, 1, 1000L);
+    TrackedFileStruct manifestEntry = createManifestEntry(leafManifestPath, 1, 1000L);
 
     String rootPath = writeRootManifest(manifestEntry);
 
@@ -558,37 +562,19 @@ public class TestManifestExpander {
   }
 
   @Test
-  public void testMultipleManifestDVsForSameManifest() throws IOException {
-    String leafManifestPath = writeLeafManifest(createDataFile("file1.parquet", 1000L));
-
-    GenericTrackedFile manifestEntry = createManifestEntry(leafManifestPath, 1, 1000L);
-    GenericTrackedFile manifestDV1 = createManifestDV(leafManifestPath, new long[] {0});
-    GenericTrackedFile manifestDV2 = createManifestDV(leafManifestPath, new long[] {1});
-
-    String rootPath = writeRootManifest(manifestEntry, manifestDV1, manifestDV2);
-
-    V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
-    ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
-
-    assertThatThrownBy(() -> Lists.newArrayList(expander.allTrackedFiles()))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Multiple MANIFEST_DVs found for manifest");
-  }
-
-  @Test
   public void testManifestDVDeletesMultiplePositions() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L);
-    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L);
-    GenericTrackedFile file3 = createDataFile("file3.parquet", 3000L);
-    GenericTrackedFile file4 = createDataFile("file4.parquet", 4000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L);
+    TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L);
+    TrackedFileStruct file3 = createDataFile("file3.parquet", 3000L);
+    TrackedFileStruct file4 = createDataFile("file4.parquet", 4000L);
     String leafManifestPath = writeLeafManifest(file1, file2, file3, file4);
 
-    GenericTrackedFile manifestEntry = createManifestEntry(leafManifestPath, 4, 10000L);
+    // Create manifest entry with inline manifest DV that marks positions 0 and 2 as deleted
+    TrackedFileStruct manifestEntry = createManifestEntry(leafManifestPath, 4, 10000L);
+    ByteBuffer manifestDvBitmap = serializeManifestDV(new long[] {0, 2});
+    manifestEntry.setManifestDV(manifestDvBitmap);
 
-    GenericTrackedFile manifestDV = createManifestDV(leafManifestPath, new long[] {0, 2});
-
-    String rootPath = writeRootManifest(manifestEntry, manifestDV);
+    String rootPath = writeRootManifest(manifestEntry);
 
     V4ManifestReader rootReader =
         V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
@@ -597,48 +583,35 @@ public class TestManifestExpander {
     List<ManifestExpander.DataFileScanInfo> scanInfos =
         Lists.newArrayList(expander.planDataFiles());
 
+    // Positions 0 (file1) and 2 (file3) should be filtered out by the manifest DV
     assertThat(scanInfos).hasSize(2);
     assertThat(scanInfos)
         .anyMatch(info -> info.dataFile().location().endsWith("file2.parquet"))
         .anyMatch(info -> info.dataFile().location().endsWith("file4.parquet"));
   }
 
-  private GenericTrackedFile createManifestDV(String targetManifest, long[] deletedPositions)
-      throws IOException {
-    RoaringBitmap bitmap = new RoaringBitmap();
+  private ByteBuffer serializeManifestDV(long[] deletedPositions) throws IOException {
+    RoaringBitmap dv = new RoaringBitmap();
     for (long pos : deletedPositions) {
-      // positions are 0-based and should not exceed Integer.MAX_VALUE
-      bitmap.add((int) pos);
+      dv.add((int) pos);
     }
 
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    bitmap.serialize(new DataOutputStream(baos));
-    byte[] serialized = baos.toByteArray();
-
-    GenericTrackedFile dv = new GenericTrackedFile();
-    dv.setContentType(FileContent.MANIFEST_DV);
-    dv.setFileFormat(FileFormat.PUFFIN);
-    dv.setPartitionSpecId(0);
-    dv.setRecordCount(deletedPositions.length);
-    dv.setReferencedFile(targetManifest);
-    dv.setDeletionVectorInlineContent(ByteBuffer.wrap(serialized));
-    dv.setStatus(TrackingInfo.Status.ADDED);
-    dv.setSnapshotId(SNAPSHOT_ID);
-
-    return dv;
+    dv.serialize(new DataOutputStream(baos));
+    return ByteBuffer.wrap(baos.toByteArray());
   }
 
   @Test
   public void testParallelManifestReading() throws IOException {
-    GenericTrackedFile file1 = createDataFile("file1.parquet", 1000L);
+    TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L);
     String manifest1Path = writeLeafManifest(file1);
 
-    GenericTrackedFile file2 = createDataFile("file2.parquet", 2000L);
-    GenericTrackedFile file3 = createDataFile("file3.parquet", 3000L);
+    TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L);
+    TrackedFileStruct file3 = createDataFile("file3.parquet", 3000L);
     String manifest2Path = writeLeafManifest(file2, file3);
 
-    GenericTrackedFile manifestEntry1 = createManifestEntry(manifest1Path, 1, 1000L);
-    GenericTrackedFile manifestEntry2 = createManifestEntry(manifest2Path, 2, 5000L);
+    TrackedFileStruct manifestEntry1 = createManifestEntry(manifest1Path, 1, 1000L);
+    TrackedFileStruct manifestEntry2 = createManifestEntry(manifest2Path, 2, 5000L);
 
     String rootPath = writeRootManifest(manifestEntry1, manifestEntry2);
 

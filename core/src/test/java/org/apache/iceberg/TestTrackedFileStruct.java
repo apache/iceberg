@@ -33,18 +33,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestGenericTrackedFile {
+public class TestTrackedFileStruct {
 
   @TempDir private Path temp;
 
   private static Schema getTrackedFileSchema() {
-    return new Schema(GenericTrackedFile.BASE_TYPE.fields());
+    return new Schema(TrackedFileStruct.BASE_TYPE.fields());
   }
 
   @Test
   public void testAvroRoundTripDataFile() throws IOException {
     // Create a tracked file representing a data file
-    GenericTrackedFile original = new GenericTrackedFile();
+    TrackedFileStruct original = new TrackedFileStruct();
     original.setContentType(FileContent.DATA);
     original.setLocation("s3://bucket/table/data/file1.parquet");
     original.setFileFormat(FileFormat.PARQUET);
@@ -66,8 +66,8 @@ public class TestGenericTrackedFile {
 
     // Write to file
     OutputFile outputFile = Files.localOutput(temp.resolve("tracked-file.parquet").toFile());
-    List<GenericTrackedFile> written;
-    try (FileAppender<GenericTrackedFile> appender =
+    List<TrackedFileStruct> written;
+    try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.PARQUET, outputFile)
             .schema(getTrackedFileSchema())
             .named("tracked_file")
@@ -78,10 +78,10 @@ public class TestGenericTrackedFile {
 
     // Read back
     InputFile inputFile = outputFile.toInputFile();
-    List<GenericTrackedFile> read;
-    try (CloseableIterable<GenericTrackedFile> files =
+    List<TrackedFileStruct> read;
+    try (CloseableIterable<TrackedFileStruct> files =
         InternalData.read(FileFormat.PARQUET, inputFile)
-            .setRootType(GenericTrackedFile.class)
+            .setRootType(TrackedFileStruct.class)
             .project(getTrackedFileSchema())
             .build()) {
       read = Lists.newArrayList(files);
@@ -89,7 +89,7 @@ public class TestGenericTrackedFile {
 
     // Verify
     assertThat(read).hasSize(1);
-    GenericTrackedFile roundTripped = read.get(0);
+    TrackedFileStruct roundTripped = read.get(0);
 
     assertThat(roundTripped.contentType()).isEqualTo(FileContent.DATA);
     assertThat(roundTripped.location()).isEqualTo("s3://bucket/table/data/file1.parquet");
@@ -105,7 +105,7 @@ public class TestGenericTrackedFile {
     assertThat(trackingInfo).isNotNull();
     assertThat(trackingInfo.status()).isEqualTo(TrackingInfo.Status.ADDED);
     assertThat(trackingInfo.snapshotId()).isEqualTo(12345L);
-    assertThat(trackingInfo.sequenceNumber()).isEqualTo(100L);
+    assertThat(trackingInfo.dataSequenceNumber()).isEqualTo(100L);
     assertThat(trackingInfo.fileSequenceNumber()).isEqualTo(100L);
     assertThat(trackingInfo.firstRowId()).isEqualTo(0L);
 
@@ -116,7 +116,7 @@ public class TestGenericTrackedFile {
   @Test
   public void testAvroRoundTripPositionDeletesWithDeletionVector() throws IOException {
     // Create a tracked file representing position deletes with external deletion vector
-    GenericTrackedFile original = new GenericTrackedFile();
+    TrackedFileStruct original = new TrackedFileStruct();
     original.setContentType(FileContent.POSITION_DELETES);
     original.setLocation("s3://bucket/table/deletes/dv1.puffin");
     original.setFileFormat(FileFormat.PUFFIN);
@@ -125,9 +125,11 @@ public class TestGenericTrackedFile {
     original.setFileSizeInBytes(1000L);
     original.setReferencedFile("s3://bucket/table/data/file1.parquet");
 
-    // Set deletion vector (external)
-    original.setDeletionVectorOffset(100L);
-    original.setDeletionVectorSizeInBytes(500L);
+    // Set content info (for external deletion vector)
+    TrackedFileStruct.ContentInfoStruct contentInfo = new TrackedFileStruct.ContentInfoStruct();
+    contentInfo.setOffset(100L);
+    contentInfo.setSizeInBytes(500L);
+    original.setContentInfo(contentInfo);
 
     // Set tracking info
     original.setStatus(TrackingInfo.Status.ADDED);
@@ -137,7 +139,7 @@ public class TestGenericTrackedFile {
 
     // Write to file
     OutputFile outputFile = Files.localOutput(temp.resolve("dv-tracked-file.avro").toFile());
-    try (FileAppender<GenericTrackedFile> appender =
+    try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.AVRO, outputFile)
             .schema(getTrackedFileSchema())
             .named("tracked_file")
@@ -147,10 +149,10 @@ public class TestGenericTrackedFile {
 
     // Read back
     InputFile inputFile = outputFile.toInputFile();
-    List<GenericTrackedFile> read;
-    try (CloseableIterable<GenericTrackedFile> files =
+    List<TrackedFileStruct> read;
+    try (CloseableIterable<TrackedFileStruct> files =
         InternalData.read(FileFormat.AVRO, inputFile)
-            .setRootType(GenericTrackedFile.class)
+            .setRootType(TrackedFileStruct.class)
             .project(getTrackedFileSchema())
             .build()) {
       read = Lists.newArrayList(files);
@@ -158,7 +160,7 @@ public class TestGenericTrackedFile {
 
     // Verify
     assertThat(read).hasSize(1);
-    GenericTrackedFile roundTripped = read.get(0);
+    TrackedFileStruct roundTripped = read.get(0);
 
     assertThat(roundTripped.contentType()).isEqualTo(FileContent.POSITION_DELETES);
     assertThat(roundTripped.location()).isEqualTo("s3://bucket/table/deletes/dv1.puffin");
@@ -167,35 +169,34 @@ public class TestGenericTrackedFile {
     assertThat(roundTripped.referencedFile()).isEqualTo("s3://bucket/table/data/file1.parquet");
 
     // Verify deletion vector
-    DeletionVector dv = roundTripped.deletionVector();
+    ContentInfo dv = roundTripped.contentInfo();
     assertThat(dv).isNotNull();
     assertThat(dv.offset()).isEqualTo(100L);
     assertThat(dv.sizeInBytes()).isEqualTo(500L);
-    assertThat(dv.inlineContent()).isNull();
   }
 
   @Test
-  public void testAvroRoundTripManifestDVWithInlineContent() throws IOException {
-    // Create a tracked file representing a manifest deletion vector with inline content
-    GenericTrackedFile original = new GenericTrackedFile();
-    original.setContentType(FileContent.MANIFEST_DV);
-    original.setFileFormat(FileFormat.PUFFIN); // Even inline DVs need a format
+  public void testAvroRoundTripDataManifestWithManifestDV() throws IOException {
+    // Create a tracked file representing a data manifest entry with an inline manifest DV
+    TrackedFileStruct original = new TrackedFileStruct();
+    original.setContentType(FileContent.DATA_MANIFEST);
+    original.setLocation("s3://bucket/table/metadata/manifest-data-1.avro");
+    original.setFileFormat(FileFormat.AVRO);
     original.setPartitionSpecId(0);
-    original.setRecordCount(3L); // 3 deleted manifest entries
-    original.setReferencedFile("s3://bucket/table/metadata/manifest1.avro");
+    original.setRecordCount(100L); // 100 entries in the manifest
+    original.setFileSizeInBytes(25000L);
 
-    // Set inline deletion vector
-    byte[] inlineBitmap = new byte[] {(byte) 0b00000111}; // positions 0, 1, 2 deleted
-    original.setDeletionVectorInlineContent(ByteBuffer.wrap(inlineBitmap));
+    // Set manifest DV - marks positions 0, 1, 2 as deleted in the referenced manifest
+    byte[] dvContent = new byte[] {(byte) 0b00000111};
+    original.setManifestDV(ByteBuffer.wrap(dvContent));
 
     // Set tracking info
     original.setStatus(TrackingInfo.Status.ADDED);
     original.setSnapshotId(12347L);
 
     // Write to file
-    OutputFile outputFile =
-        Files.localOutput(temp.resolve("manifest-dv-tracked-file.avro").toFile());
-    try (FileAppender<GenericTrackedFile> appender =
+    OutputFile outputFile = Files.localOutput(temp.resolve("manifest-with-dv.avro").toFile());
+    try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.AVRO, outputFile)
             .schema(getTrackedFileSchema())
             .named("tracked_file")
@@ -205,10 +206,10 @@ public class TestGenericTrackedFile {
 
     // Read back
     InputFile inputFile = outputFile.toInputFile();
-    List<GenericTrackedFile> read;
-    try (CloseableIterable<GenericTrackedFile> files =
+    List<TrackedFileStruct> read;
+    try (CloseableIterable<TrackedFileStruct> files =
         InternalData.read(FileFormat.AVRO, inputFile)
-            .setRootType(GenericTrackedFile.class)
+            .setRootType(TrackedFileStruct.class)
             .project(getTrackedFileSchema())
             .build()) {
       read = Lists.newArrayList(files);
@@ -216,26 +217,23 @@ public class TestGenericTrackedFile {
 
     // Verify
     assertThat(read).hasSize(1);
-    GenericTrackedFile roundTripped = read.get(0);
+    TrackedFileStruct roundTripped = read.get(0);
 
-    assertThat(roundTripped.contentType()).isEqualTo(FileContent.MANIFEST_DV);
-    assertThat(roundTripped.location()).isNull(); // Can be null for inline DVs
-    assertThat(roundTripped.recordCount()).isEqualTo(3L);
-    assertThat(roundTripped.referencedFile())
-        .isEqualTo("s3://bucket/table/metadata/manifest1.avro");
+    assertThat(roundTripped.contentType()).isEqualTo(FileContent.DATA_MANIFEST);
+    assertThat(roundTripped.location())
+        .isEqualTo("s3://bucket/table/metadata/manifest-data-1.avro");
+    assertThat(roundTripped.recordCount()).isEqualTo(100L);
 
-    // Verify inline deletion vector
-    DeletionVector dv = roundTripped.deletionVector();
-    assertThat(dv).isNotNull();
-    assertThat(dv.offset()).isNull();
-    assertThat(dv.sizeInBytes()).isNull();
-    assertThat(dv.inlineContent()).isEqualTo(ByteBuffer.wrap(inlineBitmap));
+    // Verify manifest DV
+    ByteBuffer manifestDV = roundTripped.manifestDV();
+    assertThat(manifestDV).isNotNull();
+    assertThat(manifestDV).isEqualTo(ByteBuffer.wrap(dvContent));
   }
 
   @Test
   public void testAvroRoundTripDataManifestWithStats() throws IOException {
     // Create a tracked file representing a data manifest entry
-    GenericTrackedFile original = new GenericTrackedFile();
+    TrackedFileStruct original = new TrackedFileStruct();
     original.setContentType(FileContent.DATA_MANIFEST);
     original.setLocation("s3://bucket/table/metadata/manifest-data-1.avro");
     original.setFileFormat(FileFormat.AVRO);
@@ -244,13 +242,16 @@ public class TestGenericTrackedFile {
     original.setFileSizeInBytes(25000L);
 
     // Set manifest stats
-    original.setAddedFilesCount(10);
-    original.setExistingFilesCount(85);
-    original.setDeletedFilesCount(5);
-    original.setAddedRowsCount(10000L);
-    original.setExistingRowsCount(850000L);
-    original.setDeletedRowsCount(5000L);
-    original.setMinSequenceNumber(50L);
+    TrackedFileStruct.ManifestStatsStruct manifestStats =
+        new TrackedFileStruct.ManifestStatsStruct();
+    manifestStats.setAddedFilesCount(10);
+    manifestStats.setExistingFilesCount(85);
+    manifestStats.setDeletedFilesCount(5);
+    manifestStats.setAddedRowsCount(10000L);
+    manifestStats.setExistingRowsCount(850000L);
+    manifestStats.setDeletedRowsCount(5000L);
+    manifestStats.setMinSequenceNumber(50L);
+    original.setManifestStats(manifestStats);
 
     // Set tracking info
     original.setStatus(TrackingInfo.Status.EXISTING);
@@ -262,7 +263,7 @@ public class TestGenericTrackedFile {
     // Write to file
     OutputFile outputFile =
         Files.localOutput(temp.resolve("data-manifest-tracked-file.avro").toFile());
-    try (FileAppender<GenericTrackedFile> appender =
+    try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.AVRO, outputFile)
             .schema(getTrackedFileSchema())
             .named("tracked_file")
@@ -272,10 +273,10 @@ public class TestGenericTrackedFile {
 
     // Read back
     InputFile inputFile = outputFile.toInputFile();
-    List<GenericTrackedFile> read;
-    try (CloseableIterable<GenericTrackedFile> files =
+    List<TrackedFileStruct> read;
+    try (CloseableIterable<TrackedFileStruct> files =
         InternalData.read(FileFormat.AVRO, inputFile)
-            .setRootType(GenericTrackedFile.class)
+            .setRootType(TrackedFileStruct.class)
             .project(getTrackedFileSchema())
             .build()) {
       read = Lists.newArrayList(files);
@@ -283,7 +284,7 @@ public class TestGenericTrackedFile {
 
     // Verify
     assertThat(read).hasSize(1);
-    GenericTrackedFile roundTripped = read.get(0);
+    TrackedFileStruct roundTripped = read.get(0);
 
     assertThat(roundTripped.contentType()).isEqualTo(FileContent.DATA_MANIFEST);
     assertThat(roundTripped.location())
@@ -313,7 +314,7 @@ public class TestGenericTrackedFile {
   @Test
   public void testAvroRoundTripEqualityDeletes() throws IOException {
     // Create a tracked file representing equality deletes
-    GenericTrackedFile original = new GenericTrackedFile();
+    TrackedFileStruct original = new TrackedFileStruct();
     original.setContentType(FileContent.EQUALITY_DELETES);
     original.setLocation("s3://bucket/table/deletes/eq-delete-1.parquet");
     original.setFileFormat(FileFormat.PARQUET);
@@ -332,7 +333,7 @@ public class TestGenericTrackedFile {
     // Write to file
     OutputFile outputFile =
         Files.localOutput(temp.resolve("equality-delete-tracked-file.avro").toFile());
-    try (FileAppender<GenericTrackedFile> appender =
+    try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.AVRO, outputFile)
             .schema(getTrackedFileSchema())
             .named("tracked_file")
@@ -342,10 +343,10 @@ public class TestGenericTrackedFile {
 
     // Read back
     InputFile inputFile = outputFile.toInputFile();
-    List<GenericTrackedFile> read;
-    try (CloseableIterable<GenericTrackedFile> files =
+    List<TrackedFileStruct> read;
+    try (CloseableIterable<TrackedFileStruct> files =
         InternalData.read(FileFormat.AVRO, inputFile)
-            .setRootType(GenericTrackedFile.class)
+            .setRootType(TrackedFileStruct.class)
             .project(getTrackedFileSchema())
             .build()) {
       read = Lists.newArrayList(files);
@@ -353,7 +354,7 @@ public class TestGenericTrackedFile {
 
     // Verify
     assertThat(read).hasSize(1);
-    GenericTrackedFile roundTripped = read.get(0);
+    TrackedFileStruct roundTripped = read.get(0);
 
     assertThat(roundTripped.contentType()).isEqualTo(FileContent.EQUALITY_DELETES);
     assertThat(roundTripped.location()).isEqualTo("s3://bucket/table/deletes/eq-delete-1.parquet");
@@ -365,7 +366,7 @@ public class TestGenericTrackedFile {
 
   @Test
   public void testCopy() {
-    GenericTrackedFile original = new GenericTrackedFile();
+    TrackedFileStruct original = new TrackedFileStruct();
     original.setContentType(FileContent.DATA);
     original.setLocation("s3://bucket/table/data/file1.parquet");
     original.setFileFormat(FileFormat.PARQUET);
@@ -374,10 +375,12 @@ public class TestGenericTrackedFile {
     original.setFileSizeInBytes(50000L);
 
     // Set manifest stats (should be copied)
-    original.setAddedFilesCount(10);
-    original.setMinSequenceNumber(50L);
+    TrackedFileStruct.ManifestStatsStruct stats = new TrackedFileStruct.ManifestStatsStruct();
+    stats.setAddedFilesCount(10);
+    stats.setMinSequenceNumber(50L);
+    original.setManifestStats(stats);
 
-    GenericTrackedFile copy = original.copy();
+    TrackedFile copy = original.copy();
 
     // Verify copy is equal but separate instance
     assertThat(copy).isNotSameAs(original);
@@ -392,7 +395,7 @@ public class TestGenericTrackedFile {
 
   @Test
   public void testCopyWithoutStats() {
-    GenericTrackedFile original = new GenericTrackedFile();
+    TrackedFileStruct original = new TrackedFileStruct();
     original.setContentType(FileContent.DATA);
     original.setLocation("s3://bucket/table/data/file1.parquet");
     original.setFileFormat(FileFormat.PARQUET);
@@ -401,10 +404,12 @@ public class TestGenericTrackedFile {
     original.setFileSizeInBytes(50000L);
 
     // Set manifest stats (should NOT be copied)
-    original.setAddedFilesCount(10);
-    original.setMinSequenceNumber(50L);
+    TrackedFileStruct.ManifestStatsStruct stats = new TrackedFileStruct.ManifestStatsStruct();
+    stats.setAddedFilesCount(10);
+    stats.setMinSequenceNumber(50L);
+    original.setManifestStats(stats);
 
-    GenericTrackedFile copy = original.copyWithoutStats();
+    TrackedFile copy = original.copyWithoutStats();
 
     // Verify copy is equal but stats are dropped
     assertThat(copy).isNotSameAs(original);
