@@ -116,6 +116,80 @@ SELECT * FROM prod.db.table VERSION AS OF 'historical-snapshot';
 SELECT * FROM prod.db.table.`tag_historical-snapshot`;
 ```
 
+For example, consider a table that evolves its schema over time, and see how each type of time travel query selects its schema:
+
+```sql
+-- snapshot S1: initial schema (id, status)
+CREATE TABLE prod.db.orders (
+  id BIGINT,
+  status STRING
+) USING iceberg;
+
+INSERT INTO prod.db.orders VALUES (1, 'NEW'), (2, 'PAID');
+
+-- record snapshot S1's snapshot_id and committed_at timestamp
+-- e.g. snapshot_id = 101, committed_at = '2025-01-01 10:00:00'
+
+-- snapshot S2: add a new column "total" and write new data
+ALTER TABLE prod.db.orders ADD COLUMN total DOUBLE;
+
+INSERT INTO prod.db.orders VALUES (3, 'PAID', 100.0);
+
+-- now S2 is the current snapshot with schema (id, status, total)
+```
+
+Time travel queries that select a specific snapshot or timestamp use the
+snapshot's schema:
+
+```sql
+-- uses the snapshot schema of S1: columns (id, status)
+SELECT * FROM prod.db.orders VERSION AS OF 101;
+
+SELECT * FROM prod.db.orders TIMESTAMP AS OF '2025-01-01 10:00:00';
+```
+
+In both queries above, the result only has `id` and `status`. The `total`
+column does not exist in the S1 schema and is not visible, even though the
+current table schema includes `total`.
+
+Now create a branch and a tag that both reference S1:
+
+```sql
+-- branch "audit_branch" points to snapshot S1
+ALTER TABLE prod.db.orders CREATE BRANCH audit_branch AS OF VERSION 101;
+
+-- tag "first_load" also points to snapshot S1
+ALTER TABLE prod.db.orders CREATE TAG first_load AS OF VERSION 101;
+```
+
+When you query a branch, Spark uses the table's current schema:
+
+```sql
+-- uses the table schema: columns (id, status, total)
+SELECT * FROM prod.db.orders VERSION AS OF 'audit_branch';
+
+-- equivalent identifier form
+SELECT * FROM prod.db.orders.`branch_audit_branch`;
+```
+
+In these queries, the result has columns `(id, status, total)`. For the rows
+from S1, `total` is returned as `NULL` because that column did not exist when
+those rows were written.
+
+When you query a tag, Spark uses the snapshot's schema referenced by the tag:
+
+```sql
+-- uses the snapshot schema of S1: columns (id, status)
+SELECT * FROM prod.db.orders VERSION AS OF 'first_load';
+
+-- equivalent identifier form
+SELECT * FROM prod.db.orders.`tag_first_load`;
+```
+
+These queries only return `id` and `status`, because tags are bound to a
+specific snapshot and use that snapshot's schema, even if the table's current
+schema has evolved.
+
 ## Querying with DataFrames
 
 To load a table as a DataFrame, use `table`:

@@ -34,6 +34,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RequiresRemoteScanPlanning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SparkDistributedDataScan;
@@ -760,7 +761,9 @@ public class SparkScanBuilder
   }
 
   private BatchScan newBatchScan() {
-    if (table instanceof BaseTable && readConf.distributedPlanningEnabled()) {
+    if (table instanceof RequiresRemoteScanPlanning) {
+      return table.newBatchScan();
+    } else if (table instanceof BaseTable && readConf.distributedPlanningEnabled()) {
       return new SparkDistributedDataScan(spark, table, readConf);
     } else {
       return table.newBatchScan();

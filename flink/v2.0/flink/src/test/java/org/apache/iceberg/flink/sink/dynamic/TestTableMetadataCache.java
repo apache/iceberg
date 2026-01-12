@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -86,7 +87,11 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     catalog.dropTable(tableIdentifier);
     catalog.createTable(tableIdentifier, SCHEMA2);
     tableUpdater.update(
-        tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA2,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
 
     Schema schema2 = cache.schema(tableIdentifier, SCHEMA2, false).resolvedTableSchema();
     assertThat(schema2.sameSchema(SCHEMA2)).isTrue();
@@ -129,5 +134,29 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     TableMetadataCache.CacheItem cacheItem = cache.getInternalCache().get(tableIdentifier);
     assertThat(cacheItem).isNotNull();
     assertThat(cacheItem.inputSchemas()).containsKeys(SCHEMA, SCHEMA2);
+  }
+
+  @Test
+  void testNoSuchNamespaceExceptionHandling() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.of("nonexistent_namespace", "myTable");
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+
+    TableMetadataCache.ResolvedSchemaInfo result = cache.schema(tableIdentifier, SCHEMA, false);
+
+    assertThat(result).isEqualTo(TableMetadataCache.NOT_FOUND);
+    assertThat(cache.getInternalCache().get(tableIdentifier)).isNotNull();
+  }
+
+  @Test
+  void testNoSuchTableExceptionHandling() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.nonexistent_table");
+    TableMetadataCache cache = new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10);
+
+    TableMetadataCache.ResolvedSchemaInfo result = cache.schema(tableIdentifier, SCHEMA, false);
+
+    assertThat(result).isEqualTo(TableMetadataCache.NOT_FOUND);
+    assertThat(cache.getInternalCache().get(tableIdentifier)).isNotNull();
   }
 }

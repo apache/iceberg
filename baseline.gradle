@@ -52,6 +52,7 @@ subprojects {
   apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.diffplug.spotless'
 
+  String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
       java {
@@ -63,18 +64,21 @@ subprojects {
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
 
-      // Configure different scalafmt rules for specific Scala version
-      if (project.name.startsWith("iceberg-spark") && project.name.endsWith("2.13")) {
-        scala {
-          target 'src/**/*.scala'
-          scalafmt("3.9.7").configFile("$rootDir/.baseline/scala/.scala213fmt.conf")
-          licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt", "package"
+      if (project.name.startsWith("iceberg-spark")) {
+        String scalafmtConfigFile = null
+        // Configure different scalafmt rules for specific Scala version
+        if (scalaVersion?.startsWith("2.12")) {
+          scalafmtConfigFile = "$rootDir/.baseline/scala/.scala212fmt.conf"
+        } else if (scalaVersion?.startsWith("2.13")) {
+          scalafmtConfigFile = "$rootDir/.baseline/scala/.scala213fmt.conf"
         }
-      } else if (project.name.startsWith("iceberg-spark") && project.name.endsWith("2.12")) {
-        scala {
-          target 'src/**/*.scala'
-          scalafmt("3.9.7").configFile("$rootDir/.baseline/scala/.scala212fmt.conf")
-          licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt", "package"
+
+        if (scalafmtConfigFile != null) {
+          scala {
+            target 'src/**/*.scala'
+            scalafmt("3.9.7").configFile(scalafmtConfigFile)
+            licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt", "package"
+          }
         }
       }
     }
@@ -182,7 +186,6 @@ subprojects {
   }
 
   pluginManager.withPlugin('scala') {
-    String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
     tasks.withType(ScalaCompile).configureEach { scalaCompile ->
       if (scalaVersion?.startsWith("2.12")) {
         scalaCompile.scalaCompileOptions.additionalParameters = [

@@ -115,6 +115,16 @@ public class TestExpressionUtil {
         .as("Sanitized string should be abbreviated")
         .isEqualTo("test IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total))");
 
+    Object[] tooLongStringsList =
+        IntStream.range(0, ExpressionUtil.LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD + 5)
+            .mapToObj(i -> "string_" + i)
+            .toArray();
+
+    assertThat(ExpressionUtil.toSanitizedString(Expressions.in("test", tooLongStringsList)))
+        .as("Sanitized string should be abbreviated")
+        .isEqualTo(
+            "test IN ((hash-14128790), (hash-1056a62b), (hash-22fd6340), (hash-3f9d20e4), (hash-136200f0), (hash-25fc9033), (hash-681d31e2), (hash-6c1796d4), (hash-382d143e), (hash-272f4e5b), ... (5 values hidden, 15 in total))");
+
     // The sanitization resulting in an expression tree does not abbreviate
     List<String> expectedValues = Lists.newArrayList();
     expectedValues.addAll(Collections.nCopies(5, "(2-digit-int)"));

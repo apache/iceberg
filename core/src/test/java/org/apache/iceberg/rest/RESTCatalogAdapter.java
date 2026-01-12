@@ -53,9 +53,11 @@ import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
@@ -81,6 +83,12 @@ import org.apache.iceberg.util.PropertyUtil;
 
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
 public class RESTCatalogAdapter extends BaseHTTPClient {
+
+  @SuppressWarnings("AvoidEscapedUnicodeCharacters")
+  private static final String NAMESPACE_SEPARATOR_UNICODE = "\u002e";
+
+  @VisibleForTesting static final String NAMESPACE_SEPARATOR_URLENCODED_UTF_8 = "%2E";
+
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES =
       ImmutableMap.<Class<? extends Exception>, Integer>builder()
           .put(IllegalArgumentException.class, 400)
@@ -90,6 +98,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           .put(ForbiddenException.class, 403)
           .put(NoSuchNamespaceException.class, 404)
           .put(NoSuchTableException.class, 404)
+          .put(NotFoundException.class, 404)
           .put(NoSuchViewException.class, 404)
           .put(NoSuchIcebergTableException.class, 404)
           .put(UnsupportedOperationException.class, 406)
@@ -106,7 +115,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private final ViewCatalog asViewCatalog;
 
   private AuthSession authSession = AuthSession.EMPTY;
-  private final PlanningBehavior planningBehavior = planningBehavior();
+  private PlanningBehavior planningBehavior;
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
@@ -168,13 +177,15 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                     Arrays.stream(Route.values())
                         .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                         .collect(Collectors.toList()))
+                .withOverride(
+                    RESTCatalogProperties.NAMESPACE_SEPARATOR, NAMESPACE_SEPARATOR_URLENCODED_UTF_8)
                 .build());
 
       case LIST_NAMESPACES:
         if (asNamespaceCatalog != null) {
           Namespace ns;
           if (vars.containsKey("parent")) {
-            ns = RESTUtil.namespaceFromQueryParam(vars.get("parent"));
+            ns = RESTUtil.namespaceFromQueryParam(vars.get("parent"), NAMESPACE_SEPARATOR_UNICODE);
           } else {
             ns = Namespace.empty();
           }
@@ -313,8 +324,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                   catalog,
                   ident,
                   request,
-                  planningBehavior::shouldPlanTableScanAsync,
-                  scan -> planningBehavior.numberFileScanTasksPerPlanTask()));
+                  planningBehavior()::shouldPlanTableScanAsync,
+                  scan -> planningBehavior().numberFileScanTasksPerPlanTask()));
         }
 
       case FETCH_PLANNING_RESULT:
@@ -595,7 +606,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   }
 
   protected PlanningBehavior planningBehavior() {
-    return new PlanningBehavior() {};
+    return this.planningBehavior == null ? new PlanningBehavior() {} : planningBehavior;
+  }
+
+  protected void setPlanningBehavior(PlanningBehavior behavior) {
+    this.planningBehavior = behavior;
   }
 
   @Override
@@ -645,7 +660,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.decodeNamespace(pathVars.get("namespace"));
+    return RESTUtil.decodeNamespace(
+        pathVars.get("namespace"), NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
 
   private static TableIdentifier tableIdentFromPathVars(Map<String, String> pathVars) {

@@ -654,6 +654,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return writeManifests(files, group -> writeDataFileGroup(group, dataSeq, spec));
   }
 
+  // Deletes uncommitted manifests; clears list if clearManifests and any deleted.
+  protected void deleteUncommitted(
+      Collection<ManifestFile> manifests, Set<ManifestFile> committed, boolean clearManifests) {
+    boolean anyDeleted = false;
+    for (ManifestFile manifest : manifests) {
+      if (!committed.contains(manifest)) {
+        deleteFile(manifest.path());
+        anyDeleted = true;
+      }
+    }
+
+    if (clearManifests && anyDeleted) {
+      manifests.clear();
+    }
+  }
+
   private List<ManifestFile> writeDataFileGroup(
       Collection<DataFile> files, Long dataSeq, PartitionSpec spec) {
     RollingManifestWriter<DataFile> writer = newRollingManifestWriter(spec);

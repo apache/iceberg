@@ -19,7 +19,7 @@
 package org.apache.iceberg.gcp.bigquery;
 
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
-import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROJECT_ID;
+import static org.apache.iceberg.gcp.bigquery.BigQueryProperties.PROJECT_ID;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
@@ -177,12 +177,11 @@ public class TestBigQueryTableOperations {
     org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
 
     when(client.update(any(), any()))
-        .thenThrow(new ValidationException("error message etag mismatch"));
+        .thenThrow(new CommitFailedException("error message etag mismatch"));
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining(
-            "Updating table failed due to conflict updates (etag mismatch). Retry the update");
+        .hasMessage("error message etag mismatch");
   }
 
   @Test

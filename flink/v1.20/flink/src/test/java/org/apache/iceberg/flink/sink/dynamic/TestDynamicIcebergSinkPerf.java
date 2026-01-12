@@ -39,6 +39,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.RandomGenericData;
@@ -127,7 +128,7 @@ class TestDynamicIcebergSinkPerf {
                   PartitionSpec.unpartitioned(),
                   ImmutableMap.of(MAX_CONTINUOUS_EMPTY_COMMITS, "100000"));
 
-      table.manageSnapshots().createBranch("main").commit();
+      table.manageSnapshots().createBranch(SnapshotRef.MAIN_BRANCH).commit();
     }
 
     List<Record> records = RandomGenericData.generate(SCHEMA, SAMPLE_SIZE, 1L);
@@ -136,7 +137,7 @@ class TestDynamicIcebergSinkPerf {
       rows.add(
           new DynamicRecord(
               IDENTIFIERS[i % TABLE_NUM],
-              "main",
+              SnapshotRef.MAIN_BRANCH,
               SCHEMA,
               RowDataConverter.convert(SCHEMA, records.get(i)),
               PartitionSpec.unpartitioned(),
