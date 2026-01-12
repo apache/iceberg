@@ -89,8 +89,8 @@ The event will be primarily in-person with one track of content live-streamed. A
 
 ## Spread the Word
 
-Last year, we were blown away by the volume and quality of submissions from across the community. Let's make Iceberg Summit 2026 the best one yet! If you know someone doing exciting work with Iceberg, encourage them to submit a talk.
+Last year, we were blown away by the volume and quality of submissions from across the community. Let's make Iceberg Summit 2026 the best one yet! If you know someone working with Iceberg, encourage them to submit a talk and [register](https://www.icebergsummit.org/) to join us this April.
 
-For more details about the event and to register your interest in attending, visit [icebergsummit.org](https://www.icebergsummit.org/).
+Can't make it in person? Be sure to register for a _free_ streaming pass to catch the keynotes and one track of content live. 
 
-**See you in San Francisco!**
+Hope to see you there!
