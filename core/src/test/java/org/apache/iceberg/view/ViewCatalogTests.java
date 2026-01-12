@@ -2013,8 +2013,9 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   public void registerView() {
     C catalog = catalog();
 
-    // Register view is not yet supported for REST catalog
-    assumeThat(catalog).isNotInstanceOf(RESTCatalog.class);
+    assumeThat(catalog)
+        .as("Registering a view is not yet supported for the REST catalog")
+        .isNotInstanceOf(RESTCatalog.class);
 
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
@@ -2029,7 +2030,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withDefaultNamespace(identifier.namespace())
             .withDefaultCatalog(catalog().name())
             .withQuery("spark", "select * from ns.tbl")
-            .withProperty(GC_ENABLED, "false")
+            .withProperty(GC_ENABLED, "false") // don't delete metadata when dropping the view
             .create();
 
     ViewOperations ops = ((BaseView) originalView).operations();
@@ -2084,8 +2085,9 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   public void registerExistingView() {
     C catalog = catalog();
 
-    // Register view is not yet supported for REST catalog
-    assumeThat(catalog).isNotInstanceOf(RESTCatalog.class);
+    assumeThat(catalog)
+        .as("Registering a view is not yet supported for the REST catalog")
+        .isNotInstanceOf(RESTCatalog.class);
 
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
@@ -2112,11 +2114,12 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
-  public void registerViewWithExistingTable() {
+  public void registerViewThatAlreadyExistsAsTable() {
     C catalog = catalog();
 
-    // Register view is not yet supported for REST catalog
-    assumeThat(catalog).isNotInstanceOf(RESTCatalog.class);
+    assumeThat(catalog)
+        .as("Registering a view is not yet supported for the REST catalog")
+        .isNotInstanceOf(RESTCatalog.class);
 
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
@@ -2124,24 +2127,22 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
       catalog.createNamespace(identifier.namespace());
     }
 
-    // create a table with the same name as the view
-    tableCatalog().createTable(identifier, SCHEMA);
-
-    ViewBuilder viewBuilder =
+    View view =
         catalog()
             .buildView(identifier)
             .withSchema(SCHEMA)
             .withDefaultNamespace(identifier.namespace())
             .withDefaultCatalog(catalog().name())
-            .withQuery("spark", "select * from ns.tbl");
+            .withQuery("spark", "select * from ns.tbl")
+            .withProperty(GC_ENABLED, "false") // don't delete metadata when dropping the view
+            .create();
 
-    assertThatThrownBy(viewBuilder::create)
-        .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageStartingWith("Table with same name already exists: ns.view");
-
-    Table table = tableCatalog().loadTable(identifier);
-    TableOperations ops = ((BaseTable) table).operations();
+    ViewOperations ops = ((BaseView) view).operations();
     String metadataLocation = ops.current().metadataFileLocation();
+    assertThat(catalog.dropView(identifier)).isTrue();
+
+    // create a table with the same name as the view
+    tableCatalog().createTable(identifier, SCHEMA);
 
     assertThatThrownBy(() -> catalog.registerView(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
