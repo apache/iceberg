@@ -83,10 +83,6 @@ What are you waiting for? Head over to [Sessionize](https://sessionize.com/icebe
 - Session 2: Wednesday, January 7, 2026 @ 8:00 AM PT
 - Session 3: Wednesday, January 14, 2026 @ 8:00 AM PT
 
-## What to Expect
-
-The event will be primarily in-person with one track of content live-streamed. All non-workshop sessions will be recorded and made available after the event, ensuring the knowledge shared reaches the entire community.
-
 ## Spread the Word
 
 Last year, we were blown away by the volume and quality of submissions from across the community. Let's make Iceberg Summit 2026 the best one yet! If you know someone working with Iceberg, encourage them to submit a talk and [register](https://www.icebergsummit.org/) to join us this April.
