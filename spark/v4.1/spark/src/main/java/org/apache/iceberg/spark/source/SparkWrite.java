@@ -256,21 +256,31 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   }
 
   private void setMergeSummaryProperties(SnapshotUpdate<?> operation, MergeSummary mergeSummary) {
-    setIfPositive(operation, "numTargetRowsCopied", mergeSummary.numTargetRowsCopied());
-    setIfPositive(operation, "numTargetRowsDeleted", mergeSummary.numTargetRowsDeleted());
-    setIfPositive(operation, "numTargetRowsUpdated", mergeSummary.numTargetRowsUpdated());
-    setIfPositive(operation, "numTargetRowsInserted", mergeSummary.numTargetRowsInserted());
     setIfPositive(
-        operation, "numTargetRowsMatchedUpdated", mergeSummary.numTargetRowsMatchedUpdated());
+        operation, "spark.merge-into.num-target-rows-copied", mergeSummary.numTargetRowsCopied());
     setIfPositive(
-        operation, "numTargetRowsMatchedDeleted", mergeSummary.numTargetRowsMatchedDeleted());
+        operation, "spark.merge-into.num-target-rows-deleted", mergeSummary.numTargetRowsDeleted());
+    setIfPositive(
+        operation, "spark.merge-into.num-target-rows-updated", mergeSummary.numTargetRowsUpdated());
     setIfPositive(
         operation,
-        "numTargetRowsNotMatchedBySourceUpdated",
+        "spark.merge-into.num-target-rows-inserted",
+        mergeSummary.numTargetRowsInserted());
+    setIfPositive(
+        operation,
+        "spark.merge-into.num-target-rows-matched-updated",
+        mergeSummary.numTargetRowsMatchedUpdated());
+    setIfPositive(
+        operation,
+        "spark.merge-into.num-target-rows-matched-deleted",
+        mergeSummary.numTargetRowsMatchedDeleted());
+    setIfPositive(
+        operation,
+        "spark.merge-into.num-target-rows-not-matched-by-source-updated",
         mergeSummary.numTargetRowsNotMatchedBySourceUpdated());
     setIfPositive(
         operation,
-        "numTargetRowsNotMatchedBySourceDeleted",
+        "spark.merge-into.num-target-rows-not-matched-by-source-deleted",
         mergeSummary.numTargetRowsNotMatchedBySourceDeleted());
   }
 

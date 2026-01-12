@@ -86,14 +86,14 @@ public abstract class TestMergeMetrics extends SparkRowLevelOperationsTestBase {
 
     // One row matched and was updated, one row unchanged
     // In CoW mode, the unchanged row is copied; in MoR mode, it's not
-    assertMergeMetric(summary, "numTargetRowsCopied", expectedRowsCopied(1));
-    assertMergeMetric(summary, "numTargetRowsUpdated", 1);
-    assertMergeMetric(summary, "numTargetRowsDeleted", 0);
-    assertMergeMetric(summary, "numTargetRowsInserted", 0);
-    assertMergeMetric(summary, "numTargetRowsMatchedUpdated", 1);
-    assertMergeMetric(summary, "numTargetRowsMatchedDeleted", 0);
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceUpdated", 0);
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceDeleted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-copied", expectedRowsCopied(1));
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-updated", 1);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-deleted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-inserted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-updated", 1);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-deleted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-not-matched-by-source-updated", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-not-matched-by-source-deleted", 0);
   }
 
   @TestTemplate
@@ -119,14 +119,14 @@ public abstract class TestMergeMetrics extends SparkRowLevelOperationsTestBase {
 
     // Two rows matched and were deleted, one row unchanged
     // In CoW mode, the unchanged row is copied; in MoR mode, it's not
-    assertMergeMetric(summary, "numTargetRowsCopied", expectedRowsCopied(1));
-    assertMergeMetric(summary, "numTargetRowsUpdated", 0);
-    assertMergeMetric(summary, "numTargetRowsDeleted", 2);
-    assertMergeMetric(summary, "numTargetRowsInserted", 0);
-    assertMergeMetric(summary, "numTargetRowsMatchedUpdated", 0);
-    assertMergeMetric(summary, "numTargetRowsMatchedDeleted", 2);
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceUpdated", 0);
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceDeleted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-copied", expectedRowsCopied(1));
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-updated", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-deleted", 2);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-inserted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-updated", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-deleted", 2);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-not-matched-by-source-updated", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-not-matched-by-source-deleted", 0);
   }
 
   @TestTemplate
@@ -161,14 +161,14 @@ public abstract class TestMergeMetrics extends SparkRowLevelOperationsTestBase {
 
     // 1 update, 1 delete, 1 insert, 1 unchanged row (id=3)
     // In CoW mode, the unchanged row is copied; in MoR mode, it's not
-    assertMergeMetric(summary, "numTargetRowsCopied", expectedRowsCopied(1));
-    assertMergeMetric(summary, "numTargetRowsUpdated", 1);
-    assertMergeMetric(summary, "numTargetRowsDeleted", 1);
-    assertMergeMetric(summary, "numTargetRowsInserted", 1);
-    assertMergeMetric(summary, "numTargetRowsMatchedUpdated", 1);
-    assertMergeMetric(summary, "numTargetRowsMatchedDeleted", 1);
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceUpdated", 0);
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceDeleted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-copied", expectedRowsCopied(1));
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-updated", 1);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-deleted", 1);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-inserted", 1);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-updated", 1);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-deleted", 1);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-not-matched-by-source-updated", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-not-matched-by-source-deleted", 0);
   }
 
   @TestTemplate
@@ -195,14 +195,14 @@ public abstract class TestMergeMetrics extends SparkRowLevelOperationsTestBase {
     Map<String, String> summary = currentSnapshot.summary();
 
     // 1 matched update, 2 not matched by source updates, 0 unchanged rows
-    assertMergeMetric(summary, "numTargetRowsCopied", expectedRowsCopied(0));
-    assertMergeMetric(summary, "numTargetRowsUpdated", 3);
-    assertMergeMetric(summary, "numTargetRowsDeleted", 0);
-    assertMergeMetric(summary, "numTargetRowsInserted", 0);
-    assertMergeMetric(summary, "numTargetRowsMatchedUpdated", 1);
-    assertMergeMetric(summary, "numTargetRowsMatchedDeleted", 0);
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceUpdated", 2);
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceDeleted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-copied", expectedRowsCopied(0));
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-updated", 3);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-deleted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-inserted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-updated", 1);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-deleted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-not-matched-by-source-updated", 2);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-not-matched-by-source-deleted", 0);
   }
 
   @TestTemplate
@@ -229,14 +229,14 @@ public abstract class TestMergeMetrics extends SparkRowLevelOperationsTestBase {
     Map<String, String> summary = currentSnapshot.summary();
 
     // 1 matched update, 2 not matched by source deletes, 0 unchanged rows
-    assertMergeMetric(summary, "numTargetRowsCopied", expectedRowsCopied(0));
-    assertMergeMetric(summary, "numTargetRowsUpdated", 1);
-    assertMergeMetric(summary, "numTargetRowsDeleted", 2);
-    assertMergeMetric(summary, "numTargetRowsInserted", 0);
-    assertMergeMetric(summary, "numTargetRowsMatchedUpdated", 1);
-    assertMergeMetric(summary, "numTargetRowsMatchedDeleted", 0);
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceUpdated", 0);
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceDeleted", 2);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-copied", expectedRowsCopied(0));
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-updated", 1);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-deleted", 2);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-inserted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-updated", 1);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-deleted", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-not-matched-by-source-updated", 0);
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-not-matched-by-source-deleted", 2);
   }
 
   @TestTemplate
@@ -283,14 +283,16 @@ public abstract class TestMergeMetrics extends SparkRowLevelOperationsTestBase {
     // id=5: not matched by source delete
     // id=6,7: inserts
     // All 5 target rows are either updated or deleted, so 0 unchanged rows
-    assertMergeMetric(summary, "numTargetRowsCopied", expectedRowsCopied(0));
-    assertMergeMetric(summary, "numTargetRowsUpdated", 3); // id=2,3,4
-    assertMergeMetric(summary, "numTargetRowsDeleted", 2); // id=1 and id=5
-    assertMergeMetric(summary, "numTargetRowsInserted", 2); // id=6,7
-    assertMergeMetric(summary, "numTargetRowsMatchedUpdated", 2); // id=2,3
-    assertMergeMetric(summary, "numTargetRowsMatchedDeleted", 1); // id=1
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceUpdated", 1); // id=4
-    assertMergeMetric(summary, "numTargetRowsNotMatchedBySourceDeleted", 1); // id=5
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-copied", expectedRowsCopied(0));
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-updated", 3); // id=2,3,4
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-deleted", 2); // id=1 and id=5
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-inserted", 2); // id=6,7
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-updated", 2); // id=2,3
+    assertMergeMetric(summary, "spark.merge-into.num-target-rows-matched-deleted", 1); // id=1
+    assertMergeMetric(
+        summary, "spark.merge-into.num-target-rows-not-matched-by-source-updated", 1); // id=4
+    assertMergeMetric(
+        summary, "spark.merge-into.num-target-rows-not-matched-by-source-deleted", 1); // id=5
   }
 
   private void assertMergeMetric(Map<String, String> summary, String key, long expectedValue) {
