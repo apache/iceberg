@@ -26,7 +26,6 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -186,11 +185,11 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
         sql("SELECT id, s FROM %s ORDER BY id", selectTarget()));
   }
 
-  // TODO: Enable This Test when Spark v4.1 is updated to 4.1.1
-  @Disabled("Spark 4.1.1: Nested Case where source has few fields then target")
   @TestTemplate
   public void testMergeWithSchemaEvolutionNestedStructSourceHasFewerFields() {
     assumeThat(branch).as("Schema evolution does not work for branches currently").isNull();
+
+    spark.conf().set("spark.sql.mergeNestedTypeCoercion.enabled", "true");
 
     createAndInitTable(
         "id INT, s STRUCT<c1:INT,c2:STRING,c3:INT>",
@@ -222,6 +221,8 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
         "Should have expected rows with nested struct evolution",
         expectedRows,
         sql("SELECT id, s FROM %s ORDER BY id", selectTarget()));
+
+    spark.conf().unset("spark.sql.mergeNestedTypeCoercion.enabled");
   }
 
   @TestTemplate
