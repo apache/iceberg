@@ -912,6 +912,16 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     }
   }
 
+  /**
+   * Register a table with the catalog if it does not exist. This is overridden in order to add view
+   * existence detection before registering a table.
+   *
+   * @param identifier a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @return a Table instance
+   * @throws org.apache.iceberg.exceptions.AlreadyExistsException if a table or view with the same
+   *     identifier already exists in the catalog.
+   */
   @Override
   public org.apache.iceberg.Table registerTable(
       TableIdentifier identifier, String metadataFileLocation) {
