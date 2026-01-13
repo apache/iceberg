@@ -31,28 +31,37 @@ public class V4ManifestReaders {
   /**
    * Create a reader for a root manifest.
    *
+   * <p>In v4, root manifests should be written with explicit {@code first_row_id} values, similar
+   * to how manifest lists work in v3. Row ID assignment only happens when reading leaf manifests
+   * via {@link #readLeaf}, not for root manifests.
+   *
    * @param rootManifestPath path to the root manifest file
    * @param io file IO for reading
    * @param snapshotId snapshot ID for metadata inheritance
    * @param sequenceNumber sequence number for metadata inheritance
-   * @param firstRowId starting first row ID for data files (can be null)
    * @return a V4ManifestReader for the root manifest
    */
   public static V4ManifestReader readRoot(
-      String rootManifestPath, FileIO io, long snapshotId, long sequenceNumber, Long firstRowId) {
+      String rootManifestPath, FileIO io, long snapshotId, long sequenceNumber) {
     InputFile inputFile = io.newInputFile(rootManifestPath);
     InheritableTrackedMetadata metadata =
         InheritableTrackedMetadataFactory.create(snapshotId, sequenceNumber);
 
-    return new V4ManifestReader(inputFile, FileFormat.AVRO, metadata, firstRowId);
+    // Root manifests have explicit first_row_id values; no assignment needed
+    return new V4ManifestReader(
+        inputFile, FileFormat.AVRO, metadata, /* manifestFirstRowId= */ null);
   }
 
   /**
    * Create a reader for a leaf manifest referenced from a root manifest.
    *
+   * <p>Row ID assignment happens during leaf manifest reading. The {@code first_row_id} is
+   * extracted from the manifest entry's tracking info and used to assign row IDs to data files that
+   * don't already have them.
+   *
    * @param manifestEntry the DATA_MANIFEST or DELETE_MANIFEST entry from root
    * @param io file IO for reading
-   * @param specsById map of partition specs by ID
+   * @param specsById map of partition specs by ID (currently unused, reserved for future use)
    * @return a V4ManifestReader for the leaf manifest
    */
   public static V4ManifestReader readLeaf(

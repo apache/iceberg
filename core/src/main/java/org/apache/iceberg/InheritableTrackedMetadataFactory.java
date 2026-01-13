@@ -88,7 +88,7 @@ class InheritableTrackedMetadataFactory {
       TrackingInfo tracking = entry.trackingInfo();
 
       if (tracking == null || tracking.snapshotId() == null) {
-        entry.setSnapshotId(snapshotId);
+        entry.ensureTrackingInfo().setSnapshotId(snapshotId);
       }
 
       // in v1 tables, the sequence number is not persisted and can be safely defaulted to 0
@@ -96,8 +96,9 @@ class InheritableTrackedMetadataFactory {
       if (tracking == null || tracking.dataSequenceNumber() == null) {
         if (sequenceNumber == 0
             || (tracking != null && tracking.status() == TrackingInfo.Status.ADDED)) {
-          entry.setSequenceNumber(sequenceNumber);
-          entry.setFileSequenceNumber(sequenceNumber);
+          TrackedFileStruct.TrackingInfoStruct trackingInfo = entry.ensureTrackingInfo();
+          trackingInfo.setSequenceNumber(sequenceNumber);
+          trackingInfo.setFileSequenceNumber(sequenceNumber);
         }
       }
 

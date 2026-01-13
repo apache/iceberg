@@ -80,7 +80,7 @@ public class ManifestExpander extends CloseableGroup {
 
   private boolean ignoreExisting;
 
-  private List<String> columns;
+  private Schema customProjection;
 
   private boolean caseSensitive;
 
@@ -98,7 +98,7 @@ public class ManifestExpander extends CloseableGroup {
     this.fileFilter = alwaysTrue();
     this.ignoreDeleted = false;
     this.ignoreExisting = false;
-    this.columns = V4ManifestReader.ALL_COLUMNS;
+    this.customProjection = null;
     this.caseSensitive = true;
     this.scanMetrics = ScanMetrics.noop();
     addCloseable(rootReader);
@@ -174,8 +174,17 @@ public class ManifestExpander extends CloseableGroup {
     return this;
   }
 
-  public ManifestExpander select(List<String> selectedColumns) {
-    this.columns = Lists.newArrayList(selectedColumns);
+  /**
+   * Sets a custom projection schema for fine-grained control.
+   *
+   * <p>Use this for metadata table scans and other custom situations that need specific column
+   * projection. When set, this projection is passed to leaf manifest readers.
+   *
+   * @param projection custom schema to project
+   * @return this expander for method chaining
+   */
+  public ManifestExpander project(Schema projection) {
+    this.customProjection = projection;
     return this;
   }
 
@@ -418,8 +427,12 @@ public class ManifestExpander extends CloseableGroup {
 
         V4ManifestReader leafReader =
             V4ManifestReaders.readLeaf(manifestEntry, io, specsById)
-                .select(columns)
                 .withManifestDV(manifestEntry.manifestDV());
+
+        if (customProjection != null) {
+          leafReader.project(customProjection);
+        }
+
         addCloseable(leafReader);
         allLeafFiles.add(leafReader.liveFiles());
       }

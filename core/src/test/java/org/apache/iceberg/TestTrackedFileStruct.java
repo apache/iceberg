@@ -55,11 +55,12 @@ public class TestTrackedFileStruct {
     original.setSplitOffsets(ImmutableList.of(0L, 10000L, 20000L));
 
     // Set tracking info
-    original.setStatus(TrackingInfo.Status.ADDED);
-    original.setSnapshotId(12345L);
-    original.setSequenceNumber(100L);
-    original.setFileSequenceNumber(100L);
-    original.setFirstRowId(0L);
+    TrackedFileStruct.TrackingInfoStruct trackingStruct = original.ensureTrackingInfo();
+    trackingStruct.setStatus(TrackingInfo.Status.ADDED);
+    trackingStruct.setSnapshotId(12345L);
+    trackingStruct.setSequenceNumber(100L);
+    trackingStruct.setFileSequenceNumber(100L);
+    trackingStruct.setFirstRowId(0L);
 
     // Set key metadata
     original.setKeyMetadata(ByteBuffer.wrap(new byte[] {1, 2, 3, 4}));
@@ -132,10 +133,11 @@ public class TestTrackedFileStruct {
     original.setContentInfo(contentInfo);
 
     // Set tracking info
-    original.setStatus(TrackingInfo.Status.ADDED);
-    original.setSnapshotId(12346L);
-    original.setSequenceNumber(101L);
-    original.setFileSequenceNumber(101L);
+    TrackedFileStruct.TrackingInfoStruct tracking = original.ensureTrackingInfo();
+    tracking.setStatus(TrackingInfo.Status.ADDED);
+    tracking.setSnapshotId(12346L);
+    tracking.setSequenceNumber(101L);
+    tracking.setFileSequenceNumber(101L);
 
     // Write to file
     OutputFile outputFile = Files.localOutput(temp.resolve("dv-tracked-file.avro").toFile());
@@ -191,8 +193,8 @@ public class TestTrackedFileStruct {
     original.setManifestDV(ByteBuffer.wrap(dvContent));
 
     // Set tracking info
-    original.setStatus(TrackingInfo.Status.ADDED);
-    original.setSnapshotId(12347L);
+    original.ensureTrackingInfo().setStatus(TrackingInfo.Status.ADDED);
+    original.ensureTrackingInfo().setSnapshotId(12347L);
 
     // Write to file
     OutputFile outputFile = Files.localOutput(temp.resolve("manifest-with-dv.avro").toFile());
@@ -254,11 +256,12 @@ public class TestTrackedFileStruct {
     original.setManifestStats(manifestStats);
 
     // Set tracking info
-    original.setStatus(TrackingInfo.Status.EXISTING);
-    original.setSnapshotId(12348L);
-    original.setSequenceNumber(102L);
-    original.setFileSequenceNumber(100L);
-    original.setFirstRowId(100000L); // Starting row ID for new data files
+    TrackedFileStruct.TrackingInfoStruct trackingStruct = original.ensureTrackingInfo();
+    trackingStruct.setStatus(TrackingInfo.Status.EXISTING);
+    trackingStruct.setSnapshotId(12348L);
+    trackingStruct.setSequenceNumber(102L);
+    trackingStruct.setFileSequenceNumber(100L);
+    trackingStruct.setFirstRowId(100000L); // Starting row ID for new data files
 
     // Write to file
     OutputFile outputFile =
@@ -325,10 +328,11 @@ public class TestTrackedFileStruct {
     original.setSortOrderId(1);
 
     // Set tracking info
-    original.setStatus(TrackingInfo.Status.ADDED);
-    original.setSnapshotId(12349L);
-    original.setSequenceNumber(103L);
-    original.setFileSequenceNumber(103L);
+    TrackedFileStruct.TrackingInfoStruct tracking = original.ensureTrackingInfo();
+    tracking.setStatus(TrackingInfo.Status.ADDED);
+    tracking.setSnapshotId(12349L);
+    tracking.setSequenceNumber(103L);
+    tracking.setFileSequenceNumber(103L);
 
     // Write to file
     OutputFile outputFile =

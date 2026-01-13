@@ -62,15 +62,15 @@ public class TestManifestExpander {
   @Test
   public void testRootWithOnlyDirectFiles() throws IOException {
     TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L);
-    file1.setStatus(TrackingInfo.Status.ADDED);
+    file1.ensureTrackingInfo().setStatus(TrackingInfo.Status.ADDED);
 
     TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L);
-    file2.setStatus(TrackingInfo.Status.EXISTING);
+    file2.ensureTrackingInfo().setStatus(TrackingInfo.Status.EXISTING);
 
     String rootPath = writeRootManifest(file1, file2);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
@@ -91,7 +91,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(manifestEntry);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
@@ -104,7 +104,7 @@ public class TestManifestExpander {
   @Test
   public void testRootWithMixedDirectAndManifests() throws IOException {
     TrackedFileStruct directFile = createDataFile("direct.parquet", 500L);
-    directFile.setStatus(TrackingInfo.Status.ADDED);
+    directFile.ensureTrackingInfo().setStatus(TrackingInfo.Status.ADDED);
 
     TrackedFileStruct leafFile1 = createDataFile("leaf1.parquet", 1000L);
     TrackedFileStruct leafFile2 = createDataFile("leaf2.parquet", 2000L);
@@ -115,7 +115,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(directFile, manifestEntry);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
@@ -148,7 +148,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(manifestEntry1, manifestEntry2);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
@@ -168,7 +168,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(manifestEntry);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
@@ -191,7 +191,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(dataManifestEntry, deleteManifestEntry);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander reader = new ManifestExpander(rootReader, io, specsById);
 
     List<TrackedFile> allFiles = Lists.newArrayList(reader.allTrackedFiles());
@@ -214,7 +214,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(dataFile, deleteFile);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -228,18 +228,18 @@ public class TestManifestExpander {
   @Test
   public void testIgnoreDeleted() throws IOException {
     TrackedFileStruct added = createDataFile("added.parquet", 1000L);
-    added.setStatus(TrackingInfo.Status.ADDED);
+    added.ensureTrackingInfo().setStatus(TrackingInfo.Status.ADDED);
 
     TrackedFileStruct deleted = createDataFile("deleted.parquet", 2000L);
-    deleted.setStatus(TrackingInfo.Status.DELETED);
+    deleted.ensureTrackingInfo().setStatus(TrackingInfo.Status.DELETED);
 
     TrackedFileStruct existing = createDataFile("existing.parquet", 3000L);
-    existing.setStatus(TrackingInfo.Status.EXISTING);
+    existing.ensureTrackingInfo().setStatus(TrackingInfo.Status.EXISTING);
 
     String rootPath = writeRootManifest(added, deleted, existing);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById).ignoreDeleted();
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -252,15 +252,15 @@ public class TestManifestExpander {
   @Test
   public void testIgnoreExisting() throws IOException {
     TrackedFileStruct added = createDataFile("added.parquet", 1000L);
-    added.setStatus(TrackingInfo.Status.ADDED);
+    added.ensureTrackingInfo().setStatus(TrackingInfo.Status.ADDED);
 
     TrackedFileStruct existing = createDataFile("existing.parquet", 2000L);
-    existing.setStatus(TrackingInfo.Status.EXISTING);
+    existing.ensureTrackingInfo().setStatus(TrackingInfo.Status.EXISTING);
 
     String rootPath = writeRootManifest(added, existing);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById).ignoreExisting();
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -281,7 +281,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(manifestEntry);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -303,7 +303,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(dataFile, deleteFile);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -332,7 +332,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(dataFile, deleteFile1, deleteFile2);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -351,7 +351,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(dataFile, deleteFile);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -368,7 +368,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(dataFile);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -383,20 +383,20 @@ public class TestManifestExpander {
     String dataFilePath = "s3://bucket/table/data/file1.parquet";
     TrackedFileStruct dataFile = createDataFile("file1.parquet", 1000L);
     dataFile.setLocation(dataFilePath);
-    dataFile.setSequenceNumber(100L);
+    dataFile.ensureTrackingInfo().setSequenceNumber(100L);
 
     TrackedFileStruct delete1 = createDeleteFile("delete1.parquet", 50L);
     delete1.setReferencedFile(dataFilePath);
-    delete1.setSequenceNumber(95L);
+    delete1.ensureTrackingInfo().setSequenceNumber(95L);
 
     TrackedFileStruct delete2 = createDeleteFile("delete2.parquet", 30L);
     delete2.setReferencedFile(dataFilePath);
-    delete2.setSequenceNumber(105L);
+    delete2.ensureTrackingInfo().setSequenceNumber(105L);
 
     String rootPath = writeRootManifest(dataFile, delete1, delete2);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -415,8 +415,9 @@ public class TestManifestExpander {
     file.setPartitionSpecId(0);
     file.setRecordCount(recordCount);
     file.setFileSizeInBytes(recordCount * 100);
-    file.setStatus(TrackingInfo.Status.ADDED);
-    file.setSnapshotId(SNAPSHOT_ID);
+    TrackedFileStruct.TrackingInfoStruct tracking = file.ensureTrackingInfo();
+    tracking.setStatus(TrackingInfo.Status.ADDED);
+    tracking.setSnapshotId(SNAPSHOT_ID);
     return file;
   }
 
@@ -428,8 +429,9 @@ public class TestManifestExpander {
     file.setPartitionSpecId(0);
     file.setRecordCount(recordCount);
     file.setFileSizeInBytes(recordCount * 50);
-    file.setStatus(TrackingInfo.Status.ADDED);
-    file.setSnapshotId(SNAPSHOT_ID);
+    TrackedFileStruct.TrackingInfoStruct tracking = file.ensureTrackingInfo();
+    tracking.setStatus(TrackingInfo.Status.ADDED);
+    tracking.setSnapshotId(SNAPSHOT_ID);
     return file;
   }
 
@@ -453,10 +455,11 @@ public class TestManifestExpander {
     stats.setMinSequenceNumber(SEQUENCE_NUMBER);
     entry.setManifestStats(stats);
 
-    entry.setStatus(TrackingInfo.Status.ADDED);
-    entry.setSnapshotId(SNAPSHOT_ID);
-    entry.setSequenceNumber(SEQUENCE_NUMBER);
-    entry.setFileSequenceNumber(SEQUENCE_NUMBER);
+    TrackedFileStruct.TrackingInfoStruct tracking = entry.ensureTrackingInfo();
+    tracking.setStatus(TrackingInfo.Status.ADDED);
+    tracking.setSnapshotId(SNAPSHOT_ID);
+    tracking.setSequenceNumber(SEQUENCE_NUMBER);
+    tracking.setFileSequenceNumber(SEQUENCE_NUMBER);
 
     return entry;
   }
@@ -481,10 +484,11 @@ public class TestManifestExpander {
     deleteStats.setMinSequenceNumber(SEQUENCE_NUMBER);
     entry.setManifestStats(deleteStats);
 
-    entry.setStatus(TrackingInfo.Status.ADDED);
-    entry.setSnapshotId(SNAPSHOT_ID);
-    entry.setSequenceNumber(SEQUENCE_NUMBER);
-    entry.setFileSequenceNumber(SEQUENCE_NUMBER);
+    TrackedFileStruct.TrackingInfoStruct tracking = entry.ensureTrackingInfo();
+    tracking.setStatus(TrackingInfo.Status.ADDED);
+    tracking.setSnapshotId(SNAPSHOT_ID);
+    tracking.setSequenceNumber(SEQUENCE_NUMBER);
+    tracking.setFileSequenceNumber(SEQUENCE_NUMBER);
 
     return entry;
   }
@@ -498,10 +502,10 @@ public class TestManifestExpander {
   }
 
   private String writeManifest(String prefix, TrackedFileStruct... entries) throws IOException {
-    OutputFile outputFile = io.newOutputFile(prefix + "-" + System.nanoTime() + ".parquet");
+    OutputFile outputFile = io.newOutputFile(prefix + "-" + System.nanoTime() + ".avro");
 
     try (FileAppender<TrackedFileStruct> appender =
-        InternalData.write(FileFormat.PARQUET, outputFile)
+        InternalData.write(FileFormat.AVRO, outputFile)
             .schema(new Schema(TrackedFileStruct.BASE_TYPE.fields()))
             .named("tracked_file")
             .build()) {
@@ -528,7 +532,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(manifestEntry);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -551,7 +555,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(manifestEntry);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -577,7 +581,7 @@ public class TestManifestExpander {
     String rootPath = writeRootManifest(manifestEntry);
 
     V4ManifestReader rootReader =
-        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
     ManifestExpander expander = new ManifestExpander(rootReader, io, specsById);
 
     List<ManifestExpander.DataFileScanInfo> scanInfos =
@@ -618,7 +622,7 @@ public class TestManifestExpander {
     ExecutorService executor = Executors.newFixedThreadPool(2);
     try {
       V4ManifestReader rootReader =
-          V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+          V4ManifestReaders.readRoot(rootPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
       ManifestExpander expander =
           new ManifestExpander(rootReader, io, specsById).planWith(executor);
 
