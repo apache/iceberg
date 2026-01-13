@@ -31,15 +31,15 @@ import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.eclipse.jetty.compression.gzip.GzipCompression;
+import org.eclipse.jetty.compression.server.CompressionHandler;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.junit.jupiter.api.BeforeEach;
 
 public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatalog {
 
-  @SuppressWarnings("removal")
   @BeforeEach
   public void createCatalog() throws Exception {
     File warehouse = temp.toFile();
@@ -72,7 +72,9 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.setContextPath("/");
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
-    servletContext.setHandler(new GzipHandler());
+    CompressionHandler compressionHandler = new CompressionHandler();
+    compressionHandler.putCompression(new GzipCompression());
+    servletContext.setHandler(compressionHandler);
 
     this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);

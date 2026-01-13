@@ -201,7 +201,8 @@ flink21-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", 
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
 jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
 jakarta-servlet = {module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet-api"}
-jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty" }
+jetty-server = { module = "org.eclipse.jetty.compression:jetty-compression-server", version.ref = "jetty" }
+jetty-gzip = { module = "org.eclipse.jetty.compression:jetty-compression-gzip", version.ref = "jetty" }
 jetty-servlet = { module = "org.eclipse.jetty.ee10:jetty-ee10-servlet", version.ref = "jetty" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }

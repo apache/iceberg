@@ -384,6 +384,7 @@ project(':iceberg-core') {
     testImplementation libs.jetty.servlet
     testImplementation libs.jakarta.servlet
     testImplementation libs.jetty.server
+    testImplementation libs.jetty.gzip
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.sqlite.jdbc
@@ -532,6 +533,8 @@ project(':iceberg-aws') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation libs.awaitility
     testImplementation libs.jetty.servlet
+    testImplementation libs.jetty.server
+    testImplementation libs.jetty.gzip
     testImplementation libs.mockito.junit.jupiter
   }
 
@@ -1089,6 +1092,7 @@ project(':iceberg-open-api') {
 
     testFixturesImplementation libs.jetty.servlet
     testFixturesImplementation libs.jetty.server
+    testFixturesImplementation libs.jetty.gzip
     testFixturesImplementation libs.sqlite.jdbc
 
     testFixturesCompileOnly libs.apiguardian
