@@ -91,7 +91,7 @@ public class TestSinkWriter {
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
-    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+    assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
   }
 
   @Test
@@ -119,7 +119,7 @@ public class TestSinkWriter {
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
-    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+    assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
   }
 
   @Test
@@ -150,7 +150,7 @@ public class TestSinkWriter {
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults).hasSize(1);
     IcebergWriterResult writerResult = writerResults.get(0);
-    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+    assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
   }
 
   @Test
