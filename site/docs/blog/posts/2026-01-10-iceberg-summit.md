@@ -28,6 +28,8 @@ categories:
 
 Mark your calendars! On **April 8 and 9, 2026**, the Apache Iceberg community will gather once again in **San Francisco** at the Marriott Marquis for two full days dedicated to all things Iceberg. 
 
+**[Register now](https://www.icebergsummit.org/#register)** to reserve your spot!
+
 <!-- more -->
 
 ## Two Full Days of Apache Iceberg
