@@ -118,17 +118,14 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     String sortOrderString = input.asString(SORT_ORDER_PARAM, null);
     Map<String, String> options = input.asStringMap(OPTIONS_PARAM, ImmutableMap.of());
     String where = input.asString(WHERE_PARAM, null);
-    String explicitBranch = input.asString(BRANCH_PARAM, null);
-
     // Determine target branch: explicit parameter > table branch > main branch
-    String targetBranch = explicitBranch;
-    if (targetBranch == null) {
-      targetBranch = loadSparkTable(tableIdent).branch();
+    String branch = input.asString(BRANCH_PARAM, null);
+    if (branch == null) {
+      branch = loadSparkTable(tableIdent).branch();
+      if (branch == null) {
+        branch = SnapshotRef.MAIN_BRANCH;
+      }
     }
-    if (targetBranch == null) {
-      targetBranch = SnapshotRef.MAIN_BRANCH;
-    }
-    String branch = targetBranch;
 
     return modifyIcebergTable(
         tableIdent,
