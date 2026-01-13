@@ -113,7 +113,7 @@ public class ManifestFileBean implements ManifestFile, Serializable {
   public void setKeyMetadata(byte[] keyMetadata) {
     this.keyMetadata = keyMetadata;
   }
-  
+
   @Override
   public String path() {
     return path;
