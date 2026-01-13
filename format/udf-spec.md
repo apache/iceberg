@@ -106,10 +106,6 @@ Each `definition` represents one function signature (e.g., `add_one(int)` vs `ad
 | Requirement | Field     | Type                                              | Description                                                  |
 |-------------|-----------|---------------------------------------------------|--------------------------------------------------------------|
 | *required*  | `type`    | `string`                                          | Parameter data type (see [Parameter Type](#parameter-type)). |
-| *optional*  | `default` | [Iceberg Single-value JSON Representation][value] | Parameter Default value, following the [default-value-rule]. |
-
-[value]: https://iceberg.apache.org/spec/#json-single-value-serialization
-[default-value-rule]: https://iceberg.apache.org/spec/#default-value
 
 Notes:
 1. Function definitions are identified by the tuple of `type`s and there can be only one definition for a given tuple.
@@ -122,9 +118,6 @@ Notes:
 5. The function MUST return a value assignable to the declared `return-type`, meaning the returned value’s type and
    structure must match the declared Iceberg type (including field names, element types, and nesting for complex types),
    and any field or element marked as required MUST NOT be null. Engines MUST reject results that violate these rules.
-6. All variable names used in definitions must match the global parameter name list, and this requirement applies across
-   all versions and overloads.
-7. All parameters with defaults MUST be contiguous and MUST appear at the end of the parameter list. 
 
 #### Parameter-Type
 Primitive types are encoded using the [Iceberg Type JSON Representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization),
@@ -134,29 +127,6 @@ Three composite types are supported.
 * `list<T>`: Ordered, homogeneous collection of elements of type `T` (any Iceberg type); example `list<int>`.
 * `map<K,V>`: Key–value collection; `K` must be a primitive, comparable type (`string` recommended); example `map<string,int>`.
 * `struct<...>`: Closed record with explicitly named fields; field order is significant and undeclared fields are not allowed; example `struct<id:int,name:string>`.
-
-#### Defaults and Overload Compatibility
-When a parameter has a default value, the definition supports multiple invocation arities. These arities are reserved,
-and new overloads MUST NOT introduce ambiguity. 
-
-For example, an existing definition `foo(int, float default 1.0, string default "a")` yields the following invocation arities:
-```
-foo(int)
-foo(int, float)
-foo(int, string)
-foo(int, float, string)
-```
-Therefore, any overloads yields one of above arites are not allowed. For example:
-```
-foo(int)                                   -- conflicts with foo(int)
-foo(int, string default "a")               -- conflicts with foo(int)
-foo(int, float)                            -- conflicts with foo(int, float)
-foo(int, string, float default 1.0)        -- conflicts with foo(int, string)
-foo(int, float, date default "2023-11-26") -- conflicts with foo(int, float)
-foo(int, float, string, int default 1)     -- conflicts with foo(int, float, string)
-```
-However, unrelated type-prefix overloads such as `foo(float), foo(int, long)` are allowed, since they do not conflict with the
-optional-argument arities of the existing definition.
 
 ### Definition-Version
 
@@ -361,66 +331,6 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
     }
   ],
   "doc": "UDTF returning (name, color) rows filtered by the given color",
-  "secure": false
-}
-```
-
-Appendix C: Example - Multi-Parameter Scalar UDF with Multiple Default Values
-
-SQL statement:
-
-```sql
-CREATE OR REPLACE FUNCTION wrap_string(
-    word VARCHAR COMMENT 'Main word to wrap',
-    prefix VARCHAR DEFAULT 'pre-' COMMENT 'String to prepend',
-    suffix VARCHAR DEFAULT '-post' COMMENT 'String to append'
-)
-COMMENT 'Wrap a word with an optional prefix and suffix'
-RETURNS VARCHAR
-RETURN prefix || word || suffix;
-```
-
-```json
-{
-  "function-uuid": "8f9c4c2e-2b3a-4d5e-9a10-123456789abc",
-  "format-version": 1,
-  "parameter-names": [
-    { "name": "word", "doc": "Main word to wrap" },
-    { "name": "prefix", "doc": "String to prepend" },
-    { "name": "suffix", "doc": "String to append" }
-  ],
-  "definitions": [
-    {
-      "definition-id": "(string,string,string)",
-      "parameters": [
-        { "type": "string" },
-        { "type": "string", "default": "pre-" },
-        { "type": "string", "default": "-post" }
-      ],
-      "return-type": "string",
-      "doc": "Wrap a word with an optional prefix and suffix",
-      "versions": [
-        {
-          "version-id": 1,
-          "deterministic": true,
-          "representations": [
-            { "type": "sql", "dialect": "trino", "body": "prefix || word || suffix" },
-            { "type": "sql", "dialect": "spark", "body": "concat(prefix, word, suffix)" }
-          ],
-          "timestamp-ms": 1735608000123
-        }
-      ],
-      "current-version-id": 1
-    }
-  ],
-  "definition-log": [
-    {
-      "timestamp-ms": 1735608000123,
-      "definition-versions": [
-        { "definition-id": "(string,string,string)", "version-id": 1 }
-      ]
-    }
-  ],
   "secure": false
 }
 ```
