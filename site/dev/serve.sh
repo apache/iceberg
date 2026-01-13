@@ -19,6 +19,17 @@
 source dev/common.sh
 set -e
 
+echo ""
+echo "**********************************************"
+echo "**                                          **"
+echo "**  💡 TIP: Use 'make serve-dev' instead!  **"
+echo "**                                          **"
+echo "**  It's FASTER for local development       **"
+echo "**  (only builds nightly and latest)        **"
+echo "**                                          **"
+echo "**********************************************"
+echo ""
+
 ./dev/setup_env.sh
 
 ./dev/lint.sh

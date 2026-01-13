@@ -40,8 +40,24 @@ public class BasePartitionStatistics extends SupportsIndexProjection
 
   private static final int STATS_COUNT = 13;
 
+  BasePartitionStatistics(StructLike partition, int specId) {
+    super(STATS_COUNT);
+
+    this.partition = partition;
+    this.specId = specId;
+
+    this.dataRecordCount = 0L;
+    this.dataFileCount = 0;
+    this.totalDataFileSizeInBytes = 0L;
+    this.positionDeleteRecordCount = 0L;
+    this.positionDeleteFileCount = 0;
+    this.equalityDeleteRecordCount = 0L;
+    this.equalityDeleteFileCount = 0;
+    this.dvCount = 0;
+  }
+
   /** Used by internal readers to instantiate this class with a projection schema. */
-  public BasePartitionStatistics(Types.StructType projection) {
+  BasePartitionStatistics(Types.StructType projection) {
     super(STATS_COUNT);
   }
 
@@ -117,31 +133,31 @@ public class BasePartitionStatistics extends SupportsIndexProjection
 
   private Object getByPos(int pos) {
     switch (pos) {
-      case 0:
+      case PARTITION_POSITION:
         return partition;
-      case 1:
+      case SPEC_ID_POSITION:
         return specId;
-      case 2:
+      case DATA_RECORD_COUNT_POSITION:
         return dataRecordCount;
-      case 3:
+      case DATA_FILE_COUNT_POSITION:
         return dataFileCount;
-      case 4:
+      case TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION:
         return totalDataFileSizeInBytes;
-      case 5:
+      case POSITION_DELETE_RECORD_COUNT_POSITION:
         return positionDeleteRecordCount;
-      case 6:
+      case POSITION_DELETE_FILE_COUNT_POSITION:
         return positionDeleteFileCount;
-      case 7:
+      case EQUALITY_DELETE_RECORD_COUNT_POSITION:
         return equalityDeleteRecordCount;
-      case 8:
+      case EQUALITY_DELETE_FILE_COUNT_POSITION:
         return equalityDeleteFileCount;
-      case 9:
+      case TOTAL_RECORD_COUNT_POSITION:
         return totalRecordCount;
-      case 10:
+      case LAST_UPDATED_AT_POSITION:
         return lastUpdatedAt;
-      case 11:
+      case LAST_UPDATED_SNAPSHOT_ID_POSITION:
         return lastUpdatedSnapshotId;
-      case 12:
+      case DV_COUNT_POSITION:
         return dvCount;
       default:
         throw new UnsupportedOperationException("Unknown position: " + pos);
@@ -155,43 +171,43 @@ public class BasePartitionStatistics extends SupportsIndexProjection
     }
 
     switch (pos) {
-      case 0:
+      case PARTITION_POSITION:
         this.partition = (StructLike) value;
         break;
-      case 1:
+      case SPEC_ID_POSITION:
         this.specId = (int) value;
         break;
-      case 2:
+      case DATA_RECORD_COUNT_POSITION:
         this.dataRecordCount = (long) value;
         break;
-      case 3:
+      case DATA_FILE_COUNT_POSITION:
         this.dataFileCount = (int) value;
         break;
-      case 4:
+      case TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION:
         this.totalDataFileSizeInBytes = (long) value;
         break;
-      case 5:
+      case POSITION_DELETE_RECORD_COUNT_POSITION:
         this.positionDeleteRecordCount = (long) value;
         break;
-      case 6:
+      case POSITION_DELETE_FILE_COUNT_POSITION:
         this.positionDeleteFileCount = (int) value;
         break;
-      case 7:
+      case EQUALITY_DELETE_RECORD_COUNT_POSITION:
         this.equalityDeleteRecordCount = (long) value;
         break;
-      case 8:
+      case EQUALITY_DELETE_FILE_COUNT_POSITION:
         this.equalityDeleteFileCount = (int) value;
         break;
-      case 9:
+      case TOTAL_RECORD_COUNT_POSITION:
         this.totalRecordCount = (Long) value;
         break;
-      case 10:
+      case LAST_UPDATED_AT_POSITION:
         this.lastUpdatedAt = (Long) value;
         break;
-      case 11:
+      case LAST_UPDATED_SNAPSHOT_ID_POSITION:
         this.lastUpdatedSnapshotId = (Long) value;
         break;
-      case 12:
+      case DV_COUNT_POSITION:
         this.dvCount = (int) value;
         break;
       default:

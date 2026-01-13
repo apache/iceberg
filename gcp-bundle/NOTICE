@@ -29,7 +29,7 @@ from the source code management (SCM) system project uses.
 
 --------------------------------------------------------------------------------
 
-NOTICE for Group: io.grpc  Name: grpc-netty-shaded  Version: 1.71.0
+NOTICE for Group: io.grpc  Name: grpc-netty-shaded  Version: 1.76.2
 
 |                           The Netty Project
 |                           =================
