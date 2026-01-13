@@ -65,7 +65,6 @@ public class TriggerManagerOperatorFactory extends AbstractStreamOperatorFactory
   public <T extends StreamOperator<Trigger>> T createStreamOperator(
       StreamOperatorParameters<Trigger> parameters) {
     OperatorID operatorId = parameters.getStreamConfig().getOperatorID();
-    //        String operatorName = parameters.getStreamConfig().getOperatorName();
     OperatorEventGateway gateway =
         parameters.getOperatorEventDispatcher().getOperatorEventGateway(operatorId);
 

@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * Event sent from TriggerManagerOperatorCoordinator to TriggerManager operator to notify that a
@@ -47,6 +48,9 @@ public class LockReleasedEvent implements OperatorEvent {
 
   @Override
   public String toString() {
-    return "LockReleasedEvent{isRecover=" + isRecover + ", lockId='" + lockId + "'}";
+    return MoreObjects.toStringHelper(this)
+        .add("lockId", lockId)
+        .add("isRecover", isRecover)
+        .toString();
   }
 }

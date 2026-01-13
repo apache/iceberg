@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * Event sent from TriggerManager operator to TableMaintenanceCoordinator to confirm that the lock
@@ -52,14 +53,10 @@ public class LockAcquireResultEvent implements OperatorEvent {
 
   @Override
   public String toString() {
-    return "LockAcquireResultEvent{"
-        + "isRecoverLock="
-        + isRecoverLock
-        + ", isLockHeld="
-        + isLockHeld
-        + ", lockId='"
-        + lockId
-        + '\''
-        + '}';
+    return MoreObjects.toStringHelper(this)
+        .add("isRecoverLock", isRecoverLock)
+        .add("lockId", lockId)
+        .add("isLockHeld", isLockHeld)
+        .toString();
   }
 }

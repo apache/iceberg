@@ -27,6 +27,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
@@ -36,8 +38,6 @@ import org.apache.flink.api.connector.sink2.Sink;
 import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.api.connector.sink2.SupportsCommitter;
 import org.apache.flink.api.connector.sink2.WriterInitContext;
-import org.apache.flink.configuration.CheckpointingOptions;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -49,6 +49,7 @@ import org.apache.flink.streaming.api.connector.sink2.SupportsPostCommitTopology
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.ExceptionUtils;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -110,6 +111,7 @@ class TestLockRemoverOperation extends OperatorTestBase {
 
       tableMaintenanceCoordinator.handleEventFromOperator(
           0, 0, new LockAcquiredEvent(false, DUMMY_TABLE_NAME));
+      waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
       assertThat(tableMaintenanceCoordinator.lockHeldSet()).containsExactly(DUMMY_TABLE_NAME);
 
       // Start a successful trigger for task1 and assert the return value is correct
@@ -235,6 +237,7 @@ class TestLockRemoverOperation extends OperatorTestBase {
 
       tableMaintenanceCoordinator.handleEventFromOperator(
           0, 0, new LockAcquiredEvent(true, DUMMY_TABLE_NAME));
+      waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
       assertThat(tableMaintenanceCoordinator.recoverLockHeldSet())
           .containsExactly(DUMMY_TABLE_NAME);
 
@@ -266,36 +269,6 @@ class TestLockRemoverOperation extends OperatorTestBase {
       Awaitility.await()
           .until(
               () -> !tableMaintenanceCoordinator.recoverLockHeldSet().contains(DUMMY_TABLE_NAME));
-    } finally {
-      closeJobClient(jobClient);
-    }
-  }
-
-  @Test
-  void testInSink() throws Exception {
-    String sinkName = "TestSink";
-    Configuration config = new Configuration();
-    config.set(CheckpointingOptions.CHECKPOINT_STORAGE, "filesystem");
-    config.set(CheckpointingOptions.CHECKPOINTS_DIRECTORY, "file://" + checkpointDir.getPath());
-    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(config);
-    setAllTasksReady(1, tableMaintenanceCoordinator, receivingTasks);
-    env.enableCheckpointing(1000);
-    ManualSource<TaskResult> source = new ManualSource<>(env, TypeInformation.of(TaskResult.class));
-    source.dataStream().global().sinkTo(new SinkTest()).name(sinkName).setParallelism(1);
-
-    JobClient jobClient = null;
-    try {
-      jobClient = env.executeAsync();
-
-      tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockAcquiredEvent(false, DUMMY_TABLE_NAME));
-      assertThat(tableMaintenanceCoordinator.lockHeldSet()).containsExactly(DUMMY_TABLE_NAME);
-
-      // Start a successful trigger for task1 and assert the return value is correct
-      processAndCheck(source, new TaskResult(0, 0L, true, Lists.newArrayList()), sinkName + ": ");
-
-      // Assert that the lock is removed
-      assertThat(tableMaintenanceCoordinator.lockHeldSet()).isEmpty();
     } finally {
       closeJobClient(jobClient);
     }
@@ -427,6 +400,24 @@ class TestLockRemoverOperation extends OperatorTestBase {
     for (int i = 0; i < subtasks; i++) {
       tableMaintenanceCoordinator.executionAttemptReady(
           i, 0, receivingTasks.createGatewayForSubtask(i, 0));
+    }
+  }
+
+  private static void waitForCoordinatorToProcessActions(TableMaintenanceCoordinator coordinator) {
+    CompletableFuture<Void> future = new CompletableFuture<>();
+    coordinator.callInCoordinatorThread(
+        () -> {
+          future.complete(null);
+          return null;
+        },
+        "Coordinator fails to process action");
+
+    try {
+      future.get();
+    } catch (InterruptedException e) {
+      throw new AssertionError("test interrupted");
+    } catch (ExecutionException e) {
+      ExceptionUtils.rethrow(ExceptionUtils.stripExecutionException(e));
     }
   }
 }

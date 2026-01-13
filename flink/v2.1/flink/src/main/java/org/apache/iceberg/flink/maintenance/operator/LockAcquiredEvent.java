@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 
 /**
@@ -51,11 +52,13 @@ public class LockAcquiredEvent implements OperatorEvent {
     if (this == o) {
       return true;
     }
-    if (o == null || getClass() != o.getClass()) {
+
+    if (!(o instanceof LockAcquiredEvent)) {
       return false;
     }
+
     LockAcquiredEvent that = (LockAcquiredEvent) o;
-    return isRecoverLock == that.isRecoverLock && lockId.equals(that.lockId);
+    return Objects.equal(isRecoverLock, that.isRecoverLock) && Objects.equal(lockId, that.lockId);
   }
 
   @Override
@@ -65,12 +68,9 @@ public class LockAcquiredEvent implements OperatorEvent {
 
   @Override
   public String toString() {
-    return "LockAcquiredEvent{"
-        + "isRecoverLock="
-        + isRecoverLock
-        + ", lockId='"
-        + lockId
-        + '\''
-        + '}';
+    return MoreObjects.toStringHelper(this)
+        .add("isRecoverLock", isRecoverLock)
+        .add("lockId", lockId)
+        .toString();
   }
 }
