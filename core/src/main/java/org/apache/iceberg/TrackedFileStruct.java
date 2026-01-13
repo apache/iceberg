@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -92,31 +93,6 @@ class TrackedFileStruct extends SupportsIndexProjection
 
   TrackedFileStruct() {
     super(BASE_TYPE.fields().size());
-  }
-
-  /**
-   * Constructor for creating a tracked file (package-private for tests).
-   *
-   * @param contentType the type of content (DATA, POSITION_DELETES, etc.)
-   * @param location the file location
-   * @param fileFormat the file format
-   * @param partitionSpecId the partition spec ID
-   * @param recordCount the number of records
-   */
-  TrackedFileStruct(
-      FileContent contentType,
-      String location,
-      FileFormat fileFormat,
-      int partitionSpecId,
-      long recordCount,
-      Long fileSizeInBytes) {
-    super(BASE_TYPE.fields().size());
-    this.contentType = contentType;
-    this.location = location;
-    this.fileFormat = fileFormat;
-    this.partitionSpecId = partitionSpecId;
-    this.recordCount = recordCount;
-    this.fileSizeInBytes = fileSizeInBytes;
   }
 
   /**
@@ -197,31 +173,16 @@ class TrackedFileStruct extends SupportsIndexProjection
     return position;
   }
 
-  void setStatus(TrackingInfo.Status status) {
-    ensureTrackingInfo().setStatus(status);
-  }
-
-  void setSnapshotId(Long snapshotId) {
-    ensureTrackingInfo().setSnapshotId(snapshotId);
-  }
-
-  void setSequenceNumber(Long sequenceNumber) {
-    ensureTrackingInfo().setSequenceNumber(sequenceNumber);
-  }
-
-  void setFileSequenceNumber(Long fileSequenceNumber) {
-    ensureTrackingInfo().setFileSequenceNumber(fileSequenceNumber);
-  }
-
-  void setFirstRowId(Long firstRowId) {
-    ensureTrackingInfo().setFirstRowId(firstRowId);
-  }
-
   void setPos(Long pos) {
     this.position = pos;
   }
 
-  private TrackingInfoStruct ensureTrackingInfo() {
+  /**
+   * Returns the mutable tracking info, creating one if needed.
+   *
+   * <p>Use this to modify tracking info fields directly rather than through TrackedFileStruct.
+   */
+  TrackingInfoStruct ensureTrackingInfo() {
     if (trackingInfo == null) {
       trackingInfo = new TrackingInfoStruct();
     }
@@ -361,7 +322,7 @@ class TrackedFileStruct extends SupportsIndexProjection
 
   @Override
   public TrackedFile copy() {
-    return new TrackedFileStruct(this, java.util.Collections.emptySet());
+    return new TrackedFileStruct(this, Collections.emptySet());
   }
 
   @Override
@@ -370,7 +331,7 @@ class TrackedFileStruct extends SupportsIndexProjection
   }
 
   @Override
-  public TrackedFile copyWithStats(java.util.Set<Integer> requestedColumnIds) {
+  public TrackedFile copyWithStats(Set<Integer> requestedColumnIds) {
     return new TrackedFileStruct(this, requestedColumnIds);
   }
 
@@ -422,6 +383,10 @@ class TrackedFileStruct extends SupportsIndexProjection
       case 14:
         this.manifestDV = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
+      case 15:
+        // MetadataColumns.ROW_POSITION - set the ordinal position in the manifest
+        this.position = (Long) value;
+        return;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -468,71 +433,78 @@ class TrackedFileStruct extends SupportsIndexProjection
         return manifestStats;
       case 14:
         return manifestDV != null ? ByteBuffer.wrap(manifestDV) : null;
+      case 15:
+        // MetadataColumns.ROW_POSITION
+        return position;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
   }
 
   @Override
-  public DataFile asDataFile() {
+  public DataFile asDataFile(PartitionSpec spec) {
     if (contentType != FileContent.DATA) {
       throw new IllegalStateException(
           "Cannot convert TrackedFile with content type " + contentType + " to DataFile");
     }
-    return new TrackedDataFile(this);
+    return new TrackedDataFile(this, spec);
   }
 
   @Override
-  public DeleteFile asDeleteFile() {
+  public DeleteFile asDeleteFile(PartitionSpec spec) {
     if (contentType != FileContent.POSITION_DELETES
         && contentType != FileContent.EQUALITY_DELETES) {
       throw new IllegalStateException(
           "Cannot convert TrackedFile with content type " + contentType + " to DeleteFile");
     }
-    return new TrackedDeleteFile(this);
+    return new TrackedDeleteFile(this, spec);
   }
 
   /** Wrapper that presents a TrackedFile as a DataFile. */
   private static class TrackedDataFile implements DataFile {
-    private final TrackedFileStruct trackedFile;
+    private final TrackedFile trackedFile;
 
-    private TrackedDataFile(TrackedFileStruct trackedFile) {
+    @SuppressWarnings("UnusedVariable")
+    private final PartitionSpec spec;
+
+    private TrackedDataFile(TrackedFile trackedFile, PartitionSpec spec) {
       this.trackedFile = trackedFile;
+      this.spec = spec;
     }
 
     @Override
     public String manifestLocation() {
-      return trackedFile.manifestLocation;
+      return trackedFile.manifestLocation();
     }
 
     @Override
     public Long pos() {
-      return trackedFile.position;
+      return trackedFile.pos();
     }
 
     @Override
     public int specId() {
-      return trackedFile.partitionSpecId;
+      return trackedFile.partitionSpecId();
     }
 
     @Override
     public FileContent content() {
-      return trackedFile.contentType;
+      return trackedFile.contentType();
     }
 
     @Override
     public CharSequence path() {
-      return trackedFile.location;
+      return trackedFile.location();
     }
 
     @Override
     public String location() {
-      return trackedFile.location;
+      return trackedFile.location();
     }
 
     @Override
     public FileFormat format() {
-      return trackedFile.fileFormat;
+      return trackedFile.fileFormat();
     }
 
     @Override
@@ -544,12 +516,12 @@ class TrackedFileStruct extends SupportsIndexProjection
 
     @Override
     public long recordCount() {
-      return trackedFile.recordCount;
+      return trackedFile.recordCount();
     }
 
     @Override
     public long fileSizeInBytes() {
-      return trackedFile.fileSizeInBytes;
+      return trackedFile.fileSizeInBytes();
     }
 
     @Override
@@ -560,11 +532,13 @@ class TrackedFileStruct extends SupportsIndexProjection
 
     @Override
     public Map<Integer, Long> valueCounts() {
+      // TODO: Adapt from new column stats structure
       return null;
     }
 
     @Override
     public Map<Integer, Long> nullValueCounts() {
+      // TODO: Adapt from new column stats structure
       return null;
     }
 
@@ -576,11 +550,13 @@ class TrackedFileStruct extends SupportsIndexProjection
 
     @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
+      // TODO: Adapt from new column stats structure
       return null;
     }
 
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
+      // TODO: Adapt from new column stats structure
       return null;
     }
 
@@ -601,85 +577,88 @@ class TrackedFileStruct extends SupportsIndexProjection
 
     @Override
     public Integer sortOrderId() {
-      return trackedFile.sortOrderId;
+      return trackedFile.sortOrderId();
     }
 
     @Override
     public Long dataSequenceNumber() {
-      return trackedFile.trackingInfo != null
-          ? trackedFile.trackingInfo.dataSequenceNumber()
-          : null;
+      TrackingInfo trackingInfo = trackedFile.trackingInfo();
+      return trackingInfo != null ? trackingInfo.dataSequenceNumber() : null;
     }
 
     @Override
     public Long fileSequenceNumber() {
-      return trackedFile.trackingInfo != null
-          ? trackedFile.trackingInfo.fileSequenceNumber()
-          : null;
+      TrackingInfo trackingInfo = trackedFile.trackingInfo();
+      return trackingInfo != null ? trackingInfo.fileSequenceNumber() : null;
     }
 
     @Override
     public Long firstRowId() {
-      return trackedFile.trackingInfo != null ? trackedFile.trackingInfo.firstRowId() : null;
+      TrackingInfo trackingInfo = trackedFile.trackingInfo();
+      return trackingInfo != null ? trackingInfo.firstRowId() : null;
     }
 
     @Override
     public DataFile copy() {
-      return new TrackedDataFile((TrackedFileStruct) trackedFile.copy());
+      return new TrackedDataFile(trackedFile.copy(), spec);
     }
 
     @Override
     public DataFile copyWithoutStats() {
-      return new TrackedDataFile((TrackedFileStruct) trackedFile.copyWithoutStats());
+      return new TrackedDataFile(trackedFile.copyWithoutStats(), spec);
     }
 
     @Override
     public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedDataFile((TrackedFileStruct) trackedFile.copyWithStats(requestedColumnIds));
+      return new TrackedDataFile(trackedFile.copyWithStats(requestedColumnIds), spec);
     }
   }
 
   /** Wrapper that presents a TrackedFile as a DeleteFile. */
   private static class TrackedDeleteFile implements DeleteFile {
-    private final TrackedFileStruct trackedFile;
+    private final TrackedFile trackedFile;
 
-    private TrackedDeleteFile(TrackedFileStruct trackedFile) {
+    @SuppressWarnings("UnusedVariable")
+    private final PartitionSpec spec;
+
+    private TrackedDeleteFile(TrackedFile trackedFile, PartitionSpec spec) {
       this.trackedFile = trackedFile;
+      this.spec = spec;
     }
 
     @Override
     public String manifestLocation() {
-      return trackedFile.manifestLocation;
+      return trackedFile.manifestLocation();
     }
 
     @Override
     public Long pos() {
-      return trackedFile.position;
+      return trackedFile.pos();
     }
 
     @Override
     public int specId() {
-      return trackedFile.partitionSpecId;
+      return trackedFile.partitionSpecId();
     }
 
     @Override
     public FileContent content() {
-      return trackedFile.contentType;
+      return trackedFile.contentType();
     }
 
     @Override
     public CharSequence path() {
-      return trackedFile.location;
+      return trackedFile.location();
     }
 
     @Override
     public String location() {
-      return trackedFile.location;
+      return trackedFile.location();
     }
 
     @Override
     public FileFormat format() {
-      return trackedFile.fileFormat;
+      return trackedFile.fileFormat();
     }
 
     @Override
@@ -690,12 +669,12 @@ class TrackedFileStruct extends SupportsIndexProjection
 
     @Override
     public long recordCount() {
-      return trackedFile.recordCount;
+      return trackedFile.recordCount();
     }
 
     @Override
     public long fileSizeInBytes() {
-      return trackedFile.fileSizeInBytes;
+      return trackedFile.fileSizeInBytes();
     }
 
     @Override
@@ -747,37 +726,34 @@ class TrackedFileStruct extends SupportsIndexProjection
 
     @Override
     public Integer sortOrderId() {
-      return trackedFile.sortOrderId;
+      return trackedFile.sortOrderId();
     }
 
     @Override
     public Long dataSequenceNumber() {
-      return trackedFile.trackingInfo != null
-          ? trackedFile.trackingInfo.dataSequenceNumber()
-          : null;
+      TrackingInfo trackingInfo = trackedFile.trackingInfo();
+      return trackingInfo != null ? trackingInfo.dataSequenceNumber() : null;
     }
 
     @Override
     public Long fileSequenceNumber() {
-      return trackedFile.trackingInfo != null
-          ? trackedFile.trackingInfo.fileSequenceNumber()
-          : null;
+      TrackingInfo trackingInfo = trackedFile.trackingInfo();
+      return trackingInfo != null ? trackingInfo.fileSequenceNumber() : null;
     }
 
     @Override
     public DeleteFile copy() {
-      return new TrackedDeleteFile((TrackedFileStruct) trackedFile.copy());
+      return new TrackedDeleteFile(trackedFile.copy(), spec);
     }
 
     @Override
     public DeleteFile copyWithoutStats() {
-      return new TrackedDeleteFile((TrackedFileStruct) trackedFile.copyWithoutStats());
+      return new TrackedDeleteFile(trackedFile.copyWithoutStats(), spec);
     }
 
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedDeleteFile(
-          (TrackedFileStruct) trackedFile.copyWithStats(requestedColumnIds));
+      return new TrackedDeleteFile(trackedFile.copyWithStats(requestedColumnIds), spec);
     }
   }
 
@@ -976,8 +952,8 @@ class TrackedFileStruct extends SupportsIndexProjection
 
   /** Mutable struct implementation of ContentInfo. */
   static class ContentInfoStruct implements ContentInfo, StructLike, Serializable {
-    private Long offset = null;
-    private Long sizeInBytes = null;
+    private long offset;
+    private long sizeInBytes;
 
     ContentInfoStruct() {}
 
@@ -1001,19 +977,19 @@ class TrackedFileStruct extends SupportsIndexProjection
 
     @Override
     public long offset() {
-      return offset != null ? offset : 0L;
+      return offset;
     }
 
     @Override
     public long sizeInBytes() {
-      return sizeInBytes != null ? sizeInBytes : 0L;
+      return sizeInBytes;
     }
 
-    void setOffset(Long offset) {
+    void setOffset(long offset) {
       this.offset = offset;
     }
 
-    void setSizeInBytes(Long sizeInBytes) {
+    void setSizeInBytes(long sizeInBytes) {
       this.sizeInBytes = sizeInBytes;
     }
 
@@ -1063,13 +1039,13 @@ class TrackedFileStruct extends SupportsIndexProjection
 
   /** Mutable struct implementation of ManifestStats. */
   static class ManifestStatsStruct implements ManifestStats, StructLike, Serializable {
-    private Integer addedFilesCount = null;
-    private Integer existingFilesCount = null;
-    private Integer deletedFilesCount = null;
-    private Long addedRowsCount = null;
-    private Long existingRowsCount = null;
-    private Long deletedRowsCount = null;
-    private Long minSequenceNumber = null;
+    private int addedFilesCount;
+    private int existingFilesCount;
+    private int deletedFilesCount;
+    private long addedRowsCount;
+    private long existingRowsCount;
+    private long deletedRowsCount;
+    private long minSequenceNumber;
 
     ManifestStatsStruct() {}
 
@@ -1103,64 +1079,64 @@ class TrackedFileStruct extends SupportsIndexProjection
 
     @Override
     public int addedFilesCount() {
-      return addedFilesCount != null ? addedFilesCount : 0;
+      return addedFilesCount;
     }
 
     @Override
     public int existingFilesCount() {
-      return existingFilesCount != null ? existingFilesCount : 0;
+      return existingFilesCount;
     }
 
     @Override
     public int deletedFilesCount() {
-      return deletedFilesCount != null ? deletedFilesCount : 0;
+      return deletedFilesCount;
     }
 
     @Override
     public long addedRowsCount() {
-      return addedRowsCount != null ? addedRowsCount : 0L;
+      return addedRowsCount;
     }
 
     @Override
     public long existingRowsCount() {
-      return existingRowsCount != null ? existingRowsCount : 0L;
+      return existingRowsCount;
     }
 
     @Override
     public long deletedRowsCount() {
-      return deletedRowsCount != null ? deletedRowsCount : 0L;
+      return deletedRowsCount;
     }
 
     @Override
     public long minSequenceNumber() {
-      return minSequenceNumber != null ? minSequenceNumber : 0L;
+      return minSequenceNumber;
     }
 
-    void setAddedFilesCount(Integer count) {
+    void setAddedFilesCount(int count) {
       this.addedFilesCount = count;
     }
 
-    void setExistingFilesCount(Integer count) {
+    void setExistingFilesCount(int count) {
       this.existingFilesCount = count;
     }
 
-    void setDeletedFilesCount(Integer count) {
+    void setDeletedFilesCount(int count) {
       this.deletedFilesCount = count;
     }
 
-    void setAddedRowsCount(Long count) {
+    void setAddedRowsCount(long count) {
       this.addedRowsCount = count;
     }
 
-    void setExistingRowsCount(Long count) {
+    void setExistingRowsCount(long count) {
       this.existingRowsCount = count;
     }
 
-    void setDeletedRowsCount(Long count) {
+    void setDeletedRowsCount(long count) {
       this.deletedRowsCount = count;
     }
 
-    void setMinSequenceNumber(Long minSeqNum) {
+    void setMinSequenceNumber(long minSeqNum) {
       this.minSequenceNumber = minSeqNum;
     }
 

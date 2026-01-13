@@ -23,11 +23,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -43,21 +44,23 @@ public class TestV4ManifestReader {
   @Test
   public void testReadFlatManifest() throws IOException {
     TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L, 50000L);
-    file1.setStatus(TrackingInfo.Status.ADDED);
-    file1.setSnapshotId(SNAPSHOT_ID);
-    file1.setSequenceNumber(SEQUENCE_NUMBER);
-    file1.setFileSequenceNumber(SEQUENCE_NUMBER);
+    TrackedFileStruct.TrackingInfoStruct tracking1 = file1.ensureTrackingInfo();
+    tracking1.setStatus(TrackingInfo.Status.ADDED);
+    tracking1.setSnapshotId(SNAPSHOT_ID);
+    tracking1.setSequenceNumber(SEQUENCE_NUMBER);
+    tracking1.setFileSequenceNumber(SEQUENCE_NUMBER);
 
     TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L, 100000L);
-    file2.setStatus(TrackingInfo.Status.EXISTING);
-    file2.setSnapshotId(SNAPSHOT_ID - 1);
-    file2.setSequenceNumber(SEQUENCE_NUMBER - 1);
-    file2.setFileSequenceNumber(SEQUENCE_NUMBER - 1);
+    TrackedFileStruct.TrackingInfoStruct tracking2 = file2.ensureTrackingInfo();
+    tracking2.setStatus(TrackingInfo.Status.EXISTING);
+    tracking2.setSnapshotId(SNAPSHOT_ID - 1);
+    tracking2.setSequenceNumber(SEQUENCE_NUMBER - 1);
+    tracking2.setFileSequenceNumber(SEQUENCE_NUMBER - 1);
 
     String manifestPath = writeManifest(file1, file2);
 
     V4ManifestReader reader =
-        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
 
     List<TrackedFile> files = Lists.newArrayList(reader);
 
@@ -80,12 +83,12 @@ public class TestV4ManifestReader {
   @Test
   public void testInheritSnapshotId() throws IOException {
     TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L, 50000L);
-    file1.setStatus(TrackingInfo.Status.ADDED);
+    file1.ensureTrackingInfo().setStatus(TrackingInfo.Status.ADDED);
 
     String manifestPath = writeManifest(file1);
 
     V4ManifestReader reader =
-        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
 
     List<TrackedFile> files = Lists.newArrayList(reader);
 
@@ -102,19 +105,21 @@ public class TestV4ManifestReader {
   @Test
   public void testInheritSequenceNumberForAddedOnly() throws IOException {
     TrackedFileStruct added = createDataFile("added.parquet", 1000L, 50000L);
-    added.setStatus(TrackingInfo.Status.ADDED);
-    added.setSnapshotId(SNAPSHOT_ID);
+    TrackedFileStruct.TrackingInfoStruct addedTracking = added.ensureTrackingInfo();
+    addedTracking.setStatus(TrackingInfo.Status.ADDED);
+    addedTracking.setSnapshotId(SNAPSHOT_ID);
 
     TrackedFileStruct existing = createDataFile("existing.parquet", 2000L, 100000L);
-    existing.setStatus(TrackingInfo.Status.EXISTING);
-    existing.setSnapshotId(SNAPSHOT_ID - 1);
-    existing.setSequenceNumber(SEQUENCE_NUMBER - 10);
-    existing.setFileSequenceNumber(SEQUENCE_NUMBER - 10);
+    TrackedFileStruct.TrackingInfoStruct existingTracking = existing.ensureTrackingInfo();
+    existingTracking.setStatus(TrackingInfo.Status.EXISTING);
+    existingTracking.setSnapshotId(SNAPSHOT_ID - 1);
+    existingTracking.setSequenceNumber(SEQUENCE_NUMBER - 10);
+    existingTracking.setFileSequenceNumber(SEQUENCE_NUMBER - 10);
 
     String manifestPath = writeManifest(added, existing);
 
     V4ManifestReader reader =
-        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
 
     List<TrackedFile> files = Lists.newArrayList(reader);
 
@@ -130,20 +135,35 @@ public class TestV4ManifestReader {
   }
 
   @Test
-  public void testRowIdAssignment() throws IOException {
+  public void testRowIdAssignmentInLeafManifest() throws IOException {
+    // Create data files for the leaf manifest
     TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L, 50000L);
-    file1.setStatus(TrackingInfo.Status.ADDED);
-    file1.setSnapshotId(SNAPSHOT_ID);
+    TrackedFileStruct.TrackingInfoStruct tracking1 = file1.ensureTrackingInfo();
+    tracking1.setStatus(TrackingInfo.Status.ADDED);
+    tracking1.setSnapshotId(SNAPSHOT_ID);
 
     TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L, 100000L);
-    file2.setStatus(TrackingInfo.Status.ADDED);
-    file2.setSnapshotId(SNAPSHOT_ID);
+    TrackedFileStruct.TrackingInfoStruct tracking2 = file2.ensureTrackingInfo();
+    tracking2.setStatus(TrackingInfo.Status.ADDED);
+    tracking2.setSnapshotId(SNAPSHOT_ID);
 
     String manifestPath = writeManifest(file1, file2);
 
+    // Create a DATA_MANIFEST entry that points to the manifest, with first_row_id set
     long startingRowId = 1000L;
-    V4ManifestReader reader =
-        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, startingRowId);
+    TrackedFileStruct manifestEntry = new TrackedFileStruct();
+    manifestEntry.setContentType(FileContent.DATA_MANIFEST);
+    manifestEntry.setLocation(manifestPath);
+    manifestEntry.setFileFormat(FileFormat.AVRO);
+    TrackedFileStruct.TrackingInfoStruct manifestTracking = manifestEntry.ensureTrackingInfo();
+    manifestTracking.setStatus(TrackingInfo.Status.ADDED);
+    manifestTracking.setSnapshotId(SNAPSHOT_ID);
+    manifestTracking.setSequenceNumber(SEQUENCE_NUMBER);
+    manifestTracking.setFirstRowId(startingRowId);
+
+    Map<Integer, PartitionSpec> specsById = ImmutableMap.of();
+
+    V4ManifestReader reader = V4ManifestReaders.readLeaf(manifestEntry, io, specsById);
 
     List<TrackedFile> files = Lists.newArrayList(reader);
 
@@ -159,21 +179,24 @@ public class TestV4ManifestReader {
   @Test
   public void testLiveEntriesFilterDeleted() throws IOException {
     TrackedFileStruct added = createDataFile("added.parquet", 1000L, 50000L);
-    added.setStatus(TrackingInfo.Status.ADDED);
-    added.setSnapshotId(SNAPSHOT_ID);
+    TrackedFileStruct.TrackingInfoStruct addedTracking = added.ensureTrackingInfo();
+    addedTracking.setStatus(TrackingInfo.Status.ADDED);
+    addedTracking.setSnapshotId(SNAPSHOT_ID);
 
     TrackedFileStruct deleted = createDataFile("deleted.parquet", 2000L, 100000L);
-    deleted.setStatus(TrackingInfo.Status.DELETED);
-    deleted.setSnapshotId(SNAPSHOT_ID);
+    TrackedFileStruct.TrackingInfoStruct deletedTracking = deleted.ensureTrackingInfo();
+    deletedTracking.setStatus(TrackingInfo.Status.DELETED);
+    deletedTracking.setSnapshotId(SNAPSHOT_ID);
 
     TrackedFileStruct existing = createDataFile("existing.parquet", 3000L, 150000L);
-    existing.setStatus(TrackingInfo.Status.EXISTING);
-    existing.setSnapshotId(SNAPSHOT_ID - 1);
+    TrackedFileStruct.TrackingInfoStruct existingTracking = existing.ensureTrackingInfo();
+    existingTracking.setStatus(TrackingInfo.Status.EXISTING);
+    existingTracking.setSnapshotId(SNAPSHOT_ID - 1);
 
     String manifestPath = writeManifest(added, deleted, existing);
 
     V4ManifestReader reader =
-        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
 
     List<TrackedFile> liveFiles = Lists.newArrayList(reader.liveFiles());
 
@@ -197,15 +220,19 @@ public class TestV4ManifestReader {
   @Test
   public void testColumnProjection() throws IOException {
     TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L, 50000L);
-    file1.setStatus(TrackingInfo.Status.ADDED);
-    file1.setSnapshotId(SNAPSHOT_ID);
+    TrackedFileStruct.TrackingInfoStruct tracking = file1.ensureTrackingInfo();
+    tracking.setStatus(TrackingInfo.Status.ADDED);
+    tracking.setSnapshotId(SNAPSHOT_ID);
     file1.setSortOrderId(5);
 
     String manifestPath = writeManifest(file1);
 
+    // Create a projection schema with only location and record_count fields
+    Schema projection = new Schema(TrackedFile.LOCATION, TrackedFile.RECORD_COUNT);
+
     V4ManifestReader reader =
-        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null)
-            .select(ImmutableList.of("location", "record_count"));
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER)
+            .project(projection);
 
     List<TrackedFile> files = Lists.newArrayList(reader);
 
@@ -224,7 +251,7 @@ public class TestV4ManifestReader {
     String manifestPath = writeManifest(file1, file2, file3);
 
     V4ManifestReader reader =
-        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER, null);
+        V4ManifestReaders.readRoot(manifestPath, io, SNAPSHOT_ID, SEQUENCE_NUMBER);
 
     List<TrackedFile> files = Lists.newArrayList(reader.allFiles());
 
@@ -251,10 +278,10 @@ public class TestV4ManifestReader {
   }
 
   private String writeManifest(TrackedFileStruct... files) throws IOException {
-    OutputFile outputFile = io.newOutputFile("manifest-" + System.nanoTime() + ".parquet");
+    OutputFile outputFile = io.newOutputFile("manifest-" + System.nanoTime() + ".avro");
 
     try (FileAppender<TrackedFileStruct> appender =
-        InternalData.write(FileFormat.PARQUET, outputFile)
+        InternalData.write(FileFormat.AVRO, outputFile)
             .schema(new Schema(TrackedFileStruct.BASE_TYPE.fields()))
             .named("tracked_file")
             .build()) {

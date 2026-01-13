@@ -24,13 +24,17 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.roaringbitmap.RoaringBitmap;
 
@@ -39,9 +43,19 @@ import org.roaringbitmap.RoaringBitmap;
  *
  * <p>Supports reading both root manifests and leaf manifests. Returns TrackedFile entries which can
  * represent data files, delete files, or manifest references.
+ *
+ * <p>Projection capabilities:
+ *
+ * <ul>
+ *   <li>By default, all columns are projected
+ *   <li>Use {@link #filterData(Expression)} for automatic filter-based stats projection
+ *   <li>Use {@link #projectStats(Set)} for custom stats field projection (unioned with
+ *       filter-based)
+ *   <li>Use {@link #project(Schema)} for fine-grained projection in use cases like metadata table
+ *       scans
+ * </ul>
  */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
-  static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
 
   private final InputFile file;
   private final FileFormat format;
@@ -51,7 +65,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private ByteBuffer manifestDV = null;
 
   @SuppressWarnings("UnusedVariable")
-  private List<String> columns = ALL_COLUMNS;
+  private Expression filter = Expressions.alwaysTrue();
+
+  @SuppressWarnings("UnusedVariable")
+  private Set<Integer> statsFieldIds = null;
+
+  private Schema customProjection = null;
 
   protected V4ManifestReader(
       InputFile file,
@@ -75,13 +94,48 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   /**
-   * Selects columns to read from the manifest. Currently unused - reads all columns.
+   * Sets a filter expression for automatic stats projection.
    *
-   * @param selectedColumns columns to read
+   * <p>Stats for columns referenced in the filter will be projected automatically. This is more
+   * efficient than projecting all stats when only a subset is needed for filtering.
+   *
+   * @param expr filter expression to push down
    * @return this reader for method chaining
    */
-  public V4ManifestReader select(List<String> selectedColumns) {
-    this.columns = selectedColumns;
+  public V4ManifestReader filterData(Expression expr) {
+    this.filter = expr;
+    return this;
+  }
+
+  /**
+   * Sets custom stats field IDs to project.
+   *
+   * <p>These field IDs are unioned with any fields extracted from {@link #filterData(Expression)}.
+   * Use this when you need stats for specific columns beyond what the filter requires.
+   *
+   * @param fieldIds table schema field IDs for which to project stats
+   * @return this reader for method chaining
+   */
+  public V4ManifestReader projectStats(Set<Integer> fieldIds) {
+    this.statsFieldIds = fieldIds;
+    return this;
+  }
+
+  /**
+   * Sets a custom projection schema for fine-grained control.
+   *
+   * <p>Use this for metadata table scans and other custom situations (like {@code
+   * ManifestFiles.readPaths}) that need specific column projection. When set, this takes precedence
+   * over filter-based and custom stats projection.
+   *
+   * <p>Note: The tracking_info struct is always projected regardless of the custom schema to ensure
+   * correctness.
+   *
+   * @param projection custom schema to project
+   * @return this reader for method chaining
+   */
+  public V4ManifestReader project(Schema projection) {
+    this.customProjection = projection;
     return this;
   }
 
@@ -93,8 +147,47 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return filterLiveFiles(open());
   }
 
+  /**
+   * Builds the projection schema based on configured projection options.
+   *
+   * <p>If a custom projection is set, it is used with tracking_info always included to ensure
+   * correctness. Otherwise, projects all columns by default. Filter-based stats projection will be
+   * implemented when content stats structure is finalized.
+   *
+   * <p>Always includes:
+   *
+   * <ul>
+   *   <li>{@link TrackedFile#TRACKING_INFO} - required for correct first_row_id handling
+   *   <li>{@link MetadataColumns#ROW_POSITION} - for safe position tracking (handles row group
+   *       skipping)
+   * </ul>
+   */
+  private Schema buildProjection() {
+    List<Types.NestedField> fields = Lists.newArrayList();
+
+    if (customProjection != null) {
+      fields.addAll(customProjection.asStruct().fields());
+
+      // Always project tracking_info to ensure first_row_id and status are available.
+      // This prevents bugs when reading via metadata tables with partial projection.
+      if (customProjection.findField(TrackedFile.TRACKING_INFO.fieldId()) == null) {
+        fields.add(TrackedFile.TRACKING_INFO);
+      }
+    } else {
+      // Default: project all columns
+      // TODO: When content stats structure is implemented, union filter-based field IDs
+      // with statsFieldIds to project only required stats columns
+      fields.addAll(TrackedFileStruct.BASE_TYPE.fields());
+    }
+
+    // Always add ROW_POSITION for safe position tracking (handles row group skipping)
+    fields.add(MetadataColumns.ROW_POSITION);
+
+    return new Schema(fields);
+  }
+
   private CloseableIterable<TrackedFile> open() {
-    Schema projection = new Schema(TrackedFileStruct.BASE_TYPE.fields());
+    Schema projection = buildProjection();
 
     CloseableIterable<TrackedFileStruct> entries =
         InternalData.read(format, file)
@@ -108,8 +201,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         CloseableIterable.transform(entries, inheritableMetadata::apply);
 
     transformed = CloseableIterable.transform(transformed, rowIdAssigner(manifestFirstRowId));
-
-    transformed = assignPositions(transformed);
 
     if (manifestDV != null) {
       RoaringBitmap deletedPositions = deserializeManifestDV(manifestDV);
@@ -145,13 +236,28 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         files,
         entry -> {
           TrackingInfo tracking = entry.trackingInfo();
-          return tracking == null || tracking.status() != TrackingInfo.Status.DELETED;
+          Preconditions.checkNotNull(
+              tracking, "Tracking info should not be null for committed data files");
+          return tracking.status() != TrackingInfo.Status.DELETED;
         });
   }
 
   private static Function<TrackedFileStruct, TrackedFileStruct> rowIdAssigner(Long firstRowId) {
     if (firstRowId == null) {
-      return entry -> entry;
+      // Explicitly clear first_row_id for v2->v3/v4 migration.
+      // Passing null signals that all row IDs should be cleared, not preserved.
+      return entry -> {
+        if (entry.contentType() == FileContent.DATA) {
+          // tracking_info is always projected and should never be null for manifest entries.
+          // If null, fail fast with NPE rather than silently ignoring.
+          TrackingInfo tracking = entry.trackingInfo();
+          if (tracking.firstRowId() != null) {
+            entry.ensureTrackingInfo().setFirstRowId(null);
+          }
+        }
+
+        return entry;
+      };
     }
 
     return new Function<>() {
@@ -160,34 +266,18 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       @Override
       public TrackedFileStruct apply(TrackedFileStruct entry) {
         if (entry.contentType() == FileContent.DATA) {
+          // tracking_info is always projected and should never be null for manifest entries.
+          // If null, fail fast with NPE rather than silently ignoring.
           TrackingInfo tracking = entry.trackingInfo();
-          Preconditions.checkNotNull(
-              tracking, "Tracking info should not be null for committed data files");
-
           if (tracking.status() != TrackingInfo.Status.DELETED && tracking.firstRowId() == null) {
-            entry.setFirstRowId(nextRowId);
-            nextRowId += entry.recordCount();
+            entry.ensureTrackingInfo().setFirstRowId(nextRowId);
+            nextRowId = nextRowId + entry.recordCount();
           }
         }
+
         return entry;
       }
     };
-  }
-
-  private CloseableIterable<TrackedFileStruct> assignPositions(
-      CloseableIterable<TrackedFileStruct> entries) {
-    return CloseableIterable.transform(
-        entries,
-        new Function<>() {
-          private long position = 0;
-
-          @Override
-          public TrackedFileStruct apply(TrackedFileStruct entry) {
-            entry.setPos(position);
-            position++;
-            return entry;
-          }
-        });
   }
 
   @Override

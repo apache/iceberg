@@ -263,18 +263,20 @@ public interface TrackedFile {
    *
    * <p>Only valid when content_type is DATA.
    *
+   * @param spec the partition spec for this file, used to interpret partition values
    * @return a DataFile representation
    * @throws IllegalStateException if content_type is not DATA
    */
-  DataFile asDataFile();
+  DataFile asDataFile(PartitionSpec spec);
 
   /**
    * Converts this tracked file to a DeleteFile.
    *
    * <p>Only valid when content_type is POSITION_DELETES or EQUALITY_DELETES.
    *
+   * @param spec the partition spec for this file, used to interpret partition values
    * @return a DeleteFile representation
    * @throws IllegalStateException if content_type is not a delete type
    */
-  DeleteFile asDeleteFile();
+  DeleteFile asDeleteFile(PartitionSpec spec);
 }
