@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
@@ -50,6 +51,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   private final CachedSupplier<AwsCredentials> credentialCache;
   private final String catalogEndpoint;
   private final String credentialsEndpoint;
+  private final String planId;
   private AuthManager authManager;
   private AuthSession authSession;
 
@@ -65,6 +67,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
             .build();
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
     this.credentialsEndpoint = properties.get(URI);
+    this.planId = properties.getOrDefault(RESTCatalogProperties.REST_SCAN_PLAN_ID, null);
   }
 
   @Override
@@ -103,7 +106,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     return httpClient()
         .get(
             credentialsEndpoint,
-            null,
+            null != planId ? Map.of("planId", planId) : null,
             LoadCredentialsResponse.class,
             Map.of(),
             ErrorHandlers.defaultErrorHandler());
