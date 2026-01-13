@@ -53,17 +53,16 @@ properties, and engine-specific representations.
 ### UDF Metadata
 The UDF metadata file has the following fields:
 
-| Requirement | Field name        | Type                   | Description                                                                                                     |
-|-------------|-------------------|------------------------|-----------------------------------------------------------------------------------------------------------------|
-| *required*  | `function-uuid`   | `string`               | A UUID that identifies the function, generated once at creation.                                                |
-| *required*  | `format-version`  | `int`                  | Metadata format version (must be `1`).                                                                          |
-| *required*  | `definitions`     | `list<definition>`     | List of function [definition](#definition) entities.                                                            |
-| *required*  | `definition-log`  | `list<definition-log>` | History of [definition snapshots](#definition-log).                                                             |
-| *required*  | `parameter-names` | `list<parameter-name>` | Global ordered parameter names shared across all overloads. Overloads must use a prefix of this list, in order. |
-| *optional*  | `location`        | `string`               | The function's base location; used to create metadata file locations.                                           |
-| *optional*  | `properties`      | `map<string,string>`   | A string-to-string map of properties.                                                                           |
-| *optional*  | `secure`          | `boolean`              | Whether it is a secure function. Default: `false`.                                                              |
-| *optional*  | `doc`             | `string`               | Documentation string.                                                                                           |
+| Requirement | Field name        | Type                   | Description                                                           |
+|-------------|-------------------|------------------------|-----------------------------------------------------------------------|
+| *required*  | `function-uuid`   | `string`               | A UUID that identifies the function, generated once at creation.      |
+| *required*  | `format-version`  | `int`                  | Metadata format version (must be `1`).                                |
+| *required*  | `definitions`     | `list<definition>`     | List of function [definition](#definition) entities.                  |
+| *required*  | `definition-log`  | `list<definition-log>` | History of [definition snapshots](#definition-log).                   |
+| *optional*  | `location`        | `string`               | The function's base location; used to create metadata file locations. |
+| *optional*  | `properties`      | `map<string,string>`   | A string-to-string map of properties.                                 |
+| *optional*  | `secure`          | `boolean`              | Whether it is a secure function. Default: `false`.                    |
+| *optional*  | `doc`             | `string`               | Documentation string.                                                 |
 
 Notes:
 1. When `secure` is `true`:
@@ -71,21 +70,6 @@ Notes:
    - Engines MUST prevent leakage of sensitive information during execution via error messages, logs, query plans, or intermediate results.
    - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
 2. Entries in `properties` are treated as hints, not strict rules.
-
-### Parameter-Name
-| Requirement | Field  | Type     | Description              |
-|-------------|--------|----------|--------------------------|
-| *required*  | `name` | `string` | Parameter name.          |
-| *optional*  | `doc`  | `string` | Parameter documentation. |
-
-Notes:
-1. `parameter-names` is the source of truth for parameter naming across all overload definitions, which makes named-argument
-   invocation consistent across definitions:
-   - Each overload uses the first N entries of this list for its arity, in order.
-   - Names and their relative ordering are immutable. Only appending new names is allowed.
-   - Only the `doc` field may be updated in place.
-   - Overloads that differ only by parameter types are allowed (e.g., `foo(int)`, `foo(float)`, `foo(string, string)`), and
-     they all derive their parameter names positionally from the same `parameter-names` prefix.
 
 ### Definition
 
@@ -103,9 +87,11 @@ Each `definition` represents one function signature (e.g., `add_one(int)` vs `ad
 | *optional*  | `doc`                | `string`                                        | Documentation string.                                                                                         |
 
 ### Parameter
-| Requirement | Field     | Type                                              | Description                                                  |
-|-------------|-----------|---------------------------------------------------|--------------------------------------------------------------|
-| *required*  | `type`    | `string`                                          | Parameter data type (see [Parameter Type](#parameter-type)). |
+| Requirement | Field  | Type     | Description                                                  |
+|-------------|--------|----------|--------------------------------------------------------------|
+| *required*  | `type` | `string` | Parameter data type (see [Parameter Type](#parameter-type)). |
+| *required*  | `name` | `string` | Parameter name.                                              |
+| *optional*  | `doc`  | `string` | Parameter documentation.                                     |
 
 Notes:
 1. Function definitions are identified by the tuple of `type`s and there can be only one definition for a given tuple.
@@ -165,11 +151,14 @@ Note: The `body` must be valid SQL in the specified dialect; validation is the r
 | *required*  | `timestamp-ms`        | `long` (epoch millis)                              | When the definition snapshot was created or updated.             |
 | *required*  | `definition-versions` | `list<{ definition-id: string, version-id: int }>` | Mapping of each definition to its selected version at this time. |
 
-## Function Resolution in Engines
+## Function Call Convention and Resolution in Engines
 Resolution rule is decided by engines, but engines SHOULD:
 1. Prefer exact signature matches over casting or subtyping.
 2. Allow numeric widening (e.g., `INT` --> `BIGINT/FLOAT`) when needed and where it does not conflict with the rule above.
 3. Require explicit casts for unsafe conversions (e.g., `STRING` --> `DATE`).
+4. Function invocation SHOULD use a single argument binding mode per call, either a fully positional argument call
+   (e.g., `foo(1, 2, 3)`) or a fully named argument call(e.g., `foo(a => 1, b => 2, c => 3)`). Mixing positional and named
+   arguments within the same function invocation is NOT RECOMMENDED, e.g., `foo(1, 2, c =>3)`.
 
 ## Appendix A: Example – Overloaded Scalar Function
 
@@ -197,14 +186,13 @@ RETURN x + 1.0;
 {
   "function-uuid": "42fd3f91-bc10-41c1-8a52-92b57dd0a9b2",
   "format-version": 1,
-  "parameter-names": [
-    { "name": "x", "doc": "The first input" }
-  ],
   "definitions": [
     {
       "definition-id": "(int)",
       "parameters": [
-        { "type": "int" }
+        {
+          "name": "x", "type": "int", "doc": "Input integer"
+        }
       ],
       "return-type": "int",
       "doc": "Add one to the input integer",
@@ -232,7 +220,9 @@ RETURN x + 1.0;
     {
       "definition-id": "(float)",
       "parameters": [
-        { "type": "float" }
+        {
+          "name": "x", "type": "float", "doc": "Input float"
+        }
       ],
       "return-type": "float",
       "doc": "Add one to the input float",
@@ -290,14 +280,13 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
 {
   "function-uuid": "8a7fa39a-6d8f-4a2f-9d8d-3f3a8f3c2a10",
   "format-version": 1,
-  "parameter-names": [
-    { "name": "c", "doc": "Color of fruits" }
-  ],
   "definitions": [
     {
       "definition-id": "(string)",
       "parameters": [
-        { "type": "string" }
+        {
+          "name": "c", "type": "string", "doc": "Color of fruits"
+        }
       ],
       "return-type": {
         "type": "struct",
