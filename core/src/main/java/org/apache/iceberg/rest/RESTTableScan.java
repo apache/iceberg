@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
@@ -56,7 +57,7 @@ class RESTTableScan extends DataTableScan {
   private static final int MAX_ATTEMPTS = 10; // Max number of poll checks
   private static final long MAX_WAIT_TIME_MS = 5 * 60 * 1000; // Total maximum duration (5 minutes)
   private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
-  private static final String FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
+  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   private final RESTClient client;
   private final Map<String, String> headers;
@@ -199,7 +200,7 @@ class RESTTableScan extends DataTableScan {
 
   private FileIO fileIOForPlanId(List<Credential> storageCredentials) {
     return CatalogUtil.loadFileIO(
-        FILE_IO_IMPL,
+        catalogProperties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL),
         ImmutableMap.<String, String>builder()
             .putAll(catalogProperties)
             .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId)
@@ -257,7 +258,7 @@ class RESTTableScan extends DataTableScan {
           response.planStatus(),
           planId);
 
-      if (null != planId && !response.credentials().isEmpty()) {
+      if (!response.credentials().isEmpty()) {
         this.fileIOForPlanId = fileIOForPlanId(response.credentials());
       }
 
