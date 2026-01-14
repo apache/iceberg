@@ -66,9 +66,8 @@ class TrackedFileStruct extends SupportsIndexProjection
   // Content stats placeholder (TODO: implement ContentStats)
   private Object contentStats = null;
 
-  // Base type that corresponds to positions for get/set
-  // Nested structs (tracking_info, content_info, manifest_stats) are embedded as struct fields
-  static final Types.StructType BASE_TYPE =
+  // Base type for writing manifests (excludes read-only metadata columns)
+  static final Types.StructType WRITE_TYPE =
       Types.StructType.of(
           TrackedFile.CONTENT_TYPE,
           TrackedFile.LOCATION,
@@ -86,13 +85,35 @@ class TrackedFileStruct extends SupportsIndexProjection
           TrackedFile.MANIFEST_STATS,
           TrackedFile.MANIFEST_DV);
 
+  // Base type that corresponds to positions for get/set
+  // Nested structs (tracking_info, content_info, manifest_stats) are embedded as struct fields
+  // MetadataColumns.ROW_POSITION is included to support safe position tracking during reads
+  static final Types.StructType BASE_TYPE =
+      Types.StructType.of(
+          TrackedFile.CONTENT_TYPE,
+          TrackedFile.LOCATION,
+          TrackedFile.FILE_FORMAT,
+          TrackedFile.PARTITION_SPEC_ID,
+          TrackedFile.SORT_ORDER_ID,
+          TrackedFile.RECORD_COUNT,
+          TrackedFile.FILE_SIZE_IN_BYTES,
+          TrackedFile.KEY_METADATA,
+          TrackedFile.SPLIT_OFFSETS,
+          TrackedFile.EQUALITY_IDS,
+          TrackedFile.REFERENCED_FILE,
+          TrackedFile.TRACKING_INFO,
+          TrackedFile.CONTENT_INFO,
+          TrackedFile.MANIFEST_STATS,
+          TrackedFile.MANIFEST_DV,
+          MetadataColumns.ROW_POSITION);
+
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
     super(BASE_TYPE, projection);
   }
 
   TrackedFileStruct() {
-    super(BASE_TYPE.fields().size());
+    super(BASE_TYPE.fields().size()); // includes MetadataColumns.ROW_POSITION
   }
 
   /**

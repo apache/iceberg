@@ -173,15 +173,17 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       if (customProjection.findField(TrackedFile.TRACKING_INFO.fieldId()) == null) {
         fields.add(TrackedFile.TRACKING_INFO);
       }
+
+      // Always add ROW_POSITION for safe position tracking (handles row group skipping)
+      if (customProjection.findField(MetadataColumns.ROW_POSITION.fieldId()) == null) {
+        fields.add(MetadataColumns.ROW_POSITION);
+      }
     } else {
-      // Default: project all columns
+      // Default: project all columns including ROW_POSITION
       // TODO: When content stats structure is implemented, union filter-based field IDs
       // with statsFieldIds to project only required stats columns
       fields.addAll(TrackedFileStruct.BASE_TYPE.fields());
     }
-
-    // Always add ROW_POSITION for safe position tracking (handles row group skipping)
-    fields.add(MetadataColumns.ROW_POSITION);
 
     return new Schema(fields);
   }

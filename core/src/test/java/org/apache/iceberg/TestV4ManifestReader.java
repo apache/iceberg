@@ -245,8 +245,13 @@ public class TestV4ManifestReader {
   @Test
   public void testPositionTracking() throws IOException {
     TrackedFileStruct file1 = createDataFile("file1.parquet", 1000L, 50000L);
+    file1.ensureTrackingInfo().setStatus(TrackingInfo.Status.ADDED);
+
     TrackedFileStruct file2 = createDataFile("file2.parquet", 2000L, 100000L);
+    file2.ensureTrackingInfo().setStatus(TrackingInfo.Status.ADDED);
+
     TrackedFileStruct file3 = createDataFile("file3.parquet", 3000L, 150000L);
+    file3.ensureTrackingInfo().setStatus(TrackingInfo.Status.ADDED);
 
     String manifestPath = writeManifest(file1, file2, file3);
 
@@ -282,7 +287,7 @@ public class TestV4ManifestReader {
 
     try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.AVRO, outputFile)
-            .schema(new Schema(TrackedFileStruct.BASE_TYPE.fields()))
+            .schema(new Schema(TrackedFileStruct.WRITE_TYPE.fields()))
             .named("tracked_file")
             .build()) {
       for (TrackedFileStruct file : files) {

@@ -506,7 +506,7 @@ public class TestManifestExpander {
 
     try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.AVRO, outputFile)
-            .schema(new Schema(TrackedFileStruct.BASE_TYPE.fields()))
+            .schema(new Schema(TrackedFileStruct.WRITE_TYPE.fields()))
             .named("tracked_file")
             .build()) {
       for (TrackedFileStruct entry : entries) {
