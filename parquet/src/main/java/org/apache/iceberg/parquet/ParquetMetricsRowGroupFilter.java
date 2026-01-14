@@ -30,6 +30,7 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
@@ -51,6 +52,9 @@ public class ParquetMetricsRowGroupFilter {
 
   private final Schema schema;
   private final Expression expr;
+  // Expression using signed UUID comparator for backward compatibility with files written before
+  // RFC-compliant UUID comparisons were introduced. Null if no UUID predicates.
+  private final Expression signedUuidExpr;
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -59,7 +63,17 @@ public class ParquetMetricsRowGroupFilter {
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
     this.schema = schema;
     StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    Expression rewritten = Expressions.rewriteNot(unbound);
+    this.expr = Binder.bind(struct, rewritten, caseSensitive);
+
+    // Only create the signed UUID expression if there are UUID predicates that compare against
+    // bounds
+    if (ExpressionUtil.hasUUIDBoundsPredicate(this.expr)) {
+      Expression signedRewritten = ExpressionUtil.withSignedUUIDComparator(rewritten);
+      this.signedUuidExpr = Binder.bind(struct, signedRewritten, caseSensitive);
+    } else {
+      this.signedUuidExpr = null;
+    }
   }
 
   /**
@@ -70,7 +84,19 @@ public class ParquetMetricsRowGroupFilter {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
-    return new MetricsEvalVisitor().eval(fileSchema, rowGroup);
+    boolean result = new MetricsEvalVisitor().eval(fileSchema, rowGroup, expr, false);
+
+    // If the RFC-compliant evaluation says rows might match, or there's no signed UUID expression,
+    // return the result.
+    if (result || signedUuidExpr == null) {
+      return result;
+    }
+
+    // Try again with signed UUID comparator. There is no quick way to detect
+    // which comparator was used when the file's column metrics were written.
+    // The signedUuidExpr has literals with signed comparators for lt/gt/eq predicates.
+    // For IN predicates, signed comparator is used via MetricsEvalVisitor#comparatorForIn.
+    return new MetricsEvalVisitor().eval(fileSchema, rowGroup, signedUuidExpr, true);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
@@ -80,8 +106,16 @@ public class ParquetMetricsRowGroupFilter {
     private Map<Integer, Statistics<?>> stats = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Function<Object, Object>> conversions = null;
+    // Flag to use signed UUID comparator for backward compatibility.
+    // This is needed for the IN predicate because the comparator information is lost
+    // when binding converts literals to a Set<T> of raw values.
+    private boolean useSignedUuidComparator = false;
 
-    private boolean eval(MessageType fileSchema, BlockMetaData rowGroup) {
+    private boolean eval(
+        MessageType fileSchema,
+        BlockMetaData rowGroup,
+        Expression expression,
+        boolean signedUuidMode) {
       if (rowGroup.getRowCount() <= 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -89,6 +123,7 @@ public class ParquetMetricsRowGroupFilter {
       this.stats = Maps.newHashMap();
       this.valueCounts = Maps.newHashMap();
       this.conversions = Maps.newHashMap();
+      this.useSignedUuidComparator = signedUuidMode;
       for (ColumnChunkMetaData col : rowGroup.getColumns()) {
         PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
         if (colType.getId() != null) {
@@ -100,7 +135,21 @@ public class ParquetMetricsRowGroupFilter {
         }
       }
 
-      return ExpressionVisitors.visitEvaluator(expr, this);
+      return ExpressionVisitors.visitEvaluator(expression, this);
+    }
+
+    /**
+     * Returns the appropriate comparator for the given reference. This is needed for the IN
+     * predicate because the comparator information is lost when binding converts literals to a Set
+     * of raw values. For other predicates, the literal carries the comparator.
+     */
+    @SuppressWarnings("unchecked")
+    private <T> Comparator<T> comparatorForIn(BoundReference<T> ref) {
+      if (useSignedUuidComparator
+          && ref.type().typeId() == org.apache.iceberg.types.Type.TypeID.UUID) {
+        return (Comparator<T>) Comparators.signedUUIDs();
+      }
+      return ref.comparator();
     }
 
     @Override
@@ -406,20 +455,17 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_MIGHT_MATCH;
         }
 
+        Comparator<T> cmp = comparatorForIn(ref);
         T lower = min(colStats, id);
         literals =
-            literals.stream()
-                .filter(v -> ref.comparator().compare(lower, v) <= 0)
-                .collect(Collectors.toList());
+            literals.stream().filter(v -> cmp.compare(lower, v) <= 0).collect(Collectors.toList());
         if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
           return ROWS_CANNOT_MATCH;
         }
 
         T upper = max(colStats, id);
         literals =
-            literals.stream()
-                .filter(v -> ref.comparator().compare(upper, v) >= 0)
-                .collect(Collectors.toList());
+            literals.stream().filter(v -> cmp.compare(upper, v) >= 0).collect(Collectors.toList());
         if (literals
             .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot
           // match.

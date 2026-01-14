@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
 
 /**
@@ -51,6 +52,9 @@ public class ManifestEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
 
   private final Expression expr;
+  // Expression using signed UUID comparator for backward compatibility with files written before
+  // RFC-compliant UUID comparisons were introduced. Null if no UUID predicates.
+  private final Expression signedUuidExpr;
 
   public static ManifestEvaluator forRowFilter(
       Expression rowFilter, PartitionSpec spec, boolean caseSensitive) {
@@ -64,7 +68,18 @@ public class ManifestEvaluator {
   }
 
   private ManifestEvaluator(PartitionSpec spec, Expression partitionFilter, boolean caseSensitive) {
-    this.expr = Binder.bind(spec.partitionType(), rewriteNot(partitionFilter), caseSensitive);
+    Types.StructType partitionType = spec.partitionType();
+    Expression rewritten = rewriteNot(partitionFilter);
+    this.expr = Binder.bind(partitionType, rewritten, caseSensitive);
+
+    // Only create the signed UUID expression if there are UUID predicates that compare against
+    // bounds
+    if (ExpressionUtil.hasUUIDBoundsPredicate(this.expr)) {
+      Expression signedRewritten = ExpressionUtil.withSignedUUIDComparator(rewritten);
+      this.signedUuidExpr = Binder.bind(partitionType, signedRewritten, caseSensitive);
+    } else {
+      this.signedUuidExpr = null;
+    }
   }
 
   /**
@@ -74,7 +89,20 @@ public class ManifestEvaluator {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean eval(ManifestFile manifest) {
-    return new ManifestEvalVisitor().eval(manifest);
+    boolean result = new ManifestEvalVisitor().eval(manifest, expr, false);
+
+    // If the RFC-compliant evaluation says rows might match, or there's no signed UUID expression,
+    // return the result.
+    if (result || signedUuidExpr == null) {
+      return result;
+    }
+
+    // Always try with signed UUID comparator as a fallback. There is no reliable way to detect
+    // which comparator was used when the manifest's partition field summaries were written.
+    // The signedUuidExpr has literals with signed comparators for lt/gt/eq predicates.
+    // For IN predicates, we pass signedUuidMode=true so comparatorForIn() returns signed
+    // comparator.
+    return new ManifestEvalVisitor().eval(manifest, signedUuidExpr, true);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
@@ -82,14 +110,32 @@ public class ManifestEvaluator {
 
   private class ManifestEvalVisitor extends BoundExpressionVisitor<Boolean> {
     private List<PartitionFieldSummary> stats = null;
+    // Flag to use signed UUID comparator for backward compatibility.
+    // This is needed for the IN predicate because the comparator information is lost
+    // when binding converts literals to a Set<T> of raw values.
+    private boolean useSignedUuidComparator = false;
 
-    private boolean eval(ManifestFile manifest) {
+    private boolean eval(ManifestFile manifest, Expression expression, boolean signedUuidMode) {
       this.stats = manifest.partitions();
+      this.useSignedUuidComparator = signedUuidMode;
       if (stats == null) {
         return ROWS_MIGHT_MATCH;
       }
 
-      return ExpressionVisitors.visitEvaluator(expr, this);
+      return ExpressionVisitors.visitEvaluator(expression, this);
+    }
+
+    /**
+     * Returns the appropriate comparator for the given reference. This is needed for the IN
+     * predicate because the comparator information is lost when binding converts literals to a Set
+     * of raw values. For other predicates, the literal carries the comparator.
+     */
+    @SuppressWarnings("unchecked")
+    private <T> Comparator<T> comparatorForIn(BoundReference<T> ref) {
+      if (useSignedUuidComparator && ref.type().typeId() == Type.TypeID.UUID) {
+        return (Comparator<T>) Comparators.signedUUIDs();
+      }
+      return ref.comparator();
     }
 
     @Override
@@ -295,20 +341,17 @@ public class ManifestEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
+      Comparator<T> cmp = comparatorForIn(ref);
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
       literals =
-          literals.stream()
-              .filter(v -> ref.comparator().compare(lower, v) <= 0)
-              .collect(Collectors.toList());
+          literals.stream().filter(v -> cmp.compare(lower, v) <= 0).collect(Collectors.toList());
       if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
         return ROWS_CANNOT_MATCH;
       }
 
       T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
       literals =
-          literals.stream()
-              .filter(v -> ref.comparator().compare(upper, v) >= 0)
-              .collect(Collectors.toList());
+          literals.stream().filter(v -> cmp.compare(upper, v) >= 0).collect(Collectors.toList());
       if (literals
           .isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
         return ROWS_CANNOT_MATCH;

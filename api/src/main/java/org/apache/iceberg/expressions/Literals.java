@@ -608,12 +608,24 @@ class Literals {
     }
   }
 
-  static class UUIDLiteral extends ComparableLiteral<UUID> {
-    private static final Comparator<UUID> CMP =
+  static class UUIDLiteral extends BaseLiteral<UUID> {
+    private static final Comparator<UUID> RFC_CMP =
         Comparators.<UUID>nullsFirst().thenComparing(Comparators.uuids());
+    private static final Comparator<UUID> SIGNED_CMP =
+        Comparators.<UUID>nullsFirst().thenComparing(Comparators.signedUUIDs());
+
+    // Flag to indicate which comparator to use (serializable)
+    private final boolean useSignedComparator;
+    // Transient cached comparator (reconstructed on deserialization)
+    private transient volatile Comparator<UUID> cmp;
 
     UUIDLiteral(UUID value) {
+      this(value, false);
+    }
+
+    UUIDLiteral(UUID value, boolean useSignedComparator) {
       super(value);
+      this.useSignedComparator = useSignedComparator;
     }
 
     @Override
@@ -627,12 +639,23 @@ class Literals {
 
     @Override
     public Comparator<UUID> comparator() {
-      return CMP;
+      if (cmp == null) {
+        cmp = useSignedComparator ? SIGNED_CMP : RFC_CMP;
+      }
+      return cmp;
     }
 
     @Override
     protected Type.TypeID typeId() {
       return Type.TypeID.UUID;
+    }
+
+    /**
+     * Creates a new UUIDLiteral with the signed comparator for backward compatibility with files
+     * written before RFC-compliant UUID comparisons were introduced.
+     */
+    UUIDLiteral withSignedComparator() {
+      return new UUIDLiteral(value(), true);
     }
   }
 

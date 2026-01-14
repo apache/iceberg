@@ -24,6 +24,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -743,5 +744,201 @@ public class ExpressionUtil {
     }
 
     return specBuilder.build();
+  }
+
+  /**
+   * Checks if the given bound expression contains any UUID predicates that compare against min/max
+   * bounds. These predicates may produce incorrect results when evaluating against statistics
+   * written with a different UUID comparator.
+   *
+   * @param expr a bound expression
+   * @return true if the expression contains UUID predicates that compare against bounds
+   */
+  public static boolean hasUUIDBoundsPredicate(Expression expr) {
+    return ExpressionVisitors.visit(expr, new UUIDBoundsPredicateDetector());
+  }
+
+  /**
+   * Transforms an unbound expression to use the signed UUID comparator in all UUID literals. This
+   * is used for backward compatibility with files written before RFC 4122/9562 compliant comparison
+   * was implemented.
+   *
+   * @param expr an unbound expression
+   * @return a new expression with UUID literals using the signed comparator
+   */
+  public static Expression withSignedUUIDComparator(Expression expr) {
+    return ExpressionVisitors.visit(expr, new SignedUUIDLiteralTransformer());
+  }
+
+  /**
+   * Visitor that detects if an expression contains UUID predicates that compare against bounds.
+   * These include: lt, ltEq, gt, gtEq, eq, notEq, in, notIn on UUID columns.
+   */
+  private static class UUIDBoundsPredicateDetector
+      extends ExpressionVisitors.ExpressionVisitor<Boolean> {
+
+    @Override
+    public Boolean alwaysTrue() {
+      return false;
+    }
+
+    @Override
+    public Boolean alwaysFalse() {
+      return false;
+    }
+
+    @Override
+    public Boolean not(Boolean result) {
+      return result;
+    }
+
+    @Override
+    public Boolean and(Boolean leftResult, Boolean rightResult) {
+      return leftResult || rightResult;
+    }
+
+    @Override
+    public Boolean or(Boolean leftResult, Boolean rightResult) {
+      return leftResult || rightResult;
+    }
+
+    @Override
+    public <T> Boolean predicate(BoundPredicate<T> pred) {
+      if (pred.term() instanceof BoundReference) {
+        BoundReference<?> ref = (BoundReference<?>) pred.term();
+        if (ref.type().typeId() == Type.TypeID.UUID) {
+          switch (pred.op()) {
+            case LT:
+            case LT_EQ:
+            case GT:
+            case GT_EQ:
+            case EQ:
+            case NOT_EQ:
+            case IN:
+            case NOT_IN:
+              return true;
+            default:
+              return false;
+          }
+        }
+      }
+      return false;
+    }
+
+    @Override
+    public <T> Boolean predicate(UnboundPredicate<T> pred) {
+      // For unbound predicates, we can check if the literal is a UUID
+      if (pred.literal() != null && pred.literal().value() instanceof UUID) {
+        switch (pred.op()) {
+          case LT:
+          case LT_EQ:
+          case GT:
+          case GT_EQ:
+          case EQ:
+          case NOT_EQ:
+          case IN:
+          case NOT_IN:
+            return true;
+          default:
+            return false;
+        }
+      }
+      // Check for IN/NOT_IN with UUID literals
+      if (pred.literals() != null && !pred.literals().isEmpty()) {
+        Literal<?> first = pred.literals().get(0);
+        if (first.value() instanceof UUID) {
+          return true;
+        }
+      }
+      return false;
+    }
+  }
+
+  /**
+   * Visitor that transforms an expression to use the signed UUID comparator in all UUID literals.
+   */
+  private static class SignedUUIDLiteralTransformer
+      extends ExpressionVisitors.ExpressionVisitor<Expression> {
+
+    @Override
+    public Expression alwaysTrue() {
+      return Expressions.alwaysTrue();
+    }
+
+    @Override
+    public Expression alwaysFalse() {
+      return Expressions.alwaysFalse();
+    }
+
+    @Override
+    public Expression not(Expression result) {
+      return Expressions.not(result);
+    }
+
+    @Override
+    public Expression and(Expression leftResult, Expression rightResult) {
+      return Expressions.and(leftResult, rightResult);
+    }
+
+    @Override
+    public Expression or(Expression leftResult, Expression rightResult) {
+      return Expressions.or(leftResult, rightResult);
+    }
+
+    @Override
+    public <T> Expression predicate(BoundPredicate<T> pred) {
+      // Bound predicates should not be transformed - this is for unbound expressions
+      throw new UnsupportedOperationException(
+          "Cannot transform bound predicate; use unbound expressions");
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Expression predicate(UnboundPredicate<T> pred) {
+      UnboundTerm<T> term = pred.term();
+
+      switch (pred.op()) {
+        case IS_NULL:
+        case NOT_NULL:
+        case IS_NAN:
+        case NOT_NAN:
+          // Unary predicates don't have literals to transform
+          return pred;
+
+        case LT:
+        case LT_EQ:
+        case GT:
+        case GT_EQ:
+        case EQ:
+        case NOT_EQ:
+        case STARTS_WITH:
+        case NOT_STARTS_WITH:
+          Literal<T> lit = pred.literal();
+          if (lit.value() instanceof UUID) {
+            Literals.UUIDLiteral uuidLit = (Literals.UUIDLiteral) lit;
+            return new UnboundPredicate<>(pred.op(), term, (T) uuidLit.withSignedComparator());
+          }
+          return pred;
+
+        case IN:
+        case NOT_IN:
+          List<Literal<T>> literals = pred.literals();
+          if (!literals.isEmpty() && literals.get(0).value() instanceof UUID) {
+            List<T> transformedValues =
+                literals.stream()
+                    .map(
+                        l -> {
+                          Literals.UUIDLiteral uuidLit = (Literals.UUIDLiteral) l;
+                          return (T) uuidLit.withSignedComparator();
+                        })
+                    .collect(Collectors.toList());
+            return new UnboundPredicate<>(pred.op(), term, transformedValues);
+          }
+          return pred;
+
+        default:
+          return pred;
+      }
+    }
   }
 }
