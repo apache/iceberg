@@ -37,7 +37,11 @@ public class TestTrackedFileStruct {
 
   @TempDir private Path temp;
 
-  private static Schema getTrackedFileSchema() {
+  private static Schema getWriteSchema() {
+    return new Schema(TrackedFileStruct.WRITE_TYPE.fields());
+  }
+
+  private static Schema getReadSchema() {
     return new Schema(TrackedFileStruct.BASE_TYPE.fields());
   }
 
@@ -70,7 +74,7 @@ public class TestTrackedFileStruct {
     List<TrackedFileStruct> written;
     try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.PARQUET, outputFile)
-            .schema(getTrackedFileSchema())
+            .schema(getWriteSchema())
             .named("tracked_file")
             .build()) {
       appender.add(original);
@@ -83,7 +87,7 @@ public class TestTrackedFileStruct {
     try (CloseableIterable<TrackedFileStruct> files =
         InternalData.read(FileFormat.PARQUET, inputFile)
             .setRootType(TrackedFileStruct.class)
-            .project(getTrackedFileSchema())
+            .project(getReadSchema())
             .build()) {
       read = Lists.newArrayList(files);
     }
@@ -143,7 +147,7 @@ public class TestTrackedFileStruct {
     OutputFile outputFile = Files.localOutput(temp.resolve("dv-tracked-file.avro").toFile());
     try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.AVRO, outputFile)
-            .schema(getTrackedFileSchema())
+            .schema(getWriteSchema())
             .named("tracked_file")
             .build()) {
       appender.add(original);
@@ -155,7 +159,7 @@ public class TestTrackedFileStruct {
     try (CloseableIterable<TrackedFileStruct> files =
         InternalData.read(FileFormat.AVRO, inputFile)
             .setRootType(TrackedFileStruct.class)
-            .project(getTrackedFileSchema())
+            .project(getReadSchema())
             .build()) {
       read = Lists.newArrayList(files);
     }
@@ -200,7 +204,7 @@ public class TestTrackedFileStruct {
     OutputFile outputFile = Files.localOutput(temp.resolve("manifest-with-dv.avro").toFile());
     try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.AVRO, outputFile)
-            .schema(getTrackedFileSchema())
+            .schema(getWriteSchema())
             .named("tracked_file")
             .build()) {
       appender.add(original);
@@ -212,7 +216,7 @@ public class TestTrackedFileStruct {
     try (CloseableIterable<TrackedFileStruct> files =
         InternalData.read(FileFormat.AVRO, inputFile)
             .setRootType(TrackedFileStruct.class)
-            .project(getTrackedFileSchema())
+            .project(getReadSchema())
             .build()) {
       read = Lists.newArrayList(files);
     }
@@ -268,7 +272,7 @@ public class TestTrackedFileStruct {
         Files.localOutput(temp.resolve("data-manifest-tracked-file.avro").toFile());
     try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.AVRO, outputFile)
-            .schema(getTrackedFileSchema())
+            .schema(getWriteSchema())
             .named("tracked_file")
             .build()) {
       appender.add(original);
@@ -280,7 +284,7 @@ public class TestTrackedFileStruct {
     try (CloseableIterable<TrackedFileStruct> files =
         InternalData.read(FileFormat.AVRO, inputFile)
             .setRootType(TrackedFileStruct.class)
-            .project(getTrackedFileSchema())
+            .project(getReadSchema())
             .build()) {
       read = Lists.newArrayList(files);
     }
@@ -339,7 +343,7 @@ public class TestTrackedFileStruct {
         Files.localOutput(temp.resolve("equality-delete-tracked-file.avro").toFile());
     try (FileAppender<TrackedFileStruct> appender =
         InternalData.write(FileFormat.AVRO, outputFile)
-            .schema(getTrackedFileSchema())
+            .schema(getWriteSchema())
             .named("tracked_file")
             .build()) {
       appender.add(original);
@@ -351,7 +355,7 @@ public class TestTrackedFileStruct {
     try (CloseableIterable<TrackedFileStruct> files =
         InternalData.read(FileFormat.AVRO, inputFile)
             .setRootType(TrackedFileStruct.class)
-            .project(getTrackedFileSchema())
+            .project(getReadSchema())
             .build()) {
       read = Lists.newArrayList(files);
     }
