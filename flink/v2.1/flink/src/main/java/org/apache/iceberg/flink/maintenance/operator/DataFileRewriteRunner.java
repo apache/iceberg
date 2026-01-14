@@ -283,6 +283,12 @@ public class DataFileRewriteRunner
       return null;
     }
 
+    boolean allTheSamePartition =
+        group.rewrittenFiles().stream().anyMatch(file -> file.specId() != table.spec().specId());
+    if (allTheSamePartition) {
+      return null;
+    }
+
     // Validate Parquet-specific requirements and get schema
     return ParquetFileMerger.canMergeAndGetSchema(
         Lists.newArrayList(group.rewrittenFiles()), table.io(), group.maxOutputFileSize());
