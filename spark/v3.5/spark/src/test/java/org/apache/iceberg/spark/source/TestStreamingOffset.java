@@ -29,12 +29,13 @@ public class TestStreamingOffset {
 
   @Test
   public void testJsonConversion() {
+    long timestamp = System.currentTimeMillis();
     StreamingOffset[] expected =
         new StreamingOffset[] {
-          new StreamingOffset(System.currentTimeMillis(), 1L, false),
-          new StreamingOffset(System.currentTimeMillis(), 2L, false),
-          new StreamingOffset(System.currentTimeMillis(), 3L, false),
-          new StreamingOffset(System.currentTimeMillis(), 4L, true)
+          new StreamingOffset(timestamp, 1L, false, timestamp, timestamp),
+          new StreamingOffset(timestamp, 2L, false, timestamp, timestamp),
+          new StreamingOffset(timestamp, 3L, false, timestamp, timestamp),
+          new StreamingOffset(timestamp, 4L, true, timestamp, timestamp)
         };
     assertThat(Arrays.stream(expected).map(elem -> StreamingOffset.fromJson(elem.json())).toArray())
         .as("StreamingOffsets should match")
@@ -43,12 +44,15 @@ public class TestStreamingOffset {
 
   @Test
   public void testToJson() throws Exception {
-    StreamingOffset expected = new StreamingOffset(System.currentTimeMillis(), 1L, false);
+    long timestamp = System.currentTimeMillis();
+    StreamingOffset expected = new StreamingOffset(timestamp, 1L, false, timestamp, timestamp);
     ObjectNode actual = JsonUtil.mapper().createObjectNode();
     actual.put("version", 1);
     actual.put("snapshot_id", expected.snapshotId());
     actual.put("position", 1L);
     actual.put("scan_all_files", false);
+    actual.put("snapshot_timestamp_ms", expected.snapshotTimestampMs());
+    actual.put("snapshot_total_rows", expected.snapshotTotalRows());
     String expectedJson = expected.json();
     String actualJson = JsonUtil.mapper().writeValueAsString(actual);
     assertThat(actualJson).isEqualTo(expectedJson);
