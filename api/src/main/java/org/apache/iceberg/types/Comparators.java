@@ -238,6 +238,19 @@ public class Comparators {
     return UUIDComparator.INSTANCE;
   }
 
+  /**
+   * Returns a comparator that uses Java's native signed UUID comparison.
+   *
+   * <p>This is provided for backward compatibility with older files that may have been written with
+   * min/max statistics computed using Java's signed {@link UUID#compareTo(UUID)}. New code should
+   * use {@link #uuids()} which provides RFC 4122/9562 compliant unsigned comparison.
+   *
+   * @return a comparator using signed UUID comparison
+   */
+  public static Comparator<UUID> signedUUIDs() {
+    return Comparator.naturalOrder();
+  }
+
   private static class NullsFirst<T> implements Comparator<T> {
     private static final NullsFirst<?> INSTANCE = new NullsFirst<>();
 

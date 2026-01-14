@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 import org.apache.iceberg.variants.Variant;
@@ -56,6 +57,9 @@ public class InclusiveMetricsEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
 
   private final Expression expr;
+  // Expression using signed UUID comparator for backward compatibility with files written before
+  // RFC-compliant UUID comparisons were introduced. Null if no UUID predicates.
+  private final Expression signedUuidExpr;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -63,7 +67,17 @@ public class InclusiveMetricsEvaluator {
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     StructType struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    Expression rewritten = rewriteNot(unbound);
+    this.expr = Binder.bind(struct, rewritten, caseSensitive);
+
+    // Only create the signed UUID expression if there are UUID predicates that compare against
+    // bounds
+    if (ExpressionUtil.hasUUIDBoundsPredicate(this.expr)) {
+      Expression signedRewritten = ExpressionUtil.withSignedUUIDComparator(rewritten);
+      this.signedUuidExpr = Binder.bind(struct, signedRewritten, caseSensitive);
+    } else {
+      this.signedUuidExpr = null;
+    }
   }
 
   /**
@@ -74,7 +88,20 @@ public class InclusiveMetricsEvaluator {
    */
   public boolean eval(ContentFile<?> file) {
     // TODO: detect the case where a column is missing from the file using file's max field id.
-    return new MetricsEvalVisitor().eval(file);
+    boolean result = new MetricsEvalVisitor().eval(file, expr, false);
+
+    // If the RFC-compliant evaluation says rows might match, or there's no signed UUID expression,
+    // return the result.
+    if (result || signedUuidExpr == null) {
+      return result;
+    }
+
+    // Always try with signed UUID comparator as a fallback. There is no reliable way to detect
+    // which comparator was used when the file's column metrics were written.
+    // The signedUuidExpr has literals with signed comparators for lt/gt/eq predicates.
+    // For IN predicates, we pass signedUuidMode=true so comparatorForIn() returns signed
+    // comparator.
+    return new MetricsEvalVisitor().eval(file, signedUuidExpr, true);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
@@ -86,8 +113,12 @@ public class InclusiveMetricsEvaluator {
     private Map<Integer, Long> nanCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    // Flag to use signed UUID comparator for backward compatibility.
+    // This is needed for the IN predicate because the comparator information is lost
+    // when binding converts literals to a Set<T> of raw values.
+    private boolean useSignedUuidComparator = false;
 
-    private boolean eval(ContentFile<?> file) {
+    private boolean eval(ContentFile<?> file, Expression expression, boolean signedUuidMode) {
       if (file.recordCount() == 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -104,8 +135,22 @@ public class InclusiveMetricsEvaluator {
       this.nanCounts = file.nanValueCounts();
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
+      this.useSignedUuidComparator = signedUuidMode;
 
-      return ExpressionVisitors.visitEvaluator(expr, this);
+      return ExpressionVisitors.visitEvaluator(expression, this);
+    }
+
+    /**
+     * Returns the appropriate comparator for the given term. This is needed for the IN predicate
+     * because the comparator information is lost when binding converts literals to a Set of raw
+     * values. For other predicates, the literal carries the comparator.
+     */
+    @SuppressWarnings("unchecked")
+    private <T> Comparator<T> comparatorForIn(Bound<T> term) {
+      if (useSignedUuidComparator && term.ref().type().typeId() == Type.TypeID.UUID) {
+        return (Comparator<T>) Comparators.signedUUIDs();
+      }
+      return ((BoundTerm<T>) term).comparator();
     }
 
     @Override
@@ -359,10 +404,9 @@ public class InclusiveMetricsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
+      Comparator<T> cmp = comparatorForIn(term);
       literals =
-          literals.stream()
-              .filter(v -> ((BoundTerm<T>) term).comparator().compare(lower, v) <= 0)
-              .collect(Collectors.toList());
+          literals.stream().filter(v -> cmp.compare(lower, v) <= 0).collect(Collectors.toList());
       // if all values are less than lower bound, rows cannot match
       if (literals.isEmpty()) {
         return ROWS_CANNOT_MATCH;
@@ -374,9 +418,7 @@ public class InclusiveMetricsEvaluator {
       }
 
       literals =
-          literals.stream()
-              .filter(v -> ((BoundTerm<T>) term).comparator().compare(upper, v) >= 0)
-              .collect(Collectors.toList());
+          literals.stream().filter(v -> cmp.compare(upper, v) >= 0).collect(Collectors.toList());
       // if remaining values are greater than upper bound, rows cannot match
       if (literals.isEmpty()) {
         return ROWS_CANNOT_MATCH;
