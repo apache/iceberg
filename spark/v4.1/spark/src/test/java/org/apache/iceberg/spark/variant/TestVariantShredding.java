@@ -154,6 +154,33 @@ public class TestVariantShredding extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testExcludingNullValue() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    String values =
+        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30, \"dummy\": null}')),"
+            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
+            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    GroupType name =
+        field(
+            "name",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType age =
+        field(
+            "age",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age, name));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
   public void testInconsistentType() throws IOException {
     spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
 
@@ -361,6 +388,41 @@ public class TestVariantShredding extends CatalogTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testLazyInitializationWithBufferedRows() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+    spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "5");
+
+    String values =
+        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
+            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
+            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}')),"
+            + " (4, parse_json('{\"name\": \"David\", \"age\": 28}')),"
+            + " (5, parse_json('{\"name\": \"Eve\", \"age\": 32}')),"
+            + " (6, parse_json('{\"name\": \"Frank\", \"age\": 40}')),"
+            + " (7, parse_json('{\"name\": \"Grace\", \"age\": 27}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    GroupType name =
+        field(
+            "name",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType age =
+        field(
+            "age",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age, name));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+
+    long rowCount = spark.read().format("iceberg").load(tableName).count();
+    assertThat(rowCount).isEqualTo(7);
   }
 
   private void verifyParquetSchema(Table table, MessageType expectedSchema) throws IOException {

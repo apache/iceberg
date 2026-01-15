@@ -509,17 +509,6 @@ public class SparkWriteConf {
         if (parquetCompressionLevel != null) {
           writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
         }
-        writeProperties.put(SparkSQLProperties.SHRED_VARIANTS, String.valueOf(shredVariants()));
-
-        // Add variant shredding configuration properties
-        if (shredVariants()) {
-          String variantBufferSize =
-              sessionConf.get(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, null);
-          if (variantBufferSize != null) {
-            writeProperties.put(
-                SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, variantBufferSize);
-          }
-        }
         break;
 
       case AVRO:
@@ -738,15 +727,6 @@ public class SparkWriteConf {
         .option(SparkWriteOptions.DELETE_GRANULARITY)
         .tableProperty(TableProperties.DELETE_GRANULARITY)
         .defaultValue(DeleteGranularity.FILE)
-        .parse();
-  }
-
-  public boolean shredVariants() {
-    return confParser
-        .booleanConf()
-        .option(SparkWriteOptions.SHRED_VARIANTS)
-        .sessionConf(SparkSQLProperties.SHRED_VARIANTS)
-        .defaultValue(SparkSQLProperties.SHRED_VARIANTS_DEFAULT)
         .parse();
   }
 }
