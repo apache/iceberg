@@ -2909,7 +2909,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Table table = catalog().createTable(TABLE, SCHEMA);
 
     String eTag =
-        ETagProvider.of(((BaseTable) table).operations().current().metadataFileLocation());
+        ETagProvider.of(
+            ((BaseTable) table).operations().current().metadataFileLocation(),
+            RESTCatalogAdapter.defaultQueryParams());
 
     Mockito.doAnswer(
             invocation -> {
