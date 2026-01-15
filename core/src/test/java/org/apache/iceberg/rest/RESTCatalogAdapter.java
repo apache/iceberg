@@ -285,7 +285,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                       CatalogHandlers.createTable(catalog, namespace, request);
                   responseHeaders.accept(
                       ImmutableMap.of(
-                          HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+                          HttpHeaders.ETAG,
+                          ETagProvider.of(response.metadataLocation(), defaultQueryParams())));
                   return castResponse(responseType, response);
                 });
           }
@@ -323,7 +324,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           Optional<HTTPHeaders.HTTPHeader> ifNoneMatchHeader =
               httpRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH);
 
-          String eTag = ETagProvider.of(response.metadataLocation());
+          String eTag = ETagProvider.of(response.metadataLocation(), httpRequest.queryParameters());
 
           if (ifNoneMatchHeader.isPresent() && eTag.equals(ifNoneMatchHeader.get().value())) {
             return null;
@@ -383,7 +384,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
                 responseHeaders.accept(
                     ImmutableMap.of(
-                        HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+                        HttpHeaders.ETAG,
+                        ETagProvider.of(response.metadataLocation(), defaultQueryParams())));
 
                 return castResponse(responseType, response);
               });
@@ -402,7 +404,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
                 responseHeaders.accept(
                     ImmutableMap.of(
-                        HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+                        HttpHeaders.ETAG,
+                        ETagProvider.of(response.metadataLocation(), defaultQueryParams())));
 
                 return castResponse(responseType, response);
               });
@@ -535,6 +538,13 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     }
 
     return null;
+  }
+
+  @VisibleForTesting
+  static Map<String, String> defaultQueryParams() {
+    return Map.of(
+        RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER,
+        SnapshotMode.ALL.toString().toLowerCase(Locale.US));
   }
 
   /**
@@ -735,7 +745,9 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private static SnapshotMode snapshotModeFromQueryParams(Map<String, String> queryParams) {
     return SnapshotMode.valueOf(
         queryParams
-            .getOrDefault("snapshots", RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
+            .getOrDefault(
+                RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER,
+                RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
             .toUpperCase(Locale.US));
   }
 }

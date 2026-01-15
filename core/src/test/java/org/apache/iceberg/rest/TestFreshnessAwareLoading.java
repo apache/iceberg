@@ -176,7 +176,9 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     Table table = restCatalog.loadTable(TABLE);
 
     String eTag =
-        ETagProvider.of(((BaseTable) table).operations().current().metadataFileLocation());
+        ETagProvider.of(
+            ((BaseTable) table).operations().current().metadataFileLocation(),
+            RESTCatalogAdapter.defaultQueryParams());
 
     Mockito.doAnswer(
             invocation -> {
