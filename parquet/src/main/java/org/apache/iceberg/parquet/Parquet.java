@@ -1174,7 +1174,8 @@ public class Parquet {
     private Schema schema = null;
     private Expression filter = null;
     private ReadSupport<?> readSupport = null;
-    private BatchReaderFunction batchedReaderFunc = null;
+    private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
+    private BiFunction<Schema, MessageType, VectorizedReader<?>> batchedReaderFuncWithSchema = null;
     private ReaderFunction readerFunction = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
@@ -1240,50 +1241,6 @@ public class Parquet {
       }
     }
 
-    public interface BatchReaderFunction {
-      Function<MessageType, VectorizedReader<?>> apply();
-
-      default BatchReaderFunction withSchema(Schema schema) {
-        return this;
-      }
-    }
-
-    private static class UnaryBatchReaderFunction implements BatchReaderFunction {
-      private final Function<MessageType, VectorizedReader<?>> readerFunc;
-
-      UnaryBatchReaderFunction(Function<MessageType, VectorizedReader<?>> readerFunc) {
-        this.readerFunc = readerFunc;
-      }
-
-      @Override
-      public Function<MessageType, VectorizedReader<?>> apply() {
-        return readerFunc;
-      }
-    }
-
-    private static class BinaryBatchReaderFunction implements BatchReaderFunction {
-      private final BiFunction<Schema, MessageType, VectorizedReader<?>> readerFuncWithSchema;
-      private Schema schema;
-
-      BinaryBatchReaderFunction(
-          BiFunction<Schema, MessageType, VectorizedReader<?>> readerFuncWithSchema) {
-        this.readerFuncWithSchema = readerFuncWithSchema;
-      }
-
-      @Override
-      public Function<MessageType, VectorizedReader<?>> apply() {
-        Preconditions.checkArgument(
-            schema != null, "Schema must be set for 2-argument reader function");
-        return messageType -> readerFuncWithSchema.apply(schema, messageType);
-      }
-
-      @Override
-      public BinaryBatchReaderFunction withSchema(Schema expectedSchema) {
-        this.schema = expectedSchema;
-        return this;
-      }
-    }
-
     private ReadBuilder(InputFile file) {
       this.file = file;
     }
@@ -1342,6 +1299,9 @@ public class Parquet {
           this.batchedReaderFunc == null,
           "Cannot set reader function: batched reader function already set");
       Preconditions.checkArgument(
+          this.batchedReaderFuncWithSchema == null,
+          "Cannot set reader function: batched reader function with schema already set");
+      Preconditions.checkArgument(
           this.readerFunction == null, "Cannot set reader function: reader function already set");
       this.readerFunction = new UnaryReaderFunction(newReaderFunction);
       return this;
@@ -1352,6 +1312,9 @@ public class Parquet {
       Preconditions.checkArgument(
           this.batchedReaderFunc == null,
           "Cannot set reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.batchedReaderFuncWithSchema == null,
+          "Cannot set reader function: batched reader function with schema already set");
       Preconditions.checkArgument(
           this.readerFunction == null, "Cannot set reader function: reader function already set");
       this.readerFunction = new BinaryReaderFunction(newReaderFunction);
@@ -1364,9 +1327,12 @@ public class Parquet {
           this.batchedReaderFunc == null,
           "Cannot set batched reader function: batched reader function already set");
       Preconditions.checkArgument(
+          this.batchedReaderFuncWithSchema == null,
+          "Cannot set reader function: batched reader function with schema already set");
+      Preconditions.checkArgument(
           this.readerFunction == null,
           "Cannot set batched reader function: ReaderFunction already set");
-      this.batchedReaderFunc = new UnaryBatchReaderFunction(newReaderFunction);
+      this.batchedReaderFunc = newReaderFunction;
       return this;
     }
 
@@ -1376,9 +1342,12 @@ public class Parquet {
           this.batchedReaderFunc == null,
           "Cannot set batched reader function: batched reader function already set");
       Preconditions.checkArgument(
+          this.batchedReaderFuncWithSchema == null,
+          "Cannot set reader function: batched reader function with schema already set");
+      Preconditions.checkArgument(
           this.readerFunction == null,
           "Cannot set batched reader function: ReaderFunction already set");
-      this.batchedReaderFunc = new BinaryBatchReaderFunction(newReaderFunction);
+      this.batchedReaderFuncWithSchema = newReaderFunction;
       return this;
     }
 
@@ -1386,6 +1355,9 @@ public class Parquet {
       Preconditions.checkArgument(
           this.batchedReaderFunc == null,
           "Cannot set reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.batchedReaderFuncWithSchema == null,
+          "Cannot set reader function: batched reader function with schema already set");
       Preconditions.checkArgument(
           this.readerFunction == null, "Cannot set reader function: reader function already set");
       this.readerFunction = reader;
@@ -1445,7 +1417,7 @@ public class Parquet {
     }
 
     @Override
-    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
+    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
     public <D> CloseableIterable<D> build() {
       FileDecryptionProperties fileDecryptionProperties = null;
       if (fileEncryptionKey != null) {
@@ -1460,7 +1432,9 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
-      if (batchedReaderFunc != null || readerFunction != null) {
+      if (batchedReaderFunc != null
+          || batchedReaderFuncWithSchema != null
+          || readerFunction != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -1497,14 +1471,16 @@ public class Parquet {
           mapping = NameMapping.empty();
         }
 
-        if (batchedReaderFunc != null) {
-          Function<MessageType, VectorizedReader<?>> readBuilder =
-              batchedReaderFunc.withSchema(schema).apply();
+        Function<MessageType, VectorizedReader<?>> batchedReaderBuilder =
+            batchedReaderFuncWithSchema != null
+                ? messageType -> batchedReaderFuncWithSchema.apply(schema, messageType)
+                : batchedReaderFunc;
+        if (batchedReaderBuilder != null) {
           return new VectorizedParquetReader<>(
               file,
               schema,
               options,
-              readBuilder,
+              batchedReaderBuilder,
               mapping,
               filter,
               reuseContainers,
