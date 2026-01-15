@@ -37,8 +37,8 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.MessageType;
 
@@ -240,13 +240,15 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
     private final Parquet.ReadBuilder internal;
     private final ReaderFunction<D> readerFunction;
     private final BatchReaderFunction<D> batchReaderFunction;
-    private final Map<String, String> config = Maps.newHashMap();
     private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     private ReadBuilderWrapper(
         InputFile inputFile,
         ReaderFunction<D> readerFunction,
         BatchReaderFunction<D> batchReaderFunction) {
+      Preconditions.checkArgument(
+          readerFunction == null || batchReaderFunction == null,
+          "Only one of readerFunction or batchReaderFunction can be non-null");
       this.internal = Parquet.read(inputFile);
       this.readerFunction = readerFunction;
       this.batchReaderFunction = batchReaderFunction;
@@ -278,7 +280,6 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
 
     @Override
     public ReadBuilder<D, S> set(String key, String value) {
-      this.config.put(key, value);
       internal.set(key, value);
       return this;
     }
@@ -315,14 +316,12 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
                 (icebergSchema, messageType) ->
                     readerFunction.read(icebergSchema, messageType, idToConstant))
             .build();
-      } else if (batchReaderFunction != null) {
+      } else {
         return internal
             .createBatchedReaderFunc(
                 (icebergSchema, messageType) ->
                     batchReaderFunction.read(icebergSchema, messageType, idToConstant))
             .build();
-      } else {
-        throw new IllegalStateException("Either readerFunction or batchReaderFunction must be set");
       }
     }
   }
