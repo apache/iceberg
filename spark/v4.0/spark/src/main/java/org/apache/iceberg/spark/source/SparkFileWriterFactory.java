@@ -151,17 +151,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
   @Override
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    if (SparkParquetWriterWithVariantShredding.shouldUseVariantShredding(
-        writeProperties, dataSchema())) {
-      builder.createWriterFunc(
-          msgType ->
-              new SparkParquetWriterWithVariantShredding(
-                  dataSparkType(), msgType, writeProperties));
-    } else {
-      builder.createWriterFunc(
-          msgType -> SparkParquetWriters.buildWriter(dataSparkType(), msgType));
-    }
-
+    builder.createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dataSparkType(), msgType));
     builder.setAll(writeProperties);
   }
 

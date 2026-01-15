@@ -104,7 +104,7 @@ public class VariantShreddingAnalyzer {
   }
 
   private static void traverse(PathNode node, VariantValue value) {
-    if (value == null) {
+    if (value == null || value.type() == PhysicalType.NULL) {
       return;
     }
 
@@ -139,7 +139,12 @@ public class VariantShreddingAnalyzer {
   }
 
   private static Type buildFieldGroup(PathNode node) {
-    Type typedValue = buildTypedValue(node, node.info.getMostCommonType());
+    PhysicalType commonType = node.info.getMostCommonType();
+    if (commonType == null) {
+      return null;
+    }
+
+    Type typedValue = buildTypedValue(node, commonType);
     return Types.buildGroup(Type.Repetition.REQUIRED)
         .optional(PrimitiveType.PrimitiveTypeName.BINARY)
         .named(VALUE)
@@ -167,7 +172,12 @@ public class VariantShreddingAnalyzer {
 
     Types.GroupBuilder<GroupType> builder = Types.buildGroup(Type.Repetition.OPTIONAL);
     for (PathNode child : node.objectChildren.values()) {
-      builder.addField(buildFieldGroup(child));
+      Type fieldType = buildFieldGroup(child);
+      if (fieldType == null) {
+        continue;
+      }
+
+      builder.addField(fieldType);
     }
 
     return builder.named(TYPED_VALUE);
@@ -221,67 +231,58 @@ public class VariantShreddingAnalyzer {
   }
 
   private static Type createPrimitiveTypedValue(FieldInfo info, PhysicalType primitiveType) {
-    switch (primitiveType) {
-      case BOOLEAN_TRUE:
-      case BOOLEAN_FALSE:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(TYPED_VALUE);
-
-      case INT8:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
-            .as(LogicalTypeAnnotation.intType(8, true))
-            .named(TYPED_VALUE);
-
-      case INT16:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
-            .as(LogicalTypeAnnotation.intType(16, true))
-            .named(TYPED_VALUE);
-
-      case INT32:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
-            .as(LogicalTypeAnnotation.intType(32, true))
-            .named(TYPED_VALUE);
-
-      case INT64:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(TYPED_VALUE);
-
-      case FLOAT:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(TYPED_VALUE);
-
-      case DOUBLE:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(TYPED_VALUE);
-
-      case STRING:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
-            .as(LogicalTypeAnnotation.stringType())
-            .named(TYPED_VALUE);
-
-      case BINARY:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(TYPED_VALUE);
-
-      case DATE:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
-            .as(LogicalTypeAnnotation.dateType())
-            .named(TYPED_VALUE);
-
-      case TIMESTAMPTZ:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
-            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
-            .named(TYPED_VALUE);
-
-      case TIMESTAMPNTZ:
-        return Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
-            .as(LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.MICROS))
-            .named(TYPED_VALUE);
-
-      case DECIMAL4:
-      case DECIMAL8:
-      case DECIMAL16:
-        return createDecimalTypedValue(info);
-
-      default:
-        throw new UnsupportedOperationException(
-            "Unknown primitive physical type: " + primitiveType);
-    }
+    return switch (primitiveType) {
+      case BOOLEAN_TRUE, BOOLEAN_FALSE ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(TYPED_VALUE);
+      case INT8 ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+              .as(LogicalTypeAnnotation.intType(8, true))
+              .named(TYPED_VALUE);
+      case INT16 ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+              .as(LogicalTypeAnnotation.intType(16, true))
+              .named(TYPED_VALUE);
+      case INT32 ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+              .as(LogicalTypeAnnotation.intType(32, true))
+              .named(TYPED_VALUE);
+      case INT64 -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(TYPED_VALUE);
+      case FLOAT -> Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(TYPED_VALUE);
+      case DOUBLE -> Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(TYPED_VALUE);
+      case STRING ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
+              .as(LogicalTypeAnnotation.stringType())
+              .named(TYPED_VALUE);
+      case BINARY -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(TYPED_VALUE);
+      case TIME ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.timeType(false, LogicalTypeAnnotation.TimeUnit.MICROS))
+              .named(TYPED_VALUE);
+      case DATE ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+              .as(LogicalTypeAnnotation.dateType())
+              .named(TYPED_VALUE);
+      case TIMESTAMPTZ ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+              .named(TYPED_VALUE);
+      case TIMESTAMPNTZ ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.MICROS))
+              .named(TYPED_VALUE);
+      case TIMESTAMPTZ_NANOS ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+              .named(TYPED_VALUE);
+      case TIMESTAMPNTZ_NANOS ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.NANOS))
+              .named(TYPED_VALUE);
+      case DECIMAL4, DECIMAL8, DECIMAL16 -> createDecimalTypedValue(info);
+      default ->
+          throw new UnsupportedOperationException(
+              "Unknown primitive physical type: " + primitiveType);
+    };
   }
 
   /** Tracks occurrence count and types for a single field. */

@@ -152,7 +152,6 @@ public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> 
       return -1;
     }
 
-    // Support nested variant fields by navigating the struct hierarchy
     if (path.length == 1) {
       // Top-level field - direct lookup
       String fieldName = path[0];
@@ -162,15 +161,8 @@ public class SchemaInferenceVisitor extends ParquetWithSparkSchemaVisitor<Type> 
         }
       }
     } else {
-      // Nested field - navigate through struct hierarchy
-      // For now, we only support direct struct nesting (not arrays/maps)
-      LOG.debug("Attempting to resolve nested variant field path: {}", String.join(".", path));
-      // TODO: Implement full nested field resolution when needed
-      // This would require tracking the current struct context during traversal
-      // and maintaining a stack of field indices
-      LOG.warn(
-          "Multi-level nested variant fields require struct context tracking. Path: {}",
-          String.join(".", path));
+      // TODO: Implement full nested field resolution
+      LOG.warn("Nested variant shredding is not supported. Path: {}", String.join(".", path));
     }
 
     return -1;

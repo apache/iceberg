@@ -134,8 +134,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public void add(T value) {
-    if (model instanceof WriterLazyInitializable) {
-      WriterLazyInitializable lazy = (WriterLazyInitializable) model;
+    if (model instanceof WriterLazyInitializable lazy) {
       if (lazy.needsInitialization()) {
         model.write(0, value);
         recordCount += 1;
@@ -144,7 +143,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
           WriterLazyInitializable.InitializationResult result =
               lazy.initialize(props, compressor, rowGroupOrdinal);
           this.parquetSchema = result.getSchema();
+          this.pageStore.close();
           this.pageStore = result.getPageStore();
+          this.writeStore.close();
           this.writeStore = result.getWriteStore();
 
           // Re-initialize the file writer with the new schema
@@ -281,13 +282,14 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       this.closed = true;
 
       // Force initialization if lazy writer still has buffered data
-      if (model instanceof WriterLazyInitializable) {
-        WriterLazyInitializable lazy = (WriterLazyInitializable) model;
+      if (model instanceof WriterLazyInitializable lazy) {
         if (lazy.needsInitialization()) {
           WriterLazyInitializable.InitializationResult result =
               lazy.initialize(props, compressor, rowGroupOrdinal);
           this.parquetSchema = result.getSchema();
+          this.pageStore.close();
           this.pageStore = result.getPageStore();
+          this.writeStore.close();
           this.writeStore = result.getWriteStore();
 
           ensureWriterInitialized();
