@@ -1097,22 +1097,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // duplicates and add the newly merged DV
   private void mergeDVsAndWrite() {
     Map<Integer, List<MergedDVContent>> mergedIndicesBySpec = Maps.newConcurrentMap();
+    Map<String, DeleteFileSet> dataFilesWithDuplicateDVs =
+        dvsByReferencedFile.entrySet().stream()
+            .filter(entry -> entry.getValue().size() > 1)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-    Tasks.foreach(dvsByReferencedFile.entrySet())
+    Tasks.foreach(dataFilesWithDuplicateDVs.entrySet())
         .executeWith(ThreadPools.getDeleteWorkerPool())
         .stopOnFailure()
         .throwFailureWhenFinished()
         .run(
             entry -> {
               String referencedLocation = entry.getKey();
-              DeleteFileSet dvsToMerge = entry.getValue();
-              // Nothing to merge
-              if (dvsToMerge.size() < 2) {
-                return;
-              }
-
-              MergedDVContent merged = mergePositions(referencedLocation, dvsToMerge);
-
+              DeleteFileSet duplicateDVs = entry.getValue();
+              MergedDVContent merged = mergePositions(referencedLocation, duplicateDVs);
               mergedIndicesBySpec
                   .computeIfAbsent(
                       merged.specId, spec -> Collections.synchronizedList(Lists.newArrayList()))
@@ -1123,7 +1121,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     mergedIndicesBySpec.forEach(
         (specId, mergedDVContent) -> {
           mergedDVContent.stream()
-              .map(content -> content.mergedDVs)
+              .map(content -> content.duplicateDVs)
               .forEach(duplicateDVs -> newDeleteFilesBySpec.get(specId).removeAll(duplicateDVs));
         });
 
@@ -1144,8 +1142,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
             for (MergedDVContent mergedDV : mergedDVsForSpec) {
               LOG.warn(
-                  "Merged {} duplicate deletion vectors for data file {} in table {}. The merged DVs are orphaned, and writers should merge DVs per file before committing",
-                  mergedDV.mergedDVs.size(),
+                  "Merged {} duplicate deletion vectors for data file {} in table {}. The duplicate DVs are orphaned, and writers should merge DVs per file before committing",
+                  mergedDV.duplicateDVs.size(),
                   mergedDV.referencedLocation,
                   tableName);
               dvFileWriter.delete(
@@ -1176,7 +1174,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // Data class for referenced file, DVs that were merged, the merged position delete index,
   // partition spec and tuple
   private static class MergedDVContent {
-    private DeleteFileSet mergedDVs;
+    private DeleteFileSet duplicateDVs;
     private String referencedLocation;
     private PositionDeleteIndex mergedPositions;
     private int specId;
@@ -1184,12 +1182,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     MergedDVContent(
         String referencedLocation,
-        DeleteFileSet mergedDVs,
+        DeleteFileSet duplicateDVs,
         PositionDeleteIndex mergedPositions,
         int specId,
         StructLike partition) {
       this.referencedLocation = referencedLocation;
-      this.mergedDVs = mergedDVs;
+      this.duplicateDVs = duplicateDVs;
       this.mergedPositions = mergedPositions;
       this.specId = specId;
       this.partition = partition;
