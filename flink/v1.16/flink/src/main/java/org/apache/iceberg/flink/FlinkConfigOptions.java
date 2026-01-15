@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import java.time.Duration;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
@@ -104,4 +105,63 @@ public class FlinkConfigOptions {
                           SplitAssignerType.SIMPLE
                               + ": simple assigner that doesn't provide any guarantee on order or locality."))
                   .build());
+
+  // ==================== Lookup Join Configuration Options ====================
+
+  /** Lookup mode enum: ALL (full load) or PARTIAL (on-demand query) */
+  public enum LookupMode {
+    /** Full load mode: loads the entire dimension table into memory at startup */
+    ALL,
+    /** On-demand query mode: reads matching records from Iceberg table only when queried */
+    PARTIAL
+  }
+
+  public static final ConfigOption<LookupMode> LOOKUP_MODE =
+      ConfigOptions.key("lookup.mode")
+          .enumType(LookupMode.class)
+          .defaultValue(LookupMode.PARTIAL)
+          .withDescription(
+              Description.builder()
+                  .text("Lookup mode:")
+                  .linebreak()
+                  .list(
+                      TextElement.text(LookupMode.ALL + ": Full load mode, loads the entire dimension table into memory at startup"),
+                      TextElement.text(LookupMode.PARTIAL + ": On-demand query mode, reads matching records from Iceberg table only when queried"))
+                  .build());
+
+  public static final ConfigOption<Duration> LOOKUP_CACHE_TTL =
+      ConfigOptions.key("lookup.cache.ttl")
+          .durationType()
+          .defaultValue(Duration.ofMinutes(10))
+          .withDescription("Time-to-live (TTL) for cache entries. Cache entries will automatically expire and reload after this time. Default is 10 minutes.");
+
+  public static final ConfigOption<Long> LOOKUP_CACHE_MAX_ROWS =
+      ConfigOptions.key("lookup.cache.max-rows")
+          .longType()
+          .defaultValue(10000L)
+          .withDescription("Maximum number of rows in cache (only effective in PARTIAL mode). Uses LRU eviction when exceeded. Default is 10000.");
+
+  public static final ConfigOption<Duration> LOOKUP_CACHE_RELOAD_INTERVAL =
+      ConfigOptions.key("lookup.cache.reload-interval")
+          .durationType()
+          .defaultValue(Duration.ofMinutes(10))
+          .withDescription("Cache periodic reload interval (only effective in ALL mode). The system will periodically reload the latest data from the entire table at this interval. Default is 10 minutes.");
+
+  public static final ConfigOption<Boolean> LOOKUP_ASYNC =
+      ConfigOptions.key("lookup.async")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription("Whether to enable async lookup (only effective in PARTIAL mode). When enabled, async IO will be used for lookup queries to improve throughput. Default is false.");
+
+  public static final ConfigOption<Integer> LOOKUP_ASYNC_CAPACITY =
+      ConfigOptions.key("lookup.async.capacity")
+          .intType()
+          .defaultValue(100)
+          .withDescription("Maximum number of concurrent async lookup requests (only effective when lookup.async=true). Default is 100.");
+
+  public static final ConfigOption<Integer> LOOKUP_MAX_RETRIES =
+      ConfigOptions.key("lookup.max-retries")
+          .intType()
+          .defaultValue(3)
+          .withDescription("Maximum number of retries when lookup query fails. Default is 3.");
 }

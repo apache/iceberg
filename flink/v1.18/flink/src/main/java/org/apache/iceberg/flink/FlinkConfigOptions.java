@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import java.time.Duration;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
@@ -104,4 +105,63 @@ public class FlinkConfigOptions {
                           SplitAssignerType.SIMPLE
                               + ": simple assigner that doesn't provide any guarantee on order or locality."))
                   .build());
+
+  // ==================== Lookup Join 配置选项 ====================
+
+  /** Lookup 模式枚举：ALL（全量加载）或 PARTIAL（按需查询） */
+  public enum LookupMode {
+    /** 全量加载模式：启动时将整个维表加载到内存 */
+    ALL,
+    /** 按需查询模式：仅在查询时按需从 Iceberg 表读取匹配的记录 */
+    PARTIAL
+  }
+
+  public static final ConfigOption<LookupMode> LOOKUP_MODE =
+      ConfigOptions.key("lookup.mode")
+          .enumType(LookupMode.class)
+          .defaultValue(LookupMode.PARTIAL)
+          .withDescription(
+              Description.builder()
+                  .text("Lookup 模式：")
+                  .linebreak()
+                  .list(
+                      TextElement.text(LookupMode.ALL + ": 全量加载模式，启动时将整个维表加载到内存"),
+                      TextElement.text(LookupMode.PARTIAL + ": 按需查询模式，仅在查询时按需从 Iceberg 表读取匹配的记录"))
+                  .build());
+
+  public static final ConfigOption<Duration> LOOKUP_CACHE_TTL =
+      ConfigOptions.key("lookup.cache.ttl")
+          .durationType()
+          .defaultValue(Duration.ofMinutes(10))
+          .withDescription("缓存条目的存活时间（TTL），超过此时间后缓存条目将自动失效并重新加载。默认值为 10 分钟。");
+
+  public static final ConfigOption<Long> LOOKUP_CACHE_MAX_ROWS =
+      ConfigOptions.key("lookup.cache.max-rows")
+          .longType()
+          .defaultValue(10000L)
+          .withDescription("缓存的最大行数（仅在 PARTIAL 模式下生效）。超出后采用 LRU 策略淘汰。默认值为 10000。");
+
+  public static final ConfigOption<Duration> LOOKUP_CACHE_RELOAD_INTERVAL =
+      ConfigOptions.key("lookup.cache.reload-interval")
+          .durationType()
+          .defaultValue(Duration.ofMinutes(10))
+          .withDescription("缓存定期刷新间隔（仅在 ALL 模式下生效）。系统将按照此间隔定期重新加载整个表的最新数据。默认值为 10 分钟。");
+
+  public static final ConfigOption<Boolean> LOOKUP_ASYNC =
+      ConfigOptions.key("lookup.async")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription("是否启用异步查询（仅在 PARTIAL 模式下生效）。启用后将使用异步 IO 执行 Lookup 查询以提高吞吐量。默认值为 false。");
+
+  public static final ConfigOption<Integer> LOOKUP_ASYNC_CAPACITY =
+      ConfigOptions.key("lookup.async.capacity")
+          .intType()
+          .defaultValue(100)
+          .withDescription("异步查询的最大并发请求数（仅在 lookup.async=true 时生效）。默认值为 100。");
+
+  public static final ConfigOption<Integer> LOOKUP_MAX_RETRIES =
+      ConfigOptions.key("lookup.max-retries")
+          .intType()
+          .defaultValue(3)
+          .withDescription("查询失败时的最大重试次数。默认值为 3。");
 }

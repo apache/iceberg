@@ -32,6 +32,9 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
+    // for lookup join cache
+    implementation libs.caffeine
+
     compileOnly libs.flink116.avro
     // for dropwizard histogram metrics implementation
     compileOnly libs.flink116.metrics.dropwizard
