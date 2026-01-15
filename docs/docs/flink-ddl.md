@@ -99,7 +99,7 @@ CREATE CATALOG my_catalog WITH (
 Catalogs can be registered in `sql-client-defaults.yaml` before starting the SQL client.
 
 ```yaml
-catalogs: 
+catalogs:
   - name: my_catalog
     type: iceberg
     catalog-type: hadoop
@@ -159,7 +159,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     data STRING NOT NULL
 ) WITH (
-    'format-version'='2', 
+    'format-version'='2',
     'location'='hdfs//nn:8020/custom-path'
 );
 ```
@@ -187,8 +187,8 @@ To create a partition table, use `PARTITIONED BY`:
 CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     data STRING NOT NULL
-) 
-PARTITIONED BY (data) 
+)
+PARTITIONED BY (data)
 WITH ('format-version'='2');
 ```
 
