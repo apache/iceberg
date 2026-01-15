@@ -26,6 +26,7 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFA
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -96,8 +97,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private Long newDataFilesDataSequenceNumber;
   private final Map<Integer, DeleteFileSet> newDeleteFilesBySpec = Maps.newHashMap();
-  private final Map<String, DeleteFileSet> duplicateDVsForDataFile = Maps.newHashMap();
-  private final Set<String> newDVRefs = Sets.newHashSet();
+  private final Map<String, DeleteFileSet> dvsByReferencedFile = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
@@ -278,39 +278,15 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     DeleteFileSet deleteFiles =
         newDeleteFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DeleteFileSet.create());
-
-    if (!deleteFiles.add(file)) {
-      return;
+    if (deleteFiles.add(file)) {
+      hasNewDeleteFiles = true;
+      if (ContentFileUtil.isDV(file)) {
+        DeleteFileSet deletesForReferencedFile =
+            dvsByReferencedFile.computeIfAbsent(
+                file.referencedDataFile(), newFile -> DeleteFileSet.create());
+        deletesForReferencedFile.add(file);
+      }
     }
-
-    hasNewDeleteFiles = true;
-    if (ContentFileUtil.isDV(file)) {
-      addDV(file, deleteFiles);
-    }
-  }
-
-  private void addDV(DeleteFile newDV, DeleteFileSet deleteFiles) {
-    String referencedFile = newDV.referencedDataFile();
-
-    if (newDVRefs.add(referencedFile)) {
-      return;
-    }
-    // newDV is a duplicate DV for the given referenced file
-    DeleteFileSet duplicateDVs =
-        duplicateDVsForDataFile.computeIfAbsent(
-            referencedFile,
-            referencedDataFile -> {
-              DeleteFile previouslyAddedDV =
-                  Iterables.getOnlyElement(
-                      deleteFiles.stream()
-                          .filter(ContentFileUtil::isDV)
-                          .filter(dv -> !dv.equals(newDV)) // exclude the new DV that was just added
-                          .filter(dv -> Objects.equals(referencedDataFile, dv.referencedDataFile()))
-                          .collect(Collectors.toList()));
-              return DeleteFileSet.of(List.of(previouslyAddedDV));
-            });
-
-    duplicateDVs.add(newDV);
   }
 
   protected void validateNewDeleteFile(DeleteFile file) {
@@ -850,7 +826,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Expression conflictDetectionFilter,
       Snapshot parent) {
     // skip if there is no current table state or this operation doesn't add new DVs
-    if (parent == null || newDVRefs.isEmpty()) {
+    if (parent == null || dvsByReferencedFile.isEmpty()) {
       return;
     }
 
@@ -883,7 +859,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         DeleteFile file = entry.file();
         if (newSnapshotIds.contains(entry.snapshotId()) && ContentFileUtil.isDV(file)) {
           ValidationException.check(
-              !newDVRefs.contains(file.referencedDataFile()),
+              !dvsByReferencedFile.containsKey(file.referencedDataFile()),
               "Found concurrently added DV for %s: %s",
               file.referencedDataFile(),
               ContentFileUtil.dvDesc(file));
@@ -1101,23 +1077,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     if (cachedNewDeleteManifests.isEmpty()) {
-      // Found duplicates, merge them and update newDeleteFilesBySpec to remove duplicates and add
-      // the new merged one
-      if (!duplicateDVsForDataFile.isEmpty()) {
-        Map<String, DeleteFile> mergedDVs = mergeDuplicateDVs();
-        mergedDVs.forEach(
-            (referencedFile, newDV) -> {
-              DeleteFileSet duplicateDVs = duplicateDVsForDataFile.get(referencedFile);
-              DeleteFileSet allDeleteFilesForSpec = newDeleteFilesBySpec.get(newDV.specId());
-              LOG.warn(
-                  "Merged {} duplicate deletion vectors for data file {} in table {}. The merged DVs are orphaned, and writers should merge DVs per file before committing",
-                  duplicateDVs.size(),
-                  referencedFile,
-                  tableName);
-              allDeleteFilesForSpec.removeAll(duplicateDVs);
-              allDeleteFilesForSpec.add(newDV);
-            });
-      }
+      mergeDVsAndWrite();
 
       newDeleteFilesBySpec.forEach(
           (specId, deleteFiles) -> {
@@ -1128,38 +1088,120 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
           });
 
       this.hasNewDeleteFiles = false;
-      this.duplicateDVsForDataFile.clear();
     }
 
     return cachedNewDeleteManifests;
   }
 
-  // Returns the merged DV for a given data file that had duplicate DVs
-  private Map<String, DeleteFile> mergeDuplicateDVs() {
-    Map<String, DeleteFile> mergedDVs = Maps.newConcurrentMap();
-    Tasks.foreach(duplicateDVsForDataFile.entrySet())
+  // Merge duplicates, internally takes care of updating newDeleteFilesBySpec to remove
+  // duplicates and add the newly merged DV
+  private void mergeDVsAndWrite() {
+    Map<Integer, List<MergedDVContent>> mergedIndicesBySpec = Maps.newConcurrentMap();
+
+    Tasks.foreach(dvsByReferencedFile.entrySet())
         .executeWith(ThreadPools.getDeleteWorkerPool())
         .stopOnFailure()
         .throwFailureWhenFinished()
         .run(
-            dvsToMergeForDataFile -> {
-              String referencedLocation = dvsToMergeForDataFile.getKey();
-              mergedDVs.put(
-                  referencedLocation,
-                  mergeAndWriteDV(referencedLocation, dvsToMergeForDataFile.getValue()));
+            entry -> {
+              String referencedLocation = entry.getKey();
+              DeleteFileSet dvsToMerge = entry.getValue();
+              // Nothing to merge
+              if (dvsToMerge.size() < 2) {
+                return;
+              }
+
+              MergedDVContent merged = mergePositions(referencedLocation, dvsToMerge);
+
+              mergedIndicesBySpec
+                  .computeIfAbsent(
+                      merged.specId, spec -> Collections.synchronizedList(Lists.newArrayList()))
+                  .add(merged);
             });
 
-    return mergedDVs;
+    // Update newDeleteFilesBySpec to remove all the duplicates
+    mergedIndicesBySpec.forEach(
+        (specId, mergedDVContent) -> {
+          mergedDVContent.stream()
+              .map(content -> content.mergedDVs)
+              .forEach(duplicateDVs -> newDeleteFilesBySpec.get(specId).removeAll(duplicateDVs));
+        });
+
+    writeMergedDVs(mergedIndicesBySpec);
+  }
+
+  // Produces a Puffin per partition spec containing the merged DVs for that spec
+  private void writeMergedDVs(Map<Integer, List<MergedDVContent>> mergedDVContentBySpec) {
+    Map<Integer, DeleteFileSet> mergedDVsBySpec = Maps.newHashMap();
+
+    mergedDVContentBySpec.forEach(
+        (specId, mergedDVsForSpec) -> {
+          try (DVFileWriter dvFileWriter =
+              new BaseDVFileWriter(
+                  OutputFileFactory.builderFor(ops(), spec(specId), FileFormat.PUFFIN, 1, 1)
+                      .build(),
+                  path -> null)) {
+
+            for (MergedDVContent mergedDV : mergedDVsForSpec) {
+              LOG.warn(
+                  "Merged {} duplicate deletion vectors for data file {} in table {}. The merged DVs are orphaned, and writers should merge DVs per file before committing",
+                  mergedDV.mergedDVs.size(),
+                  mergedDV.referencedLocation,
+                  tableName);
+              dvFileWriter.delete(
+                  mergedDV.referencedLocation,
+                  mergedDV.mergedPositions,
+                  spec(mergedDV.specId),
+                  mergedDV.partition);
+            }
+
+            dvFileWriter.close();
+            DeleteWriteResult result = dvFileWriter.result();
+
+            DeleteFileSet dvsForSpec =
+                mergedDVsBySpec.computeIfAbsent(specId, k -> DeleteFileSet.create());
+            dvsForSpec.addAll(
+                result.deleteFiles().stream()
+                    .map(file -> Delegates.pendingDeleteFile(file, file.dataSequenceNumber()))
+                    .collect(Collectors.toList()));
+
+            // Add the merged DV to the delete files by spec
+            newDeleteFilesBySpec.get(specId).addAll(dvsForSpec);
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        });
+  }
+
+  // Data class for referenced file, DVs that were merged, the merged position delete index,
+  // partition spec and tuple
+  private static class MergedDVContent {
+    private DeleteFileSet mergedDVs;
+    private String referencedLocation;
+    private PositionDeleteIndex mergedPositions;
+    private int specId;
+    private StructLike partition;
+
+    MergedDVContent(
+        String referencedLocation,
+        DeleteFileSet mergedDVs,
+        PositionDeleteIndex mergedPositions,
+        int specId,
+        StructLike partition) {
+      this.referencedLocation = referencedLocation;
+      this.mergedDVs = mergedDVs;
+      this.mergedPositions = mergedPositions;
+      this.specId = specId;
+      this.partition = partition;
+    }
   }
 
   // Merges the set of DVs for a given referenced files into a single DV
   // and produces a single Puffin file
-  private DeleteFile mergeAndWriteDV(String referencedDataFile, DeleteFileSet dvs) {
+  private MergedDVContent mergePositions(String referencedLocation, DeleteFileSet dvs) {
     Iterator<DeleteFile> dvIterator = dvs.iterator();
     DeleteFile firstDV = dvIterator.next();
-    PositionDeleteIndex positionDeleteIndex =
-        Deletes.readDV(firstDV, ops().io(), ops().encryption());
-    PartitionSpec spec = spec(firstDV.specId());
+    PositionDeleteIndex mergedPositions = Deletes.readDV(firstDV, ops().io(), ops().encryption());
     while (dvIterator.hasNext()) {
       DeleteFile dv = dvIterator.next();
       Preconditions.checkArgument(
@@ -1177,35 +1219,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Preconditions.checkArgument(
           Objects.equals(dv.partition(), firstDV.partition()),
           "Cannot merge duplicate added DVs when partition tuples are different");
-      positionDeleteIndex.merge(Deletes.readDV(dv, ops().io(), ops().encryption()));
+      mergedPositions.merge(Deletes.readDV(dv, ops().io(), ops().encryption()));
     }
 
-    return writeDV(
-        referencedDataFile,
-        positionDeleteIndex,
-        spec,
-        firstDV.partition(),
-        firstDV.dataSequenceNumber());
-  }
-
-  private DeleteFile writeDV(
-      String referencedDataFile,
-      PositionDeleteIndex positionDeleteIndex,
-      PartitionSpec spec,
-      StructLike partition,
-      Long dataSequenceNumber) {
-    try (DVFileWriter dvFileWriter =
-        new BaseDVFileWriter(
-            OutputFileFactory.builderFor(ops(), spec, FileFormat.PUFFIN, 1, 1).build(),
-            path -> null)) {
-      dvFileWriter.delete(referencedDataFile, positionDeleteIndex, spec, partition);
-      dvFileWriter.close();
-      DeleteWriteResult result = dvFileWriter.result();
-      return Delegates.pendingDeleteFile(
-          Iterables.getOnlyElement(result.deleteFiles()), dataSequenceNumber);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    return new MergedDVContent(
+        referencedLocation, dvs, mergedPositions, firstDV.specId(), firstDV.partition());
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {

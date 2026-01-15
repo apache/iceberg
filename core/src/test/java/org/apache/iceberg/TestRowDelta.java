@@ -1903,7 +1903,9 @@ public class TestRowDelta extends TestBase {
 
     DeleteFile deleteFile1 = dvWithPositions(dataFile, fileFactory, 0, 2);
     DeleteFile deleteFile2 = dvWithPositions(dataFile, fileFactory, 2, 4);
-    RowDelta rowDelta1 = table.newRowDelta().addDeletes(deleteFile1).addDeletes(deleteFile2);
+    DeleteFile deleteFile3 = dvWithPositions(dataFile, fileFactory, 4, 8);
+    RowDelta rowDelta1 =
+        table.newRowDelta().addDeletes(deleteFile1).addDeletes(deleteFile2).addDeletes(deleteFile3);
 
     commit(table, rowDelta1, branch);
 
@@ -1912,7 +1914,91 @@ public class TestRowDelta extends TestBase {
     assertThat(Iterables.size(addedDeleteFiles)).isEqualTo(1);
     DeleteFile mergedDV = Iterables.getOnlyElement(addedDeleteFiles);
 
-    assertDVHasDeletedPositions(mergedDV, LongStream.range(0, 4).boxed()::iterator);
+    assertDVHasDeletedPositions(mergedDV, LongStream.range(0, 8).boxed()::iterator);
+  }
+
+  @TestTemplate
+  public void testDuplicateDVsMergedMultipleSpecs() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    // append a partitioned data file
+    DataFile firstSnapshotDataFile = newDataFile("data_bucket=0");
+    commit(table, table.newAppend().appendFile(firstSnapshotDataFile), branch);
+
+    // remove the only partition field to make the spec unpartitioned
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+
+    // append an unpartitioned data file
+    DataFile secondSnapshotDataFile = newDataFile("");
+    commit(table, table.newAppend().appendFile(secondSnapshotDataFile), branch);
+
+    // evolve the spec and add a new partition field
+    table.updateSpec().addField("data").commit();
+
+    // append a data file with the new spec
+    DataFile thirdSnapshotDataFile = newDataFile("data=abc");
+    commit(table, table.newAppend().appendFile(thirdSnapshotDataFile), branch);
+
+    assertThat(table.specs()).hasSize(3);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+
+    DataFile dataFile = newDataFile("data=xyz");
+    // For each data file, create two DVs covering positions [0,2) and [2,4)
+    DeleteFile deleteFile1a = dvWithPositions(firstSnapshotDataFile, fileFactory, 0, 2);
+    DeleteFile deleteFile1b = dvWithPositions(firstSnapshotDataFile, fileFactory, 2, 4);
+    DeleteFile deleteFile2a = dvWithPositions(secondSnapshotDataFile, fileFactory, 0, 2);
+    DeleteFile deleteFile2b = dvWithPositions(secondSnapshotDataFile, fileFactory, 2, 4);
+    DeleteFile deleteFile3a = dvWithPositions(thirdSnapshotDataFile, fileFactory, 0, 2);
+    DeleteFile deleteFile3b = dvWithPositions(thirdSnapshotDataFile, fileFactory, 2, 4);
+
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(dataFile)
+            .addDeletes(deleteFile1a)
+            .addDeletes(deleteFile1b)
+            .addDeletes(deleteFile2a)
+            .addDeletes(deleteFile2b)
+            .addDeletes(deleteFile3a)
+            .addDeletes(deleteFile3b),
+        branch);
+
+    Snapshot snapshot = latestSnapshot(table, branch);
+    // Expect 3 merged DVs, one per data file
+    Iterable<DeleteFile> addedDeleteFiles = snapshot.addedDeleteFiles(table.io());
+    List<DeleteFile> mergedDVs = Lists.newArrayList(addedDeleteFiles);
+    assertThat(mergedDVs).hasSize(3);
+    // Should be a Puffin produced per merged DV spec
+    assertThat(mergedDVs.stream().map(ContentFile::location).collect(Collectors.toSet()))
+        .hasSize(3);
+
+    DeleteFile committedDVForDataFile1 =
+        Iterables.getOnlyElement(
+            mergedDVs.stream()
+                .filter(
+                    dv -> Objects.equals(dv.referencedDataFile(), firstSnapshotDataFile.location()))
+                .collect(Collectors.toList()));
+    assertDVHasDeletedPositions(committedDVForDataFile1, LongStream.range(0, 4).boxed()::iterator);
+
+    DeleteFile committedDVForDataFile2 =
+        Iterables.getOnlyElement(
+            mergedDVs.stream()
+                .filter(
+                    dv ->
+                        Objects.equals(dv.referencedDataFile(), secondSnapshotDataFile.location()))
+                .collect(Collectors.toList()));
+    assertDVHasDeletedPositions(committedDVForDataFile2, LongStream.range(0, 4).boxed()::iterator);
+
+    DeleteFile committedDVForDataFile3 =
+        Iterables.getOnlyElement(
+            mergedDVs.stream()
+                .filter(
+                    dv -> Objects.equals(dv.referencedDataFile(), thirdSnapshotDataFile.location()))
+                .collect(Collectors.toList()));
+    assertDVHasDeletedPositions(committedDVForDataFile3, LongStream.range(0, 4).boxed()::iterator);
   }
 
   @TestTemplate
@@ -1949,6 +2035,9 @@ public class TestRowDelta extends TestBase {
     List<DeleteFile> mergedDVs = Lists.newArrayList(addedDeleteFiles);
 
     assertThat(mergedDVs).hasSize(2);
+    // Should be a single Puffin produced
+    assertThat(mergedDVs.stream().map(ContentFile::location).collect(Collectors.toSet()))
+        .hasSize(1);
 
     DeleteFile committedDVForDataFile1 =
         Iterables.getOnlyElement(
@@ -2097,7 +2186,7 @@ public class TestRowDelta extends TestBase {
     for (int i = fromInclusive; i < toExclusive; i++) {
       deletes.add(PositionDelete.create().set(dataFile.location(), i));
     }
-    return writeDV(deletes, dataFile.partition(), fileFactory);
+    return writeDV(deletes, dataFile.specId(), dataFile.partition(), fileFactory);
   }
 
   private void assertDVHasDeletedPositions(DeleteFile dv, Iterable<Long> positions)
@@ -2112,13 +2201,17 @@ public class TestRowDelta extends TestBase {
   }
 
   private DeleteFile writeDV(
-      List<PositionDelete<?>> deletes, StructLike partition, OutputFileFactory fileFactory)
+      List<PositionDelete<?>> deletes,
+      int specId,
+      StructLike partition,
+      OutputFileFactory fileFactory)
       throws IOException {
 
     DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
     try (DVFileWriter closeableWriter = writer) {
       for (PositionDelete<?> delete : deletes) {
-        closeableWriter.delete(delete.path().toString(), delete.pos(), table.spec(), partition);
+        closeableWriter.delete(
+            delete.path().toString(), delete.pos(), table.specs().get(specId), partition);
       }
     }
 
