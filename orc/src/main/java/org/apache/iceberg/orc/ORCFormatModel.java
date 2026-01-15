@@ -29,7 +29,7 @@ import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.formats.FormatModel;
+import org.apache.iceberg.formats.BaseFormatModel;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.formats.WriteBuilder;
 import org.apache.iceberg.io.DeleteSchemaUtil;
@@ -39,41 +39,26 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.orc.TypeDescription;
 
-public class ORCFormatModel<D, S> implements FormatModel<D, S> {
-  private final Class<D> type;
-  private final Class<S> schemaType;
-  private final ReaderFunction<D> readerFunction;
-  private final BatchReaderFunction<D> batchReaderFunction;
-  private final WriterFunction<S> writerFunction;
+public class ORCFormatModel<D, S, R>
+    extends BaseFormatModel<D, S, OrcRowWriter<?>, R, TypeDescription> {
 
-  private ORCFormatModel(
+  public ORCFormatModel(
       Class<D> type,
       Class<S> schemaType,
-      ReaderFunction<D> readerFunction,
-      BatchReaderFunction<D> batchReaderFunction,
-      WriterFunction<S> writerFunction) {
-    this.type = type;
-    this.schemaType = schemaType;
-    this.readerFunction = readerFunction;
-    this.batchReaderFunction = batchReaderFunction;
-    this.writerFunction = writerFunction;
+      WriterFunction<OrcRowWriter<?>, S, TypeDescription> writerFunction,
+      ReaderFunction<R, S, TypeDescription> readerFunction) {
+    super(type, schemaType, writerFunction, readerFunction, false /* batchReader */);
   }
 
   public ORCFormatModel(
       Class<D> type,
       Class<S> schemaType,
-      ReaderFunction<D> readerFunction,
-      WriterFunction<S> writerFunction) {
-    this(type, schemaType, readerFunction, null, writerFunction);
-  }
-
-  public ORCFormatModel(
-      Class<D> type, Class<S> schemaType, BatchReaderFunction<D> batchReaderFunction) {
-    this(type, schemaType, null, batchReaderFunction, null);
+      ReaderFunction<R, S, TypeDescription> batchReaderFunction) {
+    super(type, schemaType, null, batchReaderFunction, true /* batchReader */);
   }
 
   public ORCFormatModel(Class<D> type) {
-    this(type, null, null, null, null);
+    super(type, null, null, null, false /* batchReader */);
   }
 
   @Override
@@ -82,142 +67,25 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public Class<D> type() {
-    return type;
-  }
-
-  @Override
-  public Class<S> schemaType() {
-    return schemaType;
-  }
-
-  @Override
   public WriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
-    return new WriteBuilderWrapper<>(outputFile, writerFunction);
+    return new WriteBuilderWrapper<>(outputFile, writerFunction());
   }
 
   @Override
   public ReadBuilder<D, S> readBuilder(InputFile inputFile) {
-    return new ReadBuilderWrapper<>(inputFile, readerFunction, batchReaderFunction);
-  }
-
-  @FunctionalInterface
-  public interface ReaderFunction<D> {
-    OrcRowReader<D> read(Schema schema, TypeDescription messageType, Map<Integer, ?> idToConstant);
-  }
-
-  @FunctionalInterface
-  public interface BatchReaderFunction<D> {
-    OrcBatchReader<D> read(
-        Schema schema, TypeDescription messageType, Map<Integer, ?> idToConstant);
-  }
-
-  @FunctionalInterface
-  public interface WriterFunction<E> {
-    OrcRowWriter<?> write(Schema schema, TypeDescription messageType, E nativeSchema);
-  }
-
-  private static class ReadBuilderWrapper<D, S> implements ReadBuilder<D, S> {
-    private final ORC.ReadBuilder internal;
-    private final ReaderFunction<D> readerFunction;
-    private final BatchReaderFunction<D> batchReaderFunction;
-    private boolean reuseContainers = false;
-    private Schema icebergSchema;
-    private Map<Integer, ?> idToConstant = ImmutableMap.of();
-
-    private ReadBuilderWrapper(
-        InputFile inputFile,
-        ReaderFunction<D> readerFunction,
-        BatchReaderFunction<D> batchReaderFunction) {
-      this.internal = ORC.read(inputFile);
-      this.readerFunction = readerFunction;
-      this.batchReaderFunction = batchReaderFunction;
-    }
-
-    @Override
-    public ReadBuilder<D, S> split(long newStart, long newLength) {
-      internal.split(newStart, newLength);
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> project(Schema schema) {
-      this.icebergSchema = schema;
-      internal.project(schema);
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> caseSensitive(boolean caseSensitive) {
-      internal.caseSensitive(caseSensitive);
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> filter(Expression filter) {
-      internal.filter(filter);
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> set(String key, String value) {
-      internal.config(key, value);
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> reuseContainers() {
-      this.reuseContainers = true;
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> recordsPerBatch(int numRowsPerBatch) {
-      internal.recordsPerBatch(numRowsPerBatch);
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> idToConstant(Map<Integer, ?> newIdToConstant) {
-      internal.constantFieldIds(newIdToConstant.keySet());
-      this.idToConstant = newIdToConstant;
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> withNameMapping(NameMapping nameMapping) {
-      internal.withNameMapping(nameMapping);
-      return this;
-    }
-
-    @Override
-    public org.apache.iceberg.io.CloseableIterable<D> build() {
-      Preconditions.checkNotNull(reuseContainers, "Reuse containers is required for ORC read");
-      if (readerFunction != null) {
-        return internal
-            .createReaderFunc(
-                typeDescription ->
-                    readerFunction.read(icebergSchema, typeDescription, idToConstant))
-            .build();
-      } else if (batchReaderFunction != null) {
-        return internal
-            .createBatchedReaderFunc(
-                typeDescription ->
-                    batchReaderFunction.read(icebergSchema, typeDescription, idToConstant))
-            .build();
-      } else {
-        throw new IllegalStateException("Either readerFunction or batchReaderFunction must be set");
-      }
-    }
+    return new ReadBuilderWrapper<>(inputFile, readerFunction(), batchReader());
   }
 
   private static class WriteBuilderWrapper<D, S> implements WriteBuilder<D, S> {
     private final ORC.WriteBuilder internal;
-    private final WriterFunction<S> writerFunction;
+    private final WriterFunction<OrcRowWriter<?>, S, TypeDescription> writerFunction;
     private S inputSchema;
+
     private FileContent content;
 
-    private WriteBuilderWrapper(EncryptedOutputFile outputFile, WriterFunction<S> writerFunction) {
+    private WriteBuilderWrapper(
+        EncryptedOutputFile outputFile,
+        WriterFunction<OrcRowWriter<?>, S, TypeDescription> writerFunction) {
       this.internal = ORC.write(outputFile);
       this.writerFunction = writerFunction;
     }
@@ -311,6 +179,98 @@ public class ORCFormatModel<D, S> implements FormatModel<D, S> {
       }
 
       return internal.build();
+    }
+  }
+
+  private static class ReadBuilderWrapper<D, S, R> implements ReadBuilder<D, S> {
+    private final ORC.ReadBuilder internal;
+    private final ReaderFunction<R, S, TypeDescription> readerFunction;
+    private final boolean batchReader;
+    private boolean reuseContainers = false;
+    private Schema icebergSchema;
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
+
+    private ReadBuilderWrapper(
+        InputFile inputFile,
+        ReaderFunction<R, S, TypeDescription> readerFunction,
+        boolean batchReader) {
+      this.internal = ORC.read(inputFile);
+      this.readerFunction = readerFunction;
+      this.batchReader = batchReader;
+    }
+
+    @Override
+    public ReadBuilder<D, S> split(long newStart, long newLength) {
+      internal.split(newStart, newLength);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> project(Schema schema) {
+      this.icebergSchema = schema;
+      internal.project(schema);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> caseSensitive(boolean caseSensitive) {
+      internal.caseSensitive(caseSensitive);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> filter(Expression filter) {
+      internal.filter(filter);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> set(String key, String value) {
+      internal.config(key, value);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> reuseContainers() {
+      this.reuseContainers = true;
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> recordsPerBatch(int numRowsPerBatch) {
+      internal.recordsPerBatch(numRowsPerBatch);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> idToConstant(Map<Integer, ?> newIdToConstant) {
+      internal.constantFieldIds(newIdToConstant.keySet());
+      this.idToConstant = newIdToConstant;
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> withNameMapping(NameMapping nameMapping) {
+      internal.withNameMapping(nameMapping);
+      return this;
+    }
+
+    @Override
+    public org.apache.iceberg.io.CloseableIterable<D> build() {
+      Preconditions.checkNotNull(reuseContainers, "Reuse containers is required for ORC read");
+      return batchReader
+          ? internal
+              .createBatchedReaderFunc(
+                  typeDescription ->
+                      (OrcBatchReader<?>)
+                          readerFunction.read(icebergSchema, typeDescription, null, idToConstant))
+              .build()
+          : internal
+              .createReaderFunc(
+                  typeDescription ->
+                      (OrcRowReader<?>)
+                          readerFunction.read(icebergSchema, typeDescription, null, idToConstant))
+              .build();
     }
   }
 }

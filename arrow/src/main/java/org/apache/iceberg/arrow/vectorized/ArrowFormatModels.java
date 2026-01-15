@@ -28,11 +28,11 @@ public class ArrowFormatModels {
         new ParquetFormatModel<>(
             ColumnarBatch.class,
             Object.class,
-            (schema, messageType, idToConstant) ->
+            (schema, fileSchema, engineSchema, idToConstant) ->
                 ArrowReader.VectorizedCombinedScanIterator.buildReader(
                     schema,
-                    messageType, /* setArrowValidityVector */
-                    NullCheckingForGet.NULL_CHECKING_ENABLED)));
+                    fileSchema,
+                    NullCheckingForGet.NULL_CHECKING_ENABLED /* setArrowValidityVector */)));
   }
 
   private ArrowFormatModels() {}

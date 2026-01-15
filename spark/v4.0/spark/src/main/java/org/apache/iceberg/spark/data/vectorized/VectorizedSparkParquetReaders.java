@@ -79,7 +79,7 @@ public class VectorizedSparkParquetReaders {
 
   public static VectorizedReader<ColumnarBatch> buildCometReader(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
-    return (VectorizedReader<ColumnarBatch>)
+    return (CometColumnarBatchReader)
         TypeWithSchemaVisitor.visit(
             expectedSchema.asStruct(),
             fileSchema,

@@ -40,37 +40,50 @@ public class SparkFormatModels {
         new AvroFormatModel<>(
             InternalRow.class,
             StructType.class,
-            SparkPlannedAvroReader::create,
-            (avroSchema, inputSchema) -> new SparkAvroWriter(inputSchema)));
+            (icebergSchema, fileSchema, engineSchema) -> new SparkAvroWriter(engineSchema),
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                SparkPlannedAvroReader.create(icebergSchema, idToConstant)));
 
     FormatModelRegistry.register(
         new ParquetFormatModel<>(
             InternalRow.class,
             StructType.class,
-            SparkParquetReaders::buildReader,
-            (icebergSchema, messageType, inputType) ->
-                SparkParquetWriters.buildWriter(inputType, messageType)));
+            (icebergSchema, fileSchema, engineSchema) ->
+                SparkParquetWriters.buildWriter(engineSchema, fileSchema),
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                SparkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
         new ParquetFormatModel<>(
-            ColumnarBatch.class, StructType.class, VectorizedSparkParquetReaders::buildReader));
+            ColumnarBatch.class,
+            StructType.class,
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                VectorizedSparkParquetReaders.buildReader(
+                    icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
         new ParquetFormatModel<>(
             VectorizedSparkParquetReaders.CometColumnarBatch.class,
             StructType.class,
-            VectorizedSparkParquetReaders::buildCometReader));
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                VectorizedSparkParquetReaders.buildCometReader(
+                    icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
         new ORCFormatModel<>(
             InternalRow.class,
             StructType.class,
-            SparkOrcReader::new,
-            (schema, typeDescription, unused) -> new SparkOrcWriter(schema, typeDescription)));
+            (icebergSchema, fileSchema, engineSchema) ->
+                new SparkOrcWriter(icebergSchema, fileSchema),
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                new SparkOrcReader(icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
         new ORCFormatModel<>(
-            ColumnarBatch.class, StructType.class, VectorizedSparkOrcReaders::buildReader));
+            ColumnarBatch.class,
+            StructType.class,
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                VectorizedSparkOrcReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
   }
 
   private SparkFormatModels() {}

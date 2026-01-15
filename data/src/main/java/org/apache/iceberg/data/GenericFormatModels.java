@@ -37,29 +37,33 @@ public class GenericFormatModels {
         new ParquetFormatModel<>(
             Record.class,
             Schema.class,
-            GenericParquetReaders::buildReader,
-            (schema, messageType, inputType) -> GenericParquetWriter.create(schema, messageType)));
+            (icebergSchema, fileSchema, engineSchema) ->
+                GenericParquetWriter.create(icebergSchema, fileSchema),
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                GenericParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
+
+    FormatModelRegistry.register(new ParquetFormatModel<>(PositionDelete.class));
 
     FormatModelRegistry.register(
         new AvroFormatModel<>(
             Record.class,
             Schema.class,
-            PlannedDataReader::create,
-            (schema, inputSchema) -> DataWriter.create(schema)));
+            (icebergSchema, fileSchema, engineSchema) -> DataWriter.create(fileSchema),
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                PlannedDataReader.create(icebergSchema, idToConstant)));
+
+    FormatModelRegistry.register(new AvroFormatModel<>(PositionDelete.class));
 
     FormatModelRegistry.register(
         new ORCFormatModel<>(
             Record.class,
             Schema.class,
-            GenericOrcReader::buildReader,
-            (schema, typeDescription, unused) ->
-                GenericOrcWriter.buildWriter(schema, typeDescription)));
+            (icebergSchema, fileSchema, engineSchema) ->
+                GenericOrcWriter.buildWriter(icebergSchema, fileSchema),
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                GenericOrcReader.buildReader(icebergSchema, fileSchema, idToConstant)));
 
-      FormatModelRegistry.register(new ParquetFormatModel<>(PositionDelete.class));
-
-      FormatModelRegistry.register(new AvroFormatModel<>(PositionDelete.class));
-
-      FormatModelRegistry.register(new ORCFormatModel<>(PositionDelete.class));
+    FormatModelRegistry.register(new ORCFormatModel<>(PositionDelete.class));
   }
 
   private GenericFormatModels() {}

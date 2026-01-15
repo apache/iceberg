@@ -31,23 +31,27 @@ public class FlinkFormatModels {
         new ParquetFormatModel<>(
             RowData.class,
             RowType.class,
-            FlinkParquetReaders::buildReader,
-            (unused, messageType, rowType) ->
-                FlinkParquetWriters.buildWriter(rowType, messageType)));
+            (icebergSchema, fileSchema, engineSchema) ->
+                FlinkParquetWriters.buildWriter(engineSchema, fileSchema),
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                FlinkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
         new AvroFormatModel<>(
             RowData.class,
             RowType.class,
-            FlinkPlannedAvroReader::create,
-            (unused, rowType) -> new FlinkAvroWriter(rowType)));
+            (icebergSchema, fileSchema, engineSchema) -> new FlinkAvroWriter(engineSchema),
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                FlinkPlannedAvroReader.create(icebergSchema, idToConstant)));
 
     FormatModelRegistry.register(
         new ORCFormatModel<>(
             RowData.class,
             RowType.class,
-            FlinkOrcReader::new,
-            (schema, unused, rowType) -> FlinkOrcWriter.buildWriter(rowType, schema)));
+            (icebergSchema, fileSchema, engineSchema) ->
+                FlinkOrcWriter.buildWriter(engineSchema, icebergSchema),
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                new FlinkOrcReader(icebergSchema, fileSchema, idToConstant)));
   }
 
   private FlinkFormatModels() {}

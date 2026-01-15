@@ -20,16 +20,15 @@ package org.apache.iceberg.avro;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
-import java.util.function.BiFunction;
+import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.formats.FormatModel;
+import org.apache.iceberg.formats.BaseFormatModel;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.formats.WriteBuilder;
 import org.apache.iceberg.io.CloseableIterable;
@@ -37,25 +36,19 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-public class AvroFormatModel<D, S> implements FormatModel<D, S> {
-  private final Class<D> type;
-  private final Class<S> schemaType;
-  private final BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
-  private final BiFunction<org.apache.avro.Schema, S, DatumWriter<D>> writerFunction;
+public class AvroFormatModel<D, S>
+    extends BaseFormatModel<D, S, DatumWriter<D>, DatumReader<D>, Schema> {
 
   public AvroFormatModel(Class<D> type) {
-    this(type, null, null, null);
+    super(type, null, null, null, false);
   }
 
   public AvroFormatModel(
       Class<D> type,
       Class<S> schemaType,
-      BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction,
-      BiFunction<org.apache.avro.Schema, S, DatumWriter<D>> writerFunction) {
-    this.type = type;
-    this.schemaType = schemaType;
-    this.readerFunction = readerFunction;
-    this.writerFunction = writerFunction;
+      WriterFunction<DatumWriter<D>, S, Schema> writerFunction,
+      ReaderFunction<DatumReader<D>, S, Schema> readerFunction) {
+    super(type, schemaType, writerFunction, readerFunction, false /* batchReader */);
   }
 
   @Override
@@ -64,112 +57,29 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public Class<D> type() {
-    return type;
-  }
-
-  @Override
-  public Class<S> schemaType() {
-    return schemaType;
-  }
-
-  @Override
   public WriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
-    return new WriteBuilderWrapper<>(outputFile, writerFunction);
+    return new WriteBuilderWrapper<>(outputFile, writerFunction());
   }
 
   @Override
   public ReadBuilder<D, S> readBuilder(InputFile inputFile) {
-    return new ReadBuilderWrapper<>(inputFile, readerFunction);
-  }
-
-  private static class ReadBuilderWrapper<D, S> implements ReadBuilder<D, S> {
-    private final Avro.ReadBuilder internal;
-    private final BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
-    private Map<Integer, ?> idToConstant = ImmutableMap.of();
-
-    private ReadBuilderWrapper(
-        InputFile inputFile, BiFunction<Schema, Map<Integer, ?>, DatumReader<D>> readerFunction) {
-      this.internal = Avro.read(inputFile);
-      this.readerFunction = readerFunction;
-    }
-
-    @Override
-    public ReadBuilder<D, S> split(long newStart, long newLength) {
-      internal.split(newStart, newLength);
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> project(Schema schema) {
-      internal.project(schema);
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> caseSensitive(boolean caseSensitive) {
-      // Filtering is not supported in Avro reader, so case sensitivity does not matter
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> filter(Expression filter) {
-      // Filtering is not supported in Avro reader
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> set(String key, String value) {
-      // Configuration is not used for Avro reader creation
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> reuseContainers() {
-      internal.reuseContainers();
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> recordsPerBatch(int numRowsPerBatch) {
-      throw new UnsupportedOperationException("Batch reading is not supported in Avro reader");
-    }
-
-    @Override
-    public ReadBuilder<D, S> idToConstant(Map<Integer, ?> newIdToConstant) {
-      this.idToConstant = newIdToConstant;
-      return this;
-    }
-
-    @Override
-    public ReadBuilder<D, S> withNameMapping(org.apache.iceberg.mapping.NameMapping nameMapping) {
-      internal.withNameMapping(nameMapping);
-      return this;
-    }
-
-    @Override
-    public CloseableIterable<D> build() {
-      return internal
-          .createResolvingReader(icebergSchema -> readerFunction.apply(icebergSchema, idToConstant))
-          .build();
-    }
+    return new ReadBuilderWrapper<>(inputFile, readerFunction());
   }
 
   private static class WriteBuilderWrapper<D, S> implements WriteBuilder<D, S> {
     private final Avro.WriteBuilder internal;
-    private final BiFunction<org.apache.avro.Schema, S, DatumWriter<D>> writerFunction;
+    private final WriterFunction<DatumWriter<D>, S, Schema> writerFunction;
     private S inputSchema;
     private FileContent content;
 
     private WriteBuilderWrapper(
-        EncryptedOutputFile outputFile,
-        BiFunction<org.apache.avro.Schema, S, DatumWriter<D>> writerFunction) {
+        EncryptedOutputFile outputFile, WriterFunction<DatumWriter<D>, S, Schema> writerFunction) {
       this.internal = Avro.write(outputFile.encryptingOutputFile());
       this.writerFunction = writerFunction;
     }
 
     @Override
-    public WriteBuilder<D, S> schema(Schema schema) {
+    public WriteBuilder<D, S> schema(org.apache.iceberg.Schema schema) {
       internal.schema(schema);
       return this;
     }
@@ -237,11 +147,13 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
       switch (content) {
         case DATA:
           internal.createContextFunc(Avro.WriteBuilder.Context::dataContext);
-          internal.createWriterFunc(avroSchema -> writerFunction.apply(avroSchema, inputSchema));
+          internal.createWriterFunc(
+              avroSchema -> writerFunction.write(null, avroSchema, inputSchema));
           break;
         case EQUALITY_DELETES:
           internal.createContextFunc(Avro.WriteBuilder.Context::deleteContext);
-          internal.createWriterFunc(avroSchema -> writerFunction.apply(avroSchema, inputSchema));
+          internal.createWriterFunc(
+              avroSchema -> writerFunction.write(null, avroSchema, inputSchema));
           break;
         case POSITION_DELETES:
           internal.createContextFunc(Avro.WriteBuilder.Context::deleteContext);
@@ -253,6 +165,79 @@ public class AvroFormatModel<D, S> implements FormatModel<D, S> {
       }
 
       return internal.build();
+    }
+  }
+
+  private static class ReadBuilderWrapper<D, S> implements ReadBuilder<D, S> {
+    private final Avro.ReadBuilder internal;
+    private final ReaderFunction<DatumReader<D>, S, Schema> readerFunction;
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
+
+    private ReadBuilderWrapper(
+        InputFile inputFile, ReaderFunction<DatumReader<D>, S, Schema> readerFunction) {
+      this.internal = Avro.read(inputFile);
+      this.readerFunction = readerFunction;
+    }
+
+    @Override
+    public ReadBuilder<D, S> split(long newStart, long newLength) {
+      internal.split(newStart, newLength);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> project(org.apache.iceberg.Schema schema) {
+      internal.project(schema);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> caseSensitive(boolean caseSensitive) {
+      // Filtering is not supported in Avro reader, so case sensitivity does not matter
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> filter(Expression filter) {
+      // Filtering is not supported in Avro reader
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> set(String key, String value) {
+      // Configuration is not used for Avro reader creation
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> reuseContainers() {
+      internal.reuseContainers();
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> recordsPerBatch(int numRowsPerBatch) {
+      throw new UnsupportedOperationException("Batch reading is not supported in Avro reader");
+    }
+
+    @Override
+    public ReadBuilder<D, S> idToConstant(Map<Integer, ?> newIdToConstant) {
+      this.idToConstant = newIdToConstant;
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> withNameMapping(org.apache.iceberg.mapping.NameMapping nameMapping) {
+      internal.withNameMapping(nameMapping);
+      return this;
+    }
+
+    @Override
+    public CloseableIterable<D> build() {
+      return internal
+          .createResolvingReader(
+              icebergSchema -> readerFunction.read(icebergSchema, null, null, idToConstant))
+          .build();
     }
   }
 }

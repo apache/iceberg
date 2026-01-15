@@ -191,7 +191,7 @@ public class ORC {
     }
 
     public <D> FileAppender<D> build() {
-      //      Preconditions.checkNotNull(schema, "Schema is required");
+      Preconditions.checkNotNull(schema, "Schema is required");
 
       for (Map.Entry<String, String> entry : config.entrySet()) {
         this.conf.set(entry.getKey(), entry.getValue());

@@ -29,7 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.formats.FormatModel;
+import org.apache.iceberg.formats.BaseFormatModel;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.formats.WriteBuilder;
 import org.apache.iceberg.io.CloseableIterable;
@@ -37,48 +37,31 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.MessageType;
 
-public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
+public class ParquetFormatModel<D, S, R>
+    extends BaseFormatModel<D, S, ParquetValueWriter<?>, R, MessageType> {
   public static final String WRITER_VERSION_KEY = "parquet.writer.version";
 
-  private final Class<? extends D> type;
-  private final Class<S> schemaType;
-  private final ReaderFunction<D> readerFunction;
-  private final BatchReaderFunction<D> batchReaderFunction;
-  private final WriterFunction<S> writerFunction;
-
-  private ParquetFormatModel(
-      Class<? extends D> type,
-      Class<S> schemaType,
-      ReaderFunction<D> readerFunction,
-      BatchReaderFunction<D> batchReaderFunction,
-      WriterFunction<S> writerFunction) {
-    this.type = type;
-    this.schemaType = schemaType;
-    this.readerFunction = readerFunction;
-    this.batchReaderFunction = batchReaderFunction;
-    this.writerFunction = writerFunction;
-  }
-
   public ParquetFormatModel(Class<D> type) {
-    this(type, null, null, null);
+    super(type, null, null, null, false /* batchReader */);
   }
 
   public ParquetFormatModel(
       Class<D> type,
       Class<S> schemaType,
-      ReaderFunction<D> readerFunction,
-      WriterFunction<S> writerFunction) {
-    this(type, schemaType, readerFunction, null, writerFunction);
+      WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+      ReaderFunction<R, S, MessageType> readerFunction) {
+    super(type, schemaType, writerFunction, readerFunction, false /* batchReader */);
   }
 
   public ParquetFormatModel(
-      Class<? extends D> type, Class<S> schemaType, BatchReaderFunction<D> batchReaderFunction) {
-    this(type, schemaType, null, batchReaderFunction, null);
+      Class<? extends D> type,
+      Class<S> schemaType,
+      ReaderFunction<R, S, MessageType> batchReaderFunction) {
+    super(type, schemaType, null, batchReaderFunction, true /* batchReader */);
   }
 
   @Override
@@ -87,48 +70,24 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
   }
 
   @Override
-  public Class<? extends D> type() {
-    return type;
-  }
-
-  @Override
-  public Class<S> schemaType() {
-    return schemaType;
-  }
-
-  @Override
   public WriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
-    return new WriteBuilderWrapper<>(outputFile, writerFunction);
+    return new WriteBuilderWrapper<>(outputFile, writerFunction());
   }
 
   @Override
   public ReadBuilder<D, S> readBuilder(InputFile inputFile) {
-    return new ReadBuilderWrapper<>(inputFile, readerFunction, batchReaderFunction);
-  }
-
-  @FunctionalInterface
-  public interface ReaderFunction<D> {
-    ParquetValueReader<D> read(
-        Schema schema, MessageType messageType, Map<Integer, ?> idToConstant);
-  }
-
-  @FunctionalInterface
-  public interface BatchReaderFunction<D> {
-    VectorizedReader<D> read(Schema schema, MessageType messageType, Map<Integer, ?> idToConstant);
-  }
-
-  @FunctionalInterface
-  public interface WriterFunction<S> {
-    ParquetValueWriter<?> write(Schema icebergSchema, MessageType messageType, S engineSchema);
+    return new ReadBuilderWrapper<>(inputFile, readerFunction(), batchReader());
   }
 
   private static class WriteBuilderWrapper<D, S> implements WriteBuilder<D, S> {
     private final Parquet.WriteBuilder internal;
-    private final WriterFunction<S> writerFunction;
+    private final WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction;
     private S inputSchema;
     private FileContent content;
 
-    private WriteBuilderWrapper(EncryptedOutputFile outputFile, WriterFunction<S> writerFunction) {
+    private WriteBuilderWrapper(
+        EncryptedOutputFile outputFile,
+        WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction) {
       this.internal = Parquet.write(outputFile);
       this.writerFunction = writerFunction;
     }
@@ -236,22 +195,19 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
     }
   }
 
-  private static class ReadBuilderWrapper<D, S> implements ReadBuilder<D, S> {
+  private static class ReadBuilderWrapper<R, D, S> implements ReadBuilder<D, S> {
     private final Parquet.ReadBuilder internal;
-    private final ReaderFunction<D> readerFunction;
-    private final BatchReaderFunction<D> batchReaderFunction;
+    private final ReaderFunction<R, S, MessageType> readerFunction;
+    private final boolean batchReader;
     private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     private ReadBuilderWrapper(
         InputFile inputFile,
-        ReaderFunction<D> readerFunction,
-        BatchReaderFunction<D> batchReaderFunction) {
-      Preconditions.checkArgument(
-          readerFunction == null || batchReaderFunction == null,
-          "Only one of readerFunction or batchReaderFunction can be non-null");
+        ReaderFunction<R, S, MessageType> readerFunction,
+        boolean batchReader) {
       this.internal = Parquet.read(inputFile);
       this.readerFunction = readerFunction;
-      this.batchReaderFunction = batchReaderFunction;
+      this.batchReader = batchReader;
     }
 
     @Override
@@ -310,19 +266,19 @@ public class ParquetFormatModel<D, S> implements FormatModel<D, S> {
 
     @Override
     public CloseableIterable<D> build() {
-      if (readerFunction != null) {
-        return internal
-            .createReaderFunc(
-                (icebergSchema, messageType) ->
-                    readerFunction.read(icebergSchema, messageType, idToConstant))
-            .build();
-      } else {
-        return internal
-            .createBatchedReaderFunc(
-                (icebergSchema, messageType) ->
-                    batchReaderFunction.read(icebergSchema, messageType, idToConstant))
-            .build();
-      }
+      return batchReader
+          ? internal
+              .createBatchedReaderFunc(
+                  (icebergSchema, messageType) ->
+                      (VectorizedReader<?>)
+                          readerFunction.read(icebergSchema, messageType, null, idToConstant))
+              .build()
+          : internal
+              .createReaderFunc(
+                  (icebergSchema, messageType) ->
+                      (ParquetValueReader<?>)
+                          readerFunction.read(icebergSchema, messageType, null, idToConstant))
+              .build();
     }
   }
 }
