@@ -30,25 +30,26 @@ highlight some powerful features. You can learn more about Iceberg's Flink runti
 
 ### Docker Compose
 
-The fastest way to get started is to use a docker-compose file.
-This contains:
-
-* A local Flink cluster (Job Manager and Task Manager)
-* Iceberg REST Catalog
-* SeaweedFS (local S3 storage)
-* AWS CLI (to create the S3 bucket)
-
+The fastest way to get started is to use a Docker Compose file.
 To use this, you'll need to install the [Docker CLI](https://docs.docker.com/get-docker/) as well as the [Docker Compose CLI](https://github.com/docker/compose-cli/blob/main/INSTALL.md).
 
 Once you have those, save these two files into a new folder:
 
 * [`docker-compose.yml`](https://raw.githubusercontent.com/apache/iceberg/refs/heads/main/flink/v2.0/quickstart/docker-compose.yml)
+
+    This contains:
+
+    * A local Flink cluster (Job Manager and Task Manager)
+    * Iceberg REST Catalog
+    * SeaweedFS (local S3 storage)
+    * AWS CLI (to create the S3 bucket)
+
 * [`Dockerfile.flink`](https://raw.githubusercontent.com/apache/iceberg/refs/heads/main/flink/v2.0/quickstart/Dockerfile.flink) - base Flink image, plus some required JARs for S3 and Iceberg.
 
 Next, start up the docker containers with this command:
 
 ```sh
-docker-compose up -d
+docker compose up -d
 ```
 
 Launch a Flink SQL client session:
@@ -112,8 +113,7 @@ CREATE TABLE iceberg_catalog.nyc.taxis
 
 Iceberg catalogs support the full range of Flink SQL DDL commands, including:
 
-* [`CREATE TABLE ... PARTITIONED BY`](docs/latest/flink-ddl.md#create-table)
-* [`CREATE TABLE ... AS SELECT`](docs/latest/flink-ddl.md#create-table--as-select)
+* [`CREATE TABLE ... PARTITIONED BY`](docs/latest/flink-ddl.md#partitioned-by)
 * [`ALTER TABLE`](docs/latest/flink-ddl.md#alter-table)
 * [`DROP TABLE`](docs/latest/flink-ddl.md#drop-table)
 
@@ -176,4 +176,4 @@ CREATE TABLE taxis2 (
 
 #### Learn More
 
-Now that you're up an running with Iceberg and Flink, check out the [Iceberg-Flink docs](docs/latest/flink.md) to learn more!
+Now that you're up an running with Iceberg and Flink, check out the [Iceberg Flink docs](docs/latest/flink.md) to learn more!
