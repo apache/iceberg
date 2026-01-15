@@ -1194,10 +1194,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
-  // Merges the set of DVs for a given referenced files into a single DV
-  // and produces a single Puffin file
-  private MergedDVContent mergePositions(String referencedLocation, DeleteFileSet dvs) {
-    Iterator<DeleteFile> dvIterator = dvs.iterator();
+  // Merges the position indices for the duplicate DVs for a given referenced file
+  private MergedDVContent mergePositions(String referencedLocation, DeleteFileSet duplicateDVs) {
+    Iterator<DeleteFile> dvIterator = duplicateDVs.iterator();
     DeleteFile firstDV = dvIterator.next();
     PositionDeleteIndex mergedPositions = Deletes.readDV(firstDV, ops().io(), ops().encryption());
     while (dvIterator.hasNext()) {
@@ -1221,7 +1220,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     return new MergedDVContent(
-        referencedLocation, dvs, mergedPositions, firstDV.specId(), firstDV.partition());
+        referencedLocation, duplicateDVs, mergedPositions, firstDV.specId(), firstDV.partition());
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
