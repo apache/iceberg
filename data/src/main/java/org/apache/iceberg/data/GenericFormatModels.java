@@ -30,70 +30,37 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class GenericFormatModels {
-  private static final Logger LOG = LoggerFactory.getLogger(GenericFormatModels.class);
-
   public static void register() {
-    // ORC, Parquet are optional dependencies. If they are not present, we should just log and
-    // ignore NoClassDefFoundErrors
-    registerAvro();
-    registerParquet();
-    registerOrc();
-  }
+    FormatModelRegistry.register(
+        new ParquetFormatModel<>(
+            Record.class,
+            Schema.class,
+            GenericParquetReaders::buildReader,
+            (schema, messageType, inputType) -> GenericParquetWriter.create(schema, messageType)));
 
-  private static void registerParquet() {
-    logAngIgnoreNoClassDefFoundError(
-        () ->
-            FormatModelRegistry.register(
-                new ParquetFormatModel<>(
-                    Record.class,
-                    Schema.class,
-                    GenericParquetReaders::buildReader,
-                    (schema, messageType, inputType) ->
-                        GenericParquetWriter.create(schema, messageType))));
-    logAngIgnoreNoClassDefFoundError(
-        () -> FormatModelRegistry.register(new ParquetFormatModel<>(PositionDelete.class)));
-  }
+    FormatModelRegistry.register(
+        new AvroFormatModel<>(
+            Record.class,
+            Schema.class,
+            PlannedDataReader::create,
+            (schema, inputSchema) -> DataWriter.create(schema)));
 
-  private static void registerAvro() {
-    logAngIgnoreNoClassDefFoundError(
-        () ->
-            FormatModelRegistry.register(
-                new AvroFormatModel<>(
-                    Record.class,
-                    Schema.class,
-                    PlannedDataReader::create,
-                    (schema, inputSchema) -> DataWriter.create(schema))));
-    logAngIgnoreNoClassDefFoundError(
-        () -> FormatModelRegistry.register(new AvroFormatModel<>(PositionDelete.class)));
-  }
+    FormatModelRegistry.register(
+        new ORCFormatModel<>(
+            Record.class,
+            Schema.class,
+            GenericOrcReader::buildReader,
+            (schema, typeDescription, unused) ->
+                GenericOrcWriter.buildWriter(schema, typeDescription)));
 
-  private static void registerOrc() {
-    logAngIgnoreNoClassDefFoundError(
-        () ->
-            FormatModelRegistry.register(
-                new ORCFormatModel<>(
-                    Record.class,
-                    Schema.class,
-                    GenericOrcReader::buildReader,
-                    (schema, typeDescription, unused) ->
-                        GenericOrcWriter.buildWriter(schema, typeDescription))));
-    logAngIgnoreNoClassDefFoundError(
-        () -> FormatModelRegistry.register(new ORCFormatModel<>(PositionDelete.class)));
+      FormatModelRegistry.register(new ParquetFormatModel<>(PositionDelete.class));
+
+      FormatModelRegistry.register(new AvroFormatModel<>(PositionDelete.class));
+
+      FormatModelRegistry.register(new ORCFormatModel<>(PositionDelete.class));
   }
 
   private GenericFormatModels() {}
-
-  @SuppressWarnings("CatchBlockLogException")
-  private static void logAngIgnoreNoClassDefFoundError(Runnable runnable) {
-    try {
-      runnable.run();
-    } catch (NoClassDefFoundError e) {
-      // Log the exception and ignore it
-      LOG.info("Exception occurred when trying to register format models: {}", e.getMessage());
-    }
-  }
 }
