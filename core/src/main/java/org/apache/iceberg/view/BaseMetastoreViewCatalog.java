@@ -31,7 +31,6 @@ import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -317,8 +316,8 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     }
 
     ViewOperations ops = newViewOps(identifier);
-    InputFile metadataFile = ((BaseViewOperations) ops).io().newInputFile(metadataFileLocation);
-    ViewMetadata metadata = ViewMetadataParser.read(metadataFile);
+    ViewMetadata metadata =
+        ViewMetadataParser.read(((BaseViewOperations) ops).io(), metadataFileLocation);
     ops.commit(null, metadata);
 
     return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
