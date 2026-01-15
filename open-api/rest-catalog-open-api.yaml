@@ -1946,7 +1946,7 @@ components:
         Implementations that support ETags should produce unique tags for responses that return
         different metadata content but represent the same version of table metadata.  For example,
         the `snapshots` query parameter may result in different metadata representations depending
-        on whether `refs` or `all` is provided, but should have distinct ETags.
+        on whether `refs` or `all` is provided, therefore should have distinct ETags.
       required: false
       schema:
         type: string
