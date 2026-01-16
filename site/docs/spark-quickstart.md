@@ -121,19 +121,19 @@ You can then run any of the following commands to start a Spark session.
 
 === "SparkSQL"
 
-    ``` sh
+    ``` sh 
     docker exec -it spark-iceberg spark-sql
     ```
 
 === "Spark-Shell"
 
-    ``` sh
+    ``` sh 
     docker exec -it spark-iceberg spark-shell
     ```
 
 === "PySpark"
 
-    ``` sh
+    ``` sh 
     docker exec -it spark-iceberg pyspark
     ```
 
@@ -187,7 +187,7 @@ using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database n
       StructField("fare_amount", DoubleType(), True),
       StructField("store_and_fwd_flag", StringType(), True)
     ])
-
+    
     df = spark.createDataFrame([], schema)
     df.writeTo("demo.nyc.taxis").create()
     ```
@@ -214,7 +214,7 @@ Once your table is created, you can insert records.
 
     ```scala
     import org.apache.spark.sql.Row
-
+    
     val schema = spark.table("demo.nyc.taxis").schema
     val data = Seq(
         Row(1: Long, 1000371: Long, 1.8f: Float, 15.32: Double, "N": String),
