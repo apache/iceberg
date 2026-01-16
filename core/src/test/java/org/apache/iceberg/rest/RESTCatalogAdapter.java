@@ -540,8 +540,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     return null;
   }
 
-  @VisibleForTesting
-  static Map<String, String> defaultQueryParams() {
+  private static Map<String, String> defaultQueryParams() {
     return Map.of(
         RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER,
         SnapshotMode.ALL.toString().toLowerCase(Locale.US));
