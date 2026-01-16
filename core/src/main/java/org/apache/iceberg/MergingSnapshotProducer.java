@@ -1096,12 +1096,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // Merge duplicates, internally takes care of updating newDeleteFilesBySpec to remove
   // duplicates and add the newly merged DV
   private void mergeDVsAndWrite() {
-    List<MergedDVContent> mergedDVs = Collections.synchronizedList(Lists.newArrayList());
     Map<String, DeleteFileSet> dataFilesWithDuplicateDVs =
         dvsByReferencedFile.entrySet().stream()
             .filter(entry -> entry.getValue().size() > 1)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
+    List<MergedDVContent> mergedDVs = Collections.synchronizedList(Lists.newArrayList());
     Tasks.foreach(dataFilesWithDuplicateDVs.entrySet())
         .executeWith(ThreadPools.getDeleteWorkerPool())
         .stopOnFailure()
