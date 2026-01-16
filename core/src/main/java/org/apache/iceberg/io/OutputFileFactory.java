@@ -88,15 +88,13 @@ public class OutputFileFactory {
   }
 
   public static Builder builderFor(Table table, int partitionId, long taskId) {
-    String formatAsString =
-        table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-    PartitionSpec spec = table.spec();
     return new Builder(
         table.locationProvider(),
         table.encryption(),
         table::io,
-        spec,
-        FileFormat.fromString(formatAsString),
+        table.spec(),
+        FileFormat.fromString(
+            table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT)),
         partitionId,
         taskId);
   }
