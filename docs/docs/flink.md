@@ -75,7 +75,7 @@ Start the Flink SQL client. There is a separate `flink-runtime` module in the Ic
 
 ```bash
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
-export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
+export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`   
 
 # Below works for 1.15 or less
 ./bin/sql-client.sh embedded -j <flink-runtime-directory>/iceberg-flink-runtime-1.15-{{ icebergVersion }}.jar shell
@@ -144,7 +144,7 @@ from pyflink.table import StreamTableEnvironment
 table_env = StreamTableEnvironment.create(env)
 table_env.execute_sql("""
 CREATE CATALOG my_catalog WITH (
-    'type'='iceberg',
+    'type'='iceberg', 
     'catalog-impl'='com.my.custom.CatalogImpl',
     'my-additional-catalog-config'='my-value'
 )
@@ -157,7 +157,7 @@ Run a query:
 (table_env
     .sql_query("SELECT PULocationID, DOLocationID, passenger_count FROM my_catalog.nyc.taxis LIMIT 5")
     .execute()
-    .print())
+    .print()) 
 ```
 
 ```
@@ -188,7 +188,7 @@ A catalog is created and named by executing the following query (replace `<catal
 CREATE CATALOG <catalog_name> WITH (
   'type'='iceberg',
   `<config_key>`=`<config_value>`
-);
+); 
 ```
 
 The following properties can be set globally and are not limited to a specific catalog implementation:
