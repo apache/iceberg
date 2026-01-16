@@ -2186,18 +2186,19 @@ public class TestRowDelta extends TestBase {
     for (int i = fromInclusive; i < toExclusive; i++) {
       deletes.add(PositionDelete.create().set(dataFile.location(), i));
     }
+
     return writeDV(deletes, dataFile.specId(), dataFile.partition(), fileFactory);
   }
 
-  private void assertDVHasDeletedPositions(DeleteFile dv, Iterable<Long> positions)
-      throws IOException {
+  private void assertDVHasDeletedPositions(DeleteFile dv, Iterable<Long> positions) {
     assertThat(dv).isNotNull();
-
     PositionDeleteIndex index = Deletes.readDV(dv, table.io(), table.encryption());
-
-    for (long pos : positions) {
-      assertThat(index.isDeleted(pos)).as("Expected position %s to be deleted", pos).isTrue();
-    }
+    assertThat(positions)
+        .allSatisfy(
+            pos ->
+                assertThat(index.isDeleted(pos))
+                    .as("Expected position %s to be deleted", pos)
+                    .isTrue());
   }
 
   private DeleteFile writeDV(

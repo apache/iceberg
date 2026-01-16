@@ -1161,11 +1161,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // Data class for referenced file, the duplicate DVs, the merged position delete index,
   // partition spec and tuple
   private static class MergedDVContent {
-    private DeleteFileSet duplicateDVs;
-    private String referencedLocation;
-    private PositionDeleteIndex mergedPositions;
-    private int specId;
-    private StructLike partition;
+    private final DeleteFileSet duplicateDVs;
+    private final String referencedLocation;
+    private final PositionDeleteIndex mergedPositions;
+    private final int specId;
+    private final StructLike partition;
 
     MergedDVContent(
         String referencedLocation,
@@ -1190,13 +1190,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       DeleteFile dv = dvIterator.next();
       Preconditions.checkArgument(
           Objects.equals(dv.dataSequenceNumber(), firstDV.dataSequenceNumber()),
-          "Cannot merge duplicate added DVs when data sequence numbers are different,"
+          "Cannot merge duplicate added DVs when data sequence numbers are different, "
               + "expected all to be added with sequence %s, but got %s",
           firstDV.dataSequenceNumber(),
           dv.dataSequenceNumber());
       Preconditions.checkArgument(
           dv.specId() == firstDV.specId(),
-          "Cannot merge duplicate added DVs when partition specs are different,"
+          "Cannot merge duplicate added DVs when partition specs are different, "
               + "expected all to be added with spec %s, but got %s",
           firstDV.specId(),
           dv.specId());
