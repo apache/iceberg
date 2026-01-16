@@ -88,7 +88,7 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
+abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistributionAndOrdering {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
 
   private final JavaSparkContext sparkContext;
@@ -252,41 +252,6 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     } catch (Exception e) {
       cleanupOnAbort = e instanceof CleanableFailure;
       throw e;
-    }
-  }
-
-  private void setMergeSummaryProperties(SnapshotUpdate<?> operation, MergeSummary mergeSummary) {
-    setIfPositive(
-        operation, "spark.merge-into.num-target-rows-copied", mergeSummary.numTargetRowsCopied());
-    setIfPositive(
-        operation, "spark.merge-into.num-target-rows-deleted", mergeSummary.numTargetRowsDeleted());
-    setIfPositive(
-        operation, "spark.merge-into.num-target-rows-updated", mergeSummary.numTargetRowsUpdated());
-    setIfPositive(
-        operation,
-        "spark.merge-into.num-target-rows-inserted",
-        mergeSummary.numTargetRowsInserted());
-    setIfPositive(
-        operation,
-        "spark.merge-into.num-target-rows-matched-updated",
-        mergeSummary.numTargetRowsMatchedUpdated());
-    setIfPositive(
-        operation,
-        "spark.merge-into.num-target-rows-matched-deleted",
-        mergeSummary.numTargetRowsMatchedDeleted());
-    setIfPositive(
-        operation,
-        "spark.merge-into.num-target-rows-not-matched-by-source-updated",
-        mergeSummary.numTargetRowsNotMatchedBySourceUpdated());
-    setIfPositive(
-        operation,
-        "spark.merge-into.num-target-rows-not-matched-by-source-deleted",
-        mergeSummary.numTargetRowsNotMatchedBySourceDeleted());
-  }
-
-  private void setIfPositive(SnapshotUpdate<?> operation, String key, long value) {
-    if (value >= 0) {
-      operation.set(key, String.valueOf(value));
     }
   }
 
