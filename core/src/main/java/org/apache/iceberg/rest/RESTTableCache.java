@@ -37,35 +37,7 @@ import org.slf4j.LoggerFactory;
 class RESTTableCache implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTTableCache.class);
 
-  @Value.Immutable
-  interface SessionIdTableId {
-    String sessionId();
-
-    TableIdentifier tableIdentifier();
-
-    static SessionIdTableId of(String sessionId, TableIdentifier ident) {
-      return ImmutableSessionIdTableId.builder()
-          .sessionId(sessionId)
-          .tableIdentifier(ident)
-          .build();
-    }
-  }
-
-  @Value.Immutable
-  interface TableSupplierWithETag {
-    Supplier<BaseTable> tableSupplier();
-
-    String eTag();
-
-    static TableSupplierWithETag of(Supplier<BaseTable> tableSupplier, String eTag) {
-      return ImmutableTableSupplierWithETag.builder()
-          .tableSupplier(tableSupplier)
-          .eTag(eTag)
-          .build();
-    }
-  }
-
-  private final Cache<SessionIdTableId, TableSupplierWithETag> tableCache;
+  private final Cache<SessionIdTableId, TableWithETag> tableCache;
 
   RESTTableCache(Map<String, String> props) {
     this(props, Ticker.systemTicker());
@@ -100,7 +72,7 @@ class RESTTableCache implements Closeable {
             .build();
   }
 
-  public TableSupplierWithETag getIfPresent(String sessionId, TableIdentifier identifier) {
+  public TableWithETag getIfPresent(String sessionId, TableIdentifier identifier) {
     SessionIdTableId cacheKey = SessionIdTableId.of(sessionId, identifier);
     return tableCache.getIfPresent(cacheKey);
   }
@@ -111,7 +83,7 @@ class RESTTableCache implements Closeable {
       Supplier<BaseTable> tableSupplier,
       String eTag) {
     tableCache.put(
-        SessionIdTableId.of(sessionId, identifier), TableSupplierWithETag.of(tableSupplier, eTag));
+        SessionIdTableId.of(sessionId, identifier), TableWithETag.of(tableSupplier, eTag));
   }
 
   public void invalidate(String sessionId, TableIdentifier identifier) {
@@ -120,7 +92,7 @@ class RESTTableCache implements Closeable {
   }
 
   @VisibleForTesting
-  Cache<SessionIdTableId, TableSupplierWithETag> tableCache() {
+  Cache<SessionIdTableId, TableWithETag> cache() {
     return tableCache;
   }
 
@@ -128,5 +100,30 @@ class RESTTableCache implements Closeable {
   public void close() {
     tableCache.invalidateAll();
     tableCache.cleanUp();
+  }
+
+  @Value.Immutable
+  interface SessionIdTableId {
+    String sessionId();
+
+    TableIdentifier tableIdentifier();
+
+    static SessionIdTableId of(String sessionId, TableIdentifier ident) {
+      return ImmutableSessionIdTableId.builder()
+          .sessionId(sessionId)
+          .tableIdentifier(ident)
+          .build();
+    }
+  }
+
+  @Value.Immutable
+  interface TableWithETag {
+    Supplier<BaseTable> supplier();
+
+    String eTag();
+
+    static TableWithETag of(Supplier<BaseTable> tableSupplier, String eTag) {
+      return ImmutableTableWithETag.builder().supplier(tableSupplier).eTag(eTag).build();
+    }
   }
 }

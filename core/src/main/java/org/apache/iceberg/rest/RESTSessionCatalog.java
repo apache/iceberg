@@ -70,7 +70,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
-import org.apache.iceberg.rest.RESTTableCache.TableSupplierWithETag;
+import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -462,7 +462,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     TableIdentifier loadedIdent;
 
     Map<String, String> responseHeaders = Maps.newHashMap();
-    TableSupplierWithETag cachedTable = tableCache.getIfPresent(context.sessionId(), identifier);
+    TableWithETag cachedTable = tableCache.getIfPresent(context.sessionId(), identifier);
 
     try {
       response =
@@ -476,7 +476,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       if (response == null) {
         Preconditions.checkNotNull(cachedTable, "Invalid load table response: null");
 
-        return cachedTable.tableSupplier().get();
+        return cachedTable.supplier().get();
       }
 
       loadedIdent = identifier;
@@ -503,7 +503,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             Preconditions.checkNotNull(cachedTable, "Invalid load table response: null");
 
             return MetadataTableUtils.createMetadataTableInstance(
-                cachedTable.tableSupplier().get(), metadataType);
+                cachedTable.supplier().get(), metadataType);
           }
 
           loadedIdent = baseIdent;
@@ -1457,7 +1457,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         .post(paths.renameView(), request, null, mutationHeaders, ErrorHandlers.viewErrorHandler());
   }
 
-  private static Map<String, String> headersForLoadTable(TableSupplierWithETag tableWithETag) {
+  private static Map<String, String> headersForLoadTable(TableWithETag tableWithETag) {
     if (tableWithETag == null) {
       return Map.of();
     }

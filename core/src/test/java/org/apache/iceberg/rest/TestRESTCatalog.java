@@ -98,7 +98,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.RESTTableCache.SessionIdTableId;
-import org.apache.iceberg.rest.RESTTableCache.TableSupplierWithETag;
+import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -3233,7 +3233,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .satisfies(ex -> assertThat(((CommitStateUnknownException) ex).getSuppressed()).isEmpty());
   }
 
-  @SuppressWarnings("MethodLength")
   @Test
   public void testCustomTableOperationsInjection() throws IOException {
     AtomicBoolean customTableOpsCalled = new AtomicBoolean();
@@ -3869,8 +3868,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     catalog().createTable(TABLE, SCHEMA);
 
-    Cache<SessionIdTableId, TableSupplierWithETag> tableCache =
-        restCatalog.sessionCatalog().tableCache().tableCache();
+    Cache<SessionIdTableId, TableWithETag> tableCache =
+        restCatalog.sessionCatalog().tableCache().cache();
     assertThat(tableCache.estimatedSize()).isZero();
 
     expectFullTableLoadForLoadTable(TABLE, adapterForRESTServer);
@@ -3892,7 +3891,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             tableCache
                 .asMap()
                 .get(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE))
-                .tableSupplier()
+                .supplier()
                 .get()
                 .operations()
                 .current()
@@ -3909,8 +3908,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     catalog().createTable(TABLE, SCHEMA);
 
-    Cache<SessionIdTableId, TableSupplierWithETag> tableCache =
-        restCatalog.sessionCatalog().tableCache().tableCache();
+    Cache<SessionIdTableId, TableWithETag> tableCache =
+        restCatalog.sessionCatalog().tableCache().cache();
     assertThat(tableCache.estimatedSize()).isZero();
 
     BaseTable table = (BaseTable) catalog().loadTable(TABLE);
@@ -3972,7 +3971,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           catalog(new RESTCatalogAdapter(backendCatalog)).dropTable(TABLE, true);
 
           // The main catalog still has the table in cache
-          assertThat(catalog.sessionCatalog().tableCache().tableCache().asMap())
+          assertThat(catalog.sessionCatalog().tableCache().cache().asMap())
               .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
           catalog.tableExists(TABLE);
@@ -4015,7 +4014,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           catalog(new RESTCatalogAdapter(backendCatalog)).dropTable(TABLE, true);
 
           // The main catalog still has the table in cache
-          assertThat(cat.sessionCatalog().tableCache().tableCache().asMap())
+          assertThat(cat.sessionCatalog().tableCache().cache().asMap())
               .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
           cat.tableExists(TABLE);
@@ -4033,7 +4032,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           catalog(new RESTCatalogAdapter(backendCatalog)).dropTable(TABLE, true);
 
           // The main catalog still has the table in cache
-          assertThat(catalog.sessionCatalog().tableCache().tableCache().asMap())
+          assertThat(catalog.sessionCatalog().tableCache().cache().asMap())
               .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
           assertThatThrownBy(() -> catalog.loadTable(TABLE))
@@ -4056,7 +4055,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           catalog(new RESTCatalogAdapter(backendCatalog)).dropTable(TABLE, true);
 
           // The main catalog still has the table in cache
-          assertThat(catalog.sessionCatalog().tableCache().tableCache().asMap())
+          assertThat(catalog.sessionCatalog().tableCache().cache().asMap())
               .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
           assertThatThrownBy(() -> catalog.loadTable(metadataTableIdentifier))
@@ -4085,8 +4084,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     BaseTable originalTable = (BaseTable) catalog.loadTable(TABLE);
 
-    Cache<SessionIdTableId, TableSupplierWithETag> tableCache =
-        catalog.sessionCatalog().tableCache().tableCache();
+    Cache<SessionIdTableId, TableWithETag> tableCache =
+        catalog.sessionCatalog().tableCache().cache();
     assertThat(tableCache.stats().hitCount()).isZero();
     assertThat(tableCache.asMap())
         .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
@@ -4137,8 +4136,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     sessionCatalog.loadTable(DEFAULT_SESSION_CONTEXT, TABLE);
 
-    Cache<SessionIdTableId, TableSupplierWithETag> tableCache =
-        sessionCatalog.tableCache().tableCache();
+    Cache<SessionIdTableId, TableWithETag> tableCache = sessionCatalog.tableCache().cache();
     assertThat(tableCache.stats().hitCount()).isZero();
     assertThat(tableCache.asMap())
         .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
@@ -4211,7 +4209,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     catalog.loadTable(TABLE);
 
-    assertThat(catalog.sessionCatalog().tableCache().tableCache().estimatedSize()).isZero();
+    assertThat(catalog.sessionCatalog().tableCache().cache().estimatedSize()).isZero();
   }
 
   @Test
@@ -4231,15 +4229,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     catalog.createTable(TABLE, SCHEMA);
 
-    assertThat(catalog.sessionCatalog().tableCache().tableCache().estimatedSize()).isZero();
+    assertThat(catalog.sessionCatalog().tableCache().cache().estimatedSize()).isZero();
 
     expectFullTableLoadForLoadTable(TABLE, adapter);
 
     catalog.loadTable(TABLE);
 
-    catalog.sessionCatalog().tableCache().tableCache().cleanUp();
+    catalog.sessionCatalog().tableCache().cache().cleanUp();
 
-    assertThat(catalog.sessionCatalog().tableCache().tableCache().estimatedSize()).isZero();
+    assertThat(catalog.sessionCatalog().tableCache().cache().estimatedSize()).isZero();
   }
 
   @Test
@@ -4258,8 +4256,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     catalog.loadTable(TABLE);
 
-    Cache<SessionIdTableId, TableSupplierWithETag> tableCache =
-        catalog.sessionCatalog().tableCache().tableCache();
+    Cache<SessionIdTableId, TableWithETag> tableCache =
+        catalog.sessionCatalog().tableCache().cache();
     SessionIdTableId tableCacheKey =
         SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE);
 
@@ -4310,8 +4308,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     ticker.advance(HALF_OF_TABLE_EXPIRATION);
 
-    Cache<SessionIdTableId, TableSupplierWithETag> tableCache =
-        catalog.sessionCatalog().tableCache().tableCache();
+    Cache<SessionIdTableId, TableWithETag> tableCache =
+        catalog.sessionCatalog().tableCache().cache();
     SessionIdTableId tableCacheKey =
         SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE);
 

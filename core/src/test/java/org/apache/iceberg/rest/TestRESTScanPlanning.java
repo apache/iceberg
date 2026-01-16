@@ -866,11 +866,11 @@ public class TestRESTScanPlanning {
     TableIdentifier tableIdentifier = TableIdentifier.of(NS, "freshness_aware_loading_test");
     restTableFor(catalog, tableIdentifier.name());
 
-    assertThat(catalog.sessionCatalog().tableCache().tableCache().estimatedSize()).isZero();
+    assertThat(catalog.sessionCatalog().tableCache().cache().estimatedSize()).isZero();
 
     // Table is cached with the first loadTable
     catalog.loadTable(tableIdentifier);
-    assertThat(catalog.sessionCatalog().tableCache().tableCache().estimatedSize()).isOne();
+    assertThat(catalog.sessionCatalog().tableCache().cache().estimatedSize()).isOne();
 
     // Second loadTable is answered from cache
     Table table = catalog.loadTable(tableIdentifier);
