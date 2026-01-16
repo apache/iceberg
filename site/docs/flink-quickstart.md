@@ -51,7 +51,7 @@ Launch a Flink SQL client session:
 docker compose exec -it jobmanager ./bin/sql-client.sh
 ```
 
-## Creating an Iceberg catalog in Flink
+## Creating an Iceberg Catalog in Flink
 
 Iceberg has several catalog back-ends that can be used to track tables, like JDBC, Hive MetaStore and Glue.
 In this guide we use a REST catalog, backed by S3.
@@ -80,11 +80,15 @@ Then make this the active catalog in your Flink SQL session:
 USE CATALOG iceberg_catalog;
 ```
 
-Create a database in the catalog and set it as active:
+Create a database in the catalog:
 
 ```sql
 CREATE DATABASE IF NOT EXISTS nyc;
+```
 
+and set it as active:
+
+```sql
 USE nyc;
 ```
 
@@ -114,7 +118,8 @@ Iceberg catalogs support the full range of Flink SQL DDL commands, including:
 
 Once your table is created, you can insert records.
 
-In order for Flink to write the full Iceberg data and metadata to S3, you must set a checkpoint interval:
+Flink uses checkpoints to ensure data durability and exactly-once semantics.
+Without checkpointing, Iceberg data and metadata may not be fully committed to storage.
 
 ```sql
 SET 'execution.checkpointing.interval' = '10s';
@@ -135,13 +140,21 @@ To read a table, use the Iceberg table's name:
 SELECT * FROM iceberg_catalog.nyc.taxis;
 ```
 
-## Creating a table without a Catalog
+## Creating a Table with Inline Catalog Configuration
 
 Creating a Flink catalog as shown above, backed by an Iceberg catalog, is one way to use Iceberg in Flink.
 Another way is to use the [Iceberg connector](/docs/latest/flink-connector.md) and specify the Iceberg details as table properties:
 
+First, switch to the default catalog (otherwise the table would be created using the Iceberg details that we configured in the catalog definition above):
+
 ```sql
-CREATE TABLE taxis2 (
+USE CATALOG default_catalog;
+```
+
+Now create a table using inline configuration:
+
+```sql
+CREATE TABLE taxis_inline_config (
     vendor_id BIGINT,
     trip_id BIGINT,
     trip_distance FLOAT,
