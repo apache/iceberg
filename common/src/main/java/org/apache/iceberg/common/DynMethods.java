@@ -21,8 +21,6 @@ package org.apache.iceberg.common;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Throwables;
@@ -372,7 +370,7 @@ public class DynMethods {
 
       try {
         Method hidden = targetClass.getDeclaredMethod(methodName, argClasses);
-        AccessController.doPrivileged(new MakeAccessible(hidden));
+        hidden.setAccessible(true);
         this.method = new UnboundMethod(hidden, name);
       } catch (SecurityException | NoSuchMethodException e) {
         // unusable or not the right implementation
@@ -476,20 +474,6 @@ public class DynMethods {
      */
     public StaticMethod buildStatic() {
       return build().asStatic();
-    }
-  }
-
-  private static class MakeAccessible implements PrivilegedAction<Void> {
-    private final Method hidden;
-
-    MakeAccessible(Method hidden) {
-      this.hidden = hidden;
-    }
-
-    @Override
-    public Void run() {
-      hidden.setAccessible(true);
-      return null;
     }
   }
 }

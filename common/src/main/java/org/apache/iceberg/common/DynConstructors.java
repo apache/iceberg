@@ -20,8 +20,6 @@ package org.apache.iceberg.common;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -190,7 +188,7 @@ public class DynConstructors {
 
       try {
         Constructor<T> hidden = targetClass.getDeclaredConstructor(types);
-        AccessController.doPrivileged(new MakeAccessible(hidden));
+        hidden.setAccessible(true);
         ctor = new Ctor<>(hidden, targetClass);
       } catch (SecurityException e) {
         // unusable
@@ -228,20 +226,6 @@ public class DynConstructors {
           throw e;
         }
       }
-    }
-  }
-
-  private static class MakeAccessible implements PrivilegedAction<Void> {
-    private final Constructor<?> hidden;
-
-    MakeAccessible(Constructor<?> hidden) {
-      this.hidden = hidden;
-    }
-
-    @Override
-    public Void run() {
-      hidden.setAccessible(true);
-      return null;
     }
   }
 
