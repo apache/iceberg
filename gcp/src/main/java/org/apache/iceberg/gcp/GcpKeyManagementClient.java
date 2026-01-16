@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.util.SerializableMap;
 
@@ -119,7 +120,7 @@ public class GcpKeyManagementClient implements KeyManagementClient {
             closeableGroup.addCloseable(kmsClient);
 
           } catch (IOException e) {
-            throw new RuntimeException("Failed to create GCP cloud KMS service client", e);
+            throw new RuntimeIOException("Failed to create GCP cloud KMS service client", e);
           }
         }
       }

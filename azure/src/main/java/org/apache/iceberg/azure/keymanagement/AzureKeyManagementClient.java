@@ -36,8 +36,7 @@ public class AzureKeyManagementClient implements KeyManagementClient {
 
   private Map<String, String> allProperties;
 
-  private transient volatile KeyClient keyClient;
-  private transient volatile KeyWrapAlgorithm keyWrapAlgorithm;
+  private transient volatile ClientState state;
 
   @Override
   public void initialize(Map<String, String> properties) {
@@ -63,31 +62,40 @@ public class AzureKeyManagementClient implements KeyManagementClient {
   }
 
   private KeyClient keyClient() {
-    if (keyClient == null) {
-      synchronized (this) {
-        if (keyClient == null) {
-          AzureProperties azureProperties = new AzureProperties(allProperties);
-          KeyClientBuilder keyClientBuilder = new KeyClientBuilder();
-          azureProperties.keyVaultUrl().ifPresent(keyClientBuilder::vaultUrl);
-          this.keyClient =
-              keyClientBuilder
-                  .credential(AdlsTokenCredentialProviders.from(allProperties).credential())
-                  .buildClient();
-        }
-      }
-    }
-    return keyClient;
+    return state().keyClient;
   }
 
   private KeyWrapAlgorithm keyWrapAlgorithm() {
-    if (keyWrapAlgorithm == null) {
+    return state().keyWrapAlgorithm;
+  }
+
+  private ClientState state() {
+    if (state == null) {
       synchronized (this) {
-        if (keyWrapAlgorithm == null) {
+        if (state == null) {
           AzureProperties azureProperties = new AzureProperties(allProperties);
-          this.keyWrapAlgorithm = azureProperties.keyWrapAlgorithm();
+          KeyClientBuilder keyClientBuilder = new KeyClientBuilder();
+          azureProperties.keyVaultUrl().ifPresent(keyClientBuilder::vaultUrl);
+          KeyClient keyClient =
+              keyClientBuilder
+                  .credential(AdlsTokenCredentialProviders.from(allProperties).credential())
+                  .buildClient();
+          KeyWrapAlgorithm keyWrapAlgorithm = azureProperties.keyWrapAlgorithm();
+          state = new ClientState(keyClient, keyWrapAlgorithm);
         }
       }
     }
-    return keyWrapAlgorithm;
+    return state;
+  }
+
+  private static final class ClientState {
+
+    KeyClient keyClient;
+    KeyWrapAlgorithm keyWrapAlgorithm;
+
+    ClientState(KeyClient keyClient, KeyWrapAlgorithm keyWrapAlgorithm) {
+      this.keyClient = keyClient;
+      this.keyWrapAlgorithm = keyWrapAlgorithm;
+    }
   }
 }
