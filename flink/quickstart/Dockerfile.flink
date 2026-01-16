@@ -13,7 +13,7 @@
 #  - See the License for the specific language governing permissions and
 #  - limitations under the License.
 
-FROM apache/flink:2.0-java21
+FROM apache/flink:2.2-java21
 SHELL ["/bin/bash", "-c"]
 
 # Switch back to flink user
