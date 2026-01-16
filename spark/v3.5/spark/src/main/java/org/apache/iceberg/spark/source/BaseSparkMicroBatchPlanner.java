@@ -84,9 +84,13 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
   }
 
   protected long addedFilesCount(Snapshot snapshot) {
-    long count =
+    long addedFilesCount =
         PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    return count == -1 ? Iterables.size(snapshot.addedDataFiles(table.io())) : count;
+    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
+    // iterate through addedFiles iterator to find addedFilesCount.
+    return addedFilesCount == -1
+        ? Iterables.size(snapshot.addedDataFiles(table.io()))
+        : addedFilesCount;
   }
 
   protected long totalRecords(Snapshot snapshot) {
@@ -106,8 +110,8 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     // if there were no valid snapshots, check for an initialOffset again
     if (curSnapshot == null) {
       StreamingOffset startingOffset =
-          SparkMicroBatchStream.computeInitialOffset(table, readConf.streamFromTimestamp());
-      LOG.debug("computeInitialOffset picked startingOffset: {}", startingOffset);
+          SparkMicroBatchStream.determineStartingOffset(table, readConf.streamFromTimestamp());
+      LOG.debug("determineStartingOffset picked startingOffset: {}", startingOffset);
       if (StreamingOffset.START_OFFSET.equals(startingOffset)) {
         return null;
       }

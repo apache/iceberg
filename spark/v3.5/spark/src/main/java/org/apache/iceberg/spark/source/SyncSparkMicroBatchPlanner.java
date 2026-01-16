@@ -59,7 +59,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset =
         StreamingOffset.START_OFFSET.equals(start)
-            ? SparkMicroBatchStream.computeInitialOffset(table(), fromTimestamp)
+            ? SparkMicroBatchStream.determineStartingOffset(table(), fromTimestamp)
             : start;
 
     StreamingOffset currentOffset = null;
@@ -131,7 +131,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     StreamingOffset startingOffset = start;
 
     if (start.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = SparkMicroBatchStream.computeInitialOffset(table(), fromTimestamp);
+      startingOffset = SparkMicroBatchStream.determineStartingOffset(table(), fromTimestamp);
     }
 
     Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
