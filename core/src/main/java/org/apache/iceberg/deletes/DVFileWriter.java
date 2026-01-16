@@ -46,6 +46,7 @@ public interface DVFileWriter extends Closeable {
 
   /**
    * Marks every position that is deleted in positionDeleteIndex as deleted in the given data file.
+   * Implementations should merge with existing position indices for the provided path
    *
    * @param path the data file path
    * @param positionDeleteIndex the position delete index containing all the positions to delete
