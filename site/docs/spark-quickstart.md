@@ -121,19 +121,19 @@ You can then run any of the following commands to start a Spark session.
 
 === "SparkSQL"
 
-    ``` sh 
+    ``` sh
     docker exec -it spark-iceberg spark-sql
     ```
 
 === "Spark-Shell"
 
-    ``` sh 
+    ``` sh
     docker exec -it spark-iceberg spark-shell
     ```
 
 === "PySpark"
 
-    ``` sh 
+    ``` sh
     docker exec -it spark-iceberg pyspark
     ```
 
@@ -187,7 +187,7 @@ using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database n
       StructField("fare_amount", DoubleType(), True),
       StructField("store_and_fwd_flag", StringType(), True)
     ])
-    
+
     df = spark.createDataFrame([], schema)
     df.writeTo("demo.nyc.taxis").create()
     ```
@@ -214,7 +214,7 @@ Once your table is created, you can insert records.
 
     ```scala
     import org.apache.spark.sql.Row
-    
+
     val schema = spark.table("demo.nyc.taxis").schema
     val data = Seq(
         Row(1: Long, 1000371: Long, 1.8f: Float, 15.32: Double, "N": String),
@@ -326,8 +326,8 @@ If you already have a Spark environment, you can add Iceberg, using the `--packa
 
 !!! note
     If you want to include Iceberg in your Spark installation, add the Iceberg Spark runtime to Spark's `jars` folder.
-    You can download the runtime by visiting to the [Releases](releases.md) page.
+    You can download the runtime from the [Releases](releases.md) page.
 
 #### Learn More
 
-Now that you're up an running with Iceberg and Spark, check out the [Iceberg-Spark docs](docs/latest/spark-ddl.md) to learn more!
+Now that you're up and running with Iceberg and Spark, check out the [Iceberg-Spark docs](docs/latest/spark-ddl.md) to learn more!
