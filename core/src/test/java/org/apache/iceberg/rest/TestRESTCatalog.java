@@ -3022,16 +3022,29 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testNotModified() {
+    // Capture the response headers from createTable to get an ETag.
+    Map<String, String> responseHeaders = Maps.newHashMap();
+    Mockito.doAnswer(
+            invocation ->
+                adapterForRESTServer.execute(
+                    invocation.getArgument(0),
+                    invocation.getArgument(1),
+                    invocation.getArgument(2),
+                    responseHeaders::putAll,
+                    ParserContext.builder().build()))
+        .when(adapterForRESTServer)
+        .execute(
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.tables(TABLE.namespace())),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
     catalog().createNamespace(TABLE.namespace());
-
     catalog().createTable(TABLE, SCHEMA);
+    catalog().loadTable(TABLE);
 
-    Table table = catalog().loadTable(TABLE);
-
-    String eTag =
-        ETagProvider.of(
-            ((BaseTable) table).operations().current().metadataFileLocation(),
-            RESTCatalogAdapter.defaultQueryParams());
+    assertThat(responseHeaders).containsKeys(HttpHeaders.ETAG);
+    String eTag = responseHeaders.get(HttpHeaders.ETAG);
 
     Mockito.doAnswer(
             invocation -> {
