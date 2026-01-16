@@ -19,15 +19,7 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.createRowData;
-import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.LOCK_REMOVER_OPERATOR_NAME;
 import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.SOURCE_OPERATOR_NAME_PREFIX;
-import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.TRIGGER_MANAGER_OPERATOR_NAME;
-import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED;
-import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.FAILED_TASK_COUNTER;
-import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.NOTHING_TO_TRIGGER;
-import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED;
-import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER;
-import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.TRIGGERED;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
@@ -53,12 +45,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.ManualSource;
-import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTests;
 import org.apache.iceberg.flink.maintenance.operator.OperatorTestBase;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
@@ -97,10 +87,9 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
         new ManualSource<>(env, TypeInformation.of(TableChange.class));
 
     TableMaintenance.Builder streamBuilder =
-        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader(), LOCK_FACTORY)
+        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader())
             .rateLimit(Duration.ofMillis(2))
             .lockCheckDelay(Duration.ofSeconds(3))
-            .enableCoordinationLock(true)
             .add(
                 new MaintenanceTaskBuilderForTest(true)
                     .scheduleOnCommitCount(1)
@@ -121,7 +110,7 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
 
     env.enableCheckpointing(10);
 
-    TableMaintenance.forTable(env, tableLoader, LOCK_FACTORY)
+    TableMaintenance.forTable(env, tableLoader)
         .rateLimit(Duration.ofMillis(2))
         .maxReadBack(2)
         .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(2))
@@ -148,106 +137,10 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
   }
 
   @Test
-  void testLocking() throws Exception {
-    TriggerLockFactory.Lock lock = LOCK_FACTORY.createLock();
-
-    ManualSource<TableChange> schedulerSource =
-        new ManualSource<>(env, TypeInformation.of(TableChange.class));
-
-    TableMaintenance.Builder streamBuilder =
-        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader(), LOCK_FACTORY)
-            .rateLimit(Duration.ofMillis(2))
-            .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1));
-
-    assertThat(lock.isHeld()).isFalse();
-    sendEvents(schedulerSource, streamBuilder, ImmutableList.of(Tuple2.of(DUMMY_CHANGE, 1)));
-
-    assertThat(lock.isHeld()).isFalse();
-  }
-
-  @Test
-  void testMetrics() throws Exception {
-    ManualSource<TableChange> schedulerSource =
-        new ManualSource<>(env, TypeInformation.of(TableChange.class));
-
-    TableMaintenance.Builder streamBuilder =
-        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader(), LOCK_FACTORY)
-            .rateLimit(Duration.ofMillis(2))
-            .lockCheckDelay(Duration.ofMillis(2))
-            .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
-            .add(new MaintenanceTaskBuilderForTest(false).scheduleOnCommitCount(2));
-
-    sendEvents(
-        schedulerSource,
-        streamBuilder,
-        ImmutableList.of(Tuple2.of(DUMMY_CHANGE, 1), Tuple2.of(DUMMY_CHANGE, 2)));
-
-    Awaitility.await()
-        .until(
-            () ->
-                MetricsReporterFactoryForTests.counter(
-                        ImmutableList.of(
-                            LOCK_REMOVER_OPERATOR_NAME,
-                            table.name(),
-                            TASKS[0],
-                            "0",
-                            SUCCEEDED_TASK_COUNTER))
-                    .equals(2L));
-
-    MetricsReporterFactoryForTests.assertCounters(
-        new ImmutableMap.Builder<List<String>, Long>()
-            .put(
-                ImmutableList.of(
-                    LOCK_REMOVER_OPERATOR_NAME,
-                    table.name(),
-                    TASKS[0],
-                    "0",
-                    SUCCEEDED_TASK_COUNTER),
-                2L)
-            .put(
-                ImmutableList.of(
-                    LOCK_REMOVER_OPERATOR_NAME, table.name(), TASKS[0], "0", FAILED_TASK_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    TRIGGER_MANAGER_OPERATOR_NAME, table.name(), TASKS[0], "0", TRIGGERED),
-                2L)
-            .put(
-                ImmutableList.of(
-                    LOCK_REMOVER_OPERATOR_NAME,
-                    table.name(),
-                    TASKS[1],
-                    "1",
-                    SUCCEEDED_TASK_COUNTER),
-                0L)
-            .put(
-                ImmutableList.of(
-                    LOCK_REMOVER_OPERATOR_NAME, table.name(), TASKS[1], "1", FAILED_TASK_COUNTER),
-                1L)
-            .put(
-                ImmutableList.of(
-                    TRIGGER_MANAGER_OPERATOR_NAME, table.name(), TASKS[1], "1", TRIGGERED),
-                1L)
-            .put(
-                ImmutableList.of(TRIGGER_MANAGER_OPERATOR_NAME, table.name(), NOTHING_TO_TRIGGER),
-                -1L)
-            .put(
-                ImmutableList.of(
-                    TRIGGER_MANAGER_OPERATOR_NAME, table.name(), CONCURRENT_RUN_THROTTLED),
-                -1L)
-            .put(
-                ImmutableList.of(
-                    TRIGGER_MANAGER_OPERATOR_NAME, table.name(), RATE_LIMITER_TRIGGERED),
-                -1L)
-            .build());
-  }
-
-  @Test
   void testUidAndSlotSharingGroup() throws IOException {
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
-            tableLoader(),
-            LOCK_FACTORY)
+            tableLoader())
         .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
         .add(
@@ -265,8 +158,7 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
   void testUidAndSlotSharingGroupUnset() throws IOException {
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
-            tableLoader(),
-            LOCK_FACTORY)
+            tableLoader())
         .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
         .append();
 
@@ -278,8 +170,7 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
   void testUidAndSlotSharingGroupInherit() throws IOException {
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
-            tableLoader(),
-            LOCK_FACTORY)
+            tableLoader())
         .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
         .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
@@ -295,8 +186,7 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
     String anotherSlotSharingGroup = "Another-SlotSharingGroup";
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
-            tableLoader(),
-            LOCK_FACTORY)
+            tableLoader())
         .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
         .add(
@@ -331,7 +221,7 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
 
   @Test
   void testUidAndSlotSharingGroupForMonitorSource() throws IOException {
-    TableMaintenance.forTable(env, tableLoader(), LOCK_FACTORY)
+    TableMaintenance.forTable(env, tableLoader())
         .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
         .add(
@@ -375,9 +265,7 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
           eventsAndResultNumber -> {
             int expectedSize = PROCESSED.size() + eventsAndResultNumber.f1;
             schedulerSource.sendRecord(eventsAndResultNumber.f0);
-            Awaitility.await()
-                .until(
-                    () -> PROCESSED.size() == expectedSize && !LOCK_FACTORY.createLock().isHeld());
+            Awaitility.await().until(() -> PROCESSED.size() == expectedSize);
           });
     } finally {
       closeJobClient(jobClient);

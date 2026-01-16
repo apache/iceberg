@@ -18,36 +18,29 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import java.util.List;
 
-/**
- * Event sent from TriggerManagerOperatorCoordinator to TriggerManager operator to notify that a
- * lock has been released (watermark arrived).
- */
-public class LockReleasedEvent implements OperatorEvent {
+public class TriggerUtil {
 
-  private final String lockId;
-  private final long timestamp;
+  private TriggerUtil() {}
 
-  public LockReleasedEvent(String lockId, long timestamp) {
-    this.lockId = lockId;
-    this.timestamp = timestamp;
-  }
+  public static Integer nextTrigger(
+      List<TriggerEvaluator> evaluators,
+      List<TableChange> changes,
+      List<Long> lastTriggerTimes,
+      long currentTime,
+      int startPos) {
+    int current = startPos;
+    do {
+      if (evaluators
+          .get(current)
+          .check(changes.get(current), lastTriggerTimes.get(current), currentTime)) {
+        return current;
+      }
 
-  public long timestamp() {
-    return timestamp;
-  }
+      current = (current + 1) % evaluators.size();
+    } while (current != startPos);
 
-  public String lockId() {
-    return lockId;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("lockId", lockId)
-        .add("timestamp", timestamp)
-        .toString();
+    return null;
   }
 }

@@ -73,7 +73,7 @@ public class TableMaintenance {
    *
    * @param changeStream the table changes
    * @param tableLoader used for accessing the table
-   * @param lockFactory used for preventing concurrent task runs
+   * @param lockFactory used for preventing concurrent task runs, if null, use coordination lock.
    * @return builder for the maintenance stream
    */
   @Internal
@@ -83,9 +83,25 @@ public class TableMaintenance {
       TriggerLockFactory lockFactory) {
     Preconditions.checkNotNull(changeStream, "The change stream should not be null");
     Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
-    Preconditions.checkNotNull(lockFactory, "LockFactory should not be null");
 
     return new Builder(null, changeStream, tableLoader, lockFactory);
+  }
+
+  /**
+   * Use when the change stream is already provided, like in the {@link
+   * IcebergSink#addPostCommitTopology(DataStream)}.
+   *
+   * @param changeStream the table changes
+   * @param tableLoader used for accessing the table
+   * @return builder for the maintenance stream
+   */
+  @Internal
+  public static Builder forChangeStream(
+      DataStream<TableChange> changeStream, TableLoader tableLoader) {
+    Preconditions.checkNotNull(changeStream, "The change stream should not be null");
+    Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
+
+    return new Builder(null, changeStream, tableLoader, null);
   }
 
   /**
@@ -94,14 +110,13 @@ public class TableMaintenance {
    *
    * @param env used to register the monitor source
    * @param tableLoader used for accessing the table
-   * @param lockFactory used for preventing concurrent task runs
+   * @param lockFactory used for preventing concurrent task runs,if null, use coordination lock.
    * @return builder for the maintenance stream
    */
   public static Builder forTable(
       StreamExecutionEnvironment env, TableLoader tableLoader, TriggerLockFactory lockFactory) {
     Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
     Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
-    Preconditions.checkNotNull(lockFactory, "LockFactory should not be null");
 
     return new Builder(env, null, tableLoader, lockFactory);
   }
@@ -118,7 +133,7 @@ public class TableMaintenance {
     Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
     Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
 
-    return new Builder(env, null, tableLoader, null).enableCoordinationLock(true);
+    return new Builder(env, null, tableLoader, null);
   }
 
   public static class Builder {
@@ -134,7 +149,6 @@ public class TableMaintenance {
     private Duration lockCheckDelay = Duration.ofSeconds(LOCK_CHECK_DELAY_SECOND_DEFAULT);
     private int parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
     private int maxReadBack = MAX_READ_BACK_DEFAULT;
-    private boolean enableCoordinationLock = false;
 
     private Builder(
         StreamExecutionEnvironment env,
@@ -229,11 +243,6 @@ public class TableMaintenance {
       return this;
     }
 
-    public Builder enableCoordinationLock(boolean newEnableCoordinationLock) {
-      this.enableCoordinationLock = newEnableCoordinationLock;
-      return this;
-    }
-
     /** Builds the task graph for the maintenance tasks. */
     public void append() throws IOException {
       Preconditions.checkArgument(!taskBuilders.isEmpty(), "Provide at least one task");
@@ -250,7 +259,7 @@ public class TableMaintenance {
         loader.open();
         String tableName = loader.loadTable().name();
         DataStream<Trigger> triggers;
-        if (enableCoordinationLock) {
+        if (lockFactory == null) {
           triggers =
               DataStreamUtils.reinterpretAsKeyedStream(
                       changeStream(tableName, loader), unused -> true)
@@ -322,7 +331,7 @@ public class TableMaintenance {
         }
 
         // Add the LockRemover to the end
-        if (enableCoordinationLock) {
+        if (lockFactory == null) {
           unioned
               .transform(
                   LOCK_REMOVER_OPERATOR_NAME,

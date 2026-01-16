@@ -36,6 +36,12 @@ class TestTableMaintenanceCoordinator extends OperatorTestBase {
   private static final String OPERATOR_NAME = "TestCoordinator";
   private static final OperatorID TEST_OPERATOR_ID = new OperatorID(1234L, 5678L);
   private static final int NUM_SUBTASKS = 2;
+  private static final LockAcquiredEvent LOCK_ACQUIRED_EVENT =
+      new LockAcquiredEvent(DUMMY_TABLE_NAME, 1L);
+  private static final LockAcquiredEvent RECOVER_LOCK_ACQUIRED_EVENT =
+      new LockAcquiredEvent(DUMMY_TABLE_NAME, Long.MAX_VALUE);
+  private static final LockReleasedEvent LOCK_RELEASE_EVENT =
+      new LockReleasedEvent(DUMMY_TABLE_NAME, 1L);
 
   private EventReceivingTasks receivingTasks;
 
@@ -45,7 +51,7 @@ class TestTableMaintenanceCoordinator extends OperatorTestBase {
   }
 
   private void tasksReady(TableMaintenanceCoordinator coordinator) {
-    setAllTasksReady(NUM_SUBTASKS, coordinator, receivingTasks);
+    setAllTasksReady(coordinator, receivingTasks);
   }
 
   @Test
@@ -53,9 +59,7 @@ class TestTableMaintenanceCoordinator extends OperatorTestBase {
     try (TableMaintenanceCoordinator tableMaintenanceCoordinator = createCoordinator()) {
       String failureMessage = "The coordinator has not started yet.";
       assertThatThrownBy(
-              () ->
-                  tableMaintenanceCoordinator.handleEventFromOperator(
-                      0, 0, new LockAcquiredEvent(false, DUMMY_TABLE_NAME)))
+              () -> tableMaintenanceCoordinator.handleEventFromOperator(0, 0, LOCK_ACQUIRED_EVENT))
           .isInstanceOf(IllegalStateException.class)
           .hasMessage(failureMessage);
       assertThatThrownBy(() -> tableMaintenanceCoordinator.executionAttemptFailed(0, 0, null))
@@ -74,31 +78,57 @@ class TestTableMaintenanceCoordinator extends OperatorTestBase {
       tasksReady(tableMaintenanceCoordinator);
 
       // check lock held set
-      LockAcquiredEvent lockAcquiredEvent = new LockAcquiredEvent(false, DUMMY_TABLE_NAME);
-      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, lockAcquiredEvent);
+      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, LOCK_ACQUIRED_EVENT);
       waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
-      assertThat(tableMaintenanceCoordinator.lockHeldSet()).containsExactly(DUMMY_TABLE_NAME);
-      assertThat(tableMaintenanceCoordinator.recoverLockHeldSet()).isEmpty();
+      assertThat(tableMaintenanceCoordinator.lockHeldMap()).containsEntry(DUMMY_TABLE_NAME, 1L);
 
       // check lock released set
-      LockReleasedEvent lockReleasedEvent = new LockReleasedEvent(false, DUMMY_TABLE_NAME);
-      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, lockReleasedEvent);
+      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, LOCK_RELEASE_EVENT);
       waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
-      assertThat(tableMaintenanceCoordinator.lockHeldSet()).isEmpty();
-      assertThat(tableMaintenanceCoordinator.recoverLockHeldSet()).isEmpty();
+      assertThat(tableMaintenanceCoordinator.lockHeldMap()).isEmpty();
+    }
+  }
+
+  @Test
+  public void testRecoverEventHandling() throws Exception {
+    try (TableMaintenanceCoordinator tableMaintenanceCoordinator = createCoordinator()) {
+      tableMaintenanceCoordinator.start();
+      tasksReady(tableMaintenanceCoordinator);
+
+      // check lock held set
+      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, LOCK_ACQUIRED_EVENT);
+      waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
+      assertThat(tableMaintenanceCoordinator.lockHeldMap()).containsEntry(DUMMY_TABLE_NAME, 1L);
+
+      // another lock acquired event will not get the lock
+      tableMaintenanceCoordinator.handleEventFromOperator(
+          0, 0, new LockAcquiredEvent(DUMMY_TABLE_NAME, 2L));
+      waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
+      assertThat(tableMaintenanceCoordinator.lockHeldMap()).containsEntry(DUMMY_TABLE_NAME, 1L);
+
+      // only recover lock can get the lock
+      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, RECOVER_LOCK_ACQUIRED_EVENT);
+      waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
+      assertThat(tableMaintenanceCoordinator.lockHeldMap()).containsValue(Long.MAX_VALUE);
+
+      // check lock released set
+      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, LOCK_RELEASE_EVENT);
+      waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
+      assertThat(tableMaintenanceCoordinator.lockHeldMap()).isEmpty();
     }
   }
 
   private static TableMaintenanceCoordinator createCoordinator() {
-    return new TableMaintenanceCoordinator(
-        OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1));
+    TableMaintenanceCoordinator tableMaintenanceCoordinator =
+        new TableMaintenanceCoordinator(
+            OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1));
+    tableMaintenanceCoordinator.lockHeldMap().clear();
+    return tableMaintenanceCoordinator;
   }
 
   private static void setAllTasksReady(
-      int subtasks,
-      TableMaintenanceCoordinator tableMaintenanceCoordinator,
-      EventReceivingTasks receivingTasks) {
-    for (int i = 0; i < subtasks; i++) {
+      TableMaintenanceCoordinator tableMaintenanceCoordinator, EventReceivingTasks receivingTasks) {
+    for (int i = 0; i < NUM_SUBTASKS; i++) {
       tableMaintenanceCoordinator.executionAttemptReady(
           i, 0, receivingTasks.createGatewayForSubtask(i, 0));
     }

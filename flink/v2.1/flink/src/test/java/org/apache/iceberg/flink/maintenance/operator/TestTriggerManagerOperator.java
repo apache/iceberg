@@ -142,8 +142,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       assertThat(mockGateway.getEventsSent())
           .containsAll(
               Lists.newArrayList(
-                  new LockAcquiredEvent(false, tableName),
-                  new LockAcquiredEvent(false, tableName)));
+                  new LockAcquiredEvent(tableName, 2L), new LockAcquiredEvent(tableName, 3L)));
       assertThat(testHarness.extractOutputValues()).hasSize(2);
 
       addEventAndCheckResult(
@@ -221,18 +220,17 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       testHarness.initializeState(state);
       testHarness.open();
 
-      // Arrives the first real change which triggers the recovery process
-      testHarness.processElement(TableChange.builder().commitCount(1).build(), EVENT_TIME_2);
-      recoverLockAcquireFromCoordinator(newOperator);
+      // Mock a recovery trigger lock
+      lockMaxValueAcquireFromCoordinator(newOperator);
       assertTriggers(
           testHarness.extractOutputValues(),
           Lists.newArrayList(Trigger.recovery(testHarness.getProcessingTime())));
 
+      testHarness.processElement(TableChange.builder().commitCount(1).build(), EVENT_TIME_2);
+
       // Remove the lock to allow the next trigger
       assertThat(newMockGateway.getEventsSent()).hasSize(1);
-      unLockRecoverFromCoordinator(newOperator);
       testHarness.setProcessingTime(EVENT_TIME_2);
-      assertThat(newMockGateway.getEventsSent()).hasSize(2);
       lockAcquireFromCoordinator(newOperator);
 
       // At this point the output contains the recovery trigger and the real trigger
@@ -358,7 +356,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
 
       // manual unlock
       tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockReleasedEvent(false, tableName));
+          0, 0, new LockReleasedEvent(tableName, 1L));
       // Trigger both of the tasks - tests TRIGGERED
       source.sendRecord(TableChange.builder().commitCount(2).build());
       // Wait until we receive the trigger
@@ -366,12 +364,12 @@ class TestTriggerManagerOperator extends OperatorTestBase {
 
       // manual unlock
       tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockReleasedEvent(false, tableName));
+          0, 0, new LockReleasedEvent(tableName, 1L));
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // manual unlock
       tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockReleasedEvent(false, tableName));
+          0, 0, new LockReleasedEvent(tableName, 1L));
       assertThat(
               MetricsReporterFactoryForTests.counter(
                   ImmutableList.of(DUMMY_TASK_NAME, tableName, TASKS[0], "0", TRIGGERED)))
@@ -422,7 +420,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
 
       // Remove the lock to allow the next trigger
       tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockReleasedEvent(false, tableName));
+          0, 0, new LockReleasedEvent(tableName, 1L));
 
       // The second trigger will be blocked
       source.sendRecord(TableChange.builder().commitCount(2).build());
@@ -533,20 +531,16 @@ class TestTriggerManagerOperator extends OperatorTestBase {
     }
   }
 
-  private void recoverLockAcquireFromCoordinator(TriggerManagerOperator operator) {
-    operator.handleOperatorEvent(new LockAcquireResultEvent(true, true, tableName));
+  private void lockAcquireFromCoordinator(TriggerManagerOperator operator) {
+    operator.handleOperatorEvent(new LockAcquireResultEvent(true, tableName, 1L));
   }
 
-  private void lockAcquireFromCoordinator(TriggerManagerOperator operator) {
-    operator.handleOperatorEvent(new LockAcquireResultEvent(false, true, tableName));
+  private void lockMaxValueAcquireFromCoordinator(TriggerManagerOperator operator) {
+    operator.handleOperatorEvent(new LockAcquireResultEvent(true, tableName, Long.MAX_VALUE));
   }
 
   private void unLockAcquireFromCoordinator(TriggerManagerOperator operator) {
-    operator.handleOperatorEvent(new LockAcquireResultEvent(false, false, tableName));
-  }
-
-  private void unLockRecoverFromCoordinator(TriggerManagerOperator operator) {
-    operator.handleOperatorEvent(new LockAcquireResultEvent(true, false, tableName));
+    operator.handleOperatorEvent(new LockAcquireResultEvent(false, tableName, 1L));
   }
 
   private static TableMaintenanceCoordinator createCoordinator() {

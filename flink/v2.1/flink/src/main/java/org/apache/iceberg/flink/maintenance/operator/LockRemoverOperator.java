@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
@@ -36,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Experimental
 @Internal
 public class LockRemoverOperator extends AbstractStreamOperator<Void>
     implements OneInputStreamOperator<TaskResult, Void>, OperatorEventHandler {
@@ -96,7 +98,8 @@ public class LockRemoverOperator extends AbstractStreamOperator<Void>
         taskResult,
         maintenanceTaskNames.get(taskResult.taskIndex()));
     long duration = System.currentTimeMillis() - taskResult.startEpoch();
-    operatorEventGateway.sendEventToCoordinator(new LockReleasedEvent(false, tableName));
+    operatorEventGateway.sendEventToCoordinator(
+        new LockReleasedEvent(tableName, streamRecord.getTimestamp()));
     this.lastProcessedTaskStartEpoch = taskResult.startEpoch();
 
     // Update the metrics
@@ -111,8 +114,8 @@ public class LockRemoverOperator extends AbstractStreamOperator<Void>
   @Override
   public void processWatermark(Watermark mark) throws Exception {
     if (mark.getTimestamp() > lastProcessedTaskStartEpoch) {
-      operatorEventGateway.sendEventToCoordinator(new LockReleasedEvent(true, tableName));
-      operatorEventGateway.sendEventToCoordinator(new LockReleasedEvent(false, tableName));
+      operatorEventGateway.sendEventToCoordinator(
+          new LockReleasedEvent(tableName, mark.getTimestamp()));
     }
 
     super.processWatermark(mark);

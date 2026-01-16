@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -28,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import javax.annotation.Nonnull;
+import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -36,10 +36,11 @@ import org.apache.flink.util.FatalExitExceptionHandler;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Experimental
 @Internal
 public class TableMaintenanceCoordinator implements OperatorCoordinator {
 
@@ -53,8 +54,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
   private transient boolean started;
   private final transient SubtaskGateways subtaskGateways;
 
-  private static final Set<String> LOCK_HELD_SET = Sets.newConcurrentHashSet();
-  private static final Set<String> RECOVER_LOCK_HELD_SET = Sets.newConcurrentHashSet();
+  private static final Map<String, Long> LOCK_HELD_MAP = Maps.newConcurrentMap();
 
   public TableMaintenanceCoordinator(String operatorName, Context context) {
     this.operatorName = operatorName;
@@ -79,8 +79,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
     coordinatorExecutor.shutdown();
     this.started = false;
     LOG.info("Closed TableMaintenanceCoordinator: {}", operatorName);
-    LOCK_HELD_SET.clear();
-    RECOVER_LOCK_HELD_SET.clear();
+    LOCK_HELD_MAP.clear();
   }
 
   @Override
@@ -95,7 +94,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
               event);
 
           if (event instanceof LockReleasedEvent) {
-            handlerReleaseLock((LockReleasedEvent) event);
+            handleReleaseLock((LockReleasedEvent) event);
           } else if (event instanceof LockAcquiredEvent) {
             handleLockAcquired((LockAcquiredEvent) event, subtask);
           } else {
@@ -117,20 +116,30 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
         () -> {
           String lockId = event.lockId();
           boolean isHeld = false;
-          if (event.isRecoverLock()) {
-            if (!RECOVER_LOCK_HELD_SET.contains(lockId)) {
-              RECOVER_LOCK_HELD_SET.add(lockId);
-              isHeld = true;
-            }
+          if (!LOCK_HELD_MAP.containsKey(lockId)) {
+            LOCK_HELD_MAP.put(lockId, event.timestamp());
+            isHeld = true;
           } else {
-            if (!LOCK_HELD_SET.contains(lockId)) {
-              LOCK_HELD_SET.add(lockId);
+            Long triggerTimestamp = LOCK_HELD_MAP.get(event.lockId());
+            if (event.timestamp() == Long.MAX_VALUE) {
+              LOCK_HELD_MAP.put(lockId, event.timestamp());
               isHeld = true;
+              LOG.info(
+                  "Add lock for lock id {}, timestamp: {}, trigger timestamp: {}",
+                  event.lockId(),
+                  event.timestamp(),
+                  triggerTimestamp);
+            } else {
+              LOG.info(
+                  "Lock is not held for lock id {}, timestamp: {}, trigger timestamp: {}",
+                  event.lockId(),
+                  event.timestamp(),
+                  triggerTimestamp);
             }
           }
 
           LockAcquireResultEvent lockAcquireResultEvent =
-              new LockAcquireResultEvent(event.isRecoverLock(), isHeld, lockId);
+              new LockAcquireResultEvent(isHeld, lockId, event.timestamp());
           subtaskGateways.getSubtaskGateway(subtask).sendEvent(lockAcquireResultEvent);
         },
         String.format(
@@ -141,17 +150,14 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
   }
 
   /** Release the lock and optionally trigger the next pending task. */
-  private void handlerReleaseLock(LockReleasedEvent lockReleasedEvent) {
-    if (lockReleasedEvent.isRecover()) {
-      RECOVER_LOCK_HELD_SET.remove(lockReleasedEvent.lockId());
-    } else {
-      LOCK_HELD_SET.remove(lockReleasedEvent.lockId());
+  private void handleReleaseLock(LockReleasedEvent lockReleasedEvent) {
+    if (LOCK_HELD_MAP.containsKey(lockReleasedEvent.lockId())) {
+      LOCK_HELD_MAP.remove(lockReleasedEvent.lockId());
+      LOG.info(
+          "Release lock for lock id {}, timestamp: {}",
+          lockReleasedEvent.lockId(),
+          lockReleasedEvent.timestamp());
     }
-
-    LOG.info(
-        "Release lock for lock id {}, isRecover: {}",
-        lockReleasedEvent.lockId(),
-        lockReleasedEvent.isRecover());
   }
 
   @Override
@@ -368,12 +374,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
   }
 
   @VisibleForTesting
-  Set<String> lockHeldSet() {
-    return LOCK_HELD_SET;
-  }
-
-  @VisibleForTesting
-  Set<String> recoverLockHeldSet() {
-    return RECOVER_LOCK_HELD_SET;
+  static Map<String, Long> lockHeldMap() {
+    return LOCK_HELD_MAP;
   }
 }

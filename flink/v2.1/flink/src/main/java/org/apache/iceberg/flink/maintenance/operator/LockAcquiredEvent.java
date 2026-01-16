@@ -28,23 +28,20 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
  */
 public class LockAcquiredEvent implements OperatorEvent {
 
-  private static final long serialVersionUID = 1L;
-
-  private final boolean isRecoverLock;
-
   private final String lockId;
+  private final long timestamp;
 
-  public LockAcquiredEvent(boolean isRecoverLock, String lockId) {
-    this.isRecoverLock = isRecoverLock;
+  public LockAcquiredEvent(String lockId, long timestamp) {
     this.lockId = lockId;
+    this.timestamp = timestamp;
   }
 
   public String lockId() {
     return lockId;
   }
 
-  public boolean isRecoverLock() {
-    return isRecoverLock;
+  public long timestamp() {
+    return timestamp;
   }
 
   @Override
@@ -58,18 +55,18 @@ public class LockAcquiredEvent implements OperatorEvent {
     }
 
     LockAcquiredEvent that = (LockAcquiredEvent) o;
-    return Objects.equal(isRecoverLock, that.isRecoverLock) && Objects.equal(lockId, that.lockId);
+    return Objects.equal(timestamp, that.timestamp) && Objects.equal(lockId, that.lockId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(isRecoverLock, lockId);
+    return Objects.hashCode(timestamp, lockId);
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("isRecoverLock", isRecoverLock)
+        .add("timeStamp", timestamp)
         .add("lockId", lockId)
         .toString();
   }

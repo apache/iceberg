@@ -23,7 +23,6 @@ import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetr
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
@@ -41,7 +40,6 @@ import org.apache.flink.api.connector.sink2.WriterInitContext;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.runtime.jobgraph.OperatorID;
-import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
@@ -59,7 +57,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.api.io.TempDir;
 
 @Timeout(value = 10)
 class TestLockRemoverOperation extends OperatorTestBase {
@@ -67,14 +64,11 @@ class TestLockRemoverOperation extends OperatorTestBase {
   private static final String OPERATOR_NAME = "TestCoordinator";
   private static final OperatorID TEST_OPERATOR_ID = new OperatorID(1234L, 5678L);
 
-  @TempDir private File checkpointDir;
   private TableMaintenanceCoordinator tableMaintenanceCoordinator;
-  private EventReceivingTasks receivingTasks;
 
   @BeforeEach
   public void before() {
     MetricsReporterFactoryForTests.reset();
-    this.receivingTasks = EventReceivingTasks.createForRunningTasks();
     this.tableMaintenanceCoordinator = createCoordinator();
     try {
       tableMaintenanceCoordinator.start();
@@ -110,15 +104,15 @@ class TestLockRemoverOperation extends OperatorTestBase {
       jobClient = env.executeAsync();
 
       tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockAcquiredEvent(false, DUMMY_TABLE_NAME));
+          0, 0, new LockAcquiredEvent(DUMMY_TABLE_NAME, 1L));
       waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
-      assertThat(tableMaintenanceCoordinator.lockHeldSet()).containsExactly(DUMMY_TABLE_NAME);
+      assertThat(tableMaintenanceCoordinator.lockHeldMap()).containsEntry(DUMMY_TABLE_NAME, 1L);
 
       // Start a successful trigger for task1 and assert the return value is correct
       processAndCheck(source, new TaskResult(0, 0L, true, Lists.newArrayList()));
 
       // Assert that the lock is removed
-      assertThat(tableMaintenanceCoordinator.lockHeldSet()).doesNotContain(DUMMY_TABLE_NAME);
+      assertThat(tableMaintenanceCoordinator.lockHeldMap()).isEmpty();
     } finally {
       closeJobClient(jobClient);
     }
@@ -204,71 +198,6 @@ class TestLockRemoverOperation extends OperatorTestBase {
                   ImmutableList.of(
                       DUMMY_TASK_NAME, DUMMY_TABLE_NAME, TASKS[2], "2", LAST_RUN_DURATION_MS)))
           .isZero();
-    } finally {
-      closeJobClient(jobClient);
-    }
-  }
-
-  /**
-   * The test checks if the recovery watermark is only removed if the watermark has arrived from
-   * both upstream sources.
-   *
-   * @throws Exception if any
-   */
-  @Test
-  void testRecovery() throws Exception {
-    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-    setAllTasksReady(1, tableMaintenanceCoordinator, receivingTasks);
-    ManualSource<TaskResult> source1 =
-        new ManualSource<>(env, TypeInformation.of(TaskResult.class));
-    ManualSource<TaskResult> source2 =
-        new ManualSource<>(env, TypeInformation.of(TaskResult.class));
-    source1
-        .dataStream()
-        .transform(
-            DUMMY_TASK_NAME,
-            TypeInformation.of(Void.class),
-            new LockRemoverOperatorFactory(DUMMY_TABLE_NAME, Lists.newArrayList(TASKS)))
-        .forceNonParallel();
-
-    JobClient jobClient = null;
-    try {
-      jobClient = env.executeAsync();
-
-      tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockAcquiredEvent(true, DUMMY_TABLE_NAME));
-      waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
-      assertThat(tableMaintenanceCoordinator.recoverLockHeldSet())
-          .containsExactly(DUMMY_TABLE_NAME);
-
-      processAndCheck(source1, new TaskResult(0, 0L, true, Lists.newArrayList()));
-
-      source1.sendRecord(new TaskResult(0, 1L, true, Lists.newArrayList()));
-      // we receive the second result - this will not happen in real use cases, but with this we can
-      // be sure that the previous watermark is processed
-      Awaitility.await()
-          .until(
-              () ->
-                  MetricsReporterFactoryForTests.counter(
-                          ImmutableList.of(
-                              DUMMY_TASK_NAME,
-                              DUMMY_TABLE_NAME,
-                              TASKS[0],
-                              "0",
-                              SUCCEEDED_TASK_COUNTER))
-                      .equals(2L));
-
-      // We did not remove the recovery lock, as no watermark received from the other source
-      assertThat(tableMaintenanceCoordinator.recoverLockHeldSet())
-          .containsExactly(DUMMY_TABLE_NAME);
-
-      // Recovery arrives
-      source1.sendWatermark(10L);
-      source2.sendWatermark(10L);
-
-      Awaitility.await()
-          .until(
-              () -> !tableMaintenanceCoordinator.recoverLockHeldSet().contains(DUMMY_TABLE_NAME));
     } finally {
       closeJobClient(jobClient);
     }
@@ -391,16 +320,6 @@ class TestLockRemoverOperation extends OperatorTestBase {
   private static TableMaintenanceCoordinator createCoordinator() {
     return new TableMaintenanceCoordinator(
         OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1));
-  }
-
-  private static void setAllTasksReady(
-      int subtasks,
-      TableMaintenanceCoordinator tableMaintenanceCoordinator,
-      EventReceivingTasks receivingTasks) {
-    for (int i = 0; i < subtasks; i++) {
-      tableMaintenanceCoordinator.executionAttemptReady(
-          i, 0, receivingTasks.createGatewayForSubtask(i, 0));
-    }
   }
 
   private static void waitForCoordinatorToProcessActions(TableMaintenanceCoordinator coordinator) {
