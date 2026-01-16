@@ -1096,7 +1096,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // Merge duplicates, internally takes care of updating newDeleteFilesBySpec to remove
   // duplicates and add the newly merged DV
   private void mergeDVsAndWrite() {
-    Map<Integer, List<MergedDVContent>> mergedIndicesBySpec = Maps.newConcurrentMap();
+    List<MergedDVContent> mergedDVs = Collections.synchronizedList(Lists.newArrayList());
     Map<String, DeleteFileSet> dataFilesWithDuplicateDVs =
         dvsByReferencedFile.entrySet().stream()
             .filter(entry -> entry.getValue().size() > 1)
@@ -1110,68 +1110,55 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             entry -> {
               String referencedLocation = entry.getKey();
               DeleteFileSet duplicateDVs = entry.getValue();
-              MergedDVContent merged = mergePositions(referencedLocation, duplicateDVs);
-              mergedIndicesBySpec
-                  .computeIfAbsent(
-                      merged.specId, spec -> Collections.synchronizedList(Lists.newArrayList()))
-                  .add(merged);
+              mergedDVs.add(mergePositions(referencedLocation, duplicateDVs));
             });
 
     // Update newDeleteFilesBySpec to remove all the duplicates
-    mergedIndicesBySpec.forEach(
-        (specId, mergedDVContent) -> {
-          mergedDVContent.stream()
-              .map(content -> content.duplicateDVs)
-              .forEach(duplicateDVs -> newDeleteFilesBySpec.get(specId).removeAll(duplicateDVs));
-        });
+    mergedDVs.forEach(
+        mergedDV -> newDeleteFilesBySpec.get(mergedDV.specId).removeAll(mergedDV.duplicateDVs));
 
-    writeMergedDVs(mergedIndicesBySpec);
+    writeMergedDVs(mergedDVs);
   }
 
   // Produces a Puffin per partition spec containing the merged DVs for that spec
-  private void writeMergedDVs(Map<Integer, List<MergedDVContent>> mergedDVContentBySpec) {
-    Map<Integer, DeleteFileSet> mergedDVsBySpec = Maps.newHashMap();
+  private void writeMergedDVs(List<MergedDVContent> mergedDVs) {
+    try (DVFileWriter dvFileWriter =
+        new BaseDVFileWriter(
+            // Use an unpartitioned spec for the location provider for the puffin containing
+            // all the merged DVs
+            OutputFileFactory.builderFor(
+                    ops(), PartitionSpec.unpartitioned(), FileFormat.PUFFIN, 1, 1)
+                .build(),
+            path -> null)) {
 
-    mergedDVContentBySpec.forEach(
-        (specId, mergedDVsForSpec) -> {
-          try (DVFileWriter dvFileWriter =
-              new BaseDVFileWriter(
-                  OutputFileFactory.builderFor(ops(), spec(specId), FileFormat.PUFFIN, 1, 1)
-                      .build(),
-                  path -> null)) {
+      for (MergedDVContent mergedDV : mergedDVs) {
+        LOG.warn(
+            "Merged {} duplicate deletion vectors for data file {} in table {}. The duplicate DVs are orphaned, and writers should merge DVs per file before committing",
+            mergedDV.duplicateDVs.size(),
+            mergedDV.referencedLocation,
+            tableName);
+        dvFileWriter.delete(
+            mergedDV.referencedLocation,
+            mergedDV.mergedPositions,
+            spec(mergedDV.specId),
+            mergedDV.partition);
+      }
 
-            for (MergedDVContent mergedDV : mergedDVsForSpec) {
-              LOG.warn(
-                  "Merged {} duplicate deletion vectors for data file {} in table {}. The duplicate DVs are orphaned, and writers should merge DVs per file before committing",
-                  mergedDV.duplicateDVs.size(),
-                  mergedDV.referencedLocation,
-                  tableName);
-              dvFileWriter.delete(
-                  mergedDV.referencedLocation,
-                  mergedDV.mergedPositions,
-                  spec(mergedDV.specId),
-                  mergedDV.partition);
-            }
-
-            dvFileWriter.close();
-            DeleteWriteResult result = dvFileWriter.result();
-
-            DeleteFileSet dvsForSpec =
-                mergedDVsBySpec.computeIfAbsent(specId, k -> DeleteFileSet.create());
-            dvsForSpec.addAll(
-                result.deleteFiles().stream()
-                    .map(file -> Delegates.pendingDeleteFile(file, file.dataSequenceNumber()))
-                    .collect(Collectors.toList()));
-
-            // Add the merged DV to the delete files by spec
-            newDeleteFilesBySpec.get(specId).addAll(dvsForSpec);
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        });
+      dvFileWriter.close();
+      DeleteWriteResult result = dvFileWriter.result();
+      result.deleteFiles().forEach(this::addPendingDelete);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
-  // Data class for referenced file, DVs that were merged, the merged position delete index,
+  private void addPendingDelete(DeleteFile file) {
+    newDeleteFilesBySpec
+        .get(file.specId())
+        .add(Delegates.pendingDeleteFile(file, file.dataSequenceNumber()));
+  }
+
+  // Data class for referenced file, the duplicate DVs, the merged position delete index,
   // partition spec and tuple
   private static class MergedDVContent {
     private DeleteFileSet duplicateDVs;
