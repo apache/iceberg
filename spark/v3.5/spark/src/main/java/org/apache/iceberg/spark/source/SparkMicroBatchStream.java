@@ -52,12 +52,9 @@ import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
-import org.apache.spark.sql.connector.read.streaming.CompositeReadLimit;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
-import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles;
-import org.apache.spark.sql.connector.read.streaming.ReadMaxRows;
 import org.apache.spark.sql.connector.read.streaming.ReportsSourceMetrics;
 import org.apache.spark.sql.connector.read.streaming.SupportsTriggerAvailableNow;
 import org.slf4j.Logger;
@@ -214,7 +211,7 @@ public class SparkMicroBatchStream
     if (fromTimestamp == Long.MIN_VALUE) {
       // match existing behavior and start from the oldest snapshot
       Snapshot oldestSnapshot = SnapshotUtil.oldestAncestor(table);
-      return StreamingOffset.fromSnapshot(oldestSnapshot);
+      return new StreamingOffset(oldestSnapshot.snapshotId(), 0, false);
     }
 
     if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
@@ -224,54 +221,14 @@ public class SparkMicroBatchStream
     try {
       Snapshot snapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
       if (snapshot != null) {
-        return StreamingOffset.fromSnapshot(snapshot);
+        return new StreamingOffset(snapshot.snapshotId(), 0, false);
       } else {
         return StreamingOffset.START_OFFSET;
       }
     } catch (IllegalStateException e) {
       // could not determine the first snapshot after the timestamp. use the oldest ancestor instead
       Snapshot oldestSnapshot = SnapshotUtil.oldestAncestor(table);
-      return StreamingOffset.fromSnapshot(oldestSnapshot);
-    }
-  }
-
-  public static class UnpackedLimits {
-    private long maxRows = Integer.MAX_VALUE;
-    private long maxFiles = Integer.MAX_VALUE;
-
-    public UnpackedLimits(ReadLimit limit) {
-      if (limit instanceof CompositeReadLimit) {
-        ReadLimit[] compositeLimits = ((CompositeReadLimit) limit).getReadLimits();
-        for (ReadLimit individualLimit : compositeLimits) {
-          if (individualLimit instanceof ReadMaxRows) {
-            ReadMaxRows readMaxRows = (ReadMaxRows) individualLimit;
-            this.maxRows = Math.min(this.maxRows, readMaxRows.maxRows());
-          } else if (individualLimit instanceof ReadMaxFiles) {
-            ReadMaxFiles readMaxFiles = (ReadMaxFiles) individualLimit;
-            this.maxFiles = Math.min(this.maxFiles, readMaxFiles.maxFiles());
-          } else {
-            throw new IllegalArgumentException(
-                String.format(
-                    "Unknown ReadLimit type %s found inside a CompositeReadLimit",
-                    limit.getClass().getCanonicalName()));
-          }
-        }
-      } else if (limit instanceof ReadMaxRows) {
-        this.maxRows = ((ReadMaxRows) limit).maxRows();
-      } else if (limit instanceof ReadMaxFiles) {
-        this.maxFiles = ((ReadMaxFiles) limit).maxFiles();
-      } else {
-        throw new IllegalArgumentException(
-            String.format("Unknown ReadLimit type %s", limit.getClass().getCanonicalName()));
-      }
-    }
-
-    public long getMaxRows() {
-      return maxRows;
-    }
-
-    public long getMaxFiles() {
-      return maxFiles;
+      return new StreamingOffset(oldestSnapshot.snapshotId(), 0, false);
     }
   }
 
