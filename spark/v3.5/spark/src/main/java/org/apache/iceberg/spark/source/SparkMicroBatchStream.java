@@ -35,6 +35,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -42,10 +43,12 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -117,8 +120,18 @@ public class SparkMicroBatchStream
 
   @Override
   public Offset latestOffset() {
-    throw new UnsupportedOperationException(
-        "latestOffset(Offset, ReadLimit) should be called instead of this method");
+    table.refresh();
+    if (table.currentSnapshot() == null) {
+      return StreamingOffset.START_OFFSET;
+    }
+
+    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
+      return StreamingOffset.START_OFFSET;
+    }
+
+    Snapshot latestSnapshot = table.currentSnapshot();
+
+    return new StreamingOffset(latestSnapshot.snapshotId(), addedFilesCount(latestSnapshot), false);
   }
 
   @Override
@@ -203,15 +216,14 @@ public class SparkMicroBatchStream
     }
   }
 
-  public static StreamingOffset computeInitialOffset(Table table, long fromTimestamp) {
+  static StreamingOffset determineStartingOffset(Table table, long fromTimestamp) {
     if (table.currentSnapshot() == null) {
       return StreamingOffset.START_OFFSET;
     }
 
     if (fromTimestamp == Long.MIN_VALUE) {
       // match existing behavior and start from the oldest snapshot
-      Snapshot oldestSnapshot = SnapshotUtil.oldestAncestor(table);
-      return new StreamingOffset(oldestSnapshot.snapshotId(), 0, false);
+      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
     }
 
     if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
@@ -227,8 +239,7 @@ public class SparkMicroBatchStream
       }
     } catch (IllegalStateException e) {
       // could not determine the first snapshot after the timestamp. use the oldest ancestor instead
-      Snapshot oldestSnapshot = SnapshotUtil.oldestAncestor(table);
-      return new StreamingOffset(oldestSnapshot.snapshotId(), 0, false);
+      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
     }
   }
 
@@ -269,6 +280,16 @@ public class SparkMicroBatchStream
     }
 
     return microBatchPlanner.latestOffset((StreamingOffset) startOffset, limit);
+  }
+
+  private long addedFilesCount(Snapshot snapshot) {
+    long addedFilesCount =
+        PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
+    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
+    // iterate through addedFiles iterator to find addedFilesCount.
+    return addedFilesCount == -1
+        ? Iterables.size(snapshot.addedDataFiles(table.io()))
+        : addedFilesCount;
   }
 
   @Override
@@ -324,7 +345,7 @@ public class SparkMicroBatchStream
       }
 
       table.refresh();
-      StreamingOffset offset = computeInitialOffset(table, fromTimestamp);
+      StreamingOffset offset = determineStartingOffset(table, fromTimestamp);
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
       writeOffset(offset, outputFile);
