@@ -87,7 +87,7 @@ public class NessieViewOperations extends BaseViewOperations {
         2,
         location ->
             NessieUtil.loadViewMetadata(
-                ViewMetadataParser.read(io().newInputFile(location)), location, reference));
+                ViewMetadataParser.read(io(), location), location, reference));
   }
 
   @Override
