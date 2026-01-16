@@ -25,12 +25,9 @@ import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.security.keyvault.keys.KeyClient;
 import com.azure.security.keyvault.keys.KeyClientBuilder;
 import com.azure.security.keyvault.keys.models.KeyType;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterAll;
@@ -38,6 +35,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @EnabledIfEnvironmentVariables({
   @EnabledIfEnvironmentVariable(named = "AZURE_KEYVAULT_URL", matches = ".*")
@@ -86,21 +85,15 @@ public class TestAzureKeyManagementClient {
     assertThat(azureKeyManagementClient.supportsKeyGeneration()).isFalse();
   }
 
-  @Test
-  public void testSerialization() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(
+      TestHelpers.RoundTripSerializer<AzureKeyManagementClient> roundTripSerializer)
+      throws Exception {
     try (AzureKeyManagementClient keyManagementClient = new AzureKeyManagementClient()) {
       keyManagementClient.initialize(ImmutableMap.of(AZURE_KEYVAULT_URL, KEY_VAULT_URI));
 
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
-      try (ObjectOutputStream writer = new ObjectOutputStream(out)) {
-        writer.writeObject(keyManagementClient);
-      }
-
-      AzureKeyManagementClient result;
-      ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
-      try (ObjectInputStream reader = new ObjectInputStream(in)) {
-        result = (AzureKeyManagementClient) reader.readObject();
-      }
+      AzureKeyManagementClient result = roundTripSerializer.apply(keyManagementClient);
 
       ByteBuffer key = ByteBuffer.wrap("super-secret-table-master-key".getBytes());
       ByteBuffer encryptedKey = result.wrapKey(key, ICEBERG_TEST_KEY_NAME);

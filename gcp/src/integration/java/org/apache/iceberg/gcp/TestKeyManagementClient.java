@@ -31,17 +31,16 @@ import com.google.cloud.kms.v1.KeyRing;
 import com.google.cloud.kms.v1.KeyRingName;
 import com.google.cloud.kms.v1.LocationName;
 import com.google.cloud.kms.v1.ProtectionLevel;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.TestHelpers;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public abstract class TestKeyManagementClient {
 
@@ -117,23 +116,17 @@ public abstract class TestKeyManagementClient {
     }
   }
 
-  @Test
-  public void testSerialization() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(
+      TestHelpers.RoundTripSerializer<GcpKeyManagementClient> roundTripSerializer)
+      throws Exception {
     String keyname = CryptoKeyName.of(projectId, LOCATION, KEY_RING_ID, keyId).toString();
 
     try (GcpKeyManagementClient keyManagementClient = new GcpKeyManagementClient(); ) {
       keyManagementClient.initialize(properties());
 
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
-      try (ObjectOutputStream writer = new ObjectOutputStream(out)) {
-        writer.writeObject(keyManagementClient);
-      }
-
-      GcpKeyManagementClient result;
-      ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
-      try (ObjectInputStream reader = new ObjectInputStream(in)) {
-        result = (GcpKeyManagementClient) reader.readObject();
-      }
+      GcpKeyManagementClient result = roundTripSerializer.apply(keyManagementClient);
 
       ByteBuffer key = ByteBuffer.wrap("super-secret-table-master-key".getBytes());
       ByteBuffer encryptedKey = result.wrapKey(key, keyname);

@@ -20,12 +20,9 @@ package org.apache.iceberg.aws;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterAll;
@@ -35,6 +32,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,8 +101,11 @@ public class TestKeyManagementClient {
     }
   }
 
-  @Test
-  public void testSerialization() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(
+      TestHelpers.RoundTripSerializer<AwsKeyManagementClient> roundTripSerializer)
+      throws Exception {
     try (AwsKeyManagementClient keyManagementClient = new AwsKeyManagementClient()) {
       keyManagementClient.initialize(
           ImmutableMap.of(
@@ -116,16 +117,7 @@ public class TestKeyManagementClient {
           .isEqualTo(EncryptionAlgorithmSpec.RSAES_OAEP_SHA_256);
       assertThat(keyManagementClient.dataKeySpec()).isEqualTo(DataKeySpec.AES_128);
 
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
-      try (ObjectOutputStream writer = new ObjectOutputStream(out)) {
-        writer.writeObject(keyManagementClient);
-      }
-
-      AwsKeyManagementClient result;
-      ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
-      try (ObjectInputStream reader = new ObjectInputStream(in)) {
-        result = (AwsKeyManagementClient) reader.readObject();
-      }
+      AwsKeyManagementClient result = roundTripSerializer.apply(keyManagementClient);
 
       ByteBuffer key = ByteBuffer.wrap("super-secret-table-master-key".getBytes());
       ByteBuffer encryptedKey = result.wrapKey(key, keyId);

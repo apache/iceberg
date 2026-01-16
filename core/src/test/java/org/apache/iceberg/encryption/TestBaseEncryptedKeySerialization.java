@@ -20,33 +20,24 @@ package org.apache.iceberg.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import org.junit.jupiter.api.Test;
+import org.apache.iceberg.TestHelpers;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestBaseEncryptedKeySerialization {
 
-  @Test
-  public void testSerialization() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(TestHelpers.RoundTripSerializer<EncryptedKey> roundTripSerializer)
+      throws Exception {
     byte[] keyBytes = "key".getBytes(StandardCharsets.UTF_8);
     EncryptedKey key =
         new BaseEncryptedKey("a", ByteBuffer.wrap(keyBytes), "b", Map.of("test", "value"));
 
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
-    try (ObjectOutputStream writer = new ObjectOutputStream(out)) {
-      writer.writeObject(key);
-    }
-
-    EncryptedKey result;
-    ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
-    try (ObjectInputStream reader = new ObjectInputStream(in)) {
-      result = (EncryptedKey) reader.readObject();
-    }
+    EncryptedKey result = roundTripSerializer.apply(key);
 
     assertThat(result.keyId()).isEqualTo(key.keyId());
     assertThat(result.encryptedById()).isEqualTo(key.encryptedById());
