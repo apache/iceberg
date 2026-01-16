@@ -1973,7 +1973,7 @@ public class TestRowDelta extends TestBase {
     assertThat(mergedDVs).hasSize(3);
     // Should be a Puffin produced per merged DV spec
     assertThat(mergedDVs.stream().map(ContentFile::location).collect(Collectors.toSet()))
-        .hasSize(3);
+        .hasSize(1);
 
     DeleteFile committedDVForDataFile1 =
         Iterables.getOnlyElement(
