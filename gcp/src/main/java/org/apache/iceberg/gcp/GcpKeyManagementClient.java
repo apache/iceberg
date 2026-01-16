@@ -120,7 +120,7 @@ public class GcpKeyManagementClient implements KeyManagementClient {
             closeableGroup.addCloseable(kmsClient);
 
           } catch (IOException e) {
-            throw new RuntimeIOException("Failed to create GCP cloud KMS service client", e);
+            throw new RuntimeIOException(e, "Failed to create GCP cloud KMS service client");
           }
         }
       }
