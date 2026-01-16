@@ -31,21 +31,13 @@ import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
-import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
@@ -60,11 +52,9 @@ import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -72,147 +62,49 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mockito;
 
-public class TestRESTScanPlanning {
-  private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
-  private static final Namespace NS = Namespace.of("ns");
-
-  private InMemoryCatalog backendCatalog;
-  private Server httpServer;
-  private RESTCatalogAdapter adapterForRESTServer;
-  private ParserContext parserContext;
-  @TempDir private Path temp;
-  private RESTCatalog restCatalogWithScanPlanning;
-
-  @BeforeEach
-  public void setupCatalogs() throws Exception {
-    File warehouse = temp.toFile();
-    this.backendCatalog = new InMemoryCatalog();
-    this.backendCatalog.initialize(
-        "in-memory",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
-
-    adapterForRESTServer =
-        Mockito.spy(
-            new RESTCatalogAdapter(backendCatalog) {
-              @Override
-              public <T extends RESTResponse> T execute(
-                  HTTPRequest request,
-                  Class<T> responseType,
-                  Consumer<ErrorResponse> errorHandler,
-                  Consumer<Map<String, String>> responseHeaders) {
-                if (ResourcePaths.config().equals(request.path())) {
-                  return castResponse(
-                      responseType,
-                      ConfigResponse.builder()
-                          .withEndpoints(
-                              Arrays.stream(Route.values())
-                                  .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
-                                  .collect(Collectors.toList()))
-                          .withOverrides(
-                              ImmutableMap.of(
-                                  RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true"))
-                          .build());
-                }
-                Object body = roundTripSerialize(request.body(), "request");
-                HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
-                T response = super.execute(req, responseType, errorHandler, responseHeaders);
-                return roundTripSerialize(response, "response");
-              }
-            });
-
-    ServletContextHandler servletContext =
-        new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
-    servletContext.addServlet(
-        new ServletHolder(new RESTCatalogServlet(adapterForRESTServer)), "/*");
-    servletContext.setHandler(new GzipHandler());
-
-    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
-    httpServer.setHandler(servletContext);
-    httpServer.start();
-
-    // Initialize catalog with scan planning enabled
-    this.restCatalogWithScanPlanning = initCatalog("prod-with-scan-planning", ImmutableMap.of());
+public class TestRESTScanPlanning extends TestBaseWithRESTServer {
+  @Override
+  protected RESTCatalogAdapter createAdapterForServer() {
+    return Mockito.spy(
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (ResourcePaths.config().equals(request.path())) {
+              return castResponse(
+                  responseType,
+                  ConfigResponse.builder()
+                      .withEndpoints(
+                          Arrays.stream(Route.values())
+                              .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
+                              .collect(Collectors.toList()))
+                      .withOverrides(
+                          ImmutableMap.of(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true"))
+                      .build());
+            }
+            Object body = roundTripSerialize(request.body(), "request");
+            HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
+            T response = super.execute(req, responseType, errorHandler, responseHeaders);
+            return roundTripSerialize(response, "response");
+          }
+        });
   }
 
-  @AfterEach
-  public void teardownCatalogs() throws Exception {
-    if (restCatalogWithScanPlanning != null) {
-      restCatalogWithScanPlanning.close();
-    }
-
-    if (backendCatalog != null) {
-      backendCatalog.close();
-    }
-
-    if (httpServer != null) {
-      httpServer.stop();
-      httpServer.join();
-    }
+  @Override
+  protected String catalogName() {
+    return "prod-with-scan-planning";
   }
 
   // ==================== Helper Methods ====================
-
-  private RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
-    RESTCatalog catalog =
-        new RESTCatalog(
-            SessionCatalog.SessionContext.createEmpty(),
-            (config) ->
-                HTTPClient.builder(config)
-                    .uri(config.get(CatalogProperties.URI))
-                    .withHeaders(RESTUtil.configHeaders(config))
-                    .build());
-    catalog.setConf(new Configuration());
-    Map<String, String> properties =
-        ImmutableMap.of(
-            CatalogProperties.URI,
-            httpServer.getURI().toString(),
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO");
-    catalog.initialize(
-        catalogName,
-        ImmutableMap.<String, String>builder()
-            .putAll(properties)
-            .putAll(additionalProperties)
-            .build());
-    return catalog;
-  }
-
-  @SuppressWarnings("unchecked")
-  private <T> T roundTripSerialize(T payload, String description) {
-    if (payload == null) {
-      return null;
-    }
-
-    try {
-      if (payload instanceof RESTMessage) {
-        RESTMessage message = (RESTMessage) payload;
-        ObjectReader reader = MAPPER.readerFor(message.getClass());
-        if (parserContext != null && !parserContext.isEmpty()) {
-          reader = reader.with(parserContext.toInjectableValues());
-        }
-        return reader.readValue(MAPPER.writeValueAsString(message));
-      } else {
-        // use Map so that Jackson doesn't try to instantiate ImmutableMap from payload.getClass()
-        return (T) MAPPER.readValue(MAPPER.writeValueAsString(payload), Map.class);
-      }
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(
-          String.format("Failed to serialize and deserialize %s: %s", description, payload), e);
-    }
-  }
 
   private void setParserContext(Table table) {
     parserContext =
@@ -220,7 +112,7 @@ public class TestRESTScanPlanning {
   }
 
   private RESTCatalog scanPlanningCatalog() {
-    return restCatalogWithScanPlanning;
+    return restCatalog;
   }
 
   private void configurePlanningBehavior(
