@@ -199,6 +199,7 @@ public class ParquetFormatModel<D, S, R>
     private final Parquet.ReadBuilder internal;
     private final ReaderFunction<R, S, MessageType> readerFunction;
     private final boolean batchReader;
+    private S engineSchema;
     private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     private ReadBuilderWrapper(
@@ -219,6 +220,12 @@ public class ParquetFormatModel<D, S, R>
     @Override
     public ReadBuilder<D, S> project(Schema schema) {
       internal.project(schema);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> outputSchema(S schema) {
+      this.engineSchema = schema;
       return this;
     }
 
@@ -271,13 +278,15 @@ public class ParquetFormatModel<D, S, R>
               .createBatchedReaderFunc(
                   (icebergSchema, messageType) ->
                       (VectorizedReader<?>)
-                          readerFunction.read(icebergSchema, messageType, null, idToConstant))
+                          readerFunction.read(
+                              icebergSchema, messageType, engineSchema, idToConstant))
               .build()
           : internal
               .createReaderFunc(
                   (icebergSchema, messageType) ->
                       (ParquetValueReader<?>)
-                          readerFunction.read(icebergSchema, messageType, null, idToConstant))
+                          readerFunction.read(
+                              icebergSchema, messageType, engineSchema, idToConstant))
               .build();
     }
   }

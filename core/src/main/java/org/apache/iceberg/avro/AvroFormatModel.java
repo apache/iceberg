@@ -171,6 +171,7 @@ public class AvroFormatModel<D, S>
   private static class ReadBuilderWrapper<D, S> implements ReadBuilder<D, S> {
     private final Avro.ReadBuilder internal;
     private final ReaderFunction<DatumReader<D>, S, Schema> readerFunction;
+    private S engineSchema;
     private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     private ReadBuilderWrapper(
@@ -188,6 +189,12 @@ public class AvroFormatModel<D, S>
     @Override
     public ReadBuilder<D, S> project(org.apache.iceberg.Schema schema) {
       internal.project(schema);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> outputSchema(S schema) {
+      this.engineSchema = schema;
       return this;
     }
 
@@ -236,7 +243,7 @@ public class AvroFormatModel<D, S>
     public CloseableIterable<D> build() {
       return internal
           .createResolvingReader(
-              icebergSchema -> readerFunction.read(icebergSchema, null, null, idToConstant))
+              icebergSchema -> readerFunction.read(icebergSchema, null, engineSchema, idToConstant))
           .build();
     }
   }

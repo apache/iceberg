@@ -49,6 +49,9 @@ public interface ReadBuilder<D, S> {
   /** Set the projection schema. */
   ReadBuilder<D, S> project(Schema schema);
 
+  /** Sets the expected output schema. If not provided derived from the {@link #project(Schema)}. */
+  ReadBuilder<D, S> outputSchema(S schema);
+
   /**
    * Configures whether filtering should be case-sensitive. If the reader supports filtering, it
    * must respect this setting. The default value is <code>true</code>.

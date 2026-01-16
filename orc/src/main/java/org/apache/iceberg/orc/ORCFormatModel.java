@@ -186,6 +186,7 @@ public class ORCFormatModel<D, S, R>
     private final ORC.ReadBuilder internal;
     private final ReaderFunction<R, S, TypeDescription> readerFunction;
     private final boolean batchReader;
+    private S engineSchema;
     private boolean reuseContainers = false;
     private Schema icebergSchema;
     private Map<Integer, ?> idToConstant = ImmutableMap.of();
@@ -209,6 +210,12 @@ public class ORCFormatModel<D, S, R>
     public ReadBuilder<D, S> project(Schema schema) {
       this.icebergSchema = schema;
       internal.project(schema);
+      return this;
+    }
+
+    @Override
+    public ReadBuilder<D, S> outputSchema(S schema) {
+      this.engineSchema = schema;
       return this;
     }
 
@@ -263,13 +270,15 @@ public class ORCFormatModel<D, S, R>
               .createBatchedReaderFunc(
                   typeDescription ->
                       (OrcBatchReader<?>)
-                          readerFunction.read(icebergSchema, typeDescription, null, idToConstant))
+                          readerFunction.read(
+                              icebergSchema, typeDescription, engineSchema, idToConstant))
               .build()
           : internal
               .createReaderFunc(
                   typeDescription ->
                       (OrcRowReader<?>)
-                          readerFunction.read(icebergSchema, typeDescription, null, idToConstant))
+                          readerFunction.read(
+                              icebergSchema, typeDescription, engineSchema, idToConstant))
               .build();
     }
   }
