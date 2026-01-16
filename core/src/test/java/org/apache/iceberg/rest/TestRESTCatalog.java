@@ -2906,10 +2906,29 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   public void testNotModified() {
     catalog().createNamespace(TABLE.namespace());
 
-    Table table = catalog().createTable(TABLE, SCHEMA);
+    Map<String, String> responseHeaders = Maps.newHashMap();
 
-    String eTag =
-        ETagProvider.of(((BaseTable) table).operations().current().metadataFileLocation());
+    // Capture the response headers from createTable to get an ETag.
+    Mockito.doAnswer(
+            invocation ->
+                adapterForRESTServer.execute(
+                    invocation.getArgument(0),
+                    invocation.getArgument(1),
+                    invocation.getArgument(2),
+                    responseHeaders::putAll,
+                    ParserContext.builder().build()))
+        .when(adapterForRESTServer)
+        .execute(
+            reqMatcher(HTTPMethod.POST, RESOURCE_PATHS.tables(TABLE.namespace())),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    catalog().createTable(TABLE, SCHEMA);
+
+    assertThat(responseHeaders).containsKeys(HttpHeaders.ETAG);
+
+    String eTag = responseHeaders.get(HttpHeaders.ETAG);
 
     Mockito.doAnswer(
             invocation -> {
