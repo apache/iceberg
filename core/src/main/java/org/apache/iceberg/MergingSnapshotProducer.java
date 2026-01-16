@@ -1194,12 +1194,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
               + "expected all to be added with sequence %s, but got %s",
           firstDV.dataSequenceNumber(),
           dv.dataSequenceNumber());
+
       Preconditions.checkArgument(
           dv.specId() == firstDV.specId(),
           "Cannot merge duplicate added DVs when partition specs are different, "
               + "expected all to be added with spec %s, but got %s",
           firstDV.specId(),
           dv.specId());
+
       Preconditions.checkArgument(
           Objects.equals(dv.partition(), firstDV.partition()),
           "Cannot merge duplicate added DVs when partition tuples are different");
