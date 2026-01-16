@@ -62,11 +62,11 @@ public class AzureKeyManagementClient implements KeyManagementClient {
   }
 
   private KeyClient keyClient() {
-    return state().keyClient;
+    return state().keyClient();
   }
 
   private KeyWrapAlgorithm keyWrapAlgorithm() {
-    return state().keyWrapAlgorithm;
+    return state().keyWrapAlgorithm();
   }
 
   private ClientState state() {
@@ -88,14 +88,22 @@ public class AzureKeyManagementClient implements KeyManagementClient {
     return state;
   }
 
-  private static final class ClientState {
+  private static class ClientState {
 
-    KeyClient keyClient;
-    KeyWrapAlgorithm keyWrapAlgorithm;
+    private final KeyClient keyClient;
+    private final KeyWrapAlgorithm keyWrapAlgorithm;
 
     ClientState(KeyClient keyClient, KeyWrapAlgorithm keyWrapAlgorithm) {
       this.keyClient = keyClient;
       this.keyWrapAlgorithm = keyWrapAlgorithm;
+    }
+
+    KeyClient keyClient() {
+      return keyClient;
+    }
+
+    KeyWrapAlgorithm keyWrapAlgorithm() {
+      return keyWrapAlgorithm;
     }
   }
 }
