@@ -77,9 +77,22 @@ public class TestDynConstructors {
     assertThat(ctor.newInstance()).isInstanceOf(MyClass.class);
   }
 
+  @Test
+  public void testHiddenImpl() throws Exception {
+    DynConstructors.Ctor<ExperimentalDynConstructors> ctor =
+        DynConstructors.builder(ExperimentalDynConstructors.class)
+            .hiddenImpl(ExperimentalDynConstructors.class)
+            .buildChecked();
+    assertThat(ctor.newInstance()).isInstanceOf(ExperimentalDynConstructors.class);
+  }
+
   public interface MyInterface {}
 
   public static class MyClass implements MyInterface {}
 
   public static class MyUnrelatedClass {}
+
+  static class ExperimentalDynConstructors {
+    private ExperimentalDynConstructors() {}
+  }
 }
