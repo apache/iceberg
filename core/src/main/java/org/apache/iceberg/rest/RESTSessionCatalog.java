@@ -81,7 +81,9 @@ import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
+import org.apache.iceberg.rest.requests.ImmutableRegisterViewRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -1455,6 +1457,48 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     client
         .withAuthSession(contextualSession)
         .post(paths.renameView(), request, null, mutationHeaders, ErrorHandlers.viewErrorHandler());
+  }
+
+  @Override
+  public View registerView(
+      SessionContext context, TableIdentifier ident, String metadataFileLocation) {
+    Endpoint.check(endpoints, Endpoint.V1_REGISTER_VIEW);
+    checkViewIdentifierIsValid(ident);
+
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Invalid metadata file location: %s",
+        metadataFileLocation);
+
+    RegisterViewRequest request =
+        ImmutableRegisterViewRequest.builder()
+            .name(ident.name())
+            .metadataLocation(metadataFileLocation)
+            .build();
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    LoadViewResponse response =
+        client
+            .withAuthSession(contextualSession)
+            .post(
+                paths.registerView(ident.namespace()),
+                request,
+                LoadViewResponse.class,
+                mutationHeaders,
+                ErrorHandlers.viewErrorHandler());
+
+    AuthSession tableSession =
+        authManager.tableSession(ident, response.config(), contextualSession);
+    RESTViewOperations ops =
+        newViewOps(
+            client.withAuthSession(tableSession),
+            paths.view(ident),
+            Map::of,
+            mutationHeaders,
+            response.metadata(),
+            endpoints);
+
+    return new BaseView(ops, ViewUtil.fullViewName(name(), ident));
   }
 
   private static Map<String, String> headersForLoadTable(TableWithETag tableWithETag) {

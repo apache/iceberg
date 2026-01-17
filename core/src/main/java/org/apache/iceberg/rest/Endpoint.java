@@ -86,6 +86,8 @@ public class Endpoint {
   public static final Endpoint V1_DELETE_VIEW = Endpoint.create("DELETE", ResourcePaths.V1_VIEW);
   public static final Endpoint V1_RENAME_VIEW =
       Endpoint.create("POST", ResourcePaths.V1_VIEW_RENAME);
+  public static final Endpoint V1_REGISTER_VIEW =
+      Endpoint.create("POST", ResourcePaths.V1_VIEW_REGISTER);
 
   private static final Splitter ENDPOINT_SPLITTER = Splitter.on(" ");
   private static final Joiner ENDPOINT_JOINER = Joiner.on(" ");
