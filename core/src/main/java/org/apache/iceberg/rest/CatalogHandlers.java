@@ -84,6 +84,7 @@ import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -744,6 +745,18 @@ public class CatalogHandlers {
     if (!dropped) {
       throw new NoSuchViewException("View does not exist: %s", viewIdentifier);
     }
+  }
+
+  public static LoadViewResponse registerView(
+      ViewCatalog catalog, Namespace namespace, RegisterViewRequest request) {
+    request.validate();
+
+    TableIdentifier identifier = TableIdentifier.of(namespace, request.name());
+    View view = catalog.registerView(identifier, request.metadataLocation());
+    return ImmutableLoadViewResponse.builder()
+        .metadata(asBaseView(view).operations().current())
+        .metadataLocation(request.metadataLocation())
+        .build();
   }
 
   static ViewMetadata commit(ViewOperations ops, UpdateTableRequest request) {
