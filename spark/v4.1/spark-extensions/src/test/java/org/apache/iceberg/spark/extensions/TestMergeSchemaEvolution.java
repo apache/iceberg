@@ -201,13 +201,6 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"s\": { \"c1\": 10, \"c2\": \"a\" } }\n"
             + "{ \"id\": 3, \"s\": { \"c1\": 30, \"c2\": \"c\" } }");
 
-    // Rows should have null for missing c3 nested field from source
-    ImmutableList<Object[]> expectedRows =
-        ImmutableList.of(
-            row(1, row(10, "a", 1000)), // updated, c3 is retained
-            row(2, row(200, "bb", 2000)), // kept
-            row(3, row(30, "c", null))); // new, c3 is null
-
     withSQLConf(
         ImmutableMap.of("spark.sql.mergeNestedTypeCoercion.enabled", "true"),
         () -> {
@@ -219,6 +212,12 @@ public class TestMergeSchemaEvolution extends SparkRowLevelOperationsTestBase {
                   + "WHEN NOT MATCHED THEN "
                   + "  INSERT *",
               commitTarget());
+          // Rows should have null for missing c3 nested field from source
+          ImmutableList<Object[]> expectedRows =
+              ImmutableList.of(
+                  row(1, row(10, "a", 1000)), // updated, c3 is retained
+                  row(2, row(200, "bb", 2000)), // kept
+                  row(3, row(30, "c", null))); // new, c3 is null
           assertEquals(
               "Should have expected rows with nested struct evolution",
               expectedRows,
