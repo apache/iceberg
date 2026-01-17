@@ -740,6 +740,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
     sql(
         "INSERT INTO %s VALUES (1, float('nan')),"
             + "(1, float('nan')), "
+            + "(1, 10.0), "
             + "(2, 2), "
             + "(2, float('nan')), "
             + "(3, float('nan')), "
@@ -762,7 +763,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
 
     List<Object[]> actual = sql(select, tableName);
     List<Object[]> expected = Lists.newArrayList();
-    expected.add(new Object[] {6L, Float.NaN, 1.0F, 6L});
+    expected.add(new Object[] {7L, Float.NaN, 1.0F, 7L});
     assertEquals("expected and actual should equal", expected, actual);
   }
 
