@@ -360,7 +360,6 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
         throw e;
       }
     }
-
   }
 
   public static class DeltaTaskCommit implements WriterCommitMessage {

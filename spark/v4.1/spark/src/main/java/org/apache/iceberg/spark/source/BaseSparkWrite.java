@@ -24,8 +24,7 @@ import org.apache.spark.sql.connector.write.MergeSummary;
 /** Base class for Spark write implementations with shared utility methods. */
 abstract class BaseSparkWrite {
 
-  protected void setMergeSummaryProperties(
-      SnapshotUpdate<?> operation, MergeSummary mergeSummary) {
+  protected void setMergeSummaryProperties(SnapshotUpdate<?> operation, MergeSummary mergeSummary) {
     setIfPositive(
         operation, "spark.merge-into.num-target-rows-copied", mergeSummary.numTargetRowsCopied());
     setIfPositive(
@@ -60,4 +59,3 @@ abstract class BaseSparkWrite {
     }
   }
 }
-
