@@ -35,8 +35,8 @@ public class TestDynMethods {
   }
 
   private static class ExperimentalDynMethods {
-    private String hiddenUpper(String x) {
-      return x.toUpperCase();
+    private String hiddenUpper(String input) {
+      return input.toUpperCase();
     }
   }
 }
