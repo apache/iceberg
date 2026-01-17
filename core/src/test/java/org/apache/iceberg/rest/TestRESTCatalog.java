@@ -3862,4 +3862,40 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     verify(adapter, atLeastOnce()).execute(captor.capture(), any(), any(), any());
     return captor.getAllValues();
   }
+
+  @Test
+  public void scanPlanningModeFromString() {
+    // Null returns CLIENT_PREFERRED default
+    assertThat(RESTCatalogProperties.ScanPlanningMode.fromString(null))
+        .isEqualTo(RESTCatalogProperties.ScanPlanningMode.CLIENT_PREFERRED);
+
+    // Valid mode names
+    assertThat(RESTCatalogProperties.ScanPlanningMode.fromString("client-only"))
+        .isEqualTo(RESTCatalogProperties.ScanPlanningMode.CLIENT_ONLY);
+    assertThat(RESTCatalogProperties.ScanPlanningMode.fromString("client-preferred"))
+        .isEqualTo(RESTCatalogProperties.ScanPlanningMode.CLIENT_PREFERRED);
+    assertThat(RESTCatalogProperties.ScanPlanningMode.fromString("catalog-preferred"))
+        .isEqualTo(RESTCatalogProperties.ScanPlanningMode.CATALOG_PREFERRED);
+    assertThat(RESTCatalogProperties.ScanPlanningMode.fromString("catalog-only"))
+        .isEqualTo(RESTCatalogProperties.ScanPlanningMode.CATALOG_ONLY);
+
+    // Case-insensitive parsing
+    assertThat(RESTCatalogProperties.ScanPlanningMode.fromString("CLIENT-ONLY"))
+        .isEqualTo(RESTCatalogProperties.ScanPlanningMode.CLIENT_ONLY);
+    assertThat(RESTCatalogProperties.ScanPlanningMode.fromString("Client-Preferred"))
+        .isEqualTo(RESTCatalogProperties.ScanPlanningMode.CLIENT_PREFERRED);
+    assertThat(RESTCatalogProperties.ScanPlanningMode.fromString("CATALOG-PREFERRED"))
+        .isEqualTo(RESTCatalogProperties.ScanPlanningMode.CATALOG_PREFERRED);
+    assertThat(RESTCatalogProperties.ScanPlanningMode.fromString("CaTaLoG-oNlY"))
+        .isEqualTo(RESTCatalogProperties.ScanPlanningMode.CATALOG_ONLY);
+
+    // Invalid mode throws exception with all valid modes listed
+    assertThatThrownBy(() -> RESTCatalogProperties.ScanPlanningMode.fromString("invalid-mode"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid scan planning mode: invalid-mode")
+        .hasMessageContaining("client-only")
+        .hasMessageContaining("client-preferred")
+        .hasMessageContaining("catalog-preferred")
+        .hasMessageContaining("catalog-only");
+  }
 }
