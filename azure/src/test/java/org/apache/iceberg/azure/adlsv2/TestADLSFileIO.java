@@ -164,4 +164,81 @@ public class TestADLSFileIO {
     // Verify properties are preserved after deserialization
     assertThat(deserializedFileIO.properties()).isEqualTo(fileIO.properties());
   }
+
+  @Test
+  public void testClientSupplierIsCached() {
+    DataLakeFileSystemClient mockClient = mock(DataLakeFileSystemClient.class);
+    AtomicInteger supplierInvocationCount = new AtomicInteger(0);
+
+    SerializableSupplier<DataLakeFileSystemClient> supplier =
+        () -> {
+          supplierInvocationCount.incrementAndGet();
+          return mockClient;
+        };
+
+    ADLSFileIO fileIO = new ADLSFileIO(supplier);
+
+    // Call client() multiple times with different paths
+    DataLakeFileSystemClient client1 =
+        fileIO.client("abfs://container@account.dfs.core.windows.net/path/to/file1");
+    DataLakeFileSystemClient client2 =
+        fileIO.client("abfs://container@account.dfs.core.windows.net/path/to/file2");
+    DataLakeFileSystemClient client3 =
+        fileIO.client("abfs://other@account.dfs.core.windows.net/different/path");
+
+    // Verify supplier was only called once (caching works)
+    assertThat(supplierInvocationCount.get()).isEqualTo(1);
+
+    // Verify all calls return the same cached client
+    assertThat(client1).isSameAs(mockClient);
+    assertThat(client2).isSameAs(mockClient);
+    assertThat(client3).isSameAs(mockClient);
+  }
+
+  @Test
+  public void testClientSupplierCachingIsThreadSafe() throws Exception {
+    DataLakeFileSystemClient mockClient = mock(DataLakeFileSystemClient.class);
+    AtomicInteger supplierInvocationCount = new AtomicInteger(0);
+
+    SerializableSupplier<DataLakeFileSystemClient> supplier =
+        () -> {
+          supplierInvocationCount.incrementAndGet();
+          return mockClient;
+        };
+
+    ADLSFileIO fileIO = new ADLSFileIO(supplier);
+
+    // Run multiple threads concurrently calling client()
+    int numThreads = 10;
+    Thread[] threads = new Thread[numThreads];
+    DataLakeFileSystemClient[] results = new DataLakeFileSystemClient[numThreads];
+
+    for (int i = 0; i < numThreads; i++) {
+      final int index = i;
+      threads[i] =
+          new Thread(
+              () -> {
+                results[index] =
+                    fileIO.client("abfs://container@account.dfs.core.windows.net/path/" + index);
+              });
+    }
+
+    // Start all threads
+    for (Thread thread : threads) {
+      thread.start();
+    }
+
+    // Wait for all threads to complete
+    for (Thread thread : threads) {
+      thread.join();
+    }
+
+    // Verify supplier was only called once even with concurrent access
+    assertThat(supplierInvocationCount.get()).isEqualTo(1);
+
+    // Verify all threads got the same client
+    for (DataLakeFileSystemClient result : results) {
+      assertThat(result).isSameAs(mockClient);
+    }
+  }
 }

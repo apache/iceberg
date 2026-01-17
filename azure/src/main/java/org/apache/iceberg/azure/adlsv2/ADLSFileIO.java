@@ -60,6 +60,7 @@ public class ADLSFileIO implements DelegateFileIO {
   private SerializableMap<String, String> properties;
   private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
   private SerializableSupplier<DataLakeFileSystemClient> clientSupplier;
+  private transient volatile DataLakeFileSystemClient cachedClient;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -131,7 +132,14 @@ public class ADLSFileIO implements DelegateFileIO {
   @VisibleForTesting
   DataLakeFileSystemClient client(ADLSLocation location) {
     if (clientSupplier != null) {
-      return clientSupplier.get();
+      if (cachedClient == null) {
+        synchronized (this) {
+          if (cachedClient == null) {
+            cachedClient = clientSupplier.get();
+          }
+        }
+      }
+      return cachedClient;
     }
     DataLakeFileSystemClientBuilder clientBuilder =
         new DataLakeFileSystemClientBuilder().httpClient(HTTP);
