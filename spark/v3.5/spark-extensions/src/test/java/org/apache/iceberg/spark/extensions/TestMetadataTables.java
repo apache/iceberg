@@ -1031,14 +1031,12 @@ public class TestMetadataTables extends ExtensionsTestBase {
     Object lowerBound = idMetrics.get(idMetrics.fieldIndex("lower_bound"));
     Object upperBound = idMetrics.get(idMetrics.fieldIndex("upper_bound"));
 
-    // We intentionally do NOT assert exact values here.
-    //
-    // In Spark 3.4 / 3.5, metrics are derived from file metadata and their
-    // string representation is not guaranteed to be deterministic.
-    //
-    // The purpose of this test is to ensure Spark can safely read UUID
-    // bounds without ClassCastException.
-    assertThat(lowerBound).isNotNull();
-    assertThat(upperBound).isNotNull();
+    assertThat(lowerBound.toString())
+        .as("Lower bound should match the exact inserted UUID string")
+        .isEqualTo(uuid.toString());
+
+    assertThat(upperBound.toString())
+        .as("Upper bound should match the exact inserted UUID string")
+        .isEqualTo(uuid.toString());
   }
 }
