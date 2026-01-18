@@ -81,7 +81,14 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   private static final String PLAIN = "PLAIN";
   private static final List<String> GOLDEN_FILE_ENCODINGS =
-      ImmutableList.of("PLAIN_DICTIONARY", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
+      ImmutableList.of(
+          "PLAIN_DICTIONARY",
+          "RLE_DICTIONARY",
+          "DELTA_BINARY_PACKED",
+          "DELTA_LENGTH_BYTE_ARRAY",
+          "DELTA_BYTE_ARRAY",
+          "BYTE_STREAM_SPLIT",
+          "RLE");
   private static final Map<String, PrimitiveType> GOLDEN_FILE_TYPES =
       ImmutableMap.of(
           "string", Types.StringType.get(),
@@ -89,7 +96,8 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
           "int32", Types.IntegerType.get(),
           "int64", Types.LongType.get(),
           "binary", Types.BinaryType.get(),
-          "boolean", Types.BooleanType.get());
+          "boolean", Types.BooleanType.get(),
+          "double", Types.DoubleType.get());
 
   static final Function<Record, Record> IDENTITY = record -> record;
 
@@ -404,13 +412,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     // Float and double column types are written using plain encoding with Parquet V2,
     // also Parquet V2 will dictionary encode decimals that use fixed length binary
     // (i.e. decimals > 8 bytes). Int and long types use DELTA_BINARY_PACKED.
-    Schema schema =
-        new Schema(
-            optional(102, "float_data", Types.FloatType.get()),
-            optional(103, "double_data", Types.DoubleType.get()),
-            optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
-            optional(105, "int_data", Types.IntegerType.get()),
-            optional(106, "long_data", Types.LongType.get()));
+    Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
 
     File dataFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
@@ -420,23 +422,6 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       writer.addAll(data);
     }
     assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE);
-  }
-
-  @Test
-  public void testUnsupportedReadsForParquetV2() throws Exception {
-    // Some types use delta encoding and which are not supported for vectorized reads
-    Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    File dataFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
-    Iterable<Record> data =
-        generateData(schema, 30000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
-    try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
-      writer.addAll(data);
-    }
-    assertThatThrownBy(() -> assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageStartingWith("Cannot support vectorized reads for column")
-        .hasMessageEndingWith("Disable vectorized reads to read this table/file");
   }
 
   @Test
@@ -490,10 +475,16 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                     .flatMap(
                         e ->
                             Stream.of(true, false)
-                                .map(
+                                .flatMap(
                                     vectorized ->
-                                        Arguments.of(
-                                            encoding, e.getKey(), e.getValue(), vectorized))));
+                                        Stream.of(
+                                            Arguments.of(
+                                                encoding, e.getKey(), e.getValue(), vectorized),
+                                            Arguments.of(
+                                                encoding,
+                                                e.getKey() + "_with_nulls",
+                                                e.getValue(),
+                                                vectorized)))));
   }
 
   private File resourceUrlToLocalFile(URL url) throws IOException, URISyntaxException {
