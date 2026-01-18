@@ -464,6 +464,13 @@ public class SparkSessionCatalog<
     }
 
     if (null != asViewCatalog) {
+      // Check if the identifier is already taken in the underlying session catalog.
+      // The session catalog (V2SessionCatalog) is the authority on the namespace.
+      // tableExists() checks for both tables and views (V1 and V2).
+      if (getSessionCatalog().tableExists(viewInfo.ident())) {
+        throw new ViewAlreadyExistsException(viewInfo.ident());
+      }
+
       return asViewCatalog.createView(viewInfo);
     } else if (isViewCatalog()) {
       return getSessionCatalog().createView(viewInfo);
