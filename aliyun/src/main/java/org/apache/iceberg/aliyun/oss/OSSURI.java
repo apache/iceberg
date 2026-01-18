@@ -39,6 +39,7 @@ public class OSSURI {
   private static final String FRAGMENT_DELIM = "#";
   private static final Set<String> VALID_SCHEMES = ImmutableSet.of("https", "oss");
   private final String location;
+  private final String scheme;
   private final String bucket;
   private final String key;
 
@@ -63,13 +64,13 @@ public class OSSURI {
     String[] schemeSplit = location.split(SCHEME_DELIM, -1);
     ValidationException.check(schemeSplit.length == 2, "Invalid OSS location: %s", location);
 
-    String scheme = schemeSplit[0];
+    String schemeInLocation = schemeSplit[0];
     ValidationException.check(
-        VALID_SCHEMES.contains(scheme.toLowerCase(Locale.ROOT)),
+        VALID_SCHEMES.contains(schemeInLocation.toLowerCase(Locale.ROOT)),
         "Invalid scheme: %s in OSS location %s",
-        scheme,
+        schemeInLocation,
         location);
-
+    this.scheme = schemeInLocation;
     String[] authoritySplit = schemeSplit[1].split(PATH_DELIM, 2);
     ValidationException.check(
         authoritySplit.length == 2, "Invalid bucket or key in OSS location: %s", location);
@@ -84,6 +85,11 @@ public class OSSURI {
     path = path.split(FRAGMENT_DELIM, -1)[0];
     this.key = path;
     OSSUtils.ensureObjectKeyValid(key);
+  }
+
+  /** Returns OSS scheme. */
+  public String scheme() {
+    return scheme;
   }
 
   /** Return OSS bucket name. */
