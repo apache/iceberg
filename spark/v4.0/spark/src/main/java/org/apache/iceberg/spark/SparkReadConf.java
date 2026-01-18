@@ -268,6 +268,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean preserveDataOrdering() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.PRESERVE_DATA_ORDERING)
+        .defaultValue(SparkSQLProperties.PRESERVE_DATA_ORDERING_DEFAULT)
+        .parse();
+  }
+
   public boolean aggregatePushDownEnabled() {
     return confParser
         .booleanConf()
