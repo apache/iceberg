@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
@@ -33,8 +34,11 @@ import org.apache.flink.util.Collector;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.actions.RewriteFileGroup;
@@ -45,10 +49,15 @@ import org.apache.iceberg.flink.sink.TaskWriterFactory;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.FileScanTaskReader;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
+import org.apache.iceberg.parquet.ParquetFileMerger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.parquet.schema.MessageType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,17 +74,20 @@ public class DataFileRewriteRunner
   private final String tableName;
   private final String taskName;
   private final int taskIndex;
+  private final boolean openParquetMerge;
 
   private transient int subTaskId;
   private transient int attemptId;
   private transient Counter errorCounter;
 
-  public DataFileRewriteRunner(String tableName, String taskName, int taskIndex) {
+  public DataFileRewriteRunner(
+      String tableName, String taskName, int taskIndex, boolean openParquetMerge) {
     Preconditions.checkNotNull(tableName, "Table name should no be null");
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     this.tableName = tableName;
     this.taskName = taskName;
     this.taskIndex = taskIndex;
+    this.openParquetMerge = openParquetMerge;
   }
 
   @Override
@@ -110,6 +122,54 @@ public class DataFileRewriteRunner
           ctx.timestamp(),
           value.group().info(),
           value.group().rewrittenFiles().size());
+    }
+
+    MessageType messageType = null;
+    try {
+      messageType = canMergeAndGetSchema(value.group(), value.table());
+    } catch (Exception ex) {
+      LOG.warn(
+          DataFileRewritePlanner.MESSAGE_PREFIX
+              + "Exception checking if Parquet merge can be used for group {}",
+          tableName,
+          taskName,
+          taskIndex,
+          ctx.timestamp(),
+          value.group(),
+          ex);
+    }
+
+    if (openParquetMerge && messageType != null) {
+      try {
+        // schema is lazy init, so we need to get it here,or it will be exception in kryoSerializes
+        for (FileScanTask fileScanTask : value.group().fileScanTasks()) {
+          fileScanTask.schema();
+        }
+
+        DataFile resultFile =
+            rewriteDataFilesUseParquetMerge(value.group(), value.table(), messageType);
+        value.group().setOutputFiles(Sets.newHashSet(resultFile));
+        ExecutedGroup executedGroup =
+            new ExecutedGroup(
+                value.table().currentSnapshot().snapshotId(),
+                value.groupsPerCommit(),
+                value.group());
+        out.collect(executedGroup);
+      } catch (Exception ex) {
+        LOG.info(
+            DataFileRewritePlanner.MESSAGE_PREFIX
+                + "Exception creating compaction writer for group {}",
+            tableName,
+            taskName,
+            taskIndex,
+            ctx.timestamp(),
+            value.group(),
+            ex);
+        ctx.output(TaskResultAggregator.ERROR_STREAM, ex);
+        errorCounter.inc();
+      }
+
+      return;
     }
 
     boolean preserveRowId = TableUtil.supportsRowLineage(value.table());
@@ -173,6 +233,65 @@ public class DataFileRewriteRunner
       ctx.output(TaskResultAggregator.ERROR_STREAM, ex);
       errorCounter.inc();
     }
+  }
+
+  private DataFile rewriteDataFilesUseParquetMerge(
+      RewriteFileGroup group, Table table, MessageType messageType) throws IOException {
+
+    PartitionSpec spec = table.specs().get(group.outputSpecId());
+
+    long rowGroupSize =
+        PropertyUtil.propertyAsLong(
+            table.properties(),
+            TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
+            TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
+
+    OutputFileFactory outputFileFactory =
+        OutputFileFactory.builderFor(table, taskIndex, attemptId)
+            .format(FileFormat.PARQUET)
+            .ioSupplier(table::io)
+            .defaultSpec(spec)
+            .build();
+
+    OutputFile outputFile =
+        outputFileFactory.newOutputFile(group.info().partition()).encryptingOutputFile();
+
+    return ParquetFileMerger.mergeFiles(
+        Lists.newArrayList(group.rewrittenFiles()),
+        table.io(),
+        outputFile,
+        messageType,
+        rowGroupSize,
+        table.spec(),
+        group.info().partition());
+  }
+
+  private MessageType canMergeAndGetSchema(RewriteFileGroup group, Table table) {
+    // Check if group expects exactly one output file
+    if (group.expectedOutputFiles() != 1) {
+      return null;
+    }
+
+    // Check if table has a sort order
+    if (table.sortOrder().isSorted()) {
+      return null;
+    }
+
+    // Check for delete files
+    boolean hasDeletes = group.fileScanTasks().stream().anyMatch(task -> !task.deletes().isEmpty());
+    if (hasDeletes) {
+      return null;
+    }
+
+    boolean allTheSamePartition =
+        group.rewrittenFiles().stream().anyMatch(file -> file.specId() != table.spec().specId());
+    if (allTheSamePartition) {
+      return null;
+    }
+
+    // Validate Parquet-specific requirements and get schema
+    return ParquetFileMerger.canMergeAndGetSchema(
+        Lists.newArrayList(group.rewrittenFiles()), table.io(), group.maxOutputFileSize());
   }
 
   private TaskWriter<RowData> writerFor(PlannedGroup value, boolean preserveRowId) {
