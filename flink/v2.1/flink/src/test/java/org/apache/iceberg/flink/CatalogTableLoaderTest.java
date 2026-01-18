@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.junit.Assert.*;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -31,7 +33,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 public class CatalogTableLoaderTest {
 
