@@ -315,7 +315,7 @@ public class PartitionSpec implements Serializable {
   public Set<Integer> identitySourceIds() {
     Set<Integer> sourceIds = Sets.newHashSet();
     for (PartitionField field : fields()) {
-      if ("identity".equals(field.transform().toString())) {
+      if (field.transform().isIdentity()) {
         sourceIds.add(field.sourceId());
       }
     }
