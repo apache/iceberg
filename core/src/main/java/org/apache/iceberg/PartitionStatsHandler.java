@@ -36,7 +36,6 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -269,28 +268,6 @@ public class PartitionStatsHandler {
         .build();
   }
 
-  /**
-   * Reads partition statistics from the specified {@link InputFile} using given schema.
-   *
-   * @param schema The {@link Schema} of the partition statistics file.
-   * @param inputFile An {@link InputFile} pointing to the partition stats file.
-   * @deprecated will be removed in 1.12.0, use {@link PartitionStatisticsScan} instead
-   */
-  @Deprecated
-  public static CloseableIterable<PartitionStats> readPartitionStatsFile(
-      Schema schema, InputFile inputFile) {
-    Preconditions.checkArgument(schema != null, "Invalid schema: null");
-    Preconditions.checkArgument(inputFile != null, "Invalid input file: null");
-
-    FileFormat fileFormat = FileFormat.fromFileName(inputFile.location());
-    Preconditions.checkArgument(
-        fileFormat != null, "Unable to determine format of file: %s", inputFile.location());
-
-    CloseableIterable<StructLike> records =
-        InternalData.read(fileFormat, inputFile).project(schema).build();
-    return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
-  }
-
   private static OutputFile newPartitionStatsFile(
       Table table, FileFormat fileFormat, long snapshotId) {
     Preconditions.checkArgument(
@@ -306,19 +283,6 @@ public class PartitionStatsHandler {
                     fileFormat.addExtension(
                         String.format(
                             Locale.ROOT, "partition-stats-%d-%s", snapshotId, UUID.randomUUID()))));
-  }
-
-  private static PartitionStats recordToPartitionStats(StructLike record) {
-    int pos = 0;
-    PartitionStats stats =
-        new PartitionStats(
-            record.get(pos++, StructLike.class), // partition
-            record.get(pos++, Integer.class)); // spec id
-    for (; pos < record.size(); pos++) {
-      stats.set(pos, record.get(pos, Object.class));
-    }
-
-    return stats;
   }
 
   private static Collection<PartitionStatistics> computeAndMergeStatsIncremental(
@@ -605,7 +569,8 @@ public class PartitionStatsHandler {
    * @param targetStats partition statistics to be updated.
    * @param inputStats the partition statistics used as input.
    */
-  private static void appendStats(PartitionStatistics targetStats, PartitionStatistics inputStats) {
+  @VisibleForTesting
+  static void appendStats(PartitionStatistics targetStats, PartitionStatistics inputStats) {
     Preconditions.checkArgument(targetStats.specId() != null, "Invalid spec ID: null");
     Preconditions.checkArgument(
         targetStats.specId().equals(inputStats.specId()), "Spec IDs must match");
