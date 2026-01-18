@@ -76,9 +76,11 @@ import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
+import org.apache.spark.sql.connector.write.MergeSummary;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
 import org.apache.spark.sql.connector.write.Write;
+import org.apache.spark.sql.connector.write.WriteSummary;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.connector.write.streaming.StreamingDataWriterFactory;
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite;
@@ -86,7 +88,7 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
+abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistributionAndOrdering {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
 
   private final JavaSparkContext sparkContext;
@@ -209,6 +211,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
+    commitOperation(operation, description, null);
+  }
+
+  private void commitOperation(
+      SnapshotUpdate<?> operation, String description, WriteSummary summary) {
     LOG.info("Committing {} to table {}", description, table);
     if (applicationId != null) {
       operation.set("spark.app.id", applicationId);
@@ -220,6 +227,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
       CommitMetadata.commitProperties().forEach(operation::set);
+    }
+
+    if (summary instanceof MergeSummary) {
+      setMergeSummaryProperties(operation, (MergeSummary) summary);
     }
 
     if (wapEnabled && wapId != null) {
@@ -432,6 +443,11 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     public void commit(WriterCommitMessage[] messages) {
+      commit(messages, null);
+    }
+
+    @Override
+    public void commit(WriterCommitMessage[] messages, WriteSummary summary) {
       OverwriteFiles overwriteFiles = table.newOverwrite();
 
       DataFileSet overwrittenFiles = overwrittenFiles();
@@ -450,10 +466,12 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       if (scan != null) {
         switch (isolationLevel) {
           case SERIALIZABLE:
-            commitWithSerializableIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+            commitWithSerializableIsolation(
+                overwriteFiles, numOverwrittenFiles, numAddedFiles, summary);
             break;
           case SNAPSHOT:
-            commitWithSnapshotIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+            commitWithSnapshotIsolation(
+                overwriteFiles, numOverwrittenFiles, numAddedFiles, summary);
             break;
           default:
             throw new IllegalArgumentException("Unsupported isolation level: " + isolationLevel);
@@ -463,12 +481,16 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
         commitOperation(
             overwriteFiles,
             String.format(
-                Locale.ROOT, "overwrite with %d new data files (no validation)", numAddedFiles));
+                Locale.ROOT, "overwrite with %d new data files (no validation)", numAddedFiles),
+            summary);
       }
     }
 
     private void commitWithSerializableIsolation(
-        OverwriteFiles overwriteFiles, int numOverwrittenFiles, int numAddedFiles) {
+        OverwriteFiles overwriteFiles,
+        int numOverwrittenFiles,
+        int numAddedFiles,
+        WriteSummary summary) {
       Long scanSnapshotId = scan.snapshotId();
       if (scanSnapshotId != null) {
         overwriteFiles.validateFromSnapshot(scanSnapshotId);
@@ -487,11 +509,14 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               numAddedFiles,
               scanSnapshotId,
               conflictDetectionFilter);
-      commitOperation(overwriteFiles, commitMsg);
+      commitOperation(overwriteFiles, commitMsg, summary);
     }
 
     private void commitWithSnapshotIsolation(
-        OverwriteFiles overwriteFiles, int numOverwrittenFiles, int numAddedFiles) {
+        OverwriteFiles overwriteFiles,
+        int numOverwrittenFiles,
+        int numAddedFiles,
+        WriteSummary summary) {
       Long scanSnapshotId = scan.snapshotId();
       if (scanSnapshotId != null) {
         overwriteFiles.validateFromSnapshot(scanSnapshotId);
@@ -507,7 +532,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
               "overwrite of %d data files with %d new data files",
               numOverwrittenFiles,
               numAddedFiles);
-      commitOperation(overwriteFiles, commitMsg);
+      commitOperation(overwriteFiles, commitMsg, summary);
     }
   }
 
