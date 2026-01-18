@@ -565,6 +565,83 @@ public class TestRewriteTablePathsAction extends TestBase {
         .isEmpty();
   }
 
+  /**
+   * Test for https://github.com/apache/iceberg/issues/14814
+   *
+   * <p>When multiple tags/refs point to the same snapshot containing positional deletes, the
+   * rewrite_table_path action was throwing AlreadyExistsException because the same delete file was
+   * being processed multiple times. The fix uses DeleteFileSet to properly deduplicate delete files
+   * based on file location, content offset, and content size.
+   */
+  @TestTemplate
+  public void testPositionDeletesWithMultipleTagsOnSameSnapshot() throws Exception {
+    Table tableWithPosDeletes =
+        createTableWithSnapshots(
+            tableDir.toFile().toURI().toString().concat("tableWithMultipleTags"),
+            2,
+            Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, "parquet"));
+
+    // Get the data file location for creating position deletes
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(
+                tableWithPosDeletes
+                    .currentSnapshot()
+                    .addedDataFiles(tableWithPosDeletes.io())
+                    .iterator()
+                    .next()
+                    .location(),
+                0L));
+
+    // Create a position delete file
+    File file =
+        new File(
+            removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes.io().newOutputFile(file.toURI().toString()),
+                deletes,
+                formatVersion)
+            .first();
+
+    // Add the position deletes and commit
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
+
+    // Get the snapshot ID with position deletes
+    long snapshotWithDeletes = tableWithPosDeletes.currentSnapshot().snapshotId();
+
+    // Create multiple tags pointing to the SAME snapshot
+    // This causes the same delete file to appear multiple times when iterating through refs
+    tableWithPosDeletes.manageSnapshots().createTag("tag1", snapshotWithDeletes).commit();
+    tableWithPosDeletes.manageSnapshots().createTag("tag2", snapshotWithDeletes).commit();
+    tableWithPosDeletes.manageSnapshots().createTag("tag3", snapshotWithDeletes).commit();
+
+    // Verify we have the expected state
+    assertThat(spark.read().format("iceberg").load(tableWithPosDeletes.location()).collectAsList())
+        .hasSize(1);
+
+    // This should NOT throw AlreadyExistsException even with multiple tags on the same snapshot
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+
+    // Verify the rewrite completed successfully
+    assertThat(result.rewrittenDeleteFilePathsCount())
+        .as("Should have rewritten exactly 1 delete file (not duplicates)")
+        .isEqualTo(1);
+
+    // Copy the metadata files and data files
+    copyTableFiles(result);
+
+    // Verify the data is correct after copy
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(1);
+  }
+
   @TestTemplate
   public void testEqualityDeletes() throws Exception {
     Table sourceTable = createTableWithSnapshots(newTableLocation(), 1);
