@@ -38,6 +38,14 @@ public interface Transaction {
   UpdateSchema updateSchema();
 
   /**
+   * Create a new {@link UpdateSchema} to alter the columns of a specific branch.
+   *
+   * @param branch the branch to update
+   * @return a new {@link UpdateSchema}
+   */
+  UpdateSchema updateSchema(String branch);
+
+  /**
    * Create a new {@link UpdatePartitionSpec} to alter the partition spec of this table.
    *
    * @return a new {@link UpdatePartitionSpec}
