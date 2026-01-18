@@ -21,7 +21,9 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Ticker;
 import java.time.Duration;
+import java.util.NoSuchElementException;
 import java.util.Optional;
+import org.apache.iceberg.CatalogProperties.CacheExpirationPolicy;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 
@@ -34,15 +36,34 @@ public class TestableCachingCatalog extends CachingCatalog {
   public static TestableCachingCatalog wrap(
       Catalog catalog, Duration expirationInterval, Ticker ticker) {
     return new TestableCachingCatalog(
-        catalog, true /* caseSensitive */, expirationInterval, ticker);
+        catalog,
+        true /* caseSensitive */,
+        expirationInterval,
+        ticker,
+        CatalogProperties.CACHE_EXPIRATION_POLICY_DEFAULT);
+  }
+
+  public static TestableCachingCatalog wrap(
+      Catalog catalog,
+      Duration expirationInterval,
+      Ticker ticker,
+      CacheExpirationPolicy cacheExpirationPolicy) {
+    return new TestableCachingCatalog(
+        catalog, true /* caseSensitive */, expirationInterval, ticker, cacheExpirationPolicy);
   }
 
   private final Duration cacheExpirationInterval;
+  private final CacheExpirationPolicy cacheExpirationPolicy;
 
   TestableCachingCatalog(
-      Catalog catalog, boolean caseSensitive, Duration expirationInterval, Ticker ticker) {
-    super(catalog, caseSensitive, expirationInterval.toMillis(), ticker);
+      Catalog catalog,
+      boolean caseSensitive,
+      Duration expirationInterval,
+      Ticker ticker,
+      CacheExpirationPolicy cacheExpirationPolicy) {
+    super(catalog, caseSensitive, expirationInterval.toMillis(), ticker, cacheExpirationPolicy);
     this.cacheExpirationInterval = expirationInterval;
+    this.cacheExpirationPolicy = cacheExpirationPolicy;
   }
 
   public Cache<TableIdentifier, Table> cache() {
@@ -60,7 +81,14 @@ public class TestableCachingCatalog extends CachingCatalog {
 
   // Throws a NoSuchElementException if this entry is not in the cache (has already been TTL'd).
   public Optional<Duration> ageOf(TableIdentifier identifier) {
-    return tableCache.policy().expireAfterAccess().get().ageOf(identifier);
+    switch (cacheExpirationPolicy) {
+      case EXPIRE_AFTER_WRITE:
+        return tableCache.policy().expireAfterWrite().flatMap(policy -> policy.ageOf(identifier));
+      case EXPIRE_AFTER_ACCESS:
+        return tableCache.policy().expireAfterAccess().flatMap(policy -> policy.ageOf(identifier));
+      default:
+        throw new NoSuchElementException("Unknown cache policy: " + cacheExpirationPolicy);
+    }
   }
 
   // Throws a NoSuchElementException if the entry is not in the cache (has already been TTL'd).
