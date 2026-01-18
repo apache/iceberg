@@ -16,9 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.flink;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,7 +36,7 @@ import java.lang.reflect.Proxy;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class CatalogTableLoaderTest {
 
@@ -90,6 +94,7 @@ public class CatalogTableLoaderTest {
     }
 
     @Override
+    @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
     public org.apache.iceberg.flink.CatalogLoader clone() {
       // A new instance is sufficient for tests
       return new SerializableCatalogLoader();
@@ -111,9 +116,8 @@ public class CatalogTableLoaderTest {
 
   @Test
   public void testOpenLoadClose() throws Exception {
-    org.apache.iceberg.flink.CatalogLoader catalogLoader = new SerializableCatalogLoader();
-    org.apache.iceberg.flink.TableLoader loader =
-        org.apache.iceberg.flink.TableLoader.fromCatalog(catalogLoader, IDENTIFIER);
+    CatalogLoader catalogLoader = new SerializableCatalogLoader();
+    TableLoader loader = TableLoader.fromCatalog(catalogLoader, IDENTIFIER);
 
     // initially closed
     assertFalse(loader.isOpen());
@@ -132,12 +136,11 @@ public class CatalogTableLoaderTest {
 
   @Test
   public void testSerializationKeepsLoaderFunctional() throws Exception {
-    org.apache.iceberg.flink.CatalogLoader catalogLoader = new SerializableCatalogLoader();
-    org.apache.iceberg.flink.TableLoader original =
-        org.apache.iceberg.flink.TableLoader.fromCatalog(catalogLoader, IDENTIFIER);
+    CatalogLoader catalogLoader = new SerializableCatalogLoader();
+    TableLoader original = TableLoader.fromCatalog(catalogLoader, IDENTIFIER);
 
     // serialize / deserialize the TableLoader
-    org.apache.iceberg.flink.TableLoader deserialized = roundTripSerialize(original);
+    TableLoader deserialized = roundTripSerialize(original);
 
     // should still work after deserialization
     assertFalse(deserialized.isOpen());
