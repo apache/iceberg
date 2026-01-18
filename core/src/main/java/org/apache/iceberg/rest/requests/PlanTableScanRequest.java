@@ -18,16 +18,22 @@
  */
 package org.apache.iceberg.rest.requests;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.io.UncheckedIOException;
 import java.util.List;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
+import org.apache.iceberg.util.JsonUtil;
 
 public class PlanTableScanRequest implements RESTRequest {
   private final Long snapshotId;
   private final List<String> select;
-  private final Expression filter;
+  private final JsonNode filterJson;
   private final boolean caseSensitive;
   private final boolean useSnapshotSchema;
   private final Long startSnapshotId;
@@ -43,8 +49,47 @@ public class PlanTableScanRequest implements RESTRequest {
     return select;
   }
 
+  /**
+   * Returns the filter expression, deserializing it without schema context.
+   *
+   * <p>Note: This method does not perform type-aware deserialization and may not work correctly for
+   * BINARY, FIXED, and DECIMAL types. Use {@link #filter(Schema)} instead for proper type handling.
+   *
+   * @return the filter expression, or null if no filter was specified
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #filter(Schema)} instead for
+   *     proper type-aware deserialization
+   */
+  @Deprecated
   public Expression filter() {
-    return filter;
+    if (filterJson == null) {
+      return null;
+    }
+    return ExpressionParser.fromJson(filterJson);
+  }
+
+  /**
+   * Returns the filter expression, deserializing it with the provided schema for type inference.
+   *
+   * <p>This method should be preferred over {@link #filter()} as it properly handles BINARY, FIXED,
+   * and DECIMAL types by using schema information for type-aware deserialization.
+   *
+   * @param schema the table schema to use for type-aware deserialization of filter values
+   * @return the filter expression, or null if no filter was specified
+   */
+  public Expression filter(Schema schema) {
+    if (filterJson == null) {
+      return null;
+    }
+    return ExpressionParser.fromJson(filterJson, schema);
+  }
+
+  /**
+   * Returns the raw filter JSON node, if available. Package-private for use by parser.
+   *
+   * @return the raw filter JSON, or null if no filter JSON was stored
+   */
+  JsonNode filterJson() {
+    return filterJson;
   }
 
   public boolean caseSensitive() {
@@ -74,7 +119,7 @@ public class PlanTableScanRequest implements RESTRequest {
   private PlanTableScanRequest(
       Long snapshotId,
       List<String> select,
-      Expression filter,
+      JsonNode filterJson,
       boolean caseSensitive,
       boolean useSnapshotSchema,
       Long startSnapshotId,
@@ -83,7 +128,7 @@ public class PlanTableScanRequest implements RESTRequest {
       Long minRowsRequested) {
     this.snapshotId = snapshotId;
     this.select = select;
-    this.filter = filter;
+    this.filterJson = filterJson;
     this.caseSensitive = caseSensitive;
     this.useSnapshotSchema = useSnapshotSchema;
     this.startSnapshotId = startSnapshotId;
@@ -111,6 +156,13 @@ public class PlanTableScanRequest implements RESTRequest {
       Preconditions.checkArgument(
           minRowsRequested >= 0L, "Invalid scan: minRowsRequested is negative");
     }
+
+    if (null != filterJson) {
+      Preconditions.checkArgument(
+          filterJson.isBoolean() || filterJson.isObject(),
+          "Cannot parse expression from non-object: %s",
+          filterJson);
+    }
   }
 
   @Override
@@ -118,7 +170,7 @@ public class PlanTableScanRequest implements RESTRequest {
     return MoreObjects.toStringHelper(this)
         .add("snapshotId", snapshotId)
         .add("select", select)
-        .add("filter", filter)
+        .add("filter", filterJson)
         .add("caseSensitive", caseSensitive)
         .add("useSnapshotSchema", useSnapshotSchema)
         .add("startSnapshotId", startSnapshotId)
@@ -135,7 +187,7 @@ public class PlanTableScanRequest implements RESTRequest {
   public static class Builder {
     private Long snapshotId;
     private List<String> select;
-    private Expression filter;
+    private JsonNode filterJson;
     private boolean caseSensitive = true;
     private boolean useSnapshotSchema = false;
     private Long startSnapshotId;
@@ -160,8 +212,38 @@ public class PlanTableScanRequest implements RESTRequest {
       return this;
     }
 
+    /**
+     * Sets the filter expression for the scan.
+     *
+     * @param expression the filter expression
+     * @return this builder
+     * @deprecated since 1.11.0, will be removed in 1.12.0; this method serializes the expression to
+     *     JSON immediately, which may lose type information for BINARY, FIXED, and DECIMAL types
+     */
+    @Deprecated
     public Builder withFilter(Expression expression) {
-      this.filter = expression;
+      if (expression != null) {
+        try {
+          // Serialize expression to JSON immediately for deferred type-aware deserialization
+          String jsonString = ExpressionParser.toJson(expression);
+          this.filterJson = JsonUtil.mapper().readTree(jsonString);
+        } catch (JsonProcessingException e) {
+          throw new UncheckedIOException("Failed to serialize filter expression to JSON", e);
+        }
+      } else {
+        this.filterJson = null;
+      }
+      return this;
+    }
+
+    /**
+     * Sets the filter JSON node directly. Package-private for use by parser.
+     *
+     * @param filterJsonNode the filter as a JSON node
+     * @return this builder
+     */
+    Builder withFilterJson(JsonNode filterJsonNode) {
+      this.filterJson = filterJsonNode;
       return this;
     }
 
@@ -199,7 +281,7 @@ public class PlanTableScanRequest implements RESTRequest {
       return new PlanTableScanRequest(
           snapshotId,
           select,
-          filter,
+          filterJson,
           caseSensitive,
           useSnapshotSchema,
           startSnapshotId,
