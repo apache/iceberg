@@ -117,15 +117,26 @@ public class RowDataWrapper implements StructLike {
         return (row, pos) -> {
           LocalDateTime localDateTime =
               row.getTimestamp(pos, timestampType.getPrecision()).toLocalDateTime();
-          return DateTimeUtil.microsFromTimestamp(localDateTime);
+          // Use nanosecond precision for TIMESTAMP(9), microsecond for others
+          if (timestampType.getPrecision() == 9) {
+            return DateTimeUtil.nanosFromTimestamp(localDateTime);
+          } else {
+            return DateTimeUtil.microsFromTimestamp(localDateTime);
+          }
         };
 
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
         LocalZonedTimestampType lzTs = (LocalZonedTimestampType) logicalType;
         return (row, pos) -> {
           TimestampData timestampData = row.getTimestamp(pos, lzTs.getPrecision());
-          return timestampData.getMillisecond() * 1000
-              + timestampData.getNanoOfMillisecond() / 1000;
+          // Use nanosecond precision for TIMESTAMP_LTZ(9), microsecond for others
+          if (lzTs.getPrecision() == 9) {
+            return timestampData.getMillisecond() * 1_000_000L
+                + timestampData.getNanoOfMillisecond();
+          } else {
+            return timestampData.getMillisecond() * 1000L
+                + timestampData.getNanoOfMillisecond() / 1000;
+          }
         };
 
       case ROW:
