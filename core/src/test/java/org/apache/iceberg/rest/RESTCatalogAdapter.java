@@ -72,6 +72,7 @@ import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
+import org.apache.iceberg.rest.requests.PostEventsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -79,6 +80,7 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.rest.events.InMemoryEventsStore;
 import org.apache.iceberg.util.PropertyUtil;
 
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
@@ -116,6 +118,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   private AuthSession authSession = AuthSession.EMPTY;
   private PlanningBehavior planningBehavior;
+  // single in-memory store used by test REST server
+  private static final InMemoryEventsStore EVENTS_STORE = new InMemoryEventsStore();
 
   public RESTCatalogAdapter(Catalog catalog) {
     this.catalog = catalog;
@@ -420,6 +424,18 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           // nothing to do here other than checking that we're getting the correct request
           castRequest(ReportMetricsRequest.class, body);
           return null;
+
+        case EVENTS_POST:
+          {
+            PostEventsRequest request = castRequest(PostEventsRequest.class, body);
+            EVENTS_STORE.postEvents(request.events());
+            return castResponse(responseType, EventsResponse.of(EVENTS_STORE.getEvents()));
+          }
+
+        case EVENTS_GET:
+          {
+            return castResponse(responseType, EventsResponse.of(EVENTS_STORE.getEvents()));
+          }
         }
 
       case COMMIT_TRANSACTION:
