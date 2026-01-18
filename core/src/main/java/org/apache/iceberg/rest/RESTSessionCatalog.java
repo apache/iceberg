@@ -26,9 +26,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -60,6 +62,7 @@ import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -67,6 +70,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
+import org.apache.iceberg.rest.RESTTableCache.TableWithETag;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -164,6 +168,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
   private String namespaceSeparator = null;
+
+  private RESTTableCache tableCache;
 
   public RESTSessionCatalog() {
     this(
@@ -277,7 +283,20 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
             RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED_DEFAULT);
+
+    this.tableCache = createTableCache(mergedProps);
+    this.closeables.addCloseable(this.tableCache);
+
     super.initialize(name, mergedProps);
+  }
+
+  protected RESTTableCache createTableCache(Map<String, String> props) {
+    return new RESTTableCache(props);
+  }
+
+  @VisibleForTesting
+  RESTTableCache tableCache() {
+    return tableCache;
   }
 
   @Override
@@ -332,6 +351,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       return true;
     } catch (NoSuchTableException e) {
       return false;
+    } finally {
+      invalidateTable(context, identifier);
     }
   }
 
@@ -353,6 +374,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       return true;
     } catch (NoSuchTableException e) {
       return false;
+    } finally {
+      invalidateTable(context, identifier);
     }
   }
 
@@ -370,6 +393,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     client
         .withAuthSession(contextualSession)
         .post(paths.rename(), request, null, mutationHeaders, ErrorHandlers.tableErrorHandler());
+
+    invalidateTable(context, from);
   }
 
   @Override
@@ -384,9 +409,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         return true;
       } else {
         // fallback in order to work with 1.7.x and older servers
-        return super.tableExists(context, identifier);
+        if (!super.tableExists(context, identifier)) {
+          invalidateTable(context, identifier);
+          return false;
+        }
+
+        return true;
       }
     } catch (NoSuchTableException e) {
+      invalidateTable(context, identifier);
       return false;
     }
   }
@@ -396,7 +427,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private LoadTableResponse loadInternal(
-      SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
+      SessionContext context,
+      TableIdentifier identifier,
+      SnapshotMode mode,
+      Map<String, String> headers,
+      Consumer<Map<String, String>> responseHeaders) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     return client
@@ -405,8 +440,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             paths.table(identifier),
             snapshotModeToParam(mode),
             LoadTableResponse.class,
-            Map.of(),
-            ErrorHandlers.tableErrorHandler());
+            headers,
+            ErrorHandlers.tableErrorHandler(),
+            responseHeaders);
   }
 
   @Override
@@ -424,8 +460,25 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     MetadataTableType metadataType;
     LoadTableResponse response;
     TableIdentifier loadedIdent;
+
+    Map<String, String> responseHeaders = Maps.newHashMap();
+    TableWithETag cachedTable = tableCache.getIfPresent(context.sessionId(), identifier);
+
     try {
-      response = loadInternal(context, identifier, snapshotMode);
+      response =
+          loadInternal(
+              context,
+              identifier,
+              snapshotMode,
+              headersForLoadTable(cachedTable),
+              responseHeaders::putAll);
+
+      if (response == null) {
+        Preconditions.checkNotNull(cachedTable, "Invalid load table response: null");
+
+        return cachedTable.supplier().get();
+      }
+
       loadedIdent = identifier;
       metadataType = null;
 
@@ -435,14 +488,33 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         // attempt to load a metadata table using the identifier's namespace as the base table
         TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
         try {
-          response = loadInternal(context, baseIdent, snapshotMode);
+          responseHeaders.clear();
+          cachedTable = tableCache.getIfPresent(context.sessionId(), baseIdent);
+
+          response =
+              loadInternal(
+                  context,
+                  baseIdent,
+                  snapshotMode,
+                  headersForLoadTable(cachedTable),
+                  responseHeaders::putAll);
+
+          if (response == null) {
+            Preconditions.checkNotNull(cachedTable, "Invalid load table response: null");
+
+            return MetadataTableUtils.createMetadataTableInstance(
+                cachedTable.supplier().get(), metadataType);
+          }
+
           loadedIdent = baseIdent;
         } catch (NoSuchTableException ignored) {
           // the base table does not exist
+          invalidateTable(context, baseIdent);
           throw original;
         }
       } else {
         // name is not a metadata table
+        invalidateTable(context, identifier);
         throw original;
       }
     }
@@ -461,7 +533,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .setPreviousFileLocation(null)
               .setSnapshotsSupplier(
                   () ->
-                      loadInternal(context, finalIdentifier, SnapshotMode.ALL)
+                      loadInternal(context, finalIdentifier, SnapshotMode.ALL, Map.of(), h -> {})
                           .tableMetadata()
                           .snapshots())
               .discardChanges()
@@ -470,38 +542,52 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       tableMetadata = response.tableMetadata();
     }
 
+    List<Credential> credentials = response.credentials();
     RESTClient tableClient = client.withAuthSession(tableSession);
-    RESTTableOperations ops =
-        newTableOps(
-            tableClient,
-            paths.table(finalIdentifier),
-            Map::of,
-            mutationHeaders,
-            tableFileIO(context, tableConf, response.credentials()),
-            tableMetadata,
-            endpoints);
+    Supplier<BaseTable> tableSupplier =
+        createTableSupplier(
+            finalIdentifier, tableMetadata, context, tableClient, tableConf, credentials);
 
-    trackFileIO(ops);
-
-    // RestTable should only be returned for non-metadata tables, because client would
-    // not have access to metadata files for example manifests, since all it needs is catalog.
-    if (metadataType == null) {
-      RESTTable restTable = restTableForScanPlanning(ops, finalIdentifier, tableClient);
-      if (restTable != null) {
-        return restTable;
-      }
+    String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
+    if (eTag != null) {
+      tableCache.put(context.sessionId(), finalIdentifier, tableSupplier, eTag);
     }
 
-    BaseTable table =
-        new BaseTable(
-            ops,
-            fullTableName(finalIdentifier),
-            metricsReporter(paths.metrics(finalIdentifier), tableClient));
     if (metadataType != null) {
-      return MetadataTableUtils.createMetadataTableInstance(table, metadataType);
+      return MetadataTableUtils.createMetadataTableInstance(tableSupplier.get(), metadataType);
     }
 
-    return table;
+    return tableSupplier.get();
+  }
+
+  private Supplier<BaseTable> createTableSupplier(
+      TableIdentifier identifier,
+      TableMetadata tableMetadata,
+      SessionContext context,
+      RESTClient tableClient,
+      Map<String, String> tableConf,
+      List<Credential> credentials) {
+    return () -> {
+      RESTTableOperations ops =
+          newTableOps(
+              tableClient,
+              paths.table(identifier),
+              Map::of,
+              mutationHeaders,
+              tableFileIO(context, tableConf, credentials),
+              tableMetadata,
+              endpoints);
+
+      trackFileIO(ops);
+
+      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient);
+      if (table != null) {
+        return table;
+      }
+
+      return new BaseTable(
+          ops, fullTableName(identifier), metricsReporter(paths.metrics(identifier), tableClient));
+    };
   }
 
   private RESTTable restTableForScanPlanning(
@@ -546,7 +632,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
-  public void invalidateTable(SessionContext context, TableIdentifier ident) {}
+  public void invalidateTable(SessionContext context, TableIdentifier ident) {
+    tableCache.invalidate(context.sessionId(), ident);
+  }
 
   @Override
   public Table registerTable(
@@ -906,7 +994,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         throw new AlreadyExistsException("View with same name already exists: %s", ident);
       }
 
-      LoadTableResponse response = loadInternal(context, ident, snapshotMode);
+      LoadTableResponse response = loadInternal(context, ident, snapshotMode, Map.of(), h -> {});
+
       String fullName = fullTableName(ident);
 
       Map<String, String> tableConf = response.config();
@@ -1366,6 +1455,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     client
         .withAuthSession(contextualSession)
         .post(paths.renameView(), request, null, mutationHeaders, ErrorHandlers.viewErrorHandler());
+  }
+
+  private static Map<String, String> headersForLoadTable(TableWithETag tableWithETag) {
+    if (tableWithETag == null) {
+      return Map.of();
+    }
+
+    String eTag = tableWithETag.eTag();
+    Preconditions.checkArgument(eTag != null, "Invalid ETag: null");
+
+    return Map.of(HttpHeaders.IF_NONE_MATCH, eTag);
   }
 
   private class RESTViewBuilder implements ViewBuilder {

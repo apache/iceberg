@@ -96,6 +96,10 @@ public class RESTCatalog
     sessionCatalog.initialize(name, props);
   }
 
+  protected RESTSessionCatalog sessionCatalog() {
+    return sessionCatalog;
+  }
+
   @Override
   public String name() {
     return sessionCatalog.name();
