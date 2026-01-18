@@ -35,6 +35,7 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
@@ -56,8 +57,9 @@ import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -142,15 +144,17 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     }
 
     if (tableKeyId != null) {
-      if (keyManagementClient == null) {
-        throw new RuntimeException(
-            "Cant create encryption manager, because key management client is not set");
-      }
+      Preconditions.checkArgument(
+          keyManagementClient != null,
+          "Cannot create encryption manager without a key management client. Consider setting the '%s' catalog property",
+          CatalogProperties.ENCRYPTION_KMS_IMPL);
 
-      Map<String, String> encryptionProperties = Maps.newHashMap();
-      encryptionProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, tableKeyId);
-      encryptionProperties.put(
-          TableProperties.ENCRYPTION_DEK_LENGTH, String.valueOf(encryptionDekLength));
+      Map<String, String> encryptionProperties =
+          ImmutableMap.of(
+              TableProperties.ENCRYPTION_TABLE_KEY,
+              tableKeyId,
+              TableProperties.ENCRYPTION_DEK_LENGTH,
+              String.valueOf(encryptionDekLength));
 
       encryptionManager =
           EncryptionUtil.createEncryptionManager(
@@ -312,17 +316,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             base.properties().keySet().stream()
                 .filter(key -> !tableMetadata.properties().containsKey(key))
                 .collect(Collectors.toSet());
-      }
 
-      if (removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY)) {
-        throw new IllegalArgumentException("Cannot remove key in encrypted table");
-      }
+        Preconditions.checkArgument(
+            !removedProps.contains(TableProperties.ENCRYPTION_TABLE_KEY),
+            "Cannot remove key ID from an encrypted table");
 
-      if (base != null
-          && !Objects.equals(
-              base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY),
-              metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY))) {
-        throw new IllegalArgumentException("Cannot modify key in encrypted table");
+        Preconditions.checkArgument(
+            Objects.equals(
+                base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY),
+                metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY)),
+            "Cannot modify key ID of an encrypted table");
       }
 
       HMSTablePropertyHelper.updateHmsTableForIcebergTable(
