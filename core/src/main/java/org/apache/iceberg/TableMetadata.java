@@ -197,7 +197,7 @@ public class TableMetadata implements Serializable {
     }
   }
 
-  public static class MetadataLogEntry {
+  public static class MetadataLogEntry implements Serializable {
     private final long timestampMillis;
     private final String file;
 
