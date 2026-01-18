@@ -121,9 +121,9 @@ public class CatalogTableLoaderTest {
     // open and load
     loader.open();
     assertTrue(loader.isOpen());
-    Table t = loader.loadTable();
-    assertNotNull(t);
-    assertEquals("fake-table", t.toString());
+    Table table = loader.loadTable();
+    assertNotNull(table);
+    assertEquals("fake-table", table.toString());
 
     // close
     loader.close();
@@ -143,9 +143,9 @@ public class CatalogTableLoaderTest {
     assertFalse(deserialized.isOpen());
     deserialized.open();
     assertTrue(deserialized.isOpen());
-    Table t = deserialized.loadTable();
-    assertNotNull(t);
-    assertEquals("fake-table", t.toString());
+    Table table = deserialized.loadTable();
+    assertNotNull(table);
+    assertEquals("fake-table", table.toString());
     deserialized.close();
     assertFalse(deserialized.isOpen());
   }
