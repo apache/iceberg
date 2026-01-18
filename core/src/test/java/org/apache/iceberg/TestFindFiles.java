@@ -182,6 +182,42 @@ public class TestFindFiles extends TestBase {
   }
 
   @TestTemplate
+  public void testWithMetadataMatchingEndsWith() {
+    table
+        .newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .commit();
+
+    Iterable<DataFile> files =
+        FindFiles.in(table)
+            .withMetadataMatching(Expressions.endsWith("file_path", "data-a.parquet"))
+            .collect();
+
+    assertThat(pathSet(files)).isEqualTo(pathSet(FILE_A));
+  }
+
+  @TestTemplate
+  public void testWithMetadataMatchingNotEndsWith() {
+    table
+        .newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .appendFile(FILE_C)
+        .appendFile(FILE_D)
+        .commit();
+
+    Iterable<DataFile> files =
+        FindFiles.in(table)
+            .withMetadataMatching(Expressions.notEndsWith("file_path", "data-a.parquet"))
+            .collect();
+
+    assertThat(pathSet(files)).isEqualTo(pathSet(FILE_B, FILE_C, FILE_D));
+  }
+
+  @TestTemplate
   public void testIncludeColumnStats() {
     table.newAppend().appendFile(FILE_WITH_STATS).commit();
 
