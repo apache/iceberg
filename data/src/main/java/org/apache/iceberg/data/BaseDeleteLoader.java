@@ -41,9 +41,8 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.RangeReadable;
-import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.parquet.Parquet;
@@ -51,7 +50,6 @@ import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
@@ -183,7 +181,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     InputFile inputFile = loadInputFile.apply(dv);
     long offset = dv.contentOffset();
     int length = dv.contentSizeInBytes().intValue();
-    byte[] bytes = readBytes(inputFile, offset, length);
+    byte[] bytes = IOUtil.readBytes(inputFile, offset, length);
     return PositionDeleteIndex.deserialize(bytes, dv);
   }
 
@@ -321,23 +319,5 @@ public class BaseDeleteLoader implements DeleteLoader {
         "DV is expected to reference %s, not %s",
         filePath,
         dv.referencedDataFile());
-  }
-
-  private static byte[] readBytes(InputFile inputFile, long offset, int length) {
-    try (SeekableInputStream stream = inputFile.newStream()) {
-      byte[] bytes = new byte[length];
-
-      if (stream instanceof RangeReadable) {
-        RangeReadable rangeReadable = (RangeReadable) stream;
-        rangeReadable.readFully(offset, bytes);
-      } else {
-        stream.seek(offset);
-        ByteStreams.readFully(stream, bytes);
-      }
-
-      return bytes;
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
   }
 }

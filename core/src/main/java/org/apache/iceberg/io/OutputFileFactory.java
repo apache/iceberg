@@ -29,6 +29,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 
@@ -87,7 +88,21 @@ public class OutputFileFactory {
   }
 
   public static Builder builderFor(Table table, int partitionId, long taskId) {
-    return new Builder(table, partitionId, taskId);
+    return new Builder(
+        table.locationProvider(),
+        table.encryption(),
+        table::io,
+        table.spec(),
+        FileFormat.fromString(
+            table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT)),
+        partitionId,
+        taskId);
+  }
+
+  public static Builder builderFor(
+      TableOperations ops, PartitionSpec spec, FileFormat format, int partitionId, long taskId) {
+    return new Builder(
+        ops.locationProvider(), ops.encryption(), ops::io, spec, format, partitionId, taskId);
   }
 
   private String generateFilename() {
@@ -121,26 +136,32 @@ public class OutputFileFactory {
   }
 
   public static class Builder {
-    private final Table table;
     private final int partitionId;
     private final long taskId;
+    private final LocationProvider locations;
+    private final EncryptionManager encryption;
     private PartitionSpec defaultSpec;
     private String operationId;
     private FileFormat format;
     private String suffix;
     private Supplier<FileIO> ioSupplier;
 
-    private Builder(Table table, int partitionId, long taskId) {
-      this.table = table;
+    private Builder(
+        LocationProvider locationProvider,
+        EncryptionManager encryptionManager,
+        Supplier<FileIO> ioSupplier,
+        PartitionSpec spec,
+        FileFormat format,
+        int partitionId,
+        long taskId) {
+      this.locations = locationProvider;
+      this.encryption = encryptionManager;
+      this.ioSupplier = ioSupplier;
       this.partitionId = partitionId;
       this.taskId = taskId;
-      this.defaultSpec = table.spec();
+      this.defaultSpec = spec;
       this.operationId = UUID.randomUUID().toString();
-
-      String formatAsString =
-          table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-      this.format = FileFormat.fromString(formatAsString);
-      this.ioSupplier = table::io;
+      this.format = format;
     }
 
     public Builder defaultSpec(PartitionSpec newDefaultSpec) {
@@ -176,8 +197,6 @@ public class OutputFileFactory {
     }
 
     public OutputFileFactory build() {
-      LocationProvider locations = table.locationProvider();
-      EncryptionManager encryption = table.encryption();
       return new OutputFileFactory(
           defaultSpec,
           format,
