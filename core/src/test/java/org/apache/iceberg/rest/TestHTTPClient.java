@@ -50,6 +50,8 @@ import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchWarehouseException;
+import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.TLSConfigurer;
@@ -644,5 +646,25 @@ public class TestHTTPClient {
       Item item = (Item) o;
       return Objects.equals(id, item.id) && Objects.equals(data, item.data);
     }
+  }
+
+  @Test
+  public void testConfigErrorHandler404ThrowsNoSuchWarehouseException() {
+    ErrorResponse error =
+        ErrorResponse.builder().responseCode(404).withMessage("Warehouse not found").build();
+
+    assertThatThrownBy(() -> ErrorHandlers.configErrorHandler().accept(error))
+        .isInstanceOf(NoSuchWarehouseException.class)
+        .hasMessage("Warehouse not found");
+  }
+
+  @Test
+  public void testConfigErrorHandlerDelegatesToDefaultForNon404() {
+    ErrorResponse error =
+        ErrorResponse.builder().responseCode(500).withMessage("Internal server error").build();
+
+    assertThatThrownBy(() -> ErrorHandlers.configErrorHandler().accept(error))
+        .isInstanceOf(ServiceFailureException.class)
+        .hasMessageContaining("Internal server error");
   }
 }
