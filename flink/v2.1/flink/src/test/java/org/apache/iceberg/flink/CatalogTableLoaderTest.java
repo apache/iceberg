@@ -31,7 +31,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.junit.Test;
-
 import static org.junit.Assert.*;
 
 public class CatalogTableLoaderTest {
