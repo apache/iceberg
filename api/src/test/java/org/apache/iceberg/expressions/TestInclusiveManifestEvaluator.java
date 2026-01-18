@@ -66,7 +66,8 @@ public class TestInclusiveManifestEvaluator {
           optional(12, "no_nan_or_null", Types.DoubleType.get()),
           optional(13, "all_nulls_missing_nan_float", Types.FloatType.get()),
           optional(14, "all_same_value_or_null", Types.StringType.get()),
-          optional(15, "no_nulls_same_value_a", Types.StringType.get()));
+          optional(15, "no_nulls_same_value_a", Types.StringType.get()),
+          optional(16, "single_value_with_nan", Types.FloatType.get()));
 
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA)
@@ -84,6 +85,7 @@ public class TestInclusiveManifestEvaluator {
           .identity("all_nulls_missing_nan_float")
           .identity("all_same_value_or_null")
           .identity("no_nulls_same_value_a")
+          .identity("single_value_with_nan")
           .build();
 
   private static final int INT_MIN_VALUE = 30;
@@ -128,7 +130,12 @@ public class TestInclusiveManifestEvaluator {
                   toByteBuffer(Types.FloatType.get(), 20F)),
               new TestHelpers.TestFieldSummary(true, null, null),
               new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MIN),
-              new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MIN)),
+              new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MIN),
+              new TestHelpers.TestFieldSummary(
+                  false,
+                  true,
+                  toByteBuffer(Types.FloatType.get(), 5.0F),
+                  toByteBuffer(Types.FloatType.get(), 5.0F))),
           null);
 
   @Test
@@ -752,5 +759,69 @@ public class TestInclusiveManifestEvaluator {
     shouldRead =
         ManifestEvaluator.forRowFilter(notIn("no_nulls", "abc", "def"), SPEC, true).eval(FILE);
     assertThat(shouldRead).as("Should read: notIn on no nulls column").isTrue();
+  }
+
+  @Test
+  public void testNotEqWithSingleValue() {
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(notEqual("no_nulls", "a"), SPEC, true).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: manifest has range of partition values, cannot exclude based on literal")
+        .isTrue();
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notEqual("no_nulls_same_value_a", "a"), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not read: manifest contains single partition value equal to literal")
+        .isFalse();
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notEqual("no_nulls_same_value_a", "b"), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: manifest contains single partition value not equal to literal")
+        .isTrue();
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notEqual("all_same_value_or_null", "a"), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead).as("Should read: manifest has nulls which match != predicate").isTrue();
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notEqual("single_value_with_nan", 5.0F), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: manifest has NaN values which match != predicate")
+        .isTrue();
+  }
+
+  @Test
+  public void testNotInWithSingleValue() {
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(notIn("no_nulls", "a", "b"), SPEC, true).eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: manifest has range of partition values, cannot exclude based on literal")
+        .isTrue();
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notIn("no_nulls_same_value_a", "a", "b"), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not read: manifest contains single partition value in exclusion list")
+        .isFalse();
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notIn("no_nulls_same_value_a", "b", "c"), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: manifest contains single partition value not in exclusion list")
+        .isTrue();
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notIn("all_same_value_or_null", "a", "b"), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: manifest has nulls which match NOT IN predicate")
+        .isTrue();
+    shouldRead =
+        ManifestEvaluator.forRowFilter(notIn("single_value_with_nan", 5.0F, 10.0F), SPEC, true)
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: manifest has NaN values which match NOT IN predicate")
+        .isTrue();
   }
 }
