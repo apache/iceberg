@@ -38,7 +38,9 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
+import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -57,6 +59,8 @@ public class ADLSFileIO implements DelegateFileIO {
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private SerializableMap<String, String> properties;
   private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
+  private SerializableSupplier<DataLakeFileSystemClient> clientSupplier;
+  private transient volatile DataLakeFileSystemClient cachedClient;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -68,6 +72,24 @@ public class ADLSFileIO implements DelegateFileIO {
   @VisibleForTesting
   ADLSFileIO(AzureProperties azureProperties) {
     this.azureProperties = azureProperties;
+  }
+
+  /**
+   * Constructor with custom DataLakeFileSystemClient supplier.
+   *
+   * <p>Unlike the no-arg constructor, this constructor initializes properties and azureProperties
+   * immediately, allowing immediate use without calling {@link ADLSFileIO#initialize(Map)}.
+   *
+   * <p>Note: The provided client will be used for all file system operations. If your use case
+   * requires accessing multiple containers, ensure the client is configured appropriately or use
+   * the default constructor with {@link ADLSFileIO#initialize(Map)}.
+   *
+   * @param clientSupplier client supplier
+   */
+  public ADLSFileIO(SerializableSupplier<DataLakeFileSystemClient> clientSupplier) {
+    this.clientSupplier = clientSupplier;
+    this.properties = SerializableMap.copyOf(Maps.newHashMap());
+    this.azureProperties = new AzureProperties(this.properties.immutableMap());
   }
 
   @Override
@@ -109,6 +131,16 @@ public class ADLSFileIO implements DelegateFileIO {
 
   @VisibleForTesting
   DataLakeFileSystemClient client(ADLSLocation location) {
+    if (clientSupplier != null) {
+      if (cachedClient == null) {
+        synchronized (this) {
+          if (cachedClient == null) {
+            cachedClient = clientSupplier.get();
+          }
+        }
+      }
+      return cachedClient;
+    }
     DataLakeFileSystemClientBuilder clientBuilder =
         new DataLakeFileSystemClientBuilder().httpClient(HTTP);
 
