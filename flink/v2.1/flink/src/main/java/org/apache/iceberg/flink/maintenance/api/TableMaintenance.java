@@ -43,10 +43,12 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.LockRemover;
+import org.apache.iceberg.flink.maintenance.operator.LockRemoverOperatorFactory;
 import org.apache.iceberg.flink.maintenance.operator.MonitorSource;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
 import org.apache.iceberg.flink.maintenance.operator.TriggerEvaluator;
 import org.apache.iceberg.flink.maintenance.operator.TriggerManager;
+import org.apache.iceberg.flink.maintenance.operator.TriggerManagerOperatorFactory;
 import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -104,6 +106,21 @@ public class TableMaintenance {
     return new Builder(env, null, tableLoader, lockFactory);
   }
 
+  /**
+   * Use this for standalone maintenance job. It creates a monitor source that detect table changes
+   * and build the maintenance pipelines afterwards. But use coordination lock default.
+   *
+   * @param env used to register the monitor source
+   * @param tableLoader used for accessing the table
+   * @return builder for the maintenance stream
+   */
+  public static Builder forTable(StreamExecutionEnvironment env, TableLoader tableLoader) {
+    Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
+    Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
+
+    return new Builder(env, null, tableLoader, null).enableCoordinationLock(true);
+  }
+
   public static class Builder {
     private final StreamExecutionEnvironment env;
     private final DataStream<TableChange> inputStream;
@@ -117,6 +134,7 @@ public class TableMaintenance {
     private Duration lockCheckDelay = Duration.ofSeconds(LOCK_CHECK_DELAY_SECOND_DEFAULT);
     private int parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
     private int maxReadBack = MAX_READ_BACK_DEFAULT;
+    private boolean enableCoordinationLock = false;
 
     private Builder(
         StreamExecutionEnvironment env,
@@ -211,6 +229,11 @@ public class TableMaintenance {
       return this;
     }
 
+    public Builder enableCoordinationLock(boolean newEnableCoordinationLock) {
+      this.enableCoordinationLock = newEnableCoordinationLock;
+      return this;
+    }
+
     /** Builds the task graph for the maintenance tasks. */
     public void append() throws IOException {
       Preconditions.checkArgument(!taskBuilders.isEmpty(), "Provide at least one task");
@@ -226,21 +249,43 @@ public class TableMaintenance {
       try (TableLoader loader = tableLoader.clone()) {
         loader.open();
         String tableName = loader.loadTable().name();
-        DataStream<Trigger> triggers =
-            DataStreamUtils.reinterpretAsKeyedStream(
-                    changeStream(tableName, loader), unused -> true)
-                .process(
-                    new TriggerManager(
-                        loader,
-                        lockFactory,
-                        taskNames,
-                        evaluators,
-                        rateLimit.toMillis(),
-                        lockCheckDelay.toMillis()))
-                .name(TRIGGER_MANAGER_OPERATOR_NAME)
-                .uid(TRIGGER_MANAGER_OPERATOR_NAME + uidSuffix)
-                .slotSharingGroup(slotSharingGroup)
-                .forceNonParallel()
+        DataStream<Trigger> triggers;
+        if (enableCoordinationLock) {
+          triggers =
+              DataStreamUtils.reinterpretAsKeyedStream(
+                      changeStream(tableName, loader), unused -> true)
+                  .transform(
+                      TRIGGER_MANAGER_OPERATOR_NAME,
+                      TypeInformation.of(Trigger.class),
+                      new TriggerManagerOperatorFactory(
+                          tableName,
+                          taskNames,
+                          evaluators,
+                          rateLimit.toMillis(),
+                          lockCheckDelay.toMillis()))
+                  .uid(TRIGGER_MANAGER_OPERATOR_NAME + uidSuffix)
+                  .slotSharingGroup(slotSharingGroup)
+                  .forceNonParallel();
+        } else {
+          triggers =
+              DataStreamUtils.reinterpretAsKeyedStream(
+                      changeStream(tableName, loader), unused -> true)
+                  .process(
+                      new TriggerManager(
+                          loader,
+                          lockFactory,
+                          taskNames,
+                          evaluators,
+                          rateLimit.toMillis(),
+                          lockCheckDelay.toMillis()))
+                  .name(TRIGGER_MANAGER_OPERATOR_NAME)
+                  .uid(TRIGGER_MANAGER_OPERATOR_NAME + uidSuffix)
+                  .slotSharingGroup(slotSharingGroup)
+                  .forceNonParallel();
+        }
+
+        triggers =
+            triggers
                 .assignTimestampsAndWatermarks(new PunctuatedWatermarkStrategy())
                 .name(WATERMARK_ASSIGNER_OPERATOR_NAME)
                 .uid(WATERMARK_ASSIGNER_OPERATOR_NAME + uidSuffix)
@@ -277,14 +322,25 @@ public class TableMaintenance {
         }
 
         // Add the LockRemover to the end
-        unioned
-            .transform(
-                LOCK_REMOVER_OPERATOR_NAME,
-                TypeInformation.of(Void.class),
-                new LockRemover(tableName, lockFactory, taskNames))
-            .forceNonParallel()
-            .uid("lock-remover-" + uidSuffix)
-            .slotSharingGroup(slotSharingGroup);
+        if (enableCoordinationLock) {
+          unioned
+              .transform(
+                  LOCK_REMOVER_OPERATOR_NAME,
+                  TypeInformation.of(Void.class),
+                  new LockRemoverOperatorFactory(tableName, taskNames))
+              .uid("lock-remover-" + uidSuffix)
+              .forceNonParallel()
+              .slotSharingGroup(slotSharingGroup);
+        } else {
+          unioned
+              .transform(
+                  LOCK_REMOVER_OPERATOR_NAME,
+                  TypeInformation.of(Void.class),
+                  new LockRemover(tableName, lockFactory, taskNames))
+              .forceNonParallel()
+              .uid("lock-remover-" + uidSuffix)
+              .slotSharingGroup(slotSharingGroup);
+        }
       }
     }
 
