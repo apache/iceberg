@@ -18,14 +18,17 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
+import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.models.DataLakeFileOpenInputStreamResult;
+import com.azure.storage.file.datalake.models.DataLakeStorageException;
 import com.azure.storage.file.datalake.models.FileRange;
 import com.azure.storage.file.datalake.options.DataLakeFileInputStreamOptions;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
@@ -180,13 +183,29 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
     }
   }
 
+  private void handleStorageException(RuntimeException runtimeException) {
+    if (runtimeException instanceof DataLakeStorageException) {
+      DataLakeStorageException dlse = (DataLakeStorageException) runtimeException;
+      if (dlse.getStatusCode() == 404) {
+        throw new NotFoundException(dlse, "File does not exist: %s", fileClient.getFilePath());
+      }
+    } else if (runtimeException instanceof BlobStorageException) {
+      BlobStorageException bse = (BlobStorageException) runtimeException;
+      if (bse.getStatusCode() == 404) {
+        throw new NotFoundException(bse, "File does not exist: %s", fileClient.getFilePath());
+      }
+    }
+    LOG.error(
+        "Failed to open input stream for file {}", fileClient.getFilePath(), runtimeException);
+    throw runtimeException;
+  }
+
   private DataLakeFileOpenInputStreamResult openRange(FileRange range) {
     try {
       return fileClient.openInputStream(getInputOptions(range));
-    } catch (RuntimeException e) {
-      LOG.error(
-          "Failed to open input stream for file {}, range {}", fileClient.getFilePath(), range, e);
-      throw e;
+    } catch (RuntimeException runtimeException) {
+      handleStorageException(runtimeException);
+      return null; // Never reached
     }
   }
 

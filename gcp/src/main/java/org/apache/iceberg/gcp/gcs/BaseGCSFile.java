@@ -22,7 +22,9 @@ import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 import java.net.URI;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.metrics.MetricsContext;
 
@@ -79,9 +81,20 @@ abstract class BaseGCSFile {
     return getBlob() != null;
   }
 
+  private void handleStorageException(StorageException storageException) {
+    if (storageException.getCode() == 404) {
+      throw new NotFoundException(storageException, "Blob does not exist: %s", blobId);
+    }
+    throw storageException;
+  }
+
   protected Blob getBlob() {
     if (metadata == null) {
-      metadata = storage.get(blobId);
+      try {
+        metadata = storage.get(blobId);
+      } catch (StorageException storageException) {
+        handleStorageException(storageException);
+      }
     }
 
     return metadata;
