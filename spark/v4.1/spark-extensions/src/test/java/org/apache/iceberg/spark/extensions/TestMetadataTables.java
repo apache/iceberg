@@ -25,20 +25,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -59,6 +64,7 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -991,5 +997,66 @@ public class TestMetadataTables extends ExtensionsTestBase {
 
     assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
         .containsExactly(firstEntry, secondEntry, thirdEntry, fourthEntry, fifthEntry);
+  }
+
+  @TestTemplate
+  public void testReadableMetricsWithUUIDBounds() throws Exception {
+    // 1. Create table shell via SQL (Spark-compatible)
+    sql(
+        "CREATE TABLE %s (dummy int) USING iceberg TBLPROPERTIES ('format-version'='%s')",
+        tableName, formatVersion);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+
+    // 2. Evolve schema to UUID using Iceberg API
+    table.updateSchema().deleteColumn("dummy").addColumn("id", Types.UUIDType.get()).commit();
+
+    int fieldId = table.schema().findField("id").fieldId();
+
+    // 3. Create UUID lower/upper bounds
+    UUID lower = UUID.randomUUID();
+    UUID upper = UUID.randomUUID();
+    Map<Integer, ByteBuffer> lowerBounds =
+        ImmutableMap.of(fieldId, Conversions.toByteBuffer(Types.UUIDType.get(), lower));
+    Map<Integer, ByteBuffer> upperBounds =
+        ImmutableMap.of(fieldId, Conversions.toByteBuffer(Types.UUIDType.get(), upper));
+
+    Metrics metrics = new Metrics(1L, null, null, null, null, lowerBounds, upperBounds);
+
+    // 4. Create a DataFile with UUID metrics ONLY
+    DataFile dataFile =
+        DataFiles.builder(table.spec())
+            .withPath("/tmp/uuid-metrics.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withMetrics(metrics)
+            .build();
+    table.newFastAppend().appendFile(dataFile).commit();
+
+    // 5. This query crashed BEFORE the fix
+    //    java.lang.ClassCastException: UUID → CharSequence
+    Dataset<Row> df = spark.sql("SELECT readable_metrics FROM " + tableName + ".all_files");
+
+    // After fix: must not throw
+    List<Row> rows = df.collectAsList();
+    assertThat(rows).hasSize(1);
+
+    Row readableMetrics = rows.get(0).getStruct(0);
+    assertThat(readableMetrics).isNotNull();
+
+    Row idMetrics = readableMetrics.getStruct(readableMetrics.fieldIndex("id"));
+
+    // Accessing bounds must not throw
+    Object lowerBound = idMetrics.get(idMetrics.fieldIndex("lower_bound"));
+    Object upperBound = idMetrics.get(idMetrics.fieldIndex("upper_bound"));
+
+    assertThat(lowerBound).isInstanceOf(String.class);
+    assertThat(upperBound).isInstanceOf(String.class);
+
+    // Validate exact readable_metrics values
+    String expectedLower = lower.toString();
+    String expectedUpper = upper.toString();
+
+    assertThat(lowerBound).isEqualTo(expectedLower);
+    assertThat(upperBound).isEqualTo(expectedUpper);
   }
 }
