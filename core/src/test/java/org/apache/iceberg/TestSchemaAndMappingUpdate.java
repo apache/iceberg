@@ -366,6 +366,29 @@ public class TestSchemaAndMappingUpdate extends TestBase {
     assertThat(updatedMapping.nestedMapping()).isNull();
   }
 
+  @TestTemplate
+  void testRollbackSchema() {
+    Schema schemaBeforeDelete = table.schema();
+
+    // Delete a column to create a new schema version
+    table.updateSchema().deleteColumn("id").commit();
+    assertThat(table.schemas()).hasSize(2);
+    assertThat(table.schema().columns())
+        .extracting(Types.NestedField::name)
+        .containsExactly("data");
+
+    // Rollback to the previous schema version
+    table.updateSchema().rollbackTo(schemaBeforeDelete.schemaId()).commit();
+    assertThat(table.schema()).isEqualTo(schemaBeforeDelete);
+  }
+
+  @TestTemplate
+  void testRollbackInvalidSchemaId() {
+    assertThatThrownBy(() -> table.updateSchema().rollbackTo(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot find schema with id: -1");
+  }
+
   /** Asserts that the fields in the original mapping are unchanged in the updated mapping. */
   private void validateUnchanged(NameMapping original, NameMapping updated) {
     MappedFields updatedFields = updated.asMappedFields();
