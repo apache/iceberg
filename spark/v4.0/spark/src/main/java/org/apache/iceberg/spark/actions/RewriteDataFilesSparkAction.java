@@ -31,6 +31,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -96,6 +97,7 @@ public class RewriteDataFilesSparkAction
   private boolean removeDanglingDeletes;
   private boolean useStartingSequenceNumber;
   private boolean caseSensitive;
+  private String branch = SnapshotRef.MAIN_BRANCH;
   private BinPackRewriteFilePlanner planner = null;
   private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> runner = null;
 
@@ -157,13 +159,24 @@ public class RewriteDataFilesSparkAction
     return this;
   }
 
+  public RewriteDataFilesSparkAction toBranch(String targetBranch) {
+    Preconditions.checkArgument(targetBranch != null, "Invalid branch name: null");
+    this.branch = targetBranch;
+    return this;
+  }
+
   @Override
   public RewriteDataFiles.Result execute() {
     if (table.currentSnapshot() == null) {
       return EMPTY_RESULT;
     }
 
-    long startingSnapshotId = table.currentSnapshot().snapshotId();
+    Preconditions.checkArgument(
+        table.snapshot(branch) != null,
+        "Cannot rewrite data files for branch %s: branch does not exist",
+        branch);
+
+    long startingSnapshotId = table.snapshot(branch).snapshotId();
 
     init(startingSnapshotId);
 
@@ -230,7 +243,7 @@ public class RewriteDataFilesSparkAction
   @VisibleForTesting
   RewriteDataFilesCommitManager commitManager(long startingSnapshotId) {
     return new RewriteDataFilesCommitManager(
-        table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
+        table, startingSnapshotId, useStartingSequenceNumber, commitSummary(), branch);
   }
 
   private Builder doExecute(
