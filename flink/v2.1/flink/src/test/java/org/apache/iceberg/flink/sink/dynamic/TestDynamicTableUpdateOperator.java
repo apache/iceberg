@@ -63,7 +63,8 @@ class TestDynamicTableUpdateOperator {
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
-            TableCreator.DEFAULT);
+            TableCreator.DEFAULT,
+            true);
     operator.open(null);
 
     DynamicRecordInternal input =
@@ -97,7 +98,8 @@ class TestDynamicTableUpdateOperator {
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
-            TableCreator.DEFAULT);
+            TableCreator.DEFAULT,
+            true);
     operator.open(null);
 
     catalog.createTable(table, SCHEMA1);
@@ -137,7 +139,9 @@ class TestDynamicTableUpdateOperator {
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
-            TableCreator.DEFAULT);
+            TableCreator.DEFAULT,
+            true // caseSensitive = true (default)
+            );
     operator.open(null);
 
     catalog.createTable(table, SCHEMA2);
@@ -178,7 +182,9 @@ class TestDynamicTableUpdateOperator {
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
-            TableCreator.DEFAULT);
+            TableCreator.DEFAULT,
+            // case sensitivity
+            false);
     operator.open(null);
 
     catalog.createTable(table, SCHEMA2);

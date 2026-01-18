@@ -58,19 +58,19 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
   private final TableIdentifier identifier;
   private final UpdateSchema api;
   private final Schema existingSchema;
-  private final Schema targetSchema;
+  private final boolean caseSensitive;
   private final boolean dropUnusedColumns;
 
   private EvolveSchemaVisitor(
       TableIdentifier identifier,
       UpdateSchema api,
       Schema existingSchema,
-      Schema targetSchema,
+      boolean caseSensitive,
       boolean dropUnusedColumns) {
     this.identifier = identifier;
     this.api = api;
     this.existingSchema = existingSchema;
-    this.targetSchema = targetSchema;
+    this.caseSensitive = caseSensitive;
     this.dropUnusedColumns = dropUnusedColumns;
   }
 
@@ -82,6 +82,7 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
    * @param api an UpdateSchema for adding changes
    * @param existingSchema an existing schema
    * @param targetSchema a new schema to compare with the existing
+   * @param caseSensitive whether field name matching should be case-sensitive
    * @param dropUnusedColumns whether to drop columns not present in target schema
    */
   public static void visit(
@@ -89,12 +90,13 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
       UpdateSchema api,
       Schema existingSchema,
       Schema targetSchema,
+      boolean caseSensitive,
       boolean dropUnusedColumns) {
     visit(
         targetSchema,
         -1,
-        new EvolveSchemaVisitor(identifier, api, existingSchema, targetSchema, dropUnusedColumns),
-        new CompareSchemasVisitor.PartnerIdByNameAccessors(existingSchema));
+        new EvolveSchemaVisitor(identifier, api, existingSchema, caseSensitive, dropUnusedColumns),
+        new CompareSchemasVisitor.PartnerIdByNameAccessors(existingSchema, caseSensitive));
   }
 
   @Override
@@ -107,14 +109,22 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     Types.StructType partnerStruct = findFieldType(partnerId).asStructType();
     String after = null;
     for (Types.NestedField targetField : struct.fields()) {
-      Types.NestedField nestedField = partnerStruct.field(targetField.name());
+      Types.NestedField nestedField =
+          CompareSchemasVisitor.getFieldFromStruct(
+              targetField.name(), partnerStruct, caseSensitive);
       final String columnName;
       if (nestedField != null) {
         updateColumn(nestedField, targetField);
         columnName = this.existingSchema.findColumnName(nestedField.fieldId());
       } else {
         addColumn(partnerId, targetField);
-        columnName = this.targetSchema.findColumnName(targetField.fieldId());
+        // We need to lookup the proper parent name because the letter case might be different on
+        // table vs target parent field (e.g. struct1.FIELD2 vs STRUCT1.STRUCT2). This is actually a
+        // bug in SchemaUpdate#moveAfter(columnName, after) because added fields are case-sensitive,
+        // even if case sensitivity is disabled on the API.
+        String parentName = existingSchema.findColumnName(partnerId);
+        columnName =
+            parentName != null ? parentName + "." + targetField.name() : targetField.name();
       }
 
       setPosition(columnName, after);
@@ -122,7 +132,11 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     }
 
     for (Types.NestedField existingField : partnerStruct.fields()) {
-      if (struct.field(existingField.name()) == null) {
+      Types.NestedField targetField =
+          caseSensitive
+              ? struct.field(existingField.name())
+              : struct.caseInsensitiveField(existingField.name());
+      if (targetField == null) {
         String columnName = this.existingSchema.findColumnName(existingField.fieldId());
         if (dropUnusedColumns) {
           LOG.debug("{}: Dropping column: {}", identifier.name(), columnName);
