@@ -70,6 +70,7 @@ import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
@@ -512,6 +513,17 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 httpRequest,
                 () -> CatalogHandlers.dropView(asViewCatalog, viewIdentFromPathVars(vars)));
             return null;
+          }
+          break;
+        }
+
+      case REGISTER_VIEW:
+        {
+          if (null != asViewCatalog) {
+            Namespace namespace = namespaceFromPathVars(vars);
+            RegisterViewRequest request = castRequest(RegisterViewRequest.class, body);
+            return castResponse(
+                responseType, CatalogHandlers.registerView(asViewCatalog, namespace, request));
           }
           break;
         }
