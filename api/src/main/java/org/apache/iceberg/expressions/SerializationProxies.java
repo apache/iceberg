@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /**
  * Stand-in classes for expression classes in Java Serialization.
@@ -79,6 +80,21 @@ class SerializationProxies {
 
     protected byte[] bytes() {
       return bytes;
+    }
+  }
+
+  static class BoundingBoxLiteralProxy extends FixedLiteralProxy {
+    /** Constructor for Java serialization. */
+    BoundingBoxLiteralProxy() {}
+
+    BoundingBoxLiteralProxy(ByteBuffer buffer) {
+      super(buffer);
+    }
+
+    @Override
+    Object readResolve() throws ObjectStreamException {
+      return new Literals.BoundingBoxLiteral(
+          ByteBuffer.wrap(bytes()).order(ByteOrder.LITTLE_ENDIAN));
     }
   }
 }
