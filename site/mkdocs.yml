@@ -18,6 +18,7 @@
 INHERIT: ./nav.yml
 
 site_name: "Apache Iceberg™"
+site_url: "https://iceberg.apache.org"
 
 theme:
   custom_dir: overrides
@@ -53,6 +54,15 @@ plugins:
       blog_toc: true
       post_date_format: long
       post_url_format: "{slug}"
+  - rss:
+      feed_description: "Blogs for Apache Iceberg"
+      match_path: "blog/posts/.*"
+      date_from_meta:
+        as_creation: date
+      categories:
+        - categories
+      feeds_filenames:
+        rss_created: rss.xml
   - macros
   - monorepo
   - privacy
