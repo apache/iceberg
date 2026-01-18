@@ -38,7 +38,6 @@ public abstract class BaseFormatModel<D, S, W, R, F> implements FormatModel<D, S
   private final Class<S> schemaType;
   private final WriterFunction<W, S, F> writerFunction;
   private final ReaderFunction<R, S, F> readerFunction;
-  private final boolean batchReader;
 
   /**
    * Constructs a new BaseFormatModel with the specified configuration.
@@ -48,19 +47,16 @@ public abstract class BaseFormatModel<D, S, W, R, F> implements FormatModel<D, S
    *     factory.
    * @param writerFunction the function used to create writers for this format
    * @param readerFunction the function used to create readers for this format
-   * @param batchReader whether this model does batch reading
    */
   public BaseFormatModel(
       Class<? extends D> type,
       Class<S> schemaType,
       WriterFunction<W, S, F> writerFunction,
-      ReaderFunction<R, S, F> readerFunction,
-      boolean batchReader) {
+      ReaderFunction<R, S, F> readerFunction) {
     this.type = type;
     this.schemaType = schemaType;
     this.writerFunction = writerFunction;
     this.readerFunction = readerFunction;
-    this.batchReader = batchReader;
   }
 
   @Override
@@ -89,16 +85,6 @@ public abstract class BaseFormatModel<D, S, W, R, F> implements FormatModel<D, S
    */
   protected ReaderFunction<R, S, F> readerFunction() {
     return readerFunction;
-  }
-
-  /**
-   * Returns whether the generated reader is a batch reader.
-   *
-   * @return {@code true} if the reading happens in batches, {@code false} if the reading is
-   *     row-wise
-   */
-  protected boolean batchReader() {
-    return batchReader;
   }
 
   /**

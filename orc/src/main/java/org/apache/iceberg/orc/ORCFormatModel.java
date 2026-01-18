@@ -41,24 +41,27 @@ import org.apache.orc.TypeDescription;
 
 public class ORCFormatModel<D, S, R>
     extends BaseFormatModel<D, S, OrcRowWriter<?>, R, TypeDescription> {
+  private final boolean batchReader;
+
+  public ORCFormatModel(Class<D> type) {
+    this(type, null, null, null);
+  }
 
   public ORCFormatModel(
       Class<D> type,
       Class<S> schemaType,
       WriterFunction<OrcRowWriter<?>, S, TypeDescription> writerFunction,
       ReaderFunction<R, S, TypeDescription> readerFunction) {
-    super(type, schemaType, writerFunction, readerFunction, false /* batchReader */);
+    super(type, schemaType, writerFunction, readerFunction);
+    this.batchReader = false;
   }
 
   public ORCFormatModel(
       Class<D> type,
       Class<S> schemaType,
       ReaderFunction<R, S, TypeDescription> batchReaderFunction) {
-    super(type, schemaType, null, batchReaderFunction, true /* batchReader */);
-  }
-
-  public ORCFormatModel(Class<D> type) {
-    super(type, null, null, null, false /* batchReader */);
+    super(type, schemaType, null, batchReaderFunction);
+    this.batchReader = true;
   }
 
   @Override
@@ -73,7 +76,7 @@ public class ORCFormatModel<D, S, R>
 
   @Override
   public ReadBuilder<D, S> readBuilder(InputFile inputFile) {
-    return new ReadBuilderWrapper<>(inputFile, readerFunction(), batchReader());
+    return new ReadBuilderWrapper<>(inputFile, readerFunction(), batchReader);
   }
 
   private static class WriteBuilderWrapper<D, S> implements WriteBuilder<D, S> {

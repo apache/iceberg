@@ -44,9 +44,10 @@ import org.apache.parquet.schema.MessageType;
 public class ParquetFormatModel<D, S, R>
     extends BaseFormatModel<D, S, ParquetValueWriter<?>, R, MessageType> {
   public static final String WRITER_VERSION_KEY = "parquet.writer.version";
+  private final boolean batchReader;
 
   public ParquetFormatModel(Class<D> type) {
-    super(type, null, null, null, false /* batchReader */);
+    this(type, null, null, null);
   }
 
   public ParquetFormatModel(
@@ -54,14 +55,16 @@ public class ParquetFormatModel<D, S, R>
       Class<S> schemaType,
       WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
       ReaderFunction<R, S, MessageType> readerFunction) {
-    super(type, schemaType, writerFunction, readerFunction, false /* batchReader */);
+    super(type, schemaType, writerFunction, readerFunction);
+    this.batchReader = false;
   }
 
   public ParquetFormatModel(
       Class<? extends D> type,
       Class<S> schemaType,
       ReaderFunction<R, S, MessageType> batchReaderFunction) {
-    super(type, schemaType, null, batchReaderFunction, true /* batchReader */);
+    super(type, schemaType, null, batchReaderFunction);
+    this.batchReader = true;
   }
 
   @Override
@@ -76,7 +79,7 @@ public class ParquetFormatModel<D, S, R>
 
   @Override
   public ReadBuilder<D, S> readBuilder(InputFile inputFile) {
-    return new ReadBuilderWrapper<>(inputFile, readerFunction(), batchReader());
+    return new ReadBuilderWrapper<>(inputFile, readerFunction(), batchReader);
   }
 
   private static class WriteBuilderWrapper<D, S> implements WriteBuilder<D, S> {

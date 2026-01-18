@@ -40,7 +40,7 @@ public class AvroFormatModel<D, S>
     extends BaseFormatModel<D, S, DatumWriter<D>, DatumReader<D>, Schema> {
 
   public AvroFormatModel(Class<D> type) {
-    super(type, null, null, null, false);
+    super(type, null, null, null);
   }
 
   public AvroFormatModel(
@@ -48,7 +48,7 @@ public class AvroFormatModel<D, S>
       Class<S> schemaType,
       WriterFunction<DatumWriter<D>, S, Schema> writerFunction,
       ReaderFunction<DatumReader<D>, S, Schema> readerFunction) {
-    super(type, schemaType, writerFunction, readerFunction, false /* batchReader */);
+    super(type, schemaType, writerFunction, readerFunction);
   }
 
   @Override
