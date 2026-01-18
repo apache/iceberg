@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterAll;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +40,7 @@ import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.kms.model.CreateKeyRequest;
 import software.amazon.awssdk.services.kms.model.CreateKeyResponse;
 import software.amazon.awssdk.services.kms.model.DataKeySpec;
+import software.amazon.awssdk.services.kms.model.EncryptionAlgorithmSpec;
 import software.amazon.awssdk.services.kms.model.KeySpec;
 import software.amazon.awssdk.services.kms.model.ScheduleKeyDeletionRequest;
 import software.amazon.awssdk.services.kms.model.ScheduleKeyDeletionResponse;
@@ -91,10 +94,39 @@ public class TestKeyManagementClient {
     try (AwsKeyManagementClient keyManagementClient = new AwsKeyManagementClient()) {
       keyManagementClient.initialize(ImmutableMap.of());
 
-      ByteBuffer key = ByteBuffer.wrap(new String("super-secret-table-master-key").getBytes());
+      ByteBuffer key = ByteBuffer.wrap("super-secret-table-master-key".getBytes());
       ByteBuffer encryptedKey = keyManagementClient.wrapKey(key, keyId);
 
       assertThat(keyManagementClient.unwrapKey(encryptedKey, keyId)).isEqualTo(key);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(
+      TestHelpers.RoundTripSerializer<AwsKeyManagementClient> roundTripSerializer)
+      throws Exception {
+    try (AwsKeyManagementClient keyManagementClient = new AwsKeyManagementClient()) {
+      keyManagementClient.initialize(
+          ImmutableMap.of(
+              AwsProperties.KMS_ENCRYPTION_ALGORITHM_SPEC,
+              EncryptionAlgorithmSpec.RSAES_OAEP_SHA_256.toString(),
+              AwsProperties.KMS_DATA_KEY_SPEC,
+              DataKeySpec.AES_128.toString()));
+      assertThat(keyManagementClient.encryptionAlgorithmSpec())
+          .isEqualTo(EncryptionAlgorithmSpec.RSAES_OAEP_SHA_256);
+      assertThat(keyManagementClient.dataKeySpec()).isEqualTo(DataKeySpec.AES_128);
+
+      AwsKeyManagementClient result = roundTripSerializer.apply(keyManagementClient);
+
+      ByteBuffer key = ByteBuffer.wrap("super-secret-table-master-key".getBytes());
+      ByteBuffer encryptedKey = result.wrapKey(key, keyId);
+
+      assertThat(keyManagementClient.unwrapKey(encryptedKey, keyId)).isEqualTo(key);
+      assertThat(result.unwrapKey(encryptedKey, keyId)).isEqualTo(key);
+      assertThat(result.encryptionAlgorithmSpec())
+          .isEqualTo(EncryptionAlgorithmSpec.RSAES_OAEP_SHA_256);
+      assertThat(result.dataKeySpec()).isEqualTo(DataKeySpec.AES_128);
     }
   }
 
