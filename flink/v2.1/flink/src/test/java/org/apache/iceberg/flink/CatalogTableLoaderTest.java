@@ -18,10 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -119,36 +116,36 @@ public class CatalogTableLoaderTest {
     TableLoader loader = TableLoader.fromCatalog(catalogLoader, IDENTIFIER);
 
     // initially closed
-    assertFalse(loader.isOpen());
+    assertThat(loader.isOpen()).isFalse();
 
     // open and load
     loader.open();
-    assertTrue(loader.isOpen());
+    assertThat(loader.isOpen()).isTrue();
     Table table = loader.loadTable();
-    assertNotNull(table);
-    assertEquals("fake-table", table.toString());
+    assertThat(table).isNotNull();
+    assertThat(table).hasToString("fake-table");
 
     // close
     loader.close();
-    assertFalse(loader.isOpen());
+    assertThat(loader.isOpen()).isFalse();
   }
 
   @Test
   public void testSerializationKeepsLoaderFunctional() throws Exception {
-    CatalogLoader catalogLoader = new SerializableCatalogLoader();
+    org.apache.iceberg.flink.CatalogLoader catalogLoader = new SerializableCatalogLoader();
     TableLoader original = TableLoader.fromCatalog(catalogLoader, IDENTIFIER);
 
     // serialize / deserialize the TableLoader
     TableLoader deserialized = roundTripSerialize(original);
 
     // should still work after deserialization
-    assertFalse(deserialized.isOpen());
+    assertThat(deserialized.isOpen()).isFalse();
     deserialized.open();
-    assertTrue(deserialized.isOpen());
+    assertThat(deserialized.isOpen()).isTrue();
     Table table = deserialized.loadTable();
-    assertNotNull(table);
-    assertEquals("fake-table", table.toString());
+    assertThat(table).isNotNull();
+    assertThat(table).hasToString("fake-table");
     deserialized.close();
-    assertFalse(deserialized.isOpen());
+    assertThat(deserialized.isOpen()).isFalse();
   }
 }
