@@ -92,6 +92,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
+  private final SnapshotSummary.Builder manifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
 
   // cache new data manifests after writing
@@ -961,6 +962,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     List<ManifestFile> manifests = Lists.newArrayList();
     Iterables.addAll(manifests, mergeManager.mergeManifests(unmergedManifests));
     Iterables.addAll(manifests, deleteMergeManager.mergeManifests(unmergedDeleteManifests));
+
+    // update created/kept manifest count
+    summaryBuilder.merge(buildManifestCountSummary(manifestsSummary, manifests));
 
     return manifests;
   }
