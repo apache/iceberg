@@ -29,8 +29,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -58,6 +61,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -79,6 +83,7 @@ import org.apache.iceberg.inmemory.InMemoryInputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -486,6 +491,21 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 SimpleDataUtil.SCHEMA, "t1", SnapshotRef.MAIN_BRANCH, spec2));
 
     runTest(rows);
+
+    // Validate the table has expected partition specs
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, "t1"));
+    Map<Integer, PartitionSpec> tableSpecs = table.specs();
+    List<PartitionSpec> expectedSpecs = List.of(spec1, spec2, PartitionSpec.unpartitioned());
+
+    assertThat(tableSpecs).hasSize(expectedSpecs.size());
+    expectedSpecs.forEach(
+        expectedSpec ->
+            assertThat(
+                    tableSpecs.values().stream()
+                        .anyMatch(
+                            spec -> PartitionSpecEvolution.checkCompatibility(spec, expectedSpec)))
+                .withFailMessage("Table spec not found: %s.", expectedSpec)
+                .isTrue());
   }
 
   @Test
@@ -924,6 +944,79 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
             .mapToLong(Long::valueOf)
             .sum();
     assertThat(totalAddedRecords).isEqualTo(records.size());
+  }
+
+  @Test
+  void testCommitsOncePerTableBranchAndCheckpoint() throws Exception {
+    String tableName = "t1";
+    String branch = SnapshotRef.MAIN_BRANCH;
+    PartitionSpec spec1 = PartitionSpec.unpartitioned();
+    PartitionSpec spec2 = PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).bucket("id", 10).build();
+    Set<String> equalityFields = Sets.newHashSet("id");
+
+    List<DynamicIcebergDataImpl> inputRecords =
+        Lists.newArrayList(
+            // Two schemas
+            new DynamicIcebergDataImpl(SimpleDataUtil.SCHEMA, tableName, branch, spec1),
+            new DynamicIcebergDataImpl(SimpleDataUtil.SCHEMA2, tableName, branch, spec1),
+            // Two specs
+            new DynamicIcebergDataImpl(SimpleDataUtil.SCHEMA, tableName, branch, spec1),
+            new DynamicIcebergDataImpl(SimpleDataUtil.SCHEMA, tableName, branch, spec2),
+            // Some upserts
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, tableName, branch, spec1, true, equalityFields, false),
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA, tableName, branch, spec1, true, equalityFields, true));
+
+    executeDynamicSink(inputRecords, env, true, 1, null);
+
+    List<Record> actualRecords;
+    try (CloseableIterable<Record> iterable =
+        IcebergGenerics.read(
+                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1")))
+            .build()) {
+      actualRecords = Lists.newArrayList(iterable);
+    }
+
+    // Validate records
+    int expectedRecords = inputRecords.size() - 1; // 1 duplicate
+    assertThat(actualRecords).hasSize(expectedRecords);
+
+    for (int i = 0; i < expectedRecords; i++) {
+      Record actual = actualRecords.get(0);
+      assertThat(inputRecords)
+          .anySatisfy(
+              inputRecord -> {
+                assertThat(actual.get(0)).isEqualTo(inputRecord.rowProvided.getField(0));
+                assertThat(actual.get(1)).isEqualTo(inputRecord.rowProvided.getField(1));
+                if (inputRecord.schemaProvided.equals(SimpleDataUtil.SCHEMA2)) {
+                  assertThat(actual.get(2)).isEqualTo(inputRecord.rowProvided.getField(2));
+                }
+                // There is an additional _pos field which gets added
+              });
+    }
+
+    TableIdentifier tableIdentifier = TableIdentifier.of("default", tableName);
+    Table table = CATALOG_EXTENSION.catalog().loadTable(tableIdentifier);
+
+    Snapshot lastSnapshot = Iterables.getLast(table.snapshots());
+    assertThat(lastSnapshot).isNotNull();
+    assertThat(lastSnapshot.summary())
+        .containsAllEntriesOf(
+            ImmutableMap.<String, String>builder()
+                .put("total-equality-deletes", "1")
+                .put("total-position-deletes", "1")
+                .put("total-records", "6")
+                .build());
+
+    // Count commits per checkpoint
+    Map<Long, Long> commitsPerCheckpoint =
+        StreamSupport.stream(table.snapshots().spliterator(), false)
+            .map(snapshot -> snapshot.summary().get("flink.max-committed-checkpoint-id"))
+            .filter(Objects::nonNull)
+            .map(Long::parseLong)
+            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+    assertThat(commitsPerCheckpoint.values()).allMatch(count -> count == 1);
   }
 
   @Test
