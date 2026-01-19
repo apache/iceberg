@@ -58,7 +58,7 @@ In this guide we use a REST catalog, backed by S3.
 To learn more, check out the [Catalog](docs/latest/flink-configuration.md#catalog-configuration) page in the Flink section.
 
 First up, we need to define a Flink catalog.
-Tables within this catalog will be stored as Iceberg tables in the defined S3 warehouse:
+Tables within this catalog will be stored on S3 blob store:
 
 ```sql
 CREATE CATALOG iceberg_catalog WITH (
