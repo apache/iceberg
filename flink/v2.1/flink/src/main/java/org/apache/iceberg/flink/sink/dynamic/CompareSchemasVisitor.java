@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
@@ -61,6 +62,12 @@ public class CompareSchemasVisitor
         -1,
         new CompareSchemasVisitor(tableSchema, caseSensitive, dropUnusedColumns),
         new PartnerIdByNameAccessors(tableSchema, caseSensitive));
+  }
+
+  @VisibleForTesting
+  @Deprecated
+  public static Result visit(Schema dataSchema, Schema tableSchema) {
+    return visit(dataSchema, tableSchema, true, false);
   }
 
   @Override
