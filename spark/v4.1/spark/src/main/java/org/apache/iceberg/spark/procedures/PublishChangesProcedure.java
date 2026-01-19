@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.procedures;
 import java.util.Iterator;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.WapUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -96,26 +95,27 @@ class PublishChangesProcedure extends BaseProcedure {
     return modifyIcebergTable(
         tableIdent,
         table -> {
-          Iterable<Snapshot> wapSnapshots =
-              Iterables.filter(
-                  table.snapshots(), snapshot -> wapId.equals(WapUtil.stagedWapId(snapshot)));
-
-          int numMatchingSnapshots = Iterables.size(wapSnapshots);
-
-          switch (numMatchingSnapshots) {
-            case 0:
-              throw new ValidationException("Cannot apply unknown WAP ID '%s'", wapId);
-            case 1:
-              long wapSnapshotId = Iterables.getOnlyElement(wapSnapshots).snapshotId();
-              table.manageSnapshots().cherrypick(wapSnapshotId).commit();
-              Snapshot currentSnapshot = table.currentSnapshot();
-              InternalRow outputRow = newInternalRow(wapSnapshotId, currentSnapshot.snapshotId());
-              return asScanIterator(OUTPUT_TYPE, outputRow);
-            default:
-              throw new ValidationException(
-                  "Cannot apply non-unique WAP ID. Found %d snapshots with WAP ID '%s'",
-                  numMatchingSnapshots, wapId);
+          Snapshot matchingSnap = null;
+          for (Snapshot snap : table.snapshots()) {
+            if (wapId.equals(WapUtil.stagedWapId(snap))) {
+              if (matchingSnap != null) {
+                throw new ValidationException(
+                    "Cannot apply non-unique WAP ID. Found multiple snapshots with WAP ID '%s'", wapId);
+              } else {
+                matchingSnap = snap;
+              }
+            }
           }
+
+          if (matchingSnap == null) {
+            throw new ValidationException("Cannot apply unknown WAP ID '%s'", wapId);
+          }
+
+          long wapSnapshotId = matchingSnap.snapshotId();
+          table.manageSnapshots().cherrypick(wapSnapshotId).commit();
+          Snapshot currentSnapshot = table.currentSnapshot();
+          InternalRow outputRow = newInternalRow(wapSnapshotId, currentSnapshot.snapshotId());
+          return asScanIterator(OUTPUT_TYPE, outputRow);
         });
   }
 
