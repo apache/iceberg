@@ -28,17 +28,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.Trash;
-import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
@@ -53,6 +52,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
   private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
+  private static final String DELETE_TRASH_SCHEMAS = "iceberg.hadoop.delete-trash-schemas";
   private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
   private static volatile ExecutorService executorService;
@@ -214,11 +214,38 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     return executorService;
   }
 
+  /**
+   * Is a path in a schema of a filesystem where the hadoop trash policy should be used to move to it to trash?
+   * @param toDelete path to delete
+   * @return true if the path is in the list of schemas for which the
+   */
+  @VisibleForTesting
+  boolean isTrashSchema(Path toDelete) {
+    String[] schemas = getConf().getTrimmedStrings(DELETE_TRASH_SCHEMAS, "hdfs", "viewfs");
+    final String scheme = toDelete.toUri().getScheme();
+    for (String s : schemas) {
+      if (s.equalsIgnoreCase(scheme)) {
+          return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Delete a path;
+   * @param fs target filesystem.
+   * @param toDelete path to delete/move
+   * @param recursive should the delete operation be recursive?
+   * @throws IOException on a failure
+   */
   private void deletePath(FileSystem fs, Path toDelete, boolean recursive) throws IOException {
-    Trash trash = new Trash(fs, getConf());
-    if ((fs instanceof LocalFileSystem || fs instanceof DistributedFileSystem)
-        && trash.isEnabled()) {
-      trash.moveToTrash(toDelete);
+    if (isTrashSchema(toDelete)) {
+      Trash trash = new Trash(fs, getConf());
+      if (!trash.isEnabled() || !trash.moveToTrash(toDelete)) {
+        // either trash is disabled or the move operation failed; fallback
+        // to delete.
+        fs.delete(toDelete, recursive);
+      }
     } else {
       fs.delete(toDelete, recursive);
     }
