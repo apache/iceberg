@@ -14,26 +14,30 @@
 #  - limitations under the License.
 
 # Version variables for easier upgrades
-ARG FLINK_VERSION=2.1
-ARG FLINK_MAJOR_VERSION=2.1
-ARG ICEBERG_VERSION=1.10.1
-ARG ICEBERG_FLINK_RUNTIME_VERSION=2.1
-ARG ICEBERG_AWS_BUNDLE_VERSION=1.9.2
-ARG HADOOP_VERSION=3.3.4
-ARG FLINK_S3_VERSION=2.1.1
+ARG FLINK_VERSION=2.0
 
 FROM apache/flink:${FLINK_VERSION}-java21
 SHELL ["/bin/bash", "-c"]
+
+# Redeclare ARG variables after FROM to make them available in subsequent layers
+ARG ICEBERG_VERSION=1.10.1
+ARG ICEBERG_FLINK_RUNTIME_VERSION=2.0
+ARG ICEBERG_AWS_BUNDLE_VERSION=1.9.2
+ARG HADOOP_VERSION=3.3.4
+ARG FLINK_S3_VERSION=2.1.1
 
 # Switch back to flink user
 USER flink
 
 WORKDIR /opt/flink
 
+RUN echo "HADOOP_VERSION=${HADOOP_VERSION}" && \
+    echo "ICEBERG_VERSION=${ICEBERG_VERSION}"
+
 RUN echo "-> Install JARs: Dependencies for Iceberg" && \
     mkdir -p ./lib/iceberg && pushd $_ && \
-    curl https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-${ICEBERG_FLINK_RUNTIME_VERSION}/${ICEBERG_VERSION}/iceberg-flink-runtime-${ICEBERG_FLINK_RUNTIME_VERSION}-${ICEBERG_VERSION}.jar -O && \
-    curl https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/${ICEBERG_AWS_BUNDLE_VERSION}/iceberg-aws-bundle-${ICEBERG_AWS_BUNDLE_VERSION}.jar -O && \
+    curl -fO https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-flink-runtime-${ICEBERG_FLINK_RUNTIME_VERSION}/${ICEBERG_VERSION}/iceberg-flink-runtime-${ICEBERG_FLINK_RUNTIME_VERSION}-${ICEBERG_VERSION}.jar && \
+    curl -fO https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/${ICEBERG_AWS_BUNDLE_VERSION}/iceberg-aws-bundle-${ICEBERG_AWS_BUNDLE_VERSION}.jar && \
     popd
 
 RUN echo "-> Install JARs: Hadoop" && \
