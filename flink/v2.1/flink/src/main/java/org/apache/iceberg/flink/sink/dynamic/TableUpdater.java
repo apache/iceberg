@@ -123,8 +123,7 @@ class TableUpdater {
 
   private TableMetadataCache.ResolvedSchemaInfo findOrCreateSchema(
       TableIdentifier identifier, Schema schema) {
-    TableMetadataCache.ResolvedSchemaInfo fromCache =
-        cache.schema(identifier, schema, dropUnusedColumns);
+    TableMetadataCache.ResolvedSchemaInfo fromCache = cache.schema(identifier, schema);
     if (fromCache.compareResult() != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
       return fromCache;
     } else {
@@ -155,14 +154,13 @@ class TableUpdater {
             updateApi.commit();
             cache.update(identifier, table);
             TableMetadataCache.ResolvedSchemaInfo comparisonAfterMigration =
-                cache.schema(identifier, schema, dropUnusedColumns);
+                cache.schema(identifier, schema);
             Schema newSchema = comparisonAfterMigration.resolvedTableSchema();
             LOG.info("Table {} schema updated from {} to {}", identifier, tableSchema, newSchema);
             return comparisonAfterMigration;
           } catch (CommitFailedException e) {
             cache.invalidate(identifier);
-            TableMetadataCache.ResolvedSchemaInfo newSchema =
-                cache.schema(identifier, schema, dropUnusedColumns);
+            TableMetadataCache.ResolvedSchemaInfo newSchema = cache.schema(identifier, schema);
             if (newSchema.compareResult() != CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
               LOG.debug("Table {} schema updated concurrently to {}", identifier, schema);
               return newSchema;

@@ -37,6 +37,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class TestDynamicTableUpdateOperator {
 
+  private static final boolean CASE_SENSITIVE = true;
+  private static final boolean CASE_INSENSITIVE = false;
+
+  private static final boolean DROP_COLUMNS = true;
+  private static final boolean PRESERVE_COLUMNS = false;
+
   @RegisterExtension
   private static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension(DATABASE, TABLE);
@@ -61,12 +67,12 @@ class TestDynamicTableUpdateOperator {
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            false,
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT,
-            true);
+            CASE_SENSITIVE,
+            PRESERVE_COLUMNS);
     operator.open(null);
 
     DynamicRecordInternal input =
@@ -96,12 +102,12 @@ class TestDynamicTableUpdateOperator {
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            false,
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT,
-            true);
+            CASE_SENSITIVE,
+            PRESERVE_COLUMNS);
     operator.open(null);
 
     catalog.createTable(table, SCHEMA1);
@@ -142,12 +148,12 @@ class TestDynamicTableUpdateOperator {
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            false,
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT,
-            caseSensitive);
+            caseSensitive,
+            PRESERVE_COLUMNS);
     operator.open(null);
 
     catalog.createTable(table, initialSchema);
@@ -190,13 +196,12 @@ class TestDynamicTableUpdateOperator {
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            false, // dropUnusedColumns = false (default)
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT,
-            true // caseSensitive = true (default)
-            );
+            CASE_SENSITIVE,
+            PRESERVE_COLUMNS);
     operator.open(null);
 
     catalog.createTable(table, SCHEMA2);
@@ -232,14 +237,12 @@ class TestDynamicTableUpdateOperator {
     DynamicTableUpdateOperator operator =
         new DynamicTableUpdateOperator(
             CATALOG_EXTENSION.catalogLoader(),
-            // Drop unused columns
-            true,
             cacheMaximumSize,
             cacheRefreshMs,
             inputSchemaCacheMaximumSize,
             TableCreator.DEFAULT,
-            // case sensitivity
-            false);
+            CASE_INSENSITIVE,
+            DROP_COLUMNS);
     operator.open(null);
 
     catalog.createTable(table, SCHEMA2);

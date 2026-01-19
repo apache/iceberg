@@ -50,6 +50,10 @@ import org.junit.jupiter.api.Test;
 public class TestEvolveSchemaVisitor {
 
   private static final TableIdentifier TABLE = TableIdentifier.of("table");
+
+  private static final boolean CASE_SENSITIVE = true;
+  private static final boolean CASE_INSENSITIVE = false;
+
   private static final boolean DROP_COLUMNS = true;
   private static final boolean PRESERVE_COLUMNS = false;
 
@@ -94,7 +98,8 @@ public class TestEvolveSchemaVisitor {
   public void testAddTopLevelPrimitives() {
     Schema targetSchema = new Schema(primitiveFields(0, primitiveTypes()));
     UpdateSchema updateApi = loadUpdateApi(new Schema());
-    EvolveSchemaVisitor.visit(TABLE, updateApi, new Schema(), targetSchema, true, PRESERVE_COLUMNS);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, new Schema(), targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(targetSchema.asStruct()).isEqualTo(updateApi.apply().asStruct());
   }
 
@@ -105,7 +110,7 @@ public class TestEvolveSchemaVisitor {
 
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, existingSchema, new Schema(), true, PRESERVE_COLUMNS);
+        TABLE, updateApi, existingSchema, new Schema(), CASE_SENSITIVE, PRESERVE_COLUMNS);
     Schema newSchema = updateApi.apply();
     assertThat(newSchema.asStruct().fields()).hasSize(14);
     assertThat(newSchema.columns().stream().allMatch(Types.NestedField::isOptional)).isTrue();
@@ -130,7 +135,8 @@ public class TestEvolveSchemaVisitor {
             optional(2, "b", StructType.of(optional(5, "nested2", StringType.get()))));
 
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
-    EvolveSchemaVisitor.visit(TABLE, updateApi, existingSchema, targetSchema, true, DROP_COLUMNS);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, existingSchema, targetSchema, CASE_SENSITIVE, DROP_COLUMNS);
 
     Schema newSchema = updateApi.apply();
     assertThat(newSchema.sameSchema(targetSchema)).isTrue();
@@ -153,7 +159,7 @@ public class TestEvolveSchemaVisitor {
 
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, existingSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, existingSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
 
     Schema newSchema = updateApi.apply();
     assertThat(newSchema.sameSchema(existingSchema)).isTrue();
@@ -166,7 +172,8 @@ public class TestEvolveSchemaVisitor {
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
     Schema newSchema =
         new Schema(Arrays.asList(Types.NestedField.optional(-1, "myField", Types.LongType.get())));
-    EvolveSchemaVisitor.visit(TABLE, updateApi, existingSchema, newSchema, true, PRESERVE_COLUMNS);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, existingSchema, newSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(updateApi.apply().sameSchema(existingSchema)).isTrue();
   }
 
@@ -180,7 +187,7 @@ public class TestEvolveSchemaVisitor {
             Arrays.asList(optional(2, "b", StringType.get()), optional(1, "a", StringType.get())));
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, existingSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, existingSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
 
@@ -190,7 +197,7 @@ public class TestEvolveSchemaVisitor {
       Schema targetSchema = new Schema(optional(1, "aList", ListType.ofOptional(2, primitiveType)));
       UpdateSchema updateApi = loadUpdateApi(new Schema());
       EvolveSchemaVisitor.visit(
-          TABLE, updateApi, new Schema(), targetSchema, true, PRESERVE_COLUMNS);
+          TABLE, updateApi, new Schema(), targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
       assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
     }
   }
@@ -203,7 +210,7 @@ public class TestEvolveSchemaVisitor {
       Schema targetSchema = new Schema();
       UpdateSchema updateApi = loadUpdateApi(existingSchema);
       EvolveSchemaVisitor.visit(
-          TABLE, updateApi, existingSchema, targetSchema, true, PRESERVE_COLUMNS);
+          TABLE, updateApi, existingSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
       Schema expectedSchema =
           new Schema(optional(1, "aList", ListType.ofRequired(2, primitiveType)));
       assertThat(updateApi.apply().asStruct()).isEqualTo(expectedSchema.asStruct());
@@ -217,7 +224,7 @@ public class TestEvolveSchemaVisitor {
           new Schema(optional(1, "aMap", MapType.ofOptional(2, 3, primitiveType, primitiveType)));
       UpdateSchema updateApi = loadUpdateApi(new Schema());
       EvolveSchemaVisitor.visit(
-          TABLE, updateApi, new Schema(), targetSchema, true, PRESERVE_COLUMNS);
+          TABLE, updateApi, new Schema(), targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
       assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
     }
   }
@@ -230,7 +237,7 @@ public class TestEvolveSchemaVisitor {
               optional(1, "aStruct", StructType.of(optional(2, "primitive", primitiveType))));
       UpdateSchema updateApi = loadUpdateApi(new Schema());
       EvolveSchemaVisitor.visit(
-          TABLE, updateApi, new Schema(), currentSchema, true, PRESERVE_COLUMNS);
+          TABLE, updateApi, new Schema(), currentSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
       assertThat(updateApi.apply().asStruct()).isEqualTo(currentSchema.asStruct());
     }
   }
@@ -244,7 +251,7 @@ public class TestEvolveSchemaVisitor {
               optional(1, "aStruct", StructType.of(optional(2, "primitive", primitiveType))));
       UpdateSchema updateApi = loadUpdateApi(currentSchema);
       EvolveSchemaVisitor.visit(
-          TABLE, updateApi, currentSchema, targetSchema, true, PRESERVE_COLUMNS);
+          TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
       assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
     }
   }
@@ -260,7 +267,7 @@ public class TestEvolveSchemaVisitor {
               optional(1, "aStruct", StructType.of(optional(2, "primitive", primitiveType))));
       UpdateSchema updateApi = loadUpdateApi(currentSchema);
       EvolveSchemaVisitor.visit(
-          TABLE, updateApi, currentSchema, targetSchema, true, PRESERVE_COLUMNS);
+          TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
       assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
     }
   }
@@ -272,7 +279,7 @@ public class TestEvolveSchemaVisitor {
         new Schema(optional(1, "aStruct", StructType.of(primitiveFields(1, primitiveTypes()))));
     UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, currentSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
 
@@ -302,7 +309,8 @@ public class TestEvolveSchemaVisitor {
                                                 ListType.ofOptional(
                                                     10, DecimalType.of(11, 20))))))))))));
     UpdateSchema updateApi = loadUpdateApi(new Schema());
-    EvolveSchemaVisitor.visit(TABLE, updateApi, new Schema(), targetSchema, true, PRESERVE_COLUMNS);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, new Schema(), targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
 
@@ -342,7 +350,7 @@ public class TestEvolveSchemaVisitor {
                                                                 StringType.get()))))))))))))));
     UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, currentSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
 
@@ -377,7 +385,8 @@ public class TestEvolveSchemaVisitor {
                                         12, 13, StringType.get(), StringType.get()))))))));
 
     UpdateSchema updateApi = loadUpdateApi(new Schema());
-    EvolveSchemaVisitor.visit(TABLE, updateApi, new Schema(), targetSchema, true, PRESERVE_COLUMNS);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, new Schema(), targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
 
@@ -449,7 +458,7 @@ public class TestEvolveSchemaVisitor {
 
     UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, currentSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     Schema applied = updateApi.apply();
     assertThat(applied.asStruct().fields()).hasSize(1);
     assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(LongType.get());
@@ -463,7 +472,7 @@ public class TestEvolveSchemaVisitor {
 
     UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, currentSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     Schema applied = updateApi.apply();
     assertThat(applied.asStruct().fields()).hasSize(1);
     assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(DoubleType.get());
@@ -495,7 +504,7 @@ public class TestEvolveSchemaVisitor {
 
     UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, currentSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
 
@@ -539,7 +548,7 @@ public class TestEvolveSchemaVisitor {
 
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, existingSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, existingSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
 
@@ -594,7 +603,7 @@ public class TestEvolveSchemaVisitor {
 
     UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, currentSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
 
@@ -647,7 +656,7 @@ public class TestEvolveSchemaVisitor {
 
     UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, currentSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(updateApi.apply().asStruct()).isEqualTo(targetSchema.asStruct());
   }
 
@@ -668,7 +677,7 @@ public class TestEvolveSchemaVisitor {
                                 3, "s3", StructType.of(optional(4, "s4", StringType.get()))))))));
     UpdateSchema updateApi = loadUpdateApi(currentSchema);
     EvolveSchemaVisitor.visit(
-        TABLE, updateApi, currentSchema, targetSchema, true, PRESERVE_COLUMNS);
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     assertThat(getNestedSchemaWithOptionalModifier(true).asStruct())
         .isEqualTo(updateApi.apply().asStruct());
   }
@@ -718,7 +727,8 @@ public class TestEvolveSchemaVisitor {
             Types.NestedField.optional(3, "AGE", Types.IntegerType.get()));
 
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
-    EvolveSchemaVisitor.visit(TABLE, updateApi, existingSchema, targetSchema, false, false);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, existingSchema, targetSchema, CASE_INSENSITIVE, PRESERVE_COLUMNS);
     Schema result = updateApi.apply();
     assertThat(result.columns()).hasSize(3);
     assertThat(result.findField("AGE")).isNotNull();
@@ -733,7 +743,8 @@ public class TestEvolveSchemaVisitor {
     Schema targetSchema = new Schema(Types.NestedField.optional(1, "ID", Types.IntegerType.get()));
 
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
-    EvolveSchemaVisitor.visit(TABLE, updateApi, existingSchema, targetSchema, false, false);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, existingSchema, targetSchema, CASE_INSENSITIVE, PRESERVE_COLUMNS);
     Schema result = updateApi.apply();
     assertThat(result.findField("name").isOptional()).isTrue();
   }
@@ -753,7 +764,8 @@ public class TestEvolveSchemaVisitor {
                     optional(3, "FIELD2", Types.IntegerType.get()))));
 
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
-    EvolveSchemaVisitor.visit(TABLE, updateApi, existingSchema, targetSchema, false, false);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, existingSchema, targetSchema, CASE_INSENSITIVE, PRESERVE_COLUMNS);
     Schema result = updateApi.apply();
     Types.StructType struct = result.findField("struct1").type().asStructType();
     assertThat(struct.fields()).hasSize(2);
@@ -770,7 +782,8 @@ public class TestEvolveSchemaVisitor {
             Types.NestedField.optional(2, "name", Types.StringType.get()));
 
     UpdateSchema updateApi = loadUpdateApi(existingSchema);
-    EvolveSchemaVisitor.visit(TABLE, updateApi, existingSchema, targetSchema, true, false);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, existingSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
     Schema result = updateApi.apply();
     assertThat(result.columns()).hasSize(3);
     assertThat(result.findField("ID")).isNotNull();

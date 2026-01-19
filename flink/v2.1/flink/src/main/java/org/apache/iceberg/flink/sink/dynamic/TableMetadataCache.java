@@ -56,19 +56,22 @@ class TableMetadataCache {
   private final int inputSchemasPerTableCacheMaximumSize;
   private final Map<TableIdentifier, CacheItem> tableCache;
   private final boolean caseSensitive;
+  private final boolean dropUnusedColumns;
 
   TableMetadataCache(
       Catalog catalog,
       int maximumSize,
       long refreshMs,
       int inputSchemasPerTableCacheMaximumSize,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      boolean dropUnusedColumns) {
     this(
         catalog,
         maximumSize,
         refreshMs,
         inputSchemasPerTableCacheMaximumSize,
         caseSensitive,
+        dropUnusedColumns,
         Clock.systemUTC());
   }
 
@@ -79,12 +82,14 @@ class TableMetadataCache {
       long refreshMs,
       int inputSchemasPerTableCacheMaximumSize,
       boolean caseSensitive,
+      boolean dropUnusedColumns,
       Clock cacheRefreshClock) {
     this.catalog = catalog;
     this.refreshMs = refreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCache = new LRUCache<>(maximumSize);
     this.caseSensitive = caseSensitive;
+    this.dropUnusedColumns = dropUnusedColumns;
     this.cacheRefreshClock = cacheRefreshClock;
   }
 
@@ -103,8 +108,8 @@ class TableMetadataCache {
     return branch(identifier, branch, true);
   }
 
-  ResolvedSchemaInfo schema(TableIdentifier identifier, Schema input, boolean dropUnusedColumns) {
-    return schema(identifier, input, true, dropUnusedColumns);
+  ResolvedSchemaInfo schema(TableIdentifier identifier, Schema input) {
+    return schema(identifier, input, true);
   }
 
   PartitionSpec spec(TableIdentifier identifier, PartitionSpec spec) {
@@ -138,7 +143,7 @@ class TableMetadataCache {
   }
 
   private ResolvedSchemaInfo schema(
-      TableIdentifier identifier, Schema input, boolean allowRefresh, boolean dropUnusedColumns) {
+      TableIdentifier identifier, Schema input, boolean allowRefresh) {
     CacheItem cached = tableCache.get(identifier);
     Schema compatible = null;
     if (cached != null && cached.tableExists) {
@@ -172,7 +177,7 @@ class TableMetadataCache {
 
     if (needsRefresh(identifier, cached, allowRefresh)) {
       refreshTable(identifier);
-      return schema(identifier, input, false, dropUnusedColumns);
+      return schema(identifier, input, false);
     } else if (compatible != null) {
       ResolvedSchemaInfo newResult =
           new ResolvedSchemaInfo(

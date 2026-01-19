@@ -409,12 +409,12 @@ public class DynamicIcebergSink
                       generator,
                       catalogLoader,
                       immediateUpdate,
-                      dropUnusedColumns,
                       cacheMaximumSize,
                       cacheRefreshMs,
                       inputSchemasPerTableCacheMaximumSize,
                       tableCreator,
-                      caseSensitive))
+                      caseSensitive,
+                      dropUnusedColumns))
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
               .returns(type);
@@ -429,12 +429,12 @@ public class DynamicIcebergSink
               .map(
                   new DynamicTableUpdateOperator(
                       catalogLoader,
-                      dropUnusedColumns,
                       cacheMaximumSize,
                       cacheRefreshMs,
                       inputSchemasPerTableCacheMaximumSize,
                       tableCreator,
-                      caseSensitive))
+                      caseSensitive,
+                      dropUnusedColumns))
               .uid(prefixIfNotNull(uidPrefix, "-updater"))
               .name(operatorName("Updater"))
               .returns(type)

@@ -33,6 +33,9 @@ import org.junit.jupiter.api.Test;
 
 class TestCompareSchemasVisitor {
 
+  private static final boolean CASE_SENSITIVE = true;
+  private static final boolean CASE_INSENSITIVE = false;
+
   private static final boolean DROP_COLUMNS = true;
   private static final boolean PRESERVE_COLUMNS = false;
 
@@ -48,7 +51,7 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get(), "comment"),
                     optional(2, "data", StringType.get()),
                     optional(3, "extra", StringType.get())),
-                true,
+                CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
@@ -65,7 +68,7 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get()),
                     optional(2, "data", StringType.get()),
                     optional(3, "extra", StringType.get())),
-                true,
+                CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
@@ -80,7 +83,7 @@ class TestCompareSchemasVisitor {
                     optional(2, "extra", StringType.get())),
                 new Schema(
                     optional(0, "id", IntegerType.get()), optional(1, "data", StringType.get())),
-                true,
+                CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
@@ -95,8 +98,8 @@ class TestCompareSchemasVisitor {
                     optional(0, "id", IntegerType.get()),
                     optional(1, "data", StringType.get()),
                     optional(2, "extra", StringType.get())),
-                true,
-                false))
+                CASE_SENSITIVE,
+                PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
   }
 
@@ -108,8 +111,8 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", LongType.get()), optional(2, "extra", StringType.get())),
                 new Schema(
                     optional(1, "id", IntegerType.get()), optional(2, "extra", StringType.get())),
-                true,
-                false))
+                CASE_SENSITIVE,
+                PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
@@ -121,8 +124,8 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get()), optional(2, "extra", StringType.get())),
                 new Schema(
                     optional(1, "id", LongType.get()), optional(2, "extra", StringType.get())),
-                true,
-                false))
+                CASE_SENSITIVE,
+                PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
   }
 
@@ -132,9 +135,11 @@ class TestCompareSchemasVisitor {
         new Schema(optional(1, "id", IntegerType.get()), optional(2, "extra", StringType.get()));
     Schema tableSchema =
         new Schema(required(1, "id", IntegerType.get()), optional(2, "extra", StringType.get()));
-    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, PRESERVE_COLUMNS))
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
-    assertThat(CompareSchemasVisitor.visit(tableSchema, dataSchema, true, PRESERVE_COLUMNS))
+    assertThat(
+            CompareSchemasVisitor.visit(tableSchema, dataSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
 
@@ -143,9 +148,11 @@ class TestCompareSchemasVisitor {
     Schema dataSchema = new Schema(optional(1, "id", IntegerType.get()));
     Schema tableSchema =
         new Schema(optional(1, "id", IntegerType.get()), required(2, "extra", StringType.get()));
-    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, PRESERVE_COLUMNS))
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
-    assertThat(CompareSchemasVisitor.visit(tableSchema, dataSchema, true, PRESERVE_COLUMNS))
+    assertThat(
+            CompareSchemasVisitor.visit(tableSchema, dataSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
@@ -154,7 +161,8 @@ class TestCompareSchemasVisitor {
     Schema dataSchema = new Schema(required(1, "id", IntegerType.get()));
     Schema tableSchema =
         new Schema(required(1, "id", IntegerType.get()), optional(2, "extra", StringType.get()));
-    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, PRESERVE_COLUMNS))
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
   }
 
@@ -168,7 +176,7 @@ class TestCompareSchemasVisitor {
                 new Schema(
                     optional(0, "id", IntegerType.get()),
                     optional(1, "struct1", StructType.of(optional(2, "extra", IntegerType.get())))),
-                true,
+                CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
@@ -183,7 +191,7 @@ class TestCompareSchemasVisitor {
                 new Schema(
                     optional(1, "id", IntegerType.get()),
                     optional(2, "struct1", StructType.of(optional(3, "extra", IntegerType.get())))),
-                true,
+                CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
@@ -200,7 +208,7 @@ class TestCompareSchemasVisitor {
                     optional(0, "id", IntegerType.get()),
                     optional(
                         1, "map1", MapType.ofOptional(2, 3, IntegerType.get(), StringType.get()))),
-                true,
+                CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
@@ -217,7 +225,7 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get()),
                     optional(
                         2, "map1", MapType.ofOptional(3, 4, IntegerType.get(), StringType.get()))),
-                true,
+                CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
@@ -232,7 +240,7 @@ class TestCompareSchemasVisitor {
                 new Schema(
                     optional(0, "id", IntegerType.get()),
                     optional(1, "list1", ListType.ofOptional(2, IntegerType.get()))),
-                true,
+                CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
@@ -247,7 +255,7 @@ class TestCompareSchemasVisitor {
                 new Schema(
                     optional(1, "id", IntegerType.get()),
                     optional(2, "list1", ListType.ofOptional(3, IntegerType.get()))),
-                true,
+                CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
@@ -264,8 +272,8 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get()),
                     optional(2, "data", StringType.get()),
                     optional(3, "extra", StringType.get())),
-                false,
-                false))
+                CASE_INSENSITIVE,
+                PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
 
@@ -281,8 +289,8 @@ class TestCompareSchemasVisitor {
                     optional(1, "id", IntegerType.get()),
                     optional(2, "data", StringType.get()),
                     optional(3, "extra", StringType.get())),
-                true,
-                true))
+                CASE_SENSITIVE,
+                DROP_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
@@ -296,8 +304,8 @@ class TestCompareSchemasVisitor {
                 new Schema(
                     optional(1, "id", IntegerType.get()),
                     optional(2, "struct1", StructType.of(optional(3, "nested", StringType.get())))),
-                false,
-                false))
+                CASE_INSENSITIVE,
+                PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
   }
 
@@ -311,8 +319,8 @@ class TestCompareSchemasVisitor {
                     optional(0, "id", IntegerType.get()),
                     optional(1, "data", StringType.get()),
                     optional(2, "extra", StringType.get())),
-                false,
-                false))
+                CASE_INSENSITIVE,
+                PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
   }
 
@@ -325,7 +333,7 @@ class TestCompareSchemasVisitor {
             optional(2, "data", StringType.get()),
             optional(3, "extra", StringType.get()));
 
-    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, DROP_COLUMNS))
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, DROP_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
@@ -335,7 +343,7 @@ class TestCompareSchemasVisitor {
     Schema tableSchema =
         new Schema(optional(1, "id", IntegerType.get()), required(2, "data", StringType.get()));
 
-    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, DROP_COLUMNS))
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, DROP_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
@@ -348,7 +356,7 @@ class TestCompareSchemasVisitor {
             optional(3, "extra", StringType.get()));
     Schema tableSchema = new Schema(optional(1, "id", IntegerType.get()));
 
-    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, DROP_COLUMNS))
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, DROP_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
@@ -368,10 +376,11 @@ class TestCompareSchemasVisitor {
                     optional(3, "field1", StringType.get()),
                     optional(4, "field2", IntegerType.get()))));
 
-    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, DROP_COLUMNS))
+    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, DROP_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
 
-    assertThat(CompareSchemasVisitor.visit(dataSchema, tableSchema, true, PRESERVE_COLUMNS))
+    assertThat(
+            CompareSchemasVisitor.visit(dataSchema, tableSchema, CASE_SENSITIVE, PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
   }
 }
