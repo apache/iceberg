@@ -58,6 +58,7 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
   private final TableIdentifier identifier;
   private final UpdateSchema api;
   private final Schema existingSchema;
+  private final Schema targetSchema;
   private final boolean caseSensitive;
   private final boolean dropUnusedColumns;
 
@@ -65,11 +66,13 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
       TableIdentifier identifier,
       UpdateSchema api,
       Schema existingSchema,
+      Schema targetSchema,
       boolean caseSensitive,
       boolean dropUnusedColumns) {
     this.identifier = identifier;
-    this.api = api;
+    this.api = api.caseSensitive(caseSensitive);
     this.existingSchema = existingSchema;
+    this.targetSchema = targetSchema;
     this.caseSensitive = caseSensitive;
     this.dropUnusedColumns = dropUnusedColumns;
   }
@@ -95,7 +98,8 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     visit(
         targetSchema,
         -1,
-        new EvolveSchemaVisitor(identifier, api, existingSchema, caseSensitive, dropUnusedColumns),
+        new EvolveSchemaVisitor(
+            identifier, api, existingSchema, targetSchema, caseSensitive, dropUnusedColumns),
         new CompareSchemasVisitor.PartnerIdByNameAccessors(existingSchema, caseSensitive));
   }
 
@@ -118,13 +122,7 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
         columnName = this.existingSchema.findColumnName(nestedField.fieldId());
       } else {
         addColumn(partnerId, targetField);
-        // We need to lookup the proper parent name because the letter case might be different on
-        // table vs target parent field (e.g. struct1.FIELD2 vs STRUCT1.STRUCT2). This is actually a
-        // bug in SchemaUpdate#moveAfter(columnName, after) because added fields are case-sensitive,
-        // even if case sensitivity is disabled on the API.
-        String parentName = existingSchema.findColumnName(partnerId);
-        columnName =
-            parentName != null ? parentName + "." + targetField.name() : targetField.name();
+        columnName = targetSchema.findColumnName(targetField.fieldId());
       }
 
       setPosition(columnName, after);
