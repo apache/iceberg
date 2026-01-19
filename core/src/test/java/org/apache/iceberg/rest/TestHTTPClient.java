@@ -51,6 +51,7 @@ import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchWarehouseException;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -651,11 +652,25 @@ public class TestHTTPClient {
   @Test
   public void testConfigErrorHandler404ThrowsNoSuchWarehouseException() {
     ErrorResponse error =
-        ErrorResponse.builder().responseCode(404).withMessage("Warehouse not found").build();
+        ErrorResponse.builder()
+            .responseCode(404)
+            .withType("NotFoundException")
+            .withMessage("Warehouse not found")
+            .build();
 
     assertThatThrownBy(() -> ErrorHandlers.configErrorHandler().accept(error))
         .isInstanceOf(NoSuchWarehouseException.class)
         .hasMessage("Warehouse not found");
+  }
+
+  @Test
+  public void testConfigErrorHandler404ForMisconfiguredUri() {
+    ErrorResponse error =
+        ErrorResponse.builder().responseCode(404).withMessage("Not Found").build();
+
+    assertThatThrownBy(() -> ErrorHandlers.configErrorHandler().accept(error))
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("Not Found");
   }
 
   @Test

@@ -268,7 +268,7 @@ public class ErrorHandlers {
 
     @Override
     public void accept(ErrorResponse error) {
-      if (error.code() == 404) {
+      if (error.code() == 404 && error.type() != null) {
         throw new NoSuchWarehouseException("%s", error.message());
       }
 

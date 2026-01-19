@@ -4662,8 +4662,6 @@ components:
             }
           }
 
-    #  Note that this is a representative example response for use as a shorthand in the spec.
-    #  The fields `message` and `type` as indicated here are not presently prescriptive.
     NoSuchWarehouseResponse:
       description: Not Found - The given warehouse does not exist.
       content:
