@@ -100,7 +100,8 @@ class PublishChangesProcedure extends BaseProcedure {
             if (wapId.equals(WapUtil.stagedWapId(snap))) {
               if (matchingSnap != null) {
                 throw new ValidationException(
-                    "Cannot apply non-unique WAP ID. Found multiple snapshots with WAP ID '%s'", wapId);
+                    "Cannot apply non-unique WAP ID. Found multiple snapshots with WAP ID '%s'",
+                    wapId);
               } else {
                 matchingSnap = snap;
               }

@@ -175,7 +175,8 @@ public class TestPublishChangesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.system.publish_changes('%s', '%s')", catalogName, tableIdent, wapId))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot apply non-unique WAP ID. Found multiple snapshots with WAP ID 'wap_id_1'");
+        .hasMessage(
+            "Cannot apply non-unique WAP ID. Found multiple snapshots with WAP ID 'wap_id_1'");
   }
 
   @TestTemplate
