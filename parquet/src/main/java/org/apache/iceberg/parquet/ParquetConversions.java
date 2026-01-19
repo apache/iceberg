@@ -23,7 +23,6 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UUIDUtil;
