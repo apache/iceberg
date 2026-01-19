@@ -36,6 +36,8 @@ import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
@@ -212,6 +214,51 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     // Last result cache should be cleared
     assertThat(cache.getInternalCache().get(tableIdentifier).inputSchemas())
         .doesNotContainKey(SCHEMA2);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void testCaseSensitivity(boolean caseSensitive) {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, caseSensitive, DROP_COLUMNS);
+
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, caseSensitive, DROP_COLUMNS);
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "extra", Types.StringType.get()));
+
+    catalog.createTable(tableIdentifier, schema);
+
+    Schema schemaWithUpperCase =
+        new Schema(
+            Types.NestedField.optional(1, "Id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "Data", Types.StringType.get()),
+            Types.NestedField.optional(3, "Extra", Types.StringType.get()));
+
+    Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> result =
+        tableUpdater.update(
+            tableIdentifier,
+            SnapshotRef.MAIN_BRANCH,
+            schemaWithUpperCase,
+            PartitionSpec.unpartitioned(),
+            TableCreator.DEFAULT);
+
+    assertThat(result.f0.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+
+    Schema tableSchema = catalog.loadTable(tableIdentifier).schema();
+    if (caseSensitive) {
+      assertThat(tableSchema.columns()).hasSize(3);
+      assertThat(tableSchema.findField("Id")).isNotNull();
+      assertThat(tableSchema.findField("Data")).isNotNull();
+      assertThat(tableSchema.findField("Extra")).isNotNull();
+    } else {
+      assertThat(tableSchema.sameSchema(schema)).isTrue();
+    }
   }
 
   @Test
