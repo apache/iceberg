@@ -34,7 +34,7 @@ Once you have those, save these two files into a new folder:
 
     * A local Flink cluster (Job Manager and Task Manager)
     * Iceberg REST Catalog
-    * SeaweedFS (local S3 storage)
+    * MinIO (local S3 storage)
     * AWS CLI (to create the S3 bucket)
 
 * [`Dockerfile.flink`](https://raw.githubusercontent.com/apache/iceberg/refs/heads/main/flink/v2.0/quickstart/Dockerfile.flink) - base Flink image, plus some required JARs for S3 and Iceberg.
@@ -67,7 +67,7 @@ CREATE CATALOG iceberg_catalog WITH (
   'uri'                  = 'http://iceberg-rest:8181',
   'warehouse'            = 's3://warehouse/',
   'io-impl'              = 'org.apache.iceberg.aws.s3.S3FileIO',
-  's3.endpoint'          = 'http://seaweedfs:9000',
+  's3.endpoint'          = 'http://minio:9000',
   's3.access-key-id'     = 'admin',
   's3.secret-access-key' = 'password',
   's3.path-style-access' = 'true'
@@ -167,7 +167,7 @@ CREATE TABLE taxis_inline_config (
     'uri'                  = 'http://iceberg-rest:8181',
     'warehouse'            = 's3://warehouse/',
     'io-impl'              = 'org.apache.iceberg.aws.s3.S3FileIO',
-    's3.endpoint'          = 'http://seaweedfs:9000',
+    's3.endpoint'          = 'http://minio:9000',
     's3.access-key-id'     = 'admin',
     's3.secret-access-key' = 'password',
     's3.path-style-access' = 'true'
