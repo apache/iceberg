@@ -245,6 +245,41 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
             EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("3.4"));
   }
 
+  @TestTemplate
+  public void testRewritePositionDeletesWithArrayColumns() throws Exception {
+    // Create table with array column containing primitive fields - this triggers the bug
+    sql(
+        "CREATE TABLE %s (id BIGINT, data STRING, items ARRAY<STRUCT<value:BIGINT, count:INT>>) "
+            + "USING iceberg TBLPROPERTIES"
+            + "('format-version'='2', 'write.delete.mode'='merge-on-read', 'write.update.mode'='merge-on-read')",
+        tableName);
+
+    // Insert multiple rows to ensure position deletes are created
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, 'a', array(named_struct('value', cast(10 as bigint), 'count', 1))), "
+            + "(2, 'b', array(named_struct('value', cast(20 as bigint), 'count', 2))), "
+            + "(3, 'c', array(named_struct('value', cast(30 as bigint), 'count', 3))), "
+            + "(4, 'd', array(named_struct('value', cast(40 as bigint), 'count', 4))), "
+            + "(5, 'e', array(named_struct('value', cast(50 as bigint), 'count', 5))), "
+            + "(6, 'f', array(named_struct('value', cast(60 as bigint), 'count', 6)))",
+        tableName);
+
+    // Create position delete files with multiple deletes
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+    sql("DELETE FROM %s WHERE id = 2", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(TestHelpers.deleteFiles(table)).hasSizeGreaterThanOrEqualTo(1);
+
+    // This should NOT throw ValidationException: Invalid partition field parent: list<long>
+    sql(
+        "CALL %s.system.rewrite_position_delete_files("
+            + "table => '%s',"
+            + "options => map('rewrite-all','true'))",
+        catalogName, tableIdent);
+  }
+
   private Map<String, String> snapshotSummary() {
     return validationCatalog.loadTable(tableIdent).currentSnapshot().summary();
   }
