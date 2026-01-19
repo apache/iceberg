@@ -743,8 +743,6 @@ public class ExpressionUtil {
 
     for (int id : ids) {
       String columnName = schema.findColumnName(id);
-      // Skip fields nested in arrays or maps - they cannot be partition sources
-      // Only fields whose ancestors are all struct types can be partition sources
       if (columnName != null && canBePartitionSource(id, schema, idToParent)) {
         specBuilder.identity(columnName);
       }
@@ -753,12 +751,6 @@ public class ExpressionUtil {
     return specBuilder.build();
   }
 
-  /**
-   * Checks if a field can be used as a partition source.
-   *
-   * <p>A field can only be a partition source if all of its ancestors are struct types. Fields
-   * nested inside arrays or maps cannot be partition sources.
-   */
   private static boolean canBePartitionSource(
       int fieldId, Schema schema, Map<Integer, Integer> idToParent) {
     Integer parentId = idToParent.get(fieldId);

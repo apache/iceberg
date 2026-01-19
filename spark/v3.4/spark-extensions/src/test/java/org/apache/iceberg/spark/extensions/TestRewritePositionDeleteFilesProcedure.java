@@ -247,14 +247,12 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
 
   @TestTemplate
   public void testRewritePositionDeletesWithArrayColumns() throws Exception {
-    // Create table with array column containing primitive fields - this triggers the bug
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, items ARRAY<STRUCT<value:BIGINT, count:INT>>) "
             + "USING iceberg TBLPROPERTIES"
             + "('format-version'='2', 'write.delete.mode'='merge-on-read', 'write.update.mode'='merge-on-read')",
         tableName);
 
-    // Insert multiple rows to ensure position deletes are created
     sql(
         "INSERT INTO %s VALUES "
             + "(1, 'a', array(named_struct('value', cast(10 as bigint), 'count', 1))), "
@@ -265,14 +263,12 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
             + "(6, 'f', array(named_struct('value', cast(60 as bigint), 'count', 6)))",
         tableName);
 
-    // Create position delete files with multiple deletes
     sql("DELETE FROM %s WHERE id = 1", tableName);
     sql("DELETE FROM %s WHERE id = 2", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
     assertThat(TestHelpers.deleteFiles(table)).hasSizeGreaterThanOrEqualTo(1);
 
-    // This should NOT throw ValidationException: Invalid partition field parent: list<long>
     sql(
         "CALL %s.system.rewrite_position_delete_files("
             + "table => '%s',"
