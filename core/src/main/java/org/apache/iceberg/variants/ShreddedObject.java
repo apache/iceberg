@@ -178,20 +178,20 @@ public class ShreddedObject implements VariantObject {
         }
       } else if (unshredded != null) {
         for (String name : unshredded.fieldNames()) {
-          boolean replaced = shreddedFields.containsKey(name) || removedFields.contains(name);
+          boolean replaced = this.shreddedFields.containsKey(name) || removedFields.contains(name);
           if (!replaced) {
-            shreddedFields.put(name, unshredded.get(name));
+            this.shreddedFields.put(name, unshredded.get(name));
           }
         }
       }
 
       this.unshreddedFields = unshreddedBuilder.build();
       // duplicates are suppressed when creating unshreddedFields
-      this.numElements = unshreddedFields.size() + shreddedFields.size();
+      this.numElements = unshreddedFields.size() + this.shreddedFields.size();
       // object is large if the number of elements can't be stored in 1 byte
       this.isLarge = numElements > 0xFF;
 
-      for (VariantValue value : shreddedFields.values()) {
+      for (VariantValue value : this.shreddedFields.values()) {
         totalDataSize += value.sizeInBytes();
       }
 

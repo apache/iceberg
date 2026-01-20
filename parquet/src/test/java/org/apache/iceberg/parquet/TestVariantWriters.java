@@ -52,6 +52,7 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
@@ -279,5 +280,63 @@ public class TestVariantWriters {
     }
 
     return arr;
+  }
+
+  @Test
+  public void testPartialShreddingWithShreddedObject() throws IOException {
+    // Test for issue #15086: partial shredding with ShreddedObject created using put()
+    // Create a ShreddedObject with multiple fields, then partially shred it
+    VariantMetadata metadata = Variants.metadata("id", "name", "city");
+
+    // Create objects using ShreddedObject.put() instead of serialized buffers
+    List<Record> records = Lists.newArrayList();
+    for (int i = 0; i < 3; i++) {
+      org.apache.iceberg.variants.ShreddedObject obj = Variants.object(metadata);
+      obj.put("id", Variants.of(1000L + i));
+      obj.put("name", Variants.of("user_" + i));
+      obj.put("city", Variants.of("city_" + i));
+
+      Variant variant = Variant.of(metadata, obj);
+      Record record = RECORD.copy("id", i, "var", variant);
+      records.add(record);
+    }
+
+    // Shredding function that only shreds the "id" field
+    VariantShreddingFunction partialShredding =
+        (id, name) ->
+            org.apache.parquet.schema.Types.optionalGroup()
+                .addField(
+                    org.apache.parquet.schema.Types.optionalGroup()
+                        .addField(
+                            org.apache.parquet.schema.Types.optional(
+                                    org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName
+                                        .BINARY)
+                                .named("value"))
+                        .addField(
+                            org.apache.parquet.schema.Types.optional(
+                                    org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64)
+                                .named("typed_value"))
+                        .named("id"))
+                .named("typed_value");
+
+    // Write and read back
+    List<Record> actual = writeAndRead(partialShredding, records);
+
+    // Verify all records match
+    assertThat(actual).hasSameSizeAs(records);
+    for (int i = 0; i < records.size(); i++) {
+      Record expected = records.get(i);
+      Record read = actual.get(i);
+
+      InternalTestHelpers.assertEquals(SCHEMA.asStruct(), expected, read);
+
+      // Also verify the variant object has all fields intact
+      Variant readVariant = (Variant) read.getField("var");
+      org.apache.iceberg.variants.VariantObject readObj = readVariant.value().asObject();
+      assertThat(readObj.numFields()).isEqualTo(3);
+      assertThat(readObj.get("id").asPrimitive().get()).isEqualTo(1000L + i);
+      assertThat(readObj.get("name").asPrimitive().get()).isEqualTo("user_" + i);
+      assertThat(readObj.get("city").asPrimitive().get()).isEqualTo("city_" + i);
+    }
   }
 }
