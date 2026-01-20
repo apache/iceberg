@@ -2655,15 +2655,20 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .containsExactly(snapshotBeforeReplace, snapshotAfterReplace);
   }
 
-  @Test
-  public void testConcurrentReplaceTransactions() {
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3})
+  public void testConcurrentReplaceTransactions(int formatVersion) {
     C catalog = catalog();
 
     if (requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
 
-    Transaction transaction = catalog.buildTable(TABLE, SCHEMA).createTransaction();
+    Transaction transaction =
+        catalog
+            .buildTable(TABLE, SCHEMA)
+            .withProperty("format-version", String.valueOf(formatVersion))
+            .createTransaction();
     transaction.newFastAppend().appendFile(FILE_A).commit();
     transaction.commitTransaction();
 
