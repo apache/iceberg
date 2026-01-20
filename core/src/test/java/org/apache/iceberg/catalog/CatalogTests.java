@@ -2691,6 +2691,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = catalog.loadTable(TABLE);
+    // All three successfully committed snapshots should be present
+    assertThat(afterSecondReplace.snapshots()).hasSize(3);
     assertThat(afterSecondReplace.schema().asStruct())
         .as("Table schema should match the original schema")
         .isEqualTo(original.schema().asStruct());
