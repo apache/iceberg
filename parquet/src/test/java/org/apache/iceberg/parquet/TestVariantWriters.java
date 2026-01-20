@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantArray;
@@ -52,6 +53,7 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -291,7 +293,7 @@ public class TestVariantWriters {
     // Create objects using ShreddedObject.put() instead of serialized buffers
     List<Record> records = Lists.newArrayList();
     for (int i = 0; i < 3; i++) {
-      org.apache.iceberg.variants.ShreddedObject obj = Variants.object(metadata);
+      ShreddedObject obj = Variants.object(metadata);
       obj.put("id", Variants.of(1000L + i));
       obj.put("name", Variants.of("user_" + i));
       obj.put("city", Variants.of("city_" + i));
@@ -309,12 +311,12 @@ public class TestVariantWriters {
                     org.apache.parquet.schema.Types.optionalGroup()
                         .addField(
                             org.apache.parquet.schema.Types.optional(
-                                    org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName
+                                    PrimitiveType.PrimitiveTypeName
                                         .BINARY)
                                 .named("value"))
                         .addField(
                             org.apache.parquet.schema.Types.optional(
-                                    org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64)
+                                    PrimitiveType.PrimitiveTypeName.INT64)
                                 .named("typed_value"))
                         .named("id"))
                 .named("typed_value");
@@ -332,7 +334,7 @@ public class TestVariantWriters {
 
       // Also verify the variant object has all fields intact
       Variant readVariant = (Variant) read.getField("var");
-      org.apache.iceberg.variants.VariantObject readObj = readVariant.value().asObject();
+      VariantObject readObj = readVariant.value().asObject();
       assertThat(readObj.numFields()).isEqualTo(3);
       assertThat(readObj.get("id").asPrimitive().get()).isEqualTo(1000L + i);
       assertThat(readObj.get("name").asPrimitive().get()).isEqualTo("user_" + i);
