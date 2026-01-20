@@ -25,7 +25,7 @@ title: "SQL UDF Spec"
 A SQL user-defined function (UDF or UDTF) is a callable routine that accepts input parameters and executes a function body.
 Depending on the function type, the result can be:
 
-- **Scalar function (UDF)** – returns a scalar value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
+- **Scalar function (UDF)** – returns a single value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
 - **Table function (UDTF)** – returns a table with zero or more rows of columns with a uniform schema.
 
 Many compute engines (e.g., Spark, Trino) already support UDFs, but in different and incompatible ways. Without a common
@@ -65,10 +65,7 @@ The UDF metadata file has the following fields:
 | *optional*  | `doc`             | `string`               | Documentation string.                                                 |
 
 Notes:
-1. When `secure` is `true`:
-   - Engines MUST NOT expose the function definition or its body through any form of metadata inspection (e.g., `SHOW FUNCTIONS`).
-   - Engines MUST prevent leakage of sensitive information during execution via error messages, logs, query plans, or intermediate results.
-   - Engines MUST NOT perform predicate reordering, short-circuiting, or other optimizations that could change the order or scope of data access.
+1. Engines should prevent leakage of sensitive information when a function is marked as `secure` by setting it to `true`.
 2. Entries in `properties` are treated as hints, not strict rules.
 
 ### Definition
