@@ -22,28 +22,54 @@ import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.types.Types.StructType;
 
 public class IcebergWriterResult {
 
-  private final TableIdentifier tableIdentifier;
+  private final TableReference tableReference;
   private final List<DataFile> dataFiles;
   private final List<DeleteFile> deleteFiles;
   private final StructType partitionStruct;
 
   public IcebergWriterResult(
-      TableIdentifier tableIdentifier,
+      TableReference tableReference,
       List<DataFile> dataFiles,
       List<DeleteFile> deleteFiles,
       StructType partitionStruct) {
-    this.tableIdentifier = tableIdentifier;
+    this.tableReference = tableReference;
     this.dataFiles = dataFiles;
     this.deleteFiles = deleteFiles;
     this.partitionStruct = partitionStruct;
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     IcebergWriterResult#IcebergWriterResult(TableReference, List, List, StructType)} instead
+   */
+  @Deprecated
+  public IcebergWriterResult(
+      TableIdentifier tableIdentifier,
+      List<DataFile> dataFiles,
+      List<DeleteFile> deleteFiles,
+      StructType partitionStruct) {
+    this.tableReference = TableReference.of("unknown", tableIdentifier);
+    this.dataFiles = dataFiles;
+    this.deleteFiles = deleteFiles;
+    this.partitionStruct = partitionStruct;
+  }
+
+  public TableReference tableReference() {
+    return tableReference;
+  }
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@code tableReference().identifier()}
+   *     instead
+   */
+  @Deprecated
   public TableIdentifier tableIdentifier() {
-    return tableIdentifier;
+    return tableReference.identifier();
   }
 
   public List<DataFile> dataFiles() {

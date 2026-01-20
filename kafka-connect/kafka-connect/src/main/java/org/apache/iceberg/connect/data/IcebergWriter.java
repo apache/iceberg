@@ -24,8 +24,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
@@ -35,23 +35,23 @@ import org.apache.kafka.connect.sink.SinkRecord;
 
 class IcebergWriter implements RecordWriter {
   private final Table table;
-  private final String tableName;
+  private final TableReference tableReference;
   private final IcebergSinkConfig config;
   private final List<IcebergWriterResult> writerResults;
 
   private RecordConverter recordConverter;
   private TaskWriter<Record> writer;
 
-  IcebergWriter(Table table, String tableName, IcebergSinkConfig config) {
+  IcebergWriter(Table table, TableReference tableReference, IcebergSinkConfig config) {
     this.table = table;
-    this.tableName = tableName;
+    this.tableReference = tableReference;
     this.config = config;
     this.writerResults = Lists.newArrayList();
     initNewWriter();
   }
 
   private void initNewWriter() {
-    this.writer = RecordUtils.createTableWriter(table, tableName, config);
+    this.writer = RecordUtils.createTableWriter(table, tableReference, config);
     this.recordConverter = new RecordConverter(table, config);
   }
 
@@ -107,7 +107,7 @@ class IcebergWriter implements RecordWriter {
 
     writerResults.add(
         new IcebergWriterResult(
-            TableIdentifier.parse(tableName),
+            tableReference,
             Arrays.asList(writeResult.dataFiles()),
             Arrays.asList(writeResult.deleteFiles()),
             table.spec().partitionType()));

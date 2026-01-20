@@ -193,6 +193,7 @@ class Coordinator extends Channel {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void commitToTable(
       TableReference tableReference,
       List<Envelope> envelopeList,
@@ -204,6 +205,15 @@ class Coordinator extends Channel {
       table = catalog.loadTable(tableIdentifier);
     } catch (NoSuchTableException e) {
       LOG.warn("Table not found, skipping commit: {}", tableIdentifier, e);
+      return;
+    }
+
+    if (tableReference.uuid() != null && !tableReference.uuid().equals(table.uuid())) {
+      LOG.warn(
+          "Skipping commits to table {} due to target table mismatch.  Expected: {} Received: {}",
+          tableIdentifier,
+          table.uuid(),
+          tableReference.uuid());
       return;
     }
 

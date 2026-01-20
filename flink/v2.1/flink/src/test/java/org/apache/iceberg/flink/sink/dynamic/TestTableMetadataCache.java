@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -86,7 +87,11 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     catalog.dropTable(tableIdentifier);
     catalog.createTable(tableIdentifier, SCHEMA2);
     tableUpdater.update(
-        tableIdentifier, "main", SCHEMA2, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA2,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
 
     Schema schema2 = cache.schema(tableIdentifier, SCHEMA2, false).resolvedTableSchema();
     assertThat(schema2.sameSchema(SCHEMA2)).isTrue();

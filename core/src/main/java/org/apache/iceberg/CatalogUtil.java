@@ -40,7 +40,6 @@ import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -112,7 +111,12 @@ public class CatalogUtil {
       }
     }
 
-    LOG.info("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
+    LOG.info("{} Manifests to delete ", manifestsToDelete.size());
+    if (LOG.isDebugEnabled()) {
+      for (ManifestFile manifest : manifestsToDelete) {
+        LOG.debug("Deleting manifest file: {}", manifest.path());
+      }
+    }
 
     // run all of the deletes
 

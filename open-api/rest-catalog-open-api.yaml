@@ -963,8 +963,8 @@ paths:
           in: header
           description:
             An optional header that allows the server to return 304 (Not Modified) if the metadata
-            is current. The content is the value of the ETag received in a CreateTableResponse or
-            LoadTableResponse.
+            is current. The content is the value of the ETag received in a CreateTableResponse,
+            LoadTableResponse or CommitTableResponse.
           required: false
           schema:
             type: string
@@ -4858,6 +4858,9 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/CommitTableResponse'
+      headers:
+        etag:
+          $ref: '#/components/parameters/etag'
 
     LoadCredentialsResponse:
       description: Table credentials result when loading credentials for a table

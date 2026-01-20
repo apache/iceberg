@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.apache.iceberg.flink.TestFixtures.TABLE;
-import static org.apache.iceberg.flink.sink.dynamic.DynamicCommitter.MAX_CONTINUOUS_EMPTY_COMMITS;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -39,6 +38,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.RandomGenericData;
@@ -122,12 +122,9 @@ class TestDynamicIcebergSinkPerf {
           CATALOG_EXTENSION
               .catalog()
               .createTable(
-                  IDENTIFIERS[i],
-                  SCHEMA,
-                  PartitionSpec.unpartitioned(),
-                  ImmutableMap.of(MAX_CONTINUOUS_EMPTY_COMMITS, "100000"));
+                  IDENTIFIERS[i], SCHEMA, PartitionSpec.unpartitioned(), ImmutableMap.of());
 
-      table.manageSnapshots().createBranch("main").commit();
+      table.manageSnapshots().createBranch(SnapshotRef.MAIN_BRANCH).commit();
     }
 
     List<Record> records = RandomGenericData.generate(SCHEMA, SAMPLE_SIZE, 1L);
@@ -136,7 +133,7 @@ class TestDynamicIcebergSinkPerf {
       rows.add(
           new DynamicRecord(
               IDENTIFIERS[i % TABLE_NUM],
-              "main",
+              SnapshotRef.MAIN_BRANCH,
               SCHEMA,
               RowDataConverter.convert(SCHEMA, records.get(i)),
               PartitionSpec.unpartitioned(),
