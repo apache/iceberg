@@ -42,6 +42,8 @@ import org.apache.spark.unsafe.types.UTF8String;
  */
 class UndeleteColumnProcedure extends BaseProcedure {
 
+  static final String NAME = "undelete_column";
+
   private static final ProcedureParameter TABLE_PARAM =
       requiredInParameter("table", DataTypes.StringType);
   private static final ProcedureParameter COLUMN_PARAM =
@@ -106,7 +108,7 @@ class UndeleteColumnProcedure extends BaseProcedure {
 
   @Override
   public String name() {
-    return "undelete_column";
+    return NAME;
   }
 
   @Override
