@@ -191,6 +191,7 @@ public class DynamicIcebergSink
     private int cacheMaximumSize = 100;
     private long cacheRefreshMs = 1_000;
     private int inputSchemasPerTableCacheMaximumSize = 10;
+    private boolean caseSensitive = true;
 
     Builder() {}
 
@@ -353,6 +354,15 @@ public class DynamicIcebergSink
       return this;
     }
 
+    /**
+     * Set whether schema field name matching should be case-sensitive. The default is to match the
+     * field names case-sensitive.
+     */
+    public Builder<T> caseSensitive(boolean newCaseSensitive) {
+      this.caseSensitive = newCaseSensitive;
+      return this;
+    }
+
     private String operatorName(String suffix) {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
@@ -399,11 +409,12 @@ public class DynamicIcebergSink
                       generator,
                       catalogLoader,
                       immediateUpdate,
-                      dropUnusedColumns,
                       cacheMaximumSize,
                       cacheRefreshMs,
                       inputSchemasPerTableCacheMaximumSize,
-                      tableCreator))
+                      tableCreator,
+                      caseSensitive,
+                      dropUnusedColumns))
               .uid(prefixIfNotNull(uidPrefix, "-generator"))
               .name(operatorName("generator"))
               .returns(type);
@@ -418,11 +429,12 @@ public class DynamicIcebergSink
               .map(
                   new DynamicTableUpdateOperator(
                       catalogLoader,
-                      dropUnusedColumns,
                       cacheMaximumSize,
                       cacheRefreshMs,
                       inputSchemasPerTableCacheMaximumSize,
-                      tableCreator))
+                      tableCreator,
+                      caseSensitive,
+                      dropUnusedColumns))
               .uid(prefixIfNotNull(uidPrefix, "-updater"))
               .name(operatorName("Updater"))
               .returns(type)

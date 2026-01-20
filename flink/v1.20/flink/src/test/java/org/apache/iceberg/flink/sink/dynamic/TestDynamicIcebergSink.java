@@ -1070,6 +1070,91 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(records).hasSize(2);
   }
 
+  @Test
+  void testCaseInsensitiveSchemaMatching() throws Exception {
+    Schema lowerCaseSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    Schema upperCaseSchema =
+        new Schema(
+            Types.NestedField.optional(1, "ID", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "DATA", Types.StringType.get()));
+
+    Schema mixedCaseSchema =
+        new Schema(
+            Types.NestedField.optional(1, "Id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "Data", Types.StringType.get()));
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                lowerCaseSchema, "t1", "main", PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                upperCaseSchema, "t1", "main", PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                mixedCaseSchema, "t1", "main", PartitionSpec.unpartitioned()));
+
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(rows, TypeInformation.of(new TypeHint<>() {}));
+    env.setParallelism(2);
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new Generator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(2)
+        .immediateTableUpdate(true)
+        .caseSensitive(false)
+        .append();
+
+    env.execute("Test Case Insensitive Iceberg DataStream");
+
+    verifyResults(rows);
+  }
+
+  @Test
+  void testCaseSensitiveSchemaMatchingCreatesNewFields() throws Exception {
+    Schema lowerCaseSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    Schema upperCaseSchema =
+        new Schema(
+            Types.NestedField.optional(1, "ID", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "DATA", Types.StringType.get()));
+
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                lowerCaseSchema, "t1", "main", PartitionSpec.unpartitioned()),
+            new DynamicIcebergDataImpl(
+                upperCaseSchema, "t1", "main", PartitionSpec.unpartitioned()));
+
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(rows, TypeInformation.of(new TypeHint<>() {}));
+    env.setParallelism(2);
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new Generator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(2)
+        .immediateTableUpdate(true)
+        .caseSensitive(true)
+        .append();
+
+    env.execute("Test Case Sensitive Iceberg DataStream");
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, "t1"));
+    Schema resultSchema = table.schema();
+    assertThat(resultSchema.columns()).hasSize(4);
+    assertThat(resultSchema.findField("id")).isNotNull();
+    assertThat(resultSchema.findField("ID")).isNotNull();
+    assertThat(resultSchema.findField("data")).isNotNull();
+    assertThat(resultSchema.findField("DATA")).isNotNull();
+  }
+
   /**
    * Represents a concurrent duplicate commit during an ongoing commit operation, which can happen
    * in production scenarios when using REST catalog.
