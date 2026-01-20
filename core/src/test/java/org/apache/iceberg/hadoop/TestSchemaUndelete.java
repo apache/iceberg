@@ -224,4 +224,39 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     assertThat(restored).isNotNull();
     assertThat(restored.fieldId()).isEqualTo(originalId);
   }
+
+  @Test
+  public void testUndeleteRestoresMostRecentlyDeletedField() {
+    // Add a column, delete it, add it again (new ID), delete it again
+    // Undelete should restore the most recently deleted field (second one)
+    table.updateSchema().addColumn("reused_name", Types.StringType.get()).commit();
+    int firstFieldId = table.schema().findField("reused_name").fieldId();
+
+    // Delete the first field
+    table.updateSchema().deleteColumn("reused_name").commit();
+    assertThat(table.schema().findField("reused_name")).isNull();
+
+    // Add a new field with the same name (will get a new ID)
+    table.updateSchema().addColumn("reused_name", Types.IntegerType.get()).commit();
+    int secondFieldId = table.schema().findField("reused_name").fieldId();
+    assertThat(secondFieldId)
+        .as("Second field should have a different ID than the first")
+        .isNotEqualTo(firstFieldId);
+
+    // Delete the second field
+    table.updateSchema().deleteColumn("reused_name").commit();
+    assertThat(table.schema().findField("reused_name")).isNull();
+
+    // Undelete - should restore the most recently deleted field (the second one)
+    table.updateSchema().undeleteColumn("reused_name").commit();
+
+    Types.NestedField restored = table.schema().findField("reused_name");
+    assertThat(restored).isNotNull();
+    assertThat(restored.fieldId())
+        .as("Undelete should restore the most recently deleted field, not the first")
+        .isEqualTo(secondFieldId);
+    assertThat(restored.type())
+        .as("Restored field should have the type of the second field")
+        .isEqualTo(Types.IntegerType.get());
+  }
 }
