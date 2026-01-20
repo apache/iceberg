@@ -28,7 +28,7 @@ import org.apache.iceberg.parquet.ParquetFormatModel;
 public class FlinkFormatModels {
   public static void register() {
     FormatModelRegistry.register(
-        new ParquetFormatModel<>(
+        ParquetFormatModel.create(
             RowData.class,
             RowType.class,
             (icebergSchema, fileSchema, engineSchema) ->
@@ -37,7 +37,7 @@ public class FlinkFormatModels {
                 FlinkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
-        new AvroFormatModel<>(
+        AvroFormatModel.create(
             RowData.class,
             RowType.class,
             (icebergSchema, fileSchema, engineSchema) -> new FlinkAvroWriter(engineSchema),
@@ -45,7 +45,7 @@ public class FlinkFormatModels {
                 FlinkPlannedAvroReader.create(icebergSchema, idToConstant)));
 
     FormatModelRegistry.register(
-        new ORCFormatModel<>(
+        ORCFormatModel.create(
             RowData.class,
             RowType.class,
             (icebergSchema, fileSchema, engineSchema) ->

@@ -37,7 +37,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 public class SparkFormatModels {
   public static void register() {
     FormatModelRegistry.register(
-        new AvroFormatModel<>(
+        AvroFormatModel.create(
             InternalRow.class,
             StructType.class,
             (icebergSchema, fileSchema, engineSchema) -> new SparkAvroWriter(engineSchema),
@@ -45,7 +45,7 @@ public class SparkFormatModels {
                 SparkPlannedAvroReader.create(icebergSchema, idToConstant)));
 
     FormatModelRegistry.register(
-        new ParquetFormatModel<>(
+        ParquetFormatModel.create(
             InternalRow.class,
             StructType.class,
             (icebergSchema, fileSchema, engineSchema) ->
@@ -54,7 +54,7 @@ public class SparkFormatModels {
                 SparkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
-        new ParquetFormatModel<>(
+        ParquetFormatModel.create(
             ColumnarBatch.class,
             StructType.class,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
@@ -62,7 +62,7 @@ public class SparkFormatModels {
                     icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
-        new ParquetFormatModel<>(
+        ParquetFormatModel.create(
             VectorizedSparkParquetReaders.CometColumnarBatch.class,
             StructType.class,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
@@ -70,7 +70,7 @@ public class SparkFormatModels {
                     icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
-        new ORCFormatModel<>(
+        ORCFormatModel.create(
             InternalRow.class,
             StructType.class,
             (icebergSchema, fileSchema, engineSchema) ->
@@ -79,7 +79,7 @@ public class SparkFormatModels {
                 new SparkOrcReader(icebergSchema, fileSchema, idToConstant)));
 
     FormatModelRegistry.register(
-        new ORCFormatModel<>(
+        ORCFormatModel.create(
             ColumnarBatch.class,
             StructType.class,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->

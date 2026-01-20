@@ -25,7 +25,7 @@ import org.apache.iceberg.parquet.ParquetFormatModel;
 public class ArrowFormatModels {
   public static void register() {
     FormatModelRegistry.register(
-        new ParquetFormatModel<>(
+        ParquetFormatModel.create(
             ColumnarBatch.class,
             Object.class,
             (schema, fileSchema, engineSchema, idToConstant) ->

@@ -26,6 +26,7 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.BaseFormatModel;
@@ -39,11 +40,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 public class AvroFormatModel<D, S>
     extends BaseFormatModel<D, S, DatumWriter<D>, DatumReader<D>, Schema> {
 
-  public AvroFormatModel(Class<D> type) {
-    super(type, null, null, null);
+  public static AvroFormatModel<PositionDelete, Object> forDelete() {
+    return new AvroFormatModel<>(PositionDelete.class, null, null, null);
   }
 
-  public AvroFormatModel(
+  public static <D, S> AvroFormatModel<D, S> create(
+      Class<D> type,
+      Class<S> schemaType,
+      WriterFunction<DatumWriter<D>, S, Schema> writerFunction,
+      ReaderFunction<DatumReader<D>, S, Schema> readerFunction) {
+    return new AvroFormatModel<>(type, schemaType, writerFunction, readerFunction);
+  }
+
+  private AvroFormatModel(
       Class<D> type,
       Class<S> schemaType,
       WriterFunction<DatumWriter<D>, S, Schema> writerFunction,

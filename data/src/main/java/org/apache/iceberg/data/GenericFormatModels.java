@@ -26,7 +26,6 @@ import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
@@ -34,7 +33,7 @@ import org.apache.iceberg.parquet.ParquetFormatModel;
 public class GenericFormatModels {
   public static void register() {
     FormatModelRegistry.register(
-        new ParquetFormatModel<>(
+        ParquetFormatModel.create(
             Record.class,
             Schema.class,
             (icebergSchema, fileSchema, engineSchema) ->
@@ -42,20 +41,20 @@ public class GenericFormatModels {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 GenericParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
 
-    FormatModelRegistry.register(new ParquetFormatModel<>(PositionDelete.class));
+    FormatModelRegistry.register(ParquetFormatModel.forDelete());
 
     FormatModelRegistry.register(
-        new AvroFormatModel<>(
+        AvroFormatModel.create(
             Record.class,
             Schema.class,
             (icebergSchema, fileSchema, engineSchema) -> DataWriter.create(fileSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 PlannedDataReader.create(icebergSchema, idToConstant)));
 
-    FormatModelRegistry.register(new AvroFormatModel<>(PositionDelete.class));
+    FormatModelRegistry.register(AvroFormatModel.forDelete());
 
     FormatModelRegistry.register(
-        new ORCFormatModel<>(
+        ORCFormatModel.create(
             Record.class,
             Schema.class,
             (icebergSchema, fileSchema, engineSchema) ->
@@ -63,7 +62,7 @@ public class GenericFormatModels {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 GenericOrcReader.buildReader(icebergSchema, fileSchema, idToConstant)));
 
-    FormatModelRegistry.register(new ORCFormatModel<>(PositionDelete.class));
+    FormatModelRegistry.register(ORCFormatModel.forDelete());
   }
 
   private GenericFormatModels() {}

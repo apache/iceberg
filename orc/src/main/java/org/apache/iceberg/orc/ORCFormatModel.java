@@ -27,6 +27,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.BaseFormatModel;
@@ -43,25 +44,33 @@ public class ORCFormatModel<D, S, R>
     extends BaseFormatModel<D, S, OrcRowWriter<?>, R, TypeDescription> {
   private final boolean batchReader;
 
-  public ORCFormatModel(Class<D> type) {
-    this(type, null, null, null);
+  public static ORCFormatModel<PositionDelete, Object, Object> forDelete() {
+    return new ORCFormatModel<>(PositionDelete.class, null, null, null, false);
   }
 
-  public ORCFormatModel(
+  public static <D, S> ORCFormatModel<D, S, OrcRowReader<D>> create(
       Class<D> type,
       Class<S> schemaType,
       WriterFunction<OrcRowWriter<?>, S, TypeDescription> writerFunction,
-      ReaderFunction<R, S, TypeDescription> readerFunction) {
-    super(type, schemaType, writerFunction, readerFunction);
-    this.batchReader = false;
+      ReaderFunction<OrcRowReader<D>, S, TypeDescription> readerFunction) {
+    return new ORCFormatModel<>(type, schemaType, writerFunction, readerFunction, false);
   }
 
-  public ORCFormatModel(
+  public static <D, S> ORCFormatModel<D, S, OrcBatchReader<?>> create(
       Class<D> type,
       Class<S> schemaType,
-      ReaderFunction<R, S, TypeDescription> batchReaderFunction) {
-    super(type, schemaType, null, batchReaderFunction);
-    this.batchReader = true;
+      ReaderFunction<OrcBatchReader<?>, S, TypeDescription> batchReaderFunction) {
+    return new ORCFormatModel<>(type, schemaType, null, batchReaderFunction, true);
+  }
+
+  private ORCFormatModel(
+      Class<? extends D> type,
+      Class<S> schemaType,
+      WriterFunction<OrcRowWriter<?>, S, TypeDescription> writerFunction,
+      ReaderFunction<R, S, TypeDescription> readerFunction,
+      boolean batchReader) {
+    super(type, schemaType, writerFunction, readerFunction);
+    this.batchReader = batchReader;
   }
 
   @Override

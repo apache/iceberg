@@ -27,6 +27,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.BaseFormatModel;
@@ -46,25 +47,33 @@ public class ParquetFormatModel<D, S, R>
   public static final String WRITER_VERSION_KEY = "parquet.writer.version";
   private final boolean batchReader;
 
-  public ParquetFormatModel(Class<D> type) {
-    this(type, null, null, null);
+  public static ParquetFormatModel<PositionDelete, Object, Object> forDelete() {
+    return new ParquetFormatModel<>(PositionDelete.class, null, null, null, false);
   }
 
-  public ParquetFormatModel(
+  public static <D, S> ParquetFormatModel<D, S, ParquetValueReader<?>> create(
       Class<D> type,
       Class<S> schemaType,
       WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
-      ReaderFunction<R, S, MessageType> readerFunction) {
-    super(type, schemaType, writerFunction, readerFunction);
-    this.batchReader = false;
+      ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction) {
+    return new ParquetFormatModel<>(type, schemaType, writerFunction, readerFunction, false);
   }
 
-  public ParquetFormatModel(
+  public static <D, S> ParquetFormatModel<D, S, VectorizedReader<?>> create(
       Class<? extends D> type,
       Class<S> schemaType,
-      ReaderFunction<R, S, MessageType> batchReaderFunction) {
-    super(type, schemaType, null, batchReaderFunction);
-    this.batchReader = true;
+      ReaderFunction<VectorizedReader<?>, S, MessageType> batchReaderFunction) {
+    return new ParquetFormatModel<>(type, schemaType, null, batchReaderFunction, true);
+  }
+
+  private ParquetFormatModel(
+      Class<? extends D> type,
+      Class<S> schemaType,
+      WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
+      ReaderFunction<R, S, MessageType> readerFunction,
+      boolean batchReader) {
+    super(type, schemaType, writerFunction, readerFunction);
+    this.batchReader = batchReader;
   }
 
   @Override

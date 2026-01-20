@@ -48,7 +48,7 @@ public abstract class BaseFormatModel<D, S, W, R, F> implements FormatModel<D, S
    * @param writerFunction the function used to create writers for this format
    * @param readerFunction the function used to create readers for this format
    */
-  public BaseFormatModel(
+  protected BaseFormatModel(
       Class<? extends D> type,
       Class<S> schemaType,
       WriterFunction<W, S, F> writerFunction,
