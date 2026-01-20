@@ -284,14 +284,11 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
     when(table.spec()).thenReturn(SPEC);
 
     // Multiple partitions with mixed INSERT, UPDATE, DELETE operations using nested CDC field
-    Record row1 =
-        createCDCRecord(1L, "insert-partition-a", CDC_SCHEMA_NESTED, "_cdc.op", "C");
-    Record row2 =
-        createCDCRecord(2L, "insert-partition-b", CDC_SCHEMA_NESTED, "_cdc.op", "R");
+    Record row1 = createCDCRecord(1L, "insert-partition-a", CDC_SCHEMA_NESTED, "_cdc.op", "C");
+    Record row2 = createCDCRecord(2L, "insert-partition-b", CDC_SCHEMA_NESTED, "_cdc.op", "R");
     Record row1Update =
         createCDCRecord(1L, "updated-partition-a", CDC_SCHEMA_NESTED, "_cdc.op", "U");
-    Record row3 =
-        createCDCRecord(3L, "insert-partition-a", CDC_SCHEMA_NESTED, "_cdc.op", "C");
+    Record row3 = createCDCRecord(3L, "insert-partition-a", CDC_SCHEMA_NESTED, "_cdc.op", "C");
     Record row2Delete =
         createCDCRecord(2L, "insert-partition-b", CDC_SCHEMA_NESTED, "_cdc.op", "D");
 

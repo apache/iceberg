@@ -117,7 +117,8 @@ abstract class BaseDeltaWriter extends BaseTaskWriter<Record> {
         row = (Record) value;
       }
     }
-    throw new IllegalArgumentException("CDC field " + String.join(".", cdcField) + " is not a string");
+    throw new IllegalArgumentException(
+        "CDC field " + String.join(".", cdcField) + " is not a string");
   }
 
   public InternalRecordWrapper getWrapper() {
