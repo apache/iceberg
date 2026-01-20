@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.rest.RequestMatcher.containsHeaders;
 import static org.apache.iceberg.rest.RequestMatcher.matches;
-import static org.apache.iceberg.rest.RequestMatcher.matchesContainsHeaders;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -3547,7 +3547,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private void verifyCreatePost(Namespace ns, Map<String, String> headers) {
     verify(adapterForRESTServer, atLeastOnce())
         .execute(
-            matchesContainsHeaders(
+            containsHeaders(
                 HTTPMethod.POST,
                 ResourcePaths.forCatalogProperties(ImmutableMap.of()).tables(ns),
                 headers),

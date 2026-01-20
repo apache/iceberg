@@ -71,7 +71,7 @@ class RequestMatcher {
                 && Objects.equals(req.body(), body));
   }
 
-  public static HTTPRequest matchesContainsHeaders(
+  public static HTTPRequest containsHeaders(
       HTTPRequest.HTTPMethod method, String path, Map<String, String> headers) {
     return argThat(
         req ->
