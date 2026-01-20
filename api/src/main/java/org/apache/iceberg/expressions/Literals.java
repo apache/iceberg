@@ -22,6 +22,7 @@ import java.io.ObjectStreamException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -734,7 +735,8 @@ class Literals {
     }
 
     BoundingBoxLiteral(ByteBuffer value) {
-      this.value = value;
+      Preconditions.checkNotNull(value, "Bounding box buffer cannot be null");
+      this.value = value.slice().order(ByteOrder.LITTLE_ENDIAN);
     }
 
     @Override
