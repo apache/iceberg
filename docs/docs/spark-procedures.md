@@ -245,6 +245,52 @@ Fast-forward the main branch to the head of `audit-branch`
 CALL catalog_name.system.fast_forward('my_table', 'main', 'audit-branch');
 ```
 
+## Schema management
+
+### `undelete_column`
+
+Restores a previously deleted column from the table's schema history.
+
+The column is restored with its original field ID, preserving data file compatibility. This allows you to recover columns that were accidentally deleted without losing access to existing data.
+
+!!! info
+    Restored columns are always made optional, even if the original column was required. This is because new data may have been written without this column after it was deleted.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to update |
+| `column`      | ✔️  | string | Name of the column to restore (use dotted notation for nested fields, e.g., `struct.field`) |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `column_name` | string | The name of the restored column |
+| `field_id`    | int    | The field ID of the restored column |
+| `type`        | string | The type of the restored column |
+
+#### Examples
+
+Restore a deleted top-level column `count` in table `db.sample`:
+```sql
+CALL catalog_name.system.undelete_column('db.sample', 'count');
+```
+
+Restore a deleted nested field `location.lat` in table `db.sample`:
+```sql
+CALL catalog_name.system.undelete_column('db.sample', 'location.lat');
+```
+
+Restore a column using named arguments:
+```sql
+CALL catalog_name.system.undelete_column(table => 'db.sample', column => 'deleted_col');
+```
+
+!!! warning
+    If you want to undelete a nested field whose parent struct was also deleted, you must first undelete the parent struct, then undelete the nested field.
+
 ## Metadata management
 
 Many [maintenance actions](maintenance.md) can be performed using Iceberg stored procedures.
