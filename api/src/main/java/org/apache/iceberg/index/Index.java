@@ -20,6 +20,7 @@ package org.apache.iceberg.index;
 
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.UpdateLocation;
 
 /**
  * Interface for index definition.
@@ -161,4 +162,34 @@ public interface Index {
    * @return a snapshot, or null if no index snapshot exists for the table snapshot
    */
   IndexSnapshot snapshotForTableSnapshot(long tableSnapshotId);
+
+  /**
+   * Create a new {@link UpdateIndexProperties} to replace the properties for the index.
+   *
+   * @return a new {@link UpdateIndexProperties}
+   */
+  default UpdateIndexProperties updateProperties() {
+    throw new UnsupportedOperationException(
+        "Updating index properties is not supported.");
+  }
+
+  /**
+   * Create a new {@link UpdateLocation} to set the index's location.
+   *
+   * @return a new {@link UpdateLocation}
+   */
+  default UpdateLocation updateLocation() {
+    throw new UnsupportedOperationException(
+        "Updating index location is not supported.");
+  }
+
+  /**
+   * Create a new {@link AddIndexSnapshot} to for the index.
+   *
+   * @return a new {@link AddIndexSnapshot}
+   */
+  default AddIndexSnapshot addIndexSnapshot() {
+    throw new UnsupportedOperationException(
+        "Adding index snapshot is not supported.");
+  }
 }
