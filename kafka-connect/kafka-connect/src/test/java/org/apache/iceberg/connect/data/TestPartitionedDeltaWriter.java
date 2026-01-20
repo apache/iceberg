@@ -268,4 +268,41 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
     assertThat(result.dataFiles()).isEmpty();
     assertThat(result.deleteFiles()).isEmpty();
   }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"parquet", "orc"})
+  public void testNestedCDCMixedOperationsMultiplePartitions(String format) {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
+    when(config.isUpsertMode()).thenReturn(true);
+    when(config.tablesDefaultIdColumns()).thenReturn("id,id2");
+    when(config.tablesCdcField()).thenReturn("_cdc.op");
+
+    // Update table schema to use nested CDC schema
+    when(table.schema()).thenReturn(CDC_SCHEMA_NESTED);
+    when(table.spec()).thenReturn(SPEC);
+
+    // Multiple partitions with mixed INSERT, UPDATE, DELETE operations using nested CDC field
+    Record row1 =
+        createCDCRecord(1L, "insert-partition-a", CDC_SCHEMA_NESTED, "_cdc.op", "C");
+    Record row2 =
+        createCDCRecord(2L, "insert-partition-b", CDC_SCHEMA_NESTED, "_cdc.op", "R");
+    Record row1Update =
+        createCDCRecord(1L, "updated-partition-a", CDC_SCHEMA_NESTED, "_cdc.op", "U");
+    Record row3 =
+        createCDCRecord(3L, "insert-partition-a", CDC_SCHEMA_NESTED, "_cdc.op", "C");
+    Record row2Delete =
+        createCDCRecord(2L, "insert-partition-b", CDC_SCHEMA_NESTED, "_cdc.op", "D");
+
+    WriteResult result =
+        writeTest(
+            ImmutableList.of(row1, row2, row1Update, row3, row2Delete),
+            config,
+            PartitionedDeltaWriter.class);
+
+    // Multiple partitions with mixed operations
+    assertThat(result.dataFiles()).isNotEmpty();
+    assertThat(result.deleteFiles()).isNotEmpty();
+  }
 }

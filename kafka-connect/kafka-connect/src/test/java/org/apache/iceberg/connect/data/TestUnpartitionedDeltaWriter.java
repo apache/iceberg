@@ -212,4 +212,34 @@ public class TestUnpartitionedDeltaWriter extends DeltaWriterTestBase {
     assertThat(result.dataFiles()).isEmpty();
     assertThat(result.deleteFiles()).isEmpty();
   }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"parquet", "orc"})
+  public void testNestedCDCMixedOperations(String format) {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
+    when(config.isUpsertMode()).thenReturn(true);
+    when(config.tablesDefaultIdColumns()).thenReturn("id,id2");
+    when(config.tablesCdcField()).thenReturn("_cdc.op");
+
+    // Update table schema to use nested CDC schema
+    when(table.schema()).thenReturn(CDC_SCHEMA_NESTED);
+
+    // Mix of INSERT, UPDATE, DELETE in single batch with nested CDC field
+    Record insert1 = createCDCRecord(1L, "row1", CDC_SCHEMA_NESTED, "_cdc.op", "C");
+    Record insert2 = createCDCRecord(2L, "row2", CDC_SCHEMA_NESTED, "_cdc.op", "C");
+    Record update1 = createCDCRecord(1L, "row1-updated", CDC_SCHEMA_NESTED, "_cdc.op", "U");
+    Record delete2 = createCDCRecord(2L, "row2", CDC_SCHEMA_NESTED, "_cdc.op", "D");
+    Record insert3 = createCDCRecord(3L, "row3", CDC_SCHEMA_NESTED, "_cdc.op", "C");
+
+    WriteResult result =
+        writeTest(
+            ImmutableList.of(insert1, insert2, update1, delete2, insert3),
+            config,
+            UnpartitionedDeltaWriter.class);
+
+    assertThat(result.dataFiles()).hasSize(1);
+    assertThat(result.deleteFiles()).hasSize(1);
+  }
 }

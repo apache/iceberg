@@ -43,7 +43,7 @@ abstract class BaseDeltaWriter extends BaseTaskWriter<Record> {
   private final InternalRecordWrapper keyWrapper;
   private final RecordProjection keyProjection;
   private final boolean upsert;
-  private final String cdcField;
+  private final String[] cdcField;
 
   BaseDeltaWriter(
       PartitionSpec spec,
@@ -60,12 +60,16 @@ abstract class BaseDeltaWriter extends BaseTaskWriter<Record> {
     super(spec, format, writerFactory, fileFactory, io, targetFileSize, useDv);
 
     this.schema = schema;
-    this.cdcField = cdcField;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(identifierFieldIds));
     this.wrapper = new InternalRecordWrapper(schema.asStruct());
     this.keyWrapper = new InternalRecordWrapper(deleteSchema.asStruct());
     this.keyProjection = RecordProjection.create(schema, deleteSchema);
     this.upsert = upsert;
+
+    if (cdcField == null || cdcField.isEmpty()) {
+      throw new IllegalArgumentException("CDC field must be provided for delta writer");
+    }
+    this.cdcField = cdcField.split("\\.");
   }
 
   abstract RowDataDeltaWriter route(Record row);
@@ -73,7 +77,7 @@ abstract class BaseDeltaWriter extends BaseTaskWriter<Record> {
   @Override
   public void write(Record row) throws IOException {
 
-    Operation op = Operation.fromString(row.getField(cdcField).toString());
+    Operation op = Operation.fromString(getCdcOpFromRow(row));
     RowDataDeltaWriter writer = route(row);
 
     switch (op) {
@@ -99,6 +103,21 @@ abstract class BaseDeltaWriter extends BaseTaskWriter<Record> {
       default:
         throw new UnsupportedOperationException("Unknown row kind: " + op);
     }
+  }
+
+  private String getCdcOpFromRow(Record row) {
+    for (String field : cdcField) {
+      Object value = row.getField(field);
+      if (value == null) {
+        throw new IllegalArgumentException("CDC field " + String.join(".", cdcField) + " is null");
+      }
+      if (value instanceof String) {
+        return (String) value;
+      } else {
+        row = (Record) value;
+      }
+    }
+    throw new IllegalArgumentException("CDC field " + String.join(".", cdcField) + " is not a string");
   }
 
   public InternalRecordWrapper getWrapper() {
