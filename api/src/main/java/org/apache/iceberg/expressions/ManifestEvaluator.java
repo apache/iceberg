@@ -429,7 +429,7 @@ public class ManifestEvaluator {
         return null;
       }
 
-      if (fieldStats.containsNaN() != null && fieldStats.containsNaN()) {
+      if (fieldStats.containsNaN() == null || fieldStats.containsNaN()) {
         return null;
       }
 
