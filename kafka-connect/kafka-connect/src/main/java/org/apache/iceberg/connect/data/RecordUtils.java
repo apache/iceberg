@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.data.GenericFileWriterFactory;
@@ -44,8 +45,12 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Struct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class RecordUtils {
+
+  private static final Logger LOG = LoggerFactory.getLogger(RecordUtils.class);
 
   @SuppressWarnings("unchecked")
   static Object extractFromRecordValue(Object recordValue, String fieldName) {
@@ -179,6 +184,26 @@ class RecordUtils {
                 table.schema());
       }
     } else {
+
+      // DV enabled for table format version >=3
+      boolean useDv;
+      switch (TableUtil.formatVersion(table)) {
+        case 1:
+          throw new IllegalArgumentException(
+              "CDC and upsert modes are not supported for Iceberg table format version 1");
+        case 2:
+          LOG.warn(
+              "Table {} format version 2 detected. Delete Vectors are disabled. "
+                  + "CDC and upsert modes work best with format version 3 or higher. "
+                  + "Consider upgrading the table.",
+              tableReference.identifier());
+          useDv = false;
+          break;
+        default:
+          useDv = true;
+          break;
+      }
+
       if (table.spec().isUnpartitioned()) {
         writer =
             new UnpartitionedDeltaWriter(
@@ -191,7 +216,7 @@ class RecordUtils {
                 table.schema(),
                 identifierFieldIds,
                 config.isUpsertMode(),
-                config.tablesUseDv(),
+                useDv,
                 config.tablesCdcField());
       } else {
         writer =
@@ -205,7 +230,7 @@ class RecordUtils {
                 table.schema(),
                 identifierFieldIds,
                 config.isUpsertMode(),
-                config.tablesUseDv(),
+                useDv,
                 config.tablesCdcField());
       }
     }

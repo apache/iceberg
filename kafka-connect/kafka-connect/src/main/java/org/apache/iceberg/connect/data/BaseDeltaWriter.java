@@ -106,15 +106,16 @@ abstract class BaseDeltaWriter extends BaseTaskWriter<Record> {
   }
 
   private String getCdcOpFromRow(Record row) {
+    Record currentFieldLookup = row;
     for (String field : cdcField) {
-      Object value = row.getField(field);
+      Object value = currentFieldLookup.getField(field);
       if (value == null) {
         throw new IllegalArgumentException("CDC field " + String.join(".", cdcField) + " is null");
       }
       if (value instanceof String) {
         return (String) value;
       } else {
-        row = (Record) value;
+        currentFieldLookup = (Record) value;
       }
     }
     throw new IllegalArgumentException(

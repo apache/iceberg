@@ -33,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
 
@@ -47,15 +47,16 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"parquet", "orc"})
-  public void testPartitionedDeltaWriterDVMode(String format) {
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testPartitionedDeltaWriterDVMode(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
     when(config.isUpsertMode()).thenReturn(true);
     when(config.tablesDefaultIdColumns()).thenReturn("id,id2");
     when(config.tablesCdcField()).thenReturn("_op");
-    when(config.tablesUseDv()).thenReturn(true);
 
     when(table.spec()).thenReturn(SPEC);
 
@@ -73,8 +74,10 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"parquet", "orc"})
-  public void testCDCOperationsAcrossPartitions(String format) {
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testCDCOperationsAcrossPartitions(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
@@ -102,8 +105,10 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"parquet", "orc"})
-  public void testMultipleUpdatesPerPartition(String format) {
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testMultipleUpdatesPerPartition(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
@@ -131,8 +136,10 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"parquet", "orc"})
-  public void testPartitionedInsertOnly(String format) {
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testPartitionedInsertOnly(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
@@ -164,8 +171,10 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"parquet", "orc"})
-  public void testPartitionedDeleteOnly(String format) {
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testPartitionedDeleteOnly(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
@@ -193,8 +202,10 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"parquet", "orc"})
-  public void testMixedOperationsSinglePartition(String format) {
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testMixedOperationsSinglePartition(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
@@ -223,8 +234,10 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"parquet", "orc"})
-  public void testPartitionedNonUpsertMode(String format) {
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testPartitionedNonUpsertMode(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
@@ -251,8 +264,10 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"parquet", "orc"})
-  public void testEmptyPartitions(String format) {
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testEmptyPartitions(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
@@ -270,8 +285,10 @@ public class TestPartitionedDeltaWriter extends DeltaWriterTestBase {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"parquet", "orc"})
-  public void testNestedCDCMixedOperationsMultiplePartitions(String format) {
+  @CsvSource({"parquet,2", "parquet,3", "orc,2", "orc,3"})
+  public void testNestedCDCMixedOperationsMultiplePartitions(String format, int formatVersion) {
+    mockTableFormatVersion(formatVersion);
+
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));

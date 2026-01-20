@@ -71,7 +71,6 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_CDC_FIELD_PROP = "iceberg.tables.cdc-field";
   private static final String TABLES_UPSERT_MODE_ENABLED_PROP =
       "iceberg.tables.upsert-mode-enabled";
-  private static final String TABLES_USE_DV_PROP = "iceberg.tables.use-dv";
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
   private static final String TABLES_DEFAULT_ID_COLUMNS = "iceberg.tables.default-id-columns";
   private static final String TABLES_DEFAULT_PARTITION_BY = "iceberg.tables.default-partition-by";
@@ -149,12 +148,6 @@ public class IcebergSinkConfig extends AbstractConfig {
         false,
         Importance.MEDIUM,
         "Set to true to treat all appends as upserts, false otherwise");
-    configDef.define(
-        TABLES_USE_DV_PROP,
-        ConfigDef.Type.BOOLEAN,
-        true,
-        Importance.MEDIUM,
-        "Set to true to enable DV for tables, false otherwise");
     configDef.define(
         TABLES_DEFAULT_COMMIT_BRANCH,
         ConfigDef.Type.STRING,
@@ -443,10 +436,6 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public boolean isUpsertMode() {
     return getBoolean(TABLES_UPSERT_MODE_ENABLED_PROP);
-  }
-
-  public boolean tablesUseDv() {
-    return getBoolean(TABLES_USE_DV_PROP);
   }
 
   public int commitThreads() {

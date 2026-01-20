@@ -73,7 +73,6 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
 | iceberg.tables.cdc-field                   | Source record field that identifies the type of operation (insert, update, or delete)                            |
 | iceberg.tables.upsert-mode-enabled         | Set to true to treat all appends as upserts, false otherwise.                                                    |
-| iceberg.tables.use-dv                      | Set to true to enable DV (Delete Vector) mode. No effect without id-columns and CDC Field.                       |
 | iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
 | iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                  |
@@ -370,13 +369,61 @@ See above for creating two tables.
 
 ### Change data capture
 This example applies inserts, updates, and deletes based on the value of a field in the record.
-For example, if the `_cdc_op` field is set to `I` or `R` then the record is inserted, if `U` then it is
-upserted, and if `D` then it is deleted. This requires that the table be in Iceberg v2 format.
+For example, if the `cdc-field` is set to `I` or `R` then the record is inserted, if `U` then it is
+upserted, and if `D` then it is deleted. This requires that the table `format-version` to be greater than 2.
 The Iceberg identifier field(s) are used to identify a row, if that is not set for the table,
-then the `iceberg.tables.default-id-columns` or `iceberg.table.\<table name\>.id-columns`configuration
-can be set instead. CDC can be combined with multi-table fan-out. The property `iceberg.tables.use-dv`
-can be set to `false` to disable delete vector (DV) mode for compatibility with v2 tables. Note that DV mode 
-requires both identifier columns and a CDC field to be configured.
+then the `iceberg.tables.default-id-columns` or `iceberg.table.\<table name\>.id-columns` configuration
+can be set instead. CDC can be combined with multi-table fan-out.
+
+CDC mode writes equality deletes to handle updates and deletes. During reads, the query engine must
+apply equality deletes by scanning data files that may contain matching rows based on the identifier columns.
+
+#### Production recommendations
+
+**Compaction is required**: For production CDC workloads, periodic compaction is essential to maintain
+query performance. Compaction merges equality deletes with their corresponding data files, reducing
+the number of delete files that need to be processed during reads.
+
+**Table partitioning**: Proper partitioning significantly reduces the scan overhead of equality deletes.
+When a table is partitioned, equality deletes only need to be applied to data files within the same
+partition. Choose partition columns that align with your CDC data patterns (e.g., date columns for
+time-series data).
+
+**Identifier column selection**: The identifier columns define which rows are matched for updates and
+deletes. These should be:
+
+* Unique or form a composite unique key for the data
+* Included in the table's partition spec when possible to limit delete scope
+
+#### Compaction
+
+Run compaction periodically to merge equality deletes with data files. This can be done using Spark:
+
+```sql
+-- Run compaction on the table
+CALL catalog_name.system.rewrite_data_files('db.events')
+
+-- Compaction with specific options
+CALL catalog_name.system.rewrite_data_files(
+  table => 'db.events',
+  options => map('delete-file-threshold', '10')
+)
+
+-- Remove orphan delete files after compaction
+CALL catalog_name.system.rewrite_deletes('db.events')
+```
+
+Or using the Iceberg Actions API:
+
+```java
+SparkActions.get(spark)
+    .rewriteDataFiles(table)
+    .option("delete-file-threshold", "10")
+    .execute();
+```
+
+For automated compaction, consider scheduling these operations via a workflow orchestrator or
+using managed Iceberg services that provide automatic compaction.
 
 
 #### Create the destination table
@@ -392,7 +439,6 @@ See above for creating the table
     "topics": "events",
     "iceberg.tables": "default.events",
     "iceberg.tables.cdc-field": "_cdc_op",
-    "iceberg.tables.use-dv": "true",
     "iceberg.catalog.type": "rest",
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
