@@ -169,7 +169,7 @@ class RESTTableOperations implements TableOperations {
                 .addAll(metadata.changes())
                 .build();
         requirements = UpdateRequirements.forCreateTable(updates);
-        errorHandler = ErrorHandlers.tableCommitHandler(); // throws NoSuchTableException
+        errorHandler = ErrorHandlers.createTableErrorHandler(); // throws NoSuchTableException
         break;
 
       case REPLACE:

@@ -76,6 +76,10 @@ public class ErrorHandlers {
     return CommitErrorHandler.INSTANCE;
   }
 
+  public static Consumer<ErrorResponse> createTableErrorHandler() {
+    return CreateTableErrorHandler.INSTANCE;
+  }
+
   public static Consumer<ErrorResponse> planErrorHandler() {
     return PlanErrorHandler.INSTANCE;
   }
@@ -134,6 +138,26 @@ public class ErrorHandlers {
           throw new AlreadyExistsException("%s", error.message());
       }
 
+      super.accept(error);
+    }
+  }
+
+  /** Table create error handler */
+  private static class CreateTableErrorHandler extends TableErrorHandler {
+    private static final ErrorHandler INSTANCE = new CreateTableErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      switch (error.code()) {
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          throw new CommitStateUnknownException(
+              new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
+      }
+
+      // Delegate to parent for 404, 409, and all other error codes
       super.accept(error);
     }
   }

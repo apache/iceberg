@@ -2544,6 +2544,74 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  public void testNoCleanup503MappedToCommitStateUnknownCreateTransaction() {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              protected <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if (request.method() == HTTPMethod.POST && request.path().contains("some_table")) {
+                  // Simulate a 503 Service Unavailable error
+                  ErrorResponse error =
+                      ErrorResponse.builder()
+                          .responseCode(503)
+                          .withMessage("Service unavailable")
+                          .build();
+
+                  errorHandler.accept(error);
+                  throw new IllegalStateException("Error handler should have thrown");
+                }
+                return super.execute(request, responseType, errorHandler, responseHeaders);
+              }
+            });
+
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+    TableIdentifier newTable = TableIdentifier.of(TABLE.namespace(), "some_table");
+
+    Transaction createTableTransaction = catalog.newCreateTableTransaction(newTable, SCHEMA);
+    createTableTransaction.newAppend().appendFile(FILE_A).commit();
+
+    // Verify that 503 is mapped to CommitStateUnknownException (not just ServiceFailureException)
+    assertThatThrownBy(createTableTransaction::commitTransaction)
+        .isInstanceOf(CommitStateUnknownException.class)
+        .cause()
+        .isInstanceOf(ServiceFailureException.class)
+        .hasMessageContaining("Service failed: 503");
+
+    // Verify files are NOT cleaned up (because commit state is unknown)
+    assertThat(allRequests(adapter))
+        .anySatisfy(
+            req -> {
+              assertThat(req.method()).isEqualTo(HTTPMethod.POST);
+              assertThat(req.path()).isEqualTo(RESOURCE_PATHS.table(newTable));
+              assertThat(req.body()).isInstanceOf(UpdateTableRequest.class);
+              UpdateTableRequest body = (UpdateTableRequest) req.body();
+              Optional<MetadataUpdate> appendSnapshot =
+                  body.updates().stream()
+                      .filter(update -> update instanceof MetadataUpdate.AddSnapshot)
+                      .findFirst();
+              assertThat(appendSnapshot).isPresent();
+
+              MetadataUpdate.AddSnapshot addSnapshot =
+                  (MetadataUpdate.AddSnapshot) appendSnapshot.get();
+              String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
+              // Files should still exist because we don't know if commit succeeded
+              assertThat(catalog.loadTable(TABLE).io().newInputFile(manifestListLocation).exists())
+                  .isTrue();
+            });
+  }
+
+  @Test
   public void testCleanupCleanableExceptionsReplace() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
