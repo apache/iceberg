@@ -218,8 +218,8 @@ class SchemaUpdate implements UpdateSchema {
         "Cannot undelete column '%s': column not found in any historical schema",
         name);
 
-    int parentId = deletedInfo.parentId;
-    Types.NestedField originalField = deletedInfo.field;
+    int parentId = deletedInfo.parentId();
+    Types.NestedField originalField = deletedInfo.field();
 
     // undeleted columns are always optional since new data may not have values
     Types.NestedField field =
@@ -240,15 +240,7 @@ class SchemaUpdate implements UpdateSchema {
     return this;
   }
 
-  private static class DeletedColumnInfo {
-    final int parentId;
-    final Types.NestedField field;
-
-    DeletedColumnInfo(int parentId, Types.NestedField field) {
-      this.parentId = parentId;
-      this.field = field;
-    }
-  }
+  private record DeletedColumnInfo(int parentId, Types.NestedField field) {}
 
   /** Find the first instance of the deleted column, from most recent to oldest. */
   private DeletedColumnInfo findDeletedColumn(String name) {
