@@ -600,6 +600,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           metricsReporter(paths.metrics(finalIdentifier), restClient),
           restClient,
           Map::of,
+          mutationHeaders,
           finalIdentifier,
           paths,
           endpoints,

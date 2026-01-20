@@ -337,14 +337,17 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         {
           TableIdentifier ident = tableIdentFromPathVars(vars);
           PlanTableScanRequest request = castRequest(PlanTableScanRequest.class, body);
-          return castResponse(
-              responseType,
-              CatalogHandlers.planTableScan(
-                  catalog,
-                  ident,
-                  request,
-                  planningBehavior()::shouldPlanTableScanAsync,
-                  scan -> planningBehavior().numberFileScanTasksPerPlanTask()));
+          return CatalogHandlers.withIdempotency(
+              httpRequest,
+              () ->
+                  castResponse(
+                      responseType,
+                      CatalogHandlers.planTableScan(
+                          catalog,
+                          ident,
+                          request,
+                          planningBehavior()::shouldPlanTableScanAsync,
+                          scan -> planningBehavior().numberFileScanTasksPerPlanTask())));
         }
 
       case FETCH_PLANNING_RESULT:
@@ -359,13 +362,17 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         {
           TableIdentifier ident = tableIdentFromPathVars(vars);
           FetchScanTasksRequest request = castRequest(FetchScanTasksRequest.class, body);
-          return castResponse(
-              responseType, CatalogHandlers.fetchScanTasks(catalog, ident, request));
+          return CatalogHandlers.withIdempotency(
+              httpRequest,
+              () ->
+                  castResponse(
+                      responseType, CatalogHandlers.fetchScanTasks(catalog, ident, request)));
         }
 
       case CANCEL_PLAN_TABLE_SCAN:
         {
-          CatalogHandlers.cancelPlanTableScan(planIDFromPathVars(vars));
+          CatalogHandlers.withIdempotency(
+              httpRequest, () -> CatalogHandlers.cancelPlanTableScan(planIDFromPathVars(vars)));
           return null;
         }
 
