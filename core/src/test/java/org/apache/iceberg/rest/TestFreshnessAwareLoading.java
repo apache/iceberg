@@ -20,7 +20,7 @@ package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.TestBase.FILE_A;
 import static org.apache.iceberg.TestBase.SCHEMA;
-import static org.apache.iceberg.rest.RESTRequestMatcher.match;
+import static org.apache.iceberg.rest.RequestMatcher.matches;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -198,7 +198,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
             })
         .when(adapterForRESTServer)
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -212,14 +212,14 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     Mockito.verify(adapterForRESTServer, times(3))
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
             eq(LoadTableResponse.class),
             any(),
             any());
 
     verify(adapterForRESTServer)
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(metadataTableIdentifier)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(metadataTableIdentifier)),
             any(),
             any(),
             any());
@@ -245,7 +245,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     expectNotModifiedResponseForLoadTable(TABLE, adapterForRESTServer);
     BaseTable tableAfterSecondLoad = (BaseTable) restCatalog.loadTable(TABLE);
 
-    assertThat(tableAfterFirstLoad).isNotEqualTo(tableAfterSecondLoad);
+    assertThat(tableAfterFirstLoad).isNotSameAs(tableAfterSecondLoad);
     assertThat(tableAfterFirstLoad.operations().current().location())
         .isEqualTo(tableAfterSecondLoad.operations().current().location());
     assertThat(
@@ -261,7 +261,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     Mockito.verify(adapterForRESTServer, times(2))
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
   }
 
   @Test
@@ -291,7 +291,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
         .containsOnlyKeys(
             RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
-    assertThat(table).isNotEqualTo(metadataTable.table());
+    assertThat(table).isNotSameAs(metadataTable.table());
     assertThat(table.operations().current().metadataFileLocation())
         .isEqualTo(metadataTable.table().operations().current().metadataFileLocation());
 
@@ -300,11 +300,11 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
             ImmutableMap.of(RESTCatalogProperties.NAMESPACE_SEPARATOR, "%2E"));
 
     Mockito.verify(adapterForRESTServer, times(2))
-        .execute(match(HTTPRequest.HTTPMethod.GET, paths.table(TABLE)), any(), any(), any());
+        .execute(matches(HTTPRequest.HTTPMethod.GET, paths.table(TABLE)), any(), any(), any());
 
     Mockito.verify(adapterForRESTServer)
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, paths.table(metadataTableIdentifier)),
+            matches(HTTPRequest.HTTPMethod.GET, paths.table(metadataTableIdentifier)),
             any(),
             any(),
             any());
@@ -361,7 +361,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
                     .build())
         .when(adapter)
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, ResourcePaths.config()),
+            matches(HTTPRequest.HTTPMethod.GET, ResourcePaths.config()),
             eq(ConfigResponse.class),
             any(),
             any());
@@ -439,7 +439,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     Mockito.verify(adapterForRESTServer)
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, paths.table(metadataTableIdentifier)),
+            matches(HTTPRequest.HTTPMethod.GET, paths.table(metadataTableIdentifier)),
             any(),
             any(),
             any());
@@ -485,7 +485,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     Mockito.verify(adapterToVerify, times(3 + loadTableCountFromAction))
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
   }
 
   @Test
@@ -528,7 +528,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     Mockito.doAnswer(invocation -> null)
         .when(adapterForRESTServer)
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -774,7 +774,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     Mockito.doAnswer(invocationAssertsFullLoad)
         .when(adapter)
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(ident)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(ident)),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -789,7 +789,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     Mockito.doAnswer(invocationAssertsFullLoad)
         .when(adapter)
         .execute(
-            match(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(ident)),
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(ident)),
             eq(LoadTableResponse.class),
             any(),
             any());

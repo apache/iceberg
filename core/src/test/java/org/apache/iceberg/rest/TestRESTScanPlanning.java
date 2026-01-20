@@ -31,6 +31,8 @@ import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -105,6 +107,31 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   }
 
   // ==================== Helper Methods ====================
+
+  @Override
+  @SuppressWarnings("unchecked")
+  protected <T> T roundTripSerialize(T payload, String description) {
+    if (payload == null) {
+      return null;
+    }
+
+    try {
+      if (payload instanceof RESTMessage) {
+        RESTMessage message = (RESTMessage) payload;
+        ObjectReader reader = MAPPER.readerFor(message.getClass());
+        if (parserContext != null && !parserContext.isEmpty()) {
+          reader = reader.with(parserContext.toInjectableValues());
+        }
+        return reader.readValue(MAPPER.writeValueAsString(message));
+      } else {
+        // use Map so that Jackson doesn't try to instantiate ImmutableMap from payload.getClass()
+        return (T) MAPPER.readValue(MAPPER.writeValueAsString(payload), Map.class);
+      }
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(
+          String.format("Failed to serialize and deserialize %s: %s", description, payload), e);
+    }
+  }
 
   private void setParserContext(Table table) {
     parserContext =

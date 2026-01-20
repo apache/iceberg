@@ -23,18 +23,18 @@ import static org.mockito.ArgumentMatchers.argThat;
 import java.util.Map;
 import java.util.Objects;
 
-class RESTRequestMatcher {
-  private RESTRequestMatcher() {}
+class RequestMatcher {
+  private RequestMatcher() {}
 
-  public static HTTPRequest match(HTTPRequest.HTTPMethod method) {
+  public static HTTPRequest matches(HTTPRequest.HTTPMethod method) {
     return argThat(req -> req.method() == method);
   }
 
-  static HTTPRequest match(HTTPRequest.HTTPMethod method, String path) {
+  static HTTPRequest matches(HTTPRequest.HTTPMethod method, String path) {
     return argThat(req -> req.method() == method && req.path().equals(path));
   }
 
-  public static HTTPRequest match(
+  public static HTTPRequest matches(
       HTTPRequest.HTTPMethod method, String path, Map<String, String> headers) {
     return argThat(
         req ->
@@ -43,7 +43,7 @@ class RESTRequestMatcher {
                 && req.headers().equals(HTTPHeaders.of(headers)));
   }
 
-  public static HTTPRequest match(
+  public static HTTPRequest matches(
       HTTPRequest.HTTPMethod method,
       String path,
       Map<String, String> headers,
@@ -56,7 +56,7 @@ class RESTRequestMatcher {
                 && req.queryParameters().equals(parameters));
   }
 
-  public static HTTPRequest match(
+  public static HTTPRequest matches(
       HTTPRequest.HTTPMethod method,
       String path,
       Map<String, String> headers,
@@ -71,7 +71,7 @@ class RESTRequestMatcher {
                 && Objects.equals(req.body(), body));
   }
 
-  public static HTTPRequest matchContainsHeaders(
+  public static HTTPRequest matchesContainsHeaders(
       HTTPRequest.HTTPMethod method, String path, Map<String, String> headers) {
     return argThat(
         req ->

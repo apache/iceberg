@@ -20,7 +20,6 @@ package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -45,8 +44,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 public abstract class TestBaseWithRESTServer {
-  private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
-
+  protected static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
   protected static final Namespace NS = Namespace.of("ns");
   protected static final SessionCatalog.SessionContext DEFAULT_SESSION_CONTEXT =
       new SessionCatalog.SessionContext(
@@ -64,7 +62,7 @@ public abstract class TestBaseWithRESTServer {
   @TempDir private Path temp;
 
   @BeforeEach
-  public void setupCatalog() throws Exception {
+  public void before() throws Exception {
     File warehouse = temp.toFile();
     this.backendCatalog = new InMemoryCatalog();
     this.backendCatalog.initialize(
@@ -87,7 +85,7 @@ public abstract class TestBaseWithRESTServer {
   }
 
   @AfterEach
-  public void teardownCatalogs() throws Exception {
+  public void after() throws Exception {
     if (restCatalog != null) {
       restCatalog.close();
     }
@@ -123,26 +121,20 @@ public abstract class TestBaseWithRESTServer {
 
   @SuppressWarnings("unchecked")
   protected <T> T roundTripSerialize(T payload, String description) {
-    if (payload == null) {
-      return null;
-    }
-
-    try {
-      if (payload instanceof RESTMessage) {
-        RESTMessage message = (RESTMessage) payload;
-        ObjectReader reader = MAPPER.readerFor(message.getClass());
-        if (parserContext != null && !parserContext.isEmpty()) {
-          reader = reader.with(parserContext.toInjectableValues());
+    if (payload != null) {
+      try {
+        if (payload instanceof RESTMessage) {
+          return (T) MAPPER.readValue(MAPPER.writeValueAsString(payload), payload.getClass());
+        } else {
+          // use Map so that Jackson doesn't try to instantiate ImmutableMap from payload.getClass()
+          return (T) MAPPER.readValue(MAPPER.writeValueAsString(payload), Map.class);
         }
-        return reader.readValue(MAPPER.writeValueAsString(message));
-      } else {
-        // use Map so that Jackson doesn't try to instantiate ImmutableMap from payload.getClass()
-        return (T) MAPPER.readValue(MAPPER.writeValueAsString(payload), Map.class);
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(
+            String.format("Failed to serialize and deserialize %s: %s", description, payload), e);
       }
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(
-          String.format("Failed to serialize and deserialize %s: %s", description, payload), e);
     }
+    return null;
   }
 
   private RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {

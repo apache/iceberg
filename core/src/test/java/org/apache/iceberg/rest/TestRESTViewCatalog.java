@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.apache.iceberg.rest.RESTRequestMatcher.match;
+import static org.apache.iceberg.rest.RequestMatcher.matches;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -199,11 +199,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     assertThat(views).hasSize(numberOfItems);
 
     Mockito.verify(adapter)
-        .execute(match(HTTPMethod.GET, "v1/config"), eq(ConfigResponse.class), any(), any());
+        .execute(matches(HTTPMethod.GET, "v1/config"), eq(ConfigResponse.class), any(), any());
 
     Mockito.verify(adapter, times(numberOfItems))
         .execute(
-            match(HTTPMethod.POST, String.format("v1/namespaces/%s/views", namespaceName)),
+            matches(HTTPMethod.POST, String.format("v1/namespaces/%s/views", namespaceName)),
             eq(LoadViewResponse.class),
             any(),
             any());
@@ -249,13 +249,13 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            match(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            matches(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
             eq(ConfigResponse.class),
             any(),
             any());
     Mockito.verify(adapter)
         .execute(
-            match(HTTPMethod.HEAD, "v1/namespaces/ns/views/view", Map.of(), Map.of()),
+            matches(HTTPMethod.HEAD, "v1/namespaces/ns/views/view", Map.of(), Map.of()),
             any(),
             any(),
             any());
@@ -296,13 +296,13 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            match(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            matches(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
             eq(ConfigResponse.class),
             any(),
             any());
     Mockito.verify(adapter)
         .execute(
-            match(HTTPMethod.GET, "v1/namespaces/ns/views/view", Map.of(), Map.of()),
+            matches(HTTPMethod.GET, "v1/namespaces/ns/views/view", Map.of(), Map.of()),
             any(),
             any(),
             any());
@@ -394,7 +394,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
       ResourcePaths resourcePaths = ResourcePaths.forCatalogProperties(Maps.newHashMap());
       Mockito.verify(adapter, Mockito.atLeastOnce())
           .execute(
-              match(HTTPMethod.POST, resourcePaths.view(viewIdentifier), customHeaders),
+              matches(HTTPMethod.POST, resourcePaths.view(viewIdentifier), customHeaders),
               eq(LoadViewResponse.class),
               any(),
               any());
