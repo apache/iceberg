@@ -29,40 +29,81 @@ import org.apache.iceberg.azure.AdlsTokenCredentialProviders;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.SerializableMap;
 
 /** Azure key management client which connects to Azure Key Vault. */
 public class AzureKeyManagementClient implements KeyManagementClient {
-  private KeyClient keyClient;
-  private KeyWrapAlgorithm keyWrapAlgorithm;
+
+  private Map<String, String> allProperties;
+
+  private transient volatile ClientState state;
 
   @Override
   public void initialize(Map<String, String> properties) {
-    AzureProperties azureProperties = new AzureProperties(properties);
-
-    this.keyWrapAlgorithm = azureProperties.keyWrapAlgorithm();
-    KeyClientBuilder keyClientBuilder = new KeyClientBuilder();
-    azureProperties.keyVaultUrl().ifPresent(keyClientBuilder::vaultUrl);
-    this.keyClient =
-        keyClientBuilder
-            .credential(AdlsTokenCredentialProviders.from(properties).credential())
-            .buildClient();
+    this.allProperties = SerializableMap.copyOf(properties);
   }
 
   @Override
   public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
     WrapResult wrapResult =
-        keyClient
+        keyClient()
             .getCryptographyClient(wrappingKeyId)
-            .wrapKey(keyWrapAlgorithm, ByteBuffers.toByteArray(key));
+            .wrapKey(keyWrapAlgorithm(), ByteBuffers.toByteArray(key));
     return ByteBuffer.wrap(wrapResult.getEncryptedKey());
   }
 
   @Override
   public ByteBuffer unwrapKey(ByteBuffer wrappedKey, String wrappingKeyId) {
     UnwrapResult unwrapResult =
-        keyClient
+        keyClient()
             .getCryptographyClient(wrappingKeyId)
-            .unwrapKey(keyWrapAlgorithm, ByteBuffers.toByteArray(wrappedKey));
+            .unwrapKey(keyWrapAlgorithm(), ByteBuffers.toByteArray(wrappedKey));
     return ByteBuffer.wrap(unwrapResult.getKey());
+  }
+
+  private KeyClient keyClient() {
+    return state().keyClient();
+  }
+
+  private KeyWrapAlgorithm keyWrapAlgorithm() {
+    return state().keyWrapAlgorithm();
+  }
+
+  private ClientState state() {
+    if (state == null) {
+      synchronized (this) {
+        if (state == null) {
+          AzureProperties azureProperties = new AzureProperties(allProperties);
+          KeyClientBuilder keyClientBuilder = new KeyClientBuilder();
+          azureProperties.keyVaultUrl().ifPresent(keyClientBuilder::vaultUrl);
+          KeyClient keyClient =
+              keyClientBuilder
+                  .credential(AdlsTokenCredentialProviders.from(allProperties).credential())
+                  .buildClient();
+          KeyWrapAlgorithm keyWrapAlgorithm = azureProperties.keyWrapAlgorithm();
+          state = new ClientState(keyClient, keyWrapAlgorithm);
+        }
+      }
+    }
+    return state;
+  }
+
+  private static class ClientState {
+
+    private final KeyClient keyClient;
+    private final KeyWrapAlgorithm keyWrapAlgorithm;
+
+    ClientState(KeyClient keyClient, KeyWrapAlgorithm keyWrapAlgorithm) {
+      this.keyClient = keyClient;
+      this.keyWrapAlgorithm = keyWrapAlgorithm;
+    }
+
+    KeyClient keyClient() {
+      return keyClient;
+    }
+
+    KeyWrapAlgorithm keyWrapAlgorithm() {
+      return keyWrapAlgorithm;
+    }
   }
 }
