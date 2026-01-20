@@ -59,6 +59,7 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
   private final UpdateSchema api;
   private final Schema existingSchema;
   private final Schema targetSchema;
+  private final boolean caseSensitive;
   private final boolean dropUnusedColumns;
 
   private EvolveSchemaVisitor(
@@ -66,11 +67,13 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
       UpdateSchema api,
       Schema existingSchema,
       Schema targetSchema,
+      boolean caseSensitive,
       boolean dropUnusedColumns) {
     this.identifier = identifier;
-    this.api = api;
+    this.api = api.caseSensitive(caseSensitive);
     this.existingSchema = existingSchema;
     this.targetSchema = targetSchema;
+    this.caseSensitive = caseSensitive;
     this.dropUnusedColumns = dropUnusedColumns;
   }
 
@@ -82,6 +85,7 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
    * @param api an UpdateSchema for adding changes
    * @param existingSchema an existing schema
    * @param targetSchema a new schema to compare with the existing
+   * @param caseSensitive whether field name matching should be case-sensitive
    * @param dropUnusedColumns whether to drop columns not present in target schema
    */
   public static void visit(
@@ -89,12 +93,14 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
       UpdateSchema api,
       Schema existingSchema,
       Schema targetSchema,
+      boolean caseSensitive,
       boolean dropUnusedColumns) {
     visit(
         targetSchema,
         -1,
-        new EvolveSchemaVisitor(identifier, api, existingSchema, targetSchema, dropUnusedColumns),
-        new CompareSchemasVisitor.PartnerIdByNameAccessors(existingSchema));
+        new EvolveSchemaVisitor(
+            identifier, api, existingSchema, targetSchema, caseSensitive, dropUnusedColumns),
+        new CompareSchemasVisitor.PartnerIdByNameAccessors(existingSchema, caseSensitive));
   }
 
   @Override
@@ -107,14 +113,16 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     Types.StructType partnerStruct = findFieldType(partnerId).asStructType();
     String after = null;
     for (Types.NestedField targetField : struct.fields()) {
-      Types.NestedField nestedField = partnerStruct.field(targetField.name());
+      Types.NestedField nestedField =
+          CompareSchemasVisitor.getFieldFromStruct(
+              targetField.name(), partnerStruct, caseSensitive);
       final String columnName;
       if (nestedField != null) {
         updateColumn(nestedField, targetField);
         columnName = this.existingSchema.findColumnName(nestedField.fieldId());
       } else {
         addColumn(partnerId, targetField);
-        columnName = this.targetSchema.findColumnName(targetField.fieldId());
+        columnName = targetSchema.findColumnName(targetField.fieldId());
       }
 
       setPosition(columnName, after);
@@ -122,7 +130,11 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     }
 
     for (Types.NestedField existingField : partnerStruct.fields()) {
-      if (struct.field(existingField.name()) == null) {
+      Types.NestedField targetField =
+          caseSensitive
+              ? struct.field(existingField.name())
+              : struct.caseInsensitiveField(existingField.name());
+      if (targetField == null) {
         String columnName = this.existingSchema.findColumnName(existingField.fieldId());
         if (dropUnusedColumns) {
           LOG.debug("{}: Dropping column: {}", identifier.name(), columnName);
