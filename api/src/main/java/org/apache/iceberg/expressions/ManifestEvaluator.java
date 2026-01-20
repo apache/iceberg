@@ -425,11 +425,9 @@ public class ManifestEvaluator {
       int pos = Accessors.toPosition(ref.accessor());
       PartitionFieldSummary fieldStats = stats.get(pos);
 
-      if (fieldStats.containsNull()) {
-        return null;
-      }
-
-      if (fieldStats.containsNaN() == null || fieldStats.containsNaN()) {
+      if (fieldStats.containsNull()
+          || fieldStats.containsNaN() == null
+          || fieldStats.containsNaN()) {
         return null;
       }
 
