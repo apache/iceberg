@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -1410,6 +1411,22 @@ public class TestExpressionUtil {
     assertThat(ExpressionUtil.toSanitizedString(STRUCT, geoPredicate, true))
         .as("Sanitized string should be identical for geospatial predicates")
         .isEqualTo(expectedSanitizedString);
+  }
+
+  @Test
+  public void testBoundingBoxLiteralNormalizesBuffer() {
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox box = new BoundingBox(min, max);
+    ByteBuffer serialized = box.toByteBuffer();
+
+    ByteBuffer padded = ByteBuffer.allocate(serialized.remaining() + 1).order(ByteOrder.BIG_ENDIAN);
+    padded.put((byte) 0x0);
+    padded.put(serialized.duplicate());
+    padded.position(1);
+    Literal<ByteBuffer> literal = new Literals.BoundingBoxLiteral(padded);
+
+    assertThat(literal.toString()).isEqualTo(box.toString());
   }
 
   private void assertEquals(Expression expected, Expression actual) {
