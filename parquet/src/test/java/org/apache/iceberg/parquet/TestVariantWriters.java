@@ -311,8 +311,7 @@ public class TestVariantWriters {
                     org.apache.parquet.schema.Types.optionalGroup()
                         .addField(
                             org.apache.parquet.schema.Types.optional(
-                                    PrimitiveType.PrimitiveTypeName
-                                        .BINARY)
+                                    PrimitiveType.PrimitiveTypeName.BINARY)
                                 .named("value"))
                         .addField(
                             org.apache.parquet.schema.Types.optional(
