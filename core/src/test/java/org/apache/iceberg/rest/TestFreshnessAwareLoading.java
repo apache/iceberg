@@ -724,8 +724,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
-        TestRESTCatalog.catalog(
-            adapter, clientBuilder -> new CustomRESTSessionCatalog(clientBuilder, null));
+        catalog(adapter, clientBuilder -> new CustomRESTSessionCatalog(clientBuilder, null));
 
     catalog.createNamespace(NS);
     catalog.createTable(TABLE, SCHEMA);
@@ -759,6 +758,25 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    return catalog;
+  }
+
+  private RESTCatalog catalog(
+      RESTCatalogAdapter adapter,
+      Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog>
+          sessionCatalogFactory) {
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter) {
+          @Override
+          protected RESTSessionCatalog newSessionCatalog(
+              Function<Map<String, String>, RESTClient> clientBuilder) {
+            return sessionCatalogFactory.apply(clientBuilder);
+          }
+        };
     catalog.initialize(
         "test",
         ImmutableMap.of(

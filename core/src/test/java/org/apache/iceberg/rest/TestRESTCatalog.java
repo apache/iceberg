@@ -3587,7 +3587,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return catalog;
   }
 
-  public static RESTCatalog catalog(
+  private RESTCatalog catalog(
       RESTCatalogAdapter adapter,
       Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog>
           sessionCatalogFactory) {
