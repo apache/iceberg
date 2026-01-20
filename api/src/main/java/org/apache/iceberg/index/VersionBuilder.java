@@ -16,15 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.index;
 
-/** API for setting a table's, view's or index's base location. */
-public interface UpdateLocation extends PendingUpdate<String> {
+import java.util.Map;
+
+public interface VersionBuilder<T> {
   /**
-   * Set the table's, view's or index's location.
+   * Add key/value properties to the index.
    *
-   * @param location a String location
+   * @param properties key/value properties
    * @return this for method chaining
    */
-  UpdateLocation setLocation(String location);
+  T withProperties(Map<String, String> properties);
+
+  /**
+   * Add a key/value property to the index.
+   *
+   * @param key a key
+   * @param value a value
+   * @return this for method chaining
+   */
+  T withProperty(String key, String value);
 }

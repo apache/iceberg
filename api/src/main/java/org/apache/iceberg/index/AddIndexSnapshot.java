@@ -16,15 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.index;
 
-/** API for setting a table's, view's or index's base location. */
-public interface UpdateLocation extends PendingUpdate<String> {
-  /**
-   * Set the table's, view's or index's location.
-   *
-   * @param location a String location
-   * @return this for method chaining
-   */
-  UpdateLocation setLocation(String location);
-}
+import org.apache.iceberg.PendingUpdate;
+
+/**
+ * API for adding a new snapshot to an index.
+ *
+ * <p>Apply returns the new index snapshot for validation.
+ *
+ * <p>When committing, these changes will be applied to the current index metadata. Commit conflicts
+ * will be resolved by applying the pending changes to the new index metadata.
+ */
+public interface AddIndexSnapshot
+    extends PendingUpdate<IndexSnapshot>, SnapshotBuilder<AddIndexSnapshot> {}
