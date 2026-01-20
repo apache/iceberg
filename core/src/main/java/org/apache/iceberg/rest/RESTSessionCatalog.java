@@ -64,6 +64,7 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -1466,7 +1467,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkViewIdentifierIsValid(ident);
 
     Preconditions.checkArgument(
-        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        !Strings.isNullOrEmpty(metadataFileLocation),
         "Invalid metadata file location: %s",
         metadataFileLocation);
 

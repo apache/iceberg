@@ -2034,6 +2034,11 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog.dropView(identifier)).isTrue();
     assertThat(catalog.viewExists(identifier)).as("View must not exist").isFalse();
 
+    // view metadata should still exist after dropping the view as gc is disabled
+    if (ops instanceof BaseViewOperations) {
+      assertThat(((BaseViewOperations) ops).io().newInputFile(metadataLocation).exists()).isTrue();
+    }
+
     View registeredView = catalog.registerView(identifier, metadataLocation);
 
     assertThat(registeredView).isNotNull();
