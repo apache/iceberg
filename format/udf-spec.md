@@ -65,7 +65,7 @@ The UDF metadata file has the following fields:
 | *optional*  | `doc`             | `string`               | Documentation string.                                                 |
 
 Notes:
-1. Engines should prevent leakage of sensitive information when a function is marked as `secure` by setting it to `true`.
+1. Engines must prevent leakage of sensitive information when a function is marked as `secure` by setting it to `true`.
 2. Entries in `properties` are treated as hints, not strict rules.
 
 ### Definition
