@@ -690,7 +690,7 @@ public class TestUpdateRequirements {
   @Test
   public void addAndRemoveSnapshot() {
     Snapshot newSnapshot = mock(Snapshot.class);
-    when(newSnapshot.parentId()).thenReturn(null);
+    when(newSnapshot.sequenceNumber()).thenReturn(1L);
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
             metadata, ImmutableList.of(new MetadataUpdate.AddSnapshot(newSnapshot)));
@@ -718,7 +718,7 @@ public class TestUpdateRequirements {
   @Test
   public void addAndRemoveSnapshots() {
     Snapshot newSnapshot = mock(Snapshot.class);
-    when(newSnapshot.parentId()).thenReturn(null);
+    when(newSnapshot.sequenceNumber()).thenReturn(1L);
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
             metadata, ImmutableList.of(new MetadataUpdate.AddSnapshot(newSnapshot)));

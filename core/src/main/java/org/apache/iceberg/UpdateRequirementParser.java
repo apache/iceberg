@@ -69,7 +69,6 @@ public class UpdateRequirementParser {
 
   // AssertLastSequenceNumber
   private static final String LAST_SEQUENCE_NUMBER = "last-sequence-number";
-  private static final String SNAPSHOT_HAS_PARENT = "snapshot-has-parent";
 
   private static final Map<Class<? extends UpdateRequirement>, String> TYPES =
       ImmutableMap.<Class<? extends UpdateRequirement>, String>builder()
@@ -295,12 +294,10 @@ public class UpdateRequirementParser {
       UpdateRequirement.AssertLastSequenceNumber requirement, JsonGenerator gen)
       throws IOException {
     gen.writeNumberField(LAST_SEQUENCE_NUMBER, requirement.lastSequenceNumber());
-    gen.writeBooleanField(SNAPSHOT_HAS_PARENT, requirement.hasParent());
   }
 
   private static UpdateRequirement readAssertLastSequenceNumber(JsonNode node) {
     long lastSequenceNumber = JsonUtil.getLong(LAST_SEQUENCE_NUMBER, node);
-    boolean hasParent = JsonUtil.getBool(SNAPSHOT_HAS_PARENT, node);
-    return new UpdateRequirement.AssertLastSequenceNumber(lastSequenceNumber, hasParent);
+    return new UpdateRequirement.AssertLastSequenceNumber(lastSequenceNumber);
   }
 }

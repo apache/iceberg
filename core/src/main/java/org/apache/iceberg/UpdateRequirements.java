@@ -187,8 +187,7 @@ public class UpdateRequirements {
       if (base != null && !isReplace) {
         require(
             new UpdateRequirement.AssertLastSequenceNumber(
-                addSnapshot.snapshot().sequenceNumber(),
-                addSnapshot.snapshot().parentId() != null));
+                addSnapshot.snapshot().sequenceNumber()));
       }
     }
 
