@@ -23,7 +23,6 @@ import java.io.Serializable;
 import java.util.Objects;
 import java.util.Set;
 import org.apache.flink.core.memory.DataInputView;
-import org.apache.flink.core.memory.DataOutputView;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -74,18 +73,6 @@ class WriteTarget implements Serializable {
 
   Set<Integer> equalityFields() {
     return equalityFields;
-  }
-
-  void serializeTo(DataOutputView view) throws IOException {
-    view.writeUTF(tableName);
-    view.writeUTF(branch);
-    view.writeInt(schemaId);
-    view.writeInt(specId);
-    view.writeBoolean(upsertMode);
-    view.writeInt(equalityFields.size());
-    for (Integer equalityField : equalityFields) {
-      view.writeInt(equalityField);
-    }
   }
 
   static WriteTarget deserializeFrom(DataInputView view) throws IOException {

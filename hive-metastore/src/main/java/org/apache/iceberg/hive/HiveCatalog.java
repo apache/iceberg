@@ -28,7 +28,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
-import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
@@ -48,6 +47,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -352,13 +352,11 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     }
 
     if (tableExists(to)) {
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          "Cannot rename %s to %s. Table already exists", from, to);
+      throw new AlreadyExistsException("Cannot rename %s to %s. Table already exists", from, to);
     }
 
     if (viewExists(to)) {
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          "Cannot rename %s to %s. View already exists", from, to);
+      throw new AlreadyExistsException("Cannot rename %s to %s. View already exists", from, to);
     }
 
     String toDatabase = to.namespace().level(0);
@@ -391,8 +389,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     } catch (InvalidOperationException e) {
       if (e.getMessage() != null
           && e.getMessage().contains(String.format("new table %s already exists", to))) {
-        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-            "Table already exists: %s", to);
+        throw new AlreadyExistsException("Table already exists: %s", to);
       } else {
         throw new RuntimeException("Failed to rename " + from + " to " + to, e);
       }
@@ -499,9 +496,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
       LOG.info("Created namespace: {}", namespace);
 
-    } catch (AlreadyExistsException e) {
-      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-          e, "Namespace already exists: %s", namespace);
+    } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
+      throw new AlreadyExistsException(e, "Namespace already exists: %s", namespace);
 
     } catch (TException e) {
       throw new RuntimeException(
@@ -862,8 +858,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     @Override
     public Transaction createOrReplaceTransaction() {
       if (viewExists(identifier)) {
-        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-            "View with same name already exists: %s", identifier);
+        throw new AlreadyExistsException("View with same name already exists: %s", identifier);
       }
       return super.createOrReplaceTransaction();
     }
@@ -871,8 +866,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     @Override
     public org.apache.iceberg.Table create() {
       if (viewExists(identifier)) {
-        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-            "View with same name already exists: %s", identifier);
+        throw new AlreadyExistsException("View with same name already exists: %s", identifier);
       }
       return super.create();
     }
@@ -896,8 +890,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     @Override
     public View createOrReplace() {
       if (tableExists(identifier)) {
-        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-            "Table with same name already exists: %s", identifier);
+        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
       }
       return super.createOrReplace();
     }
@@ -905,10 +898,40 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     @Override
     public View create() {
       if (tableExists(identifier)) {
-        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
-            "Table with same name already exists: %s", identifier);
+        throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
       }
       return super.create();
     }
+  }
+
+  /**
+   * Register a table with the catalog if it does not exist. This is overridden in order to add view
+   * existence detection before registering a table.
+   *
+   * @param identifier a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @return a Table instance
+   * @throws AlreadyExistsException if a table or view with the same identifier already exists in
+   *     the catalog.
+   */
+  @Override
+  public org.apache.iceberg.Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(
+        identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register an empty metadata file location as a table");
+
+    // throw an exception in case the table identifier already exists as a table/view
+    if (tableExists(identifier)) {
+      throw new AlreadyExistsException("Table already exists: %s", identifier);
+    }
+
+    if (viewExists(identifier)) {
+      throw new AlreadyExistsException("View with same name already exists: %s", identifier);
+    }
+
+    return super.registerTable(identifier, metadataFileLocation);
   }
 }

@@ -21,6 +21,21 @@ package org.apache.iceberg;
 /** Interface for partition statistics returned from a {@link PartitionStatisticsScan}. */
 public interface PartitionStatistics extends StructLike {
 
+  /* The positions of each statistics within the full schema of partition statistics. */
+  int PARTITION_POSITION = 0;
+  int SPEC_ID_POSITION = 1;
+  int DATA_RECORD_COUNT_POSITION = 2;
+  int DATA_FILE_COUNT_POSITION = 3;
+  int TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION = 4;
+  int POSITION_DELETE_RECORD_COUNT_POSITION = 5;
+  int POSITION_DELETE_FILE_COUNT_POSITION = 6;
+  int EQUALITY_DELETE_RECORD_COUNT_POSITION = 7;
+  int EQUALITY_DELETE_FILE_COUNT_POSITION = 8;
+  int TOTAL_RECORD_COUNT_POSITION = 9;
+  int LAST_UPDATED_AT_POSITION = 10;
+  int LAST_UPDATED_SNAPSHOT_ID_POSITION = 11;
+  int DV_COUNT_POSITION = 12;
+
   /** Returns the partition of these partition statistics */
   StructLike partition();
 
