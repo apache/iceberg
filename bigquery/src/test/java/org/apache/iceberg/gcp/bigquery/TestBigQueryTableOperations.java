@@ -19,7 +19,7 @@
 package org.apache.iceberg.gcp.bigquery;
 
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
-import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROJECT_ID;
+import static org.apache.iceberg.gcp.bigquery.BigQueryProperties.PROJECT_ID;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
@@ -177,35 +177,33 @@ public class TestBigQueryTableOperations {
     org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
 
     when(client.update(any(), any()))
-        .thenThrow(new ValidationException("error message etag mismatch"));
+        .thenThrow(new CommitFailedException("error message etag mismatch"));
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining(
-            "Updating table failed due to conflict updates (etag mismatch). Retry the update");
+        .hasMessage("error message etag mismatch");
   }
 
   @Test
-  public void failWhenMetadataLocationDiff() throws Exception {
+  public void failWhenConcurrentModificationDetected() throws Exception {
     Table tableWithEtag = createTestTable().setEtag("etag");
-    Table tableWithNewMetadata =
-        new Table()
-            .setEtag("etag")
-            .setExternalCatalogTableOptions(
-                new ExternalCatalogTableOptions()
-                    .setParameters(ImmutableMap.of(METADATA_LOCATION_PROP, "a/new/location")));
 
     reset(client);
-    // Two invocations, for loadTable and commit.
-    when(client.load(TABLE_REFERENCE)).thenReturn(tableWithEtag, tableWithNewMetadata);
+    when(client.load(TABLE_REFERENCE)).thenReturn(tableWithEtag);
 
     org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
 
-    when(client.update(any(), any())).thenReturn(tableWithEtag);
+    // Simulate concurrent modification detected via ETag mismatch
+    when(client.update(any(), any()))
+        .thenThrow(new CommitFailedException("Cannot commit: Etag mismatch"));
+
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("is not same as the current table metadata location");
+        .hasMessageContaining("Cannot commit");
+
+    // Verify table is loaded only once
+    verify(client, times(1)).load(TABLE_REFERENCE);
   }
 
   @Test

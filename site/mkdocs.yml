@@ -48,6 +48,11 @@ theme:
 
 plugins:
   - search
+  - blog:
+      blog_dir: blog
+      blog_toc: true
+      post_date_format: long
+      post_url_format: "{slug}"
   - macros
   - monorepo
   - privacy
@@ -84,7 +89,7 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.10.0'
+  icebergVersion: '1.10.1'
   nessieVersion: '0.104.5'
   flinkVersion: '2.0.0'
   flinkVersionMajor: '2.0'

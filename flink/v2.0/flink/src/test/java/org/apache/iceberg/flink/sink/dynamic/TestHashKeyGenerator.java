@@ -32,6 +32,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -44,7 +45,7 @@ class TestHashKeyGenerator {
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.required(2, "data", Types.StringType.get()));
 
-  private static final String BRANCH = "main";
+  private static final String BRANCH = SnapshotRef.MAIN_BRANCH;
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of("default", "table");
 
   @Test

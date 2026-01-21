@@ -26,6 +26,8 @@ import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_KEY;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_NAME;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_WRITE_BLOCK_SIZE;
+import static org.apache.iceberg.azure.AzureProperties.AZURE_KEYVAULT_KEY_WRAP_ALGORITHM;
+import static org.apache.iceberg.azure.AzureProperties.AZURE_KEYVAULT_URL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.ArgumentMatchers.any;
@@ -39,6 +41,7 @@ import com.azure.core.credential.AzureSasCredential;
 import com.azure.core.credential.TokenCredential;
 import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.DefaultAzureCredential;
+import com.azure.security.keyvault.keys.cryptography.models.KeyWrapAlgorithm;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.IOException;
@@ -73,11 +76,15 @@ public class TestAzureProperties {
                 .put(ADLS_SHARED_KEY_ACCOUNT_KEY, "secret")
                 .put(AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER, "provider")
                 .put(AzureProperties.ADLS_TOKEN_PROVIDER_PREFIX + "client-id", "clientId")
+                .put(AZURE_KEYVAULT_URL, "https://test-key-vault.vault.azure.net")
+                .put(AZURE_KEYVAULT_KEY_WRAP_ALGORITHM, KeyWrapAlgorithm.RSA1_5.getValue())
                 .build());
 
     AzureProperties serdedProps = roundTripSerializer.apply(props);
     assertThat(serdedProps.adlsReadBlockSize()).isEqualTo(props.adlsReadBlockSize());
     assertThat(serdedProps.adlsWriteBlockSize()).isEqualTo(props.adlsWriteBlockSize());
+    assertThat(serdedProps.keyVaultUrl()).isEqualTo(props.keyVaultUrl());
+    assertThat(serdedProps.keyWrapAlgorithm()).isEqualTo(props.keyWrapAlgorithm());
   }
 
   @Test

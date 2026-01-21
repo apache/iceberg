@@ -87,7 +87,7 @@ public class TestSparkDataWrite {
   public static Object[][] parameters() {
     return new Object[][] {
       new Object[] {FileFormat.PARQUET, null},
-      new Object[] {FileFormat.PARQUET, "main"},
+      new Object[] {FileFormat.PARQUET, SnapshotRef.MAIN_BRANCH},
       new Object[] {FileFormat.PARQUET, "testBranch"},
       new Object[] {FileFormat.AVRO, null},
       new Object[] {FileFormat.ORC, "testBranch"}

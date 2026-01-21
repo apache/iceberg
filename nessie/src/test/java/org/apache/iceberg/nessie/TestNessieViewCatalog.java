@@ -25,6 +25,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -82,7 +83,7 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
-    catalog = initNessieCatalog("main");
+    catalog = initNessieCatalog(SnapshotRef.MAIN_BRANCH);
   }
 
   @AfterEach

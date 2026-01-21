@@ -29,6 +29,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.slf4j.Logger;
@@ -54,10 +55,24 @@ class TableMetadataCache {
   private final Clock cacheRefreshClock;
   private final int inputSchemasPerTableCacheMaximumSize;
   private final Map<TableIdentifier, CacheItem> tableCache;
+  private final boolean caseSensitive;
+  private final boolean dropUnusedColumns;
 
   TableMetadataCache(
-      Catalog catalog, int maximumSize, long refreshMs, int inputSchemasPerTableCacheMaximumSize) {
-    this(catalog, maximumSize, refreshMs, inputSchemasPerTableCacheMaximumSize, Clock.systemUTC());
+      Catalog catalog,
+      int maximumSize,
+      long refreshMs,
+      int inputSchemasPerTableCacheMaximumSize,
+      boolean caseSensitive,
+      boolean dropUnusedColumns) {
+    this(
+        catalog,
+        maximumSize,
+        refreshMs,
+        inputSchemasPerTableCacheMaximumSize,
+        caseSensitive,
+        dropUnusedColumns,
+        Clock.systemUTC());
   }
 
   @VisibleForTesting
@@ -66,19 +81,23 @@ class TableMetadataCache {
       int maximumSize,
       long refreshMs,
       int inputSchemasPerTableCacheMaximumSize,
+      boolean caseSensitive,
+      boolean dropUnusedColumns,
       Clock cacheRefreshClock) {
     this.catalog = catalog;
     this.refreshMs = refreshMs;
-    this.cacheRefreshClock = cacheRefreshClock;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCache = new LRUCache<>(maximumSize);
+    this.caseSensitive = caseSensitive;
+    this.dropUnusedColumns = dropUnusedColumns;
+    this.cacheRefreshClock = cacheRefreshClock;
   }
 
   Tuple2<Boolean, Exception> exists(TableIdentifier identifier) {
     CacheItem cached = tableCache.get(identifier);
     if (cached != null && Boolean.TRUE.equals(cached.tableExists)) {
       return EXISTS;
-    } else if (needsRefresh(cached, true)) {
+    } else if (needsRefresh(identifier, cached, true)) {
       return refreshTable(identifier);
     } else {
       return NOT_EXISTS;
@@ -89,8 +108,8 @@ class TableMetadataCache {
     return branch(identifier, branch, true);
   }
 
-  ResolvedSchemaInfo schema(TableIdentifier identifier, Schema input, boolean dropUnusedColumns) {
-    return schema(identifier, input, true, dropUnusedColumns);
+  ResolvedSchemaInfo schema(TableIdentifier identifier, Schema input) {
+    return schema(identifier, input, true);
   }
 
   PartitionSpec spec(TableIdentifier identifier, PartitionSpec spec) {
@@ -115,7 +134,7 @@ class TableMetadataCache {
       return branch;
     }
 
-    if (needsRefresh(cached, allowRefresh)) {
+    if (needsRefresh(identifier, cached, allowRefresh)) {
       refreshTable(identifier);
       return branch(identifier, branch, false);
     } else {
@@ -124,7 +143,7 @@ class TableMetadataCache {
   }
 
   private ResolvedSchemaInfo schema(
-      TableIdentifier identifier, Schema input, boolean allowRefresh, boolean dropUnusedColumns) {
+      TableIdentifier identifier, Schema input, boolean allowRefresh) {
     CacheItem cached = tableCache.get(identifier);
     Schema compatible = null;
     if (cached != null && cached.tableExists) {
@@ -139,7 +158,8 @@ class TableMetadataCache {
 
       for (Map.Entry<Integer, Schema> tableSchema : cached.tableSchemas.entrySet()) {
         CompareSchemasVisitor.Result result =
-            CompareSchemasVisitor.visit(input, tableSchema.getValue(), true, dropUnusedColumns);
+            CompareSchemasVisitor.visit(
+                input, tableSchema.getValue(), caseSensitive, dropUnusedColumns);
         if (result == CompareSchemasVisitor.Result.SAME) {
           ResolvedSchemaInfo newResult =
               new ResolvedSchemaInfo(
@@ -155,9 +175,9 @@ class TableMetadataCache {
       }
     }
 
-    if (needsRefresh(cached, allowRefresh)) {
+    if (needsRefresh(identifier, cached, allowRefresh)) {
       refreshTable(identifier);
-      return schema(identifier, input, false, dropUnusedColumns);
+      return schema(identifier, input, false);
     } else if (compatible != null) {
       ResolvedSchemaInfo newResult =
           new ResolvedSchemaInfo(
@@ -185,7 +205,7 @@ class TableMetadataCache {
       }
     }
 
-    if (needsRefresh(cached, allowRefresh)) {
+    if (needsRefresh(identifier, cached, allowRefresh)) {
       refreshTable(identifier);
       return spec(identifier, spec, false);
     } else {
@@ -198,18 +218,32 @@ class TableMetadataCache {
       Table table = catalog.loadTable(identifier);
       update(identifier, table);
       return EXISTS;
-    } catch (NoSuchTableException e) {
-      LOG.debug("Table doesn't exist {}", identifier, e);
+    } catch (NoSuchTableException | NoSuchNamespaceException e) {
+      LOG.debug("Table or namespace doesn't exist {}", identifier, e);
       tableCache.put(
           identifier, new CacheItem(cacheRefreshClock.millis(), false, null, null, null, 1));
       return Tuple2.of(false, e);
     }
   }
 
-  private boolean needsRefresh(CacheItem cacheItem, boolean allowRefresh) {
-    return allowRefresh
-        && (cacheItem == null
-            || cacheRefreshClock.millis() - cacheItem.createdTimestampMillis > refreshMs);
+  private boolean needsRefresh(
+      TableIdentifier identifier, CacheItem cacheItem, boolean allowRefresh) {
+    if (!allowRefresh) {
+      return false;
+    }
+
+    if (cacheItem == null) {
+      return true;
+    }
+
+    long nowMillis = cacheRefreshClock.millis();
+    long timeElapsedMillis = nowMillis - cacheItem.createdTimestampMillis;
+    if (timeElapsedMillis > refreshMs) {
+      LOG.info("Refreshing table metadata for {} after {} millis", identifier, timeElapsedMillis);
+      return true;
+    }
+
+    return false;
   }
 
   public void invalidate(TableIdentifier identifier) {
