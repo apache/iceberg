@@ -21,10 +21,12 @@ package org.apache.iceberg.aws;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.lakeformation.LakeFormationAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
@@ -41,6 +43,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.AwsClient;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkClientConfiguration;
 import software.amazon.awssdk.core.client.config.SdkClientOption;
 import software.amazon.awssdk.regions.Region;
@@ -253,7 +256,7 @@ public class TestAwsClientFactories {
   }
 
   @Test
-  public void testGlueClientSetsAdaptiveRetryPolicy() throws IllegalAccessException, NoSuchFieldException {
+  public void testGlueClientSetsAdaptiveRetryPolicy() {
     AwsClientFactory factory =
             getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
     GlueClient glueClient = factory.glue();
@@ -261,7 +264,7 @@ public class TestAwsClientFactories {
   }
 
   @Test
-  public void testKmsClientSetsAdaptiveRetryPolicy() throws IllegalAccessException, NoSuchFieldException {
+  public void testKmsClientSetsAdaptiveRetryPolicy() {
     AwsClientFactory factory =
             getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
     KmsClient kmsClient = factory.kms();
@@ -269,7 +272,7 @@ public class TestAwsClientFactories {
   }
 
   @Test
-  public void testDynamoClientSetsAdaptiveRetryPolicy() throws IllegalAccessException, NoSuchFieldException {
+  public void testDynamoClientSetsAdaptiveRetryPolicy() {
     AwsClientFactory factory =
             getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
     DynamoDbClient dynamoClient = factory.dynamo();
@@ -277,15 +280,13 @@ public class TestAwsClientFactories {
   }
 
   /**
-   * Use reflection to extract the retry strategy from an AwsClient object, then assert that it's set to the correct
-   * strategy. This enforces that we correctly applied the retry configurations to the client object.
+   * Extract the retry strategy from an AwsClient object, then assert that it's set to the correct strategy.
+   * This enforces that we correctly applied the retry configurations to the client object.
    */
-  private void assertAwsClientSetsAdaptiveRetryPolicy(AwsClient client) throws IllegalAccessException, NoSuchFieldException {
-    Field glueClientConfiguration = client.getClass().getDeclaredField("clientConfiguration");
-    glueClientConfiguration.setAccessible(true);
-    SdkClientConfiguration sdkClientConfiguration = (SdkClientConfiguration) glueClientConfiguration.get(client);
-    RetryStrategy retryStrategy = sdkClientConfiguration.option(SdkClientOption.RETRY_STRATEGY);
-    assertInstanceOf(DefaultAdaptiveRetryStrategy.class, retryStrategy);
+  private void assertAwsClientSetsAdaptiveRetryPolicy(AwsClient client) {
+    Optional<RetryStrategy> retryStrategy = client.serviceClientConfiguration().overrideConfiguration().retryStrategy();
+    assertTrue(retryStrategy.isPresent());
+    assertInstanceOf(DefaultAdaptiveRetryStrategy.class, retryStrategy.get());
   }
 
   private void testProviderAndAssertThrownBy(String providerClassName, String containsMessage) {
