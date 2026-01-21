@@ -200,10 +200,7 @@ class RESTTableOperations implements TableOperations {
     if (encryption() instanceof StandardEncryptionManager) {
       // Add encryption keys to the to-be-committed metadata
       TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
-      for (Map.Entry<String, EncryptedKey> entry :
-          EncryptionUtil.encryptionKeys(encryption()).entrySet()) {
-        builder.addEncryptionKey(entry.getValue());
-      }
+      EncryptionUtil.encryptionKeys(encryption()).values().forEach(builder::addEncryptionKey);
       commitInternal(base, builder.build());
     } else {
       commitInternal(base, metadata);
