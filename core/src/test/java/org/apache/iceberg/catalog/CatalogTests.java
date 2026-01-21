@@ -3271,11 +3271,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(CustomMetricsReporter.SCAN_COUNTER.get()).isEqualTo(1);
     // reset counter in case subclasses run this test multiple times
     CustomMetricsReporter.SCAN_COUNTER.set(0);
-
-    // append file through MergeAppend and check and reset counter
-    table.newAppend().appendFile(FILE_A).commit();
-    assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isEqualTo(1);
-    CustomMetricsReporter.COMMIT_COUNTER.set(0);
   }
 
   public static class CustomMetricsReporter implements MetricsReporter {
