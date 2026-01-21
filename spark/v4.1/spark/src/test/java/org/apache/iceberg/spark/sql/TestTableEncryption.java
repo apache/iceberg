@@ -22,6 +22,7 @@ import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -59,7 +60,6 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.mockito.internal.util.collections.Iterables;
@@ -237,9 +237,9 @@ public class TestTableEncryption extends CatalogTestBase {
 
   @TestTemplate
   public void testMetadataTamperproofing() throws IOException {
-    Assumptions.assumeFalse(
-        validationCatalog instanceof RESTCatalog,
-        "RESTCatalog does not store metadata file hashes");
+    assumeThat(validationCatalog)
+        .as("RESTCatalog does not store metadata file hashes")
+        .isNotInstanceOf(RESTCatalog.class);
 
     ChecksumFileSystem fs = ((ChecksumFileSystem) FileSystem.newInstance(new Configuration()));
     validationCatalog.initialize(catalogName, catalogConfig);
