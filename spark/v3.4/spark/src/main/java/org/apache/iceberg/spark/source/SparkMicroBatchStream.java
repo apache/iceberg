@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.StreamingOverwriteMode;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -84,7 +85,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
-  private final boolean skipOverwrite;
+  private final StreamingOverwriteMode overwriteMode;
   private final long fromTimestamp;
   private final int maxFilesPerMicroBatch;
   private final int maxRecordsPerMicroBatch;
@@ -116,7 +117,17 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.initialOffset = initialOffsetStore.initialOffset();
 
     this.skipDelete = readConf.streamingSkipDeleteSnapshots();
-    this.skipOverwrite = readConf.streamingSkipOverwriteSnapshots();
+    this.overwriteMode = readConf.streamingOverwriteMode();
+
+    if (overwriteMode == StreamingOverwriteMode.ADDED_FILES_ONLY) {
+      LOG.warn(
+          "Using '{}=added-files-only' mode with table '{}'. "
+              + "This mode processes only added files from OVERWRITE snapshots, which may result in "
+              + "duplicate records if the overwrite rewrote existing data (e.g., MERGE, UPDATE, DELETE). "
+              + "This is safe when overwrites contain only new data (e.g., INSERT OVERWRITE to new partitions).",
+          SparkReadOptions.STREAMING_OVERWRITE_MODE,
+          table.name());
+    }
   }
 
   @Override
@@ -275,12 +286,22 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
             SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
         return false;
       case DataOperations.OVERWRITE:
-        Preconditions.checkState(
-            skipOverwrite,
-            "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
-        return false;
+        switch (overwriteMode) {
+          case FAIL:
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=skip, "
+                        + "or to process added files only, set %s=added-files-only",
+                    snapshot.snapshotId(),
+                    SparkReadOptions.STREAMING_OVERWRITE_MODE,
+                    SparkReadOptions.STREAMING_OVERWRITE_MODE));
+          case SKIP:
+            return false;
+          case ADDED_FILES_ONLY:
+            return true;
+          default:
+            throw new IllegalStateException("Unknown overwrite mode: " + overwriteMode);
+        }
       default:
         throw new IllegalStateException(
             String.format(

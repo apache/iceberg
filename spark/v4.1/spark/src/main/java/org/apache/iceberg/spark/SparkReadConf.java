@@ -29,6 +29,8 @@ import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A class for common Iceberg configs for Spark reads.
@@ -49,6 +51,8 @@ import org.apache.spark.sql.SparkSession;
  * <p>Note this class is NOT meant to be serialized and sent to executors.
  */
 public class SparkReadConf {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkReadConf.class);
 
   private static final String DRIVER_MAX_RESULT_SIZE = "spark.driver.maxResultSize";
   private static final String DRIVER_MAX_RESULT_SIZE_DEFAULT = "1G";
@@ -143,12 +147,37 @@ public class SparkReadConf {
         .parse();
   }
 
+  /**
+   * @deprecated and will be removed in a future release; use {@link #streamingOverwriteMode()}
+   *     instead.
+   */
+  @Deprecated
   public boolean streamingSkipOverwriteSnapshots() {
     return confParser
         .booleanConf()
         .option(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS)
         .defaultValue(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS_DEFAULT)
         .parse();
+  }
+
+  public StreamingOverwriteMode streamingOverwriteMode() {
+    String newModeValue =
+        confParser.stringConf().option(SparkReadOptions.STREAMING_OVERWRITE_MODE).parseOptional();
+
+    if (newModeValue != null) {
+      return StreamingOverwriteMode.fromName(newModeValue);
+    }
+
+    if (streamingSkipOverwriteSnapshots()) {
+      LOG.warn(
+          "The option '{}' is deprecated and will be removed in a future release. "
+              + "Please use '{}=skip' instead.",
+          SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS,
+          SparkReadOptions.STREAMING_OVERWRITE_MODE);
+      return StreamingOverwriteMode.SKIP;
+    }
+
+    return StreamingOverwriteMode.fromName(SparkReadOptions.STREAMING_OVERWRITE_MODE_DEFAULT);
   }
 
   public boolean parquetVectorizationEnabled() {

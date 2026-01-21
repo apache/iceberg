@@ -37,6 +37,7 @@ import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Schema;
@@ -818,6 +819,176 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS, "true");
     assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+  }
+
+  @TestTemplate
+  public void testReadStreamWithOverwriteModeSkip() throws Exception {
+    table.updateSpec().removeField("id_bucket").addField(ref("id")).commit();
+
+    // fill table with some data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots);
+
+    DataFile dataFile =
+        DataFiles.builder(table.spec())
+            .withPath(File.createTempFile("junit", null, temp.toFile()).getPath())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withFormat(FileFormat.PARQUET)
+            .build();
+
+    // this should create a snapshot with type overwrite.
+    table
+        .newOverwrite()
+        .addFile(dataFile)
+        .overwriteByRowFilter(Expressions.greaterThan("id", 4))
+        .commit();
+
+    // check pre-condition - that the above operation resulted in Snapshot of Type OVERWRITE.
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
+
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_OVERWRITE_MODE, "skip");
+    assertThat(rowsAvailable(query))
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+  }
+
+  @TestTemplate
+  public void testReadStreamWithOverwriteModeFail() throws Exception {
+    // upgrade table to version 2 - to facilitate creation of Snapshot of type OVERWRITE.
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(2));
+
+    // fill table with some initial data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots);
+
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "one") // id = 1
+            );
+
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            dataDeletes,
+            deleteRowSchema);
+
+    DataFile dataFile =
+        DataFiles.builder(table.spec())
+            .withPath(File.createTempFile("junit", null, temp.toFile()).getPath())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withFormat(FileFormat.PARQUET)
+            .build();
+
+    table.newRowDelta().addRows(dataFile).addDeletes(eqDeletes).commit();
+
+    // check pre-condition - that the above operation resulted in snapshot of type OVERWRITE
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
+
+    // streaming-overwrite-mode=fail is the default, so we don't need to specify it
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_OVERWRITE_MODE, "fail");
+
+    assertThatThrownBy(query::processAllAvailable)
+        .cause()
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot process overwrite snapshot");
+  }
+
+  @TestTemplate
+  public void testReadStreamWithOverwriteModeAddedFilesOnly() throws Exception {
+    table.updateSpec().removeField("id_bucket").addField(ref("id")).commit();
+
+    // upgrade table to version 2 - to facilitate creation of Snapshot of type OVERWRITE.
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(2));
+
+    // fill table with some initial data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots);
+
+    // create additional records that will be added via overwrite
+    List<SimpleRecord> newRecordsInOverwrite =
+        Lists.newArrayList(
+            new SimpleRecord(100, "hundred"), new SimpleRecord(103, "hundred-three"));
+
+    // write the new records to data file(s)
+    appendData(newRecordsInOverwrite);
+    table.refresh();
+
+    // get all data files to use in overwrite (Spark may create multiple files)
+    Snapshot latestAppend = table.currentSnapshot();
+
+    // do an overwrite that re-adds and deletes all files (same pattern as makeRewriteDataFiles)
+    OverwriteFiles overwrite = table.newOverwrite();
+    for (DataFile datafile : latestAppend.addedDataFiles(table.io())) {
+      overwrite.addFile(datafile).deleteFile(datafile);
+    }
+    overwrite.commit();
+
+    // check pre-condition - that the above operation resulted in snapshot of type OVERWRITE
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
+
+    StreamingQuery query =
+        startStream(SparkReadOptions.STREAMING_OVERWRITE_MODE, "added-files-only");
+
+    // The stream should include the records from the OVERWRITE snapshot
+    List<SimpleRecord> actual = rowsAvailable(query);
+
+    // should contain all original data plus the records added in overwrite
+    List<SimpleRecord> expected = Lists.newArrayList(Iterables.concat(dataAcrossSnapshots));
+    expected.addAll(newRecordsInOverwrite);
+    // the overwrite adds all files again, so records appear twice
+    expected.addAll(newRecordsInOverwrite);
+
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @TestTemplate
+  public void testOverwriteModeOptionTakesPrecedenceOverLegacyOption() throws Exception {
+    table.updateSpec().removeField("id_bucket").addField(ref("id")).commit();
+
+    // fill table with some data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots);
+
+    DataFile dataFile =
+        DataFiles.builder(table.spec())
+            .withPath(File.createTempFile("junit", null, temp.toFile()).getPath())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withFormat(FileFormat.PARQUET)
+            .build();
+
+    // this should create a snapshot with type overwrite.
+    table
+        .newOverwrite()
+        .addFile(dataFile)
+        .overwriteByRowFilter(Expressions.greaterThan("id", 4))
+        .commit();
+
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
+
+    // new option should take precedence over legacy option
+    // legacy says skip=true, but new option says fail - should fail
+    StreamingQuery query =
+        startStream(
+            ImmutableMap.of(
+                SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS,
+                "true",
+                SparkReadOptions.STREAMING_OVERWRITE_MODE,
+                "fail"));
+
+    assertThatThrownBy(query::processAllAvailable)
+        .cause()
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot process overwrite snapshot");
   }
 
   /**
