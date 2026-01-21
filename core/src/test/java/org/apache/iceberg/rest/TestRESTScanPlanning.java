@@ -138,10 +138,6 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
         ParserContext.builder().add("specsById", table.specs()).add("caseSensitive", false).build();
   }
 
-  private RESTCatalog scanPlanningCatalog() {
-    return restCatalog;
-  }
-
   private void configurePlanningBehavior(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> configurator) {
     TestPlanningBehavior.Builder builder = TestPlanningBehavior.builder();
@@ -254,7 +250,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "all_tasks_table");
+    Table table = restTableFor(restCatalog, "all_tasks_table");
     setParserContext(table);
 
     // Verify actual data file is returned with correct count
@@ -273,7 +269,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "batch_scan_table");
+    Table table = restTableFor(restCatalog, "batch_scan_table");
     setParserContext(table);
 
     // Verify actual data file is returned with correct count
@@ -291,7 +287,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     // Configure: synchronous planning with very small pages (creates nested plan task structure)
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
 
-    Table table = restTableFor(scanPlanningCatalog(), "nested_plan_task_table");
+    Table table = restTableFor(restCatalog, "nested_plan_task_table");
     // add one more files for proper pagination
     table.newFastAppend().appendFile(FILE_B).commit();
     setParserContext(table);
@@ -312,7 +308,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   @Test
   public void cancelPlanMethodAvailability() {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
-    RESTTable table = restTableFor(scanPlanningCatalog(), "cancel_method_table");
+    RESTTable table = restTableFor(restCatalog, "cancel_method_table");
     RESTTableScan restTableScan = restTableScanFor(table);
 
     // Test that cancelPlan method is available and callable
@@ -326,7 +322,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   @Test
   public void iterableCloseTriggersCancel() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
-    RESTTable restTable = restTableFor(scanPlanningCatalog(), "iterable_close_test");
+    RESTTable restTable = restTableFor(restCatalog, "iterable_close_test");
     setParserContext(restTable);
 
     TableScan scan = restTable.newScan();
@@ -349,7 +345,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   @EnumSource(MetadataTableType.class)
   public void metadataTablesWithRemotePlanning(MetadataTableType type) {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
-    RESTTable table = restTableFor(scanPlanningCatalog(), "metadata_tables_test");
+    RESTTable table = restTableFor(restCatalog, "metadata_tables_test");
     table.newAppend().appendFile(FILE_B).commit();
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_EQUALITY_DELETES).commit();
     setParserContext(table);
@@ -371,7 +367,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   void remoteScanPlanningWithEmptyTable(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
     configurePlanningBehavior(planMode);
-    Table table = createTableWithScanPlanning(scanPlanningCatalog(), "empty_table_test");
+    Table table = createTableWithScanPlanning(restCatalog, "empty_table_test");
     setParserContext(table);
     assertThat(table.newScan().planFiles()).isEmpty();
   }
@@ -382,7 +378,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   void remoteScanPlanningWithNonExistentColumn(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "non-existent_column");
+    Table table = restTableFor(restCatalog, "non-existent_column");
     setParserContext(table);
     assertThat(table.newScan().select("non-existent-column").planFiles()).isEmpty();
   }
@@ -392,7 +388,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   void incrementalScan(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "incremental_scan");
+    Table table = restTableFor(restCatalog, "incremental_scan");
     setParserContext(table);
 
     // Add second file to the table
@@ -418,7 +414,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "position_deletes_test");
+    Table table = restTableFor(restCatalog, "position_deletes_test");
     setParserContext(table);
 
     // Add position deletes that correspond to FILE_A (which was added in table creation)
@@ -454,7 +450,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "equality_deletes_test");
+    Table table = restTableFor(restCatalog, "equality_deletes_test");
     setParserContext(table);
 
     // Add equality deletes that correspond to FILE_A
@@ -488,7 +484,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "mixed_deletes_test");
+    Table table = restTableFor(restCatalog, "mixed_deletes_test");
     setParserContext(table);
 
     // Add both position and equality deletes in separate commits
@@ -525,7 +521,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "multiple_deletes_test");
+    Table table = restTableFor(restCatalog, "multiple_deletes_test");
     setParserContext(table);
 
     // Add FILE_B and FILE_C to the table (FILE_A is already added during table creation)
@@ -587,7 +583,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "deletes_filtering_test");
+    Table table = restTableFor(restCatalog, "deletes_filtering_test");
     setParserContext(table);
 
     // Add FILE_B to have more data for filtering
@@ -632,7 +628,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode)
       throws IOException {
     configurePlanningBehavior(planMode);
-    Table table = restTableFor(scanPlanningCatalog(), "deletes_cancellation_test");
+    Table table = restTableFor(restCatalog, "deletes_cancellation_test");
     setParserContext(table);
 
     // Add deletes to make the scenario more complex
@@ -661,7 +657,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     configurePlanningBehavior(planMode);
 
     // Create table and add FILE_A (snapshot 1)
-    Table table = restTableFor(scanPlanningCatalog(), "snapshot_scan_test");
+    Table table = restTableFor(restCatalog, "snapshot_scan_test");
     setParserContext(table);
     table.refresh();
     long snapshot1Id = table.currentSnapshot().snapshotId();
@@ -733,7 +729,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   public void scanPlanningWithMultiplePartitionSpecs() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
 
-    RESTTable table = restTableFor(scanPlanningCatalog(), "multiple_partition_specs");
+    RESTTable table = restTableFor(restCatalog, "multiple_partition_specs");
     table.newFastAppend().appendFile(FILE_B).commit();
 
     // Evolve partition spec to bucket by id with 8 buckets instead of 16
@@ -780,19 +776,17 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   @Test
   void remoteScanPlanningWithFreshnessAwareLoading() throws IOException {
-    RESTCatalog catalog = scanPlanningCatalog();
-
     TableIdentifier tableIdentifier = TableIdentifier.of(NS, "freshness_aware_loading_test");
-    restTableFor(catalog, tableIdentifier.name());
+    restTableFor(restCatalog, tableIdentifier.name());
 
-    assertThat(catalog.sessionCatalog().tableCache().cache().estimatedSize()).isZero();
+    assertThat(restCatalog.sessionCatalog().tableCache().cache().estimatedSize()).isZero();
 
     // Table is cached with the first loadTable
-    catalog.loadTable(tableIdentifier);
-    assertThat(catalog.sessionCatalog().tableCache().cache().estimatedSize()).isOne();
+    restCatalog.loadTable(tableIdentifier);
+    assertThat(restCatalog.sessionCatalog().tableCache().cache().estimatedSize()).isOne();
 
     // Second loadTable is answered from cache
-    Table table = catalog.loadTable(tableIdentifier);
+    Table table = restCatalog.loadTable(tableIdentifier);
 
     // Verify table is RESTTable and newScan() returns RESTTableScan
     restTableScanFor(table);
