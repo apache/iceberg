@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data.vectorized.parquet;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.parquet.schema.Types.primitive;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
@@ -38,6 +40,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.iceberg.arrow.vectorized.parquet.VectorizedPageIterator;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
@@ -64,9 +67,13 @@ import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.bytes.ByteBufferInputStream;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -437,6 +444,33 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       writer.addAll(data);
     }
     assertRecordsMatch(schema, numRows, data, dataFile, false, BATCH_SIZE);
+  }
+
+  @Test
+  public void testRLEEncodingOnlySupportsBooleanDataPage() {
+    MessageType schema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveTypeName.INT32, Type.Repetition.OPTIONAL).id(1).named("int_col"));
+    ColumnDescriptor intColumnDesc = schema.getColumnDescription(new String[] {"int_col"});
+    ByteBufferInputStream stream = ByteBufferInputStream.wrap(ByteBuffer.allocate(0));
+
+    String expectedMessage =
+        "Cannot support vectorized reads for column "
+            + intColumnDesc
+            + " with encoding "
+            + Encoding.RLE
+            + ". Disable vectorized reads to read this table/file";
+
+    assertThatThrownBy(
+            () ->
+                new VectorizedPageIterator(intColumnDesc, "parquet-mr", false) {
+                  {
+                    initDataReader(Encoding.RLE, stream, 0);
+                  }
+                })
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(expectedMessage);
   }
 
   protected void assertNoLeak(String testName, Consumer<BufferAllocator> testFunction) {
