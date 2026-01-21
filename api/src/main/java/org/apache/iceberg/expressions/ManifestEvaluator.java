@@ -418,17 +418,22 @@ public class ManifestEvaluator {
 
     /**
      * Returns the partition field's single value if all partitions contain the same value. Defined
-     * as a partition field with no nulls, no NaNs, and lower bound equals upper bound. Returns null
-     * otherwise.
+     * as a partition field with no nulls, no NaNs (for floating-point types), and lower bound
+     * equals upper bound. Returns null otherwise.
      */
     private <T> T uniqueValue(BoundReference<T> ref) {
       int pos = Accessors.toPosition(ref.accessor());
       PartitionFieldSummary fieldStats = stats.get(pos);
 
-      if (fieldStats.containsNull()
-          || fieldStats.containsNaN() == null
-          || fieldStats.containsNaN()) {
+      if (fieldStats.containsNull()) {
         return null;
+      }
+
+      Type.TypeID typeId = ref.type().typeId();
+      if (Type.TypeID.FLOAT.equals(typeId) || Type.TypeID.DOUBLE.equals(typeId)) {
+        if (fieldStats.containsNaN() == null || fieldStats.containsNaN()) {
+          return null;
+        }
       }
 
       ByteBuffer lowerBound = fieldStats.lowerBound();
