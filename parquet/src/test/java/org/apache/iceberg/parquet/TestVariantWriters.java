@@ -53,7 +53,6 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -305,20 +304,12 @@ public class TestVariantWriters {
 
     // Shredding function that only shreds the "id" field
     VariantShreddingFunction partialShredding =
-        (id, name) ->
-            org.apache.parquet.schema.Types.optionalGroup()
-                .addField(
-                    org.apache.parquet.schema.Types.optionalGroup()
-                        .addField(
-                            org.apache.parquet.schema.Types.optional(
-                                    PrimitiveType.PrimitiveTypeName.BINARY)
-                                .named("value"))
-                        .addField(
-                            org.apache.parquet.schema.Types.optional(
-                                    PrimitiveType.PrimitiveTypeName.INT64)
-                                .named("typed_value"))
-                        .named("id"))
-                .named("typed_value");
+        (id, name) -> {
+          VariantMetadata shreddedMetadata = Variants.metadata("id");
+          ShreddedObject shreddedObject = Variants.object(shreddedMetadata);
+          shreddedObject.put("id", Variants.of(1234L));
+          return ParquetVariantUtil.toParquetSchema(shreddedObject);
+        };
 
     // Write and read back
     List<Record> actual = writeAndRead(partialShredding, records);
