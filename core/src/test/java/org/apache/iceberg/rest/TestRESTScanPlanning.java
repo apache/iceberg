@@ -1151,7 +1151,9 @@ public class TestRESTScanPlanning {
 
     TableIdentifier ident = TableIdentifier.of(NS, "idempotent_fetch_scan_tasks");
     Table table = createTableWithScanPlanning(scanPlanningCatalog(), ident);
-    table.newAppend().appendFile(FILE_B).commit(); // ensure 2 tasks with tasksPerPage=1
+    // Ensure 2 data files so tasksPerPage=1 produces a next plan task that must be fetched via
+    // fetchScanTasks.
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     setParserContext(table);
 
     PlanTableScanResponse plan =
@@ -1163,6 +1165,8 @@ public class TestRESTScanPlanning {
             PlanTableScanResponse.class,
             ErrorHandlers.tableErrorHandler());
 
+    assertThat(plan.planTasks()).isNotNull();
+    assertThat(plan.planTasks()).isNotEmpty();
     String nextPlanTask = plan.planTasks().get(0);
     FetchScanTasksRequest tasksRequest = new FetchScanTasksRequest(nextPlanTask);
 
