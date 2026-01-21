@@ -112,8 +112,6 @@ class ExpressionType(BaseModel):
     __root__: str = Field(
         ...,
         example=[
-            'true',
-            'false',
             'eq',
             'and',
             'or',
@@ -133,14 +131,6 @@ class ExpressionType(BaseModel):
             'not-nan',
         ],
     )
-
-
-class TrueExpression(BaseModel):
-    type: Literal['true'] = Field('true', const=True)
-
-
-class FalseExpression(BaseModel):
-    type: Literal['false'] = Field('false', const=True)
 
 
 class Reference(BaseModel):
@@ -1165,8 +1155,7 @@ class Type(BaseModel):
 
 class Expression(BaseModel):
     __root__: (
-        TrueExpression
-        | FalseExpression
+        bool
         | AndOrExpression
         | NotExpression
         | SetExpression
