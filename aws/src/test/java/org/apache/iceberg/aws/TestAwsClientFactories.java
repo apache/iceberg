@@ -24,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.TestHelpers;
@@ -43,9 +42,6 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.AwsClient;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.core.client.config.SdkClientConfiguration;
-import software.amazon.awssdk.core.client.config.SdkClientOption;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.retries.internal.DefaultAdaptiveRetryStrategy;
@@ -258,7 +254,7 @@ public class TestAwsClientFactories {
   @Test
   public void testGlueClientSetsAdaptiveRetryPolicy() {
     AwsClientFactory factory =
-            getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
+        getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
     GlueClient glueClient = factory.glue();
     assertAwsClientSetsAdaptiveRetryPolicy(glueClient);
   }
@@ -266,7 +262,7 @@ public class TestAwsClientFactories {
   @Test
   public void testKmsClientSetsAdaptiveRetryPolicy() {
     AwsClientFactory factory =
-            getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
+        getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
     KmsClient kmsClient = factory.kms();
     assertAwsClientSetsAdaptiveRetryPolicy(kmsClient);
   }
@@ -274,17 +270,19 @@ public class TestAwsClientFactories {
   @Test
   public void testDynamoClientSetsAdaptiveRetryPolicy() {
     AwsClientFactory factory =
-            getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
+        getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
     DynamoDbClient dynamoClient = factory.dynamo();
     assertAwsClientSetsAdaptiveRetryPolicy(dynamoClient);
   }
 
   /**
-   * Extract the retry strategy from an AwsClient object, then assert that it's set to the correct strategy.
-   * This enforces that we correctly applied the retry configurations to the client object.
+   * Extract the retry strategy from an AwsClient object, then assert that it's set to the correct
+   * strategy. This enforces that we correctly applied the retry configurations to the client
+   * object.
    */
   private void assertAwsClientSetsAdaptiveRetryPolicy(AwsClient client) {
-    Optional<RetryStrategy> retryStrategy = client.serviceClientConfiguration().overrideConfiguration().retryStrategy();
+    Optional<RetryStrategy> retryStrategy =
+        client.serviceClientConfiguration().overrideConfiguration().retryStrategy();
     assertTrue(retryStrategy.isPresent());
     assertInstanceOf(DefaultAdaptiveRetryStrategy.class, retryStrategy.get());
   }
