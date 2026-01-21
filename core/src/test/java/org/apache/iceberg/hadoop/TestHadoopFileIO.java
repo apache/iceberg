@@ -19,10 +19,12 @@
 package org.apache.iceberg.hadoop;
 
 import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.FS_TRASH_INTERVAL_KEY;
+import static org.apache.iceberg.hadoop.HadoopFileIO.DELETE_TRASH_SCHEMAS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -34,6 +36,7 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.BulkDeletionFailureException;
@@ -48,20 +51,26 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHadoopFileIO {
   private final Random random = new Random(1);
 
+  /** A filesystem. */
   private FileSystem fs;
+
   private HadoopFileIO hadoopFileIO;
 
   @TempDir private File tempDir;
+  private UserGroupInformation currentUser;
 
   @BeforeEach
   public void before() throws Exception {
     Configuration conf = new Configuration();
-    fs = FileSystem.getLocal(conf);
-
+    // remove all filesystems for the current user from cache.
+    // The next call to FileSystem.get("file://") will get one with the supplied config
+    currentUser = UserGroupInformation.getCurrentUser();
+    resetLocalFS(false);
     hadoopFileIO = new HadoopFileIO(conf);
   }
 
@@ -129,11 +138,9 @@ public class TestHadoopFileIO {
 
   @Test
   public void testDeletePrefixWithTrashEnabled() throws IOException {
-    Configuration conf = new Configuration();
-    conf.set(FS_TRASH_INTERVAL_KEY, "60");
-    fs = FileSystem.getLocal(conf);
+    resetLocalFS(true);
 
-    hadoopFileIO = new HadoopFileIO(conf);
+    hadoopFileIO = new HadoopFileIO(fs.getConf());
     Path parent = new Path(tempDir.toURI());
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
@@ -150,13 +157,15 @@ public class TestHadoopFileIO {
               assertThatThrownBy(
                       () -> hadoopFileIO.listPrefix(scalePath.toUri().toString()).iterator())
                   .isInstanceOf(UncheckedIOException.class)
-                  .hasMessageContaining("java.io.FileNotFoundException");
+                  .hasMessageContaining("java.io.FileNotFoundException")
+                  .cause()
+                  .isInstanceOf(FileNotFoundException.class);
               filesCreated.forEach(
                   file -> {
                     String fileSuffix = Path.getPathWithoutSchemeAndAuthority(file).toString();
                     String trashPath =
                         fs.getTrashRoot(scalePath).toString() + "/Current" + fileSuffix;
-                    assertThat(hadoopFileIO.newInputFile(trashPath).exists()).isTrue();
+                    assertPathExists(trashPath);
                   });
             });
 
@@ -165,6 +174,24 @@ public class TestHadoopFileIO {
     assertThatThrownBy(() -> hadoopFileIO.listPrefix(parent.toUri().toString()).iterator())
         .isInstanceOf(UncheckedIOException.class)
         .hasMessageContaining("java.io.FileNotFoundException");
+  }
+
+  /**
+   * Closes active filesystems then creates a new filesystem with the chosen trash policy and
+   * updates the {@code fs} field with it. This guarantees that HadoopFileIO's getFileSystem() calls
+   * will get the same filesystem and its configuration settings.
+   *
+   * @param useTrash enable trash settings
+   * @throws IOException failure to create.
+   */
+  private void resetLocalFS(boolean useTrash) throws IOException {
+    Configuration conf = new Configuration();
+    if (useTrash) {
+      conf.set(FS_TRASH_INTERVAL_KEY, "60");
+      conf.set(DELETE_TRASH_SCHEMAS, "file");
+    }
+    FileSystem.closeAllForUGI(currentUser);
+    fs = FileSystem.getLocal(conf);
   }
 
   @Test
@@ -178,12 +205,17 @@ public class TestHadoopFileIO {
   }
 
   @Test
-  public void testDeleteFilesWithTrashEnabled() throws IOException {
-    Configuration conf = new Configuration();
-    conf.set(FS_TRASH_INTERVAL_KEY, "60");
-    fs = FileSystem.getLocal(conf);
+  public void testFileIsNotTrashSchema() throws Throwable {
+    assertThat(hadoopFileIO.isTrashSchema(new Path("file:///"))).isFalse();
+  }
 
-    hadoopFileIO = new HadoopFileIO(conf);
+  @Test
+  public void testDeleteFilesWithTrashEnabled() throws IOException {
+    resetLocalFS(true);
+
+    hadoopFileIO = new HadoopFileIO(fs.getConf());
+    assertThat(hadoopFileIO.isTrashSchema(new Path("file:///"))).isTrue();
+
     Path parent = new Path(tempDir.toURI());
     List<Path> filesCreated = createRandomFiles(parent, 10);
     hadoopFileIO.deleteFiles(
@@ -194,8 +226,25 @@ public class TestHadoopFileIO {
         file -> {
           String fileSuffix = Path.getPathWithoutSchemeAndAuthority(file).toString();
           String trashPath = fs.getTrashRoot(parent).toString() + "/Current" + fileSuffix;
-          assertThat(hadoopFileIO.newInputFile(trashPath).exists()).isTrue();
+          assertPathExists(trashPath);
         });
+  }
+
+  /**
+   * Verify semantics of a missing file delete are the same with and without trash: no reported
+   * error.
+   *
+   * @param useTrash use trash in the FS.
+   */
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testDeleteMissingFileToTrash(boolean useTrash) throws IOException {
+    resetLocalFS(useTrash);
+    hadoopFileIO = new HadoopFileIO(fs.getConf());
+    Path path = new Path(new Path(tempDir.toURI()), "missing");
+    final String missing = path.toUri().toString();
+    hadoopFileIO.deleteFile(missing);
+    assertPathDoesNotExist(missing);
   }
 
   @Test
@@ -296,5 +345,27 @@ public class TestHadoopFileIO {
               }
             });
     return paths;
+  }
+
+  /**
+   * Assert a path exists.
+   *
+   * @param path URI to file/dir.
+   */
+  private void assertPathExists(String path) {
+    assertThat(hadoopFileIO.newInputFile(path).exists())
+        .describedAs("File %s must exist", path)
+        .isTrue();
+  }
+
+  /**
+   * Assert a path does not exist.
+   *
+   * @param path URI to file/dir.
+   */
+  private void assertPathDoesNotExist(String path) {
+    assertThat(hadoopFileIO.newInputFile(path).exists())
+        .describedAs("File %s must exist", path)
+        .isFalse();
   }
 }

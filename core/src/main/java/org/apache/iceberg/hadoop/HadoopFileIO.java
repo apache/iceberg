@@ -52,8 +52,8 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
   private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
-  private static final String DELETE_TRASH_SCHEMAS = "iceberg.hadoop.delete-trash-schemas";
-  public static final String[] DEFAULT_TRASH_SCHEMAS = {"hdfs", "viewfs"};
+  public static final String DELETE_TRASH_SCHEMAS = "iceberg.hadoop.delete-trash-schemas";
+  private static final String[] DEFAULT_TRASH_SCHEMAS = {"hdfs", "viewfs"};
   private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
   private static volatile ExecutorService executorService;
@@ -108,7 +108,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     try {
       deletePath(fs, toDelete, false);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to delete file: %s", path);
+      throw new RuntimeIOException(e, "Failed to delete file: %s: %s", path, e.toString());
     }
   }
 
@@ -244,8 +244,16 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private void deletePath(FileSystem fs, Path toDelete, boolean recursive) throws IOException {
     if (isTrashSchema(toDelete)) {
       Trash trash = new Trash(fs, getConf());
-      if (trash.isEnabled() && trash.moveToTrash(toDelete)) {
-        return;
+      if (trash.isEnabled()) {
+        try {
+          if (trash.moveToTrash(toDelete)) {
+            // delete enabled and successful.
+            return;
+          }
+        } catch (FileNotFoundException e) {
+          // the source file is missing.
+
+        }
       }
       // either trash is disabled or the move operation failed; fallback
       // to delete.
