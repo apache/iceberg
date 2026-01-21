@@ -3406,9 +3406,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> readHeaders,
           Supplier<Map<String, String>> mutationHeaders,
           FileIO io,
+          KeyManagementClient kmsClient,
           TableMetadata current,
           Set<Endpoint> endpoints) {
-        super(client, path, readHeaders, mutationHeaders, io, current, endpoints);
+        super(client, path, readHeaders, mutationHeaders, io, kmsClient, current, endpoints);
       }
     }
 
@@ -3426,10 +3427,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> readHeaders,
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
+          KeyManagementClient kmsClient,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
         return new CustomTableOps(
-            restClient, path, readHeaders, mutationHeaders, fileIO, current, supportedEndpoints);
+            restClient,
+            path,
+            readHeaders,
+            mutationHeaders,
+            fileIO,
+            kmsClient,
+            current,
+            supportedEndpoints);
       }
     }
 
