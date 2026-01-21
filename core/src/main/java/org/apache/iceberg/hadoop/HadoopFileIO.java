@@ -53,6 +53,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
   private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
   private static final String DELETE_TRASH_SCHEMAS = "iceberg.hadoop.delete-trash-schemas";
+  public static final String[] DEFAULT_TRASH_SCHEMAS = {"hdfs", "viewfs"};
   private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
   private static volatile ExecutorService executorService;
@@ -215,17 +216,18 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   /**
-   * Is a path in a schema of a filesystem where the hadoop trash policy should be used to move to it to trash?
+   * Is a path in a schema of a filesystem where the hadoop trash policy should be used to move to
+   * it to trash?
+   *
    * @param toDelete path to delete
    * @return true if the path is in the list of schemas for which the
    */
   @VisibleForTesting
   boolean isTrashSchema(Path toDelete) {
-    String[] schemas = getConf().getTrimmedStrings(DELETE_TRASH_SCHEMAS, "hdfs", "viewfs");
     final String scheme = toDelete.toUri().getScheme();
-    for (String s : schemas) {
+    for (String s : getConf().getTrimmedStrings(DELETE_TRASH_SCHEMAS, DEFAULT_TRASH_SCHEMAS)) {
       if (s.equalsIgnoreCase(scheme)) {
-          return true;
+        return true;
       }
     }
     return false;
@@ -233,6 +235,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   /**
    * Delete a path;
+   *
    * @param fs target filesystem.
    * @param toDelete path to delete/move
    * @param recursive should the delete operation be recursive?
@@ -241,14 +244,13 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private void deletePath(FileSystem fs, Path toDelete, boolean recursive) throws IOException {
     if (isTrashSchema(toDelete)) {
       Trash trash = new Trash(fs, getConf());
-      if (!trash.isEnabled() || !trash.moveToTrash(toDelete)) {
-        // either trash is disabled or the move operation failed; fallback
-        // to delete.
-        fs.delete(toDelete, recursive);
+      if (trash.isEnabled() && trash.moveToTrash(toDelete)) {
+        return;
       }
-    } else {
-      fs.delete(toDelete, recursive);
+      // either trash is disabled or the move operation failed; fallback
+      // to delete.
     }
+    fs.delete(toDelete, recursive);
   }
 
   /**
