@@ -114,4 +114,19 @@ class TestErrorHandlers {
         .hasMessageContaining(
             "Unable to process (code: 405, type: MethodNotAllowedException): Method not allowed");
   }
+
+  @Test
+  public void testErrorHandlerFor406() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(406)
+            .withType("UnsupportedOperationException")
+            .withMessage("Operation not supported")
+            .build();
+
+    // 406 (Not Acceptable) should throw UnsupportedOperationException
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Operation not supported");
+  }
 }
