@@ -50,16 +50,13 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.mockito.internal.util.collections.Iterables;
@@ -75,30 +72,21 @@ public class TestTableEncryption extends CatalogTestBase {
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   protected static Object[][] parameters() {
     return new Object[][] {
-            {
-                    SparkCatalogConfig.HIVE.catalogName(),
-                    SparkCatalogConfig.HIVE.implementation(),
-                    appendCatalogEncryptionProperties(SparkCatalogConfig.HIVE.properties())
-            },
-            {
-                    SparkCatalogConfig.REST.catalogName(),
-                    SparkCatalogConfig.REST.implementation(),
-                    appendCatalogEncryptionProperties(
-                            ImmutableMap.<String, String>builder()
-                                    .putAll(SparkCatalogConfig.REST.properties())
-                                    .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
-                                    .build())
-            }
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        appendCatalogEncryptionProperties(SparkCatalogConfig.HIVE.properties())
+      }
     };
   }
 
   @BeforeEach
   public void createTables() {
     sql(
-            "CREATE TABLE %s (id bigint, data string, float float) USING iceberg "
-                    + "TBLPROPERTIES ( "
-                    + "'encryption.key-id'='%s', 'format-version'='3')",
-            tableName, UnitestKMS.MASTER_KEY_NAME1);
+        "CREATE TABLE %s (id bigint, data string, float float) USING iceberg "
+            + "TBLPROPERTIES ( "
+            + "'encryption.key-id'='%s', 'format-version'='3')",
+        tableName, UnitestKMS.MASTER_KEY_NAME1);
 
     sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
   }
@@ -111,15 +99,15 @@ public class TestTableEncryption extends CatalogTestBase {
   @TestTemplate
   public void testSelect() {
     List<Object[]> expected =
-            ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
+        ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
   }
 
   private static List<DataFile> currentDataFiles(Table table) {
     return Streams.stream(table.newScan().planFiles())
-            .map(FileScanTask::file)
-            .collect(Collectors.toList());
+        .map(FileScanTask::file)
+        .collect(Collectors.toList());
   }
 
   @TestTemplate
@@ -173,6 +161,7 @@ public class TestTableEncryption extends CatalogTestBase {
     assertThat(currentDataFiles(table)).hasSize(dataFiles.size() + 2);
   }
 
+  // See CatalogTests#testConcurrentReplaceTransactions
   @TestTemplate
   public void testConcurrentReplaceTransactions() {
     validationCatalog.initialize(catalogName, catalogConfig);
@@ -181,29 +170,26 @@ public class TestTableEncryption extends CatalogTestBase {
     DataFile file = currentDataFiles(table).get(0);
     Schema schema = table.schema();
 
-    // Begin a replace transaction that will be committed second
+    // Write data for a replace transaction that will be committed later
     Transaction secondReplace =
-            validationCatalog
-                    .buildTable(tableIdent, schema)
-                    .withProperty("encryption.key-id", UnitestKMS.MASTER_KEY_NAME1)
-                    .replaceTransaction();
+        validationCatalog
+            .buildTable(tableIdent, schema)
+            .withProperty("encryption.key-id", UnitestKMS.MASTER_KEY_NAME1)
+            .replaceTransaction();
     secondReplace.newFastAppend().appendFile(file).commit();
 
     // Commit another replace transaction first
     Transaction firstReplace =
-            validationCatalog
-                    .buildTable(tableIdent, schema)
-                    .withProperty("encryption.key-id", UnitestKMS.MASTER_KEY_NAME1)
-                    .replaceTransaction();
+        validationCatalog
+            .buildTable(tableIdent, schema)
+            .withProperty("encryption.key-id", UnitestKMS.MASTER_KEY_NAME1)
+            .replaceTransaction();
+    firstReplace.newFastAppend().appendFile(file).commit();
     firstReplace.commitTransaction();
 
-    // This second replace transaction fails but then retries after refreshing latest metadata.
     secondReplace.commitTransaction();
 
     Table afterSecondReplace = validationCatalog.loadTable(tableIdent);
-
-    // This tests that encryption keys are maintained on refreshing different metadata - if
-    // they are not, the table will be unreadable and this will fail.
     assertThat(currentDataFiles(afterSecondReplace)).hasSize(1);
   }
 
@@ -212,39 +198,35 @@ public class TestTableEncryption extends CatalogTestBase {
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0), (6, 'f', float('NaN'))", tableName);
 
     List<Object[]> expected =
-            ImmutableList.of(
-                    row(1L, "a", 1.0F),
-                    row(2L, "b", 2.0F),
-                    row(3L, "c", Float.NaN),
-                    row(4L, "d", 4.0F),
-                    row(5L, "e", 5.0F),
-                    row(6L, "f", Float.NaN));
+        ImmutableList.of(
+            row(1L, "a", 1.0F),
+            row(2L, "b", 2.0F),
+            row(3L, "c", Float.NaN),
+            row(4L, "d", 4.0F),
+            row(5L, "e", 5.0F),
+            row(6L, "f", Float.NaN));
 
     assertEquals(
-            "Should return all expected rows",
-            expected,
-            sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
 
     sql("DELETE FROM %s WHERE id < 4", tableName);
 
     expected = ImmutableList.of(row(4L, "d", 4.0F), row(5L, "e", 5.0F), row(6L, "f", Float.NaN));
 
     assertEquals(
-            "Should return all expected rows",
-            expected,
-            sql("SELECT * FROM %s ORDER BY id", tableName));
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @TestTemplate
   public void testMetadataTamperproofing() throws IOException {
-    Assumptions.assumeFalse(
-            validationCatalog instanceof RESTCatalog,
-            "RESTCatalog does not store metadata file hashes");
-
     ChecksumFileSystem fs = ((ChecksumFileSystem) FileSystem.newInstance(new Configuration()));
-    validationCatalog.initialize(catalogName, catalogConfig);
+    catalog.initialize(catalogName, catalogConfig);
 
-    Table table = validationCatalog.loadTable(tableIdent);
+    Table table = catalog.loadTable(tableIdent);
     TableMetadata currentMetadata = ((HasTableOperations) table).operations().current();
     Path metadataFile = new Path(currentMetadata.metadataFileLocation());
     Path previousMetadataFile = new Path(Iterables.firstOf(currentMetadata.previousFiles()).file());
@@ -255,35 +237,35 @@ public class TestTableEncryption extends CatalogTestBase {
     fs.delete(metadataFile, false);
     fs.rename(previousMetadataFile, metadataFile);
 
-    assertThatThrownBy(() -> validationCatalog.loadTable(tableIdent))
-            .hasMessageContaining(
-                    String.format(
-                            "The current metadata file %s might have been modified. Hash of metadata loaded from storage differs from HMS-stored metadata hash.",
-                            metadataFile));
+    assertThatThrownBy(() -> catalog.loadTable(tableIdent))
+        .hasMessageContaining(
+            String.format(
+                "The current metadata file %s might have been modified. Hash of metadata loaded from storage differs from HMS-stored metadata hash.",
+                metadataFile));
   }
 
   @TestTemplate
   public void testKeyDelete() {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s UNSET TBLPROPERTIES (`encryption.key-id`)", tableName))
-            .hasMessageContaining("Cannot remove key in encrypted table");
+        .hasMessageContaining("Cannot remove key in encrypted table");
   }
 
   @TestTemplate
   public void testKeyAlter() {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('encryption.key-id'='abcd')", tableName))
-            .hasMessageContaining("Cannot modify key in encrypted table");
+        .hasMessageContaining("Cannot modify key in encrypted table");
   }
 
   @TestTemplate
   public void testDirectDataFileRead() {
     List<Object[]> dataFileTable =
-            sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
+        sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
     List<String> dataFiles =
-            Streams.concat(dataFileTable.stream())
-                    .map(row -> (String) row[0])
-                    .collect(Collectors.toList());
+        Streams.concat(dataFileTable.stream())
+            .map(row -> (String) row[0])
+            .collect(Collectors.toList());
 
     if (dataFiles.isEmpty()) {
       throw new RuntimeException("No data files found for table " + tableName);
@@ -293,26 +275,26 @@ public class TestTableEncryption extends CatalogTestBase {
     for (String filePath : dataFiles) {
       assertThatThrownBy(
               () ->
-                      Parquet.read(localInput(filePath))
-                              .project(schema)
-                              .callInit()
-                              .build()
-                              .iterator()
-                              .next())
-              .isInstanceOf(ParquetCryptoRuntimeException.class)
-              .hasMessageContaining("Trying to read file with encrypted footer. No keys available");
+                  Parquet.read(localInput(filePath))
+                      .project(schema)
+                      .callInit()
+                      .build()
+                      .iterator()
+                      .next())
+          .isInstanceOf(ParquetCryptoRuntimeException.class)
+          .hasMessageContaining("Trying to read file with encrypted footer. No keys available");
     }
   }
 
   @TestTemplate
   public void testManifestEncryption() throws IOException {
     List<Object[]> manifestFileTable =
-            sql("SELECT path FROM %s.%s", tableName, MetadataTableType.MANIFESTS);
+        sql("SELECT path FROM %s.%s", tableName, MetadataTableType.MANIFESTS);
 
     List<String> manifestFiles =
-            Streams.concat(manifestFileTable.stream())
-                    .map(row -> (String) row[0])
-                    .collect(Collectors.toList());
+        Streams.concat(manifestFileTable.stream())
+            .map(row -> (String) row[0])
+            .collect(Collectors.toList());
 
     if (manifestFiles.isEmpty()) {
       throw new RuntimeException("No manifest files found for table " + tableName);
@@ -352,20 +334,20 @@ public class TestTableEncryption extends CatalogTestBase {
   @TestTemplate
   public void testDropTableWithPurge() {
     List<Object[]> dataFileTable =
-            sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
+        sql("SELECT file_path FROM %s.%s", tableName, MetadataTableType.ALL_DATA_FILES);
     List<String> dataFiles =
-            Streams.concat(dataFileTable.stream())
-                    .map(row -> (String) row[0])
-                    .collect(Collectors.toList());
+        Streams.concat(dataFileTable.stream())
+            .map(row -> (String) row[0])
+            .collect(Collectors.toList());
     assertThat(dataFiles).isNotEmpty();
     assertThat(dataFiles)
-            .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isTrue());
+        .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isTrue());
 
     sql("DROP TABLE %s PURGE", tableName);
 
     assertThat(catalog.tableExists(tableIdent)).as("Table should not exist").isFalse();
     assertThat(dataFiles)
-            .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isFalse());
+        .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isFalse());
   }
 
   private void checkMetadataFileEncryption(InputFile file) throws IOException {
