@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -86,6 +87,7 @@ import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -99,6 +101,7 @@ import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -3580,18 +3583,35 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testNumLoadTableCallsForMergeAppend() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-
     RESTCatalog catalog = catalog(adapter);
 
     catalog.createNamespace(TABLE.namespace());
-
     BaseTable table = (BaseTable) catalog.createTable(TABLE, SCHEMA);
-
     table.newAppend().appendFile(FILE_A).commit();
 
     // loadTable is executed once
     Mockito.verify(adapter)
         .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+
+    // CommitReport reflects the table state after the commit
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                RESOURCE_PATHS.metrics(TABLE),
+                Map.of(),
+                Map.of(),
+                requestObj ->
+                    requestObj instanceof ReportMetricsRequest reportRequest
+                        && reportRequest.report() instanceof CommitReport commitReport
+                        && commitReport.tableName().equals(table.name())
+                        && commitReport.snapshotId() == table.currentSnapshot().snapshotId()
+                        && commitReport.sequenceNumber() == table.currentSnapshot().sequenceNumber()
+                        && commitReport.operation().equals("append")
+                        && commitReport.commitMetrics().addedDataFiles().value() == 1),
+            any(),
+            any(),
+            any());
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
