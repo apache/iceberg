@@ -3710,8 +3710,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                     "parent",
                     RESTUtil.namespaceToQueryParam(parentNamespace, expectedSeparator),
                     "pageToken",
-                    ""),
-                null),
+                    "")),
             eq(ListNamespacesResponse.class),
             any(),
             any());
