@@ -20,15 +20,18 @@ package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.parquet.schema.Types.primitive;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.arrow.vectorized.parquet.VectorizedPageIterator;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
@@ -48,9 +51,13 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.bytes.ByteBufferInputStream;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
@@ -333,6 +340,33 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageStartingWith("Cannot support vectorized reads for column")
         .hasMessageEndingWith("Disable vectorized reads to read this table/file");
+  }
+
+  @Test
+  public void testRLEEncodingOnlySupportsBooleanDataPage() {
+    MessageType schema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveTypeName.INT32, Type.Repetition.OPTIONAL).id(1).named("int_col"));
+    ColumnDescriptor intColumnDesc = schema.getColumnDescription(new String[] {"int_col"});
+    ByteBufferInputStream stream = ByteBufferInputStream.wrap(ByteBuffer.allocate(0));
+
+    String expectedMessage =
+        "Cannot support vectorized reads for column "
+            + intColumnDesc
+            + " with encoding "
+            + Encoding.RLE
+            + ". Disable vectorized reads to read this table/file";
+
+    assertThatThrownBy(
+            () ->
+                new VectorizedPageIterator(intColumnDesc, "parquet-mr", false) {
+                  {
+                    initDataReader(Encoding.RLE, stream, 0);
+                  }
+                })
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(expectedMessage);
   }
 
   @Test
