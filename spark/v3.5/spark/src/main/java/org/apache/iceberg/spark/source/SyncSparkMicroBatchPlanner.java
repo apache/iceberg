@@ -34,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +58,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset =
         StreamingOffset.START_OFFSET.equals(start)
-            ? SparkMicroBatchStream.determineStartingOffset(table(), fromTimestamp)
+            ? MicroBatchUtils.determineStartingOffset(table(), fromTimestamp)
             : start;
 
     StreamingOffset currentOffset = null;
@@ -93,7 +92,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
       if (currentOffset.snapshotId() == end.snapshotId()) {
         endFileIndex = end.position();
       } else {
-        endFileIndex = addedFilesCount(currentSnapshot);
+        endFileIndex = MicroBatchUtils.addedFilesCount(table(), currentSnapshot);
       }
 
       MicroBatch latestMicroBatch =
@@ -131,7 +130,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     StreamingOffset startingOffset = start;
 
     if (start.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = SparkMicroBatchStream.determineStartingOffset(table(), fromTimestamp);
+      startingOffset = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp);
     }
 
     Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
@@ -237,11 +236,6 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
     // if no new data arrived, then return null.
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
-  }
-
-  @Override
-  public Offset reportLatestOffset() {
-    return null;
   }
 
   @Override

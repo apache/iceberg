@@ -21,13 +21,10 @@ package org.apache.iceberg.spark.source;
 import java.util.Locale;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.connector.read.streaming.CompositeReadLimit;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
@@ -83,20 +80,6 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     }
   }
 
-  protected long addedFilesCount(Snapshot snapshot) {
-    long addedFilesCount =
-        PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
-    // iterate through addedFiles iterator to find addedFilesCount.
-    return addedFilesCount == -1
-        ? Iterables.size(snapshot.addedDataFiles(table.io()))
-        : addedFilesCount;
-  }
-
-  protected long totalRecords(Snapshot snapshot) {
-    return PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.TOTAL_RECORDS_PROP, -1);
-  }
-
   /**
    * Get the next snapshot skiping over rewrite and delete snapshots. For Async handles nulls, sync
    * will never have nulls
@@ -110,7 +93,7 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     // if there were no valid snapshots, check for an initialOffset again
     if (curSnapshot == null) {
       StreamingOffset startingOffset =
-          SparkMicroBatchStream.determineStartingOffset(table, readConf.streamFromTimestamp());
+          MicroBatchUtils.determineStartingOffset(table, readConf.streamFromTimestamp());
       LOG.debug("determineStartingOffset picked startingOffset: {}", startingOffset);
       if (StreamingOffset.START_OFFSET.equals(startingOffset)) {
         return null;

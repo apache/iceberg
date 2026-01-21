@@ -25,17 +25,12 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -43,13 +38,9 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -58,13 +49,11 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
-import org.apache.spark.sql.connector.read.streaming.ReportsSourceMetrics;
 import org.apache.spark.sql.connector.read.streaming.SupportsTriggerAvailableNow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SparkMicroBatchStream
-    implements MicroBatchStream, SupportsTriggerAvailableNow, ReportsSourceMetrics {
+public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
   private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
@@ -131,7 +120,8 @@ public class SparkMicroBatchStream
 
     Snapshot latestSnapshot = table.currentSnapshot();
 
-    return new StreamingOffset(latestSnapshot.snapshotId(), addedFilesCount(latestSnapshot), false);
+    return new StreamingOffset(
+        latestSnapshot.snapshotId(), MicroBatchUtils.addedFilesCount(table, latestSnapshot), false);
   }
 
   @Override
@@ -155,12 +145,7 @@ public class SparkMicroBatchStream
       initializePlanner(startOffset, endOffset);
     }
 
-    List<FileScanTask> fileScanTasks;
-    try {
-      fileScanTasks = microBatchPlanner.planFiles(startOffset, endOffset);
-    } catch (ExecutionException e) {
-      throw new RuntimeException("Failed to plan files", e);
-    }
+    List<FileScanTask> fileScanTasks = microBatchPlanner.planFiles(startOffset, endOffset);
 
     CloseableIterable<FileScanTask> splitTasks =
         TableScanUtil.splitFiles(CloseableIterable.withNoopClose(fileScanTasks), splitSize);
@@ -216,51 +201,6 @@ public class SparkMicroBatchStream
     }
   }
 
-  static StreamingOffset determineStartingOffset(Table table, long fromTimestamp) {
-    if (table.currentSnapshot() == null) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    if (fromTimestamp == Long.MIN_VALUE) {
-      // match existing behavior and start from the oldest snapshot
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
-    }
-
-    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    try {
-      Snapshot snapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
-      if (snapshot != null) {
-        return new StreamingOffset(snapshot.snapshotId(), 0, false);
-      } else {
-        return StreamingOffset.START_OFFSET;
-      }
-    } catch (IllegalStateException e) {
-      // could not determine the first snapshot after the timestamp. use the oldest ancestor instead
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
-    }
-  }
-
-  @Override
-  public Map<String, String> metrics(Optional<Offset> latestConsumedOffset) {
-    Map<String, String> metricsMap = Maps.newHashMap();
-    metricsMap.put("table", table.name());
-    metricsMap.put("branch", branch != null ? branch : "main");
-    metricsMap.put(
-        "asyncPlanningEnabled", String.valueOf(readConf.asyncMicroBatchPlanningEnabled()));
-    metricsMap.put("maxFilesPerMicroBatch", String.valueOf(maxFilesPerMicroBatch));
-    metricsMap.put("maxRecordsPerMicroBatch", String.valueOf(maxRecordsPerMicroBatch));
-    if (microBatchPlanner != null) {
-      Offset reportedOffset = microBatchPlanner.reportLatestOffset();
-      if (reportedOffset != null) {
-        metricsMap.put("latestOffset", reportedOffset.json());
-      }
-    }
-    return Collections.unmodifiableMap(metricsMap);
-  }
-
   private void initializePlanner(StreamingOffset startOffset, StreamingOffset endOffset) {
     if (readConf.asyncMicroBatchPlanningEnabled()) {
       this.microBatchPlanner =
@@ -280,16 +220,6 @@ public class SparkMicroBatchStream
     }
 
     return microBatchPlanner.latestOffset((StreamingOffset) startOffset, limit);
-  }
-
-  private long addedFilesCount(Snapshot snapshot) {
-    long addedFilesCount =
-        PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
-    // iterate through addedFiles iterator to find addedFilesCount.
-    return addedFilesCount == -1
-        ? Iterables.size(snapshot.addedDataFiles(table.io()))
-        : addedFilesCount;
   }
 
   @Override
@@ -345,7 +275,7 @@ public class SparkMicroBatchStream
       }
 
       table.refresh();
-      StreamingOffset offset = determineStartingOffset(table, fromTimestamp);
+      StreamingOffset offset = MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
       writeOffset(offset, outputFile);

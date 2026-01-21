@@ -22,7 +22,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.Pair;
-import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadAllAvailable;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.slf4j.Logger;
@@ -156,8 +154,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
    * @return the list of files to scan between these offsets
    */
   @Override
-  public synchronized List<FileScanTask> planFiles(
-      StreamingOffset startOffset, StreamingOffset endOffset) throws ExecutionException {
+  public synchronized List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
     return planFilesCache.get(
         Pair.of(startOffset, endOffset),
         key -> {
@@ -278,13 +275,15 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         }
       } while (nextValidSnapshot != null);
       return new StreamingOffset(
-          lastValidSnapshot.snapshotId(), addedFilesCount(lastValidSnapshot), false);
+          lastValidSnapshot.snapshotId(),
+          MicroBatchUtils.addedFilesCount(table(), lastValidSnapshot),
+          false);
     }
 
-    return computeLimitedOffset(startOffset, limit);
+    return computeLimitedOffset(limit);
   }
 
-  private StreamingOffset computeLimitedOffset(StreamingOffset startOffset, ReadLimit limit) {
+  private StreamingOffset computeLimitedOffset(ReadLimit limit) {
     UnpackedLimits unpackedLimits = new UnpackedLimits(limit);
     long rowsSeen = 0;
     long filesSeen = 0;
@@ -304,7 +303,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         if (filesSeen == 0) {
           return null;
         }
-        LOG.debug("latestOffset found {}, rows: {}, files: {}", elem.first(), rowsSeen, filesSeen);
+        LOG.debug("latestOffset hit file limit at {}, rows: {}, files: {}", elem.first(), rowsSeen, filesSeen);
         return elem.first();
       }
 
@@ -319,7 +318,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
               "File {} at offset {} contains {} records, exceeding maxRecordsPerMicroBatch limit of {}. "
                   + "This file will be processed entirely to guarantee forward progress. "
                   + "Consider increasing the limit or writing smaller files to avoid unexpected memory usage.",
-              elem.second().file().path(),
+              elem.second().file().location(),
               elem.first(),
               fileRows,
               unpackedLimits.getMaxRows());
@@ -327,7 +326,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         // Return the offset of the NEXT element (or synthesize tail+1)
         if (i + 1 < queueList.size()) {
           LOG.debug(
-              "latestOffset found {}, rows: {}, files: {}",
+              "latestOffset hit row limit at {}, rows: {}, files: {}",
               queueList.get(i + 1).first(),
               rowsSeen,
               filesSeen);
@@ -338,7 +337,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
           StreamingOffset result =
               new StreamingOffset(
                   current.snapshotId(), current.position() + 1, current.shouldScanAllFiles());
-          LOG.debug("latestOffset tail {}, rows: {}, files: {}", result, rowsSeen, filesSeen);
+          LOG.debug("latestOffset hit row limit at tail {}, rows: {}, files: {}", result, rowsSeen, filesSeen);
           return result;
         }
       }
@@ -352,27 +351,13 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       StreamingOffset latestOffset =
           new StreamingOffset(
               tailOffset.snapshotId(), tailOffset.position() + 1, tailOffset.shouldScanAllFiles());
-      LOG.debug("latestOffset tail {}", latestOffset);
+      LOG.debug("latestOffset returning all queued data {}", latestOffset);
       return latestOffset;
     }
 
     // if we got here the queue is empty
     LOG.debug("latestOffset no data, returning null");
     return null;
-  }
-
-  @Override
-  public Offset reportLatestOffset() {
-    // intentionally not calling table().refresh() here so the background thread is the only thing
-    // making that call
-    Snapshot latestSnapshot = table().currentSnapshot();
-    StreamingOffset latestOffset = null;
-    if (latestSnapshot != null) {
-      latestOffset =
-          new StreamingOffset(latestSnapshot.snapshotId(), addedFilesCount(latestSnapshot), false);
-    }
-    LOG.info("reportLatestOffset: {}", latestOffset);
-    return latestOffset;
   }
 
   // Background task wrapper that traps exceptions
@@ -436,7 +421,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       addMicroBatchToQueue(
           currentSnapshot,
           fromOffset.position(),
-          addedFilesCount(currentSnapshot),
+          MicroBatchUtils.addedFilesCount(table(), currentSnapshot),
           fromOffset.shouldScanAllFiles());
     }
     if (toOffset != null) {
@@ -444,7 +429,8 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         while (currentSnapshot.snapshotId() != toOffset.snapshotId()) {
           currentSnapshot = nextValidSnapshot(currentSnapshot);
           if (currentSnapshot != null) {
-            addMicroBatchToQueue(currentSnapshot, 0, addedFilesCount(currentSnapshot), false);
+            addMicroBatchToQueue(
+                currentSnapshot, 0, MicroBatchUtils.addedFilesCount(table(), currentSnapshot), false);
           } else {
             break;
           }
@@ -473,7 +459,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
     if (current == null) {
       current = nextValidSnapshot(null);
       if (current != null) {
-        addMicroBatchToQueue(current, 0, addedFilesCount(current), false);
+        addMicroBatchToQueue(current, 0, MicroBatchUtils.addedFilesCount(table(), current), false);
       }
     }
 
@@ -483,7 +469,8 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
           && current.snapshotId() != tableCurrentSnapshot.snapshotId()) {
         current = nextValidSnapshot(current);
         if (current != null) {
-          addMicroBatchToQueue(current, 0, addedFilesCount(current), false);
+          addMicroBatchToQueue(
+              current, 0, MicroBatchUtils.addedFilesCount(table(), current), false);
         } else {
           break;
         }
@@ -515,7 +502,8 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       // add an entire snapshot to the queue
       Snapshot nextValidSnapshot = nextValidSnapshot(readFrom);
       if (nextValidSnapshot != null) {
-        addMicroBatchToQueue(nextValidSnapshot, 0, addedFilesCount(nextValidSnapshot), false);
+        addMicroBatchToQueue(
+            nextValidSnapshot, 0, MicroBatchUtils.addedFilesCount(table(), nextValidSnapshot), false);
       } else {
         LOG.debug("No snapshots ready to be read");
       }

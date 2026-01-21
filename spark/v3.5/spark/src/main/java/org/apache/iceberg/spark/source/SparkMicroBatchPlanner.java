@@ -19,18 +19,13 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.FileScanTask;
-import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 
 interface SparkMicroBatchPlanner {
-  List<FileScanTask> planFiles(StreamingOffset start, StreamingOffset end)
-      throws ExecutionException;
+  List<FileScanTask> planFiles(StreamingOffset start, StreamingOffset end);
 
   StreamingOffset latestOffset(StreamingOffset start, ReadLimit limit);
-
-  Offset reportLatestOffset();
 
   void stop();
 }
