@@ -122,9 +122,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     if (overwriteMode == StreamingOverwriteMode.ADDED_FILES_ONLY) {
       LOG.warn(
           "Using '{}=added-files-only' mode with table '{}'. "
-              + "This mode processes only added files from OVERWRITE snapshots, which may result in "
-              + "duplicate records if the overwrite rewrote existing data (e.g., MERGE, UPDATE, DELETE). "
-              + "This is safe when overwrites contain only new data (e.g., INSERT OVERWRITE to new partitions).",
+              + "This may produce duplicate records when overwrites rewrite existing data "
+              + "(e.g., MERGE, UPDATE, DELETE). "
+              + "Downstream processing must handle duplicates (e.g., idempotent writes, deduplication).",
           SparkReadOptions.STREAMING_OVERWRITE_MODE,
           table.name());
     }
