@@ -498,6 +498,79 @@ public interface IndexMetadata extends Serializable {
       return this;
     }
 
+    public Builder setProperties(Map<String, String> updated) {
+      if (updated.isEmpty()) {
+        return this;
+      }
+
+      IndexVersion currentVersion = versionsById.get(currentVersionId);
+      Map<String, String> newProperties = Maps.newHashMap();
+      if (currentVersion.properties() != null) {
+        newProperties.putAll(currentVersion.properties());
+      }
+      newProperties.putAll(updated);
+
+      IndexVersion newVersion =
+          ImmutableIndexVersion.builder()
+              .from(currentVersion)
+              .versionId(currentVersion.versionId() + 1)
+              .timestampMillis(System.currentTimeMillis())
+              .properties(newProperties)
+              .build();
+
+      setCurrentVersion(newVersion);
+      changes.add(new MetadataUpdate.SetProperties(updated));
+      return this;
+    }
+
+    public Builder removeProperties(Set<String> propertiesToRemove) {
+      if (propertiesToRemove.isEmpty()) {
+        return this;
+      }
+
+      IndexVersion currentVersion = versionsById.get(currentVersionId);
+      Map<String, String> newProperties = Maps.newHashMap();
+      if (currentVersion.properties() != null) {
+        newProperties.putAll(currentVersion.properties());
+      }
+      propertiesToRemove.forEach(newProperties::remove);
+
+      IndexVersion newVersion =
+          ImmutableIndexVersion.builder()
+              .from(currentVersion)
+              .versionId(currentVersion.versionId() + 1)
+              .timestampMillis(System.currentTimeMillis())
+              .properties(newProperties)
+              .build();
+
+      setCurrentVersion(newVersion);
+      changes.add(new MetadataUpdate.RemoveProperties(propertiesToRemove));
+      return this;
+    }
+
+    public Builder removeSnapshots(Set<Long> indexSnapshotIdsToRemove) {
+      Preconditions.checkArgument(
+          indexSnapshotIdsToRemove != null && !indexSnapshotIdsToRemove.isEmpty(),
+          "Cannot remove snapshots: snapshot IDs to remove cannot be null or empty");
+
+      List<IndexSnapshot> snapshotsToRemove = Lists.newArrayList();
+      for (Long snapshotId : indexSnapshotIdsToRemove) {
+        IndexSnapshot snapshot = snapshotsById.get(snapshotId);
+        if (snapshot != null) {
+          snapshotsToRemove.add(snapshot);
+          snapshotsById.remove(snapshotId);
+        }
+      }
+
+      snapshots.removeAll(snapshotsToRemove);
+
+      if (!snapshotsToRemove.isEmpty()) {
+        changes.add(new MetadataUpdate.RemoveIndexSnapshots(indexSnapshotIdsToRemove));
+      }
+
+      return this;
+    }
+
     public IndexMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
       Preconditions.checkArgument(!versions.isEmpty(), "Invalid index: no versions were added");
@@ -517,9 +590,10 @@ public interface IndexMetadata extends Serializable {
         history.add(historyEntry);
       }
 
+      Map<String, String> indexProperties = versionsById.get(currentVersionId).properties();
       int historySize =
           PropertyUtil.propertyAsInt(
-              versionsById.get(currentVersionId).properties(),
+              indexProperties == null ? ImmutableMap.of() : indexProperties,
               IndexProperties.VERSION_HISTORY_SIZE,
               IndexProperties.VERSION_HISTORY_SIZE_DEFAULT);
 

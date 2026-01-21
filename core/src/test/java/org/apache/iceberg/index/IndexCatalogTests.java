@@ -154,7 +154,9 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
 
-    String location = indexLocation(tableIdentifier.namespace().toString(), tableIdentifier.name(), indexIdentifier.name());
+    String location =
+        indexLocation(
+            tableIdentifier.namespace().toString(), tableIdentifier.name(), indexIdentifier.name());
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
@@ -417,22 +419,19 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
     IndexVersion indexVersion = index.currentVersion();
 
-    indexBuilder =
-        catalog()
-            .buildIndex(indexIdentifier)
-            .withType(IndexType.BTREE)
-            .withIndexColumnIds(3, 4)
-            .withOptimizedColumnIds(3, 4)
-            .withProperty("replacedProp1", "val1");
-    Index replacedIndex = useCreateOrReplace ? indexBuilder.createOrReplace() : indexBuilder.replace();
+    indexBuilder = catalog().buildIndex(indexIdentifier).withProperty("replacedProp1", "val1");
+    Index replacedIndex =
+        useCreateOrReplace ? indexBuilder.createOrReplace() : indexBuilder.replace();
 
     // validate replaced index settings
     assertThat(replacedIndex.name()).isNotNull();
     assertThat(replacedIndex.type()).isEqualTo(IndexType.BTREE);
-    assertThat(replacedIndex.indexColumnIds()).containsExactly(3, 4);
-    assertThat(replacedIndex.optimizedColumnIds()).containsExactly(3, 4);
+    assertThat(replacedIndex.indexColumnIds()).containsExactly(3);
+    assertThat(replacedIndex.optimizedColumnIds()).containsExactly(3);
     assertThat(replacedIndex.history()).hasSize(2);
-    assertThat(replacedIndex.versions()).hasSize(2).containsExactly(indexVersion, replacedIndex.currentVersion());
+    assertThat(replacedIndex.versions())
+        .hasSize(2)
+        .containsExactly(indexVersion, replacedIndex.currentVersion());
 
     assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -461,16 +460,19 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should exist").isTrue();
 
-    // type is required
-    assertThatThrownBy(() -> catalog().buildIndex(indexIdentifier).withIndexColumnIds(3).replace())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Cannot replace index without specifying a type");
-
-    // index column ids are required
     assertThatThrownBy(
             () -> catalog().buildIndex(indexIdentifier).withType(IndexType.BTREE).replace())
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Cannot replace index without specifying index column ids");
+        .hasMessageContaining("Cannot update index type");
+
+    assertThatThrownBy(() -> catalog().buildIndex(indexIdentifier).withIndexColumnIds(3).replace())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot update index column ids");
+
+    assertThatThrownBy(
+            () -> catalog().buildIndex(indexIdentifier).withOptimizedColumnIds(3).replace())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot update optimized column ids");
 
     // cannot replace non-existing index
     IndexIdentifier nonExistingIdentifier = IndexIdentifier.of(tableIdentifier, "non_existing");
@@ -509,13 +511,20 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
     IndexVersion indexVersion = index.currentVersion();
 
-    index.updateProperties().set("key1", "val1").set("key2", "val2").remove("non-existing").commit();
+    index
+        .updateProperties()
+        .set("key1", "val1")
+        .set("key2", "val2")
+        .remove("non-existing")
+        .commit();
 
     Index updatedIndex = catalog().loadIndex(indexIdentifier);
 
-    // history and index versions should stay the same after updating index properties
-    assertThat(updatedIndex.history()).hasSize(1).isEqualTo(index.history());
-    assertThat(updatedIndex.versions()).hasSize(1).containsExactly(indexVersion);
+    // a new version should be added to the index history after updating index properties
+    assertThat(updatedIndex.history()).hasSize(2).isEqualTo(index.history());
+    assertThat(updatedIndex.versions())
+        .hasSize(2)
+        .containsExactlyInAnyOrderElementsOf(index.versions());
 
     assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -545,12 +554,18 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should exist").isTrue();
 
     assertThatThrownBy(
-            () -> catalog().loadIndex(indexIdentifier).updateProperties().set(null, "new-val1").commit())
+            () ->
+                catalog()
+                    .loadIndex(indexIdentifier)
+                    .updateProperties()
+                    .set(null, "new-val1")
+                    .commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid key: null");
 
     assertThatThrownBy(
-            () -> catalog().loadIndex(indexIdentifier).updateProperties().set("key1", null).commit())
+            () ->
+                catalog().loadIndex(indexIdentifier).updateProperties().set("key1", null).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid value: null");
 
@@ -696,7 +711,9 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
 
-    String location = indexLocation(tableIdentifier.namespace().toString(), tableIdentifier.name(), indexIdentifier.name());
+    String location =
+        indexLocation(
+            tableIdentifier.namespace().toString(), tableIdentifier.name(), indexIdentifier.name());
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
@@ -715,14 +732,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     }
 
     String updatedLocation = indexLocation("updated", "ns", "table", "location_index");
-    index =
-        catalog()
-            .buildIndex(indexIdentifier)
-            .withType(IndexType.BTREE)
-            .withIndexColumnIds(3, 4)
-            .withOptimizedColumnIds(3, 4)
-            .withLocation(updatedLocation)
-            .replace();
+    index = catalog().buildIndex(indexIdentifier).withLocation(updatedLocation).replace();
 
     if (!overridesRequestedLocation()) {
       assertThat(index.location()).isEqualTo(updatedLocation);
@@ -748,7 +758,9 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
 
-    String location = indexLocation(tableIdentifier.namespace().toString(), tableIdentifier.name(), indexIdentifier.name());
+    String location =
+        indexLocation(
+            tableIdentifier.namespace().toString(), tableIdentifier.name(), indexIdentifier.name());
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
@@ -787,7 +799,8 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
   @Test
   public void updateIndexLocationConflict() {
     TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
-    IndexIdentifier indexIdentifier = IndexIdentifier.of(tableIdentifier, "location_conflict_index");
+    IndexIdentifier indexIdentifier =
+        IndexIdentifier.of(tableIdentifier, "location_conflict_index");
 
     if (requiresNamespaceCreate()) {
       catalog().createNamespace(tableIdentifier.namespace());
@@ -924,5 +937,268 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     assertThat(catalog().dropIndex(btreeIdentifier)).isTrue();
     assertThat(catalog().dropIndex(termIdentifier)).isTrue();
     assertThat(catalog().dropIndex(ivfIdentifier)).isTrue();
+  }
+
+  @Test
+  public void createIndexWithSnapshot() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier = IndexIdentifier.of(tableIdentifier, "snapshot_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
+
+    Index index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .withProperty("prop1", "val1")
+            .withTableSnapshotId(100L)
+            .withIndexSnapshotId(1L)
+            .withSnapshotProperty("snap_prop1", "snap_val1")
+            .create();
+
+    assertThat(index).isNotNull();
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should exist").isTrue();
+
+    // Validate index snapshot
+    assertThat(index.snapshots()).hasSize(1);
+    IndexSnapshot snapshot = index.snapshots().get(0);
+    assertThat(snapshot.tableSnapshotId()).isEqualTo(100L);
+    assertThat(snapshot.indexSnapshotId()).isEqualTo(1L);
+    assertThat(snapshot.versionId()).isEqualTo(1);
+    assertThat(snapshot.properties()).containsEntry("snap_prop1", "snap_val1");
+
+    assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
+  }
+
+  @Test
+  public void addSnapshotToExistingIndex() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier = IndexIdentifier.of(tableIdentifier, "add_snapshot_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    // Create index without snapshot
+    Index index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .withProperty("prop1", "val1")
+            .create();
+
+    assertThat(index.snapshots()).isEmpty();
+
+    // Add snapshot via the index snapshot builder
+    catalog()
+        .loadIndex(indexIdentifier)
+        .addIndexSnapshot()
+        .withTableSnapshotId(100L)
+        .withIndexSnapshotId(1L)
+        .withSnapshotProperty("snap_prop", "snap_val")
+        .commit();
+
+    Index updatedIndex = catalog().loadIndex(indexIdentifier);
+    assertThat(updatedIndex.snapshots()).hasSize(1);
+    IndexSnapshot snapshot = updatedIndex.snapshots().get(0);
+    assertThat(snapshot.tableSnapshotId()).isEqualTo(100L);
+    assertThat(snapshot.indexSnapshotId()).isEqualTo(1L);
+
+    assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
+  }
+
+  @Test
+  public void removeSnapshotsFromIndex() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier = IndexIdentifier.of(tableIdentifier, "remove_snapshot_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    // Create index with a snapshot
+    Index index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .withProperty("prop1", "val1")
+            .withTableSnapshotId(100L)
+            .withIndexSnapshotId(1L)
+            .create();
+
+    assertThat(index.snapshots()).hasSize(1);
+    long snapshotIdToRemove = index.snapshots().get(0).indexSnapshotId();
+
+    // Remove the snapshot using the builder
+    catalog()
+        .loadIndex(indexIdentifier)
+        .removeIndexSnapshots()
+        .removeSnapshotById(snapshotIdToRemove)
+        .commit();
+
+    Index updatedIndex = catalog().loadIndex(indexIdentifier);
+    assertThat(updatedIndex.snapshots()).isEmpty();
+
+    assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
+  }
+
+  @Test
+  public void removeMultipleSnapshotsFromIndex() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier =
+        IndexIdentifier.of(tableIdentifier, "remove_multi_snapshot_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    // Create index with first snapshot
+    Index index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .withProperty("prop1", "val1")
+            .withTableSnapshotId(100L)
+            .withIndexSnapshotId(1L)
+            .create();
+
+    assertThat(index.snapshots()).hasSize(1);
+
+    // Add second snapshot via replace
+    index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withTableSnapshotId(200L)
+            .withIndexSnapshotId(2L)
+            .replace();
+
+    assertThat(index.snapshots()).hasSize(2);
+
+    // Add third snapshot via replace
+    index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withTableSnapshotId(300L)
+            .withIndexSnapshotId(3L)
+            .replace();
+
+    assertThat(index.snapshots()).hasSize(3);
+
+    // Remove multiple snapshots at once
+    catalog()
+        .loadIndex(indexIdentifier)
+        .removeIndexSnapshots()
+        .removeSnapshotsByIds(1L, 3L)
+        .commit();
+
+    Index updatedIndex = catalog().loadIndex(indexIdentifier);
+    assertThat(updatedIndex.snapshots()).hasSize(1);
+    assertThat(updatedIndex.snapshots().get(0).indexSnapshotId()).isEqualTo(2L);
+
+    assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
+  }
+
+  @Test
+  public void removeNonExistentSnapshotFromIndex() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier =
+        IndexIdentifier.of(tableIdentifier, "remove_nonexistent_snapshot_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    // Create index with a snapshot
+    Index index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .withProperty("prop1", "val1")
+            .withTableSnapshotId(100L)
+            .withIndexSnapshotId(1L)
+            .create();
+
+    assertThat(index.snapshots()).hasSize(1);
+
+    // Removing non-existent snapshot should not throw, just do nothing
+    catalog().loadIndex(indexIdentifier).removeIndexSnapshots().removeSnapshotById(999L).commit();
+
+    Index updatedIndex = catalog().loadIndex(indexIdentifier);
+    // Original snapshot should still be there
+    assertThat(updatedIndex.snapshots()).hasSize(1);
+
+    assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
+  }
+
+  @Test
+  public void snapshotLookupMethods() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier = IndexIdentifier.of(tableIdentifier, "lookup_snapshot_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    // Create index with a snapshot
+    Index index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .withProperty("prop1", "val1")
+            .withTableSnapshotId(100L)
+            .withIndexSnapshotId(1L)
+            .create();
+
+    // Test snapshot lookup by index snapshot ID
+    IndexSnapshot snapshotById = index.snapshot(1L);
+    assertThat(snapshotById).isNotNull();
+    assertThat(snapshotById.indexSnapshotId()).isEqualTo(1L);
+    assertThat(snapshotById.tableSnapshotId()).isEqualTo(100L);
+
+    // Test snapshot lookup by table snapshot ID
+    IndexSnapshot snapshotByTableId = index.snapshotForTableSnapshot(100L);
+    assertThat(snapshotByTableId).isNotNull();
+    assertThat(snapshotByTableId.indexSnapshotId()).isEqualTo(1L);
+
+    // Test non-existent lookups
+    assertThat(index.snapshot(999L)).isNull();
+    assertThat(index.snapshotForTableSnapshot(999L)).isNull();
+
+    assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
   }
 }

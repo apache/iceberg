@@ -21,6 +21,7 @@ package org.apache.iceberg.index;
 import java.io.Serializable;
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.UpdateLocation;
 
 /**
  * Base implementation of the {@link Index} interface.
@@ -115,6 +116,26 @@ public class BaseIndex implements Index, Serializable {
   @Override
   public IndexSnapshot snapshotForTableSnapshot(long tableSnapshotId) {
     return operations().current().snapshotForTableSnapshot(tableSnapshotId);
+  }
+
+  @Override
+  public UpdateIndexProperties updateProperties() {
+    return new IndexPropertiesUpdate(ops);
+  }
+
+  @Override
+  public UpdateLocation updateLocation() {
+    return new SetIndexLocation(ops);
+  }
+
+  @Override
+  public AddIndexSnapshot addIndexSnapshot() {
+    return new IndexSnapshotAdd(ops);
+  }
+
+  @Override
+  public RemoveIndexSnapshots removeIndexSnapshots() {
+    return new IndexSnapshotsRemove(ops);
   }
 
   @Override

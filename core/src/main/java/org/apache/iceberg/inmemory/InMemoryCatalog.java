@@ -33,6 +33,8 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.catalog.IndexCatalog;
+import org.apache.iceberg.catalog.IndexIdentifier;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -42,6 +44,10 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.index.Index;
+import org.apache.iceberg.index.IndexBuilder;
+import org.apache.iceberg.index.IndexSummary;
+import org.apache.iceberg.index.IndexType;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -60,13 +66,14 @@ import org.apache.iceberg.view.ViewUtil;
  * effects. It uses {@link InMemoryFileIO}.
  */
 public class InMemoryCatalog extends BaseMetastoreViewCatalog
-    implements SupportsNamespaces, Closeable {
+    implements SupportsNamespaces, IndexCatalog, Closeable {
   private static final Joiner SLASH = Joiner.on("/");
   private static final Joiner DOT = Joiner.on(".");
 
   private final ConcurrentMap<Namespace, Map<String, String>> namespaces;
   private final ConcurrentMap<TableIdentifier, String> tables;
   private final ConcurrentMap<TableIdentifier, String> views;
+  private final InMemoryIndexCatalog indexCatalog;
   private FileIO io;
   private String catalogName;
   private String warehouseLocation;
@@ -77,6 +84,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     this.namespaces = Maps.newConcurrentMap();
     this.tables = Maps.newConcurrentMap();
     this.views = Maps.newConcurrentMap();
+    this.indexCatalog = new InMemoryIndexCatalog(this);
   }
 
   @Override
@@ -94,7 +102,10 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     this.io = new InMemoryFileIO();
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.addCloseable(indexCatalog);
     closeableGroup.setSuppressCloseFailure(true);
+
+    indexCatalog.initialize(name, properties);
   }
 
   @Override
@@ -381,6 +392,43 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  }
+
+  // IndexCatalog delegate methods
+
+  @Override
+  public List<IndexSummary> listIndexes(TableIdentifier tableIdentifier, IndexType... types) {
+    return indexCatalog.listIndexes(tableIdentifier, types);
+  }
+
+  @Override
+  public Index loadIndex(IndexIdentifier identifier) {
+    return indexCatalog.loadIndex(identifier);
+  }
+
+  @Override
+  public boolean indexExists(IndexIdentifier identifier) {
+    return indexCatalog.indexExists(identifier);
+  }
+
+  @Override
+  public IndexBuilder buildIndex(IndexIdentifier identifier) {
+    return indexCatalog.buildIndex(identifier);
+  }
+
+  @Override
+  public boolean dropIndex(IndexIdentifier identifier) {
+    return indexCatalog.dropIndex(identifier);
+  }
+
+  @Override
+  public void invalidateIndex(IndexIdentifier identifier) {
+    indexCatalog.invalidateIndex(identifier);
+  }
+
+  @Override
+  public Index registerIndex(IndexIdentifier identifier, String metadataFileLocation) {
+    return indexCatalog.registerIndex(identifier, metadataFileLocation);
   }
 
   private class InMemoryTableOperations extends BaseMetastoreTableOperations {

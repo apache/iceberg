@@ -25,10 +25,12 @@ import org.apache.iceberg.catalog.IndexIdentifier;
 /**
  * A builder used to create or replace an {@link Index}.
  *
- * <p>Call {@link IndexCatalog#buildIndex(IndexIdentifier)}
- * to create a new builder.
+ * <p>Call {@link IndexCatalog#buildIndex(IndexIdentifier)} to create a new builder.
  */
-public interface IndexBuilder extends VersionBuilder<IndexBuilder>, SnapshotBuilder<IndexBuilder> {
+public interface IndexBuilder
+    extends VersionBuilder<IndexBuilder>,
+        SnapshotBuilder<IndexBuilder>,
+        RemoveSnapshotsBuilder<IndexBuilder> {
 
   /**
    * Set the index type.
