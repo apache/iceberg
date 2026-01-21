@@ -16,33 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.metrics;
+package org.apache.iceberg.spark.source.metrics;
 
-import javax.annotation.Nullable;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class InMemoryMetricsReporter implements MetricsReporter {
+public class AddedEqualityDeletes extends CustomSumMetric {
 
-  private MetricsReport metricsReport;
+  static final String NAME = "addedEqualityDeletes";
 
   @Override
-  public void report(MetricsReport report) {
-    this.metricsReport = report;
+  public String name() {
+    return NAME;
   }
 
-  public ScanReport scanReport() {
-    Preconditions.checkArgument(
-        metricsReport == null || metricsReport instanceof ScanReport,
-        "Metrics report is not a scan report");
-    return (ScanReport) metricsReport;
-  }
-
-  @Nullable
-  public CommitReport commitReport() {
-    if (metricsReport instanceof CommitReport) {
-      return (CommitReport) metricsReport;
-    } else {
-      return null;
-    }
+  @Override
+  public String description() {
+    return "number of added equality deletes";
   }
 }
