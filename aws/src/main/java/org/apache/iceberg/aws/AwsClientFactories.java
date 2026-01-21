@@ -170,6 +170,7 @@ public class AwsClientFactories {
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
+          .applyMutation(awsClientProperties::applyRetryConfigurations)
           .build();
     }
 
