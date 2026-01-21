@@ -642,6 +642,7 @@ class Literals {
       if (cmp == null) {
         cmp = useSignedComparator ? SIGNED_CMP : RFC_CMP;
       }
+
       return cmp;
     }
 

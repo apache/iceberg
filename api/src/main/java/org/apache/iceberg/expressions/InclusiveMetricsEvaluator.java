@@ -57,8 +57,9 @@ public class InclusiveMetricsEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
 
   private final Expression expr;
-  // Expression using signed UUID comparator for backward compatibility with files written before
-  // RFC-compliant UUID comparisons were introduced. Null if no UUID predicates.
+  // Expression using signed UUID comparator for backward compatibility with files written
+  // prior to the introduction of RFC-compliant UUID comparisons.
+  // Null if there are no UUID predicates comparing against bounds in the expression.
   private final Expression signedUuidExpr;
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
@@ -70,14 +71,11 @@ public class InclusiveMetricsEvaluator {
     Expression rewritten = rewriteNot(unbound);
     this.expr = Binder.bind(struct, rewritten, caseSensitive);
 
-    // Only create the signed UUID expression if there are UUID predicates that compare against
-    // bounds
-    if (ExpressionUtil.hasUUIDBoundsPredicate(this.expr)) {
-      Expression signedRewritten = ExpressionUtil.withSignedUUIDComparator(rewritten);
-      this.signedUuidExpr = Binder.bind(struct, signedRewritten, caseSensitive);
-    } else {
-      this.signedUuidExpr = null;
-    }
+    // Create the signed UUID expression iff there are UUID predicates that compare against bounds.
+    this.signedUuidExpr =
+        ExpressionUtil.toSignedUUIDLiteral(rewritten)
+            .map(transformed -> Binder.bind(struct, transformed, caseSensitive))
+            .orElse(null);
   }
 
   /**
@@ -98,9 +96,6 @@ public class InclusiveMetricsEvaluator {
 
     // Always try with signed UUID comparator as a fallback. There is no reliable way to detect
     // which comparator was used when the file's column metrics were written.
-    // The signedUuidExpr has literals with signed comparators for lt/gt/eq predicates.
-    // For IN predicates, we pass signedUuidMode=true so comparatorForIn() returns signed
-    // comparator.
     return new MetricsEvalVisitor().eval(file, signedUuidExpr, true);
   }
 
@@ -150,6 +145,7 @@ public class InclusiveMetricsEvaluator {
       if (useSignedUuidComparator && term.ref().type().typeId() == Type.TypeID.UUID) {
         return (Comparator<T>) Comparators.signedUUIDs();
       }
+
       return ((BoundTerm<T>) term).comparator();
     }
 

@@ -66,14 +66,11 @@ public class ParquetMetricsRowGroupFilter {
     Expression rewritten = Expressions.rewriteNot(unbound);
     this.expr = Binder.bind(struct, rewritten, caseSensitive);
 
-    // Only create the signed UUID expression if there are UUID predicates that compare against
-    // bounds
-    if (ExpressionUtil.hasUUIDBoundsPredicate(this.expr)) {
-      Expression signedRewritten = ExpressionUtil.withSignedUUIDComparator(rewritten);
-      this.signedUuidExpr = Binder.bind(struct, signedRewritten, caseSensitive);
-    } else {
-      this.signedUuidExpr = null;
-    }
+    // Create the signed UUID expression iff there are UUID predicates that compare against bounds.
+    this.signedUuidExpr =
+        ExpressionUtil.toSignedUUIDLiteral(rewritten)
+            .map(transformed -> Binder.bind(struct, transformed, caseSensitive))
+            .orElse(null);
   }
 
   /**
@@ -149,6 +146,7 @@ public class ParquetMetricsRowGroupFilter {
           && ref.type().typeId() == org.apache.iceberg.types.Type.TypeID.UUID) {
         return (Comparator<T>) Comparators.signedUUIDs();
       }
+
       return ref.comparator();
     }
 

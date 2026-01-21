@@ -72,14 +72,11 @@ public class ManifestEvaluator {
     Expression rewritten = rewriteNot(partitionFilter);
     this.expr = Binder.bind(partitionType, rewritten, caseSensitive);
 
-    // Only create the signed UUID expression if there are UUID predicates that compare against
-    // bounds
-    if (ExpressionUtil.hasUUIDBoundsPredicate(this.expr)) {
-      Expression signedRewritten = ExpressionUtil.withSignedUUIDComparator(rewritten);
-      this.signedUuidExpr = Binder.bind(partitionType, signedRewritten, caseSensitive);
-    } else {
-      this.signedUuidExpr = null;
-    }
+    // Create the signed UUID expression iff there are UUID predicates that compare against bounds.
+    this.signedUuidExpr =
+        ExpressionUtil.toSignedUUIDLiteral(rewritten)
+            .map(transformed -> Binder.bind(partitionType, transformed, caseSensitive))
+            .orElse(null);
   }
 
   /**
@@ -99,9 +96,6 @@ public class ManifestEvaluator {
 
     // Always try with signed UUID comparator as a fallback. There is no reliable way to detect
     // which comparator was used when the manifest's partition field summaries were written.
-    // The signedUuidExpr has literals with signed comparators for lt/gt/eq predicates.
-    // For IN predicates, we pass signedUuidMode=true so comparatorForIn() returns signed
-    // comparator.
     return new ManifestEvalVisitor().eval(manifest, signedUuidExpr, true);
   }
 
@@ -135,6 +129,7 @@ public class ManifestEvaluator {
       if (useSignedUuidComparator && ref.type().typeId() == Type.TypeID.UUID) {
         return (Comparator<T>) Comparators.signedUUIDs();
       }
+
       return ref.comparator();
     }
 
