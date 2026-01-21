@@ -985,6 +985,39 @@ class PlanTask(BaseModel):
     )
 
 
+class MultiValuedMap(BaseModel):
+    """
+    A map of string keys where each key can map to multiple string values.
+    """
+
+    __root__: dict[str, list[str]]
+
+
+class RemoteSignRequest(BaseModel):
+    """
+    The request to be signed remotely.
+    """
+
+    region: str
+    uri: str
+    method: Literal['PUT', 'GET', 'HEAD', 'POST', 'DELETE', 'PATCH', 'OPTIONS']
+    headers: MultiValuedMap
+    properties: dict[str, str] | None = None
+    body: str | None = Field(
+        None,
+        description='Optional body of the request to send to the signing API. This should only be populated for requests which do not have the relevant data in the URI itself (e.g. DeleteObjects requests)',
+    )
+
+
+class RemoteSignResult(BaseModel):
+    """
+    The result of a remote request signing operation.
+    """
+
+    uri: str
+    headers: MultiValuedMap
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: dict[str, str] | None = Field(
@@ -1306,13 +1339,19 @@ class LoadTableResult(BaseModel):
      - `s3.access-key-id`: id for credentials that provide access to the data in S3
      - `s3.secret-access-key`: secret for credentials that provide access to data in S3
      - `s3.session-token`: if present, this value should be used for as the session token
-     - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
+     - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `RemoteSignRequest` schema section of this spec document.
      - `s3.cross-region-access-enabled`: if `true`, S3 Cross-Region bucket access is enabled
 
     ## Storage Credentials
 
     Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
     Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+
+    ## Remote Signing
+
+    If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
+     - `signer.uri`: the base URI of the remote signer endpoint. Optional; if absent, defaults to the catalog's base URI.
+     - `signer.endpoint`: the path of the remote signer endpoint. Required. Should be concatenated with `signer.uri` to form the complete URI.
 
     """
 

@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
-import static org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient.S3_SIGNER_URI;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import java.util.stream.Stream;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -119,12 +119,21 @@ class TestS3V4RestSignerClient {
   public static Stream<Arguments> validOAuth2Properties() {
     return Stream.of(
         // No OAuth2 data
-        Arguments.of(Map.of(S3_SIGNER_URI, "https://signer.com"), "sign", null),
+        Arguments.of(
+            Map.of(
+                CatalogProperties.SIGNER_URI,
+                "https://signer.com",
+                CatalogProperties.SIGNER_ENDPOINT,
+                "v1/sign/s3"),
+            "sign",
+            null),
         // Token only
         Arguments.of(
             Map.of(
-                S3_SIGNER_URI,
+                CatalogProperties.SIGNER_URI,
                 "https://signer.com",
+                CatalogProperties.SIGNER_ENDPOINT,
+                "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.TOKEN,
@@ -134,8 +143,10 @@ class TestS3V4RestSignerClient {
         // Credential only: expect a token to be fetched
         Arguments.of(
             Map.of(
-                S3_SIGNER_URI,
+                CatalogProperties.SIGNER_URI,
                 "https://signer.com",
+                CatalogProperties.SIGNER_ENDPOINT,
+                "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.CREDENTIAL,
@@ -145,8 +156,10 @@ class TestS3V4RestSignerClient {
         // Token and credential: should use token as is, not fetch a new one
         Arguments.of(
             Map.of(
-                S3_SIGNER_URI,
+                CatalogProperties.SIGNER_URI,
                 "https://signer.com",
+                CatalogProperties.SIGNER_ENDPOINT,
+                "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.TOKEN,
@@ -158,8 +171,10 @@ class TestS3V4RestSignerClient {
         // Custom scope
         Arguments.of(
             Map.of(
-                S3_SIGNER_URI,
+                CatalogProperties.SIGNER_URI,
                 "https://signer.com",
+                CatalogProperties.SIGNER_ENDPOINT,
+                "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.CREDENTIAL,

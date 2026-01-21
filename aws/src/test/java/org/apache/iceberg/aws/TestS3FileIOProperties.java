@@ -225,7 +225,12 @@ public class TestS3FileIOProperties {
     String uri = "http://localhost:12345";
     Map<String, String> properties =
         ImmutableMap.of(
-            S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true", CatalogProperties.URI, uri);
+            S3FileIOProperties.REMOTE_SIGNING_ENABLED,
+            "true",
+            CatalogProperties.URI,
+            uri,
+            CatalogProperties.SIGNER_ENDPOINT,
+            "v1/sign/s3");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
 
@@ -244,7 +249,12 @@ public class TestS3FileIOProperties {
     String uri = "http://localhost:12345";
     Map<String, String> properties =
         ImmutableMap.of(
-            S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true", CatalogProperties.URI, uri);
+            S3FileIOProperties.REMOTE_SIGNING_ENABLED,
+            "true",
+            CatalogProperties.URI,
+            uri,
+            CatalogProperties.SIGNER_ENDPOINT,
+            "v1/sign/s3");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
 
