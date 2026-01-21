@@ -169,8 +169,7 @@ public interface Index {
    * @return a new {@link UpdateIndexProperties}
    */
   default UpdateIndexProperties updateProperties() {
-    throw new UnsupportedOperationException(
-        "Updating index properties is not supported.");
+    throw new UnsupportedOperationException("Updating index properties is not supported.");
   }
 
   /**
@@ -179,8 +178,7 @@ public interface Index {
    * @return a new {@link UpdateLocation}
    */
   default UpdateLocation updateLocation() {
-    throw new UnsupportedOperationException(
-        "Updating index location is not supported.");
+    throw new UnsupportedOperationException("Updating index location is not supported.");
   }
 
   /**
@@ -189,7 +187,15 @@ public interface Index {
    * @return a new {@link AddIndexSnapshot}
    */
   default AddIndexSnapshot addIndexSnapshot() {
-    throw new UnsupportedOperationException(
-        "Adding index snapshot is not supported.");
+    throw new UnsupportedOperationException("Adding index snapshot is not supported.");
+  }
+
+  /**
+   * Create a new {@link RemoveIndexSnapshots} to remove snapshots from the index.
+   *
+   * @return a new {@link RemoveIndexSnapshots}
+   */
+  default RemoveIndexSnapshots removeIndexSnapshots() {
+    throw new UnsupportedOperationException("Removing index snapshots is not supported.");
   }
 }

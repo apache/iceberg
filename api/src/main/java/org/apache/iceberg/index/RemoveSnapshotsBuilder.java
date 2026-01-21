@@ -18,45 +18,36 @@
  */
 package org.apache.iceberg.index;
 
-import java.util.Map;
+import java.util.Set;
 
 /**
- * A builder interface for creating {@link IndexSnapshot} instances.
+ * A builder interface for removing IndexSnapshots from an index.
  *
  * @param <T> the concrete builder type for method chaining
  */
-public interface SnapshotBuilder<T> {
+public interface RemoveSnapshotsBuilder<T> {
 
   /**
-   * Set the table snapshot ID which is the base of the index snapshot.
+   * Add a snapshot to remove by its index snapshot ID.
    *
-   * @param tableSnapshotId the table snapshot ID
+   * @param indexSnapshotId the index snapshot ID to remove
    * @return this for method chaining
    */
-  T withTableSnapshotId(long tableSnapshotId);
+  T removeSnapshotById(long indexSnapshotId);
 
   /**
-   * Set the index snapshot ID.
+   * Add multiple snapshots to remove by their index snapshot IDs.
    *
-   * @param indexSnapshotId the index snapshot ID
+   * @param indexSnapshotIds the index snapshot IDs to remove
    * @return this for method chaining
    */
-  T withIndexSnapshotId(long indexSnapshotId);
+  T removeSnapshotsByIds(Set<Long> indexSnapshotIds);
 
   /**
-   * Set properties for the index snapshot.
+   * Add multiple snapshots to remove by their index snapshot IDs.
    *
-   * @param properties a map of string properties
+   * @param indexSnapshotIds the index snapshot IDs to remove
    * @return this for method chaining
    */
-  T withSnapshotProperties(Map<String, String> properties);
-
-  /**
-   * Add a key/value property to the index snapshot.
-   *
-   * @param key a key
-   * @param value a value
-   * @return this for method chaining
-   */
-  T withSnapshotProperty(String key, String value);
+  T removeSnapshotsByIds(long... indexSnapshotIds);
 }

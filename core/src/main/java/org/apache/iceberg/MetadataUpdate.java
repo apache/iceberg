@@ -621,4 +621,26 @@ public interface MetadataUpdate extends Serializable {
       indexMetadataBuilder.addSnapshot(indexSnapshot);
     }
   }
+
+  /** Removes index snapshots from the index metadata. */
+  class RemoveIndexSnapshots implements MetadataUpdate {
+    private final Set<Long> indexSnapshotIds;
+
+    public RemoveIndexSnapshots(long indexSnapshotId) {
+      this.indexSnapshotIds = ImmutableSet.of(indexSnapshotId);
+    }
+
+    public RemoveIndexSnapshots(Set<Long> indexSnapshotIds) {
+      this.indexSnapshotIds = ImmutableSet.copyOf(indexSnapshotIds);
+    }
+
+    public Set<Long> indexSnapshotIds() {
+      return indexSnapshotIds;
+    }
+
+    @Override
+    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
+      indexMetadataBuilder.removeSnapshots(indexSnapshotIds);
+    }
+  }
 }
