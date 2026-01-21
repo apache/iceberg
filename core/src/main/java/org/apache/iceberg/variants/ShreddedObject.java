@@ -153,12 +153,12 @@ public class ShreddedObject implements VariantObject {
     private SerializationState(
         VariantMetadata metadata,
         VariantObject unshredded,
-        Map<String, VariantValue> shreddedFields,
+        Map<String, VariantValue> shredded,
         Set<String> removedFields) {
       this.metadata = metadata;
       // field ID size is the size needed to store the largest field ID in the data
       this.fieldIdSize = VariantUtil.sizeOf(metadata.dictionarySize());
-      this.shreddedFields = Maps.newHashMap(shreddedFields);
+      this.shreddedFields = Maps.newHashMap(shredded);
 
       int totalDataSize = 0;
       // get the unshredded field names and values as byte buffers
@@ -178,20 +178,20 @@ public class ShreddedObject implements VariantObject {
         }
       } else if (unshredded != null) {
         for (String name : unshredded.fieldNames()) {
-          boolean replaced = this.shreddedFields.containsKey(name) || removedFields.contains(name);
+          boolean replaced = shreddedFields.containsKey(name) || removedFields.contains(name);
           if (!replaced) {
-            this.shreddedFields.put(name, unshredded.get(name));
+            shreddedFields.put(name, unshredded.get(name));
           }
         }
       }
 
       this.unshreddedFields = unshreddedBuilder.build();
       // duplicates are suppressed when creating unshreddedFields
-      this.numElements = unshreddedFields.size() + this.shreddedFields.size();
+      this.numElements = unshreddedFields.size() + shreddedFields.size();
       // object is large if the number of elements can't be stored in 1 byte
       this.isLarge = numElements > 0xFF;
 
-      for (VariantValue value : this.shreddedFields.values()) {
+      for (VariantValue value : shreddedFields.values()) {
         totalDataSize += value.sizeInBytes();
       }
 
