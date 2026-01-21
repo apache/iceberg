@@ -556,12 +556,6 @@ project(':iceberg-aws') {
     jvmArgs += project.property('extraJvmArgs')
   }
 
-  def s3SignerSpec = "$projectDir/src/main/resources/s3-signer-open-api.yaml"
-  tasks.register('validateS3SignerSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
-    inputSpec.set(s3SignerSpec)
-    recommend.set(true)
-  }
-  check.dependsOn('validateS3SignerSpec')
   check.dependsOn integrationTest
 }
 

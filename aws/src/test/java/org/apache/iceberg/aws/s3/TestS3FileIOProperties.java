@@ -504,7 +504,9 @@ public class TestS3FileIOProperties {
             S3FileIOProperties.REMOTE_SIGNING_ENABLED,
             "true",
             CatalogProperties.URI,
-            "http://localhost:12345");
+            "http://localhost:12345",
+            CatalogProperties.SIGNER_ENDPOINT,
+            "v1/sign/s3");
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
     s3FileIOProperties.applySignerConfiguration(mockS3ClientBuilder);
