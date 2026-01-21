@@ -154,7 +154,8 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
    * @return the list of files to scan between these offsets
    */
   @Override
-  public synchronized List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
+  public synchronized List<FileScanTask> planFiles(
+      StreamingOffset startOffset, StreamingOffset endOffset) {
     return planFilesCache.get(
         Pair.of(startOffset, endOffset),
         key -> {
@@ -303,7 +304,11 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         if (filesSeen == 0) {
           return null;
         }
-        LOG.debug("latestOffset hit file limit at {}, rows: {}, files: {}", elem.first(), rowsSeen, filesSeen);
+        LOG.debug(
+            "latestOffset hit file limit at {}, rows: {}, files: {}",
+            elem.first(),
+            rowsSeen,
+            filesSeen);
         return elem.first();
       }
 
@@ -337,7 +342,11 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
           StreamingOffset result =
               new StreamingOffset(
                   current.snapshotId(), current.position() + 1, current.shouldScanAllFiles());
-          LOG.debug("latestOffset hit row limit at tail {}, rows: {}, files: {}", result, rowsSeen, filesSeen);
+          LOG.debug(
+              "latestOffset hit row limit at tail {}, rows: {}, files: {}",
+              result,
+              rowsSeen,
+              filesSeen);
           return result;
         }
       }
@@ -430,7 +439,10 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
           currentSnapshot = nextValidSnapshot(currentSnapshot);
           if (currentSnapshot != null) {
             addMicroBatchToQueue(
-                currentSnapshot, 0, MicroBatchUtils.addedFilesCount(table(), currentSnapshot), false);
+                currentSnapshot,
+                0,
+                MicroBatchUtils.addedFilesCount(table(), currentSnapshot),
+                false);
           } else {
             break;
           }
@@ -503,7 +515,10 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
       Snapshot nextValidSnapshot = nextValidSnapshot(readFrom);
       if (nextValidSnapshot != null) {
         addMicroBatchToQueue(
-            nextValidSnapshot, 0, MicroBatchUtils.addedFilesCount(table(), nextValidSnapshot), false);
+            nextValidSnapshot,
+            0,
+            MicroBatchUtils.addedFilesCount(table(), nextValidSnapshot),
+            false);
       } else {
         LOG.debug("No snapshots ready to be read");
       }
