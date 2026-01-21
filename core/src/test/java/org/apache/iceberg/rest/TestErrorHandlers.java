@@ -98,4 +98,20 @@ class TestErrorHandlers {
         .isInstanceOf(RESTException.class)
         .hasMessageContaining("Unable to process (code: 422, type: null): Invalid input");
   }
+
+  @Test
+  public void testErrorHandlerFor405() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(405)
+            .withType("MethodNotAllowedException")
+            .withMessage("Method not allowed")
+            .build();
+
+    // 405 (Method Not Allowed) should fall through to default RESTException
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining(
+            "Unable to process (code: 405, type: MethodNotAllowedException): Method not allowed");
+  }
 }

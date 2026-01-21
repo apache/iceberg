@@ -299,8 +299,9 @@ public class ErrorHandlers {
         case 403:
           throw new ForbiddenException("Forbidden: %s", error.message());
         case 405:
-        case 406:
           break;
+        case 406:
+          throw new UnsupportedOperationException(error.message());
         case 500:
           throw new ServiceFailureException("Server error: %s: %s", error.type(), error.message());
         case 501:
