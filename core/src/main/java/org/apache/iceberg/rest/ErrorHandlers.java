@@ -102,8 +102,7 @@ public class ErrorHandlers {
    */
   private static RESTException createRESTException(ErrorResponse error) {
     return new RESTException(
-        "Unable to process (code: %s, type: %s): %s",
-        error.code(), error.type(), error.message());
+        "Unable to process (code: %s, type: %s): %s", error.code(), error.type(), error.message());
   }
 
   /** Table commit error handler. */
