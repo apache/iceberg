@@ -232,7 +232,7 @@ public class TestShreddedObject {
     assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("c").type()).isEqualTo(PhysicalType.DATE);
     assertThat(actual.get("c").asPrimitive().get())
-            .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
+        .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
   }
 
   @Test
