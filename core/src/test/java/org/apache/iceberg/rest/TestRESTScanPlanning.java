@@ -97,6 +97,8 @@ public class TestRESTScanPlanning {
   private static final Namespace NS = Namespace.of("ns");
   private static final List<String> ALL_COLUMNS =
       SCHEMA.columns().stream().map(f -> f.name()).collect(Collectors.toList());
+  private static final ResourcePaths RESOURCE_PATHS =
+      ResourcePaths.forCatalogProperties(ImmutableMap.of());
 
   private InMemoryCatalog backendCatalog;
   private Server httpServer;
@@ -240,25 +242,15 @@ public class TestRESTScanPlanning {
   }
 
   private String planPath(TableIdentifier ident) {
-    return String.format(
-        "v1/namespaces/%s/tables/%s/plan",
-        RESTUtil.encodeNamespace(ident.namespace(), RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8),
-        RESTUtil.encodeString(ident.name()));
+    return RESOURCE_PATHS.planTableScan(ident);
   }
 
   private String tasksPath(TableIdentifier ident) {
-    return String.format(
-        "v1/namespaces/%s/tables/%s/tasks",
-        RESTUtil.encodeNamespace(ident.namespace(), RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8),
-        RESTUtil.encodeString(ident.name()));
+    return RESOURCE_PATHS.fetchScanTasks(ident);
   }
 
   private String cancelPath(TableIdentifier ident, String planId) {
-    return String.format(
-        "v1/namespaces/%s/tables/%s/plan/%s",
-        RESTUtil.encodeNamespace(ident.namespace(), RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8),
-        RESTUtil.encodeString(ident.name()),
-        RESTUtil.encodeString(planId));
+    return RESOURCE_PATHS.plan(ident, planId);
   }
 
   private PlanTableScanRequest defaultPlanRequest() {
@@ -285,18 +277,6 @@ public class TestRESTScanPlanning {
         responseType,
         errorHandler,
         ignored -> {});
-  }
-
-  private <T extends RESTResponse> List<T> executeTwice(
-      HTTPRequest.HTTPMethod method,
-      String path,
-      Map<String, String> headers,
-      Object body,
-      Class<T> responseType,
-      Consumer<ErrorResponse> errorHandler) {
-    T first = execute(method, path, headers, body, responseType, errorHandler);
-    T second = execute(method, path, headers, body, responseType, errorHandler);
-    return List.of(first, second);
   }
 
   private ConcurrentMap<String, ?> idempotencyStore() throws Exception {
@@ -1130,16 +1110,22 @@ public class TestRESTScanPlanning {
     Map<String, String> headers = idempotencyHeader("test-idempotency-key-planTableScan");
     PlanTableScanRequest request = defaultPlanRequest();
 
-    List<PlanTableScanResponse> responses =
-        executeTwice(
+    PlanTableScanResponse first =
+        execute(
             HTTPRequest.HTTPMethod.POST,
             planPath(ident),
             headers,
             request,
             PlanTableScanResponse.class,
             ErrorHandlers.tableErrorHandler());
-    PlanTableScanResponse first = responses.get(0);
-    PlanTableScanResponse second = responses.get(1);
+    PlanTableScanResponse second =
+        execute(
+            HTTPRequest.HTTPMethod.POST,
+            planPath(ident),
+            headers,
+            request,
+            PlanTableScanResponse.class,
+            ErrorHandlers.tableErrorHandler());
 
     assertThat(first.planStatus()).isEqualTo(PlanStatus.SUBMITTED);
     assertThat(second.planId()).isEqualTo(first.planId());
@@ -1191,11 +1177,14 @@ public class TestRESTScanPlanning {
             FetchScanTasksResponse.class,
             ErrorHandlers.planTaskHandler());
 
-    // We cancel the planning state before this call, so a *fresh execution* of fetchScanTasks would
+    // We cancel the planning state before this call, so a fresh execution of fetchScanTasks would
     // fail. The only way this second call can succeed is if the server replays the cached response
-    // for the Idempotency-Key. We validate that replay by comparing the returned payload's stable
-    // identifiers (data file locations) to the first response. Use order-insensitive comparison
-    // since task ordering isn't guaranteed.
+    // for the Idempotency-Key.
+    //
+    // We validate that replay by comparing the returned payload's stable identifiers (data file
+    // locations) to the first response. Use order-insensitive comparison because the REST API does
+    // not specify task ordering and scan tasks can be planned/partitioned without an explicit sort
+    // (e.g. based on manifest iteration order).
     assertThat(second.fileScanTasks())
         .extracting(task -> task.file().location())
         .containsExactlyInAnyOrderElementsOf(
