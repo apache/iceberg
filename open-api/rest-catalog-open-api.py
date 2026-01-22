@@ -1350,8 +1350,8 @@ class LoadTableResult(BaseModel):
     ## Remote Signing
 
     If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
-     - `signer.uri`: the base URI of the remote signer endpoint. Optional; if absent, defaults to the catalog's base URI.
-     - `signer.endpoint`: the path of the remote signer endpoint. Required. Should be concatenated with `signer.uri` to form the complete URI.
+     - `signer.endpoint`: the remote signer endpoint. Required. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+     - `signer.uri`: the base URI to resolve `signer.endpoint` against. Optional. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
 
     """
 
