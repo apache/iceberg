@@ -87,19 +87,6 @@ public class SparkReadOptions {
   public static final String STREAMING_MAX_ROWS_PER_MICRO_BATCH =
       "streaming-max-rows-per-micro-batch";
 
-  // Enable async micro batch planning
-  public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
-      "async-micro-batch-planning-enabled";
-  // Polling interval for async planner to refresh table metadata (ms)
-  public static final String STREAMING_SNAPSHOT_POLLING_INTERVAL_MS =
-      "streaming-snapshot-polling-interval-ms";
-  public static final long STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_DEFAULT = 30000L;
-  // Initial queue preload limits for async micro batch planner
-  public static final String ASYNC_QUEUE_PRELOAD_FILE_LIMIT = "async-queue-preload-file-limit";
-  public static final long ASYNC_QUEUE_PRELOAD_FILE_LIMIT_DEFAULT = 100L;
-  public static final String ASYNC_QUEUE_PRELOAD_ROW_LIMIT = "async-queue-preload-row-limit";
-  public static final long ASYNC_QUEUE_PRELOAD_ROW_LIMIT_DEFAULT = 100000L;
-
   // Table path
   public static final String PATH = "path";
 
