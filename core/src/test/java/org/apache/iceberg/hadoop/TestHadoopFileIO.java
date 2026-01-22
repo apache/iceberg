@@ -188,7 +188,7 @@ public class TestHadoopFileIO {
     Configuration conf = new Configuration();
     if (useTrash) {
       conf.set(FS_TRASH_INTERVAL_KEY, "60");
-      conf.set(DELETE_TRASH_SCHEMAS, "file");
+      conf.set(DELETE_TRASH_SCHEMAS, " file , hdfs, viewfs");
     }
     FileSystem.closeAllForUGI(currentUser);
     fs = FileSystem.getLocal(conf);
