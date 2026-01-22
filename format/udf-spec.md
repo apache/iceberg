@@ -67,7 +67,10 @@ Notes:
 
 ### Definition
 
-Each `definition` represents one function signature (e.g., `add_one(int)` vs `add_one(float)`).
+Each `definition` represents one function signature (e.g., `add_one(int)` vs `add_one(float)`). A definition is uniquely
+identified by its signature (the ordered list of parameter types). There can be only one definition for a given signature.
+All versions within a definition must accept the same signature as specified in the definition's `parameters` field and
+must produce values of the declared `return-type`.
 
 | Requirement | Field name           | Type                                            | Description                                                                                                   |
 |-------------|----------------------|-------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
@@ -79,10 +82,6 @@ Each `definition` represents one function signature (e.g., `add_one(int)` vs `ad
 | *required*  | `current-version-id` | `int`                                           | Identifier of the current version for this definition.                                                        |
 | *required*  | `function-type`      | `string` (`"udf"` or `"udtf"`, default `"udf"`) | If `"udtf"`, `return-type` must be an Iceberg type `struct` describing the output schema.                     |
 | *optional*  | `doc`                | `string`                                        | Documentation string.                                                                                         |
-
-A definition is uniquely identified by its signature (the ordered list of parameter types). There can be only one definition
-for a given signature. All versions within a definition must accept the same signature as specified in the definition's
-`parameters` field and must produce values of the declared `return-type`.
 
 ### Parameter
 | Requirement | Field  | Type     | Description                                |
