@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.actions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.util.stream.StreamSupport;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -60,7 +59,6 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     assertThat(results.orphanFileLocations())
         .as("trash file should be removed")
         .contains("file:" + location + trashFile);
-    assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
   @TestTemplate
@@ -90,7 +88,6 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     assertThat(results.orphanFileLocations())
         .as("trash file should be removed")
         .contains("file:" + location + trashFile);
-    assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
   @TestTemplate
@@ -117,11 +114,9 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
             .deleteOrphanFiles(table.table())
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-
-    assertThat(StreamSupport.stream(results.orphanFileLocations().spliterator(), false))
+    assertThat(results.orphanFileLocations())
         .as("trash file should be removed")
-        .anyMatch(file -> file.contains("file:" + location + trashFile));
-    assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
+        .contains("file:" + location + trashFile);
   }
 
   @TestTemplate
@@ -154,7 +149,6 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     assertThat(results.orphanFileLocations())
         .as("trash file should be removed")
         .contains("file:" + location + trashFile);
-    assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
   @TestTemplate
@@ -187,7 +181,6 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     assertThat(results.orphanFileLocations())
         .as("trash file should be removed")
         .contains("file:" + location + trashFile);
-    assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
   @AfterEach

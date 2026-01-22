@@ -300,10 +300,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     LOG.info("Deleted {} orphan files", filesCount);
 
-    return ImmutableDeleteOrphanFiles.Result.builder()
-        .orphanFileLocations(orphanFileList)
-        .orphanFilesCount(filesCount)
-        .build();
+    return ImmutableDeleteOrphanFiles.Result.builder().orphanFileLocations(orphanFileList).build();
   }
 
   private void collectPathsForOutput(

@@ -184,9 +184,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result1.orphanFileLocations())
         .as("Default olderThan interval should be safe")
         .isEmpty();
-    assertThat(result1.orphanFilesCount())
-        .as("Default olderThan interval should be safe")
-        .isEqualTo(0L);
 
     DeleteOrphanFiles.Result result2 =
         actions
@@ -198,9 +195,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result2.orphanFileLocations())
         .as("Action should find 1 file")
         .isEqualTo(invalidFiles);
-    assertThat(result2.orphanFilesCount())
-        .as("Action should find 1 file")
-        .isEqualTo((long) invalidFiles.size());
     assertThat(fs.exists(new Path(invalidFiles.get(0))))
         .as("Invalid file should be present")
         .isTrue();
@@ -216,9 +210,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result3.orphanFileLocations())
         .as("Streaming dry run should find 1 file")
         .isEqualTo(invalidFiles);
-    assertThat(result3.orphanFilesCount())
-        .as("Streaming dry run should find 1 file")
-        .isEqualTo((long) invalidFiles.size());
     assertThat(fs.exists(new Path(invalidFiles.get(0))))
         .as("Invalid file should be present after streaming dry run")
         .isTrue();
@@ -232,9 +223,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result4.orphanFileLocations())
         .as("Action should delete 1 file")
         .isEqualTo(invalidFiles);
-    assertThat(result4.orphanFilesCount())
-        .as("Action should delete 1 file")
-        .isEqualTo((long) invalidFiles.size());
     assertThat(fs.exists(new Path(invalidFiles.get(0))))
         .as("Invalid file should not be present")
         .isFalse();
@@ -298,7 +286,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 4 files").hasSize(4);
-    assertThat(result.orphanFilesCount()).as("Should delete 4 files").isEqualTo(4L);
 
     Path dataPath = new Path(tableLocation + "/data");
     FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
@@ -379,7 +366,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .containsExactlyInAnyOrder(
             "remove-orphan-0", "remove-orphan-1", "remove-orphan-2", "remove-orphan-3");
     assertThat(deletedFiles).hasSize(4);
-    assertThat(result.orphanFilesCount()).as("Should delete 4 files").isEqualTo(4L);
   }
 
   @TestTemplate
@@ -424,7 +410,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
     assertThat(result.orphanFileLocations()).as("Should not delete any files").isEmpty();
-    assertThat(result.orphanFilesCount()).as("Should not delete any files").isEqualTo(0L);
   }
 
   @TestTemplate
@@ -455,7 +440,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 1 file").hasSize(1);
-    assertThat(result.orphanFilesCount()).as("Should delete 1 file").isEqualTo(1L);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords =
@@ -494,7 +478,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete only 2 files").hasSize(2);
-    assertThat(result.orphanFilesCount()).as("Should delete only 2 files").isEqualTo(2L);
   }
 
   @TestTemplate
@@ -526,7 +509,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     assertThat(result.orphanFileLocations())
         .containsExactly(tableLocation + "metadata/v1.metadata.json");
-    assertThat(result.orphanFilesCount()).as("Should delete 1 file").isEqualTo(1L);
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(records);
@@ -563,7 +545,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
 
     assertThat(result.orphanFileLocations()).as("Should not delete any files").isEmpty();
-    assertThat(result.orphanFilesCount()).as("Should not delete any files").isEqualTo(0L);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     assertThat(resultDF.count()).as("Rows count must match").isEqualTo(records.size());
@@ -594,7 +575,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
 
     assertThat(result.orphanFileLocations()).as("Should not delete any files").isEmpty();
-    assertThat(result.orphanFilesCount()).as("Should not delete any files").isEqualTo(0L);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     assertThat(resultDF.count()).as("Row count must match").isEqualTo(records.size());
@@ -635,7 +615,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
-    assertThat(result.orphanFilesCount()).as("Should delete 2 files").isEqualTo(2L);
   }
 
   @TestTemplate
@@ -676,7 +655,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
-    assertThat(result.orphanFilesCount()).as("Should delete 2 files").isEqualTo(2L);
   }
 
   @TestTemplate
@@ -716,7 +694,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 0 files").isEmpty();
-    assertThat(result.orphanFilesCount()).as("Should delete 0 files").isEqualTo(0L);
     assertThat(fs.exists(pathToFileInHiddenFolder)).isTrue();
   }
 
@@ -789,9 +766,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result.orphanFileLocations())
         .as("Action should find 1 file")
         .isEqualTo(invalidFiles);
-    assertThat(result.orphanFilesCount())
-        .as("Action should find 1 file")
-        .isEqualTo((long) invalidFiles.size());
     assertThat(fs.exists(new Path(invalidFiles.get(0))))
         .as("Invalid file should be present")
         .isTrue();
@@ -829,7 +803,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete only 1 file").hasSize(1);
-    assertThat(result.orphanFilesCount()).as("Should delete only 1 file").isEqualTo(1L);
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(table.location());
     List<ThreeColumnRecord> actualRecords =
@@ -865,7 +838,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result.orphanFileLocations())
         .as("trash file should be removed")
         .contains("file:" + location + "/data/trashfile");
-    assertThat(result.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
   @TestTemplate
@@ -960,9 +932,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result1.orphanFileLocations())
         .as("Default olderThan interval should be safe")
         .isEmpty();
-    assertThat(result1.orphanFilesCount())
-        .as("Default olderThan interval should be safe")
-        .isEqualTo(0L);
 
     DeleteOrphanFiles.Result result2 =
         actions
@@ -974,9 +943,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result2.orphanFileLocations())
         .as("Action should find 1 file")
         .isEqualTo(invalidFilePaths);
-    assertThat(result2.orphanFilesCount())
-        .as("Action should find 1 file")
-        .isEqualTo((long) invalidFilePaths.size());
     assertThat(fs.exists(new Path(invalidFilePaths.get(0))))
         .as("Invalid file should be present")
         .isTrue();
@@ -990,9 +956,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result3.orphanFileLocations())
         .as("Action should delete 1 file")
         .isEqualTo(invalidFilePaths);
-    assertThat(result3.orphanFilesCount())
-        .as("Action should delete 1 file")
-        .isEqualTo((long) invalidFilePaths.size());
     assertThat(fs.exists(new Path(invalidFilePaths.get(0))))
         .as("Invalid file should not be present")
         .isFalse();
@@ -1022,7 +985,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .deleteWith(s -> {})
             .execute();
     assertThat(result4.orphanFileLocations()).as("Action should find nothing").isEmpty();
-    assertThat(result4.orphanFilesCount()).as("Action should find nothing").isEqualTo(0L);
   }
 
   protected long waitUntilAfter(long timestampMillis) {
@@ -1102,7 +1064,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .execute();
     Iterable<String> orphanFileLocations = result.orphanFileLocations();
     assertThat(orphanFileLocations).hasSize(1).containsExactly(statsLocation.toURI().toString());
-    assertThat(result.orphanFilesCount()).as("Should delete 1 file").isEqualTo(1L);
     assertThat(statsLocation).as("stats file should be deleted").doesNotExist();
   }
 
@@ -1321,9 +1282,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .as("Non-streaming dry-run should return all 10 orphan files")
         .hasSize(10)
         .containsExactlyInAnyOrderElementsOf(invalidFiles);
-    assertThat(nonStreamingResult.orphanFilesCount())
-        .as("Non-streaming dry-run should return all 10 orphan files")
-        .isEqualTo((long) invalidFiles.size());
 
     DeleteOrphanFiles.Result streamingResult =
         SparkActions.get()
@@ -1337,9 +1295,6 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(streamingResult.orphanFileLocations())
         .as("Streaming with sample size 5 should return only 5 orphan files")
         .hasSize(5);
-    assertThat(streamingResult.orphanFilesCount())
-        .as("Deleted 10 files")
-        .isEqualTo((long) invalidFiles.size());
 
     for (String invalidFile : invalidFiles) {
       assertThat(fs.exists(new Path(invalidFile))).as("Orphan file should be deleted").isFalse();

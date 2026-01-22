@@ -60,7 +60,6 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     assertThat(results.orphanFileLocations())
         .as("trash file should be removed")
         .contains("file:" + location + trashFile);
-    assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
   @TestTemplate
@@ -90,7 +89,6 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     assertThat(results.orphanFileLocations())
         .as("trash file should be removed")
         .contains("file:" + location + trashFile);
-    assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
   @TestTemplate
@@ -121,7 +119,6 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     assertThat(StreamSupport.stream(results.orphanFileLocations().spliterator(), false))
         .as("trash file should be removed")
         .anyMatch(file -> file.contains("file:" + location + trashFile));
-    assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
   @TestTemplate
@@ -154,7 +151,6 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     assertThat(results.orphanFileLocations())
         .as("trash file should be removed")
         .contains("file:" + location + trashFile);
-    assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
   @TestTemplate
@@ -187,7 +183,6 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     assertThat(results.orphanFileLocations())
         .as("trash file should be removed")
         .contains("file:" + location + trashFile);
-    assertThat(results.orphanFilesCount()).as("trash file should be removed").isEqualTo(1L);
   }
 
   @AfterEach
