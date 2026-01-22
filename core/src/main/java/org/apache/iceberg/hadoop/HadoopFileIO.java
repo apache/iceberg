@@ -234,29 +234,39 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   /**
-   * Delete a path;
+   * Delete a path.
+   *
+   * <p>If the filesystem is in the trash schemas, it will attempt to move it to trash. If there is
+   * any failure to move to trash then the fallback is to delete the path. As a result: when this
+   * operation returns there will not be a file/dir at the target path.
    *
    * @param fs target filesystem.
    * @param toDelete path to delete/move
    * @param recursive should the delete operation be recursive?
-   * @throws IOException on a failure
+   * @throws IOException on a delete failure.
    */
   private void deletePath(FileSystem fs, Path toDelete, boolean recursive) throws IOException {
     if (isTrashSchema(toDelete)) {
-      Trash trash = new Trash(fs, getConf());
-      if (trash.isEnabled()) {
-        try {
-          if (trash.moveToTrash(toDelete)) {
-            // delete enabled and successful.
-            return;
-          }
-        } catch (FileNotFoundException e) {
-          // the source file is missing.
-
+      try {
+        // use moveToAppropriateTrash() which not only resolves through mounted filesystems like
+        // viewfs,
+        // it will query the resolved filesystem for its trash policy.
+        // The HDFS client will ask the remote server for its configuration, rather than
+        // what the client is configured with.
+        if (Trash.moveToAppropriateTrash(fs, toDelete, fs.getConf())) {
+          // trash enabled and operation successful.
+          return;
         }
+      } catch (FileNotFoundException e) {
+        // the source file is missing. Nothing to do.
+        return;
+      } catch (IOException e) {
+        // other failure (failure to get remote server trash policy, rename,...)
+        // log one line at info, full stack at debug, so a failure to move many files to trash
+        // doesn't flood the log
+        LOG.info("Failed to move {} to trash: {}", toDelete, e.toString());
+        LOG.debug("Trash.moveToAppropriateTrash failure", e);
       }
-      // either trash is disabled or the move operation failed; fallback
-      // to delete.
     }
     fs.delete(toDelete, recursive);
   }
