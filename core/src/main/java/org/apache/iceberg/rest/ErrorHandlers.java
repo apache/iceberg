@@ -142,22 +142,19 @@ public class ErrorHandlers {
     }
   }
 
-  /** Table create error handler */
-  private static class CreateTableErrorHandler extends TableErrorHandler {
+  /** Table create error handler. */
+  private static class CreateTableErrorHandler extends CommitErrorHandler {
     private static final ErrorHandler INSTANCE = new CreateTableErrorHandler();
 
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
-        case 500:
-        case 502:
-        case 503:
-        case 504:
-          throw new CommitStateUnknownException(
-              new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
+        case 404:
+          throw new NoSuchNamespaceException("%s", error.message());
+        case 409:
+          throw new AlreadyExistsException("%s", error.message());
       }
 
-      // Delegate to parent for 404, 409, and all other error codes
       super.accept(error);
     }
   }
