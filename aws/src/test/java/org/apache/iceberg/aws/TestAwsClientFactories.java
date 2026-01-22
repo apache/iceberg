@@ -20,8 +20,6 @@ package org.apache.iceberg.aws;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.util.Map;
@@ -283,8 +281,8 @@ public class TestAwsClientFactories {
   private void assertAwsClientSetsAdaptiveRetryPolicy(AwsClient client) {
     Optional<RetryStrategy> retryStrategy =
         client.serviceClientConfiguration().overrideConfiguration().retryStrategy();
-    assertTrue(retryStrategy.isPresent());
-    assertInstanceOf(DefaultAdaptiveRetryStrategy.class, retryStrategy.get());
+    assertThat(retryStrategy).isPresent();
+    assertThat(retryStrategy.get()).isInstanceOf(DefaultAdaptiveRetryStrategy.class);
   }
 
   private void testProviderAndAssertThrownBy(String providerClassName, String containsMessage) {
