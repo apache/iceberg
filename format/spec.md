@@ -724,7 +724,7 @@ The struct that holds individual stats for a particular field of a table consist
 | max_value_count  | `long`              | 5                                   | false    | The max value count for variable-length types (string/binary)                                                                                                                  |
 | lower_bound      | type of table field | 6                                   | false    | Lower bound in the column serialized as the type of the column itself. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2]    |
 | upper_bound      | type of table field | 7                                   | false    | Upper bound in the column serialized as the type of the column itself. Each value must be greater than or equal to all non-null, non-NaN values in the column for the file [2] |
-| exact_bounds     | `boolean`           | 8                                   | false    | Whether the `upper_bound` / `lower_bound` is exact or not                                                                                                                      |
+| exact_bounds     | `boolean`           | 8                                   | false    | Whether the `upper_bound` / `lower_bound` is exact or not. Types such as string/binary can't have exact bounds. Additionally, if a DV or an equality delete matches a given data file, then `exact_bounds` must be treated as `false` |
 
 #### ID Assignment for Stats fields
 
