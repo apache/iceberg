@@ -67,6 +67,8 @@ public class ResourcePaths {
     return "v1/oauth/tokens";
   }
 
+  public static final String V1_EVENTS = "/v1/{prefix}/events";
+
   private final String prefix;
   private final String namespaceSeparator;
 
@@ -149,6 +151,10 @@ public class ResourcePaths {
 
   public String renameView() {
     return SLASH.join("v1", prefix, "views", "rename");
+  }
+
+  public String events() {
+    return SLASH.join("v1", prefix, "events");
   }
 
   public String planTableScan(TableIdentifier ident) {
