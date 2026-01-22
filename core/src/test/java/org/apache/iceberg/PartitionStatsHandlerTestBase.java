@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_ID;
+import static org.apache.iceberg.PartitionStatistics.EMPTY_PARTITION_FIELD;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -159,10 +159,11 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
             fileFormatProperty);
 
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
-    Schema dataSchema = PartitionStatsHandler.schema(partitionSchema, formatVersion);
+    Schema dataSchema = PartitionStatistics.schema(partitionSchema, formatVersion);
 
     PartitionData partitionData =
-        new PartitionData(dataSchema.findField(PARTITION_FIELD_ID).type().asStructType());
+        new PartitionData(
+            dataSchema.findField(EMPTY_PARTITION_FIELD.fieldId()).type().asStructType());
     partitionData.set(0, true);
     partitionData.set(1, 42);
     partitionData.set(2, 42L);
@@ -228,12 +229,12 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
             fileFormatProperty);
 
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
-    Schema dataSchema = PartitionStatsHandler.schema(partitionSchema, formatVersion);
+    Schema dataSchema = PartitionStatistics.schema(partitionSchema, formatVersion);
 
     ImmutableList.Builder<PartitionStatistics> partitionListBuilder = ImmutableList.builder();
     for (int i = 0; i < 5; i++) {
       PartitionStatistics stats =
-          randomStats(dataSchema.findField(PARTITION_FIELD_ID).type().asStructType());
+          randomStats(dataSchema.findField(EMPTY_PARTITION_FIELD.fieldId()).type().asStructType());
       stats.set(PartitionStatistics.POSITION_DELETE_RECORD_COUNT_POSITION, null);
       stats.set(PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION, null);
       stats.set(PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION, null);
@@ -330,10 +331,10 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     }
 
     Snapshot snapshot1 = testTable.currentSnapshot();
-    Schema recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2);
+    Schema recordSchema = PartitionStatistics.schema(Partitioning.partitionType(testTable), 2);
 
     Types.StructType partitionType =
-        recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
+        recordSchema.findField(EMPTY_PARTITION_FIELD.fieldId()).type().asStructType();
     computeAndValidatePartitionStats(
         testTable,
         recordSchema,
@@ -409,7 +410,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     testTable.newRowDelta().addDeletes(dv).commit();
     Snapshot snapshot4 = testTable.currentSnapshot();
 
-    recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 3);
+    recordSchema = PartitionStatistics.schema(Partitioning.partitionType(testTable), 3);
 
     computeAndValidatePartitionStats(
         testTable,
@@ -600,7 +601,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     Table testTable =
         TestTables.create(tempDir("old_schema"), "old_schema", SCHEMA, spec, 2, fileFormatProperty);
     Types.StructType partitionType = Partitioning.partitionType(testTable);
-    Schema newSchema = PartitionStatsHandler.schema(partitionType, 2);
+    Schema newSchema = PartitionStatistics.schema(partitionType, 2);
     Schema oldSchema = invalidOldSchema(partitionType);
 
     PartitionStatisticsFile invalidStatisticsFile =
@@ -681,7 +682,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
 
     // read with v2 schema
-    Schema v2Schema = PartitionStatsHandler.schema(partitionSchema, 2);
+    Schema v2Schema = PartitionStatistics.schema(partitionSchema, 2);
     List<PartitionStats> partitionStatsV2;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
@@ -690,7 +691,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     }
 
     // read with v3 schema
-    Schema v3Schema = PartitionStatsHandler.schema(partitionSchema, 3);
+    Schema v3Schema = PartitionStatistics.schema(partitionSchema, 3);
     List<PartitionStats> partitionStatsV3;
     try (CloseableIterable<PartitionStats> recordIterator =
         PartitionStatsHandler.readPartitionStatsFile(
