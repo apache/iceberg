@@ -531,6 +531,8 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     // Data appended after the timestamp should appear
     appendData(data);
+    // Allow async background thread to refresh, else test sometimes fails
+    Thread.sleep(50);
     actual = rowsAvailable(query);
     assertThat(actual).containsExactlyInAnyOrderElementsOf(data);
   }
