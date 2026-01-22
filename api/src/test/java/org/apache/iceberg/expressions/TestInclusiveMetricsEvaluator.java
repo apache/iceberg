@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -28,6 +29,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEndsWith;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -245,6 +247,12 @@ public class TestInclusiveMetricsEvaluator {
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notStartsWith("all_nulls", "a")).eval(FILE);
     assertThat(shouldRead).as("Should read: notStartsWith on all null column").isTrue();
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, endsWith("all_nulls", "a")).eval(FILE);
+    assertThat(shouldRead).as("Should skip: endsWith on all null column").isFalse();
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notEndsWith("all_nulls", "a")).eval(FILE);
+    assertThat(shouldRead).as("Should read: notEndsWith on all null column").isTrue();
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNull("some_nulls")).eval(FILE);
     assertThat(shouldRead)
@@ -786,6 +794,28 @@ public class TestInclusiveMetricsEvaluator {
     shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, notStartsWith("required", "abcd"), true).eval(FILE_5);
     assertThat(shouldRead).as("Should not read: lower shorter than prefix, cannot match").isTrue();
+  }
+
+  @Test
+  public void testStringEndsWith() {
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, endsWith("required", "a"), true).eval(FILE);
+    assertThat(shouldRead).as("Should read: no stats").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, endsWith("required", "a"), true).eval(FILE_2);
+    assertThat(shouldRead).as("Should read: no bounds-based pruning for endsWith").isTrue();
+  }
+
+  @Test
+  public void testStringNotEndsWith() {
+    boolean shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notEndsWith("required", "a"), true).eval(FILE);
+    assertThat(shouldRead).as("Should read: no stats").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notEndsWith("required", "a"), true).eval(FILE_2);
+    assertThat(shouldRead).as("Should read: no bounds-based pruning for notEndsWith").isTrue();
   }
 
   @Test

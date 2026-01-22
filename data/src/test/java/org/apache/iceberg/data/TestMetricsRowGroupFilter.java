@@ -19,6 +19,7 @@
 package org.apache.iceberg.data;
 
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -28,6 +29,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEndsWith;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -486,7 +488,9 @@ public class TestMetricsRowGroupFilter {
           isNull("no_stats_parquet"),
           notNull("no_stats_parquet"),
           startsWith("no_stats_parquet", "a"),
-          notStartsWith("no_stats_parquet", "a")
+          notStartsWith("no_stats_parquet", "a"),
+          endsWith("no_stats_parquet", "a"),
+          notEndsWith("no_stats_parquet", "a")
         };
 
     for (Expression expr : exprs) {
@@ -888,6 +892,20 @@ public class TestMetricsRowGroupFilter {
 
     shouldRead = shouldRead(notStartsWith("some_nulls", "som"));
     assertThat(shouldRead).as("Should read: range matches").isTrue();
+  }
+
+  @TestTemplate
+  public void testStringEndsWith() {
+    assertThat(shouldRead(endsWith("str", "1")))
+        .as("Should read: no bounds-based pruning for endsWith")
+        .isTrue();
+  }
+
+  @TestTemplate
+  public void testStringNotEndsWith() {
+    assertThat(shouldRead(notEndsWith("str", "1")))
+        .as("Should read: no bounds-based pruning for notEndsWith")
+        .isTrue();
   }
 
   @TestTemplate

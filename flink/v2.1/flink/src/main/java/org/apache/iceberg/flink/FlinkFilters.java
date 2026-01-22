@@ -45,6 +45,7 @@ public class FlinkFilters {
   private FlinkFilters() {}
 
   private static final Pattern STARTS_WITH_PATTERN = Pattern.compile("([^%]+)%");
+  private static final Pattern ENDS_WITH_PATTERN = Pattern.compile("%([^%]+)");
 
   private static final Map<FunctionDefinition, Operation> FILTERS =
       ImmutableMap.<FunctionDefinition, Operation>builder()
@@ -178,11 +179,18 @@ public class FlinkFilters {
               lit -> {
                 if (lit instanceof String) {
                   String pattern = (String) lit;
-                  Matcher matcher = STARTS_WITH_PATTERN.matcher(pattern);
                   // exclude special char of LIKE
                   // '_' is the wildcard of the SQL LIKE
-                  if (!pattern.contains("_") && matcher.matches()) {
-                    return Optional.of(Expressions.startsWith(name, matcher.group(1)));
+                  if (!pattern.contains("_")) {
+                    Matcher startsWithMatcher = STARTS_WITH_PATTERN.matcher(pattern);
+                    if (startsWithMatcher.matches()) {
+                      return Optional.of(Expressions.startsWith(name, startsWithMatcher.group(1)));
+                    }
+
+                    Matcher endsWithMatcher = ENDS_WITH_PATTERN.matcher(pattern);
+                    if (endsWithMatcher.matches()) {
+                      return Optional.of(Expressions.endsWith(name, endsWithMatcher.group(1)));
+                    }
                   }
                 }
 

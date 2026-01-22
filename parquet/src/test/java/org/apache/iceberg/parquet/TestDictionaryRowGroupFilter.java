@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.endsWith;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -29,6 +30,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEndsWith;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -466,6 +468,99 @@ public class TestDictionaryRowGroupFilter {
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("no_nulls", "xxx"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
+  }
+
+  @TestTemplate
+  public void testEndsWith() {
+    boolean shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, endsWith("non_dict", "eq"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: no dictionary").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, endsWith("required", "eq"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, endsWith("required", "req"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, endsWith("some_nulls", "me"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(
+                SCHEMA, endsWith("no_stats", UUID.randomUUID().toString()))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no stats but dictionary is present").isFalse();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, endsWith("required", "reqs"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, endsWith("some_nulls", "somex"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, endsWith("no_nulls", "xxx"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
+  }
+
+  @TestTemplate
+  public void testNotEndsWith() {
+    boolean shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notEndsWith("non_dict", "eq"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: no dictionary").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notEndsWith("required", "eq"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notEndsWith("required", "req"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notEndsWith("some_nulls", "e!"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(
+                SCHEMA, notEndsWith("no_stats", UUID.randomUUID().toString()))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: no stats but dictionary is present").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notEndsWith("required", "reqs"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notEndsWith("some_nulls", "somex"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notEndsWith("some_nulls", "some"))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notEndsWith("no_nulls", "xxx"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
   }

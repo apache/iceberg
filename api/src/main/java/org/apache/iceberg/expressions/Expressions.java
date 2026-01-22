@@ -202,6 +202,22 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_STARTS_WITH, expr, value);
   }
 
+  public static UnboundPredicate<String> endsWith(String name, String value) {
+    return new UnboundPredicate<>(Expression.Operation.ENDS_WITH, ref(name), value);
+  }
+
+  public static UnboundPredicate<String> endsWith(UnboundTerm<String> expr, String value) {
+    return new UnboundPredicate<>(Expression.Operation.ENDS_WITH, expr, value);
+  }
+
+  public static UnboundPredicate<String> notEndsWith(String name, String value) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_ENDS_WITH, ref(name), value);
+  }
+
+  public static UnboundPredicate<String> notEndsWith(UnboundTerm<String> expr, String value) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_ENDS_WITH, expr, value);
+  }
+
   public static <T> UnboundPredicate<T> in(String name, T... values) {
     return predicate(Operation.IN, name, Lists.newArrayList(values));
   }

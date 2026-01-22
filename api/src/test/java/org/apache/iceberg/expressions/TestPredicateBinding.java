@@ -20,6 +20,7 @@ package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrap;
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapBoundSet;
+import static org.apache.iceberg.expressions.Expression.Operation.ENDS_WITH;
 import static org.apache.iceberg.expressions.Expression.Operation.EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.GT;
 import static org.apache.iceberg.expressions.Expression.Operation.GT_EQ;
@@ -28,6 +29,7 @@ import static org.apache.iceberg.expressions.Expression.Operation.IS_NAN;
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
 import static org.apache.iceberg.expressions.Expression.Operation.LT;
 import static org.apache.iceberg.expressions.Expression.Operation.LT_EQ;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_ENDS_WITH;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_IN;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NAN;
@@ -108,6 +110,25 @@ public class TestPredicateBinding {
     StructType struct = StructType.of(required(17, "x", Types.StringType.get()));
 
     for (Expression.Operation op : Arrays.asList(STARTS_WITH, NOT_STARTS_WITH)) {
+      UnboundPredicate<String> unbound = new UnboundPredicate<>(op, ref("x"), "s");
+
+      Expression expr = unbound.bind(struct);
+      BoundPredicate<Integer> bound = assertAndUnwrap(expr);
+
+      assertThat(bound.isLiteralPredicate()).isTrue();
+      assertThat(String.valueOf(bound.asLiteralPredicate().literal().value()))
+          .as("Should not alter literal value")
+          .isEqualTo("s");
+      assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(17);
+      assertThat(bound.op()).as("Should not change the comparison operation").isEqualTo(op);
+    }
+  }
+
+  @Test
+  public void testPredicateBindingForStringSuffixComparisons() {
+    StructType struct = StructType.of(required(17, "x", Types.StringType.get()));
+
+    for (Expression.Operation op : Arrays.asList(ENDS_WITH, NOT_ENDS_WITH)) {
       UnboundPredicate<String> unbound = new UnboundPredicate<>(op, ref("x"), "s");
 
       Expression expr = unbound.bind(struct);

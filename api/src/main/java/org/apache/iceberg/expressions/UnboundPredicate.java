@@ -168,10 +168,14 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
   }
 
   private Expression bindLiteralOperation(BoundTerm<T> boundTerm) {
-    if (op() == Operation.STARTS_WITH || op() == Operation.NOT_STARTS_WITH) {
+    if (op() == Operation.STARTS_WITH
+        || op() == Operation.NOT_STARTS_WITH
+        || op() == Operation.ENDS_WITH
+        || op() == Operation.NOT_ENDS_WITH) {
       ValidationException.check(
           boundTerm.type().equals(Types.StringType.get()),
-          "Term for STARTS_WITH or NOT_STARTS_WITH must produce a string: %s: %s",
+          "Term for %s must produce a string: %s: %s",
+          op().name(),
           boundTerm,
           boundTerm.type());
     }
@@ -284,6 +288,10 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         return term() + " startsWith \"" + literal() + "\"";
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal() + "\"";
+      case ENDS_WITH:
+        return term() + " endsWith \"" + literal() + "\"";
+      case NOT_ENDS_WITH:
+        return term() + " notEndsWith \"" + literal() + "\"";
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:
