@@ -2596,18 +2596,23 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               assertThat(req.path()).isEqualTo(RESOURCE_PATHS.table(newTable));
               assertThat(req.body()).isInstanceOf(UpdateTableRequest.class);
               UpdateTableRequest body = (UpdateTableRequest) req.body();
-              Optional<MetadataUpdate> appendSnapshot =
-                  body.updates().stream()
-                      .filter(update -> update instanceof MetadataUpdate.AddSnapshot)
-                      .findFirst();
-              assertThat(appendSnapshot).isPresent();
-
-              MetadataUpdate.AddSnapshot addSnapshot =
-                  (MetadataUpdate.AddSnapshot) appendSnapshot.get();
-              String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
-              // Files should still exist because we don't know if commit succeeded
-              assertThat(catalog.loadTable(TABLE).io().newInputFile(manifestListLocation).exists())
-                  .isTrue();
+              assertThat(
+                      body.updates().stream()
+                          .filter(MetadataUpdate.AddSnapshot.class::isInstance)
+                          .map(MetadataUpdate.AddSnapshot.class::cast)
+                          .findFirst())
+                  .hasValueSatisfying(
+                      addSnapshot -> {
+                        String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
+                        // Files should still exist because we don't know if commit succeeded
+                        assertThat(
+                                catalog
+                                    .loadTable(TABLE)
+                                    .io()
+                                    .newInputFile(manifestListLocation)
+                                    .exists())
+                            .isTrue();
+                      });
             });
   }
 
