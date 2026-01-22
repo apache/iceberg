@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.eventtime.TimestampAssigner;
@@ -80,7 +81,7 @@ public class TableMaintenance {
   public static Builder forChangeStream(
       DataStream<TableChange> changeStream,
       TableLoader tableLoader,
-      TriggerLockFactory lockFactory) {
+      @Nullable TriggerLockFactory lockFactory) {
     Preconditions.checkNotNull(changeStream, "The change stream should not be null");
     Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
 
@@ -110,11 +111,13 @@ public class TableMaintenance {
    *
    * @param env used to register the monitor source
    * @param tableLoader used for accessing the table
-   * @param lockFactory used for preventing concurrent task runs,if null, use coordination lock.
+   * @param lockFactory used for preventing concurrent task runs. If null, use coordination lock.
    * @return builder for the maintenance stream
    */
   public static Builder forTable(
-      StreamExecutionEnvironment env, TableLoader tableLoader, TriggerLockFactory lockFactory) {
+      StreamExecutionEnvironment env,
+      TableLoader tableLoader,
+      @Nullable TriggerLockFactory lockFactory) {
     Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
     Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
 
