@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Timeout;
 class TestTableMaintenanceCoordinator extends OperatorTestBase {
   private static final String OPERATOR_NAME = "TestCoordinator";
   private static final OperatorID TEST_OPERATOR_ID = new OperatorID(1234L, 5678L);
-  private static final int NUM_SUBTASKS = 2;
+  private static final int NUM_SUBTASKS = 1;
   private static final LockAcquiredEvent LOCK_ACQUIRED_EVENT =
       new LockAcquiredEvent(DUMMY_TABLE_NAME, 1L);
   private static final LockAcquiredEvent RECOVER_LOCK_ACQUIRED_EVENT =
@@ -86,14 +86,6 @@ class TestTableMaintenanceCoordinator extends OperatorTestBase {
       tableMaintenanceCoordinator.handleEventFromOperator(0, 0, LOCK_RELEASE_EVENT);
       waitForCoordinatorToProcessActions(tableMaintenanceCoordinator);
       assertThat(tableMaintenanceCoordinator.lockHeldMap()).isEmpty();
-    }
-  }
-
-  @Test
-  public void testRecoverEventHandling() throws Exception {
-    try (TableMaintenanceCoordinator tableMaintenanceCoordinator = createCoordinator()) {
-      tableMaintenanceCoordinator.start();
-      tasksReady(tableMaintenanceCoordinator);
 
       // check lock held set
       tableMaintenanceCoordinator.handleEventFromOperator(0, 0, LOCK_ACQUIRED_EVENT);

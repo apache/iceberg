@@ -119,6 +119,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
           if (!LOCK_HELD_MAP.containsKey(lockId)) {
             LOCK_HELD_MAP.put(lockId, event.timestamp());
             isHeld = true;
+            LOG.info("Add lock for lock id {}, timestamp: {}", event.lockId(), event.timestamp());
           } else {
             Long triggerTimestamp = LOCK_HELD_MAP.get(event.lockId());
             if (event.timestamp() == Long.MAX_VALUE) {
@@ -374,7 +375,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
   }
 
   @VisibleForTesting
-  static Map<String, Long> lockHeldMap() {
+  Map<String, Long> lockHeldMap() {
     return LOCK_HELD_MAP;
   }
 }
