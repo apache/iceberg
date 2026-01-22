@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -1361,7 +1360,7 @@ public class TestExpressionUtil {
 
     assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
         .as("Should detect UUID lt predicate")
-        .isPresent();
+        .isNotNull();
   }
 
   @Test
@@ -1370,7 +1369,7 @@ public class TestExpressionUtil {
 
     assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
         .as("Should detect UUID eq predicate")
-        .isPresent();
+        .isNotNull();
   }
 
   @Test
@@ -1379,7 +1378,7 @@ public class TestExpressionUtil {
 
     assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
         .as("Should detect UUID in predicate")
-        .isPresent();
+        .isNotNull();
   }
 
   @Test
@@ -1388,7 +1387,7 @@ public class TestExpressionUtil {
 
     assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
         .as("Should not detect non-UUID predicate")
-        .isEmpty();
+        .isNull();
   }
 
   @Test
@@ -1397,7 +1396,7 @@ public class TestExpressionUtil {
 
     assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
         .as("Should not detect UUID isNull predicate (doesn't compare against bounds)")
-        .isEmpty();
+        .isNull();
   }
 
   @Test
@@ -1408,7 +1407,7 @@ public class TestExpressionUtil {
 
     assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
         .as("Should detect UUID predicate in compound expression")
-        .isPresent();
+        .isNotNull();
   }
 
   @Test
@@ -1416,10 +1415,10 @@ public class TestExpressionUtil {
     UUID testUuid = UUID.randomUUID();
     Expression original = Expressions.equal("uuid_col", testUuid);
 
-    Optional<Expression> result = ExpressionUtil.toSignedUUIDLiteral(original);
-    assertThat(result).isPresent();
-    assertThat(result.get()).isInstanceOf(UnboundPredicate.class);
-    UnboundPredicate<?> pred = (UnboundPredicate<?>) result.get();
+    Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
+    assertThat(result).isNotNull();
+    assertThat(result).isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> pred = (UnboundPredicate<?>) result;
     assertThat(pred.literal().value()).isEqualTo(testUuid);
     // The literal should now use the signed comparator
     assertThat(pred.literal()).isInstanceOf(Literals.UUIDLiteral.class);
@@ -1431,10 +1430,10 @@ public class TestExpressionUtil {
     UUID uuid2 = UUID.randomUUID();
     Expression original = Expressions.in("uuid_col", uuid1, uuid2);
 
-    Optional<Expression> result = ExpressionUtil.toSignedUUIDLiteral(original);
-    assertThat(result).isPresent();
-    assertThat(result.get()).isInstanceOf(UnboundPredicate.class);
-    UnboundPredicate<?> pred = (UnboundPredicate<?>) result.get();
+    Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
+    assertThat(result).isNotNull();
+    assertThat(result).isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> pred = (UnboundPredicate<?>) result;
     assertThat(pred.literals()).hasSize(2);
   }
 
@@ -1445,10 +1444,10 @@ public class TestExpressionUtil {
         Expressions.and(
             Expressions.equal("id", 42L), Expressions.greaterThan("uuid_col", testUuid));
 
-    Optional<Expression> result = ExpressionUtil.toSignedUUIDLiteral(original);
-    assertThat(result).isPresent();
-    assertThat(result.get()).isInstanceOf(And.class);
-    And and = (And) result.get();
+    Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
+    assertThat(result).isNotNull();
+    assertThat(result).isInstanceOf(And.class);
+    And and = (And) result;
     // Both children should be transformed
     assertThat(and.left()).isInstanceOf(UnboundPredicate.class);
     assertThat(and.right()).isInstanceOf(UnboundPredicate.class);

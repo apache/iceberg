@@ -72,10 +72,9 @@ public class InclusiveMetricsEvaluator {
     this.expr = Binder.bind(struct, rewritten, caseSensitive);
 
     // Create the signed UUID expression iff there are UUID predicates that compare against bounds.
+    Expression transformed = ExpressionUtil.toSignedUUIDLiteral(rewritten);
     this.signedUuidExpr =
-        ExpressionUtil.toSignedUUIDLiteral(rewritten)
-            .map(transformed -> Binder.bind(struct, transformed, caseSensitive))
-            .orElse(null);
+        transformed != null ? Binder.bind(struct, transformed, caseSensitive) : null;
   }
 
   /**
@@ -86,7 +85,7 @@ public class InclusiveMetricsEvaluator {
    */
   public boolean eval(ContentFile<?> file) {
     // TODO: detect the case where a column is missing from the file using file's max field id.
-    boolean result = new MetricsEvalVisitor().eval(file, expr, false);
+    boolean result = new MetricsEvalVisitor().eval(file, false);
 
     // If the RFC-compliant evaluation says rows might match, or there's no signed UUID expression,
     // return the result.
@@ -96,7 +95,7 @@ public class InclusiveMetricsEvaluator {
 
     // Always try with signed UUID comparator as a fallback. There is no reliable way to detect
     // which comparator was used when the file's column metrics were written.
-    return new MetricsEvalVisitor().eval(file, signedUuidExpr, true);
+    return new MetricsEvalVisitor().eval(file, true);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
@@ -113,7 +112,7 @@ public class InclusiveMetricsEvaluator {
     // when binding converts literals to a Set<T> of raw values.
     private boolean useSignedUuidComparator = false;
 
-    private boolean eval(ContentFile<?> file, Expression expression, boolean signedUuidMode) {
+    private boolean eval(ContentFile<?> file, boolean signedUuidMode) {
       if (file.recordCount() == 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -132,7 +131,7 @@ public class InclusiveMetricsEvaluator {
       this.upperBounds = file.upperBounds();
       this.useSignedUuidComparator = signedUuidMode;
 
-      return ExpressionVisitors.visitEvaluator(expression, this);
+      return ExpressionVisitors.visitEvaluator(signedUuidMode ? signedUuidExpr : expr, this);
     }
 
     /**

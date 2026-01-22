@@ -24,7 +24,6 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -32,6 +31,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -760,10 +760,11 @@ public class ExpressionUtil {
    * @return Optional containing the transformed expression if UUID bounds predicates exist, or
    *     empty if no UUID bounds predicates were found
    */
-  public static Optional<Expression> toSignedUUIDLiteral(Expression expr) {
+  @Nullable
+  public static Expression toSignedUUIDLiteral(Expression expr) {
     SignedUUIDLiteralVisitor visitor = new SignedUUIDLiteralVisitor();
     Expression transformed = ExpressionVisitors.visit(expr, visitor);
-    return visitor.foundUUIDBoundsPredicate() ? Optional.of(transformed) : Optional.empty();
+    return visitor.foundUUIDBoundsPredicate() ? transformed : null;
   }
 
   /**
