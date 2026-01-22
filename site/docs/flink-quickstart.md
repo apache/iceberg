@@ -74,22 +74,10 @@ CREATE CATALOG iceberg_catalog WITH (
 );
 ```
 
-Then make this the active catalog in your Flink SQL session:
-
-```sql
-USE CATALOG iceberg_catalog;
-```
-
 Create a database in the catalog:
 
 ```sql
-CREATE DATABASE IF NOT EXISTS nyc;
-```
-
-and set it as active:
-
-```sql
-USE nyc;
+CREATE DATABASE IF NOT EXISTS iceberg_catalog.nyc;
 ```
 
 ## Creating a Table
@@ -145,13 +133,10 @@ SELECT * FROM iceberg_catalog.nyc.taxis;
 Creating a Flink catalog as shown above, backed by an Iceberg catalog, is one way to use Iceberg in Flink.
 Another way is to use the [Iceberg connector](/docs/latest/flink-connector.md) and specify the Iceberg details as table properties:
 
-First, switch to the default catalog (otherwise the table would be created using the Iceberg details that we configured in the catalog definition above):
-
-```sql
-USE CATALOG default_catalog;
-```
-
 Now create a table using inline configuration:
+
+!!! note
+    The table is _not_ being created in the Iceberg catalog that we created above (since we've not supplied it as a prefix). Otherwise it would be using the Iceberg details that we configured in the catalog definition.
 
 ```sql
 CREATE TABLE taxis_inline_config (
@@ -173,6 +158,7 @@ CREATE TABLE taxis_inline_config (
     's3.path-style-access' = 'true'
 );
 ```
+
 
 ## Learn More
 
