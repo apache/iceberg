@@ -251,6 +251,24 @@ public class Comparators {
     return Comparator.naturalOrder();
   }
 
+  /**
+   * Returns the given comparator for a type or the signed UUID comparator, conditionally.
+   *
+   * @param type the Iceberg type
+   * @param defaultComparator the default comparator to use for non-UUID types or when signed UUID
+   *     comparison is not requested
+   * @param useSignedUuid if true and the type is UUID, returns a signed UUID comparator
+   * @return the appropriate comparator
+   */
+  @SuppressWarnings("unchecked")
+  public static <T> Comparator<T> comparatorFor(
+      Type type, Comparator<T> defaultComparator, boolean useSignedUuid) {
+    if (useSignedUuid && type.typeId() == Type.TypeID.UUID) {
+      return (Comparator<T>) signedUUIDs();
+    }
+    return defaultComparator;
+  }
+
   private static class NullsFirst<T> implements Comparator<T> {
     private static final NullsFirst<?> INSTANCE = new NullsFirst<>();
 

@@ -32,7 +32,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 import org.apache.iceberg.variants.Variant;
@@ -132,20 +131,6 @@ public class InclusiveMetricsEvaluator {
       this.useSignedUuidComparator = signedUuidMode;
 
       return ExpressionVisitors.visitEvaluator(signedUuidMode ? signedUuidExpr : expr, this);
-    }
-
-    /**
-     * Returns the appropriate comparator for the given term. This is needed for the IN predicate
-     * because the comparator information is lost when binding converts literals to a Set of raw
-     * values. For other predicates, the literal carries the comparator.
-     */
-    @SuppressWarnings("unchecked")
-    private <T> Comparator<T> comparatorForIn(Bound<T> term) {
-      if (useSignedUuidComparator && term.ref().type().typeId() == Type.TypeID.UUID) {
-        return (Comparator<T>) Comparators.signedUUIDs();
-      }
-
-      return ((BoundTerm<T>) term).comparator();
     }
 
     @Override
@@ -399,7 +384,10 @@ public class InclusiveMetricsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      Comparator<T> cmp = comparatorForIn(term);
+      // use an appropriate comparator, for UUIDs use the signed comparator if requested
+      Comparator<T> cmp =
+          Comparators.comparatorFor(
+              term.ref().type(), ((BoundTerm<T>) term).comparator(), useSignedUuidComparator);
       literals =
           literals.stream().filter(v -> cmp.compare(lower, v) <= 0).collect(Collectors.toList());
       // if all values are less than lower bound, rows cannot match

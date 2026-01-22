@@ -118,20 +118,6 @@ public class ManifestEvaluator {
       return ExpressionVisitors.visitEvaluator(signedUuidMode ? signedUuidExpr : expr, this);
     }
 
-    /**
-     * Returns the appropriate comparator for the given reference. This is needed for the IN
-     * predicate because the comparator information is lost when binding converts literals to a Set
-     * of raw values. For other predicates, the literal carries the comparator.
-     */
-    @SuppressWarnings("unchecked")
-    private <T> Comparator<T> comparatorForIn(BoundReference<T> ref) {
-      if (useSignedUuidComparator && ref.type().typeId() == Type.TypeID.UUID) {
-        return (Comparator<T>) Comparators.signedUUIDs();
-      }
-
-      return ref.comparator();
-    }
-
     @Override
     public Boolean alwaysTrue() {
       return ROWS_MIGHT_MATCH; // all rows match
@@ -335,7 +321,9 @@ public class ManifestEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      Comparator<T> cmp = comparatorForIn(ref);
+      // use an appropriate comparator, for UUIDs use the signed comparator if requested
+      Comparator<T> cmp =
+          Comparators.comparatorFor(ref.type(), ref.comparator(), useSignedUuidComparator);
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
       literals =
           literals.stream().filter(v -> cmp.compare(lower, v) <= 0).collect(Collectors.toList());

@@ -91,7 +91,7 @@ public class ParquetMetricsRowGroupFilter {
     // Try again with signed UUID comparator. There is no quick way to detect
     // which comparator was used when the file's column metrics were written.
     // The signedUuidExpr has literals with signed comparators for lt/gt/eq predicates.
-    // For IN predicates, signed comparator is used via MetricsEvalVisitor#comparatorForIn.
+    // For IN predicates, signed comparator is used via Comparators#comparatorFor.
     return new MetricsEvalVisitor().eval(fileSchema, rowGroup, true);
   }
 
@@ -128,21 +128,6 @@ public class ParquetMetricsRowGroupFilter {
       }
 
       return ExpressionVisitors.visitEvaluator(signedUuidMode ? signedUuidExpr : expr, this);
-    }
-
-    /**
-     * Returns the appropriate comparator for the given reference. This is needed for the IN
-     * predicate because the comparator information is lost when binding converts literals to a Set
-     * of raw values. For other predicates, the literal carries the comparator.
-     */
-    @SuppressWarnings("unchecked")
-    private <T> Comparator<T> comparatorForIn(BoundReference<T> ref) {
-      if (useSignedUuidComparator
-          && ref.type().typeId() == org.apache.iceberg.types.Type.TypeID.UUID) {
-        return (Comparator<T>) Comparators.signedUUIDs();
-      }
-
-      return ref.comparator();
     }
 
     @Override
@@ -448,7 +433,9 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_MIGHT_MATCH;
         }
 
-        Comparator<T> cmp = comparatorForIn(ref);
+        // use an appropriate comparator, for UUIDs use the signed comparator if requested
+        Comparator<T> cmp =
+            Comparators.comparatorFor(ref.type(), ref.comparator(), useSignedUuidComparator);
         T lower = min(colStats, id);
         literals =
             literals.stream().filter(v -> cmp.compare(lower, v) <= 0).collect(Collectors.toList());
