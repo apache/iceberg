@@ -268,6 +268,13 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void testRegisterView() {
+    Namespace ns = Namespace.of("ns");
+    assertThat(withPrefix.registerView(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/register-view");
+    assertThat(withoutPrefix.registerView(ns)).isEqualTo("v1/namespaces/ns/register-view");
+  }
+
+  @Test
   public void planEndpointPath() {
     TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
 
