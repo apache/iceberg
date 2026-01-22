@@ -284,7 +284,7 @@ public class DataFileRewriteRunner
     }
 
     boolean allTheSamePartition =
-        group.rewrittenFiles().stream().anyMatch(file -> file.specId() != table.spec().specId());
+        group.rewrittenFiles().stream().anyMatch(file -> file.specId() != group.outputSpecId());
     if (allTheSamePartition) {
       return null;
     }
