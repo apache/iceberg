@@ -1321,8 +1321,7 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder createBatchedReaderFunc(
-        Function<MessageType, VectorizedReader<?>> newReaderFunction) {
+    public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
       Preconditions.checkArgument(
           this.batchedReaderFunc == null,
           "Cannot set batched reader function: batched reader function already set");
@@ -1332,12 +1331,12 @@ public class Parquet {
       Preconditions.checkArgument(
           this.readerFunction == null,
           "Cannot set batched reader function: ReaderFunction already set");
-      this.batchedReaderFunc = newReaderFunction;
+      this.batchedReaderFunc = func;
       return this;
     }
 
     public ReadBuilder createBatchedReaderFunc(
-        BiFunction<Schema, MessageType, VectorizedReader<?>> newReaderFunction) {
+        BiFunction<Schema, MessageType, VectorizedReader<?>> func) {
       Preconditions.checkArgument(
           this.batchedReaderFunc == null,
           "Cannot set batched reader function: batched reader function already set");
@@ -1347,7 +1346,7 @@ public class Parquet {
       Preconditions.checkArgument(
           this.readerFunction == null,
           "Cannot set batched reader function: ReaderFunction already set");
-      this.batchedReaderFuncWithSchema = newReaderFunction;
+      this.batchedReaderFuncWithSchema = func;
       return this;
     }
 
@@ -1471,16 +1470,16 @@ public class Parquet {
           mapping = NameMapping.empty();
         }
 
-        Function<MessageType, VectorizedReader<?>> batchedReaderBuilder =
+        Function<MessageType, VectorizedReader<?>> batchedFunc =
             batchedReaderFuncWithSchema != null
                 ? messageType -> batchedReaderFuncWithSchema.apply(schema, messageType)
                 : batchedReaderFunc;
-        if (batchedReaderBuilder != null) {
+        if (batchedFunc != null) {
           return new VectorizedParquetReader<>(
               file,
               schema,
               options,
-              batchedReaderBuilder,
+              batchedFunc,
               mapping,
               filter,
               reuseContainers,

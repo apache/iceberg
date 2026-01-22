@@ -111,7 +111,7 @@ public class ParquetFormatModel<D, S, R>
     }
 
     @Override
-    public WriteBuilder<D, S> inputSchema(S schema) {
+    public WriteBuilder<D, S> engineSchema(S schema) {
       this.inputSchema = schema;
       return this;
     }
@@ -236,7 +236,7 @@ public class ParquetFormatModel<D, S, R>
     }
 
     @Override
-    public ReadBuilder<D, S> outputSchema(S schema) {
+    public ReadBuilder<D, S> engineProjection(S schema) {
       this.engineSchema = schema;
       return this;
     }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.avro;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.avro.Schema;
@@ -94,7 +95,7 @@ public class AvroFormatModel<D, S>
     }
 
     @Override
-    public WriteBuilder<D, S> inputSchema(S schema) {
+    public WriteBuilder<D, S> engineSchema(S schema) {
       this.inputSchema = schema;
       return this;
     }
@@ -152,7 +153,7 @@ public class AvroFormatModel<D, S>
     }
 
     @Override
-    public org.apache.iceberg.io.FileAppender<D> build() throws java.io.IOException {
+    public org.apache.iceberg.io.FileAppender<D> build() throws IOException {
       switch (content) {
         case DATA:
           internal.createContextFunc(Avro.WriteBuilder.Context::dataContext);
@@ -202,7 +203,7 @@ public class AvroFormatModel<D, S>
     }
 
     @Override
-    public ReadBuilder<D, S> outputSchema(S schema) {
+    public ReadBuilder<D, S> engineProjection(S schema) {
       this.engineSchema = schema;
       return this;
     }
@@ -210,12 +211,14 @@ public class AvroFormatModel<D, S>
     @Override
     public ReadBuilder<D, S> caseSensitive(boolean caseSensitive) {
       // Filtering is not supported in Avro reader, so case sensitivity does not matter
+      // This is not an error since filtering is best-effort.
       return this;
     }
 
     @Override
     public ReadBuilder<D, S> filter(Expression filter) {
       // Filtering is not supported in Avro reader
+      // This is not an error since filtering is best-effort.
       return this;
     }
 

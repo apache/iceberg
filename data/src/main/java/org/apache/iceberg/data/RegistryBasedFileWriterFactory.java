@@ -111,7 +111,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
           FormatModelRegistry.dataWriteBuilder(dataFileFormat, inputType, file);
       return builder
           .schema(dataSchema)
-          .inputSchema(inputSchema())
+          .engineSchema(inputSchema())
           .setAll(properties)
           .setAll(writerProperties)
           .metricsConfig(metricsConfig)
@@ -143,8 +143,8 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
           .setAll(properties)
           .setAll(writerProperties)
           .metricsConfig(metricsConfig)
-          .rowSchema(equalityDeleteRowSchema)
-          .inputSchema(equalityDeleteInputSchema())
+          .schema(equalityDeleteRowSchema)
+          .engineSchema(equalityDeleteInputSchema())
           .equalityFieldIds(equalityFieldIds)
           .spec(spec)
           .partition(partition)

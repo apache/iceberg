@@ -172,8 +172,8 @@ abstract class CommonWriteBuilderImpl<B extends CommonWriteBuilder<B>, D, S>
     }
 
     @Override
-    public DataFileWriteBuilder<D, S> inputSchema(S schema) {
-      super.writeBuilder.inputSchema(schema);
+    public DataFileWriteBuilder<D, S> engineSchema(S schema) {
+      super.writeBuilder.engineSchema(schema);
       return this;
     }
 
@@ -203,7 +203,7 @@ abstract class CommonWriteBuilderImpl<B extends CommonWriteBuilder<B>, D, S>
   private static class EqualityDeleteFileWriteBuilder<D, S>
       extends CommonWriteBuilderImpl<EqualityDeleteWriteBuilder<D, S>, D, S>
       implements EqualityDeleteWriteBuilder<D, S> {
-    private Schema rowSchema = null;
+    private Schema schema = null;
     private int[] equalityFieldIds = null;
 
     private EqualityDeleteFileWriteBuilder(
@@ -212,8 +212,8 @@ abstract class CommonWriteBuilderImpl<B extends CommonWriteBuilder<B>, D, S>
     }
 
     @Override
-    public EqualityDeleteFileWriteBuilder<D, S> inputSchema(S schema) {
-      super.writeBuilder.inputSchema(schema);
+    public EqualityDeleteFileWriteBuilder<D, S> engineSchema(S newSchema) {
+      super.writeBuilder.engineSchema(newSchema);
       return this;
     }
 
@@ -223,8 +223,8 @@ abstract class CommonWriteBuilderImpl<B extends CommonWriteBuilder<B>, D, S>
     }
 
     @Override
-    public EqualityDeleteFileWriteBuilder<D, S> rowSchema(Schema schema) {
-      this.rowSchema = schema;
+    public EqualityDeleteFileWriteBuilder<D, S> schema(Schema newSchema) {
+      this.schema = newSchema;
       return this;
     }
 
@@ -237,7 +237,7 @@ abstract class CommonWriteBuilderImpl<B extends CommonWriteBuilder<B>, D, S>
     @Override
     public EqualityDeleteWriter<D> build() throws IOException {
       Preconditions.checkState(
-          rowSchema != null, "Cannot create equality delete file without a schema");
+          schema != null, "Cannot create equality delete file without a schema");
       Preconditions.checkState(
           equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
       Preconditions.checkArgument(
@@ -248,7 +248,7 @@ abstract class CommonWriteBuilderImpl<B extends CommonWriteBuilder<B>, D, S>
 
       return new EqualityDeleteWriter<>(
           super.writeBuilder
-              .schema(rowSchema)
+              .schema(schema)
               .meta("delete-type", "equality")
               .meta(
                   "delete-field-ids",

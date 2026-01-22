@@ -41,14 +41,16 @@ import org.apache.iceberg.util.ArrayUtil;
 public interface EqualityDeleteWriteBuilder<D, S>
     extends CommonWriteBuilder<EqualityDeleteWriteBuilder<D, S>> {
 
-  /**
-   * Sets the input schema accepted by the writer. If not provided derived from the {@link
-   * #rowSchema(Schema)}.
-   */
-  EqualityDeleteWriteBuilder<D, S> inputSchema(S schema);
-
   /** Sets the row schema for the delete writers. */
-  EqualityDeleteWriteBuilder<D, S> rowSchema(Schema rowSchema);
+  EqualityDeleteWriteBuilder<D, S> schema(Schema schema);
+
+  /**
+   * Sets the engine's representation accepted by the writer.
+   *
+   * <p>When provided, this schema should be consistent with the provided Iceberg schema, while
+   * allowing representation differences that Iceberg considers equivalent.
+   */
+  EqualityDeleteWriteBuilder<D, S> engineSchema(S schema);
 
   /** Sets the equality field ids for the equality delete writer. */
   default EqualityDeleteWriteBuilder<D, S> equalityFieldIds(List<Integer> fieldIds) {
@@ -65,7 +67,7 @@ public interface EqualityDeleteWriteBuilder<D, S>
    * based on field equality, generating proper {@link DeleteFile} metadata on completion.
    *
    * <p>The writer accepts input records exactly matching the input schema specified via {@link
-   * #rowSchema(Schema)} for deletion.
+   * #schema(Schema)} for deletion.
    *
    * @return a fully configured {@link EqualityDeleteWriter} instance
    * @throws IOException if the writer cannot be created due to I/O errors

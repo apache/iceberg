@@ -40,10 +40,18 @@ public interface DataWriteBuilder<D, S> extends CommonWriteBuilder<DataWriteBuil
   DataWriteBuilder<D, S> schema(Schema schema);
 
   /**
-   * Sets the input schema accepted by the writer. If not provided derived from the {@link
-   * #schema(Schema)}.
+   * Sets the engine's representation accepted by the writer.
+   *
+   * <p>When provided, this schema should be consistent with the provided Iceberg schema, while
+   * allowing representation differences that Iceberg considers equivalent. Examples include:
+   *
+   * <ul>
+   *   <li>representing an Iceberg {@code int} column using {@code smallint},
+   *   <li>supplying a shredded representation for a variant type, or
+   *   <li>selecting specific concrete classes for Iceberg structs.
+   * </ul>
    */
-  DataWriteBuilder<D, S> inputSchema(S schema);
+  DataWriteBuilder<D, S> engineSchema(S schema);
 
   /**
    * Creates a data file writer configured with the current builder settings.
