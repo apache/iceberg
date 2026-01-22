@@ -28,9 +28,6 @@ Depending on the function type, the result can be:
 - **Scalar function (UDF)** – returns a single value, which may be a primitive type (e.g., `int`, `string`) or a non-primitive type (e.g., `struct`, `list`).
 - **Table function (UDTF)** – returns a table with zero or more rows of columns with a uniform schema.
 
-Many compute engines (e.g., Spark, Trino) already support UDFs, but in different and incompatible ways. Without a common
-standard, UDFs cannot be reliably shared across engines or reused in multi-engine environments.
-
 This specification introduces a standardized metadata format for UDFs in Iceberg.
 
 ## Goals
@@ -53,19 +50,19 @@ properties, and engine-specific representations.
 ### UDF Metadata
 The UDF metadata file has the following fields:
 
-| Requirement | Field name        | Type                   | Description                                                           |
-|-------------|-------------------|------------------------|-----------------------------------------------------------------------|
-| *required*  | `function-uuid`   | `string`               | A UUID that identifies the function, generated once at creation.      |
-| *required*  | `format-version`  | `int`                  | Metadata format version (must be `1`).                                |
-| *required*  | `definitions`     | `list<definition>`     | List of function [definition](#definition) entities.                  |
-| *required*  | `definition-log`  | `list<definition-log>` | History of [definition snapshots](#definition-log).                   |
-| *optional*  | `location`        | `string`               | The function's base location; used to create metadata file locations. |
-| *optional*  | `properties`      | `map<string,string>`   | A string-to-string map of properties.                                 |
-| *optional*  | `secure`          | `boolean`              | Whether it is a secure function. Default: `false`.                    |
-| *optional*  | `doc`             | `string`               | Documentation string.                                                 |
+| Requirement | Field name       | Type                   | Description                                                           |
+|-------------|------------------|------------------------|-----------------------------------------------------------------------|
+| *required*  | `function-uuid`  | `string`               | A UUID that identifies this UDF, generated once at creation.          |
+| *required*  | `format-version` | `int`                  | UDF specification format version (must be `1`).                       |
+| *required*  | `definitions`    | `list<definition>`     | List of function [definition](#definition) entities.                  |
+| *required*  | `definition-log` | `list<definition-log>` | History of [definition snapshots](#definition-log).                   |
+| *optional*  | `location`       | `string`               | The function's base location; used to create metadata file locations. |
+| *optional*  | `properties`     | `map<string,string>`   | A string-to-string map of properties.                                 |
+| *optional*  | `secure`         | `boolean`              | Whether it is a secure function. Default: `false`.                    |
+| *optional*  | `doc`            | `string`               | Documentation string.                                                 |
 
 Notes:
-1. Engines must prevent leakage of sensitive information when a function is marked as `secure` by setting it to `true`.
+1. Engines must prevent leakage of sensitive information to end users when a function is marked as `secure` by setting the property to `true`.
 2. Entries in `properties` are treated as hints, not strict rules.
 
 ### Definition
@@ -76,40 +73,36 @@ Each `definition` represents one function signature (e.g., `add_one(int)` vs `ad
 |-------------|----------------------|-------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
 | *required*  | `definition-id`      | `string`                                        | An identifier derived from canonical parameter-type tuple (lowercase, no spaces; e.g., `"(int,int,string)"`). |
 | *required*  | `parameters`         | `list<parameter>`                               | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.                 |
-| *required*  | `return-type`        | `string`                                        | Declared return type (see [Parameter Type](#parameter-type)).                                                 |
-| *optional*  | `nullable-return`    | `boolean`                                       | A hint to indicate whether the return value is nullable or not. Default: `true`.                              |
+| *required*  | `return-type`        | `string`                                        | Declared return type (see [Types](#types)).                                                                   |
+| *optional*  | `return-nullable`    | `boolean`                                       | A hint to indicate whether the return value is nullable or not. Default: `true`.                              |
 | *required*  | `versions`           | `list<definition-version>`                      | [Versioned implementations](#definition-version) of this definition.                                          |
 | *required*  | `current-version-id` | `int`                                           | Identifier of the current version for this definition.                                                        |
-| *optional*  | `function-type`      | `string` (`"udf"` or `"udtf"`, default `"udf"`) | If `"udtf"`, `return-type` must be an Iceberg type `struct` describing the output schema.                     |
+| *required*  | `function-type`      | `string` (`"udf"` or `"udtf"`, default `"udf"`) | If `"udtf"`, `return-type` must be an Iceberg type `struct` describing the output schema.                     |
 | *optional*  | `doc`                | `string`                                        | Documentation string.                                                                                         |
 
+A definition is uniquely identified by its signature (the ordered list of parameter types). There can be only one definition
+for a given signature. All versions within a definition must accept the same signature as specified in the definition's
+`parameters` field and must produce values of the declared `return-type`.
+
 ### Parameter
-| Requirement | Field  | Type     | Description                                                  |
-|-------------|--------|----------|--------------------------------------------------------------|
-| *required*  | `type` | `string` | Parameter data type (see [Parameter Type](#parameter-type)). |
-| *required*  | `name` | `string` | Parameter name.                                              |
-| *optional*  | `doc`  | `string` | Parameter documentation.                                     |
+| Requirement | Field  | Type     | Description                                |
+|-------------|--------|----------|--------------------------------------------|
+| *required*  | `type` | `string` | Parameter data type (see [Types](#types)). |
+| *required*  | `name` | `string` | Parameter name.                            |
+| *optional*  | `doc`  | `string` | Parameter documentation.                   |
 
 Notes:
-1. Function definitions are identified by the tuple of `type`s and there can be only one definition for a given tuple.
-   The type tuple is immutable across versions.
-2. Variadic (vararg) parameters are not supported. Each definition must declare a fixed number of parameters.
-3. Each parameter input MUST be assignable to its declared Iceberg type. For complex types, the value’s
-   structure must match (correct field names, element/key/value types, and nesting). If a parameter—or any nested
-   field/element—is marked required, engines MUST reject null at that position (including inside structs, lists, and maps).
-4. The `return-type` is immutable across versions. To change it, users must create a new definition and remove the old one.
-5. The function MUST return a value assignable to the declared `return-type`, meaning the returned value’s type and
-   structure must match the declared Iceberg type (including field names, element types, and nesting for complex types),
-   and any field or element marked as required MUST NOT be null. Engines MUST reject results that violate these rules.
+1. Variadic (vararg) parameters are not supported. Each definition must declare a fixed number of parameters.
 
-#### Parameter-Type
+#### Types
 Primitive types are encoded using the [Iceberg Type JSON Representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization),
 for example `"int"`, `"string"`.
 
-Three composite types are supported. 
+Three nested types are supported. All type parameters must be concrete types:
 * `list<T>`: Ordered, homogeneous collection of elements of type `T` (any Iceberg type); example `list<int>`.
 * `map<K,V>`: Key–value collection; `K` must be a primitive, comparable type (`string` recommended); example `map<string,int>`.
-* `struct<...>`: Closed record with explicitly named fields; field order is significant and undeclared fields are not allowed; example `struct<id:int,name:string>`.
+* `struct<f1:T1,f2:T2,...>`: Record with named fields specified as `name:type` pairs separated by commas; field order is
+   significant and undeclared fields are not allowed; example `struct<id:int,name:string>`.
 
 ### Definition-Version
 
@@ -130,6 +123,7 @@ Note:
 1. If set to `returns_null_on_null_input`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to apply predicate pushdown or skip function evaluation for rows with `NULL` inputs. For a function `f(x, y) = x + y`,
 the engine can safely rewrite `WHERE f(a,b) > 0` as `WHERE a IS NOT NULL AND b IS NOT NULL AND f(a,b) > 0`.
 2. If set to `called_on_null_input`, the function may handle `NULL`s internally (e.g., `COALESCE`, `NVL`, `IFNULL`), so the engine must execute the function even if some inputs are `NULL`.
+3. A definition version can have multiple SQL representations of different dialects, but only one SQL representation per dialect.
 
 ### Representation
 A representation encodes how the definition version is expressed in a specific SQL dialect.
@@ -140,7 +134,9 @@ A representation encodes how the definition version is expressed in a specific S
 | *required*  | `dialect`    | `string`          | SQL dialect identifier (e.g., `"spark"`, `"trino"`).                                        |
 | *required*  | `body`       | `string`          | SQL expression text.                                                                        |
 
-Note: The `body` must be valid SQL in the specified dialect; validation is the responsibility of the consuming engine.
+Notes:
+1. The `body` must be valid SQL in the specified dialect; validation is the responsibility of the consuming engine.
+2. The SQL `body` must reference parameters using the names declared in the definition's `parameters` field.
 
 ### Definition-Log
 | Requirement | Field name            | Type                                               | Description                                                      |
