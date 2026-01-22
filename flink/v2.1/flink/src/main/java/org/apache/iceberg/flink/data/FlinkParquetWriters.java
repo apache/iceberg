@@ -18,11 +18,15 @@
  */
 package org.apache.iceberg.flink.data;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.MapData;
@@ -37,15 +41,25 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TinyIntType;
+import org.apache.flink.table.types.logical.VariantType;
+import org.apache.flink.types.variant.BinaryVariant;
+import org.apache.flink.types.variant.Variant;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
+import org.apache.iceberg.parquet.ParquetVariantVisitor;
+import org.apache.iceberg.parquet.TripleWriter;
+import org.apache.iceberg.parquet.VariantWriterBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -83,6 +97,14 @@ public class FlinkParquetWriters {
     public ParquetValueWriter<?> message(
         RowType sStruct, MessageType message, List<ParquetValueWriter<?>> fields) {
       return struct(sStruct, message.asGroupType(), fields);
+    }
+
+    @Override
+    public ParquetValueWriter<?> variant(VariantType sVariant, GroupType variant) {
+      ParquetValueWriter<?> writer =
+          ParquetVariantVisitor.visit(
+              variant, new VariantWriterBuilder(type, Arrays.asList(currentPath())));
+      return new VariantWriter(writer);
     }
 
     @Override
@@ -585,6 +607,48 @@ public class FlinkParquetWriters {
 
         return entry;
       }
+    }
+  }
+
+  /** Variant writer converts from VariantVal to Variant */
+  private static class VariantWriter implements ParquetValueWriter<Variant> {
+    private final ParquetValueWriter<org.apache.iceberg.variants.Variant> writer;
+
+    @SuppressWarnings("unchecked")
+    private VariantWriter(ParquetValueWriter<?> writer) {
+      this.writer = (ParquetValueWriter<org.apache.iceberg.variants.Variant>) writer;
+    }
+
+    @Override
+    public void write(int repetitionLevel, Variant variant) {
+      Preconditions.checkArgument(
+          variant instanceof BinaryVariant,
+          "Expected BinaryVariant but got: " + variant.getClass().getSimpleName());
+
+      BinaryVariant binaryVariant = (BinaryVariant) variant;
+      VariantMetadata metadata =
+          VariantMetadata.from(
+              ByteBuffer.wrap(binaryVariant.getMetadata()).order(ByteOrder.LITTLE_ENDIAN));
+      VariantValue value =
+          VariantValue.from(
+              metadata, ByteBuffer.wrap(binaryVariant.getValue()).order(ByteOrder.LITTLE_ENDIAN));
+
+      writer.write(repetitionLevel, org.apache.iceberg.variants.Variant.of(metadata, value));
+    }
+
+    @Override
+    public List<TripleWriter<?>> columns() {
+      return writer.columns();
+    }
+
+    @Override
+    public void setColumnStore(ColumnWriteStore columnStore) {
+      writer.setColumnStore(columnStore);
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return writer.metrics();
     }
   }
 

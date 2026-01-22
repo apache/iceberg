@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,6 +40,7 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.types.variant.BinaryVariant;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -126,6 +128,19 @@ public class RowDataConverter {
               convert(type.asMapType().valueType(), entry.getValue()));
         }
         return new GenericMapData(convertedMap);
+      case VARIANT:
+        org.apache.iceberg.variants.Variant icebergVariant =
+            (org.apache.iceberg.variants.Variant) object;
+
+        byte[] metadataBytes = new byte[icebergVariant.metadata().sizeInBytes()];
+        ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
+        icebergVariant.metadata().writeTo(metadataBuffer, 0);
+
+        byte[] valueBytes = new byte[icebergVariant.value().sizeInBytes()];
+        ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
+        icebergVariant.value().writeTo(valueBuffer, 0);
+
+        return new BinaryVariant(valueBytes, metadataBytes);
       default:
         throw new UnsupportedOperationException("Not a supported type: " + type);
     }
