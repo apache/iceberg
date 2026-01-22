@@ -20,6 +20,8 @@ package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.TestBase.FILE_A;
 import static org.apache.iceberg.TestBase.SCHEMA;
+import static org.apache.iceberg.rest.RESTTableCache.SessionIdTableId;
+import static org.apache.iceberg.rest.RESTTableCache.TableWithETag;
 import static org.apache.iceberg.rest.RequestMatcher.matches;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -230,7 +232,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     restCatalog.createNamespace(TABLE.namespace());
     restCatalog.createTable(TABLE, SCHEMA);
 
-    Cache<RESTTableCache.SessionIdTableId, RESTTableCache.TableWithETag> tableCache =
+    Cache<SessionIdTableId, TableWithETag> tableCache =
         restCatalog.sessionCatalog().tableCache().cache();
     assertThat(tableCache.estimatedSize()).isZero();
 
@@ -239,8 +241,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     assertThat(tableCache.stats().hitCount()).isZero();
     assertThat(tableCache.asMap())
-        .containsOnlyKeys(
-            RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
     expectNotModifiedResponseForLoadTable(TABLE, adapterForRESTServer);
     BaseTable tableAfterSecondLoad = (BaseTable) restCatalog.loadTable(TABLE);
@@ -251,7 +252,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     assertThat(
             tableCache
                 .asMap()
-                .get(RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE))
+                .get(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE))
                 .supplier()
                 .get()
                 .operations()
@@ -269,7 +270,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     restCatalog.createNamespace(TABLE.namespace());
     restCatalog.createTable(TABLE, SCHEMA);
 
-    Cache<RESTTableCache.SessionIdTableId, RESTTableCache.TableWithETag> tableCache =
+    Cache<SessionIdTableId, TableWithETag> tableCache =
         restCatalog.sessionCatalog().tableCache().cache();
     assertThat(tableCache.estimatedSize()).isZero();
 
@@ -277,8 +278,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     assertThat(tableCache.stats().hitCount()).isZero();
     assertThat(tableCache.asMap())
-        .containsOnlyKeys(
-            RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
     TableIdentifier metadataTableIdentifier =
         TableIdentifier.of(TABLE.namespace().toString(), TABLE.name(), "partitions");
@@ -288,8 +288,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     assertThat(tableCache.stats().hitCount()).isEqualTo(1);
     assertThat(tableCache.asMap())
-        .containsOnlyKeys(
-            RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
     assertThat(table).isNotSameAs(metadataTable.table());
     assertThat(table.operations().current().metadataFileLocation())
@@ -337,8 +336,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
           // The main catalog still has the table in cache
           assertThat(catalog.sessionCatalog().tableCache().cache().asMap())
-              .containsOnlyKeys(
-                  RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+              .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
           catalog.tableExists(TABLE);
         }),
@@ -381,8 +379,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
           // The main catalog still has the table in cache
           assertThat(cat.sessionCatalog().tableCache().cache().asMap())
-              .containsOnlyKeys(
-                  RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+              .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
           cat.tableExists(TABLE);
         },
@@ -400,8 +397,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
           // The main catalog still has the table in cache
           assertThat(catalog.sessionCatalog().tableCache().cache().asMap())
-              .containsOnlyKeys(
-                  RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+              .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
           assertThatThrownBy(() -> catalog.loadTable(TABLE))
               .isInstanceOf(NoSuchTableException.class)
@@ -424,8 +420,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
           // The main catalog still has the table in cache
           assertThat(catalog.sessionCatalog().tableCache().cache().asMap())
-              .containsOnlyKeys(
-                  RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+              .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
           assertThatThrownBy(() -> catalog.loadTable(metadataTableIdentifier))
               .isInstanceOf(NoSuchTableException.class)
@@ -454,12 +449,11 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     catalog.createTable(TABLE, SCHEMA);
     BaseTable originalTable = (BaseTable) catalog.loadTable(TABLE);
 
-    Cache<RESTTableCache.SessionIdTableId, RESTTableCache.TableWithETag> tableCache =
+    Cache<SessionIdTableId, TableWithETag> tableCache =
         catalog.sessionCatalog().tableCache().cache();
     assertThat(tableCache.stats().hitCount()).isZero();
     assertThat(tableCache.asMap())
-        .containsOnlyKeys(
-            RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
     action.accept(catalog);
 
@@ -476,8 +470,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     assertThat(tableCache.stats().hitCount()).isEqualTo(loadTableCountFromAction);
     assertThat(tableCache.asMap())
-        .containsOnlyKeys(
-            RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
     assertThat(newTableWithSameName).isNotEqualTo(originalTable);
     assertThat(newTableWithSameName.operations().current().metadataFileLocation())
@@ -504,12 +497,10 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     expectFullTableLoadForLoadTable(TABLE, adapter);
     BaseTable tableSession1 = (BaseTable) sessionCatalog.loadTable(DEFAULT_SESSION_CONTEXT, TABLE);
 
-    Cache<RESTTableCache.SessionIdTableId, RESTTableCache.TableWithETag> tableCache =
-        sessionCatalog.tableCache().cache();
+    Cache<SessionIdTableId, TableWithETag> tableCache = sessionCatalog.tableCache().cache();
     assertThat(tableCache.stats().hitCount()).isZero();
     assertThat(tableCache.asMap())
-        .containsOnlyKeys(
-            RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
 
     expectFullTableLoadForLoadTable(TABLE, adapter);
     BaseTable tableSession2 = (BaseTable) sessionCatalog.loadTable(otherSessionContext, TABLE);
@@ -519,8 +510,8 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
         .isEqualTo(tableSession2.operations().current().metadataFileLocation());
     assertThat(tableCache.asMap())
         .containsOnlyKeys(
-            RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE),
-            RESTTableCache.SessionIdTableId.of(otherSessionContext.sessionId(), TABLE));
+            SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE),
+            SessionIdTableId.of(otherSessionContext.sessionId(), TABLE));
   }
 
   @Test
@@ -619,10 +610,10 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     catalog.createTable(TABLE, SCHEMA);
     catalog.loadTable(TABLE);
 
-    Cache<RESTTableCache.SessionIdTableId, RESTTableCache.TableWithETag> tableCache =
+    Cache<SessionIdTableId, TableWithETag> tableCache =
         catalog.sessionCatalog().tableCache().cache();
-    RESTTableCache.SessionIdTableId tableCacheKey =
-        RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE);
+    SessionIdTableId tableCacheKey =
+        SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE);
 
     assertThat(tableCache.asMap()).containsOnlyKeys(tableCacheKey);
     assertThat(tableCache.policy().expireAfterWrite().get().ageOf(tableCacheKey))
@@ -668,10 +659,10 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
     ticker.advance(HALF_OF_TABLE_EXPIRATION);
 
-    Cache<RESTTableCache.SessionIdTableId, RESTTableCache.TableWithETag> tableCache =
+    Cache<SessionIdTableId, TableWithETag> tableCache =
         catalog.sessionCatalog().tableCache().cache();
-    RESTTableCache.SessionIdTableId tableCacheKey =
-        RESTTableCache.SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE);
+    SessionIdTableId tableCacheKey =
+        SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE);
 
     assertThat(tableCache.policy().expireAfterWrite().get().ageOf(tableCacheKey))
         .isPresent()
