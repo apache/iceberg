@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
+import org.apache.iceberg.aws.s3.TestS3MetricsPublisherConfigurations;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -319,5 +320,30 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY, "false");
     S3FileIOProperties properties = new S3FileIOProperties(map);
     assertThat(properties.isS3DirectoryBucketListPrefixAsDirectory()).isEqualTo(false);
+  }
+
+  @Test
+  public void testMetricsPublisherEnabled() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            S3FileIOProperties.METRICS_PUBLISHER_IMPL,
+            TestS3MetricsPublisherConfigurations.class.getName());
+    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applyMetricsPublisherConfiguration(builder);
+
+    assertThat(builder.overrideConfiguration().metricPublishers()).hasSize(1);
+  }
+
+  @Test
+  public void testMetricsPublisherDisabled() {
+    Map<String, String> properties = ImmutableMap.of();
+    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applyMetricsPublisherConfiguration(builder);
+
+    assertThat(builder.overrideConfiguration().metricPublishers()).isEmpty();
   }
 }
