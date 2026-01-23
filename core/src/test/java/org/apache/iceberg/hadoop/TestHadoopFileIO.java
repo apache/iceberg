@@ -32,10 +32,13 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 import java.util.Vector;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.Trash;
+import org.apache.hadoop.fs.TrashPolicy;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
@@ -205,14 +208,31 @@ public class TestHadoopFileIO {
   }
 
   @Test
-  public void testFileIsNotTrashSchema() throws Throwable {
-    assertThat(hadoopFileIO.isTrashSchema(new Path("file:///"))).isFalse();
+  public void testDefaultTrashSchemas() {
+    // hdfs is a default trash schema; viewfs is, file isn't
+    assertThat(hadoopFileIO.isTrashSchema(new Path("hdfs:///")))
+        .describedAs("hdfs schema")
+        .isTrue();
+    assertThat(hadoopFileIO.isTrashSchema(new Path("viewfs:///")))
+        .describedAs("viewfs schema")
+        .isTrue();
+    assertThat(hadoopFileIO.isTrashSchema(new Path("file:///")))
+        .describedAs("file schema")
+        .isFalse();
+  }
+
+  @Test
+  public void testRemoveTrashSchemas() {
+    // set the schema list to "" and verify that the default values are gone
+    final Configuration conf = new Configuration(false);
+    conf.set(DELETE_TRASH_SCHEMAS, "");
+    hadoopFileIO = new HadoopFileIO(conf);
+    assertThat(hadoopFileIO.isTrashSchema(new Path("hdfs:///"))).isFalse();
   }
 
   @Test
   public void testDeleteFilesWithTrashEnabled() throws IOException {
     resetLocalFS(true);
-
     hadoopFileIO = new HadoopFileIO(fs.getConf());
     assertThat(hadoopFileIO.isTrashSchema(new Path("file:///"))).isTrue();
 
@@ -228,6 +248,38 @@ public class TestHadoopFileIO {
           String trashPath = fs.getTrashRoot(parent).toString() + "/Current" + fileSuffix;
           assertPathExists(trashPath);
         });
+  }
+
+  @Test
+  public void testTrashFailureFallBack() throws Exception {
+    resetLocalFS(true);
+    // the filesystem config needs to be modified to use the test trash policy.
+    final Configuration conf = fs.getConf();
+    conf.set("fs.trash.classname", TestTrashPolicy.class.getName());
+    // check loading works.
+    final long instances = TestTrashPolicy.INSTANCES.get();
+    final long exceptions = TestTrashPolicy.EXCEPTIONS.get();
+    Trash trash = new Trash(conf);
+    assertThat(trash.isEnabled()).isTrue();
+    assertThat(TestTrashPolicy.INSTANCES.get()).isEqualTo(instances + 1);
+
+    // now create the file IO with the same conf.
+    hadoopFileIO = new HadoopFileIO(conf);
+    assertThat(hadoopFileIO.isTrashSchema(new Path("file:///"))).isTrue();
+
+    Path parent = new Path(tempDir.toURI());
+    Path path = new Path(parent, "child");
+    fs.createNewFile(path);
+    final String p = path.toUri().toString();
+    // this will delete the file, even with the simulated IOE on moveToTrash
+    hadoopFileIO.deleteFile(p);
+    assertPathDoesNotExist(p);
+    assertThat(TestTrashPolicy.INSTANCES.get())
+        .describedAs("TestTrashPolicy instantiations")
+        .isEqualTo(instances + 2);
+    assertThat(TestTrashPolicy.EXCEPTIONS.get())
+        .describedAs("TestTrashPolicy exceptions")
+        .isEqualTo(exceptions + 1);
   }
 
   /**
@@ -367,5 +419,61 @@ public class TestHadoopFileIO {
     assertThat(hadoopFileIO.newInputFile(path).exists())
         .describedAs("File %s must exist", path)
         .isFalse();
+  }
+
+  /**
+   * Test TrashPolicy.
+   * Increments the counter {@link #INSTANCES} on every instantiation.
+   * On a call to {@link #moveToTrash(Path)} it increments the counter
+   * {@link #EXCEPTIONS} and throws an exception.
+   */
+  private static final class TestTrashPolicy extends TrashPolicy {
+    private static final AtomicLong INSTANCES = new AtomicLong();
+    private static final AtomicLong EXCEPTIONS = new AtomicLong();
+
+    public TestTrashPolicy() {
+      INSTANCES.incrementAndGet();
+    }
+
+    @Override
+    public void initialize(Configuration conf, FileSystem fs, Path home) {}
+
+    @Override
+    public void initialize(Configuration conf, FileSystem fs) {}
+
+    @Override
+    public boolean isEnabled() {
+      return true;
+    }
+
+    @Override
+    public boolean moveToTrash(Path path) throws IOException {
+      EXCEPTIONS.incrementAndGet();
+      throw new IOException("Simulated failure");
+    }
+
+    @Override
+    public void createCheckpoint() throws IOException {}
+
+    @Override
+    public void deleteCheckpoint() throws IOException {}
+
+    @Override
+    public void deleteCheckpointsImmediately() throws IOException {}
+
+    @Override
+    public Path getCurrentTrashDir() {
+      return null;
+    }
+
+    @Override
+    public Path getCurrentTrashDir(Path path) throws IOException {
+      return null;
+    }
+
+    @Override
+    public Runnable getEmptier() throws IOException {
+      return null;
+    }
   }
 }
