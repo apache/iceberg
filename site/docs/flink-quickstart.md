@@ -161,7 +161,6 @@ CREATE TABLE taxis_inline_config (
 );
 ```
 
-
 ## Learn More
 
 !!! note
