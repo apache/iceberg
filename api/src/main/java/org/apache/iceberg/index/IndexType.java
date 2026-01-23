@@ -27,6 +27,9 @@ import java.util.Locale;
  * behavior of the index.
  */
 public enum IndexType {
+  /** Bloom Filter File Skipping Index for efficient search in low cardinality columns. */
+  BLOOM("bloom"),
+
   /** B-Tree index for efficient range queries and point lookups on orderable columns. */
   BTREE("btree"),
 
