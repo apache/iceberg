@@ -1,0 +1,49 @@
+Apache Iceberg Flink Quickstart Docker Image
+Copyright 2017-2025 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
+This Docker image bundles Apache Iceberg components:
+
+  Apache Iceberg
+  Copyright 2017-2025 The Apache Software Foundation
+
+The bundled JAR files contain their own NOTICE files with complete
+attribution information for their respective dependencies.
+
+--------------------------------------------------------------------------------
+
+This Docker image bundles Apache Hadoop components:
+
+  Apache Hadoop
+  Copyright 2006-2024 The Apache Software Foundation
+
+--------------------------------------------------------------------------------
+
+This Docker image bundles Apache Commons components:
+
+  Apache Commons Configuration
+  Copyright 2001-2024 The Apache Software Foundation
+
+--------------------------------------------------------------------------------
+
+This Docker image is based on the official Apache Flink Docker image:
+
+  Apache Flink
+  Copyright 2014-2024 The Apache Software Foundation
+
+--------------------------------------------------------------------------------
+
+This Docker image bundles Woodstox XML processor:
+
+  Woodstox XML processor
+  Copyright 2004-2024 FasterXML, LLC
+
+--------------------------------------------------------------------------------
+
+For complete licensing and attribution information for all bundled
+dependencies, please refer to the LICENSE and NOTICE files contained
+within each JAR file in the /opt/flink/lib directory.
