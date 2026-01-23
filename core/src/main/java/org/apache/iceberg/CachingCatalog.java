@@ -60,6 +60,16 @@ public class CachingCatalog implements Catalog {
     return new CachingCatalog(catalog, caseSensitive, expirationIntervalMillis);
   }
 
+  /**
+   * Check if the wrapped catalog is an instance of the given class.
+   *
+   * <p>This method is needed for catalog capability detection when CachingCatalog wraps other
+   * catalog implementations. For example, Spark uses this to determine if the underlying catalog is
+   * a REST catalog to enable REST-specific features like server-side purge delegation.
+   *
+   * @param cls the class to check
+   * @return true if the wrapped catalog is an instance of the given class
+   */
   public boolean wrapped_is_instance(Class<?> cls) {
     return cls.isInstance(catalog);
   }

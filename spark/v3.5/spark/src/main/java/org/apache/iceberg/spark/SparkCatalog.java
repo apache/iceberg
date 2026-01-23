@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark;
 
-import static org.apache.iceberg.CatalogProperties.REST_CATALOG_PURGE;
-import static org.apache.iceberg.CatalogProperties.REST_CATALOG_PURGE_DEFAULT;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
@@ -94,6 +92,8 @@ import org.apache.spark.sql.connector.catalog.ViewChange;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -126,6 +126,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkCatalog extends BaseCatalog
     implements org.apache.spark.sql.connector.catalog.ViewCatalog, SupportsReplaceView {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -370,12 +372,24 @@ public class SparkCatalog extends BaseCatalog
       String metadataFileLocation =
           ((HasTableOperations) table).operations().current().metadataFileLocation();
 
-      if ((this.icebergCatalog instanceof RESTCatalog
+      boolean isRestCatalog =
+          this.icebergCatalog instanceof RESTCatalog
               || this.icebergCatalog instanceof RESTSessionCatalog
               || (this.icebergCatalog instanceof CachingCatalog
-                  && ((CachingCatalog) this.icebergCatalog).wrapped_is_instance(RESTCatalog.class)))
-          && this.restCatalogPurge) {
+                  && ((CachingCatalog) this.icebergCatalog).wrapped_is_instance(RESTCatalog.class));
+
+      if (isRestCatalog && this.restCatalogPurge) {
+        // Delegate purge to REST catalog - allows server-side features like UNDROP
         return dropTableWithPurging(ident);
+      }
+
+      if (isRestCatalog && !this.restCatalogPurge) {
+        // Log deprecation warning for client-side purge with REST catalogs
+        LOG.warn(
+            "Client-side purge for REST catalogs is deprecated and will be removed in Apache Iceberg 2.0. "
+                + "Set '{}' to true to delegate purge operations to the REST catalog. "
+                + "This enables server-side features like UNDROP and prepares for the 2.0 behavior change.",
+            CatalogProperties.REST_CATALOG_PURGE);
       }
 
       boolean dropped = dropTableWithoutPurging(ident);
@@ -766,7 +780,10 @@ public class SparkCatalog extends BaseCatalog
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
 
     this.restCatalogPurge =
-        PropertyUtil.propertyAsBoolean(options, REST_CATALOG_PURGE, REST_CATALOG_PURGE_DEFAULT);
+        PropertyUtil.propertyAsBoolean(
+            options,
+            CatalogProperties.REST_CATALOG_PURGE,
+            CatalogProperties.REST_CATALOG_PURGE_DEFAULT);
 
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
