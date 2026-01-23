@@ -173,6 +173,7 @@ public class TestFastAppend extends TestBase {
     assertThat(snap.summary())
         .containsEntry("added-data-files", "2")
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
 
     V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap.sequenceNumber());
@@ -221,6 +222,7 @@ public class TestFastAppend extends TestBase {
     // 2 manifests created: 1 for appendFile (FILE_C, FILE_D) + 1 for appendManifest
     assertThat(snap.summary())
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
 
     V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap.sequenceNumber());
@@ -470,6 +472,7 @@ public class TestFastAppend extends TestBase {
         .containsEntry("total-data-files", "2")
         .containsEntry("total-records", "2")
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
@@ -564,6 +567,7 @@ public class TestFastAppend extends TestBase {
         .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
         .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1")
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
@@ -586,6 +590,7 @@ public class TestFastAppend extends TestBase {
             SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0",
             "added-data-files=1,added-records=1,added-files-size=10")
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
@@ -605,6 +610,7 @@ public class TestFastAppend extends TestBase {
         .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
         .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2")
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 

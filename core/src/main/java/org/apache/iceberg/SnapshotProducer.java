@@ -646,13 +646,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   /**
-   * Updates manifest count in the snapshot summary builder.
+   * Updates manifest count in the snapshot summary builder, including replaced manifests.
    *
    * @param summaryBuilder the summary builder to update
    * @param manifests the list of manifests in the new snapshot
+   * @param replacedManifestsCount the count of manifests that were replaced (rewritten)
    */
   protected SnapshotSummary.Builder buildManifestCountSummary(
-      SnapshotSummary.Builder summaryBuilder, List<ManifestFile> manifests) {
+      SnapshotSummary.Builder summaryBuilder,
+      List<ManifestFile> manifests,
+      int replacedManifestsCount) {
     int manifestsCreated = 0;
     int manifestsKept = 0;
 
@@ -666,6 +669,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     summaryBuilder.set(SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(manifestsCreated));
     summaryBuilder.set(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(manifestsKept));
+    summaryBuilder.set(
+        SnapshotSummary.REPLACED_MANIFESTS_COUNT, String.valueOf(replacedManifestsCount));
     return summaryBuilder;
   }
 

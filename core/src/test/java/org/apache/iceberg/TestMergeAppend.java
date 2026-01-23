@@ -288,6 +288,7 @@ public class TestMergeAppend extends TestBase {
     assertThat(committedSnapshot.summary())
         .containsEntry("added-data-files", "2")
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
@@ -517,6 +518,18 @@ public class TestMergeAppend extends TestBase {
         ids(commitId1, commitId1),
         files(FILE_C, FILE_D),
         statuses(Status.ADDED, Status.ADDED));
+    // 3 manifests appended, each ~5661-6397 bytes. With targetSizeBytes=15000:
+    // - Bin-packing creates 2 bins: [manifest] and [manifest2, manifest3]
+    // - Bin 1 (size=1): kept as-is, no merge
+    // - Bin 2 (size=2 >= minCountToMerge=2): merged into 1 new manifest
+    // Result: 2 created (1 kept + 1 merged), 2 replaced (from merged bin), 0 kept (first snapshot)
+    assertThat(snap1.summary())
+        .as(
+            "2 manifests created: 1 from bin with single manifest, 1 from merging bin with 2 manifests")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .as("2 manifests replaced: the 2 manifests in the merged bin")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
 
     // produce new manifests as the old ones could have been compacted
     manifest = writeManifestWithName("FILE_A_S2", FILE_A);
@@ -563,9 +576,18 @@ public class TestMergeAppend extends TestBase {
         statuses(Status.EXISTING, Status.EXISTING, Status.EXISTING));
 
     // validate that the metadata summary is correct when using appendManifest
+    // snap2 has: 3 new manifests appended + 2 existing manifests from snap1
+    // Bin-packing with targetSizeBytes=15000:
+    // - New manifests: [manifest] kept as-is, [manifest2, manifest3] merged (2 replaced)
+    // - Existing manifests from snap1: both merged into 1 (2 replaced)
+    // Result: 3 created (1 + 1 merged from new + 1 merged from existing), 4 replaced, 0 kept
     assertThat(snap2.summary())
         .containsEntry("added-data-files", "3")
+        .as("3 manifests created: 1 single new, 1 merged from 2 new, 1 merged from 2 existing")
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "3")
+        .as(
+            "4 manifests replaced: 2 from merging new manifests + 2 from merging existing manifests")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "4")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
@@ -786,6 +808,13 @@ public class TestMergeAppend extends TestBase {
         "Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
+
+    // The delete operation rewrites the original manifest to mark FILE_A as deleted
+    // This should result in 1 replaced manifest, 1 created manifest, and 0 kept manifests
+    assertThat(deleteSnapshot.summary())
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
 
     long deleteId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).allManifests(table.io())).hasSize(1);
@@ -1493,6 +1522,7 @@ public class TestMergeAppend extends TestBase {
         .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
         .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1")
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
@@ -1515,6 +1545,7 @@ public class TestMergeAppend extends TestBase {
             SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0",
             "added-data-files=1,added-records=1,added-files-size=10")
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
@@ -1534,6 +1565,7 @@ public class TestMergeAppend extends TestBase {
         .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
         .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2")
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 }

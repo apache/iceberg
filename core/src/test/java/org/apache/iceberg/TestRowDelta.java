@@ -1073,6 +1073,7 @@ public class TestRowDelta extends TestBase {
         // 4 manifests created: 1 data manifest + 3 delete manifests (one per partition spec)
         // 3 manifests kept: 3 data manifests from previous appends
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "4")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "3")
         .hasEntrySatisfying(
             CHANGED_PARTITION_PREFIX + "data_bucket=0",

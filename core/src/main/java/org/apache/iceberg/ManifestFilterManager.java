@@ -87,6 +87,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
+  // count of manifests that were rewritten with different manifest entry status during filtering
+  private int replacedManifestsCount = 0;
 
   // tracking where files were deleted to validate retries quickly
   private final Map<ManifestFile, Iterable<F>> filteredManifestToDeletedFiles =
@@ -314,6 +316,18 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   /**
+   * Returns the count of manifests that were replaced (rewritten) during filtering.
+   *
+   * <p>A manifest is considered replaced when a new manifest was created to replace the original
+   * one (i.e., the original manifest != filtered manifest).
+   *
+   * @return the count of replaced manifests
+   */
+  int replacedManifestsCount() {
+    return replacedManifestsCount;
+  }
+
+  /**
    * Deletes filtered manifests that were created by this class, but are not in the committed
    * manifest set.
    *
@@ -329,9 +343,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       ManifestFile manifest = entry.getKey();
       ManifestFile filtered = entry.getValue();
       if (!committed.contains(filtered)) {
-        // only delete if the filtered copy was created
+        // only delete if the filtered copy was created (manifest was replaced)
         if (!manifest.equals(filtered)) {
           deleteFile(filtered.path());
+          replacedManifestsCount--;
         }
 
         // remove the entry from the cache
@@ -342,6 +357,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   private void invalidateFilteredCache() {
     cleanUncommitted(SnapshotProducer.EMPTY_SET);
+    replacedManifestsCount = 0;
   }
 
   /**
@@ -367,7 +383,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
       if (manifestHasDeletedFiles(evaluator, manifest, reader)) {
-        return filterManifestWithDeletedFiles(evaluator, manifest, reader);
+        ManifestFile filtered = filterManifestWithDeletedFiles(evaluator, manifest, reader);
+        replacedManifestsCount++;
+        return filtered;
       } else {
         filteredManifests.put(manifest, manifest);
         return manifest;

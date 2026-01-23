@@ -963,8 +963,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Iterables.addAll(manifests, mergeManager.mergeManifests(unmergedManifests));
     Iterables.addAll(manifests, deleteMergeManager.mergeManifests(unmergedDeleteManifests));
 
-    // update created/kept manifest count
-    summaryBuilder.merge(buildManifestCountSummary(manifestsSummary, manifests));
+    // update created/kept/replaced manifest count
+    // replaced manifests come from:
+    // 1. filterManager - manifests rewritten to remove deleted files
+    // 2. deleteFilterManager - delete manifests rewritten to remove deleted files
+    // 3. mergeManager - data manifests merged via bin-packing
+    // 4. deleteMergeManager - delete manifests merged via bin-packing
+    // Note: rewrittenAppendManifests are NEW manifests (copies), not replaced ones
+    int replacedManifestsCount =
+        filterManager.replacedManifestsCount()
+            + deleteFilterManager.replacedManifestsCount()
+            + mergeManager.replacedManifestsCount()
+            + deleteMergeManager.replacedManifestsCount();
+    summaryBuilder.merge(
+        buildManifestCountSummary(manifestsSummary, manifests, replacedManifestsCount));
 
     return manifests;
   }
