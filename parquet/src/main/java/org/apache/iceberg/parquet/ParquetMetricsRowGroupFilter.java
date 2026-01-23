@@ -66,7 +66,8 @@ public class ParquetMetricsRowGroupFilter {
     Expression rewritten = Expressions.rewriteNot(unbound);
     this.expr = Binder.bind(struct, rewritten, caseSensitive);
 
-    // Create the signed UUID expression iff there are UUID predicates that compare against bounds.
+    // Create the signed UUID expression if and only if there are UUID predicates
+    // that compare against bounds.
     Expression transformed = ExpressionUtil.toSignedUUIDLiteral(rewritten);
     this.signedUuidExpr =
         transformed != null ? Binder.bind(struct, transformed, caseSensitive) : null;

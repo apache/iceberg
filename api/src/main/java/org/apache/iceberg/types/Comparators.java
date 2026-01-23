@@ -266,6 +266,7 @@ public class Comparators {
     if (useSignedUuid && type.typeId() == Type.TypeID.UUID) {
       return (Comparator<T>) signedUUIDs();
     }
+
     return defaultComparator;
   }
 

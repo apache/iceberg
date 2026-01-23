@@ -757,8 +757,7 @@ public class ExpressionUtil {
    * literals to a Set of raw values, so the evaluator must handle this separately.
    *
    * @param expr an unbound expression
-   * @return Optional containing the transformed expression if UUID bounds predicates exist, or
-   *     empty if no UUID bounds predicates were found
+   * @return the expression with signed UUID comparators, or null if no UUID predicates are present
    */
   @Nullable
   public static Expression toSignedUUIDLiteral(Expression expr) {

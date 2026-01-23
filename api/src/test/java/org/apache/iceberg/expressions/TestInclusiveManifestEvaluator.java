@@ -1103,6 +1103,20 @@ public class TestInclusiveManifestEvaluator {
               new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MIN),
               new TestHelpers.TestFieldSummary(
                   false,
+                  true,
+                  toByteBuffer(Types.FloatType.get(), 5.0F),
+                  toByteBuffer(Types.FloatType.get(), 5.0F)),
+              new TestHelpers.TestFieldSummary(
+                  false,
+                  toByteBuffer(Types.FloatType.get(), 5.0F),
+                  toByteBuffer(Types.FloatType.get(), 5.0F)),
+              new TestHelpers.TestFieldSummary(
+                  false,
+                  false,
+                  toByteBuffer(Types.FloatType.get(), 5.0F),
+                  toByteBuffer(Types.FloatType.get(), 5.0F)),
+              new TestHelpers.TestFieldSummary(
+                  false,
                   toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_MIN),
                   toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_MAX))),
           null);
