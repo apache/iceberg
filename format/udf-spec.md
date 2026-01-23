@@ -72,16 +72,16 @@ identified by its signature (the ordered list of parameter types). There can be 
 All versions within a definition must accept the same signature as specified in the definition's `parameters` field and
 must produce values of the declared `return-type`.
 
-| Requirement | Field name           | Type                           | Description                                                                                                   |
-|-------------|----------------------|--------------------------------|---------------------------------------------------------------------------------------------------------------|
-| *required*  | `definition-id`      | `string`                       | An identifier derived from canonical parameter-type tuple (lowercase, no spaces; e.g., `"(int,int,string)"`). |
-| *required*  | `parameters`         | `list<parameter>`              | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.                 |
-| *required*  | `return-type`        | `string`                       | Declared return type (see [Types](#types)).                                                                   |
-| *optional*  | `return-nullable`    | `boolean`                      | A hint to indicate whether the return value is nullable or not. Default: `true`.                              |
-| *required*  | `versions`           | `list<definition-version>`     | [Versioned implementations](#definition-version) of this definition.                                          |
-| *required*  | `current-version-id` | `int`                          | Identifier of the current version for this definition.                                                        |
-| *required*  | `function-type`      | `string` (`"udf"` or `"udtf"`) | If `"udtf"`, `return-type` must be an Iceberg type `struct` describing the output schema.                     |
-| *optional*  | `doc`                | `string`                       | Documentation string.                                                                                         |
+| Requirement | Field name           | Type                           | Description                                                                                      |
+|-------------|----------------------|--------------------------------|--------------------------------------------------------------------------------------------------|
+| *required*  | `definition-id`      | `string`                       | An identifier derived from canonical parameter-type tuple (see [Definition ID](#definition-id)). |
+| *required*  | `parameters`         | `list<parameter>`              | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.    |
+| *required*  | `return-type`        | `string`                       | Declared return type (see [Types](#types)).                                                      |
+| *optional*  | `return-nullable`    | `boolean`                      | A hint to indicate whether the return value is nullable or not. Default: `true`.                 |
+| *required*  | `versions`           | `list<definition-version>`     | [Versioned implementations](#definition-version) of this definition.                             |
+| *required*  | `current-version-id` | `int`                          | Identifier of the current version for this definition.                                           |
+| *required*  | `function-type`      | `string` (`"udf"` or `"udtf"`) | If `"udtf"`, `return-type` must be a `struct` (see [Types](#types)) describing the output schema. |
+| *optional*  | `doc`                | `string`                       | Documentation string.                                                                            |
 
 ### Parameter
 | Requirement | Field  | Type     | Description                                |
@@ -94,14 +94,51 @@ Notes:
 1. Variadic (vararg) parameters are not supported. Each definition must declare a fixed number of parameters.
 
 #### Types
-Primitive types are encoded using the [Iceberg Type JSON Representation](https://iceberg.apache.org/spec/#appendix-c-json-serialization),
-for example `"int"`, `"string"`.
+[iceberg-type-json]: https://iceberg.apache.org/spec/#appendix-c-json-serialization
+Types are based on the [Iceberg Type](https://iceberg.apache.org/spec/#schemas-and-data-types).
 
-Three nested types are supported. All type parameters must be concrete types:
-* `list<T>`: Ordered, homogeneous collection of elements of type `T` (any Iceberg type); example `list<int>`.
-* `map<K,V>`: Key–value collection; `K` must be a primitive, comparable type (`string` recommended); example `map<string,int>`.
-* `struct<f1:T1,f2:T2,...>`: Record with named fields specified as `name:type` pairs separated by commas; field order is
-   significant and undeclared fields are not allowed; example `struct<id:int,name:string>`.
+Primitive and semi-structured type strings are encoded based on [Iceberg Type JSON Representation][iceberg-type-json]
+(e.g., `int`, `string`, `timestamp`, `decimal(9,2)`, `variant`). Type strings must contain no spaces or quote characters.
+
+Nested type strings (`struct`, `list`, `map`) use the [Iceberg Type JSON Representation][iceberg-type-json] with these differences:
+* `element-id` and `element-required` are not used for `list`.
+* `key-id`, `value-id`, and `value-required` are not used for `map`.
+* `field-id`, `required`, `doc`, `initial-default`, and `write-default` are not used for `struct`.
+
+Examples of nested type JSON representations:
+
+List of strings:
+```json
+{ "type": "list", "element": "string" }
+```
+
+Map from string to int:
+```json
+{ "type": "map", "key": "string", "value": "int" }
+```
+
+Struct with id and name fields:
+```json
+{ "type": "struct", "fields": [
+    { "name": "id", "type": "int" },
+    { "name": "name", "type": "string" }
+  ]
+}
+```
+
+#### Definition ID
+The `definition-id` is a canonical string derived from the parameter types, formatted as a comma-separated list with no
+spaces. Each type uses the string representation described in [Types](#types):
+
+* Primitives: the type name (e.g., `int`)
+* List: `list<element-type>` (e.g., `list<int>`)
+* Map: `map<key-type,value-type>` (e.g., `map<string,int>`)
+* Struct: `struct<name1:type1,name2:type2,...>` with field names and types (e.g., `struct<id:int,name:string>`)
+
+Examples of complete definition-id signatures:
+* `int` – single int parameter
+* `int,string` – two parameters: int and string
+* `int,list<int>,struct<id:int,name:string>` – three parameters: an int, a list and a struct
 
 ### Definition Version
 
@@ -188,7 +225,7 @@ RETURN x + 1.0;
   "format-version": 1,
   "definitions": [
     {
-      "definition-id": "(int)",
+      "definition-id": "int",
       "parameters": [
         {
           "name": "x", "type": "int", "doc": "Input integer"
@@ -218,7 +255,7 @@ RETURN x + 1.0;
       "current-version-id": 2
     },
     {
-      "definition-id": "(float)",
+      "definition-id": "float",
       "parameters": [
         {
           "name": "x", "type": "float", "doc": "Input float"
@@ -243,21 +280,21 @@ RETURN x + 1.0;
     {
       "timestamp-ms": 1733507001123,
       "definition-versions": [
-        { "definition-id": "(int)", "version-id": 1 }
+        { "definition-id": "int", "version-id": 1 }
       ]
     },
     {
       "timestamp-ms": 1734507001123,
       "definition-versions": [
-        { "definition-id": "(int)", "version-id": 1 },
-        { "definition-id": "(float)", "version-id": 1 }
+        { "definition-id": "int", "version-id": 1 },
+        { "definition-id": "float", "version-id": 1 }
       ]
     },
     {
       "timestamp-ms": 1735507000124,
       "definition-versions": [
-        { "definition-id": "(int)", "version-id": 2 },
-        { "definition-id": "(float)", "version-id": 1 }
+        { "definition-id": "int", "version-id": 2 },
+        { "definition-id": "float", "version-id": 1 }
       ]
     }
   ],
@@ -282,7 +319,7 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
   "format-version": 1,
   "definitions": [
     {
-      "definition-id": "(string)",
+      "definition-id": "string",
       "parameters": [
         {
           "name": "c", "type": "string", "doc": "Color of fruits"
@@ -291,8 +328,8 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
       "return-type": {
         "type": "struct",
         "fields": [
-          { "id": 1, "name": "name", "type": "string" },
-          { "id": 2, "name": "color", "type": "string" }
+          { "name": "name", "type": "string" },
+          { "name": "color", "type": "string" }
         ]
       },
       "function-type": "udtf",
@@ -315,7 +352,7 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
     {
       "timestamp-ms": 1734508000123,
       "definition-versions": [
-        { "definition-id": "(string)", "version-id": 1 }
+        { "definition-id": "string", "version-id": 1 }
       ]
     }
   ],
