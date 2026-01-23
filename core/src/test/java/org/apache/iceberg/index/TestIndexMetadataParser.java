@@ -355,4 +355,95 @@ public class TestIndexMetadataParser {
     assertThat(metadata.version(1).timestampMillis()).isEqualTo(1000L);
     assertThat(metadata.version(2).timestampMillis()).isEqualTo(2000L);
   }
+
+  @Test
+  public void testToJsonWithExpectedString() {
+    IndexVersion version =
+        ImmutableIndexVersion.builder()
+            .versionId(1)
+            .timestampMillis(1234567890L)
+            .properties(ImmutableMap.of("key", "value"))
+            .build();
+
+    IndexHistoryEntry historyEntry =
+        ImmutableIndexHistoryEntry.builder().versionId(1).timestampMillis(1234567890L).build();
+
+    IndexSnapshot snapshot =
+        ImmutableIndexSnapshot.builder()
+            .tableSnapshotId(100L)
+            .indexSnapshotId(200L)
+            .versionId(1)
+            .properties(ImmutableMap.of("snap-key", "snap-value"))
+            .build();
+
+    IndexMetadata metadata =
+        ImmutableIndexMetadata.of(
+            "fa6506c3-7681-40c8-86dc-e36561f83385",
+            1,
+            IndexType.BTREE,
+            ImmutableList.of(1, 2),
+            ImmutableList.of(1),
+            "s3://bucket/test/location",
+            1,
+            ImmutableList.of(version),
+            ImmutableList.of(historyEntry),
+            ImmutableList.of(snapshot),
+            ImmutableList.of(),
+            null);
+
+    String expectedJson =
+        """
+        {
+          "index-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
+          "format-version": 1,
+          "index-type": "btree",
+          "index-column-ids": [1, 2],
+          "optimized-column-ids": [1],
+          "location": "s3://bucket/test/location",
+          "current-version-id": 1,
+          "versions": [
+            {
+              "version-id": 1,
+              "timestamp-ms": 1234567890,
+              "properties": {
+                "key": "value"
+              }
+            }
+          ],
+          "version-log": [
+            {
+              "timestamp-ms": 1234567890,
+              "version-id": 1
+            }
+          ],
+          "snapshots": [
+            {
+              "table-snapshot-id": 100,
+              "index-snapshot-id": 200,
+              "version-id": 1,
+              "properties": {
+                "snap-key": "snap-value"
+              }
+            }
+          ]
+        }
+        """
+            .replaceAll("\\s+", "");
+
+    String actualJson = IndexMetadataParser.toJson(metadata);
+    assertThat(actualJson).isEqualTo(expectedJson);
+
+    // Also verify round-trip
+    IndexMetadata parsed = IndexMetadataParser.fromJson(actualJson);
+    assertThat(parsed.uuid()).isEqualTo("fa6506c3-7681-40c8-86dc-e36561f83385");
+    assertThat(parsed.formatVersion()).isEqualTo(1);
+    assertThat(parsed.type()).isEqualTo(IndexType.BTREE);
+    assertThat(parsed.indexColumnIds()).containsExactly(1, 2);
+    assertThat(parsed.optimizedColumnIds()).containsExactly(1);
+    assertThat(parsed.location()).isEqualTo("s3://bucket/test/location");
+    assertThat(parsed.currentVersionId()).isEqualTo(1);
+    assertThat(parsed.versions()).hasSize(1);
+    assertThat(parsed.history()).hasSize(1);
+    assertThat(parsed.snapshots()).hasSize(1);
+  }
 }

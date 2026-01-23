@@ -40,6 +40,8 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.UnboundSortOrder;
+import org.apache.iceberg.catalog.IndexIdentifier;
+import org.apache.iceberg.catalog.IndexIdentifierParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
@@ -96,6 +98,8 @@ public class RESTSerializers {
         .addDeserializer(ErrorResponse.class, new ErrorResponseDeserializer())
         .addSerializer(TableIdentifier.class, new TableIdentifierSerializer())
         .addDeserializer(TableIdentifier.class, new TableIdentifierDeserializer())
+        .addSerializer(IndexIdentifier.class, new IndexIdentifierSerializer())
+        .addDeserializer(IndexIdentifier.class, new IndexIdentifierDeserializer())
         .addSerializer(Namespace.class, new NamespaceSerializer())
         .addDeserializer(Namespace.class, new NamespaceDeserializer())
         .addSerializer(Schema.class, new SchemaSerializer())
@@ -270,6 +274,24 @@ public class RESTSerializers {
         TableIdentifier identifier, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
       TableIdentifierParser.toJson(identifier, gen);
+    }
+  }
+
+  public static class IndexIdentifierDeserializer extends JsonDeserializer<IndexIdentifier> {
+    @Override
+    public IndexIdentifier deserialize(JsonParser p, DeserializationContext context)
+        throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return IndexIdentifierParser.fromJson(jsonNode);
+    }
+  }
+
+  public static class IndexIdentifierSerializer extends JsonSerializer<IndexIdentifier> {
+    @Override
+    public void serialize(
+        IndexIdentifier identifier, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      IndexIdentifierParser.toJson(identifier, gen);
     }
   }
 

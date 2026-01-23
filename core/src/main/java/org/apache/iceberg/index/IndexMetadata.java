@@ -28,7 +28,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
-import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -151,9 +150,9 @@ public interface IndexMetadata extends Serializable {
   /**
    * Return the list of metadata changes for this index.
    *
-   * @return a list of metadata updates
+   * @return a list of index updates
    */
-  List<MetadataUpdate> changes();
+  List<IndexUpdate> changes();
 
   /**
    * Return the metadata file location for this index metadata.
@@ -275,7 +274,7 @@ public interface IndexMetadata extends Serializable {
     private final List<IndexVersion> versions;
     private final List<IndexHistoryEntry> history;
     private final List<IndexSnapshot> snapshots;
-    private final List<MetadataUpdate> changes;
+    private final List<IndexUpdate> changes;
     private int formatVersion = DEFAULT_INDEX_FORMAT_VERSION;
     private int currentVersionId;
     private String location;
@@ -334,7 +333,8 @@ public interface IndexMetadata extends Serializable {
       }
 
       this.formatVersion = newFormatVersion;
-      changes.add(new MetadataUpdate.UpgradeFormatVersion(newFormatVersion));
+      // Note: format version upgrades are tracked but not as an IndexUpdate
+      // since they are handled specially during metadata file writes
       return this;
     }
 
@@ -345,7 +345,7 @@ public interface IndexMetadata extends Serializable {
       }
 
       this.location = newLocation;
-      changes.add(new MetadataUpdate.SetLocation(newLocation));
+      changes.add(new IndexUpdate.SetIndexLocation(newLocation));
       return this;
     }
 
@@ -354,13 +354,12 @@ public interface IndexMetadata extends Serializable {
       return this;
     }
 
-    public Builder assignUUID(String newUUID) {
-      Preconditions.checkArgument(newUUID != null, "Cannot set uuid to null");
-      Preconditions.checkArgument(uuid == null || newUUID.equals(uuid), "Cannot reassign uuid");
+    public Builder assignUUID(String newUuid) {
+      Preconditions.checkArgument(newUuid != null, "Cannot set uuid to null");
 
-      if (!newUUID.equals(uuid)) {
-        this.uuid = newUUID;
-        changes.add(new MetadataUpdate.AssignUUID(uuid));
+      if (!newUuid.equals(uuid)) {
+        this.uuid = newUuid;
+        changes.add(new IndexUpdate.AssignUUID(newUuid));
       }
 
       return this;
@@ -404,16 +403,16 @@ public interface IndexMetadata extends Serializable {
       this.currentVersionId = newVersionId;
 
       if (lastAddedVersionId != null && lastAddedVersionId == newVersionId) {
-        changes.add(new MetadataUpdate.SetCurrentIndexVersion(LAST_ADDED));
+        changes.add(new IndexUpdate.SetIndexCurrentVersion(LAST_ADDED));
       } else {
-        changes.add(new MetadataUpdate.SetCurrentIndexVersion(newVersionId));
+        changes.add(new IndexUpdate.SetIndexCurrentVersion(newVersionId));
       }
 
       // Use the timestamp from the index version if it was added in current set of changes.
       // Otherwise, use the current system time. This handles cases where the index version
       // was set as current in the past and is being re-activated.
       boolean versionAddedInThisChange =
-          changes(MetadataUpdate.AddIndexVersion.class)
+          changes(IndexUpdate.AddIndexVersion.class)
               .anyMatch(added -> added.indexVersion().versionId() == newVersionId);
 
       this.historyEntry =
@@ -444,7 +443,7 @@ public interface IndexMetadata extends Serializable {
 
       if (versionsById.containsKey(newVersionId)) {
         boolean addedInBuilder =
-            changes(MetadataUpdate.AddIndexVersion.class)
+            changes(IndexUpdate.AddIndexVersion.class)
                 .anyMatch(added -> added.indexVersion().versionId() == newVersionId);
         this.lastAddedVersionId = addedInBuilder ? newVersionId : null;
         return newVersionId;
@@ -453,7 +452,7 @@ public interface IndexMetadata extends Serializable {
       versions.add(version);
       versionsById.put(version.versionId(), version);
 
-      changes.add(new MetadataUpdate.AddIndexVersion(version));
+      changes.add(new IndexUpdate.AddIndexVersion(version));
 
       this.lastAddedVersionId = newVersionId;
 
@@ -494,7 +493,7 @@ public interface IndexMetadata extends Serializable {
 
       snapshots.add(snapshot);
       snapshotsById.put(snapshot.indexSnapshotId(), snapshot);
-      changes.add(new MetadataUpdate.AddIndexSnapshot(snapshot));
+      changes.add(new IndexUpdate.AddIndexSnapshot(snapshot));
       return this;
     }
 
@@ -519,7 +518,7 @@ public interface IndexMetadata extends Serializable {
               .build();
 
       setCurrentVersion(newVersion);
-      changes.add(new MetadataUpdate.SetProperties(updated));
+      changes.add(new IndexUpdate.SetIndexProperties(updated));
       return this;
     }
 
@@ -544,7 +543,7 @@ public interface IndexMetadata extends Serializable {
               .build();
 
       setCurrentVersion(newVersion);
-      changes.add(new MetadataUpdate.RemoveProperties(propertiesToRemove));
+      changes.add(new IndexUpdate.RemoveIndexProperties(propertiesToRemove));
       return this;
     }
 
@@ -565,7 +564,7 @@ public interface IndexMetadata extends Serializable {
       snapshots.removeAll(snapshotsToRemove);
 
       if (!snapshotsToRemove.isEmpty()) {
-        changes.add(new MetadataUpdate.RemoveIndexSnapshots(indexSnapshotIdsToRemove));
+        changes.add(new IndexUpdate.RemoveIndexSnapshots(indexSnapshotIdsToRemove));
       }
 
       return this;
@@ -608,7 +607,7 @@ public interface IndexMetadata extends Serializable {
       int numVersions =
           ImmutableSet.builder()
               .addAll(
-                  changes(MetadataUpdate.AddIndexVersion.class)
+                  changes(IndexUpdate.AddIndexVersion.class)
                       .map(v -> v.indexVersion().versionId())
                       .collect(Collectors.toSet()))
               .add(currentVersionId)
@@ -687,7 +686,7 @@ public interface IndexMetadata extends Serializable {
       return retainedHistory;
     }
 
-    private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
+    private <U extends IndexUpdate> Stream<U> changes(Class<U> updateClass) {
       return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
     }
   }
