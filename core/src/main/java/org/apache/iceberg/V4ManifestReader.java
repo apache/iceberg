@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
@@ -63,6 +64,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final Long manifestFirstRowId;
 
   private ByteBuffer manifestDV = null;
+  private Map<Integer, PartitionSpec> specsById = null;
 
   @SuppressWarnings("UnusedVariable")
   private Expression filter = Expressions.alwaysTrue();
@@ -90,6 +92,21 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
    */
   public V4ManifestReader withManifestDV(ByteBuffer dv) {
     this.manifestDV = dv;
+    return this;
+  }
+
+  /**
+   * Sets the partition specs by ID for converting TrackedFile entries to DataFile or DeleteFile.
+   *
+   * <p>When set, each entry's partition spec will be looked up by its {@link
+   * TrackedFile#partitionSpecId()} and set on the entry, allowing callers to use {@link
+   * TrackedFile#asDataFile()} without needing to look up specs themselves.
+   *
+   * @param specs map of partition spec ID to partition spec
+   * @return this reader for method chaining
+   */
+  public V4ManifestReader withSpecsById(Map<Integer, PartitionSpec> specs) {
+    this.specsById = specs;
     return this;
   }
 
@@ -214,6 +231,17 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
                 Preconditions.checkNotNull(
                     pos, "Position should not be null when applying manifest deletion vector");
                 return !deletedPositions.contains(pos.intValue());
+              });
+    }
+
+    if (specsById != null) {
+      transformed =
+          CloseableIterable.transform(
+              transformed,
+              entry -> {
+                PartitionSpec spec = specsById.get(entry.partitionSpecId());
+                entry.setSpec(spec);
+                return entry;
               });
     }
 

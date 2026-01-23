@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
@@ -41,6 +42,7 @@ class TrackedFileStruct extends SupportsIndexProjection
   // Reader-side metadata (not serialized)
   private String manifestLocation = null;
   private Long position = null;
+  private PartitionSpec spec = null;
 
   // Common file metadata
   private FileContent contentType = FileContent.DATA;
@@ -128,6 +130,7 @@ class TrackedFileStruct extends SupportsIndexProjection
     // Reader-side metadata
     this.manifestLocation = toCopy.manifestLocation;
     this.position = toCopy.position;
+    this.spec = toCopy.spec;
 
     // Common file metadata
     this.contentType = toCopy.contentType;
@@ -196,6 +199,14 @@ class TrackedFileStruct extends SupportsIndexProjection
 
   void setPos(Long pos) {
     this.position = pos;
+  }
+
+  PartitionSpec spec() {
+    return spec;
+  }
+
+  void setSpec(PartitionSpec spec) {
+    this.spec = spec;
   }
 
   /**
@@ -463,21 +474,22 @@ class TrackedFileStruct extends SupportsIndexProjection
   }
 
   @Override
-  public DataFile asDataFile(PartitionSpec spec) {
-    if (contentType != FileContent.DATA) {
-      throw new IllegalStateException(
-          "Cannot convert TrackedFile with content type " + contentType + " to DataFile");
-    }
+  public DataFile asDataFile() {
+    Preconditions.checkState(
+        contentType == FileContent.DATA,
+        "Cannot convert TrackedFile with content type %s to DataFile",
+        contentType);
+    Preconditions.checkState(spec != null, "Partition spec not set");
     return new TrackedDataFile(this, spec);
   }
 
   @Override
-  public DeleteFile asDeleteFile(PartitionSpec spec) {
-    if (contentType != FileContent.POSITION_DELETES
-        && contentType != FileContent.EQUALITY_DELETES) {
-      throw new IllegalStateException(
-          "Cannot convert TrackedFile with content type " + contentType + " to DeleteFile");
-    }
+  public DeleteFile asDeleteFile() {
+    Preconditions.checkState(
+        contentType == FileContent.POSITION_DELETES || contentType == FileContent.EQUALITY_DELETES,
+        "Cannot convert TrackedFile with content type %s to DeleteFile",
+        contentType);
+    Preconditions.checkState(spec != null, "Partition spec not set");
     return new TrackedDeleteFile(this, spec);
   }
 
