@@ -51,8 +51,8 @@ import org.apache.iceberg.util.ParallelIterable;
  * <p><b>TODO: (after ContentStats is ready):</b>
  *
  * <ol>
- *   <li>Implement TrackedFile.asDataFile(spec)
- *   <li>Implement TrackedFile.asDeleteFile(spec)
+ *   <li>Implement TrackedFile.asDataFile()
+ *   <li>Implement TrackedFile.asDeleteFile()
  *   <li>Add planFiles() method that returns CloseableIterable&lt;FileScanTask&gt;
  *   <li>Handle equality deletes
  *   <li>Add manifest-level filtering using ManifestStats
@@ -231,11 +231,12 @@ public class ManifestExpander extends CloseableGroup {
    *     TrackedFile tf = scanInfo.dataFile();
    *     PartitionSpec spec = specsById.get(tf.partitionSpecId());
    *
-   *     // TrackedFile.asDataFile(spec) extracts partition from contentStats internally
-   *     DataFile dataFile = tf.asDataFile(spec);
+   *     // TrackedFile.asDataFile() extracts partition from contentStats internally
+   *     // (spec is set by the manifest reader via withSpecsById)
+   *     DataFile dataFile = tf.asDataFile();
    *
-   *     // Convert TrackedFile deletes → DeleteFile array
-   *     DeleteFile[] deleteFiles = convertDeleteFiles(scanInfo.deleteFiles(), spec);
+   *     // Convert TrackedFile deletes to DeleteFile array
+   *     DeleteFile[] deleteFiles = convertDeleteFiles(scanInfo.deleteFiles());
    *
    *     // Build residual evaluator
    *     ResidualEvaluator residuals = ResidualEvaluator.of(spec, dataFilter, caseSensitive);
@@ -249,13 +250,12 @@ public class ManifestExpander extends CloseableGroup {
    *         residuals);
    * }
    *
-   * private DeleteFile[] convertDeleteFiles(
-   *     List<TrackedFile> deleteTrackedFiles,
-   *     PartitionSpec spec) {
+   * private DeleteFile[] convertDeleteFiles(List<TrackedFile> deleteTrackedFiles) {
    *     DeleteFile[] deleteFiles = new DeleteFile[deleteTrackedFiles.size()];
    *     for (int i = 0; i < deleteTrackedFiles.size(); i++) {
-   *         // TrackedFile.asDeleteFile(spec) extracts partition from contentStats internally
-   *         deleteFiles[i] = deleteTrackedFiles.get(i).asDeleteFile(spec);
+   *         // TrackedFile.asDeleteFile() extracts partition from contentStats internally
+   *         // (spec is set by the manifest reader via withSpecsById)
+   *         deleteFiles[i] = deleteTrackedFiles.get(i).asDeleteFile();
    *     }
    *     return deleteFiles;
    * }
@@ -305,8 +305,8 @@ public class ManifestExpander extends CloseableGroup {
    * <p>TODO: When ContentStats available, convert this to FileScanTask by:
    *
    * <ol>
-   *   <li>Call TrackedFile.asDataFile(spec) - extracts partition from contentStats internally
-   *   <li>Call TrackedFile.asDeleteFile(spec) for deletes - extracts partition internally
+   *   <li>Call TrackedFile.asDataFile() - extracts partition from contentStats internally
+   *   <li>Call TrackedFile.asDeleteFile() for deletes - extracts partition internally
    *   <li>Create BaseFileScanTask with DataFile, DeleteFile array, and residuals
    * </ol>
    */
