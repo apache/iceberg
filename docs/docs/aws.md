@@ -659,6 +659,25 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
 
 For more details on using S3 Dual-stack, please refer [Using dual-stack endpoints from the AWS CLI and the AWS SDKs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html#dual-stack-endpoints-cli)
 
+### S3 Metrics Publisher
+
+`S3FileIO` supports configuring a custom [MetricPublisher](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/metrics/MetricPublisher.html) to capture metrics emitted by the AWS SDK for S3 operations. Note that this is not supported when using the [S3 CRT client](https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/crt-based-s3-client.html) (`s3.crt.enabled=true`).
+
+To enable, set `s3.metrics-publisher-impl` to a class implementing `MetricPublisher`. The class must provide either a static `create(Map<String, String>)` factory method or a no-arg constructor.
+
+| Property                   | Default | Description                                                                 |
+| -------------------------- | ------- | --------------------------------------------------------------------------- |
+| s3.metrics-publisher-impl  | null    | Fully qualified class name of a `MetricPublisher` implementation |
+
+For example, to use a custom metrics publisher with Spark 3.5:
+```
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.type=glue \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.metrics-publisher-impl=com.example.MyMetricPublisher
+```
+
 ## AWS Client Customization
 
 Many organizations have customized their way of configuring AWS clients with their own credential provider, access proxy, retry strategy, etc.
