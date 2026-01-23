@@ -431,7 +431,7 @@ public class TestHadoopFileIO {
     private static final AtomicLong INSTANCES = new AtomicLong();
     private static final AtomicLong EXCEPTIONS = new AtomicLong();
 
-    public TestTrashPolicy() {
+    private TestTrashPolicy() {
       INSTANCES.incrementAndGet();
     }
 
