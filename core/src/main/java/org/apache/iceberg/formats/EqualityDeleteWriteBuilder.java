@@ -47,8 +47,8 @@ public interface EqualityDeleteWriteBuilder<D, S>
   /**
    * Sets the engine's representation accepted by the writer.
    *
-   * <p>When provided, this schema should be consistent with the provided Iceberg schema, while
-   * allowing representation differences that Iceberg considers equivalent.
+   * <p>The engine schema must be aligned with the Iceberg schema, but may include representation
+   * details that Iceberg considers equivalent.
    */
   EqualityDeleteWriteBuilder<D, S> engineSchema(S schema);
 

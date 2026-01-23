@@ -53,7 +53,7 @@ public interface ReadBuilder<D, S> {
    * Sets the engine's representation of the projected schema.
    *
    * <p>When provided, this schema should be consistent with the requested Iceberg projection, while
-   * allowing representation differences that Iceberg considers equivalent. Examples include:
+   * allowing representation differences. Examples include:
    *
    * <ul>
    *   <li>using a {@code long} to represent an Iceberg {@code int} column,

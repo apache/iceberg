@@ -42,14 +42,13 @@ public interface DataWriteBuilder<D, S> extends CommonWriteBuilder<DataWriteBuil
   /**
    * Sets the engine's representation accepted by the writer.
    *
-   * <p>When provided, this schema should be consistent with the provided Iceberg schema, while
-   * allowing representation differences that Iceberg considers equivalent. Examples include:
+   * <p>Some data types require additional type information from the engine schema that cannot be
+   * fully expressed by the Iceberg schema or the data itself. For example, a variant type may use a
+   * shredded representation that relies on engine-specific metadata to map back to the Iceberg
+   * schema.
    *
-   * <ul>
-   *   <li>representing an Iceberg {@code int} column using {@code smallint},
-   *   <li>supplying a shredded representation for a variant type, or
-   *   <li>selecting specific concrete classes for Iceberg structs.
-   * </ul>
+   * <p>The engine schema must be aligned with the Iceberg schema, but may include representation
+   * details that Iceberg considers equivalent.
    */
   DataWriteBuilder<D, S> engineSchema(S schema);
 
