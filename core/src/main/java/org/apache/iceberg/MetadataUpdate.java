@@ -23,9 +23,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.encryption.EncryptedKey;
-import org.apache.iceberg.index.IndexMetadata;
-import org.apache.iceberg.index.IndexSnapshot;
-import org.apache.iceberg.index.IndexVersion;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewVersion;
@@ -40,11 +37,6 @@ public interface MetadataUpdate extends Serializable {
   default void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
     throw new UnsupportedOperationException(
         String.format("Cannot apply update %s to a view", this.getClass().getSimpleName()));
-  }
-
-  default void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-    throw new UnsupportedOperationException(
-        String.format("Cannot apply update %s to an index", this.getClass().getSimpleName()));
   }
 
   class AssignUUID implements MetadataUpdate {
@@ -565,82 +557,6 @@ public interface MetadataUpdate extends Serializable {
     @Override
     public void applyTo(TableMetadata.Builder builder) {
       builder.removeEncryptionKey(keyId);
-    }
-  }
-
-  /** Adds a new index version to the index metadata. */
-  class AddIndexVersion implements MetadataUpdate {
-    private final IndexVersion indexVersion;
-
-    public AddIndexVersion(IndexVersion indexVersion) {
-      this.indexVersion = indexVersion;
-    }
-
-    public IndexVersion indexVersion() {
-      return indexVersion;
-    }
-
-    @Override
-    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-      indexMetadataBuilder.addVersion(indexVersion);
-    }
-  }
-
-  /** Sets the current index version in the index metadata. */
-  class SetCurrentIndexVersion implements MetadataUpdate {
-    private final int versionId;
-
-    public SetCurrentIndexVersion(int versionId) {
-      this.versionId = versionId;
-    }
-
-    public int versionId() {
-      return versionId;
-    }
-
-    @Override
-    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-      indexMetadataBuilder.setCurrentVersionId(versionId);
-    }
-  }
-
-  /** Adds a new index snapshot to the index metadata. */
-  class AddIndexSnapshot implements MetadataUpdate {
-    private final IndexSnapshot indexSnapshot;
-
-    public AddIndexSnapshot(IndexSnapshot indexSnapshot) {
-      this.indexSnapshot = indexSnapshot;
-    }
-
-    public IndexSnapshot indexSnapshot() {
-      return indexSnapshot;
-    }
-
-    @Override
-    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-      indexMetadataBuilder.addSnapshot(indexSnapshot);
-    }
-  }
-
-  /** Removes index snapshots from the index metadata. */
-  class RemoveIndexSnapshots implements MetadataUpdate {
-    private final Set<Long> indexSnapshotIds;
-
-    public RemoveIndexSnapshots(long indexSnapshotId) {
-      this.indexSnapshotIds = ImmutableSet.of(indexSnapshotId);
-    }
-
-    public RemoveIndexSnapshots(Set<Long> indexSnapshotIds) {
-      this.indexSnapshotIds = ImmutableSet.copyOf(indexSnapshotIds);
-    }
-
-    public Set<Long> indexSnapshotIds() {
-      return indexSnapshotIds;
-    }
-
-    @Override
-    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-      indexMetadataBuilder.removeSnapshots(indexSnapshotIds);
     }
   }
 }
