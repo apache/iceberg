@@ -23,11 +23,11 @@ A pre-configured Apache Flink image with Apache Iceberg dependencies for quickly
 
 ## Overview
 
-This Docker image extends the official Apache Flink image and includes:
+This Docker image extends the official Apache Flink image to include:
 
-- Iceberg Flink runtime JAR
+- Iceberg Flink runtime
 - Iceberg AWS bundle for S3/Glue support
-- Hadoop dependencies for filesystem operations
+- Minimal Hadoop dependencies necessary for Flink
 
 ## Build Arguments
 
@@ -76,15 +76,6 @@ Then connect to Flink SQL client:
 docker exec -it jobmanager ./bin/sql-client.sh
 ```
 
-### For Local Development
-
-If you want to build from the local Dockerfile instead of using the published image:
-
-```bash
-cd flink/quickstart
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-```
-
 ### Running Directly
 
 ```bash
@@ -102,34 +93,6 @@ docker run -d --name taskmanager \
   taskmanager
 ```
 
-## Example: Creating an Iceberg Catalog
+## Iceberg quickstart for Flink
 
-Once connected to the Flink SQL client:
-
-```sql
--- Create an Iceberg catalog using REST
-CREATE CATALOG iceberg WITH (
-  'type' = 'iceberg',
-  'catalog-impl' = 'org.apache.iceberg.rest.RESTCatalog',
-  'uri' = 'http://rest:8181'
-);
-
--- Use the catalog
-USE CATALOG iceberg;
-
--- Create a namespace
-CREATE DATABASE IF NOT EXISTS quickstart;
-USE quickstart;
-
--- Create a table
-CREATE TABLE sample (
-  id BIGINT,
-  data STRING
-);
-
--- Insert data
-INSERT INTO sample VALUES (1, 'hello'), (2, 'world');
-
--- Query data
-SELECT * FROM sample;
-```
+See https://iceberg.apache.org/flink-quickstart/[Flink quickstart] in the Iceberg documentation.
