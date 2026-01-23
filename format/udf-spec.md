@@ -55,7 +55,7 @@ The UDF metadata file has the following fields:
 | *required*  | `function-uuid`  | `string`               | A UUID that identifies this UDF, generated once at creation.          |
 | *required*  | `format-version` | `int`                  | UDF specification format version (must be `1`).                       |
 | *required*  | `definitions`    | `list<definition>`     | List of function [definition](#definition) entities.                  |
-| *required*  | `definition-log` | `list<definition-log>` | History of [definition snapshots](#definition-log).                   |
+| *required*  | `definition-log` | `list<definition-log>` | History of [definition version history](#definition-log).             |
 | *optional*  | `location`       | `string`               | The function's base location; used to create metadata file locations. |
 | *optional*  | `properties`     | `map<string,string>`   | A string-to-string map of properties.                                 |
 | *optional*  | `secure`         | `boolean`              | Whether it is a secure function. Default: `false`.                    |
@@ -72,16 +72,16 @@ identified by its signature (the ordered list of parameter types). There can be 
 All versions within a definition must accept the same signature as specified in the definition's `parameters` field and
 must produce values of the declared `return-type`.
 
-| Requirement | Field name           | Type                                            | Description                                                                                                   |
-|-------------|----------------------|-------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| *required*  | `definition-id`      | `string`                                        | An identifier derived from canonical parameter-type tuple (lowercase, no spaces; e.g., `"(int,int,string)"`). |
-| *required*  | `parameters`         | `list<parameter>`                               | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.                 |
-| *required*  | `return-type`        | `string`                                        | Declared return type (see [Types](#types)).                                                                   |
-| *optional*  | `return-nullable`    | `boolean`                                       | A hint to indicate whether the return value is nullable or not. Default: `true`.                              |
-| *required*  | `versions`           | `list<definition-version>`                      | [Versioned implementations](#definition-version) of this definition.                                          |
-| *required*  | `current-version-id` | `int`                                           | Identifier of the current version for this definition.                                                        |
-| *required*  | `function-type`      | `string` (`"udf"` or `"udtf"`, default `"udf"`) | If `"udtf"`, `return-type` must be an Iceberg type `struct` describing the output schema.                     |
-| *optional*  | `doc`                | `string`                                        | Documentation string.                                                                                         |
+| Requirement | Field name           | Type                           | Description                                                                                                   |
+|-------------|----------------------|--------------------------------|---------------------------------------------------------------------------------------------------------------|
+| *required*  | `definition-id`      | `string`                       | An identifier derived from canonical parameter-type tuple (lowercase, no spaces; e.g., `"(int,int,string)"`). |
+| *required*  | `parameters`         | `list<parameter>`              | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.                 |
+| *required*  | `return-type`        | `string`                       | Declared return type (see [Types](#types)).                                                                   |
+| *optional*  | `return-nullable`    | `boolean`                      | A hint to indicate whether the return value is nullable or not. Default: `true`.                              |
+| *required*  | `versions`           | `list<definition-version>`     | [Versioned implementations](#definition-version) of this definition.                                          |
+| *required*  | `current-version-id` | `int`                          | Identifier of the current version for this definition.                                                        |
+| *required*  | `function-type`      | `string` (`"udf"` or `"udtf"`) | If `"udtf"`, `return-type` must be an Iceberg type `struct` describing the output schema.                     |
+| *optional*  | `doc`                | `string`                       | Documentation string.                                                                                         |
 
 ### Parameter
 | Requirement | Field  | Type     | Description                                |
@@ -103,54 +103,62 @@ Three nested types are supported. All type parameters must be concrete types:
 * `struct<f1:T1,f2:T2,...>`: Record with named fields specified as `name:type` pairs separated by commas; field order is
    significant and undeclared fields are not allowed; example `struct<id:int,name:string>`.
 
-### Definition-Version
+### Definition Version
 
 Each definition can evolve over time by introducing new versions.  
-A `definition version` represents a specific implementation of that definition at a given point in time.
+A `definition version` represents a specific implementation of that definition at a given point in time. A definition version can have multiple SQL representations of different dialects, but only one SQL representation per dialect.
 
-| Requirement | Field name        | Type                                                                                                    | Description                                                    |
-|-------------|-------------------|---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
-| *required*  | `version-id`      | `int`                                                                                                   | Monotonically increasing identifier of the definition version. |
-| *required*  | `representations` | `list<representation>`                                                                                  | [Dialect-specific implementations](#representation).           |
-| *optional*  | `deterministic`   | `boolean` (default `false`)                                                                             | Whether the function is deterministic.                         |
-| *optional*  | `on-null-input`   | `string` (`"returns_null_on_null_input"` or `"called_on_null_input"`, default `"called_on_null_input"`) | Defines how the UDF behaves when any input parameter is NULL.  |
-| *required*  | `timestamp-ms`    | `long` (epoch millis)                                                                                   | Creation timestamp of this version.                            |
+| Requirement | Field name        | Type                                                     | Description                                                    |
+|-------------|-------------------|----------------------------------------------------------|----------------------------------------------------------------|
+| *required*  | `version-id`      | `int`                                                    | Monotonically increasing identifier of the definition version. |
+| *required*  | `representations` | `list<representation>`                                   | [Dialect-specific implementations](#representation).           |
+| *optional*  | `deterministic`   | `boolean` (default `false`)                              | Whether the function is deterministic.                         |
+| *optional*  | `on-null-input`   | `string` (`"return-null"` or `"call"`, default `"call"`) | Defines how the UDF behaves when any input parameter is NULL.  |
+| *required*  | `timestamp-ms`    | `long` (unix epoch millis)                               | Creation timestamp of this version.                            |
 
-Note:
 
-`on-null-input` provides an optimization hint for query engines, its value can be either `"returns_null_on_null_input"` or `"called_on_null_input"`:
-1. If set to `returns_null_on_null_input`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to apply predicate pushdown or skip function evaluation for rows with `NULL` inputs. For a function `f(x, y) = x + y`,
-the engine can safely rewrite `WHERE f(a,b) > 0` as `WHERE a IS NOT NULL AND b IS NOT NULL AND f(a,b) > 0`.
-2. If set to `called_on_null_input`, the function may handle `NULL`s internally (e.g., `COALESCE`, `NVL`, `IFNULL`), so the engine must execute the function even if some inputs are `NULL`.
-3. A definition version can have multiple SQL representations of different dialects, but only one SQL representation per dialect.
+#### Null Input Handling
+`on-null-input` provides an optimization hint for query engines:
+1. If set to `return-null`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to
+   apply predicate pushdown or skip function evaluation for rows with `NULL` inputs. For a function `f(x, y) = x + y`,
+   the engine can safely rewrite `WHERE f(a,b) > 0` as `WHERE a IS NOT NULL AND b IS NOT NULL AND f(a,b) > 0`.
+2. If set to `call`, the function may handle `NULL`s internally (e.g., `COALESCE`, `NVL`, `IFNULL`), so the engine must
+   execute the function even if some inputs are `NULL`.
 
 ### Representation
-A representation encodes how the definition version is expressed in a specific SQL dialect.
+Each representation is an object with at least one common field, `type`, that is one of the following:
+* `sql`: a SQL expression that defines the function body
 
-| Requirement | Field name   | Type              | Description                                                                                 |
-|-------------|--------------|-------------------|---------------------------------------------------------------------------------------------|
-| *required*  | `type`       | `string`          | Must be `"sql"`                                                                             |
-| *required*  | `dialect`    | `string`          | SQL dialect identifier (e.g., `"spark"`, `"trino"`).                                        |
-| *required*  | `body`       | `string`          | SQL expression text.                                                                        |
+Representations further define metadata for each type.
+
+#### SQL Representation
+
+The SQL representation stores the function body as a SQL expression, with metadata such as the SQL dialect.
+
+| Requirement | Field name | Type     | Description                                          |
+|-------------|------------|----------|------------------------------------------------------|
+| *required*  | `type`     | `string` | Must be `"sql"`                                      |
+| *required*  | `dialect`  | `string` | SQL dialect identifier (e.g., `"spark"`, `"trino"`). |
+| *required*  | `sql`      | `string` | SQL expression text.                                 |
 
 Notes:
-1. The `body` must be valid SQL in the specified dialect; validation is the responsibility of the consuming engine.
-2. The SQL `body` must reference parameters using the names declared in the definition's `parameters` field.
+1. The `sql` must reference parameters using the names declared in the definition's `parameters` field.
 
-### Definition-Log
-| Requirement | Field name            | Type                                               | Description                                                      |
-|-------------|-----------------------|----------------------------------------------------|------------------------------------------------------------------|
-| *required*  | `timestamp-ms`        | `long` (epoch millis)                              | When the definition snapshot was created or updated.             |
-| *required*  | `definition-versions` | `list<{ definition-id: string, version-id: int }>` | Mapping of each definition to its selected version at this time. |
+### Definition Log
+| Requirement | Field name            | Type                                                | Description                                                      |
+|-------------|-----------------------|-----------------------------------------------------|------------------------------------------------------------------|
+| *required*  | `timestamp-ms`        | `long` (unix epoch millis)                          | When the definition snapshot was created or updated.             |
+| *required*  | `definition-versions` | `list<struct<definition-id:string,version-id:int>>` | Mapping of each definition to its selected version at this time. |
 
 ## Function Call Convention and Resolution in Engines
-Resolution rule is decided by engines, but engines SHOULD:
-1. Prefer exact signature matches over casting or subtyping.
-2. Allow numeric widening (e.g., `INT` --> `BIGINT/FLOAT`) when needed and where it does not conflict with the rule above.
-3. Require explicit casts for unsafe conversions (e.g., `STRING` --> `DATE`).
-4. Function invocation SHOULD use a single argument binding mode per call, either a fully positional argument call
-   (e.g., `foo(1, 2, 3)`) or a fully named argument call(e.g., `foo(a => 1, b => 2, c => 3)`). Mixing positional and named
-   arguments within the same function invocation is NOT RECOMMENDED, e.g., `foo(1, 2, c =>3)`.
+Selecting the definition of a function to use is delegated to engines, which may apply their own casting rules. However, engines should:
+
+1. Prefer exact parameter matches over safe (widening) or unsafe casts.
+2. Safely widen types as needed to avoid failing to find a matching definition.
+3. Require explicit casts for unsafe or non-obvious conversions.
+4. Use definitions with the same number of arguments as the input.
+5. Pass positional arguments in the same position as the input.
+6. Use definitions with the same set of field names as named input arguments.
 
 ## Appendix A: Example – Overloaded Scalar Function
 
@@ -193,7 +201,7 @@ RETURN x + 1.0;
           "version-id": 1,
           "deterministic": true,
           "representations": [
-            { "type": "sql", "dialect": "trino", "body": "x + 2" }
+            { "type": "sql", "dialect": "trino", "sql": "x + 2" }
           ],
           "timestamp-ms": 1734507000123
         },
@@ -201,8 +209,8 @@ RETURN x + 1.0;
           "version-id": 2,
           "deterministic": true,
           "representations": [
-            { "type": "sql", "dialect": "trino", "body": "x + 1" },
-            { "type": "sql", "dialect": "spark", "body": "x + 1" }
+            { "type": "sql", "dialect": "trino", "sql": "x + 1" },
+            { "type": "sql", "dialect": "spark", "sql": "x + 1" }
           ],
           "timestamp-ms": 1735507000124
         }
@@ -223,7 +231,7 @@ RETURN x + 1.0;
           "version-id": 1,
           "deterministic": true,
           "representations": [
-            { "type": "sql", "dialect": "trino", "body": "x + 1.0" }
+            { "type": "sql", "dialect": "trino", "sql": "x + 1.0" }
           ],
           "timestamp-ms": 1734507001123
         }
@@ -294,8 +302,8 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
           "version-id": 1,
           "deterministic": true,
           "representations": [
-            { "type": "sql", "dialect": "trino", "body": "SELECT name, color FROM fruits WHERE color = c" },
-            { "type": "sql", "dialect": "spark", "body": "SELECT name, color FROM fruits WHERE color = c" }
+            { "type": "sql", "dialect": "trino", "sql": "SELECT name, color FROM fruits WHERE color = c" },
+            { "type": "sql", "dialect": "spark", "sql": "SELECT name, color FROM fruits WHERE color = c" }
           ],
           "timestamp-ms": 1734508000123
         }
