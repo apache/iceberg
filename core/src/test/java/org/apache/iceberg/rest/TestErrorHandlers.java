@@ -26,89 +26,105 @@ import org.junit.jupiter.api.Test;
 
 public class TestErrorHandlers {
 
-    @Test
-    public void testErrorHandlerIncludesCodeAndType() {
-        ErrorResponse error = ErrorResponse.builder().responseCode(422)
-                .withType("ValidationException").withMessage("Invalid input").build();
+  @Test
+  public void testErrorHandlerIncludesCodeAndType() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(422)
+            .withType("ValidationException")
+            .withMessage("Invalid input")
+            .build();
 
-        assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
-                .isInstanceOf(RESTException.class).hasMessage(
-                        "Unable to process (code: 422, type: ValidationException): Invalid input");
-    }
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Unable to process (code: 422, type: ValidationException): Invalid input");
+  }
 
-    @Test
-    public void testErrorHandlerWithCodeOnly() {
-        ErrorResponse error = ErrorResponse.builder().responseCode(422).build();
+  @Test
+  public void testErrorHandlerWithCodeOnly() {
+    ErrorResponse error = ErrorResponse.builder().responseCode(422).build();
 
-        assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
-                .isInstanceOf(RESTException.class)
-                .hasMessage("Unable to process (code: 422, type: null): null");
-    }
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Unable to process (code: 422, type: null): null");
+  }
 
-    @Test
-    public void testErrorHandlerWithCodeAndMessageOnly() {
-        ErrorResponse error =
-                ErrorResponse.builder().responseCode(422).withMessage("Invalid input").build();
+  @Test
+  public void testErrorHandlerWithCodeAndMessageOnly() {
+    ErrorResponse error =
+        ErrorResponse.builder().responseCode(422).withMessage("Invalid input").build();
 
-        assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
-                .isInstanceOf(RESTException.class)
-                .hasMessage("Unable to process (code: 422, type: null): Invalid input");
-    }
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Unable to process (code: 422, type: null): Invalid input");
+  }
 
-    @Test
-    public void testErrorHandlerWithCodeAndTypeOnly() {
-        ErrorResponse error =
-                ErrorResponse.builder().responseCode(422).withType("ValidationException").build();
+  @Test
+  public void testErrorHandlerWithCodeAndTypeOnly() {
+    ErrorResponse error =
+        ErrorResponse.builder().responseCode(422).withType("ValidationException").build();
 
-        assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
-                .isInstanceOf(RESTException.class)
-                .hasMessage("Unable to process (code: 422, type: ValidationException): null");
-    }
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Unable to process (code: 422, type: ValidationException): null");
+  }
 
-    @Test
-    public void testNamespaceErrorHandlerFallsBackToDefaultFor422() {
-        ErrorResponse error = ErrorResponse.builder().responseCode(422)
-                .withType("ValidationException").withMessage("Invalid input").build();
+  @Test
+  public void testNamespaceErrorHandlerFallsBackToDefaultFor422() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(422)
+            .withType("ValidationException")
+            .withMessage("Invalid input")
+            .build();
 
-        // NamespaceErrorHandler should fall back to DefaultErrorHandler for 422,
-        // which includes code, type, and message in the error message
-        assertThatThrownBy(() -> ErrorHandlers.namespaceErrorHandler().accept(error))
-                .isInstanceOf(RESTException.class).hasMessage(
-                        "Unable to process (code: 422, type: ValidationException): Invalid input");
-    }
+    // NamespaceErrorHandler should fall back to DefaultErrorHandler for 422,
+    // which includes code, type, and message in the error message
+    assertThatThrownBy(() -> ErrorHandlers.namespaceErrorHandler().accept(error))
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Unable to process (code: 422, type: ValidationException): Invalid input");
+  }
 
-    @Test
-    public void testNamespaceErrorHandlerFallsBackToDefaultFor422WithOptionalFields() {
-        ErrorResponse error =
-                ErrorResponse.builder().responseCode(422).withMessage("Invalid input").build();
+  @Test
+  public void testNamespaceErrorHandlerFallsBackToDefaultFor422WithOptionalFields() {
+    ErrorResponse error =
+        ErrorResponse.builder().responseCode(422).withMessage("Invalid input").build();
 
-        // NamespaceErrorHandler should fall back to DefaultErrorHandler for 422,
-        // even when type is missing
-        assertThatThrownBy(() -> ErrorHandlers.namespaceErrorHandler().accept(error))
-                .isInstanceOf(RESTException.class)
-                .hasMessage("Unable to process (code: 422, type: null): Invalid input");
-    }
+    // NamespaceErrorHandler should fall back to DefaultErrorHandler for 422,
+    // even when type is missing
+    assertThatThrownBy(() -> ErrorHandlers.namespaceErrorHandler().accept(error))
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Unable to process (code: 422, type: null): Invalid input");
+  }
 
-    @Test
-    public void testErrorHandlerFor405() {
-        ErrorResponse error = ErrorResponse.builder().responseCode(405)
-                .withType("MethodNotAllowedException").withMessage("Method not allowed").build();
+  @Test
+  public void testErrorHandlerFor405() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(405)
+            .withType("MethodNotAllowedException")
+            .withMessage("Method not allowed")
+            .build();
 
-        // 405 (Method Not Allowed) should fall through to default RESTException
-        assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
-                .isInstanceOf(RESTException.class).hasMessage(
-                        "Unable to process (code: 405, type: MethodNotAllowedException): Method not allowed");
-    }
+    // 405 (Method Not Allowed) should fall through to default RESTException
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(RESTException.class)
+        .hasMessage(
+            "Unable to process (code: 405, type: MethodNotAllowedException): Method not allowed");
+  }
 
-    @Test
-    public void testErrorHandlerFor406() {
-        ErrorResponse error =
-                ErrorResponse.builder().responseCode(406).withType("UnsupportedOperationException")
-                        .withMessage("Operation not supported").build();
+  @Test
+  public void testErrorHandlerFor406() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(406)
+            .withType("UnsupportedOperationException")
+            .withMessage("Operation not supported")
+            .build();
 
-        // 406 (Not Acceptable) should throw UnsupportedOperationException
-        assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessage("Operation not supported");
-    }
+    // 406 (Not Acceptable) should throw UnsupportedOperationException
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Operation not supported");
+  }
 }
