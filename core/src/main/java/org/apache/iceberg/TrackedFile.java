@@ -261,22 +261,23 @@ interface TrackedFile {
   /**
    * Converts this tracked file to a DataFile.
    *
-   * <p>Only valid when content_type is DATA.
+   * <p>Only valid when content_type is DATA. The partition spec must have been set on this
+   * TrackedFile prior to calling this method (typically done by the manifest reader).
    *
-   * @param spec the partition spec for this file, used to interpret partition values
    * @return a DataFile representation
-   * @throws IllegalStateException if content_type is not DATA
+   * @throws IllegalStateException if content_type is not DATA or partition spec is not set
    */
-  DataFile asDataFile(PartitionSpec spec);
+  DataFile asDataFile();
 
   /**
    * Converts this tracked file to a DeleteFile.
    *
-   * <p>Only valid when content_type is POSITION_DELETES or EQUALITY_DELETES.
+   * <p>Only valid when content_type is POSITION_DELETES or EQUALITY_DELETES. The partition spec
+   * must have been set on this TrackedFile prior to calling this method (typically done by the
+   * manifest reader).
    *
-   * @param spec the partition spec for this file, used to interpret partition values
    * @return a DeleteFile representation
-   * @throws IllegalStateException if content_type is not a delete type
+   * @throws IllegalStateException if content_type is not a delete type or partition spec is not set
    */
-  DeleteFile asDeleteFile(PartitionSpec spec);
+  DeleteFile asDeleteFile();
 }
