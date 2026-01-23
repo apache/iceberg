@@ -47,7 +47,7 @@ The HadoopFileIO implementation can connect to any filesystem for which there is
 
 Configuration options for these filesystems are generally through properties set in the file `core-site.xml` or in `spark-defaults.conf` prefixed with `spark.hadoop.`
 
-### Specific options for HadoopFileIO 
+### Specific options for HadoopFileIO
 
 | Property                            | Default        | Description                                                                  |
 |-------------------------------------|----------------|------------------------------------------------------------------------------|
