@@ -57,6 +57,7 @@ plugins:
   - rss:
       feed_description: "Blogs for Apache Iceberg"
       match_path: "blog/posts/.*"
+      image: "https://iceberg.apache.org/assets/images/Iceberg-logo.svg"
       date_from_meta:
         as_creation: date
       categories:
