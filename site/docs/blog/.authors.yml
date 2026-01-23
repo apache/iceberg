@@ -18,3 +18,7 @@ authors:
     name: Apache Iceberg PMC
     description: Apache Iceberg PMC
     avatar: assets/images/iceberg-logo-icon.png
+  yuya-ebihara:
+    name: Yuya Ebihara
+    description: Trino maintainer
+    avatar: https://github.com/ebyhr.png
