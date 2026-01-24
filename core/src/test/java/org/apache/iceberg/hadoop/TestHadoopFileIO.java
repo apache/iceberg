@@ -422,10 +422,9 @@ public class TestHadoopFileIO {
   }
 
   /**
-   * Test TrashPolicy.
-   * Increments the counter {@link #INSTANCES} on every instantiation.
-   * On a call to {@link #moveToTrash(Path)} it increments the counter
-   * {@link #EXCEPTIONS} and throws an exception.
+   * Test TrashPolicy. Increments the counter {@link #INSTANCES} on every instantiation. On a call
+   * to {@link #moveToTrash(Path)} it increments the counter {@link #EXCEPTIONS} and throws an
+   * exception.
    */
   private static final class TestTrashPolicy extends TrashPolicy {
     private static final AtomicLong INSTANCES = new AtomicLong();
