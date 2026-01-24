@@ -42,7 +42,8 @@ UDF metadata follows the same design principles as Iceberg table and view metada
 **self-contained metadata file**. Metadata captures definitions, parameters, return types, documentation, security,
 properties, and engine-specific representations.
 
-* Any modification (new definition, updated representation, changed properties, etc.) creates a new metadata file, and atomically swaps in the new file as the current metadata.
+* UDF metadata files are immutable. Any modification (new definition, updated representation, changed properties, etc.)
+  creates a new metadata file. Catalogs use an atomic swap to update the metadata file linked to a catalog identifier.
 * Each metadata file includes recent definition versions, enabling rollbacks without external state.
 
 ## Specification
@@ -62,7 +63,8 @@ The UDF metadata file has the following fields:
 | *optional*  | `doc`            | `string`               | Documentation string.                                                 |
 
 Notes:
-1. Engines must prevent leakage of sensitive information to end users when a function is marked as `secure` by setting the property to `true`.
+1. When `secure` is set to `true`, engines must prevent leakage of sensitive information to end users. This includes
+   but is not limited to: UDF definitions, error messages, logs, query plans, and intermediate results.
 2. Entries in `properties` are treated as hints, not strict rules.
 
 ### Definition
@@ -72,16 +74,16 @@ identified by its signature (the ordered list of parameter types). There can be 
 All versions within a definition must accept the same signature as specified in the definition's `parameters` field and
 must produce values of the declared `return-type`.
 
-| Requirement | Field name           | Type                           | Description                                                                                      |
-|-------------|----------------------|--------------------------------|--------------------------------------------------------------------------------------------------|
-| *required*  | `definition-id`      | `string`                       | An identifier derived from canonical parameter-type tuple (see [Definition ID](#definition-id)). |
-| *required*  | `parameters`         | `list<parameter>`              | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.    |
-| *required*  | `return-type`        | `string`                       | Declared return type (see [Types](#types)).                                                      |
-| *optional*  | `return-nullable`    | `boolean`                      | A hint to indicate whether the return value is nullable or not. Default: `true`.                 |
-| *required*  | `versions`           | `list<definition-version>`     | [Versioned implementations](#definition-version) of this definition.                             |
-| *required*  | `current-version-id` | `int`                          | Identifier of the current version for this definition.                                           |
+| Requirement | Field name           | Type                           | Description                                                                                       |
+|-------------|----------------------|--------------------------------|---------------------------------------------------------------------------------------------------|
+| *required*  | `definition-id`      | `string`                       | An identifier derived from canonical parameter-type tuple (see [Definition ID](#definition-id)).  |
+| *required*  | `parameters`         | `list<parameter>`              | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.     |
+| *required*  | `return-type`        | `string`                       | Declared return type (see [Types](#types)).                                                       |
+| *optional*  | `return-nullable`    | `boolean`                      | A hint to indicate whether the return value is nullable or not. Default: `true`.                  |
+| *required*  | `versions`           | `list<definition-version>`     | [Versioned implementations](#definition-version) of this definition.                              |
+| *required*  | `current-version-id` | `int`                          | Identifier of the current version for this definition.                                            |
 | *required*  | `function-type`      | `string` (`"udf"` or `"udtf"`) | If `"udtf"`, `return-type` must be a `struct` (see [Types](#types)) describing the output schema. |
-| *optional*  | `doc`                | `string`                       | Documentation string.                                                                            |
+| *optional*  | `doc`                | `string`                       | Documentation string.                                                                             |
 
 ### Parameter
 | Requirement | Field  | Type     | Description                                |
