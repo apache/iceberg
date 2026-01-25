@@ -19,8 +19,9 @@
 package org.apache.iceberg.rest.requests;
 
 import java.util.List;
-import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.index.IndexRequirement;
+import org.apache.iceberg.index.IndexUpdate;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.RESTRequest;
@@ -28,23 +29,20 @@ import org.apache.iceberg.rest.RESTRequest;
 public class UpdateIndexRequest implements RESTRequest {
 
   private TableIdentifier identifier;
-  private List<org.apache.iceberg.UpdateRequirement> requirements;
-  private List<MetadataUpdate> updates;
+  private List<IndexRequirement> requirements;
+  private List<IndexUpdate> updates;
 
   public UpdateIndexRequest() {
     // needed for Jackson deserialization
   }
 
-  public UpdateIndexRequest(
-      List<org.apache.iceberg.UpdateRequirement> requirements, List<MetadataUpdate> updates) {
+  public UpdateIndexRequest(List<IndexRequirement> requirements, List<IndexUpdate> updates) {
     this.requirements = requirements;
     this.updates = updates;
   }
 
   UpdateIndexRequest(
-      TableIdentifier identifier,
-      List<org.apache.iceberg.UpdateRequirement> requirements,
-      List<MetadataUpdate> updates) {
+      TableIdentifier identifier, List<IndexRequirement> requirements, List<IndexUpdate> updates) {
     this(requirements, updates);
     this.identifier = identifier;
   }
@@ -52,11 +50,11 @@ public class UpdateIndexRequest implements RESTRequest {
   @Override
   public void validate() {}
 
-  public List<org.apache.iceberg.UpdateRequirement> requirements() {
+  public List<IndexRequirement> requirements() {
     return requirements != null ? requirements : ImmutableList.of();
   }
 
-  public List<MetadataUpdate> updates() {
+  public List<IndexUpdate> updates() {
     return updates != null ? updates : ImmutableList.of();
   }
 
@@ -73,9 +71,7 @@ public class UpdateIndexRequest implements RESTRequest {
   }
 
   public static UpdateIndexRequest create(
-      TableIdentifier identifier,
-      List<org.apache.iceberg.UpdateRequirement> requirements,
-      List<MetadataUpdate> updates) {
+      TableIdentifier identifier, List<IndexRequirement> requirements, List<IndexUpdate> updates) {
     return new UpdateIndexRequest(identifier, requirements, updates);
   }
 }

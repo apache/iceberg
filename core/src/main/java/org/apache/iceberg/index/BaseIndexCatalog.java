@@ -377,7 +377,7 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
     @Override
     public IndexBuilder removeSnapshotsByIds(long... snapshotIds) {
       for (long id : snapshotIds) {
-        snapshotIdsToRemove.add(id);
+        removeSnapshotById(id);
       }
 
       return this;
@@ -421,7 +421,7 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
           "Cannot create index without specifying optimized column ids");
 
       IndexVersion indexVersion = indexVersion(1);
-      IndexSnapshot indexSnapshot = indexSnapshot();
+      IndexSnapshot indexSnapshot = indexSnapshot(1);
       IndexMetadata.Builder builder =
           IndexMetadata.builder()
               .setType(type)
@@ -463,6 +463,7 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
 
       IndexMetadata.Builder builder = IndexMetadata.buildFrom(metadata);
 
+      int currentVersionId = metadata.currentVersionId();
       if (properties != null) {
         int maxVersionId =
             metadata.versions().stream()
@@ -471,9 +472,10 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
                 .orElseGet(metadata::currentVersionId);
 
         builder = builder.setCurrentVersion(indexVersion(maxVersionId + 1));
+        currentVersionId = maxVersionId + 1;
       }
 
-      IndexSnapshot snapshot = indexSnapshot();
+      IndexSnapshot snapshot = indexSnapshot(currentVersionId);
 
       if (snapshot != null) {
         builder = builder.addSnapshot(snapshot);
@@ -518,7 +520,7 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
       }
     }
 
-    private IndexSnapshot indexSnapshot() {
+    private IndexSnapshot indexSnapshot(int versionId) {
       if (snapshotProperties != null || tableSnapshotId != -1L || indexSnapshotId != -1L) {
         Preconditions.checkArgument(
             tableSnapshotId != -1L,
@@ -530,7 +532,7 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
         return ImmutableIndexSnapshot.builder()
             .indexSnapshotId(indexSnapshotId)
             .tableSnapshotId(tableSnapshotId)
-            .versionId(1)
+            .versionId(versionId)
             .properties(snapshotProperties)
             .build();
       } else {

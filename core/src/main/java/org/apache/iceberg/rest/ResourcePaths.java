@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
+import org.apache.iceberg.catalog.IndexIdentifier;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -50,6 +51,10 @@ public class ResourcePaths {
   public static final String V1_VIEW = "/v1/{prefix}/namespaces/{namespace}/views/{view}";
   public static final String V1_VIEW_RENAME = "/v1/{prefix}/views/rename";
   public static final String V1_VIEW_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register-view";
+  public static final String V1_INDEXES =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes";
+  public static final String V1_INDEX =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes/{index}";
 
   public static ResourcePaths forCatalogProperties(Map<String, String> properties) {
     return new ResourcePaths(
@@ -188,6 +193,41 @@ public class ResourcePaths {
         "tables",
         RESTUtil.encodeString(ident.name()),
         "tasks");
+  }
+
+  /**
+   * Return the path for listing indexes for a table.
+   *
+   * @param tableIdentifier the table identifier
+   * @return the path for the indexes endpoint
+   */
+  public String indexes(TableIdentifier tableIdentifier) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(tableIdentifier.namespace()),
+        "tables",
+        RESTUtil.encodeString(tableIdentifier.name()),
+        "indexes");
+  }
+
+  /**
+   * Return the path for a specific index.
+   *
+   * @param indexIdentifier the index identifier
+   * @return the path for the index endpoint
+   */
+  public String index(IndexIdentifier indexIdentifier) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(indexIdentifier.tableIdentifier().namespace()),
+        "tables",
+        RESTUtil.encodeString(indexIdentifier.tableIdentifier().name()),
+        "indexes",
+        RESTUtil.encodeString(indexIdentifier.name()));
   }
 
   private String pathEncode(Namespace ns) {

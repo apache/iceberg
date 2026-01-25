@@ -139,9 +139,11 @@ public class RESTCatalogServlet extends HttpServlet {
     return route == Route.NAMESPACE_EXISTS
         || route == Route.TABLE_EXISTS
         || route == Route.VIEW_EXISTS
+        || route == Route.INDEX_EXISTS
         || route == Route.DROP_NAMESPACE
         || route == Route.DROP_TABLE
         || route == Route.DROP_VIEW
+        || route == Route.DROP_INDEX
         || route == Route.RENAME_TABLE
         || route == Route.RENAME_VIEW
         || route == Route.CANCEL_PLAN_TABLE_SCAN

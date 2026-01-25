@@ -33,6 +33,9 @@ public class CreateIndexRequestParser {
   private static final String OPTIMIZED_COLUMN_IDS = "optimized-column-ids";
   private static final String LOCATION = "location";
   private static final String PROPERTIES = "properties";
+  private static final String TABLE_SNAPSHOT_ID = "table-snapshot-id";
+  private static final String INDEX_SNAPSHOT_ID = "index-snapshot-id";
+  private static final String SNAPSHOT_PROPERTIES = "snapshot-properties";
 
   private CreateIndexRequestParser() {}
 
@@ -65,6 +68,18 @@ public class CreateIndexRequestParser {
       JsonUtil.writeStringMap(PROPERTIES, request.properties(), gen);
     }
 
+    if (request.tableSnapshotId() != null) {
+      gen.writeNumberField(TABLE_SNAPSHOT_ID, request.tableSnapshotId());
+    }
+
+    if (request.indexSnapshotId() != null) {
+      gen.writeNumberField(INDEX_SNAPSHOT_ID, request.indexSnapshotId());
+    }
+
+    if (!request.snapshotProperties().isEmpty()) {
+      JsonUtil.writeStringMap(SNAPSHOT_PROPERTIES, request.snapshotProperties(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -94,6 +109,18 @@ public class CreateIndexRequestParser {
 
     if (json.hasNonNull(PROPERTIES)) {
       builder.setProperties(JsonUtil.getStringMap(PROPERTIES, json));
+    }
+
+    if (json.hasNonNull(TABLE_SNAPSHOT_ID)) {
+      builder.withTableSnapshotId(JsonUtil.getLong(TABLE_SNAPSHOT_ID, json));
+    }
+
+    if (json.hasNonNull(INDEX_SNAPSHOT_ID)) {
+      builder.withIndexSnapshotId(JsonUtil.getLong(INDEX_SNAPSHOT_ID, json));
+    }
+
+    if (json.hasNonNull(SNAPSHOT_PROPERTIES)) {
+      builder.setSnapshotProperties(JsonUtil.getStringMap(SNAPSHOT_PROPERTIES, json));
     }
 
     return builder.build();
