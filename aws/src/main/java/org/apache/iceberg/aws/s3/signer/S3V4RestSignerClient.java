@@ -72,13 +72,13 @@ public abstract class S3V4RestSignerClient
    * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link CatalogProperties#SIGNER_URI}
    *     instead.
    */
-  @Deprecated public static final String S3_SIGNER_URI = CatalogProperties.SIGNER_URI;
+  @Deprecated public static final String S3_SIGNER_URI = "s3.signer.uri";
 
   /**
    * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link CatalogProperties#SIGNER_URI}
    *     instead.
    */
-  @Deprecated public static final String S3_SIGNER_ENDPOINT = CatalogProperties.SIGNER_ENDPOINT;
+  @Deprecated public static final String S3_SIGNER_ENDPOINT = "s3.signer.endpoint";
 
   /**
    * @deprecated since 1.11.0, will be removed in 1.12.0; there is no replacement.
