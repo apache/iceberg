@@ -22,8 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.index.IndexRequirement;
+import org.apache.iceberg.index.IndexUpdate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
 
@@ -157,10 +158,10 @@ public class TestUpdateIndexRequestParser {
         UpdateIndexRequest.create(
             TableIdentifier.of("ns1", "index1"),
             ImmutableList.of(
-                new org.apache.iceberg.UpdateRequirement.AssertTableUUID(uuid),
-                new org.apache.iceberg.UpdateRequirement.AssertTableDoesNotExist()),
+                new IndexRequirement.AssertIndexUUID(uuid),
+                new IndexRequirement.AssertIndexDoesNotExist()),
             ImmutableList.of(
-                new MetadataUpdate.AssignUUID(uuid), new MetadataUpdate.SetCurrentSchema(23)));
+                new IndexUpdate.AssignUUID(uuid), new IndexUpdate.SetIndexCurrentVersion(23)));
 
     String expectedJson =
         """
@@ -184,8 +185,8 @@ public class TestUpdateIndexRequestParser {
               "uuid": "2cc52516-5e73-41f2-b139-545d41a4e151"
             },
             {
-              "action": "set-current-schema",
-              "schema-id": 23
+              "action": "set-current-version",
+              "version-id": 23
             }
           ]
         }"""
@@ -206,10 +207,10 @@ public class TestUpdateIndexRequestParser {
     UpdateIndexRequest request =
         new UpdateIndexRequest(
             ImmutableList.of(
-                new org.apache.iceberg.UpdateRequirement.AssertTableUUID(uuid),
-                new org.apache.iceberg.UpdateRequirement.AssertTableDoesNotExist()),
+                new IndexRequirement.AssertIndexUUID(uuid),
+                new IndexRequirement.AssertIndexDoesNotExist()),
             ImmutableList.of(
-                new MetadataUpdate.AssignUUID(uuid), new MetadataUpdate.SetCurrentSchema(23)));
+                new IndexUpdate.AssignUUID(uuid), new IndexUpdate.SetIndexCurrentVersion(23)));
 
     String expectedJson =
         """
@@ -229,8 +230,8 @@ public class TestUpdateIndexRequestParser {
               "uuid": "2cc52516-5e73-41f2-b139-545d41a4e151"
             },
             {
-              "action": "set-current-schema",
-              "schema-id": 23
+              "action": "set-current-version",
+              "version-id": 23
             }
           ]
         }"""

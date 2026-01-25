@@ -37,6 +37,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.IndexCatalog;
+import org.apache.iceberg.catalog.IndexIdentifier;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -47,6 +49,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
+import org.apache.iceberg.exceptions.NoSuchIndexException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchPlanIdException;
 import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
@@ -64,6 +67,7 @@ import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
+import org.apache.iceberg.rest.requests.CreateIndexRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
@@ -73,6 +77,7 @@ import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
+import org.apache.iceberg.rest.requests.UpdateIndexRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -99,6 +104,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           .put(ForbiddenException.class, 403)
           .put(NoSuchNamespaceException.class, 404)
           .put(NoSuchTableException.class, 404)
+          .put(NoSuchIndexException.class, 404)
           .put(NotFoundException.class, 404)
           .put(NoSuchViewException.class, 404)
           .put(NoSuchIcebergTableException.class, 404)
@@ -114,6 +120,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private final Catalog catalog;
   private final SupportsNamespaces asNamespaceCatalog;
   private final ViewCatalog asViewCatalog;
+  private final IndexCatalog asIndexCatalog;
 
   private AuthSession authSession = AuthSession.EMPTY;
   private PlanningBehavior planningBehavior;
@@ -123,6 +130,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     this.asNamespaceCatalog =
         catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
     this.asViewCatalog = catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
+    this.asIndexCatalog = catalog instanceof IndexCatalog ? (IndexCatalog) catalog : null;
   }
 
   private static OAuthTokenResponse handleOAuthRequest(Object body) {
@@ -528,6 +536,82 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           break;
         }
 
+      case LIST_INDEXES:
+        {
+          if (null != asIndexCatalog) {
+            TableIdentifier tableIdent = tableIdentFromPathVars(vars);
+            String pageToken = PropertyUtil.propertyAsString(vars, "pageToken", null);
+            String pageSize = PropertyUtil.propertyAsString(vars, "pageSize", null);
+            if (pageSize != null) {
+              return castResponse(
+                  responseType,
+                  CatalogHandlers.listIndexes(asIndexCatalog, tableIdent, pageToken, pageSize));
+            } else {
+              return castResponse(
+                  responseType, CatalogHandlers.listIndexes(asIndexCatalog, tableIdent));
+            }
+          }
+          break;
+        }
+
+      case CREATE_INDEX:
+        {
+          if (null != asIndexCatalog) {
+            TableIdentifier tableIdent = tableIdentFromPathVars(vars);
+            CreateIndexRequest request = castRequest(CreateIndexRequest.class, body);
+            return CatalogHandlers.withIdempotency(
+                httpRequest,
+                () ->
+                    castResponse(
+                        responseType,
+                        CatalogHandlers.createIndex(asIndexCatalog, tableIdent, request)));
+          }
+          break;
+        }
+
+      case INDEX_EXISTS:
+        {
+          if (null != asIndexCatalog) {
+            CatalogHandlers.indexExists(asIndexCatalog, indexIdentFromPathVars(vars));
+            return null;
+          }
+          break;
+        }
+
+      case LOAD_INDEX:
+        {
+          if (null != asIndexCatalog) {
+            IndexIdentifier ident = indexIdentFromPathVars(vars);
+            return castResponse(responseType, CatalogHandlers.loadIndex(asIndexCatalog, ident));
+          }
+          break;
+        }
+
+      case UPDATE_INDEX:
+        {
+          if (null != asIndexCatalog) {
+            IndexIdentifier ident = indexIdentFromPathVars(vars);
+            UpdateIndexRequest request = castRequest(UpdateIndexRequest.class, body);
+            return CatalogHandlers.withIdempotency(
+                httpRequest,
+                () ->
+                    castResponse(
+                        responseType, CatalogHandlers.updateIndex(asIndexCatalog, ident, request)));
+          }
+          break;
+        }
+
+      case DROP_INDEX:
+        {
+          if (null != asIndexCatalog) {
+            CatalogHandlers.withIdempotency(
+                httpRequest,
+                () -> CatalogHandlers.dropIndex(asIndexCatalog, indexIdentFromPathVars(vars)));
+            return null;
+          }
+          break;
+        }
+
       default:
         if (responseType == OAuthTokenResponse.class) {
           return castResponse(responseType, handleOAuthRequest(body));
@@ -726,6 +810,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private static TableIdentifier viewIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
         namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("view")));
+  }
+
+  private static IndexIdentifier indexIdentFromPathVars(Map<String, String> pathVars) {
+    return IndexIdentifier.of(
+        tableIdentFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("index")));
   }
 
   private static String planIDFromPathVars(Map<String, String> pathVars) {

@@ -507,6 +507,7 @@ public interface IndexMetadata extends Serializable {
       if (currentVersion.properties() != null) {
         newProperties.putAll(currentVersion.properties());
       }
+
       newProperties.putAll(updated);
 
       IndexVersion newVersion =

@@ -22,11 +22,12 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.MetadataUpdate;
-import org.apache.iceberg.MetadataUpdateParser;
-import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
+import org.apache.iceberg.index.IndexRequirement;
+import org.apache.iceberg.index.IndexRequirementParser;
+import org.apache.iceberg.index.IndexUpdate;
+import org.apache.iceberg.index.IndexUpdateParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
@@ -58,14 +59,14 @@ public class UpdateIndexRequestParser {
     }
 
     gen.writeArrayFieldStart(REQUIREMENTS);
-    for (UpdateRequirement updateRequirement : request.requirements()) {
-      org.apache.iceberg.UpdateRequirementParser.toJson(updateRequirement, gen);
+    for (IndexRequirement updateRequirement : request.requirements()) {
+      IndexRequirementParser.toJson(updateRequirement, gen);
     }
     gen.writeEndArray();
 
     gen.writeArrayFieldStart(UPDATES);
-    for (MetadataUpdate metadataUpdate : request.updates()) {
-      MetadataUpdateParser.toJson(metadataUpdate, gen);
+    for (IndexUpdate metadataUpdate : request.updates()) {
+      IndexUpdateParser.toJson(metadataUpdate, gen);
     }
     gen.writeEndArray();
 
@@ -80,8 +81,8 @@ public class UpdateIndexRequestParser {
     Preconditions.checkArgument(null != json, "Cannot parse update index request from null object");
 
     TableIdentifier identifier = null;
-    List<UpdateRequirement> requirements = Lists.newArrayList();
-    List<MetadataUpdate> updates = Lists.newArrayList();
+    List<IndexRequirement> requirements = Lists.newArrayList();
+    List<IndexUpdate> updates = Lists.newArrayList();
 
     if (json.hasNonNull(IDENTIFIER)) {
       identifier = TableIdentifierParser.fromJson(JsonUtil.get(IDENTIFIER, json));
@@ -93,8 +94,7 @@ public class UpdateIndexRequestParser {
           requirementsNode.isArray(),
           "Cannot parse requirements from non-array: %s",
           requirementsNode);
-      requirementsNode.forEach(
-          req -> requirements.add(org.apache.iceberg.UpdateRequirementParser.fromJson(req)));
+      requirementsNode.forEach(req -> requirements.add(IndexRequirementParser.fromJson(req)));
     }
 
     if (json.hasNonNull(UPDATES)) {
@@ -102,7 +102,7 @@ public class UpdateIndexRequestParser {
       Preconditions.checkArgument(
           updatesNode.isArray(), "Cannot parse metadata updates from non-array: %s", updatesNode);
 
-      updatesNode.forEach(update -> updates.add(MetadataUpdateParser.fromJson(update)));
+      updatesNode.forEach(update -> updates.add(IndexUpdateParser.fromJson(update)));
     }
 
     return UpdateIndexRequest.create(identifier, requirements, updates);

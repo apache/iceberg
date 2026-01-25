@@ -62,15 +62,24 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.IndexCatalog;
+import org.apache.iceberg.catalog.IndexIdentifier;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchIndexException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.index.BaseIndex;
+import org.apache.iceberg.index.Index;
+import org.apache.iceberg.index.IndexBuilder;
+import org.apache.iceberg.index.IndexMetadata;
+import org.apache.iceberg.index.IndexOperations;
+import org.apache.iceberg.index.IndexSummary;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -78,6 +87,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
+import org.apache.iceberg.rest.requests.CreateIndexRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
@@ -86,6 +96,7 @@ import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
+import org.apache.iceberg.rest.requests.UpdateIndexRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -93,8 +104,10 @@ import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.ListIndexesResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadIndexResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
@@ -757,6 +770,206 @@ public class CatalogHandlers {
         .metadata(asBaseView(view).operations().current())
         .metadataLocation(request.metadataLocation())
         .build();
+  }
+
+  // Index catalog handlers
+
+  private static BaseIndex asBaseIndex(org.apache.iceberg.index.Index index) {
+    Preconditions.checkState(
+        index instanceof BaseIndex, "Cannot wrap catalog that does not produce BaseIndex");
+    return (BaseIndex) index;
+  }
+
+  private static LoadIndexResponse indexResponse(org.apache.iceberg.index.Index index) {
+    IndexMetadata metadata = asBaseIndex(index).operations().current();
+    return LoadIndexResponse.builder()
+        .withMetadataLocation(metadata.metadataFileLocation())
+        .withMetadata(metadata)
+        .build();
+  }
+
+  /**
+   * List indexes for a table.
+   *
+   * @param catalog the index catalog
+   * @param tableIdentifier the table identifier
+   * @return the list indexes response
+   */
+  public static ListIndexesResponse listIndexes(
+      IndexCatalog catalog, TableIdentifier tableIdentifier) {
+    List<IndexIdentifier> identifiers =
+        catalog.listIndexes(tableIdentifier).stream()
+            .map(IndexSummary::id)
+            .collect(Collectors.toList());
+    return ListIndexesResponse.builder().addAll(identifiers).build();
+  }
+
+  /**
+   * List indexes for a table with pagination.
+   *
+   * @param catalog the index catalog
+   * @param tableIdentifier the table identifier
+   * @param pageToken the page token
+   * @param pageSize the page size
+   * @return the list indexes response
+   */
+  public static ListIndexesResponse listIndexes(
+      IndexCatalog catalog, TableIdentifier tableIdentifier, String pageToken, String pageSize) {
+    List<IndexIdentifier> identifiers =
+        catalog.listIndexes(tableIdentifier).stream()
+            .map(IndexSummary::id)
+            .collect(Collectors.toList());
+
+    Pair<List<IndexIdentifier>, String> page =
+        paginate(identifiers, pageToken, Integer.parseInt(pageSize));
+
+    return ListIndexesResponse.builder().addAll(page.first()).nextPageToken(page.second()).build();
+  }
+
+  /**
+   * Create an index on a table.
+   *
+   * @param catalog the index catalog
+   * @param tableIdentifier the table identifier
+   * @param request the create index request
+   * @return the load index response
+   */
+  public static LoadIndexResponse createIndex(
+      IndexCatalog catalog, TableIdentifier tableIdentifier, CreateIndexRequest request) {
+    request.validate();
+
+    IndexIdentifier indexIdentifier = IndexIdentifier.of(tableIdentifier, request.name());
+    IndexBuilder builder =
+        catalog
+            .buildIndex(indexIdentifier)
+            .withType(request.type())
+            .withIndexColumnIds(request.indexColumnIds())
+            .withOptimizedColumnIds(request.optimizedColumnIds())
+            .withLocation(request.location())
+            .withProperties(request.properties());
+
+    if (request.tableSnapshotId() != null) {
+      builder.withTableSnapshotId(request.tableSnapshotId());
+    }
+
+    if (request.indexSnapshotId() != null) {
+      builder.withIndexSnapshotId(request.indexSnapshotId());
+    }
+
+    if (!request.snapshotProperties().isEmpty()) {
+      builder.withSnapshotProperties(request.snapshotProperties());
+    }
+
+    return indexResponse(builder.create());
+  }
+
+  /**
+   * Check if an index exists.
+   *
+   * @param catalog the index catalog
+   * @param indexIdentifier the index identifier
+   * @throws NoSuchIndexException if the index does not exist
+   */
+  public static void indexExists(IndexCatalog catalog, IndexIdentifier indexIdentifier) {
+    if (!catalog.indexExists(indexIdentifier)) {
+      throw new NoSuchIndexException("Index does not exist: %s", indexIdentifier);
+    }
+  }
+
+  /**
+   * Load an index.
+   *
+   * @param catalog the index catalog
+   * @param indexIdentifier the index identifier
+   * @return the load index response
+   */
+  public static LoadIndexResponse loadIndex(IndexCatalog catalog, IndexIdentifier indexIdentifier) {
+    org.apache.iceberg.index.Index index = catalog.loadIndex(indexIdentifier);
+    return indexResponse(index);
+  }
+
+  /**
+   * Update an index.
+   *
+   * @param catalog the index catalog
+   * @param indexIdentifier the index identifier
+   * @param request the update index request
+   * @return the load index response
+   */
+  public static LoadIndexResponse updateIndex(
+      IndexCatalog catalog, IndexIdentifier indexIdentifier, UpdateIndexRequest request) {
+    Index index = catalog.loadIndex(indexIdentifier);
+    IndexMetadata metadata = commit(asBaseIndex(index).operations(), request);
+
+    return LoadIndexResponse.builder()
+        .withMetadataLocation(metadata.metadataFileLocation())
+        .withMetadata(metadata)
+        .build();
+  }
+
+  /**
+   * Drop an index.
+   *
+   * @param catalog the index catalog
+   * @param indexIdentifier the index identifier
+   */
+  public static void dropIndex(IndexCatalog catalog, IndexIdentifier indexIdentifier) {
+    boolean dropped = catalog.dropIndex(indexIdentifier);
+    if (!dropped) {
+      throw new NoSuchIndexException("Index does not exist: %s", indexIdentifier);
+    }
+  }
+
+  /**
+   * Commit changes to an index.
+   *
+   * @param ops the index operations
+   * @param request the update index request
+   * @return the updated index metadata
+   */
+  static IndexMetadata commit(IndexOperations ops, UpdateIndexRequest request) {
+    AtomicBoolean isRetry = new AtomicBoolean(false);
+    try {
+      Tasks.foreach(ops)
+          .retry(COMMIT_NUM_RETRIES_DEFAULT)
+          .exponentialBackoff(
+              COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+              COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+              COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
+              2.0 /* exponential */)
+          .run(
+              taskOps -> {
+                IndexMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
+                isRetry.set(true);
+
+                // validate requirements
+                try {
+                  request.requirements().forEach(requirement -> requirement.validate(base));
+                } catch (CommitFailedException e) {
+                  // wrap and rethrow outside of tasks to avoid unnecessary retry
+                  throw new ValidationFailureException(e);
+                }
+
+                // apply changes
+                IndexMetadata.Builder metadataBuilder = IndexMetadata.buildFrom(base);
+                request.updates().forEach(update -> update.applyTo(metadataBuilder));
+
+                IndexMetadata updated = metadataBuilder.build();
+
+                if (updated.changes().isEmpty()) {
+                  // do not commit if the metadata has not changed
+                  return;
+                }
+
+                // commit
+                taskOps.commit(base, updated);
+              });
+
+    } catch (ValidationFailureException e) {
+      throw e.wrapped();
+    }
+
+    return ops.current();
   }
 
   static ViewMetadata commit(ViewOperations ops, UpdateTableRequest request) {

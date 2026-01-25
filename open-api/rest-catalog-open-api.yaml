@@ -3570,6 +3570,19 @@ components:
           additionalProperties:
             type: string
           description: Index-specific properties
+        index-snapshot-id:
+          type: integer
+          format: int64
+          description: Unique identifier for this index snapshot
+        table-snapshot-id:
+          type: integer
+          format: int64
+          description: The table snapshot ID this index snapshot corresponds to
+        snapshot-properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: Properties for this index snapshot typically set by the index maintenance process
 
     RegisterIndexRequest:
       type: object

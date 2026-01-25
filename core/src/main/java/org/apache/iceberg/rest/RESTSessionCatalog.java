@@ -46,16 +46,28 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
-import org.apache.iceberg.catalog.BaseViewSessionCatalog;
+import org.apache.iceberg.catalog.BaseIndexSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.IndexIdentifier;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchIndexException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.index.BaseIndex;
+import org.apache.iceberg.index.ImmutableIndexSnapshot;
+import org.apache.iceberg.index.ImmutableIndexSummary;
+import org.apache.iceberg.index.Index;
+import org.apache.iceberg.index.IndexBuilder;
+import org.apache.iceberg.index.IndexMetadata;
+import org.apache.iceberg.index.IndexRequirements;
+import org.apache.iceberg.index.IndexSnapshot;
+import org.apache.iceberg.index.IndexSummary;
+import org.apache.iceberg.index.IndexType;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
@@ -77,6 +89,7 @@ import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
+import org.apache.iceberg.rest.requests.CreateIndexRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
@@ -86,13 +99,16 @@ import org.apache.iceberg.rest.requests.ImmutableRegisterViewRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
+import org.apache.iceberg.rest.requests.UpdateIndexRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ListIndexesResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadIndexResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
@@ -110,7 +126,7 @@ import org.apache.iceberg.view.ViewVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class RESTSessionCatalog extends BaseViewSessionCatalog
+public class RESTSessionCatalog extends BaseIndexSessionCatalog
     implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
@@ -151,6 +167,18 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .add(Endpoint.V1_UPDATE_VIEW)
           .add(Endpoint.V1_DELETE_VIEW)
           .add(Endpoint.V1_RENAME_VIEW)
+          .build();
+
+  // these index endpoints must not be updated in order to maintain backwards compatibility with
+  // legacy servers
+  private static final Set<Endpoint> INDEX_ENDPOINTS =
+      ImmutableSet.<Endpoint>builder()
+          .add(Endpoint.V1_LIST_INDEXES)
+          .add(Endpoint.V1_LOAD_INDEX)
+          .add(Endpoint.V1_CREATE_INDEX)
+          .add(Endpoint.V1_UPDATE_INDEX)
+          .add(Endpoint.V1_DELETE_INDEX)
+          .add(Endpoint.V1_INDEX_EXISTS)
           .build();
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
@@ -222,16 +250,24 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     if (config.endpoints().isEmpty()) {
-      this.endpoints =
-          PropertyUtil.propertyAsBoolean(
-                  mergedProps,
-                  RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED,
-                  RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED_DEFAULT)
-              ? ImmutableSet.<Endpoint>builder()
-                  .addAll(DEFAULT_ENDPOINTS)
-                  .addAll(VIEW_ENDPOINTS)
-                  .build()
-              : DEFAULT_ENDPOINTS;
+      ImmutableSet.Builder<Endpoint> endpointsBuilder = ImmutableSet.builder();
+      endpointsBuilder.addAll(DEFAULT_ENDPOINTS);
+
+      if (PropertyUtil.propertyAsBoolean(
+          mergedProps,
+          RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED,
+          RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED_DEFAULT)) {
+        endpointsBuilder.addAll(VIEW_ENDPOINTS);
+      }
+
+      if (PropertyUtil.propertyAsBoolean(
+          mergedProps,
+          RESTCatalogProperties.INDEX_ENDPOINTS_SUPPORTED,
+          RESTCatalogProperties.INDEX_ENDPOINTS_SUPPORTED_DEFAULT)) {
+        endpointsBuilder.addAll(INDEX_ENDPOINTS);
+      }
+
+      this.endpoints = endpointsBuilder.build();
     } else {
       this.endpoints = ImmutableSet.copyOf(config.endpoints());
     }
@@ -1749,6 +1785,499 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       ops.commit(metadata, replacement);
 
       return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+    }
+  }
+
+  @Override
+  public List<IndexSummary> listIndexes(
+      SessionContext context, TableIdentifier tableIdentifier, IndexType... types) {
+    if (!endpoints.contains(Endpoint.V1_LIST_INDEXES)) {
+      return ImmutableList.of();
+    }
+
+    checkIdentifierIsValid(tableIdentifier);
+    Map<String, String> queryParams = Maps.newHashMap();
+    ImmutableList.Builder<IndexSummary> indexes = ImmutableList.builder();
+    String pageToken = "";
+    if (pageSize != null) {
+      queryParams.put("pageSize", String.valueOf(pageSize));
+    }
+
+    do {
+      queryParams.put("pageToken", pageToken);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      ListIndexesResponse response =
+          client
+              .withAuthSession(contextualSession)
+              .get(
+                  paths.indexes(tableIdentifier),
+                  queryParams,
+                  ListIndexesResponse.class,
+                  Map.of(),
+                  ErrorHandlers.tableErrorHandler());
+      pageToken = response.nextPageToken();
+
+      // Convert IndexIdentifiers to IndexSummary by loading each index's metadata
+      for (IndexIdentifier indexId : response.identifiers()) {
+        try {
+          LoadIndexResponse indexResponse =
+              client
+                  .withAuthSession(contextualSession)
+                  .get(
+                      paths.index(indexId),
+                      LoadIndexResponse.class,
+                      Map.of(),
+                      ErrorHandlers.indexErrorHandler());
+
+          IndexMetadata metadata = indexResponse.metadata();
+          IndexSummary summary =
+              ImmutableIndexSummary.builder()
+                  .id(indexId)
+                  .type(metadata.type())
+                  .indexColumnIds(
+                      metadata.indexColumnIds().stream().mapToInt(Integer::intValue).toArray())
+                  .optimizedColumnIds(
+                      metadata.optimizedColumnIds().stream().mapToInt(Integer::intValue).toArray())
+                  .availableTableSnapshots(
+                      metadata.snapshots().stream()
+                          .mapToLong(IndexSnapshot::tableSnapshotId)
+                          .toArray())
+                  .build();
+          indexes.add(summary);
+        } catch (NoSuchIndexException e) {
+          // Index may have been deleted between list and load, skip it
+          LOG.debug("Index {} not found during list, skipping", indexId, e);
+        }
+      }
+    } while (pageToken != null);
+
+    List<IndexSummary> allIndexes = indexes.build();
+
+    // Filter by types if specified
+    if (types == null || types.length == 0) {
+      return allIndexes;
+    }
+
+    Set<IndexType> typeSet = ImmutableSet.copyOf(types);
+    return allIndexes.stream()
+        .filter(idx -> typeSet.contains(idx.type()))
+        .collect(Collectors.toList());
+  }
+
+  @Override
+  public Index loadIndex(SessionContext context, IndexIdentifier identifier) {
+    Endpoint.check(
+        endpoints,
+        Endpoint.V1_LOAD_INDEX,
+        () ->
+            new NoSuchIndexException(
+                "Unable to load index %s.%s: Server does not support endpoint %s",
+                name(), identifier, Endpoint.V1_LOAD_INDEX));
+
+    checkIndexIdentifierIsValid(identifier);
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    LoadIndexResponse response =
+        client
+            .withAuthSession(contextualSession)
+            .get(
+                paths.index(identifier),
+                LoadIndexResponse.class,
+                Map.of(),
+                ErrorHandlers.indexErrorHandler());
+
+    Map<String, String> indexConf = response.config();
+    AuthSession indexSession =
+        authManager.tableSession(identifier.tableIdentifier(), indexConf, contextualSession);
+    IndexMetadata metadata = response.metadata();
+
+    RESTIndexOperations ops =
+        newIndexOps(
+            client.withAuthSession(indexSession),
+            paths.index(identifier),
+            Map::of,
+            mutationHeaders,
+            metadata,
+            endpoints);
+
+    return new BaseIndex(ops, fullIndexName(identifier));
+  }
+
+  @Override
+  public boolean indexExists(SessionContext context, IndexIdentifier identifier) {
+    try {
+      checkIndexIdentifierIsValid(identifier);
+      if (endpoints.contains(Endpoint.V1_INDEX_EXISTS)) {
+        AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+        client
+            .withAuthSession(contextualSession)
+            .head(paths.index(identifier), Map.of(), ErrorHandlers.indexErrorHandler());
+        return true;
+      } else {
+        // fallback: try to load the index
+        loadIndex(context, identifier);
+        return true;
+      }
+    } catch (NoSuchIndexException e) {
+      return false;
+    }
+  }
+
+  @Override
+  public IndexBuilder buildIndex(SessionContext context, IndexIdentifier identifier) {
+    checkIndexIdentifierIsValid(identifier);
+    return new RESTIndexBuilder(context, identifier);
+  }
+
+  @Override
+  public boolean dropIndex(SessionContext context, IndexIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_DELETE_INDEX);
+    checkIndexIdentifierIsValid(identifier);
+
+    try {
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      client
+          .withAuthSession(contextualSession)
+          .delete(
+              paths.index(identifier), null, mutationHeaders, ErrorHandlers.indexErrorHandler());
+      return true;
+    } catch (NoSuchIndexException e) {
+      return false;
+    }
+  }
+
+  @Override
+  public void invalidateIndex(SessionContext context, IndexIdentifier identifier) {
+    // Currently no caching for indexes, so nothing to invalidate
+  }
+
+  @Override
+  public Index registerIndex(
+      SessionContext context, IndexIdentifier identifier, String metadataFileLocation) {
+    throw new UnsupportedOperationException("Register index is not supported via REST catalog");
+  }
+
+  private void checkIndexIdentifierIsValid(IndexIdentifier identifier) {
+    if (identifier.tableIdentifier().namespace().isEmpty()) {
+      throw new NoSuchIndexException("Invalid index identifier: %s", identifier);
+    }
+  }
+
+  private String fullIndexName(IndexIdentifier identifier) {
+    return String.format("%s.%s.%s", name(), identifier.tableIdentifier(), identifier.name());
+  }
+
+  /**
+   * Create a new {@link RESTIndexOperations} instance.
+   *
+   * <p>This method can be overridden in subclasses to provide custom index operations
+   * implementations.
+   *
+   * @param restClient the REST client to use for communicating with the catalog server
+   * @param path the REST path for the index
+   * @param readHeaders a supplier for additional HTTP headers to include in read requests
+   *     (GET/HEAD)
+   * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
+   *     requests (POST/DELETE)
+   * @param current the current index metadata
+   * @param supportedEndpoints the set of supported REST endpoints
+   * @return a new RESTIndexOperations instance
+   */
+  protected RESTIndexOperations newIndexOps(
+      RESTClient restClient,
+      String path,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaderSupplier,
+      IndexMetadata current,
+      Set<Endpoint> supportedEndpoints) {
+    return new RESTIndexOperations(
+        restClient, path, readHeaders, mutationHeaderSupplier, current, supportedEndpoints);
+  }
+
+  private class RESTIndexBuilder implements IndexBuilder {
+    private final SessionContext context;
+    private final IndexIdentifier identifier;
+    private Map<String, String> properties = null;
+    private Map<String, String> snapshotProperties = null;
+    private Set<Long> snapshotIdsToRemove = null;
+    private IndexType type = null;
+    private List<Integer> indexColumnIds = null;
+    private List<Integer> optimizedColumnIds = null;
+    private String location = null;
+    private long tableSnapshotId = -1L;
+    private long indexSnapshotId = -1L;
+
+    @SuppressWarnings("UnusedVariable")
+    private RESTIndexBuilder(SessionContext context, IndexIdentifier identifier) {
+      this.context = context;
+      this.identifier = identifier;
+    }
+
+    @Override
+    public IndexBuilder withType(IndexType indexType) {
+      this.type = indexType;
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withIndexColumnIds(List<Integer> columnIds) {
+      this.indexColumnIds = Lists.newArrayList(columnIds);
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withIndexColumnIds(int... columnIds) {
+      this.indexColumnIds = Lists.newArrayList();
+      for (int id : columnIds) {
+        this.indexColumnIds.add(id);
+      }
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withOptimizedColumnIds(List<Integer> columnIds) {
+      this.optimizedColumnIds = Lists.newArrayList(columnIds);
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withOptimizedColumnIds(int... columnIds) {
+      this.optimizedColumnIds = Lists.newArrayList();
+      for (int id : columnIds) {
+        this.optimizedColumnIds.add(id);
+      }
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withLocation(String indexLocation) {
+      this.location = indexLocation;
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withProperty(String key, String value) {
+      if (properties == null) {
+        this.properties = Maps.newHashMap();
+      }
+      properties.put(key, value);
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withProperties(Map<String, String> props) {
+      props.forEach(this::withProperty);
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withTableSnapshotId(long snapshotId) {
+      this.tableSnapshotId = snapshotId;
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withIndexSnapshotId(long snapshotId) {
+      this.indexSnapshotId = snapshotId;
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withSnapshotProperty(String key, String value) {
+      if (snapshotProperties == null) {
+        this.snapshotProperties = Maps.newHashMap();
+      }
+      snapshotProperties.put(key, value);
+      return this;
+    }
+
+    @Override
+    public IndexBuilder withSnapshotProperties(Map<String, String> props) {
+      props.forEach(this::withSnapshotProperty);
+      return this;
+    }
+
+    @Override
+    public IndexBuilder removeSnapshotById(long snapshotIdToRemove) {
+      if (snapshotIdsToRemove == null) {
+        this.snapshotIdsToRemove = new java.util.HashSet<>();
+      }
+
+      snapshotIdsToRemove.add(snapshotIdToRemove);
+      return this;
+    }
+
+    @Override
+    public IndexBuilder removeSnapshotsByIds(Set<Long> snapshotIds) {
+      snapshotIds.forEach(this::removeSnapshotById);
+      return this;
+    }
+
+    @Override
+    public IndexBuilder removeSnapshotsByIds(long... snapshotIds) {
+      for (long id : snapshotIds) {
+        removeSnapshotById(id);
+      }
+      return this;
+    }
+
+    @Override
+    public Index create() {
+      Endpoint.check(endpoints, Endpoint.V1_CREATE_INDEX);
+      Preconditions.checkState(type != null, "Cannot create index without specifying a type");
+      Preconditions.checkState(
+          indexColumnIds != null && !indexColumnIds.isEmpty(),
+          "Cannot create index without specifying index column ids");
+      if (tableSnapshotId != -1 || indexSnapshotId != -1 || snapshotProperties != null) {
+        Preconditions.checkArgument(
+            tableSnapshotId != -1L,
+            "Cannot create index snapshot without specifying tableSnapshotId");
+        Preconditions.checkArgument(
+            indexSnapshotId != -1L,
+            "Cannot create index snapshot without specifying indexSnapshotId");
+      }
+
+      CreateIndexRequest request =
+          CreateIndexRequest.builder()
+              .withName(identifier.name())
+              .withType(type)
+              .withIndexColumnIds(indexColumnIds)
+              .withOptimizedColumnIds(
+                  optimizedColumnIds != null ? optimizedColumnIds : ImmutableList.of())
+              .withLocation(location)
+              .setProperties(properties != null ? properties : ImmutableMap.of())
+              .withTableSnapshotId(tableSnapshotId)
+              .withIndexSnapshotId(indexSnapshotId)
+              .setSnapshotProperties(
+                  snapshotProperties != null ? snapshotProperties : ImmutableMap.of())
+              .build();
+
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      LoadIndexResponse response =
+          client
+              .withAuthSession(contextualSession)
+              .post(
+                  paths.indexes(identifier.tableIdentifier()),
+                  request,
+                  LoadIndexResponse.class,
+                  mutationHeaders,
+                  ErrorHandlers.indexErrorHandler());
+
+      Map<String, String> indexConf = response.config();
+      AuthSession indexSession =
+          authManager.tableSession(identifier.tableIdentifier(), indexConf, contextualSession);
+      RESTIndexOperations ops =
+          newIndexOps(
+              client.withAuthSession(indexSession),
+              paths.index(identifier),
+              Map::of,
+              mutationHeaders,
+              response.metadata(),
+              endpoints);
+
+      return new BaseIndex(ops, fullIndexName(identifier));
+    }
+
+    @Override
+    public Index replace() {
+      if (!indexExists(context, identifier)) {
+        throw new NoSuchIndexException("Index does not exist: %s", identifier);
+      }
+
+      return replace(loadIndex());
+    }
+
+    @Override
+    public Index createOrReplace() {
+      try {
+        return replace(loadIndex());
+      } catch (NoSuchIndexException e) {
+        return create();
+      }
+    }
+
+    private Index replace(LoadIndexResponse original) {
+      Endpoint.check(endpoints, Endpoint.V1_UPDATE_INDEX);
+      Preconditions.checkState(type == null, "Cannot update index type");
+      Preconditions.checkState(indexColumnIds == null, "Cannot update index column ids");
+      Preconditions.checkState(optimizedColumnIds == null, "Cannot update optimized column ids");
+
+      IndexMetadata metadata = original.metadata();
+
+      IndexMetadata.Builder builder = IndexMetadata.buildFrom(metadata);
+
+      if (properties != null) {
+        builder = builder.setProperties(properties);
+      }
+
+      if (tableSnapshotId != -1 || indexSnapshotId != -1 || snapshotProperties != null) {
+        Preconditions.checkArgument(
+            tableSnapshotId != -1L,
+            "Cannot create index snapshot without specifying tableSnapshotId");
+        Preconditions.checkArgument(
+            indexSnapshotId != -1L,
+            "Cannot create index snapshot without specifying indexSnapshotId");
+
+        builder.addSnapshot(
+            ImmutableIndexSnapshot.builder()
+                .indexSnapshotId(indexSnapshotId)
+                .tableSnapshotId(tableSnapshotId)
+                .versionId(-1)
+                .properties(snapshotProperties)
+                .build());
+      }
+
+      if (snapshotIdsToRemove != null) {
+        builder.removeSnapshots(snapshotIdsToRemove);
+      }
+
+      if (location != null) {
+        builder.setLocation(location);
+      }
+
+      IndexMetadata replacement = builder.build();
+
+      UpdateIndexRequest request =
+          UpdateIndexRequest.create(
+              null,
+              IndexRequirements.forReplaceIndex(metadata, replacement.changes()),
+              replacement.changes());
+
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      LoadIndexResponse response =
+          client
+              .withAuthSession(contextualSession)
+              .post(
+                  paths.index(identifier),
+                  request,
+                  LoadIndexResponse.class,
+                  mutationHeaders,
+                  ErrorHandlers.indexErrorHandler());
+
+      Map<String, String> indexConf = response.config();
+      AuthSession indexSession =
+          authManager.tableSession(identifier.tableIdentifier(), indexConf, contextualSession);
+      RESTIndexOperations ops =
+          newIndexOps(
+              client.withAuthSession(indexSession),
+              paths.index(identifier),
+              Map::of,
+              mutationHeaders,
+              response.metadata(),
+              endpoints);
+
+      return new BaseIndex(ops, fullIndexName(identifier));
+    }
+
+    private LoadIndexResponse loadIndex() {
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      return client
+          .withAuthSession(contextualSession)
+          .get(
+              paths.index(identifier),
+              LoadIndexResponse.class,
+              Map.of(),
+              ErrorHandlers.indexErrorHandler());
     }
   }
 }

@@ -38,6 +38,9 @@ public class CreateIndexRequest implements RESTRequest {
   private List<Integer> optimizedColumnIds;
   private String location;
   private Map<String, String> properties;
+  private Long tableSnapshotId;
+  private Long indexSnapshotId;
+  private Map<String, String> snapshotProperties;
 
   public CreateIndexRequest() {
     // Required for Jackson deserialization
@@ -49,13 +52,19 @@ public class CreateIndexRequest implements RESTRequest {
       List<Integer> indexColumnIds,
       List<Integer> optimizedColumnIds,
       String location,
-      Map<String, String> properties) {
+      Map<String, String> properties,
+      Long tableSnapshotId,
+      Long indexSnapshotId,
+      Map<String, String> snapshotProperties) {
     this.name = name;
     this.type = type;
     this.indexColumnIds = indexColumnIds;
     this.optimizedColumnIds = optimizedColumnIds;
     this.location = location;
     this.properties = properties;
+    this.tableSnapshotId = tableSnapshotId;
+    this.indexSnapshotId = indexSnapshotId;
+    this.snapshotProperties = snapshotProperties;
     validate();
   }
 
@@ -93,6 +102,18 @@ public class CreateIndexRequest implements RESTRequest {
     return properties != null ? properties : ImmutableMap.of();
   }
 
+  public Long tableSnapshotId() {
+    return tableSnapshotId;
+  }
+
+  public Long indexSnapshotId() {
+    return indexSnapshotId;
+  }
+
+  public Map<String, String> snapshotProperties() {
+    return snapshotProperties != null ? snapshotProperties : ImmutableMap.of();
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -102,6 +123,9 @@ public class CreateIndexRequest implements RESTRequest {
         .add("optimizedColumnIds", optimizedColumnIds)
         .add("location", location)
         .add("properties", properties)
+        .add("tableSnapshotId", tableSnapshotId)
+        .add("indexSnapshotId", indexSnapshotId)
+        .add("snapshotProperties", snapshotProperties)
         .toString();
   }
 
@@ -116,6 +140,9 @@ public class CreateIndexRequest implements RESTRequest {
     private final List<Integer> optimizedColumnIds = Lists.newArrayList();
     private String location;
     private final Map<String, String> properties = Maps.newHashMap();
+    private Long tableSnapshotId;
+    private Long indexSnapshotId;
+    private final Map<String, String> snapshotProperties = Maps.newHashMap();
 
     private Builder() {}
 
@@ -166,6 +193,26 @@ public class CreateIndexRequest implements RESTRequest {
       return this;
     }
 
+    public Builder withTableSnapshotId(Long snapshotId) {
+      this.tableSnapshotId = snapshotId;
+      return this;
+    }
+
+    public Builder withIndexSnapshotId(Long snapshotId) {
+      this.indexSnapshotId = snapshotId;
+      return this;
+    }
+
+    public Builder setSnapshotProperty(String key, String value) {
+      this.snapshotProperties.put(key, value);
+      return this;
+    }
+
+    public Builder setSnapshotProperties(Map<String, String> props) {
+      this.snapshotProperties.putAll(props);
+      return this;
+    }
+
     public CreateIndexRequest build() {
       return new CreateIndexRequest(
           name,
@@ -173,7 +220,10 @@ public class CreateIndexRequest implements RESTRequest {
           ImmutableList.copyOf(indexColumnIds),
           optimizedColumnIds.isEmpty() ? null : ImmutableList.copyOf(optimizedColumnIds),
           location,
-          properties.isEmpty() ? null : ImmutableMap.copyOf(properties));
+          properties.isEmpty() ? null : ImmutableMap.copyOf(properties),
+          tableSnapshotId,
+          indexSnapshotId,
+          snapshotProperties.isEmpty() ? null : ImmutableMap.copyOf(snapshotProperties));
     }
   }
 }
