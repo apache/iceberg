@@ -145,7 +145,7 @@ public class ParquetFileMerger {
 
   private static MessageType readSchema(InputFile inputFile) throws IOException {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
-      return reader.getFooter().getFileMetaData().getSchema();
+      return reader.getFileMetaData().getSchema();
     }
   }
 
@@ -223,7 +223,7 @@ public class ParquetFileMerger {
         try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
           // Read metadata from the first file
           if (extraMetadata == null) {
-            extraMetadata = reader.getFooter().getFileMetaData().getKeyValueMetaData();
+            extraMetadata = reader.getFileMetaData().getKeyValueMetaData();
           }
 
           reader.appendTo(writer);
@@ -265,7 +265,7 @@ public class ParquetFileMerger {
         try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
           // Read metadata from first file
           if (extraMetadata == null) {
-            extraMetadata = reader.getFooter().getFileMetaData().getKeyValueMetaData();
+            extraMetadata = reader.getFileMetaData().getKeyValueMetaData();
           }
 
           List<BlockMetaData> rowGroups = reader.getFooter().getBlocks();

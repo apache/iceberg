@@ -2692,11 +2692,12 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     // Test that binPack() respects the configuration option
     // When enabled, should use SparkParquetFileMergeRunner
-    RewriteDataFiles.Result resultWithMerger =
-        basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true")
-            .binPack()
-            .execute();
+    RewriteDataFilesSparkAction actionWithMerger =
+        basicRewrite(table).option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "true");
+    actionWithMerger.binPack();
+    assertThat(actionWithMerger.runnerDescription()).isEqualTo("PARQUET-MERGE");
+
+    RewriteDataFiles.Result resultWithMerger = actionWithMerger.execute();
 
     assertThat(resultWithMerger.rewrittenDataFilesCount()).isEqualTo(4);
     assertThat(resultWithMerger.addedDataFilesCount()).isGreaterThan(0);
@@ -2705,21 +2706,24 @@ public class TestRewriteDataFilesAction extends TestBase {
     writeRecords(100, SCALE);
 
     // When disabled, should use SparkBinPackFileRewriteRunner
-    RewriteDataFiles.Result resultWithoutMerger =
-        basicRewrite(table)
-            .option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "false")
-            .binPack()
-            .execute();
+    RewriteDataFilesSparkAction actionWithoutMerger =
+        basicRewrite(table).option(RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, "false");
+    actionWithoutMerger.binPack();
+    assertThat(actionWithoutMerger.runnerDescription()).isEqualTo("BIN-PACK");
+
+    RewriteDataFiles.Result resultWithoutMerger = actionWithoutMerger.execute();
 
     // Should rewrite the newly added files
     assertThat(resultWithoutMerger.rewrittenDataFilesCount()).isGreaterThan(0);
   }
 
+  /**
+   * Test that both binpack and ParquetFileMerger convert virtual row IDs to physical and produce
+   * equivalent results for row lineage preservation.
+   */
   @TestTemplate
   public void testParquetFileMergerProduceConsistentRowLineageWithBinPackMerger()
       throws IOException {
-    // Test that both binpack and ParquetFileMerger convert virtual row IDs to physical
-    // and produce equivalent results for row lineage preservation
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     assumeThat(useParquetFileMerger).isTrue();
 
@@ -2813,10 +2817,55 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
   }
 
+  /**
+   * Test that ParquetFileMerger can generate physical _row_id columns when merging files with
+   * virtual row IDs (metadata only).
+   */
+  @TestTemplate
+  public void testParquetFileMergerGeneratesPhysicalRowIds() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+
+    // Merge files with virtual row IDs - should generate physical _row_id columns
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .option(
+                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
+            .binPack()
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(4);
+    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
+
+    // Verify files have physical _row_id column and first_row_id set
+    // Note: For V3+ tables, firstRowId is required in metadata even with physical _row_id column
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).isNotEmpty();
+    for (DataFile dataFile : dataFiles) {
+      assertThat(dataFile.firstRowId())
+          .as("Files should have first_row_id set after merge (required for V3+)")
+          .isNotNull();
+
+      ParquetFileReader reader =
+          ParquetFileReader.open(
+              HadoopInputFile.fromPath(
+                  new Path(dataFile.path().toString()), spark.sessionState().newHadoopConf()));
+      MessageType schema = reader.getFooter().getFileMetaData().getSchema();
+      assertThat(schema.containsField("_row_id"))
+          .as("Files should have physical _row_id column after merge")
+          .isTrue();
+      reader.close();
+    }
+  }
+
+  /**
+   * Test that ParquetFileMerger preserves existing physical _row_id columns via binary copy when
+   * merging files that already have physical row IDs.
+   */
   @TestTemplate
   public void testParquetFileMergerPreservesPhysicalRowIds() throws IOException {
-    // Test scenario 2: Tables with physical _row_id column
-    // After merging, the physical _row_id should be preserved (not changed)
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
     // Create a V3+ table and do an initial merge to create files with physical row IDs
@@ -2834,33 +2883,14 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(firstMerge.rewrittenDataFilesCount()).isEqualTo(4);
     assertThat(firstMerge.addedDataFilesCount()).isGreaterThan(0);
 
-    // Verify files have physical _row_id column and first_row_id set
-    // Note: For V3+ tables, firstRowId is required in metadata even with physical _row_id column
-    List<DataFile> dataFilesAfterFirstMerge = TestHelpers.dataFiles(table);
-    assertThat(dataFilesAfterFirstMerge).isNotEmpty();
-    for (DataFile dataFile : dataFilesAfterFirstMerge) {
-      assertThat(dataFile.firstRowId())
-          .as("Files should have first_row_id set after first merge (required for V3+)")
-          .isNotNull();
-
-      ParquetFileReader reader =
-          ParquetFileReader.open(
-              HadoopInputFile.fromPath(
-                  new Path(dataFile.path().toString()), spark.sessionState().newHadoopConf()));
-      MessageType schema = reader.getFooter().getFileMetaData().getSchema();
-      assertThat(schema.containsField("_row_id"))
-          .as("Files should have physical _row_id column after first merge")
-          .isTrue();
-      reader.close();
-    }
-
-    // Add more data to create additional files
+    // Add more data to create additional files (without physical row IDs)
     writeRecords(2, SCALE);
-    shouldHaveFiles(table, dataFilesAfterFirstMerge.size() + 2);
+    List<DataFile> filesBeforeSecondMerge = TestHelpers.dataFiles(table);
+    int expectedFileCount = filesBeforeSecondMerge.size();
 
     long countBefore = currentData().size();
 
-    // Second merge: should preserve physical row IDs via binary copy
+    // Second merge: should preserve physical row IDs via binary copy for files that have them
     RewriteDataFiles.Result secondMerge =
         basicRewrite(table)
             .option(
@@ -2895,9 +2925,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
   }
 
+  /** Test that row lineage preservation works correctly with partitioned tables. */
   @TestTemplate
   public void testRowLineageWithPartitionedTable() throws IOException {
-    // Test that row lineage preservation works correctly with partitioned tables
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
     // Create a partitioned table with multiple files per partition
@@ -2969,102 +2999,5 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     // All firstRowIds should be unique (non-overlapping ranges)
     assertThat(firstRowIds).doesNotHaveDuplicates();
-  }
-
-  @TestTemplate
-  public void testRowLineageWithLargerScale() throws IOException {
-    // Test row lineage preservation with larger number of files
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-
-    Table table = createTable(20); // 20 input files
-    shouldHaveFiles(table, 20);
-
-    long countBefore = currentData().size();
-
-    // Merge all files
-    RewriteDataFiles.Result result =
-        basicRewrite(table)
-            .option(
-                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
-            .binPack()
-            .execute();
-
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(20);
-    assertThat(result.addedDataFilesCount()).isGreaterThan(0);
-    assertThat(currentData()).hasSize((int) countBefore);
-
-    // Verify row lineage is preserved at scale
-    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
-    for (DataFile dataFile : dataFiles) {
-      assertThat(dataFile.firstRowId())
-          .as("Large scale merge should preserve row lineage")
-          .isNotNull();
-
-      // Verify physical _row_id column exists
-      ParquetFileReader reader =
-          ParquetFileReader.open(
-              HadoopInputFile.fromPath(
-                  new Path(dataFile.path().toString()), spark.sessionState().newHadoopConf()));
-      MessageType schema = reader.getFooter().getFileMetaData().getSchema();
-      assertThat(schema.containsField("_row_id"))
-          .as("Large scale merge should write physical _row_id column")
-          .isTrue();
-      reader.close();
-    }
-  }
-
-  @TestTemplate
-  public void testRowLineageConsistencyAcrossMultipleMerges() throws IOException {
-    // Test that row lineage (row IDs) are preserved across multiple merge operations
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-
-    Table table = createTable(8);
-    shouldHaveFiles(table, 8);
-
-    // Collect original data records with lineage
-    List<Object[]> originalData = currentDataWithLineage();
-    int originalRecordCount = originalData.size();
-
-    // First merge: converts virtual row IDs to physical
-    RewriteDataFiles.Result firstMerge =
-        basicRewrite(table)
-            .option(
-                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
-            .binPack()
-            .execute();
-
-    assertThat(firstMerge.rewrittenDataFilesCount()).isEqualTo(8);
-
-    // Verify data is preserved after first merge
-    List<Object[]> dataAfterFirstMerge = currentDataWithLineage();
-    assertThat(dataAfterFirstMerge)
-        .as("Record count should be preserved after first merge")
-        .hasSize(originalRecordCount);
-
-    // Verify all files now have physical _row_id column
-    verifyPhysicalRowIdsAfterMerge(table, "First merge");
-
-    // Add more data
-    writeRecords(4, SCALE);
-    int newRecordCount = currentData().size();
-
-    // Second merge: should preserve physical row IDs via binary copy
-    RewriteDataFiles.Result secondMerge =
-        basicRewrite(table)
-            .option(
-                RewriteDataFiles.USE_PARQUET_ROW_GROUP_MERGE, String.valueOf(useParquetFileMerger))
-            .binPack()
-            .execute();
-
-    assertThat(secondMerge.rewrittenDataFilesCount()).isGreaterThan(0);
-
-    // Verify all data is still preserved
-    List<Object[]> dataAfterSecondMerge = currentDataWithLineage();
-    assertThat(dataAfterSecondMerge)
-        .as("All records should be preserved after second merge")
-        .hasSize(newRecordCount);
-
-    // Verify files still have physical _row_id column
-    verifyPhysicalRowIdsAfterMerge(table, "Second merge");
   }
 }

@@ -20,29 +20,30 @@ package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.io.File;
-import java.util.Collections;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.FileGenerationUtil;
+import org.apache.iceberg.MockFileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
+import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteFileGroup;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestSparkParquetFileMergeRunner extends TestBase {
+class TestSparkParquetFileMergeRunner extends TestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -60,7 +61,7 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
   }
 
   @Test
-  public void testCanMergeAndGetSchemaReturnsFalseForSortedTable() {
+  public void testCanMergeAndGetSchemaReturnsNullForSortedTable() {
     // Create a table with a sort order
     Table table = TABLES.create(SCHEMA, tableLocation);
     table.updateProperties().set("write.metadata.metrics.default", "full").commit();
@@ -72,18 +73,12 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
     // Verify the table has a sort order
     assertThat(table.sortOrder().isSorted()).isTrue();
 
-    // Create a mock RewriteFileGroup with Parquet files but no deletes
-    RewriteFileGroup group = mock(RewriteFileGroup.class);
-    DataFile parquetFile1 = mock(DataFile.class);
-
-    when(parquetFile1.format()).thenReturn(FileFormat.PARQUET);
-    when(parquetFile1.specId()).thenReturn(0);
-    when(parquetFile1.fileSizeInBytes()).thenReturn(100L);
-    when(parquetFile1.path()).thenReturn(tableLocation + "/data/file1.parquet");
-    when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1));
-    when(group.expectedOutputFiles()).thenReturn(1);
-    when(group.maxOutputFileSize()).thenReturn(Long.MAX_VALUE);
-    when(group.fileScanTasks()).thenReturn(Collections.emptyList());
+    // Create a real RewriteFileGroup with real DataFile and FileScanTask objects
+    DataFile dataFile = FileGenerationUtil.generateDataFile(table, null);
+    MockFileScanTask task = new MockFileScanTask(dataFile);
+    RewriteDataFiles.FileGroupInfo info = fileGroupInfo(0);
+    RewriteFileGroup group =
+        new RewriteFileGroup(info, Lists.newArrayList(task), 0, Long.MAX_VALUE, 0, 1);
 
     // Create runner and test canMergeAndGetSchema
     SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
@@ -93,24 +88,20 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
   }
 
   @Test
-  public void testCanMergeAndGetSchemaReturnsFalseForFilesWithDeleteFiles() {
+  public void testCanMergeAndGetSchemaReturnsNullForFilesWithDeleteFiles() {
     // Create an unsorted table
     Table table = TABLES.create(SCHEMA, tableLocation);
 
     // Verify the table has no sort order
     assertThat(table.sortOrder().isUnsorted()).isTrue();
 
-    // Create a mock RewriteFileGroup with Parquet files that have delete files
-    RewriteFileGroup group = mock(RewriteFileGroup.class);
-    FileScanTask task1 = mock(FileScanTask.class);
-    DeleteFile deleteFile = mock(DeleteFile.class);
-    DataFile parquetFile1 = mock(DataFile.class);
-
-    when(task1.deletes()).thenReturn(Lists.newArrayList(deleteFile)); // Has delete files
-    when(group.fileScanTasks()).thenReturn(Lists.newArrayList(task1));
-    when(group.expectedOutputFiles()).thenReturn(1);
-    when(parquetFile1.format()).thenReturn(FileFormat.PARQUET);
-    when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1));
+    // Create a real RewriteFileGroup with files that have delete files
+    DataFile dataFile = FileGenerationUtil.generateDataFile(table, null);
+    DeleteFile deleteFile = FileGenerationUtil.generatePositionDeleteFile(table, (StructLike) null);
+    MockFileScanTask task = new MockFileScanTask(dataFile, new DeleteFile[] {deleteFile});
+    RewriteDataFiles.FileGroupInfo info = fileGroupInfo(0);
+    RewriteFileGroup group =
+        new RewriteFileGroup(info, Lists.newArrayList(task), 0, Long.MAX_VALUE, 0, 1);
 
     // Create runner and test canMergeAndGetSchema
     SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
@@ -120,47 +111,7 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
   }
 
   @Test
-  public void testCanMergeAndGetSchemaPassesInitialChecksForValidGroup() {
-    // Create an unsorted table
-    Table table = TABLES.create(SCHEMA, tableLocation);
-
-    // Verify the table has no sort order
-    assertThat(table.sortOrder().isUnsorted()).isTrue();
-
-    // Create a mock RewriteFileGroup with Parquet files and no deletes
-    RewriteFileGroup group = mock(RewriteFileGroup.class);
-    DataFile parquetFile1 = mock(DataFile.class);
-    DataFile parquetFile2 = mock(DataFile.class);
-    FileScanTask task1 = mock(FileScanTask.class);
-    FileScanTask task2 = mock(FileScanTask.class);
-
-    when(parquetFile1.format()).thenReturn(FileFormat.PARQUET);
-    when(parquetFile1.specId()).thenReturn(0);
-    when(parquetFile1.fileSizeInBytes()).thenReturn(100L);
-    when(parquetFile1.path()).thenReturn(tableLocation + "/data/file1.parquet");
-    when(parquetFile2.format()).thenReturn(FileFormat.PARQUET);
-    when(parquetFile2.specId()).thenReturn(0);
-    when(parquetFile2.fileSizeInBytes()).thenReturn(200L);
-    when(parquetFile2.path()).thenReturn(tableLocation + "/data/file2.parquet");
-    when(task1.deletes()).thenReturn(Collections.emptyList());
-    when(task2.deletes()).thenReturn(Collections.emptyList());
-    when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1, parquetFile2));
-    when(group.fileScanTasks()).thenReturn(Lists.newArrayList(task1, task2));
-    when(group.expectedOutputFiles()).thenReturn(1);
-    when(group.maxOutputFileSize()).thenReturn(Long.MAX_VALUE);
-
-    // Verify the initial checks pass (expectedOutputFiles, sortOrder, deletes)
-    assertThat(group.expectedOutputFiles()).isEqualTo(1);
-    assertThat(table.sortOrder().isUnsorted()).isTrue();
-    boolean hasDeletes = group.fileScanTasks().stream().anyMatch(task -> !task.deletes().isEmpty());
-    assertThat(hasDeletes).isFalse();
-
-    // Note: ParquetFileMerger.canMergeAndGetSchema would return null because
-    // mock files don't exist on disk, but the initial validation checks all pass
-  }
-
-  @Test
-  public void testCanMergeAndGetSchemaReturnsFalseForTableWithMultipleColumnSort() {
+  public void testCanMergeAndGetSchemaReturnsNullForTableWithMultipleColumnSort() {
     // Create a table with a multi-column sort order (similar to z-ordering)
     Table table = TABLES.create(SCHEMA, tableLocation);
     table.updateProperties().set("write.metadata.metrics.default", "full").commit();
@@ -171,23 +122,27 @@ public class TestSparkParquetFileMergeRunner extends TestBase {
     // Verify the table has a sort order
     assertThat(table.sortOrder().isSorted()).isTrue();
 
-    // Create a mock RewriteFileGroup
-    RewriteFileGroup group = mock(RewriteFileGroup.class);
-    DataFile parquetFile1 = mock(DataFile.class);
-
-    when(parquetFile1.format()).thenReturn(FileFormat.PARQUET);
-    when(parquetFile1.specId()).thenReturn(0);
-    when(parquetFile1.fileSizeInBytes()).thenReturn(100L);
-    when(parquetFile1.path()).thenReturn(tableLocation + "/data/file1.parquet");
-    when(group.rewrittenFiles()).thenReturn(Sets.newHashSet(parquetFile1));
-    when(group.expectedOutputFiles()).thenReturn(1);
-    when(group.maxOutputFileSize()).thenReturn(Long.MAX_VALUE);
-    when(group.fileScanTasks()).thenReturn(Collections.emptyList());
+    // Create a real RewriteFileGroup
+    DataFile dataFile = FileGenerationUtil.generateDataFile(table, null);
+    MockFileScanTask task = new MockFileScanTask(dataFile);
+    RewriteDataFiles.FileGroupInfo info = fileGroupInfo(0);
+    RewriteFileGroup group =
+        new RewriteFileGroup(info, Lists.newArrayList(task), 0, Long.MAX_VALUE, 0, 1);
 
     // Create runner and test canMergeAndGetSchema
     SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
 
     // Should return null because table has multi-column sort order
     assertThat(runner.canMergeAndGetSchema(group)).isNull();
+  }
+
+  private static RewriteDataFiles.FileGroupInfo fileGroupInfo(int globalIndex) {
+    // Create an empty partition for unpartitioned tables
+    StructLike emptyPartition = GenericRecord.create(PartitionSpec.unpartitioned().partitionType());
+    return ImmutableRewriteDataFiles.FileGroupInfo.builder()
+        .globalIndex(globalIndex)
+        .partitionIndex(0)
+        .partition(emptyPartition)
+        .build();
   }
 }

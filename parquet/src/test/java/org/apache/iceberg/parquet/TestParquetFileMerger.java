@@ -63,7 +63,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestParquetFileMerger {
+class TestParquetFileMerger {
 
   private static final Schema SCHEMA =
       new Schema(
@@ -97,7 +97,7 @@ public class TestParquetFileMerger {
   }
 
   @Test
-  public void testCanMergeReturnsFalseForNonParquetFile() throws IOException {
+  public void testCanMergeReturnsNullForNonParquetFile() throws IOException {
     // Create a non-Parquet file (just a text file)
     File textFile = createTempFile(temp);
     textFile.getParentFile().mkdirs(); // Ensure directory exists
@@ -112,7 +112,7 @@ public class TestParquetFileMerger {
   }
 
   @Test
-  public void testCanMergeReturnsFalseForDifferentSchemas() throws IOException {
+  public void testCanMergeReturnsNullForDifferentSchemas() throws IOException {
     // Create first Parquet file with schema1
     Schema icebergSchema1 = SCHEMA;
 
@@ -157,11 +157,151 @@ public class TestParquetFileMerger {
     assertThat(result).isNotNull();
   }
 
+  /** Test that validation catches files with null values in physical row lineage columns. */
+  @Test
+  public void testCanMergeReturnsNullForPhysicalRowLineageWithNulls() throws IOException {
+    Schema schemaWithLineage =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            // OPTIONAL - allows nulls
+            Types.NestedField.optional(
+                MetadataColumns.ROW_ID.fieldId(),
+                MetadataColumns.ROW_ID.name(),
+                Types.LongType.get()),
+            Types.NestedField.required(
+                MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
+                MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
+                Types.LongType.get()));
+
+    File file1 = createTempFile(temp);
+    // Create file with null in _row_id column (this simulates corrupted data)
+    createParquetFileWithData(
+        Files.localOutput(file1),
+        schemaWithLineage,
+        Arrays.asList(
+            createRecordWithLineage(schemaWithLineage, 1, "a", null, 5L), // null _row_id
+            createRecordWithLineage(schemaWithLineage, 2, "b", 101L, 5L)));
+
+    List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1));
+
+    // canMergeAndGetSchema should return null due to null values
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
+    assertThat(result)
+        .as("canMergeAndGetSchema should return null for files with null row lineage values")
+        .isNull();
+  }
+
+  /** Test schema validation edge case: same field name but different types. */
+  @Test
+  public void testCanMergeReturnsNullForSameFieldNameDifferentType() throws IOException {
+    // Create first file with 'data' as StringType
+    Schema schema1 =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    File file1 = createTempFile(temp);
+    createParquetFileWithData(Files.localOutput(file1), schema1, Collections.emptyList());
+
+    // Create second file with 'data' as LongType (incompatible)
+    Schema schema2 =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.LongType.get()));
+
+    File file2 = createTempFile(temp);
+    createParquetFileWithData(Files.localOutput(file2), schema2, Collections.emptyList());
+
+    // Validation should fail due to type mismatch
+    List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
+
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
+    assertThat(result)
+        .as("canMergeAndGetSchema should return null for same field name with different types")
+        .isNull();
+  }
+
+  /**
+   * Test that files with different compression codecs can still be merged (compression is at the
+   * row group level, not schema level).
+   */
+  @Test
+  public void testCanMergeReturnsTrueForDifferentCompressionCodecs() throws IOException {
+    // Create file 1 with SNAPPY compression
+    File file1 = createTempFile(temp);
+    createParquetFileWithData(
+        Files.localOutput(file1),
+        SCHEMA,
+        Arrays.asList(createRecord(1, "a")),
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        "snappy");
+
+    // Create file 2 with GZIP compression
+    File file2 = createTempFile(temp);
+    createParquetFileWithData(
+        Files.localOutput(file2),
+        SCHEMA,
+        Arrays.asList(createRecord(2, "b")),
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
+        "gzip");
+
+    // Should succeed - compression doesn't affect schema compatibility
+    List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
+
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
+    assertThat(result)
+        .as("Files with different compression codecs should be mergeable")
+        .isNotNull();
+  }
+
+  /** Test error handling for corrupted Parquet files. */
+  @Test
+  public void testCanMergeReturnsNullForCorruptedParquetFile() throws IOException {
+    // Create a valid Parquet file
+    File validFile = createTempFile(temp);
+    writeRecordsToFile(validFile, Arrays.asList(createRecord(1, "a")));
+
+    // Create a corrupted file by writing partial/invalid Parquet data
+    File corruptedFile = createTempFile(temp);
+    corruptedFile.getParentFile().mkdirs();
+    java.nio.file.Files.write(
+        corruptedFile.toPath(), "PAR1InvalidData".getBytes()); // Invalid Parquet content
+
+    // Validation should fail gracefully for corrupted file
+    List<InputFile> inputFiles =
+        Arrays.asList(Files.localInput(validFile), Files.localInput(corruptedFile));
+
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
+    assertThat(result).as("canMergeAndGetSchema should return null for corrupted files").isNull();
+  }
+
+  /** Test error handling for non-existent file paths. */
+  @Test
+  public void testCanMergeReturnsNullForNonExistentFile() throws IOException {
+    // Create a valid file
+    File validFile = createTempFile(temp);
+    writeRecordsToFile(validFile, Arrays.asList(createRecord(1, "a")));
+
+    // Reference a non-existent file
+    File nonExistentFile = new File(temp.toFile(), "non_existent_file.parquet");
+
+    List<InputFile> inputFiles =
+        Arrays.asList(Files.localInput(validFile), Files.localInput(nonExistentFile));
+
+    // Should return null because non-existent file cannot be read
+    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
+    assertThat(result)
+        .as("canMergeAndGetSchema should return null when file doesn't exist")
+        .isNull();
+  }
+
+  /**
+   * Test that merging files with virtual row lineage synthesizes physical _row_id and
+   * _last_updated_sequence_number columns.
+   */
   @Test
   public void testMergeFilesSynthesizesRowLineageColumns() throws IOException {
-    // Test that merging files with virtual row lineage synthesizes physical _row_id and
-    // _last_updated_sequence_number columns
-
     // Create two files with test data
     File file1 = createTempFile(temp);
     writeRecordsToFile(
@@ -223,10 +363,9 @@ public class TestParquetFileMerger {
     assertThat(records.get(4).data).isEqualTo("e");
   }
 
+  /** Test row lineage synthesis works correctly across multiple row groups. */
   @Test
   public void testMergeFilesWithMultipleRowGroups() throws IOException {
-    // Test row lineage synthesis works correctly across multiple row groups
-
     // Create file with multiple row groups by setting small row group size
     File file1 = createTempFile(temp);
     OutputFile output1 = Files.localOutput(file1);
@@ -258,10 +397,9 @@ public class TestParquetFileMerger {
     }
   }
 
+  /** Test that each file's dataSequenceNumber is correctly applied to its rows. */
   @Test
   public void testMergeFilesWithDifferentDataSequenceNumbers() throws IOException {
-    // Test that each file's dataSequenceNumber is correctly applied to its rows
-
     // Create three files
     File file1 = createTempFile(temp);
     writeRecordsToFile(file1, Arrays.asList(createRecord(1, "a"), createRecord(2, "b")));
@@ -306,10 +444,9 @@ public class TestParquetFileMerger {
     assertThat(records.get(5).seqNum).isEqualTo(30L);
   }
 
+  /** Test that merging without firstRowIds/dataSequenceNumbers works (no row lineage columns). */
   @Test
   public void testMergeFilesWithoutRowLineage() throws IOException {
-    // Test that merging without firstRowIds/dataSequenceNumbers works (no row lineage columns)
-
     File file1 = createTempFile(temp);
     writeRecordsToFile(file1, Arrays.asList(createRecord(1, "a"), createRecord(2, "b")));
 
@@ -354,10 +491,9 @@ public class TestParquetFileMerger {
     assertThat(records.get(2).getField("id")).isEqualTo(3);
   }
 
+  /** Test that files already having physical row lineage columns are preserved via binary copy. */
   @Test
   public void testMergeFilesWithPhysicalRowLineageColumns() throws IOException {
-    // Test that files already having physical row lineage columns are preserved via binary copy
-
     // Create schema with row lineage columns
     Schema schemaWithLineage =
         new Schema(
@@ -415,45 +551,9 @@ public class TestParquetFileMerger {
     assertThat(records.get(2).seqNum).isEqualTo(5L);
   }
 
-  @Test
-  public void testCanMergeReturnsFalseForPhysicalRowLineageWithNulls() throws IOException {
-    // Test that validation catches files with null values in physical row lineage columns
-    Schema schemaWithLineage =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.optional(2, "data", Types.StringType.get()),
-            // OPTIONAL - allows nulls
-            Types.NestedField.optional(
-                MetadataColumns.ROW_ID.fieldId(),
-                MetadataColumns.ROW_ID.name(),
-                Types.LongType.get()),
-            Types.NestedField.required(
-                MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
-                MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(),
-                Types.LongType.get()));
-
-    File file1 = createTempFile(temp);
-    // Create file with null in _row_id column (this simulates corrupted data)
-    createParquetFileWithData(
-        Files.localOutput(file1),
-        schemaWithLineage,
-        Arrays.asList(
-            createRecordWithLineage(schemaWithLineage, 1, "a", null, 5L), // null _row_id
-            createRecordWithLineage(schemaWithLineage, 2, "b", 101L, 5L)));
-
-    List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1));
-
-    // canMergeAndGetSchema should return null due to null values
-    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
-    assertThat(result)
-        .as("canMergeAndGetSchema should return null for files with null row lineage values")
-        .isNull();
-  }
-
+  /** Test that verifies exact row ID and sequence number values in merged output. */
   @Test
   public void testMergeFilesVerifiesExactRowIdValues() throws IOException {
-    // Test that verifies exact row ID and sequence number values in merged output
-
     // Create file 1 with 3 records, firstRowId=100, dataSequenceNumber=5
     File file1 = createTempFile(temp);
     writeRecordsToFile(
@@ -520,74 +620,13 @@ public class TestParquetFileMerger {
     assertThat(records.get(8).seqNum).isEqualTo(10L);
   }
 
-  @Test
-  public void testCanMergeReturnsFalseForSameFieldNameDifferentType() throws IOException {
-    // Test schema validation edge case: same field name but different types
-
-    // Create first file with 'data' as StringType
-    Schema schema1 =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.optional(2, "data", Types.StringType.get()));
-
-    File file1 = createTempFile(temp);
-    createParquetFileWithData(Files.localOutput(file1), schema1, Collections.emptyList());
-
-    // Create second file with 'data' as LongType (incompatible)
-    Schema schema2 =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.optional(2, "data", Types.LongType.get()));
-
-    File file2 = createTempFile(temp);
-    createParquetFileWithData(Files.localOutput(file2), schema2, Collections.emptyList());
-
-    // Validation should fail due to type mismatch
-    List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
-
-    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
-    assertThat(result)
-        .as("canMergeAndGetSchema should return null for same field name with different types")
-        .isNull();
-  }
-
-  @Test
-  public void testCanMergeReturnsTrueForDifferentCompressionCodecs() throws IOException {
-    // Test that files with different compression codecs can still be merged
-    // (compression is at the row group level, not schema level)
-
-    // Create file 1 with SNAPPY compression
-    File file1 = createTempFile(temp);
-    createParquetFileWithData(
-        Files.localOutput(file1),
-        SCHEMA,
-        Arrays.asList(createRecord(1, "a")),
-        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
-        "snappy");
-
-    // Create file 2 with GZIP compression
-    File file2 = createTempFile(temp);
-    createParquetFileWithData(
-        Files.localOutput(file2),
-        SCHEMA,
-        Arrays.asList(createRecord(2, "b")),
-        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT,
-        "gzip");
-
-    // Should succeed - compression doesn't affect schema compatibility
-    List<InputFile> inputFiles = Arrays.asList(Files.localInput(file1), Files.localInput(file2));
-
-    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
-    assertThat(result)
-        .as("Files with different compression codecs should be mergeable")
-        .isNotNull();
-  }
-
+  /**
+   * Test row lineage synthesis works correctly with partitioned tables. Note: In Iceberg
+   * partitioned tables, partition columns are NOT stored in Parquet files, they are encoded in the
+   * file path and DataFile metadata.
+   */
   @Test
   public void testMergeFilesWithPartitionedTable() throws IOException {
-    // Test row lineage synthesis works correctly with partitioned tables
-    // Note: In Iceberg partitioned tables, partition columns are NOT stored in Parquet files,
-    // they are encoded in the file path and DataFile metadata
 
     // Create schema with partition column
     Schema fullSchema =
@@ -639,49 +678,6 @@ public class TestParquetFileMerger {
     assertThat(records.get(0).id).isEqualTo(1);
     assertThat(records.get(1).id).isEqualTo(2);
     assertThat(records.get(2).id).isEqualTo(3);
-  }
-
-  @Test
-  public void testCanMergeReturnsFalseForCorruptedParquetFile() throws IOException {
-    // Test error handling for corrupted Parquet files
-
-    // Create a valid Parquet file
-    File validFile = createTempFile(temp);
-    writeRecordsToFile(validFile, Arrays.asList(createRecord(1, "a")));
-
-    // Create a corrupted file by writing partial/invalid Parquet data
-    File corruptedFile = createTempFile(temp);
-    corruptedFile.getParentFile().mkdirs();
-    java.nio.file.Files.write(
-        corruptedFile.toPath(), "PAR1InvalidData".getBytes()); // Invalid Parquet content
-
-    // Validation should fail gracefully for corrupted file
-    List<InputFile> inputFiles =
-        Arrays.asList(Files.localInput(validFile), Files.localInput(corruptedFile));
-
-    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
-    assertThat(result).as("canMergeAndGetSchema should return null for corrupted files").isNull();
-  }
-
-  @Test
-  public void testCanMergeReturnsFalseForNonExistentFile() throws IOException {
-    // Test error handling for non-existent file paths
-
-    // Create a valid file
-    File validFile = createTempFile(temp);
-    writeRecordsToFile(validFile, Arrays.asList(createRecord(1, "a")));
-
-    // Reference a non-existent file
-    File nonExistentFile = new File(temp.toFile(), "non_existent_file.parquet");
-
-    List<InputFile> inputFiles =
-        Arrays.asList(Files.localInput(validFile), Files.localInput(nonExistentFile));
-
-    // Should return null because non-existent file cannot be read
-    MessageType result = ParquetFileMerger.canMergeAndGetSchema(inputFiles);
-    assertThat(result)
-        .as("canMergeAndGetSchema should return null when file doesn't exist")
-        .isNull();
   }
 
   /** Helper to create a GenericRecord using the default SCHEMA */

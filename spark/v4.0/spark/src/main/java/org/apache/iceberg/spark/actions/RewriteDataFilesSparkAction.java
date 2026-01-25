@@ -245,6 +245,11 @@ public class RewriteDataFilesSparkAction
         table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
   }
 
+  @VisibleForTesting
+  String runnerDescription() {
+    return runner != null ? runner.description() : null;
+  }
+
   private Builder doExecute(
       FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan,
       RewriteDataFilesCommitManager commitManager) {
