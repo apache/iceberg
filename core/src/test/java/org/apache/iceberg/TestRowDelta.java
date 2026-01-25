@@ -2055,6 +2055,57 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testDuplicateDVsAndValidDV() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile1 = newDataFile("data_bucket=0");
+    DataFile dataFile2 = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile1).addRows(dataFile2), branch);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+
+    // dataFile1 has duplicate DVs that need merging
+    DeleteFile deleteFile1a = dvWithPositions(dataFile1, fileFactory, 0, 2);
+    DeleteFile deleteFile1b = dvWithPositions(dataFile1, fileFactory, 2, 4);
+
+    // dataFile2 has a valid DV
+    DeleteFile deleteFile2 = dvWithPositions(dataFile2, fileFactory, 0, 3);
+
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .addDeletes(deleteFile1a)
+            .addDeletes(deleteFile1b)
+            .addDeletes(deleteFile2);
+
+    commit(table, rowDelta, branch);
+
+    // Expect two DVs: one merged for dataFile1 and deleteFile2
+    Iterable<DeleteFile> addedDeleteFiles =
+        latestSnapshot(table, branch).addedDeleteFiles(table.io());
+    List<DeleteFile> committedDVs = Lists.newArrayList(addedDeleteFiles);
+
+    assertThat(committedDVs).hasSize(2);
+
+    // Verify merged DV for dataFile1 has positions [0,4)
+    DeleteFile committedDVForDataFile1 =
+        Iterables.getOnlyElement(
+            committedDVs.stream()
+                .filter(dv -> Objects.equals(dv.referencedDataFile(), dataFile1.location()))
+                .collect(Collectors.toList()));
+    assertDVHasDeletedPositions(committedDVForDataFile1, LongStream.range(0, 4).boxed()::iterator);
+
+    // Verify deleteFile2 state
+    DeleteFile committedDVForDataFile2 =
+        Iterables.getOnlyElement(
+            committedDVs.stream()
+                .filter(dv -> Objects.equals(dv.referencedDataFile(), dataFile2.location()))
+                .collect(Collectors.toList()));
+    assertDVHasDeletedPositions(committedDVForDataFile2, LongStream.range(0, 3).boxed()::iterator);
+  }
+
+  @TestTemplate
   public void testDuplicateDVsAreMergedAndEqDelete() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
