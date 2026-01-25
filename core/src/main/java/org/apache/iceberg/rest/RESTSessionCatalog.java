@@ -549,7 +549,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     RESTClient tableClient = client.withAuthSession(tableSession);
     Supplier<BaseTable> tableSupplier =
         createTableSupplier(
-            finalIdentifier, tableMetadata, context, tableClient, tableConf, credentials);
+            finalIdentifier,
+            tableMetadata,
+            context,
+            tableClient,
+            tableConf,
+            credentials,
+            snapshotModeToParam(snapshotMode));
 
     String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
     if (eTag != null) {
@@ -569,7 +575,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SessionContext context,
       RESTClient tableClient,
       Map<String, String> tableConf,
-      List<Credential> credentials) {
+      List<Credential> credentials,
+      Map<String, String> queryParams) {
     return () -> {
       RESTTableOperations ops =
           newTableOps(
@@ -579,7 +586,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               mutationHeaders,
               tableFileIO(context, tableConf, credentials),
               tableMetadata,
-              endpoints);
+              endpoints,
+              queryParams);
 
       trackFileIO(ops);
 
@@ -678,7 +686,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mutationHeaders,
             tableFileIO(context, tableConf, response.credentials()),
             response.tableMetadata(),
-            endpoints);
+            endpoints,
+            snapshotModeToParam(snapshotMode));
 
     trackFileIO(ops);
 
@@ -947,7 +956,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               mutationHeaders,
               tableFileIO(context, tableConf, response.credentials()),
               response.tableMetadata(),
-              endpoints);
+              endpoints,
+              ImmutableMap.of());
 
       trackFileIO(ops);
 
@@ -1195,9 +1205,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Supplier<Map<String, String>> mutationHeaderSupplier,
       FileIO fileIO,
       TableMetadata current,
-      Set<Endpoint> supportedEndpoints) {
+      Set<Endpoint> supportedEndpoints,
+      Map<String, String> queryParams) {
     return new RESTTableOperations(
-        restClient, path, readHeaders, mutationHeaderSupplier, fileIO, current, supportedEndpoints);
+        restClient,
+        path,
+        readHeaders,
+        mutationHeaderSupplier,
+        fileIO,
+        current,
+        supportedEndpoints,
+        queryParams);
   }
 
   /**
@@ -1239,7 +1257,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         updateType,
         createChanges,
         current,
-        supportedEndpoints);
+        supportedEndpoints,
+        ImmutableMap.of());
   }
 
   /**

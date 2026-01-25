@@ -38,6 +38,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -61,6 +62,7 @@ class RESTTableOperations implements TableOperations {
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private final Set<Endpoint> endpoints;
+  private final Map<String, String> queryParams;
   private UpdateType updateType;
   private TableMetadata current;
 
@@ -80,7 +82,8 @@ class RESTTableOperations implements TableOperations {
         UpdateType.SIMPLE,
         Lists.newArrayList(),
         current,
-        endpoints);
+        endpoints,
+        ImmutableMap.of());
   }
 
   RESTTableOperations(
@@ -92,7 +95,17 @@ class RESTTableOperations implements TableOperations {
       List<MetadataUpdate> createChanges,
       TableMetadata current,
       Set<Endpoint> endpoints) {
-    this(client, path, headers, headers, io, updateType, createChanges, current, endpoints);
+    this(
+        client,
+        path,
+        headers,
+        headers,
+        io,
+        updateType,
+        createChanges,
+        current,
+        endpoints,
+        ImmutableMap.of());
   }
 
   RESTTableOperations(
@@ -102,7 +115,8 @@ class RESTTableOperations implements TableOperations {
       Supplier<Map<String, String>> mutationHeaders,
       FileIO io,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> endpoints,
+      Map<String, String> queryParams) {
     this(
         client,
         path,
@@ -112,7 +126,8 @@ class RESTTableOperations implements TableOperations {
         UpdateType.SIMPLE,
         Lists.newArrayList(),
         current,
-        endpoints);
+        endpoints,
+        queryParams);
   }
 
   RESTTableOperations(
@@ -124,7 +139,8 @@ class RESTTableOperations implements TableOperations {
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> endpoints,
+      Map<String, String> queryParams) {
     this.client = client;
     this.path = path;
     this.readHeaders = readHeaders;
@@ -139,6 +155,7 @@ class RESTTableOperations implements TableOperations {
       this.current = current;
     }
     this.endpoints = endpoints;
+    this.queryParams = queryParams;
   }
 
   @Override
@@ -150,7 +167,12 @@ class RESTTableOperations implements TableOperations {
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, readHeaders, ErrorHandlers.tableErrorHandler()));
+        client.get(
+            path,
+            queryParams,
+            LoadTableResponse.class,
+            readHeaders,
+            ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
