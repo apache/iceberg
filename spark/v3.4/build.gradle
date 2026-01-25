@@ -113,7 +113,9 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
     // runtime dependencies for running REST Catalog based integration test
+    testRuntimeOnly libs.jetty.server
     testRuntimeOnly libs.jetty.servlet
+    testRuntimeOnly libs.jetty.gzip
   }
 
   test {
@@ -178,7 +180,9 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
       transitive = false
     }
     // runtime dependencies for running REST Catalog based integration test
+    testRuntimeOnly libs.jetty.server
     testRuntimeOnly libs.jetty.servlet
+    testRuntimeOnly libs.jetty.gzip
     testRuntimeOnly libs.sqlite.jdbc
 
     testImplementation libs.avro.avro
