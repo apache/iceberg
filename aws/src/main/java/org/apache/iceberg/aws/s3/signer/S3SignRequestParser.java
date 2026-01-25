@@ -56,12 +56,12 @@ public class S3SignRequestParser {
     return ImmutableS3SignRequest.builder().from(request).build();
   }
 
-  public static void headersToJson(
-      String property, Map<String, List<String>> headers, JsonGenerator gen) throws IOException {
+  static void headersToJson(String property, Map<String, List<String>> headers, JsonGenerator gen)
+      throws IOException {
     RemoteSignRequestParser.headersToJson(property, headers, gen);
   }
 
-  public static Map<String, List<String>> headersFromJson(String property, JsonNode json) {
+  static Map<String, List<String>> headersFromJson(String property, JsonNode json) {
     return RemoteSignRequestParser.headersFromJson(property, json);
   }
 }

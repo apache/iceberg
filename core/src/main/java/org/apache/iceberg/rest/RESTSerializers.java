@@ -664,8 +664,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class RemoteSignRequestSerializer<T extends RemoteSignRequest>
-      extends JsonSerializer<T> {
+  static class RemoteSignRequestSerializer<T extends RemoteSignRequest> extends JsonSerializer<T> {
     @Override
     public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
@@ -673,7 +672,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class RemoteSignRequestDeserializer<T extends RemoteSignRequest>
+  static class RemoteSignRequestDeserializer<T extends RemoteSignRequest>
       extends JsonDeserializer<T> {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
@@ -682,7 +681,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class RemoteSignResponseSerializer<T extends RemoteSignResponse>
+  static class RemoteSignResponseSerializer<T extends RemoteSignResponse>
       extends JsonSerializer<T> {
     @Override
     public void serialize(T response, JsonGenerator gen, SerializerProvider serializers)
@@ -691,7 +690,7 @@ public class RESTSerializers {
     }
   }
 
-  public static class RemoteSignResponseDeserializer<T extends RemoteSignResponse>
+  static class RemoteSignResponseDeserializer<T extends RemoteSignResponse>
       extends JsonDeserializer<T> {
     @Override
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
