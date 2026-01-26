@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -60,7 +61,8 @@ class RESTTableScan extends DataTableScan {
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   private final RESTClient client;
-  private final Map<String, String> headers;
+  private final Supplier<Map<String, String>> readHeaders;
+  private final Supplier<Map<String, String>> mutationHeaders;
   private final TableOperations operations;
   private final Table table;
   private final ResourcePaths resourcePaths;
@@ -78,7 +80,8 @@ class RESTTableScan extends DataTableScan {
       Schema schema,
       TableScanContext context,
       RESTClient client,
-      Map<String, String> headers,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaders,
       TableOperations operations,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
@@ -89,7 +92,8 @@ class RESTTableScan extends DataTableScan {
     super(table, schema, context);
     this.table = table;
     this.client = client;
-    this.headers = headers;
+    this.readHeaders = readHeaders;
+    this.mutationHeaders = mutationHeaders;
     this.operations = operations;
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
@@ -112,7 +116,8 @@ class RESTTableScan extends DataTableScan {
         refinedSchema,
         refinedContext,
         client,
-        headers,
+        readHeaders,
+        mutationHeaders,
         operations,
         tableIdentifier,
         resourcePaths,
@@ -169,7 +174,7 @@ class RESTTableScan extends DataTableScan {
             resourcePaths.planTableScan(tableIdentifier),
             planTableScanRequest,
             PlanTableScanResponse.class,
-            headers,
+            mutationHeaders.get(),
             ErrorHandlers.tableErrorHandler(),
             stringStringMap -> {},
             parserContext);
@@ -247,9 +252,9 @@ class RESTTableScan extends DataTableScan {
                   () ->
                       client.get(
                           resourcePaths.plan(tableIdentifier, planId),
-                          headers,
+                          Map.of(),
                           FetchPlanningResultResponse.class,
-                          headers,
+                          readHeaders.get(),
                           ErrorHandlers.planErrorHandler(),
                           parserContext));
       Preconditions.checkState(
@@ -293,7 +298,7 @@ class RESTTableScan extends DataTableScan {
             client,
             resourcePaths,
             tableIdentifier,
-            headers,
+            mutationHeaders,
             planExecutor(),
             parserContext),
         this::cancelPlan);
@@ -311,7 +316,7 @@ class RESTTableScan extends DataTableScan {
           resourcePaths.plan(tableIdentifier, planId),
           Map.of(),
           null,
-          headers,
+          mutationHeaders.get(),
           ErrorHandlers.planErrorHandler());
       this.planId = null;
       return true;

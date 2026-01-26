@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -58,7 +59,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
   private final RESTClient client;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
-  private final Map<String, String> headers;
+  private final Supplier<Map<String, String>> headers;
   private final ParserContext parserContext;
 
   ScanTaskIterable(
@@ -67,7 +68,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       RESTClient client,
       ResourcePaths resourcePaths,
       TableIdentifier tableIdentifier,
-      Map<String, String> headers,
+      Supplier<Map<String, String>> headers,
       ExecutorService executorService,
       ParserContext parserContext) {
 
@@ -224,7 +225,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
           resourcePaths.fetchScanTasks(tableIdentifier),
           request,
           FetchScanTasksResponse.class,
-          headers,
+          headers.get(),
           ErrorHandlers.planTaskHandler(),
           stringStringMap -> {},
           parserContext);

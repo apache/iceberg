@@ -36,12 +36,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -63,6 +65,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.CloseableIterable;
@@ -70,8 +73,12 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
+import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
+import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -88,6 +95,10 @@ import org.mockito.Mockito;
 public class TestRESTScanPlanning {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
   private static final Namespace NS = Namespace.of("ns");
+  private static final List<String> ALL_COLUMNS =
+      SCHEMA.columns().stream().map(f -> f.name()).collect(Collectors.toList());
+  private static final ResourcePaths RESOURCE_PATHS =
+      ResourcePaths.forCatalogProperties(ImmutableMap.of());
 
   private InMemoryCatalog backendCatalog;
   private Server httpServer;
@@ -121,6 +132,7 @@ public class TestRESTScanPlanning {
                               Arrays.stream(Route.values())
                                   .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
                                   .collect(Collectors.toList()))
+                          .withIdempotencyKeyLifetime("PT30M")
                           .withOverrides(
                               ImmutableMap.of(
                                   RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true"))
@@ -227,6 +239,52 @@ public class TestRESTScanPlanning {
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> configurator) {
     TestPlanningBehavior.Builder builder = TestPlanningBehavior.builder();
     adapterForRESTServer.setPlanningBehavior(configurator.apply(builder).build());
+  }
+
+  private String planPath(TableIdentifier ident) {
+    return RESOURCE_PATHS.planTableScan(ident);
+  }
+
+  private String tasksPath(TableIdentifier ident) {
+    return RESOURCE_PATHS.fetchScanTasks(ident);
+  }
+
+  private String cancelPath(TableIdentifier ident, String planId) {
+    return RESOURCE_PATHS.plan(ident, planId);
+  }
+
+  private PlanTableScanRequest defaultPlanRequest() {
+    return PlanTableScanRequest.builder()
+        .withSelect(ALL_COLUMNS)
+        .withFilter(Expressions.alwaysTrue())
+        .withCaseSensitive(false)
+        .build();
+  }
+
+  private Map<String, String> idempotencyHeader(String key) {
+    return ImmutableMap.of(RESTUtil.IDEMPOTENCY_KEY_HEADER, key);
+  }
+
+  private <T extends RESTResponse> T execute(
+      HTTPRequest.HTTPMethod method,
+      String path,
+      Map<String, String> headers,
+      Object body,
+      Class<T> responseType,
+      Consumer<ErrorResponse> errorHandler) {
+    return adapterForRESTServer.execute(
+        adapterForRESTServer.buildRequest(method, path, null, headers, body),
+        responseType,
+        errorHandler,
+        ignored -> {});
+  }
+
+  private ConcurrentMap<String, ?> idempotencyStore() throws Exception {
+    Field storeField = CatalogHandlers.class.getDeclaredField("IDEMPOTENCY_STORE");
+    storeField.setAccessible(true);
+    @SuppressWarnings("unchecked")
+    ConcurrentMap<String, ?> store = (ConcurrentMap<String, ?>) storeField.get(null);
+    return store;
   }
 
   private Table createTableWithScanPlanning(RESTCatalog catalog, String tableName) {
@@ -1039,5 +1097,145 @@ public class TestRESTScanPlanning {
 
     // Verify no exception was thrown - cancelPlan returns false when endpoint not supported
     assertThat(cancelled).isFalse();
+  }
+
+  @Test
+  public void planTableScanReplaysResponseForSameIdempotencyKey() {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
+
+    TableIdentifier ident = TableIdentifier.of(NS, "idempotent_plan_scan");
+    Table table = createTableWithScanPlanning(scanPlanningCatalog(), ident);
+    setParserContext(table);
+
+    Map<String, String> headers = idempotencyHeader("test-idempotency-key-planTableScan");
+    PlanTableScanRequest request = defaultPlanRequest();
+
+    PlanTableScanResponse first =
+        execute(
+            HTTPRequest.HTTPMethod.POST,
+            planPath(ident),
+            headers,
+            request,
+            PlanTableScanResponse.class,
+            ErrorHandlers.tableErrorHandler());
+    PlanTableScanResponse second =
+        execute(
+            HTTPRequest.HTTPMethod.POST,
+            planPath(ident),
+            headers,
+            request,
+            PlanTableScanResponse.class,
+            ErrorHandlers.tableErrorHandler());
+
+    assertThat(first.planStatus()).isEqualTo(PlanStatus.SUBMITTED);
+    assertThat(second.planId()).isEqualTo(first.planId());
+  }
+
+  @Test
+  public void fetchScanTasksReplaysResponseForSameIdempotencyKey() {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
+
+    TableIdentifier ident = TableIdentifier.of(NS, "idempotent_fetch_scan_tasks");
+    Table table = createTableWithScanPlanning(scanPlanningCatalog(), ident);
+    // Ensure 2 data files so tasksPerPage=1 produces a next plan task that must be fetched via
+    // fetchScanTasks.
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    setParserContext(table);
+
+    PlanTableScanResponse plan =
+        execute(
+            HTTPRequest.HTTPMethod.POST,
+            planPath(ident),
+            Map.of(),
+            defaultPlanRequest(),
+            PlanTableScanResponse.class,
+            ErrorHandlers.tableErrorHandler());
+
+    assertThat(plan.planTasks()).isNotNull();
+    assertThat(plan.planTasks()).isNotEmpty();
+    String nextPlanTask = plan.planTasks().get(0);
+    FetchScanTasksRequest tasksRequest = new FetchScanTasksRequest(nextPlanTask);
+
+    Map<String, String> headers = idempotencyHeader("test-idempotency-key-fetchScanTasks");
+    FetchScanTasksResponse first =
+        execute(
+            HTTPRequest.HTTPMethod.POST,
+            tasksPath(ident),
+            headers,
+            tasksRequest,
+            FetchScanTasksResponse.class,
+            ErrorHandlers.planTaskHandler());
+
+    CatalogHandlers.cancelPlanTableScan(plan.planId());
+
+    FetchScanTasksResponse second =
+        execute(
+            HTTPRequest.HTTPMethod.POST,
+            tasksPath(ident),
+            headers,
+            tasksRequest,
+            FetchScanTasksResponse.class,
+            ErrorHandlers.planTaskHandler());
+
+    // We cancel the planning state before this call, so a fresh execution of fetchScanTasks would
+    // fail. The only way this second call can succeed is if the server replays the cached response
+    // for the Idempotency-Key.
+    //
+    // We validate that replay by comparing the returned payload's stable identifiers (data file
+    // locations) to the first response. Use order-insensitive comparison because the REST API does
+    // not specify task ordering and scan tasks can be planned/partitioned without an explicit sort
+    // (e.g. based on manifest iteration order).
+    assertThat(second.fileScanTasks())
+        .extracting(task -> task.file().location())
+        .containsExactlyInAnyOrderElementsOf(
+            first.fileScanTasks().stream()
+                .map(t -> t.file().location())
+                .collect(Collectors.toList()));
+
+    assertThatThrownBy(
+            () ->
+                execute(
+                    HTTPRequest.HTTPMethod.POST,
+                    tasksPath(ident),
+                    idempotencyHeader("test-idempotency-key-fetchScanTasks-2"),
+                    tasksRequest,
+                    FetchScanTasksResponse.class,
+                    ErrorHandlers.planTaskHandler()))
+        .isInstanceOf(NoSuchPlanTaskException.class)
+        .hasMessageContaining("Could not find tasks for plan task");
+  }
+
+  @Test
+  public void cancelPlanningIsWrappedWithIdempotency() throws Exception {
+    configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
+
+    TableIdentifier ident = TableIdentifier.of(NS, "idempotent_cancel_planning");
+    Table table = createTableWithScanPlanning(scanPlanningCatalog(), ident);
+    setParserContext(table);
+
+    PlanTableScanResponse plan =
+        execute(
+            HTTPRequest.HTTPMethod.POST,
+            planPath(ident),
+            idempotencyHeader("test-idempotency-key-planTableScan-cancel"),
+            defaultPlanRequest(),
+            PlanTableScanResponse.class,
+            ErrorHandlers.tableErrorHandler());
+    assertThat(plan.planStatus()).isEqualTo(PlanStatus.SUBMITTED);
+    assertThat(plan.planId()).isNotNull();
+
+    String cancelKey = "test-idempotency-key-cancelPlanning";
+    execute(
+        HTTPRequest.HTTPMethod.DELETE,
+        cancelPath(ident, plan.planId()),
+        idempotencyHeader(cancelKey),
+        null,
+        RESTResponse.class,
+        ErrorHandlers.planErrorHandler());
+
+    // cancelPlanning returns 204 (no body), so we can't verify idempotency by comparing response
+    // bodies. Instead, we assert that the Idempotency-Key was recorded in the server-side
+    // idempotency cache, which only happens if the endpoint is wrapped with withIdempotency(...).
+    assertThat(idempotencyStore()).containsKey(cancelKey);
   }
 }

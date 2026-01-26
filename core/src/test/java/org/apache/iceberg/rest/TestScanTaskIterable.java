@@ -109,7 +109,7 @@ public class TestScanTaskIterable {
         mockClient,
         resourcePaths,
         TABLE_IDENTIFIER,
-        HEADERS,
+        () -> HEADERS,
         executorService,
         parserContext);
   }

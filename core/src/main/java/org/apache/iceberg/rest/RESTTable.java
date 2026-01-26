@@ -33,7 +33,8 @@ import org.apache.iceberg.metrics.MetricsReporter;
 
 class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
   private final RESTClient client;
-  private final Supplier<Map<String, String>> headers;
+  private final Supplier<Map<String, String>> readHeaders;
+  private final Supplier<Map<String, String>> mutationHeaders;
   private final MetricsReporter reporter;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
@@ -46,7 +47,8 @@ class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
       String name,
       MetricsReporter reporter,
       RESTClient client,
-      Supplier<Map<String, String>> headers,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaders,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
@@ -55,7 +57,8 @@ class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
     super(ops, name, reporter);
     this.reporter = reporter;
     this.client = client;
-    this.headers = headers;
+    this.readHeaders = readHeaders;
+    this.mutationHeaders = mutationHeaders;
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
     this.supportedEndpoints = supportedEndpoints;
@@ -70,7 +73,8 @@ class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
         schema(),
         ImmutableTableScanContext.builder().metricsReporter(reporter).build(),
         client,
-        headers.get(),
+        readHeaders,
+        mutationHeaders,
         operations(),
         tableIdentifier,
         resourcePaths,
