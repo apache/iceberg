@@ -185,7 +185,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .as("Default olderThan interval should be safe")
         .isEmpty();
     assertThat(result1.orphanFilesCount())
-        .as("Default olderThan interval should be safe")
+        .as("Should not find any orphan file using default olderThan interval")
         .isEqualTo(0L);
 
     DeleteOrphanFiles.Result result2 =
@@ -961,7 +961,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .as("Default olderThan interval should be safe")
         .isEmpty();
     assertThat(result1.orphanFilesCount())
-        .as("Default olderThan interval should be safe")
+        .as("Should not find any orphan file using default olderThan interval")
         .isEqualTo(0L);
 
     DeleteOrphanFiles.Result result2 =
