@@ -31,6 +31,7 @@ import org.apache.iceberg.catalog.IndexIdentifier;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchIndexException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.types.Types;
@@ -1200,5 +1201,90 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     assertThat(index.snapshotForTableSnapshot(999L)).isNull();
 
     assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
+  }
+
+  @Test
+  public void concurrentAddIndexSnapshot() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier =
+        IndexIdentifier.of(tableIdentifier, "concurrent_snapshot_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
+
+    Index index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .create();
+
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should exist").isTrue();
+    assertThat(index.snapshots()).isEmpty();
+
+    AddIndexSnapshot addSnapshotOne =
+        index
+            .addIndexSnapshot()
+            .withTableSnapshotId(100L)
+            .withIndexSnapshotId(1L)
+            .withSnapshotProperty("source", "snapshot-one");
+
+    AddIndexSnapshot addSnapshotTwo =
+        index
+            .addIndexSnapshot()
+            .withTableSnapshotId(200L)
+            .withIndexSnapshotId(2L)
+            .withSnapshotProperty("source", "snapshot-two");
+
+    // simulate a concurrent add of the index snapshot
+    IndexOperations indexOps = ((BaseIndex) index).operations();
+    IndexMetadata current = indexOps.current();
+
+    IndexMetadata firstUpdate = ((IndexSnapshotAdd) addSnapshotOne).internalApply();
+    IndexMetadata secondUpdate = ((IndexSnapshotAdd) addSnapshotTwo).internalApply();
+
+    indexOps.commit(current, firstUpdate);
+
+    if (supportsServerSideRetry()) {
+      // retry should succeed and the changes should be applied
+      indexOps.commit(current, secondUpdate);
+
+      Index updatedIndex = catalog().loadIndex(indexIdentifier);
+      assertThat(updatedIndex.snapshots()).hasSize(2);
+
+      IndexSnapshot snapshot1 = updatedIndex.snapshot(1L);
+      assertThat(snapshot1).isNotNull();
+      assertThat(snapshot1.tableSnapshotId()).isEqualTo(100L);
+      assertThat(snapshot1.properties()).containsEntry("source", "snapshot-one");
+
+      IndexSnapshot snapshot2 = updatedIndex.snapshot(2L);
+      assertThat(snapshot2).isNotNull();
+      assertThat(snapshot2.tableSnapshotId()).isEqualTo(200L);
+      assertThat(snapshot2.properties()).containsEntry("source", "snapshot-two");
+    } else {
+      assertThatThrownBy(() -> indexOps.commit(current, secondUpdate))
+          .isInstanceOf(CommitFailedException.class)
+          .hasMessageContaining("Cannot commit");
+
+      Index updatedIndex = catalog().loadIndex(indexIdentifier);
+      assertThat(updatedIndex.snapshots()).hasSize(1);
+
+      IndexSnapshot snapshot1 = updatedIndex.snapshot(1L);
+      assertThat(snapshot1).isNotNull();
+      assertThat(snapshot1.tableSnapshotId()).isEqualTo(100L);
+      assertThat(snapshot1.properties()).containsEntry("source", "snapshot-one");
+
+      assertThat(updatedIndex.snapshot(2L)).isNull();
+    }
+
+    assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
   }
 }
