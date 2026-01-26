@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 
 import java.util.Map;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
@@ -51,7 +52,8 @@ class IndexSnapshotAdd implements AddIndexSnapshot {
     return internalApply().snapshot(indexSnapshotId);
   }
 
-  private IndexMetadata internalApply() {
+  @VisibleForTesting
+  IndexMetadata internalApply() {
     Preconditions.checkState(null != tableSnapshotId, "Table snapshot ID must be set");
     Preconditions.checkState(null != indexSnapshotId, "Index snapshot ID must be set");
 
