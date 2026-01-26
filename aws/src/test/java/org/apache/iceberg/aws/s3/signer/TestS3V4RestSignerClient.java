@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -121,18 +122,18 @@ class TestS3V4RestSignerClient {
         // No OAuth2 data
         Arguments.of(
             Map.of(
-                CatalogProperties.SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
-                CatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/sign/s3"),
             "sign",
             null),
         // Token only
         Arguments.of(
             Map.of(
-                CatalogProperties.SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
-                CatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
@@ -143,9 +144,9 @@ class TestS3V4RestSignerClient {
         // Credential only: expect a token to be fetched
         Arguments.of(
             Map.of(
-                CatalogProperties.SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
-                CatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
@@ -156,9 +157,9 @@ class TestS3V4RestSignerClient {
         // Token and credential: should use token as is, not fetch a new one
         Arguments.of(
             Map.of(
-                CatalogProperties.SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
-                CatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
@@ -171,9 +172,9 @@ class TestS3V4RestSignerClient {
         // Custom scope
         Arguments.of(
             Map.of(
-                CatalogProperties.SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://signer.com",
-                CatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/sign/s3",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
@@ -216,9 +217,9 @@ class TestS3V4RestSignerClient {
             Map.of(
                 CatalogProperties.URI,
                 "https://catalog.com",
-                CatalogProperties.SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://new-signer.com",
-                CatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/new/sign"),
             "https://new-signer.com",
             "https://new-signer.com/v1/new/sign"),
@@ -227,9 +228,9 @@ class TestS3V4RestSignerClient {
             Map.of(
                 CatalogProperties.URI,
                 "https://catalog.com",
-                CatalogProperties.SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://new-signer.com",
-                CatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/new/sign",
                 S3V4RestSignerClient.S3_SIGNER_URI,
                 "https://legacy-signer.com",
