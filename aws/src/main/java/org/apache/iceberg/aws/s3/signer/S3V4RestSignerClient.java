@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
@@ -69,14 +70,14 @@ public abstract class S3V4RestSignerClient
   private static final Logger LOG = LoggerFactory.getLogger(S3V4RestSignerClient.class);
 
   /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link CatalogProperties#SIGNER_URI}
-   *     instead.
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     RESTCatalogProperties#SIGNER_URI} instead.
    */
   @Deprecated public static final String S3_SIGNER_URI = "s3.signer.uri";
 
   /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link CatalogProperties#SIGNER_URI}
-   *     instead.
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     RESTCatalogProperties#SIGNER_URI} instead.
    */
   @Deprecated public static final String S3_SIGNER_ENDPOINT = "s3.signer.endpoint";
 
@@ -118,7 +119,7 @@ public abstract class S3V4RestSignerClient
     }
 
     return properties()
-        .getOrDefault(CatalogProperties.SIGNER_URI, properties().get(CatalogProperties.URI));
+        .getOrDefault(RESTCatalogProperties.SIGNER_URI, properties().get(CatalogProperties.URI));
   }
 
   @Value.Lazy
@@ -129,7 +130,8 @@ public abstract class S3V4RestSignerClient
       endpointPath = properties().get(S3_SIGNER_ENDPOINT);
     } else {
       endpointPath =
-          properties().getOrDefault(CatalogProperties.SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT);
+          properties()
+              .getOrDefault(RESTCatalogProperties.SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT);
     }
 
     return RESTUtil.resolveEndpoint(baseSignerUri(), endpointPath);
@@ -229,31 +231,31 @@ public abstract class S3V4RestSignerClient
   protected void check() {
     Preconditions.checkArgument(
         properties().containsKey(S3_SIGNER_URI)
-            || properties().containsKey(CatalogProperties.SIGNER_URI)
+            || properties().containsKey(RESTCatalogProperties.SIGNER_URI)
             || properties().containsKey(CatalogProperties.URI),
         "S3 signer service URI is required");
 
     if (properties().containsKey(S3_SIGNER_URI)
-        && !properties().containsKey(CatalogProperties.SIGNER_URI)) {
+        && !properties().containsKey(RESTCatalogProperties.SIGNER_URI)) {
       LOG.warn(
           "S3 signer URI is configured via deprecated property {}, this won't be supported in future releases. "
               + "Please use {} instead.",
           S3_SIGNER_URI,
-          CatalogProperties.SIGNER_URI);
+          RESTCatalogProperties.SIGNER_URI);
     }
 
     if (properties().containsKey(S3_SIGNER_ENDPOINT)
-        && !properties().containsKey(CatalogProperties.SIGNER_ENDPOINT)) {
+        && !properties().containsKey(RESTCatalogProperties.SIGNER_ENDPOINT)) {
       LOG.warn(
           "Signer endpoint is configured via deprecated property {}, this won't be supported in future releases. "
               + "Please use {} instead.",
           S3_SIGNER_ENDPOINT,
-          CatalogProperties.SIGNER_ENDPOINT);
+          RESTCatalogProperties.SIGNER_ENDPOINT);
     }
 
     // TODO change to required in 1.12.0
     if (!properties().containsKey(S3_SIGNER_ENDPOINT)
-        && !properties().containsKey(CatalogProperties.SIGNER_ENDPOINT)) {
+        && !properties().containsKey(RESTCatalogProperties.SIGNER_ENDPOINT)) {
       LOG.warn(
           "Signer endpoint is not set, this won't be supported in future releases. Using deprecated default: {}",
           S3_SIGNER_DEFAULT_ENDPOINT);
