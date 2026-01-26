@@ -112,14 +112,26 @@ public abstract class S3V4RestSignerClient
 
   @Value.Lazy
   public String baseSignerUri() {
+    // TODO remove in 1.12.0
+    if (properties().containsKey(S3_SIGNER_URI)) {
+      return properties().get(S3_SIGNER_URI);
+    }
+
     return properties()
         .getOrDefault(CatalogProperties.SIGNER_URI, properties().get(CatalogProperties.URI));
   }
 
   @Value.Lazy
   public String endpoint() {
-    String endpointPath =
-        properties().getOrDefault(CatalogProperties.SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT);
+    // TODO remove in 1.12.0
+    String endpointPath;
+    if (properties().containsKey(S3_SIGNER_ENDPOINT)) {
+      endpointPath = properties().get(S3_SIGNER_ENDPOINT);
+    } else {
+      endpointPath =
+          properties().getOrDefault(CatalogProperties.SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT);
+    }
+
     return RESTUtil.resolveEndpoint(baseSignerUri(), endpointPath);
   }
 
@@ -216,13 +228,34 @@ public abstract class S3V4RestSignerClient
   @Value.Check
   protected void check() {
     Preconditions.checkArgument(
-        properties().containsKey(CatalogProperties.SIGNER_URI)
+        properties().containsKey(S3_SIGNER_URI)
+            || properties().containsKey(CatalogProperties.SIGNER_URI)
             || properties().containsKey(CatalogProperties.URI),
         "S3 signer service URI is required");
-    // TODO change to required in 1.12.0
-    if (!properties().containsKey(CatalogProperties.SIGNER_ENDPOINT)) {
+
+    if (properties().containsKey(S3_SIGNER_URI)
+        && !properties().containsKey(CatalogProperties.SIGNER_URI)) {
       LOG.warn(
-          "Signer endpoint path is not set, this won't be supported in future releases. Using deprecated default: {}",
+          "S3 signer URI is configured via deprecated property {}, this won't be supported in future releases. "
+              + "Please use {} instead.",
+          S3_SIGNER_URI,
+          CatalogProperties.SIGNER_URI);
+    }
+
+    if (properties().containsKey(S3_SIGNER_ENDPOINT)
+        && !properties().containsKey(CatalogProperties.SIGNER_ENDPOINT)) {
+      LOG.warn(
+          "Signer endpoint is configured via deprecated property {}, this won't be supported in future releases. "
+              + "Please use {} instead.",
+          S3_SIGNER_ENDPOINT,
+          CatalogProperties.SIGNER_ENDPOINT);
+    }
+
+    // TODO change to required in 1.12.0
+    if (!properties().containsKey(S3_SIGNER_ENDPOINT)
+        && !properties().containsKey(CatalogProperties.SIGNER_ENDPOINT)) {
+      LOG.warn(
+          "Signer endpoint is not set, this won't be supported in future releases. Using deprecated default: {}",
           S3_SIGNER_DEFAULT_ENDPOINT);
     }
   }
