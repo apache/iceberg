@@ -69,6 +69,8 @@ mkdir -p "$FWDIR"/lib
 
 $java_cmd -jar "$rat_jar" \
   --input-exclude-file "$FWDIR"/dev/.rat-excludes \
+  --output-style missing-headers \
+  --log-level ERROR \
   -- "$FWDIR" || exit 1
 
 echo "RAT checks passed."
