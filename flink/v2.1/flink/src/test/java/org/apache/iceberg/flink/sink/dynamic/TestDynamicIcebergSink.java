@@ -1004,8 +1004,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(lastSnapshot.summary())
         .containsAllEntriesOf(
             ImmutableMap.<String, String>builder()
-                .put("total-equality-deletes", "1")
-                .put("total-position-deletes", "1")
+                .put("total-delete-files", "2")
                 .put("total-records", "6")
                 .build());
 
