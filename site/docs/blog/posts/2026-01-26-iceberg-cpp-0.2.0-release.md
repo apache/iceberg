@@ -24,7 +24,7 @@ categories:
  - limitations under the License.
  -->
 
-The Apache Iceberg community is pleased to announce the 0.2.0 release of Apache Iceberg C++. This release includes [over 300 merged pull requests](https://github.com/apache/iceberg-cpp/compare/v0.1.0...v0.2.0) from 18 distinct contributors.
+The Apache Iceberg community is pleased to announce the 0.2.0 release of Apache Iceberg C++. This release includes [over 200 merged pull requests](https://github.com/apache/iceberg-cpp/compare/v0.1.0...v0.2.0) from 23 distinct contributors.
 
 The release notes below are not exhaustive and only expose selected highlights of the release. Many other bugfixes and improvements have been made: we refer you to the [complete changelog](https://github.com/apache/iceberg-cpp/releases/tag/v0.2.0) for details.
 
