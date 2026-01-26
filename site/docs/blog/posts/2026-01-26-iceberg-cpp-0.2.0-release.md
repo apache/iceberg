@@ -98,4 +98,4 @@ The community is actively working on the next release, see [#523](https://github
 
 ## Getting Involved
 
-We welcome questions and contributions from all interested. Issues can be filed on [GitHub](https://github.com/apache/iceberg-cpp/issues), and questions can be directed to GitHub or the [Iceberg dev mailing list](https://iceberg.apache.org/community/).
+We welcome questions and contributions from all interested. Issues can be filed on [GitHub](https://github.com/apache/iceberg-cpp/issues), and questions can be directed to GitHub or the [Iceberg dev mailing list](https://iceberg.apache.org/community/#mailing-lists).
