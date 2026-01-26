@@ -63,9 +63,11 @@ The UDF metadata file has the following fields:
 | *optional*  | `doc`            | `string`               | Documentation string.                                                 |
 
 Notes:
-1. When `secure` is set to `true`, engines must prevent leakage of sensitive information to end users. This includes
-   but is not limited to: UDF definitions, error messages, logs, query plans, and intermediate results.
+1. When `secure` is set to `true`, engines should prevent leakage of sensitive information to end users. Each engine
+   may have its own security definition and mechanisms. It is the administrator's responsibility to ensure that secure
+   UDFs are properly configured and protected in their environment.
 2. Entries in `properties` are treated as hints, not strict rules.
+3. UDF names are not stored in metadata. It's the catalog's responsibility to map UDF names to metadata file locations.
 
 ### Definition
 
@@ -78,7 +80,7 @@ must produce values of the declared `return-type`.
 |-------------|----------------------|--------------------------------|---------------------------------------------------------------------------------------------------|
 | *required*  | `definition-id`      | `string`                       | An identifier derived from canonical parameter-type tuple (see [Definition ID](#definition-id)).  |
 | *required*  | `parameters`         | `list<parameter>`              | Ordered list of [function parameters](#parameter). Invocation order **must** match this list.     |
-| *required*  | `return-type`        | `string`                       | Declared return type (see [Types](#types)).                                                       |
+| *required*  | `return-type`        | `string` or `object`           | Declared return type using [Types](#types).                                                       |
 | *optional*  | `return-nullable`    | `boolean`                      | A hint to indicate whether the return value is nullable or not. Default: `true`.                  |
 | *required*  | `versions`           | `list<definition-version>`     | [Versioned implementations](#definition-version) of this definition.                              |
 | *required*  | `current-version-id` | `int`                          | Identifier of the current version for this definition.                                            |
@@ -102,31 +104,12 @@ Types are based on the [Iceberg Type](https://iceberg.apache.org/spec/#schemas-a
 Primitive and semi-structured type strings are encoded based on [Iceberg Type JSON Representation][iceberg-type-json]
 (e.g., `int`, `string`, `timestamp`, `decimal(9,2)`, `variant`). Type strings must contain no spaces or quote characters.
 
-Nested type strings (`struct`, `list`, `map`) use the [Iceberg Type JSON Representation][iceberg-type-json] with these differences:
-* `element-id` and `element-required` are not used for `list`.
-* `key-id`, `value-id`, and `value-required` are not used for `map`.
-* `field-id`, `required`, `doc`, `initial-default`, and `write-default` are not used for `struct`.
-
-Examples of nested type JSON representations:
-
-List of strings:
-```json
-{ "type": "list", "element": "string" }
-```
-
-Map from string to int:
-```json
-{ "type": "map", "key": "string", "value": "int" }
-```
-
-Struct with id and name fields:
-```json
-{ "type": "struct", "fields": [
-    { "name": "id", "type": "int" },
-    { "name": "name", "type": "string" }
-  ]
-}
-```
+Nested types (`struct`, `list`, `map`) use the [Iceberg Type JSON Representation][iceberg-type-json] with the
+following fields required. Any other fields must be ignored.
+* `list` requires `type` and `element`, e.g., `{ "type": "list", "element": "string" }`
+* `map` requires `type`, `key`, and `value`, e.g., `{ "type": "map", "key": "string", "value": "int" }`
+* `struct` requires `type` and `fields`, where each field requires `name` and `type`,
+  e.g., `{ "type": "struct", "fields": [ { "name": "id", "type": "int" }, { "name": "name", "type": "string" } ] }`
 
 #### Definition ID
 The `definition-id` is a canonical string derived from the parameter types, formatted as a comma-separated list with no
@@ -203,19 +186,19 @@ Selecting the definition of a function to use is delegated to engines, which may
 
 SQL statement:
 ```sql
-# Trino SQL
+-- Trino SQL
 CREATE FUNCTION add_one(x INT COMMENT 'Input integer')
 COMMENT 'Add one to the input integer'
 RETURNS INT
 RETURN x + 1;
 
-# Trino SQL
+-- Trino SQL
 CREATE FUNCTION add_one(x FLOAT COMMENT 'Input float')
 COMMENT 'Add one to the input float'
 RETURNS FLOAT
 RETURN x + 1.0;
 
-# Spark SQL
+-- Spark SQL
 CREATE OR REPLACE FUNCTION add_one(x FLOAT)
 RETURNS FLOAT
 RETURN x + 1.0;
@@ -234,6 +217,7 @@ RETURN x + 1.0;
         }
       ],
       "return-type": "int",
+      "function-type": "udf",
       "doc": "Add one to the input integer",
       "versions": [
         {
@@ -264,6 +248,7 @@ RETURN x + 1.0;
         }
       ],
       "return-type": "float",
+      "function-type": "udf",
       "doc": "Add one to the input float",
       "versions": [
         {
@@ -280,7 +265,7 @@ RETURN x + 1.0;
   ],
   "definition-log": [
     {
-      "timestamp-ms": 1733507001123,
+      "timestamp-ms": 1734507000123,
       "definition-versions": [
         { "definition-id": "int", "version-id": 1 }
       ]
