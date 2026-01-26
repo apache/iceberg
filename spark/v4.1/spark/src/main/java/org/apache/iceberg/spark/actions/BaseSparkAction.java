@@ -230,6 +230,10 @@ abstract class BaseSparkAction<ThisT> {
     return spark.createDataset(fileInfoList, FileInfo.ENCODER);
   }
 
+  protected Dataset<FileInfo> emptyFileInfoDS() {
+    return spark.emptyDataset(FileInfo.ENCODER);
+  }
+
   /**
    * Deletes files and keeps track of how many files were removed for each file type.
    *

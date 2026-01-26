@@ -20,15 +20,25 @@ package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
+import static org.apache.spark.sql.functions.col;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import org.apache.iceberg.AllManifestsTable;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ExpireSnapshots.CleanupLevel;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManifestContent;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -36,13 +46,21 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.actions.ImmutableExpireSnapshots;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -174,14 +192,69 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
       // fetch valid files after expiration
       TableMetadata updatedMetadata = ops.refresh();
-      Dataset<FileInfo> validFileDS = fileDS(updatedMetadata);
 
-      // fetch files referenced by expired snapshots
+      // find IDs of expired snapshots
       Set<Long> deletedSnapshotIds = findExpiredSnapshotIds(originalMetadata, updatedMetadata);
-      Dataset<FileInfo> deleteCandidateFileDS = fileDS(originalMetadata, deletedSnapshotIds);
+      if (deletedSnapshotIds.isEmpty()) {
+        this.expiredFileDS = emptyFileInfoDS();
+        return expiredFileDS;
+      }
 
-      // determine expired files
-      this.expiredFileDS = deleteCandidateFileDS.except(validFileDS);
+      Table originalTable = newStaticTable(originalMetadata, table.io());
+      Table updatedTable = newStaticTable(updatedMetadata, table.io());
+
+      Dataset<Row> expiredManifestDF =
+          loadMetadataTable(originalTable, MetadataTableType.ALL_MANIFESTS)
+              .filter(
+                  col(AllManifestsTable.REF_SNAPSHOT_ID.name()).isInCollection(deletedSnapshotIds));
+
+      Dataset<Row> liveManifestDF =
+          loadMetadataTable(updatedTable, MetadataTableType.ALL_MANIFESTS);
+
+      Dataset<String> expiredManifestPaths =
+          expiredManifestDF.select(col("path")).distinct().as(Encoders.STRING());
+
+      Dataset<String> liveManifestPaths =
+          liveManifestDF.select(col("path")).distinct().as(Encoders.STRING());
+
+      Dataset<String> orphanedManifestPaths = expiredManifestPaths.except(liveManifestPaths);
+
+      Set<String> orphanedManifestPathSet = Sets.newHashSet(orphanedManifestPaths.collectAsList());
+
+      Dataset<FileInfo> expiredManifestLists = manifestListDS(originalTable, deletedSnapshotIds);
+      Dataset<FileInfo> liveManifestLists = manifestListDS(updatedTable, null);
+      Dataset<FileInfo> orphanedManifestLists = expiredManifestLists.except(liveManifestLists);
+
+      Dataset<FileInfo> expiredStats = statisticsFileDS(originalTable, deletedSnapshotIds);
+      Dataset<FileInfo> liveStats = statisticsFileDS(updatedTable, null);
+      Dataset<FileInfo> orphanedStats = expiredStats.except(liveStats);
+
+      if (orphanedManifestPaths.isEmpty()) {
+        this.expiredFileDS = orphanedManifestLists.union(orphanedStats);
+        return expiredFileDS;
+      }
+
+      Dataset<FileInfo> candidateContentFiles =
+          contentFilesFromManifestDF(
+              originalTable,
+              expiredManifestDF.filter(col("path").isInCollection(orphanedManifestPathSet)));
+
+      Dataset<FileInfo> liveContentFiles = contentFilesFromManifestDF(updatedTable, liveManifestDF);
+
+      Dataset<FileInfo> orphanedContentFiles = candidateContentFiles.except(liveContentFiles);
+
+      List<FileInfo> orphanedManifestFileInfos =
+          orphanedManifestPathSet.stream()
+              .map(path -> new FileInfo(path, MANIFEST))
+              .collect(Collectors.toList());
+      Dataset<FileInfo> orphanedManifestsDS =
+          spark().createDataset(orphanedManifestFileInfos, FileInfo.ENCODER);
+
+      this.expiredFileDS =
+          orphanedContentFiles
+              .union(orphanedManifestsDS)
+              .union(orphanedManifestLists)
+              .union(orphanedStats);
     }
 
     return expiredFileDS;
@@ -233,18 +306,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     return PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
   }
 
-  private Dataset<FileInfo> fileDS(TableMetadata metadata) {
-    return fileDS(metadata, null);
-  }
-
-  private Dataset<FileInfo> fileDS(TableMetadata metadata, Set<Long> snapshotIds) {
-    Table staticTable = newStaticTable(metadata, table.io());
-    return contentFileDS(staticTable, snapshotIds)
-        .union(manifestDS(staticTable, snapshotIds))
-        .union(manifestListDS(staticTable, snapshotIds))
-        .union(statisticsFileDS(staticTable, snapshotIds));
-  }
-
   private Set<Long> findExpiredSnapshotIds(
       TableMetadata originalMetadata, TableMetadata updatedMetadata) {
     Set<Long> retainedSnapshots =
@@ -282,5 +343,60 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         .deletedManifestListsCount(summary.manifestListsCount())
         .deletedStatisticsFilesCount(summary.statisticsFilesCount())
         .build();
+  }
+
+  private Dataset<FileInfo> contentFilesFromManifestDF(Table staticTable, Dataset<Row> manifestDF) {
+    Table serializableTable = SerializableTableWithSize.copyOf(staticTable);
+    Broadcast<Table> tableBroadcast = sparkContext().broadcast(serializableTable);
+    int numShufflePartitions = spark().sessionState().conf().numShufflePartitions();
+
+    Dataset<ManifestFileBean> manifestBeanDS =
+        manifestDF
+            .selectExpr(
+                "content",
+                "path",
+                "length",
+                "0 as sequenceNumber",
+                "partition_spec_id as partitionSpecId",
+                "added_snapshot_id as addedSnapshotId",
+                "key_metadata as keyMetadata")
+            .dropDuplicates("path")
+            .repartition(numShufflePartitions)
+            .as(ManifestFileBean.ENCODER);
+
+    return manifestBeanDS.flatMap(new ReadManifestContent(tableBroadcast), FileInfo.ENCODER);
+  }
+
+  private static class ReadManifestContent implements FlatMapFunction<ManifestFileBean, FileInfo> {
+    private final Broadcast<Table> table;
+
+    ReadManifestContent(Broadcast<Table> table) {
+      this.table = table;
+    }
+
+    @Override
+    public Iterator<FileInfo> call(ManifestFileBean manifest) throws IOException {
+      ManifestContent content = manifest.content();
+      FileIO io = table.getValue().io();
+      Map<Integer, PartitionSpec> specs = table.getValue().specs();
+      List<String> proj = ImmutableList.of(DataFile.FILE_PATH.name(), DataFile.CONTENT.name());
+
+      switch (content) {
+        case DATA:
+          return CloseableIterator.transform(
+              ManifestFiles.read(manifest, io, specs).select(proj).iterator(),
+              ReadManifestContent::toFileInfo);
+        case DELETES:
+          return CloseableIterator.transform(
+              ManifestFiles.readDeleteManifest(manifest, io, specs).select(proj).iterator(),
+              ReadManifestContent::toFileInfo);
+        default:
+          throw new IllegalArgumentException("Unsupported manifest content type: " + content);
+      }
+    }
+
+    private static FileInfo toFileInfo(ContentFile<?> file) {
+      return new FileInfo(file.location(), file.content().toString());
+    }
   }
 }
