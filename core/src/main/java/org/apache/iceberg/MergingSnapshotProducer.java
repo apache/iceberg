@@ -1086,9 +1086,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                   tableName,
                   ops().current().specsById(),
                   ThreadPools.getDeleteWorkerPool());
-
+      // Prevent commiting duplicate V2 deletes by deduping them
       Map<Integer, List<DeleteFile>> newDeleteFilesBySpec =
-          Streams.stream(Iterables.concat(mergedDVs, validDVs, positionAndEqualityDeletes))
+          Streams.stream(
+                  Iterables.concat(
+                      mergedDVs, validDVs, DeleteFileSet.of(positionAndEqualityDeletes)))
               .map(file -> Delegates.pendingDeleteFile(file, file.dataSequenceNumber()))
               .collect(Collectors.groupingBy(ContentFile::specId));
       newDeleteFilesBySpec.forEach(
