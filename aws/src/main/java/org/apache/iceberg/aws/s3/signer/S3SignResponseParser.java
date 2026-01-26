@@ -21,37 +21,54 @@ package org.apache.iceberg.aws.s3.signer;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import org.apache.iceberg.rest.responses.RemoteSignResponse;
-import org.apache.iceberg.rest.responses.RemoteSignResponseParser;
+import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.JsonUtil;
 
 /**
- * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link RemoteSignResponseParser}
- *     instead.
+ * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+ *     org.apache.iceberg.rest.responses.RemoteSignResponseParser} instead.
  */
 @Deprecated
 public class S3SignResponseParser {
 
+  private static final String URI = "uri";
+  private static final String HEADERS = "headers";
+
   private S3SignResponseParser() {}
 
-  public static String toJson(S3SignResponse response) {
-    return RemoteSignResponseParser.toJson(response, false);
+  public static String toJson(S3SignResponse request) {
+    return toJson(request, false);
   }
 
-  public static String toJson(S3SignResponse response, boolean pretty) {
-    return RemoteSignResponseParser.toJson(response, pretty);
+  public static String toJson(S3SignResponse request, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(request, gen), pretty);
   }
 
   public static void toJson(S3SignResponse response, JsonGenerator gen) throws IOException {
-    RemoteSignResponseParser.toJson(response, gen);
+    Preconditions.checkArgument(null != response, "Invalid s3 sign response: null");
+
+    gen.writeStartObject();
+
+    gen.writeStringField(URI, response.uri().toString());
+    S3SignRequestParser.headersToJson(HEADERS, response.headers(), gen);
+
+    gen.writeEndObject();
   }
 
   public static S3SignResponse fromJson(String json) {
-    RemoteSignResponse result = RemoteSignResponseParser.fromJson(json);
-    return ImmutableS3SignResponse.builder().from(result).build();
+    return JsonUtil.parse(json, S3SignResponseParser::fromJson);
   }
 
   public static S3SignResponse fromJson(JsonNode json) {
-    RemoteSignResponse result = RemoteSignResponseParser.fromJson(json);
-    return ImmutableS3SignResponse.builder().from(result).build();
+    Preconditions.checkArgument(null != json, "Cannot parse s3 sign response from null object");
+    Preconditions.checkArgument(
+        json.isObject(), "Cannot parse s3 sign response from non-object: %s", json);
+
+    java.net.URI uri = java.net.URI.create(JsonUtil.getString(URI, json));
+    Map<String, List<String>> headers = S3SignRequestParser.headersFromJson(HEADERS, json);
+
+    return ImmutableS3SignResponse.builder().uri(uri).headers(headers).build();
   }
 }
