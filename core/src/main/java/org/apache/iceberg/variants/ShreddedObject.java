@@ -85,6 +85,7 @@ public class ShreddedObject implements VariantObject {
   public void remove(String field) {
     shreddedFields.remove(field);
     removedFields.add(field);
+    this.serializationState = null;
   }
 
   public void put(String field, VariantValue value) {

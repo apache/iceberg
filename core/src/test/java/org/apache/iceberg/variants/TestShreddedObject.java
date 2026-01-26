@@ -235,6 +235,29 @@ public class TestShreddedObject {
         .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
   }
 
+  @Test
+  public void testRemoveInvalidatesSerializationState() {
+    ShreddedObject object = createShreddedObject(FIELDS);
+    VariantMetadata metadata = object.metadata();
+
+    // warm the serialization cache
+    VariantValue first = roundTripMinimalBuffer(object, metadata);
+    assertThat(first).isInstanceOf(SerializedObject.class);
+    assertThat(((SerializedObject) first).numFields()).isEqualTo(3);
+
+    // remove a field after caching
+    object.remove("b");
+    assertThat(object.get("b")).as("removed field should be hidden from reads").isNull();
+    assertThat(object.numFields()).as("numFields should reflect removal").isEqualTo(2);
+
+    // re-serialize: should not include the removed field
+    VariantValue second = roundTripMinimalBuffer(object, metadata);
+    assertThat(second).isInstanceOf(SerializedObject.class);
+    SerializedObject actual = (SerializedObject) second;
+    assertThat(actual.numFields()).isEqualTo(2);
+    assertThat(actual.get("b")).as("removed field must not be serialized").isNull();
+  }
+
   @ParameterizedTest
   @ValueSource(ints = {300, 70_000, 16_777_300})
   public void testMultiByteOffsets(int len) {
