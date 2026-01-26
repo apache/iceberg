@@ -18,12 +18,26 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SetStatistics implements UpdateStatistics {
+  private static final Logger LOG = LoggerFactory.getLogger(SetStatistics.class);
   private final TableOperations ops;
   private final Map<Long, Optional<StatisticsFile>> statisticsToSet = Maps.newHashMap();
 
@@ -50,9 +64,36 @@ public class SetStatistics implements UpdateStatistics {
 
   @Override
   public void commit() {
-    TableMetadata base = ops.current();
-    TableMetadata newMetadata = internalApply(base);
-    ops.commit(base, newMetadata);
+    // Get current metadata for retry configuration
+    TableMetadata currentMetadata = ops.current();
+
+    // Retry loop with exponential backoff
+    Tasks.foreach(ops)
+        .retry(currentMetadata.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+        .exponentialBackoff(
+            currentMetadata.propertyAsInt(
+                COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+            currentMetadata.propertyAsInt(
+                COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+            currentMetadata.propertyAsInt(
+                COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+            2.0)
+        .onlyRetryOn(CommitFailedException.class)
+        .run(
+            taskOps -> {
+              // Refresh metadata on each retry attempt
+              TableMetadata base = taskOps.refresh();
+              TableMetadata newMetadata = internalApply(base);
+
+              // Skip if no changes
+              if (base == newMetadata) {
+                LOG.info("No statistics changes to commit, skipping");
+                return;
+              }
+
+              // Attempt commit
+              taskOps.commit(base, newMetadata);
+            });
   }
 
   private TableMetadata internalApply(TableMetadata base) {
