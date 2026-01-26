@@ -184,4 +184,63 @@ class TestS3V4RestSignerClient {
             "custom",
             "token"));
   }
+
+  @ParameterizedTest
+  @MethodSource("legacySignerProperties")
+  void legacySignerProperties(
+      Map<String, String> properties, String expectedBaseSignerUri, String expectedEndpoint)
+      throws Exception {
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder().properties(properties).build()) {
+      assertThat(client.baseSignerUri()).isEqualTo(expectedBaseSignerUri);
+      assertThat(client.endpoint()).isEqualTo(expectedEndpoint);
+    }
+  }
+
+  @SuppressWarnings("deprecation")
+  public static Stream<Arguments> legacySignerProperties() {
+    return Stream.of(
+        // Only legacy properties
+        Arguments.of(
+            Map.of(
+                CatalogProperties.URI,
+                "https://catalog.com",
+                S3V4RestSignerClient.S3_SIGNER_URI,
+                "https://legacy-signer.com",
+                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
+                "v1/legacy/sign"),
+            "https://legacy-signer.com",
+            "https://legacy-signer.com/v1/legacy/sign"),
+        // Only new properties
+        Arguments.of(
+            Map.of(
+                CatalogProperties.URI,
+                "https://catalog.com",
+                CatalogProperties.SIGNER_URI,
+                "https://new-signer.com",
+                CatalogProperties.SIGNER_ENDPOINT,
+                "v1/new/sign"),
+            "https://new-signer.com",
+            "https://new-signer.com/v1/new/sign"),
+        // Mixed properties: legacy properties take precedence
+        Arguments.of(
+            Map.of(
+                CatalogProperties.URI,
+                "https://catalog.com",
+                CatalogProperties.SIGNER_URI,
+                "https://new-signer.com",
+                CatalogProperties.SIGNER_ENDPOINT,
+                "v1/new/sign",
+                S3V4RestSignerClient.S3_SIGNER_URI,
+                "https://legacy-signer.com",
+                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
+                "v1/legacy/sign"),
+            "https://legacy-signer.com",
+            "https://legacy-signer.com/v1/legacy/sign"),
+        // No signer properties: the catalog URI and the deprecated default endpoint are used
+        Arguments.of(
+            Map.of(CatalogProperties.URI, "https://catalog.com"),
+            "https://catalog.com",
+            "https://catalog.com/" + S3V4RestSignerClient.S3_SIGNER_DEFAULT_ENDPOINT));
+  }
 }
