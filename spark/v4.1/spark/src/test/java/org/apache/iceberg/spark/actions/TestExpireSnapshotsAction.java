@@ -1203,7 +1203,7 @@ public class TestExpireSnapshotsAction extends TestBase {
           assertThat(jobsRunDuringStreamResults)
               .as(
                   "Expected total number of jobs with stream-results should match the expected number")
-              .isEqualTo(11L);
+              .isEqualTo(12L);
         });
   }
 

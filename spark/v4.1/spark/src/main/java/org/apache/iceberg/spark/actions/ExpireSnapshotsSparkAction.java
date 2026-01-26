@@ -57,6 +57,7 @@ import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -219,8 +220,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
       Dataset<String> orphanedManifestPaths = expiredManifestPaths.except(liveManifestPaths);
 
-      Set<String> orphanedManifestPathSet = Sets.newHashSet(orphanedManifestPaths.collectAsList());
-
       Dataset<FileInfo> expiredManifestLists = manifestListDS(originalTable, deletedSnapshotIds);
       Dataset<FileInfo> liveManifestLists = manifestListDS(updatedTable, null);
       Dataset<FileInfo> orphanedManifestLists = expiredManifestLists.except(liveManifestLists);
@@ -234,21 +233,25 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         return expiredFileDS;
       }
 
+      Dataset<Row> orphanedManifestDF =
+          expiredManifestDF
+              .join(
+                  orphanedManifestPaths.toDF("orphaned_path"),
+                  expiredManifestDF.col("path").equalTo(col("orphaned_path")),
+                  "inner")
+              .drop("orphaned_path");
+
       Dataset<FileInfo> candidateContentFiles =
-          contentFilesFromManifestDF(
-              originalTable,
-              expiredManifestDF.filter(col("path").isInCollection(orphanedManifestPathSet)));
+          contentFilesFromManifestDF(originalTable, orphanedManifestDF);
 
       Dataset<FileInfo> liveContentFiles = contentFilesFromManifestDF(updatedTable, liveManifestDF);
 
       Dataset<FileInfo> orphanedContentFiles = candidateContentFiles.except(liveContentFiles);
 
-      List<FileInfo> orphanedManifestFileInfos =
-          orphanedManifestPathSet.stream()
-              .map(path -> new FileInfo(path, MANIFEST))
-              .collect(Collectors.toList());
       Dataset<FileInfo> orphanedManifestsDS =
-          spark().createDataset(orphanedManifestFileInfos, FileInfo.ENCODER);
+          orphanedManifestPaths.map(
+              (MapFunction<String, FileInfo>) path -> new FileInfo(path, MANIFEST),
+              FileInfo.ENCODER);
 
       this.expiredFileDS =
           orphanedContentFiles
