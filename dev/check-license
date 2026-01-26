@@ -67,17 +67,8 @@ mkdir -p "$FWDIR"/lib
     exit 1
 }
 
-RAT_RESULTS=build/rat-results.txt
-
-mkdir -p build
 $java_cmd -jar "$rat_jar" \
   --input-exclude-file "$FWDIR"/dev/.rat-excludes \
-  -- "$FWDIR" > "$RAT_RESULTS" 2>&1
-
-if [ $? -ne 0 ]; then
-   echo "Could not find Apache license headers in the following files:"
-   cat "$RAT_RESULTS"
-   exit 1
-fi
+  -- "$FWDIR" || exit 1
 
 echo "RAT checks passed."
