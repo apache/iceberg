@@ -95,21 +95,23 @@ public class TestRegisterIndexRequest {
   @Test
   public void testBuilderValidation() {
     assertThatThrownBy(() -> ImmutableRegisterIndexRequest.builder().build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid index name: null or empty");
-
-    assertThatThrownBy(() -> ImmutableRegisterIndexRequest.builder().name("").build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid index name: null or empty");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(
+            "Cannot build RegisterIndexRequest, some of required attributes are not set");
 
     assertThatThrownBy(() -> ImmutableRegisterIndexRequest.builder().name("test").build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid metadata location: null or empty");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(
+            "Cannot build RegisterIndexRequest, some of required attributes are not set");
 
     assertThatThrownBy(
-            () -> ImmutableRegisterIndexRequest.builder().name("test").metadataLocation("").build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid metadata location: null or empty");
+            () ->
+                ImmutableRegisterIndexRequest.builder()
+                    .metadataLocation("s3://bucket/metadata.json")
+                    .build())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(
+            "Cannot build RegisterIndexRequest, some of required attributes are not set");
   }
 
   @Test

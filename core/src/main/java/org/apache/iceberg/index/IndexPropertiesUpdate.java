@@ -30,6 +30,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -52,7 +53,8 @@ class IndexPropertiesUpdate implements UpdateIndexProperties {
     return internalApply().currentVersion().properties();
   }
 
-  private IndexMetadata internalApply() {
+  @VisibleForTesting
+  IndexMetadata internalApply() {
     this.base = ops.refresh();
 
     return IndexMetadata.buildFrom(base).setProperties(updates).removeProperties(removals).build();

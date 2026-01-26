@@ -103,7 +103,7 @@ public class TestUpdateIndexRequestParser {
         """
         {
           "identifier": {"namespace": ["ns1"], "name": "index1"},
-          "requirements": [{"type": "assert-table-uuid"}],
+          "requirements": [{"type": "assert-index-uuid"}],
           "updates": []
         }"""
             .replaceAll("\\s+", "");
@@ -124,7 +124,7 @@ public class TestUpdateIndexRequestParser {
             .replaceAll("\\s+", "");
     assertThatThrownBy(() -> UpdateIndexRequestParser.fromJson(invalidUpdateType))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse metadata update from non-object value: 23");
+        .hasMessage("Cannot parse index update from non-object value: 23");
 
     String missingAction =
         """
@@ -136,7 +136,7 @@ public class TestUpdateIndexRequestParser {
             .replaceAll("\\s+", "");
     assertThatThrownBy(() -> UpdateIndexRequestParser.fromJson(missingAction))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse metadata update. Missing field: action");
+        .hasMessage("Cannot parse index update. Missing field: action");
 
     String missingAssignUuid =
         """
@@ -172,7 +172,7 @@ public class TestUpdateIndexRequestParser {
           },
           "requirements": [
             {
-              "type": "assert-table-uuid",
+              "type": "assert-index-uuid",
               "uuid": "2cc52516-5e73-41f2-b139-545d41a4e151"
             },
             {
@@ -217,7 +217,7 @@ public class TestUpdateIndexRequestParser {
         {
           "requirements": [
             {
-              "type": "assert-table-uuid",
+              "type": "assert-index-uuid",
               "uuid": "2cc52516-5e73-41f2-b139-545d41a4e151"
             },
             {
