@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.IndexCatalog;
@@ -36,6 +37,7 @@ import org.apache.iceberg.exceptions.NoSuchIndexException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.LocationUtil;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1282,6 +1284,73 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       assertThat(snapshot1.properties()).containsEntry("source", "snapshot-one");
 
       assertThat(updatedIndex.snapshot(2L)).isNull();
+    }
+
+    assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
+  }
+
+  @Disabled
+  @Test
+  public void concurrentUpdateProperties() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier =
+        IndexIdentifier.of(tableIdentifier, "concurrent_update_props_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
+
+    Index index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .create();
+
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should exist").isTrue();
+
+    UpdateIndexProperties updatePropsOne =
+        index.updateProperties().set("key1", "value1").set("source", "update-one");
+
+    UpdateIndexProperties updatePropsTwo =
+        index.updateProperties().set("key2", "value2").set("source", "update-two");
+
+    // simulate a concurrent update of the index properties
+    IndexOperations indexOps = ((BaseIndex) index).operations();
+    IndexMetadata current = indexOps.current();
+
+    IndexMetadata firstUpdate = ((IndexPropertiesUpdate) updatePropsOne).internalApply();
+    IndexMetadata secondUpdate = ((IndexPropertiesUpdate) updatePropsTwo).internalApply();
+
+    indexOps.commit(current, firstUpdate);
+
+    if (supportsServerSideRetry()) {
+      // retry should succeed and the changes should be applied
+      indexOps.commit(current, secondUpdate);
+
+      Index updatedIndex = catalog().loadIndex(indexIdentifier);
+      Map<String, String> properties = updatedIndex.currentVersion().properties();
+      assertThat(properties).containsEntry("key1", "value1");
+      assertThat(properties).containsEntry("key2", "value2");
+      // the second update should have overwritten the source property
+      assertThat(properties).containsEntry("source", "update-two");
+    } else {
+      assertThatThrownBy(() -> indexOps.commit(current, secondUpdate))
+          .isInstanceOf(CommitFailedException.class)
+          .hasMessageContaining("Cannot commit");
+
+      Index updatedIndex = catalog().loadIndex(indexIdentifier);
+      Map<String, String> properties = updatedIndex.currentVersion().properties();
+      assertThat(properties).containsEntry("key1", "value1");
+      assertThat(properties).containsEntry("source", "update-one");
+      assertThat(properties).doesNotContainKey("key2");
     }
 
     assertThat(catalog().dropIndex(indexIdentifier)).isTrue();

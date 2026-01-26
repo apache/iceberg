@@ -36,6 +36,7 @@ public class IndexUpdateParser {
   private static final String ACTION = "action";
 
   // action types - visible for testing
+  static final String ASSIGN_UUID = "assign-uuid";
   static final String ADD_SNAPSHOT = "add-snapshot";
   static final String REMOVE_SNAPSHOTS = "remove-snapshots";
   static final String SET_CURRENT_VERSION = "set-current-version";
@@ -43,6 +44,9 @@ public class IndexUpdateParser {
   static final String SET_LOCATION = "set-location";
   static final String SET_PROPERTIES = "set-properties";
   static final String REMOVE_PROPERTIES = "remove-properties";
+
+  // AssignUUID
+  private static final String UUID = "uuid";
 
   // AddIndexSnapshot
   private static final String SNAPSHOT = "snapshot";
@@ -67,6 +71,7 @@ public class IndexUpdateParser {
 
   private static final Map<Class<? extends IndexUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends IndexUpdate>, String>builder()
+          .put(IndexUpdate.AssignUUID.class, ASSIGN_UUID)
           .put(IndexUpdate.AddIndexSnapshot.class, ADD_SNAPSHOT)
           .put(IndexUpdate.RemoveIndexSnapshots.class, REMOVE_SNAPSHOTS)
           .put(IndexUpdate.SetIndexCurrentVersion.class, SET_CURRENT_VERSION)
@@ -96,6 +101,9 @@ public class IndexUpdateParser {
     generator.writeStringField(ACTION, updateAction);
 
     switch (updateAction) {
+      case ASSIGN_UUID:
+        writeAssignUUID((IndexUpdate.AssignUUID) indexUpdate, generator);
+        break;
       case ADD_SNAPSHOT:
         writeAddIndexSnapshot((IndexUpdate.AddIndexSnapshot) indexUpdate, generator);
         break;
@@ -147,6 +155,8 @@ public class IndexUpdateParser {
     String action = JsonUtil.getString(ACTION, jsonNode).toLowerCase(Locale.ROOT);
 
     switch (action) {
+      case ASSIGN_UUID:
+        return readAssignUUID(jsonNode);
       case ADD_SNAPSHOT:
         return readAddIndexSnapshot(jsonNode);
       case REMOVE_SNAPSHOTS:
@@ -165,6 +175,11 @@ public class IndexUpdateParser {
         throw new UnsupportedOperationException(
             String.format("Cannot convert index update action from json: %s", action));
     }
+  }
+
+  private static void writeAssignUUID(IndexUpdate.AssignUUID update, JsonGenerator gen)
+      throws IOException {
+    gen.writeStringField(UUID, update.uuid());
   }
 
   private static void writeAddIndexSnapshot(IndexUpdate.AddIndexSnapshot update, JsonGenerator gen)
@@ -204,6 +219,11 @@ public class IndexUpdateParser {
       IndexUpdate.RemoveIndexProperties update, JsonGenerator gen) throws IOException {
     gen.writeFieldName(REMOVALS);
     gen.writeObject(update.removed());
+  }
+
+  private static IndexUpdate readAssignUUID(JsonNode node) {
+    String uuid = JsonUtil.getString(UUID, node);
+    return new IndexUpdate.AssignUUID(uuid);
   }
 
   private static IndexUpdate readAddIndexSnapshot(JsonNode node) {
