@@ -10,7 +10,7 @@ new-books.json
 .git/**
 .gradle/**
 .idea/**
-.rat-excludes
+dev/.rat-excludes
 **/LICENSE
 **/NOTICE
 **/revapi.yml
