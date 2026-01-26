@@ -55,6 +55,8 @@ public class ResourcePaths {
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes";
   public static final String V1_INDEX =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes/{index}";
+  public static final String V1_INDEX_REGISTER =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/register-index";
 
   public static ResourcePaths forCatalogProperties(Map<String, String> properties) {
     return new ResourcePaths(
@@ -228,6 +230,23 @@ public class ResourcePaths {
         RESTUtil.encodeString(indexIdentifier.tableIdentifier().name()),
         "indexes",
         RESTUtil.encodeString(indexIdentifier.name()));
+  }
+
+  /**
+   * Return the path for registering an index for a table.
+   *
+   * @param tableIdentifier the table identifier
+   * @return the path for the register index endpoint
+   */
+  public String registerIndex(TableIdentifier tableIdentifier) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(tableIdentifier.namespace()),
+        "tables",
+        RESTUtil.encodeString(tableIdentifier.name()),
+        "register-index");
   }
 
   private String pathEncode(Namespace ns) {

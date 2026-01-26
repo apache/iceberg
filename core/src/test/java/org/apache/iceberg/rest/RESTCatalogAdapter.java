@@ -73,6 +73,7 @@ import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
+import org.apache.iceberg.rest.requests.RegisterIndexRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
@@ -608,6 +609,21 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 httpRequest,
                 () -> CatalogHandlers.dropIndex(asIndexCatalog, indexIdentFromPathVars(vars)));
             return null;
+          }
+          break;
+        }
+
+      case REGISTER_INDEX:
+        {
+          if (null != asIndexCatalog) {
+            TableIdentifier tableIdent = tableIdentFromPathVars(vars);
+            RegisterIndexRequest request = castRequest(RegisterIndexRequest.class, body);
+            return CatalogHandlers.withIdempotency(
+                httpRequest,
+                () ->
+                    castResponse(
+                        responseType,
+                        CatalogHandlers.registerIndex(asIndexCatalog, tableIdent, request)));
           }
           break;
         }

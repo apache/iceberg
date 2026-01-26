@@ -135,6 +135,7 @@ public class RESTCatalogServlet extends HttpServlet {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private boolean shouldReturn204(Route route) {
     return route == Route.NAMESPACE_EXISTS
         || route == Route.TABLE_EXISTS

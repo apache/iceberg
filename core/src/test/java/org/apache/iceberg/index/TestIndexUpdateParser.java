@@ -376,7 +376,8 @@ public class TestIndexUpdateParser {
   @Test
   public void testFromJsonWithNullNode() {
     assertThatThrownBy(() -> IndexUpdateParser.fromJson((String) null))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot parse index update from null string");
   }
 
   @Test

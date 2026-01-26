@@ -55,11 +55,14 @@ import org.apache.iceberg.rest.requests.CreateViewRequestParser;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequestParser;
 import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
+import org.apache.iceberg.rest.requests.ImmutableRegisterIndexRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableReportMetricsRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequestParser;
+import org.apache.iceberg.rest.requests.RegisterIndexRequest;
+import org.apache.iceberg.rest.requests.RegisterIndexRequestParser;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequestParser;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
@@ -176,7 +179,12 @@ public class RESTSerializers {
         .addSerializer(UpdateIndexRequest.class, new UpdateIndexRequestSerializer())
         .addDeserializer(UpdateIndexRequest.class, new UpdateIndexRequestDeserializer())
         .addSerializer(LoadIndexResponse.class, new LoadIndexResponseSerializer<>())
-        .addDeserializer(LoadIndexResponse.class, new LoadIndexResponseDeserializer<>());
+        .addDeserializer(LoadIndexResponse.class, new LoadIndexResponseDeserializer<>())
+        .addSerializer(RegisterIndexRequest.class, new RegisterIndexRequestSerializer<>())
+        .addDeserializer(RegisterIndexRequest.class, new RegisterIndexRequestDeserializer<>())
+        .addSerializer(ImmutableRegisterIndexRequest.class, new RegisterIndexRequestSerializer<>())
+        .addDeserializer(
+            ImmutableRegisterIndexRequest.class, new RegisterIndexRequestDeserializer<>());
 
     mapper.registerModule(module);
   }
@@ -734,6 +742,24 @@ public class RESTSerializers {
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return (T) LoadIndexResponseParser.fromJson(jsonNode);
+    }
+  }
+
+  static class RegisterIndexRequestSerializer<T extends RegisterIndexRequest>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      RegisterIndexRequestParser.toJson(request, gen);
+    }
+  }
+
+  static class RegisterIndexRequestDeserializer<T extends RegisterIndexRequest>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) RegisterIndexRequestParser.fromJson(jsonNode);
     }
   }
 }

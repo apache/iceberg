@@ -29,6 +29,7 @@ import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
+import org.apache.iceberg.rest.requests.RegisterIndexRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
@@ -156,7 +157,12 @@ enum Route {
       ResourcePaths.V1_INDEX,
       UpdateIndexRequest.class,
       LoadIndexResponse.class),
-  DROP_INDEX(HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_INDEX);
+  DROP_INDEX(HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_INDEX),
+  REGISTER_INDEX(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_INDEX_REGISTER,
+      RegisterIndexRequest.class,
+      LoadIndexResponse.class);
 
   private final HTTPRequest.HTTPMethod method;
   private final int requiredLength;

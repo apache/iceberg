@@ -93,6 +93,7 @@ import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
+import org.apache.iceberg.rest.requests.RegisterIndexRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
@@ -918,6 +919,21 @@ public class CatalogHandlers {
     if (!dropped) {
       throw new NoSuchIndexException("Index does not exist: %s", indexIdentifier);
     }
+  }
+
+  /**
+   * Register an index from an existing metadata file.
+   *
+   * @param catalog the index catalog
+   * @param tableIdentifier the table identifier
+   * @param request the register index request
+   * @return the load index response
+   */
+  public static LoadIndexResponse registerIndex(
+      IndexCatalog catalog, TableIdentifier tableIdentifier, RegisterIndexRequest request) {
+    IndexIdentifier indexIdentifier = IndexIdentifier.of(tableIdentifier, request.name());
+    Index index = catalog.registerIndex(indexIdentifier, request.metadataLocation());
+    return indexResponse(index);
   }
 
   /**

@@ -94,8 +94,10 @@ import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
+import org.apache.iceberg.rest.requests.ImmutableRegisterIndexRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterTableRequest;
 import org.apache.iceberg.rest.requests.ImmutableRegisterViewRequest;
+import org.apache.iceberg.rest.requests.RegisterIndexRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
@@ -1954,7 +1956,40 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
   @Override
   public Index registerIndex(
       SessionContext context, IndexIdentifier identifier, String metadataFileLocation) {
-    throw new UnsupportedOperationException("Register index is not supported via REST catalog");
+    Endpoint.check(endpoints, Endpoint.V1_REGISTER_INDEX);
+    checkIndexIdentifierIsValid(identifier);
+
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register an empty metadata file location as an index");
+
+    RegisterIndexRequest request =
+        ImmutableRegisterIndexRequest.builder()
+            .name(identifier.name())
+            .metadataLocation(metadataFileLocation)
+            .build();
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    LoadIndexResponse response =
+        client
+            .withAuthSession(contextualSession)
+            .post(
+                paths.registerIndex(identifier.tableIdentifier()),
+                request,
+                LoadIndexResponse.class,
+                mutationHeaders,
+                ErrorHandlers.indexErrorHandler());
+
+    RESTIndexOperations ops =
+        newIndexOps(
+            client.withAuthSession(contextualSession),
+            paths.index(identifier),
+            Map::of,
+            mutationHeaders,
+            response.metadata(),
+            endpoints);
+
+    return new BaseIndex(ops, fullIndexName(identifier));
   }
 
   private void checkIndexIdentifierIsValid(IndexIdentifier identifier) {
