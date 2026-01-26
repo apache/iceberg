@@ -18,13 +18,36 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
-import org.apache.iceberg.rest.requests.RemoteSignRequest;
+import java.net.URI;
+import java.util.List;
+import java.util.Map;
+import javax.annotation.Nullable;
+import org.apache.iceberg.rest.RESTRequest;
 import org.immutables.value.Value;
 
 /**
- * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link RemoteSignRequest} instead.
+ * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+ *     org.apache.iceberg.rest.requests.RemoteSignRequest} instead.
  */
 @Deprecated
 @Value.Immutable
-@SuppressWarnings("immutables:subtype")
-public interface S3SignRequest extends RemoteSignRequest {}
+public interface S3SignRequest extends RESTRequest {
+  String region();
+
+  String method();
+
+  URI uri();
+
+  Map<String, List<String>> headers();
+
+  Map<String, String> properties();
+
+  @Value.Default
+  @Nullable
+  default String body() {
+    return null;
+  }
+
+  @Override
+  default void validate() {}
+}
