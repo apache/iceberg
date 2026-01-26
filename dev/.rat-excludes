@@ -28,4 +28,4 @@ sitemap.xml
 **/derby.log
 .python-version
 .*_index.md
-site/docs/blog/posts/.*
+site/docs/blog/
