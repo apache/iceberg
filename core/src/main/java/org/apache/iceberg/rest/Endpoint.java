@@ -96,6 +96,8 @@ public class Endpoint {
   public static final Endpoint V1_UPDATE_INDEX = Endpoint.create("POST", ResourcePaths.V1_INDEX);
   public static final Endpoint V1_DELETE_INDEX = Endpoint.create("DELETE", ResourcePaths.V1_INDEX);
   public static final Endpoint V1_INDEX_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_INDEX);
+  public static final Endpoint V1_REGISTER_INDEX =
+      Endpoint.create("POST", ResourcePaths.V1_INDEX_REGISTER);
 
   private static final Splitter ENDPOINT_SPLITTER = Splitter.on(" ");
   private static final Joiner ENDPOINT_JOINER = Joiner.on(" ");

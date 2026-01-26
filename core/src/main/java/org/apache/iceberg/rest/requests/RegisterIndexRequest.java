@@ -18,73 +18,18 @@
  */
 package org.apache.iceberg.rest.requests;
 
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
+import org.immutables.value.Value;
 
-/** A REST request to register an existing index by its metadata file location. */
-public class RegisterIndexRequest implements RESTRequest {
+@Value.Immutable
+public interface RegisterIndexRequest extends RESTRequest {
 
-  private String name;
-  private String metadataLocation;
+  String name();
 
-  public RegisterIndexRequest() {
-    // Required for Jackson deserialization
-  }
-
-  private RegisterIndexRequest(String name, String metadataLocation) {
-    this.name = name;
-    this.metadataLocation = metadataLocation;
-    validate();
-  }
+  String metadataLocation();
 
   @Override
-  public void validate() {
-    Preconditions.checkArgument(
-        name != null && !name.isEmpty(), "Invalid index name: null or empty");
-    Preconditions.checkArgument(
-        metadataLocation != null && !metadataLocation.isEmpty(),
-        "Invalid metadata location: null or empty");
-  }
-
-  public String name() {
-    return name;
-  }
-
-  public String metadataLocation() {
-    return metadataLocation;
-  }
-
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("name", name)
-        .add("metadataLocation", metadataLocation)
-        .toString();
-  }
-
-  public static Builder builder() {
-    return new Builder();
-  }
-
-  public static class Builder {
-    private String name;
-    private String metadataLocation;
-
-    private Builder() {}
-
-    public Builder withName(String indexName) {
-      this.name = indexName;
-      return this;
-    }
-
-    public Builder withMetadataLocation(String location) {
-      this.metadataLocation = location;
-      return this;
-    }
-
-    public RegisterIndexRequest build() {
-      return new RegisterIndexRequest(name, metadataLocation);
-    }
+  default void validate() {
+    // nothing to validate as it's not possible to create an invalid instance
   }
 }

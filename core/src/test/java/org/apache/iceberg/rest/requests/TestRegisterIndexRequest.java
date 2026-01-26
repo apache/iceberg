@@ -52,9 +52,9 @@ public class TestRegisterIndexRequest {
   @Test
   public void roundTripSerde() {
     RegisterIndexRequest request =
-        RegisterIndexRequest.builder()
-            .withName("customer_id_idx")
-            .withMetadataLocation("s3://bucket/indexes/customer_id_idx/metadata/v1.metadata.json")
+        ImmutableRegisterIndexRequest.builder()
+            .name("customer_id_idx")
+            .metadataLocation("s3://bucket/indexes/customer_id_idx/metadata/v1.metadata.json")
             .build();
 
     String json = RegisterIndexRequestParser.toJson(request);
@@ -68,9 +68,9 @@ public class TestRegisterIndexRequest {
   @Test
   public void testToJsonWithExpectedString() {
     RegisterIndexRequest request =
-        RegisterIndexRequest.builder()
-            .withName("my_btree_idx")
-            .withMetadataLocation("s3://bucket/indexes/my_btree_idx/metadata/v1.metadata.json")
+        ImmutableRegisterIndexRequest.builder()
+            .name("my_btree_idx")
+            .metadataLocation("s3://bucket/indexes/my_btree_idx/metadata/v1.metadata.json")
             .build();
 
     String expectedJson =
@@ -94,20 +94,20 @@ public class TestRegisterIndexRequest {
 
   @Test
   public void testBuilderValidation() {
-    assertThatThrownBy(() -> RegisterIndexRequest.builder().build())
+    assertThatThrownBy(() -> ImmutableRegisterIndexRequest.builder().build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid index name: null or empty");
 
-    assertThatThrownBy(() -> RegisterIndexRequest.builder().withName("").build())
+    assertThatThrownBy(() -> ImmutableRegisterIndexRequest.builder().name("").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid index name: null or empty");
 
-    assertThatThrownBy(() -> RegisterIndexRequest.builder().withName("test").build())
+    assertThatThrownBy(() -> ImmutableRegisterIndexRequest.builder().name("test").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid metadata location: null or empty");
 
     assertThatThrownBy(
-            () -> RegisterIndexRequest.builder().withName("test").withMetadataLocation("").build())
+            () -> ImmutableRegisterIndexRequest.builder().name("test").metadataLocation("").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid metadata location: null or empty");
   }
@@ -115,9 +115,9 @@ public class TestRegisterIndexRequest {
   @Test
   public void testPrettyJsonOutput() {
     RegisterIndexRequest request =
-        RegisterIndexRequest.builder()
-            .withName("test_idx")
-            .withMetadataLocation("s3://bucket/metadata.json")
+        ImmutableRegisterIndexRequest.builder()
+            .name("test_idx")
+            .metadataLocation("s3://bucket/metadata.json")
             .build();
 
     String prettyJson = RegisterIndexRequestParser.toJson(request, true);

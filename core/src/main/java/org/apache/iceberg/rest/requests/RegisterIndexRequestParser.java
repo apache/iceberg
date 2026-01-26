@@ -43,8 +43,10 @@ public class RegisterIndexRequestParser {
     Preconditions.checkArgument(null != request, "Invalid register index request: null");
 
     gen.writeStartObject();
+
     gen.writeStringField(NAME, request.name());
     gen.writeStringField(METADATA_LOCATION, request.metadataLocation());
+
     gen.writeEndObject();
   }
 
@@ -59,9 +61,9 @@ public class RegisterIndexRequestParser {
     String name = JsonUtil.getString(NAME, json);
     String metadataLocation = JsonUtil.getString(METADATA_LOCATION, json);
 
-    return RegisterIndexRequest.builder()
-        .withName(name)
-        .withMetadataLocation(metadataLocation)
+    return ImmutableRegisterIndexRequest.builder()
+        .name(name)
+        .metadataLocation(metadataLocation)
         .build();
   }
 }

@@ -133,6 +133,7 @@ public class IndexUpdateParser {
    * @return an IndexUpdate object
    */
   public static IndexUpdate fromJson(String json) {
+    Preconditions.checkArgument(json != null, "Cannot parse index update from null string");
     return JsonUtil.parse(json, IndexUpdateParser::fromJson);
   }
 

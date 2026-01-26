@@ -1287,4 +1287,159 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
   }
+
+  @Test
+  public void registerIndex() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier sourceIndexIdentifier = IndexIdentifier.of(tableIdentifier, "source_index");
+    IndexIdentifier registeredIndexIdentifier =
+        IndexIdentifier.of(tableIdentifier, "registered_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    // Create a source index to get its metadata file location
+    Index sourceIndex =
+        catalog()
+            .buildIndex(sourceIndexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .withProperty("prop1", "val1")
+            .create();
+
+    assertThat(catalog().indexExists(sourceIndexIdentifier))
+        .as("Source index should exist")
+        .isTrue();
+
+    // Get the metadata file location from the source index
+    String metadataFileLocation =
+        ((BaseIndex) sourceIndex).operations().current().metadataFileLocation();
+    assertThat(metadataFileLocation).isNotNull();
+
+    // Drop the source index before registering it with a new identifier
+    assertThat(catalog().dropIndex(sourceIndexIdentifier)).isTrue();
+    assertThat(catalog().indexExists(sourceIndexIdentifier))
+        .as("Source index should not exist")
+        .isFalse();
+
+    // Register a new index using the metadata file location
+    Index registeredIndex =
+        catalog().registerIndex(registeredIndexIdentifier, metadataFileLocation);
+
+    assertThat(registeredIndex).isNotNull();
+    assertThat(catalog().indexExists(registeredIndexIdentifier))
+        .as("Registered index should exist")
+        .isTrue();
+
+    // Validate the registered index has the same properties as the source
+    assertThat(registeredIndex.type()).isEqualTo(sourceIndex.type());
+    assertThat(registeredIndex.indexColumnIds()).isEqualTo(sourceIndex.indexColumnIds());
+    assertThat(registeredIndex.optimizedColumnIds()).isEqualTo(sourceIndex.optimizedColumnIds());
+
+    // Validate the registered index has the same UUID as the source (registerIndex preserves
+    // metadata)
+    assertThat(registeredIndex.uuid()).isEqualTo(sourceIndex.uuid());
+
+    // Clean up
+    assertThat(catalog().dropIndex(registeredIndexIdentifier)).isTrue();
+  }
+
+  @Test
+  public void registerIndexThatAlreadyExists() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier = IndexIdentifier.of(tableIdentifier, "existing_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    // Create the index first
+    Index existingIndex =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .create();
+
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should exist").isTrue();
+
+    String metadataFileLocation =
+        ((BaseIndex) existingIndex).operations().current().metadataFileLocation();
+
+    // Trying to register an index with the same identifier should fail
+    assertThatThrownBy(() -> catalog().registerIndex(indexIdentifier, metadataFileLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Index already exists");
+
+    // Clean up
+    assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
+  }
+
+  @Test
+  public void registerIndexOnNonExistingTable() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "non_existing_table");
+    TableIdentifier existingTableIdentifier = TableIdentifier.of("ns", "existing_table");
+    IndexIdentifier sourceIndexIdentifier =
+        IndexIdentifier.of(existingTableIdentifier, "source_index");
+    IndexIdentifier indexIdentifier = IndexIdentifier.of(tableIdentifier, "index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    // Create a table and index to get a valid metadata file location
+    tableCatalog().buildTable(existingTableIdentifier, SCHEMA).create();
+    Index sourceIndex =
+        catalog()
+            .buildIndex(sourceIndexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .create();
+
+    String metadataFileLocation =
+        ((BaseIndex) sourceIndex).operations().current().metadataFileLocation();
+
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should not exist").isFalse();
+
+    // Trying to register an index on a non-existing table should fail
+    assertThatThrownBy(() -> catalog().registerIndex(indexIdentifier, metadataFileLocation))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Table does not exist");
+
+    // Clean up
+    assertThat(catalog().dropIndex(sourceIndexIdentifier)).isTrue();
+  }
+
+  @Test
+  public void registerIndexWithInvalidMetadataLocation() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier = IndexIdentifier.of(tableIdentifier, "index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    // Trying to register with null metadata location should fail
+    assertThatThrownBy(() -> catalog().registerIndex(indexIdentifier, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot register an empty metadata file location");
+
+    // Trying to register with empty metadata location should fail
+    assertThatThrownBy(() -> catalog().registerIndex(indexIdentifier, ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot register an empty metadata file location");
+  }
 }
