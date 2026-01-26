@@ -95,6 +95,9 @@ EOF
 mkdir -p "${PKG}/assets"
 cp "${SCRIPT_DIR}/src/main/resources/iceberg.png" "${PKG}/assets/"
 
+# Security scan
+docker run --rm -v "${PKG}:/scan:ro" aquasec/trivy rootfs --severity HIGH,CRITICAL /scan
+
 # Create archive
 OUTPUT="${DIST_DIR}/${PACKAGE_NAME}.zip"
 (cd "${WORK_DIR}" && zip -rq "${OUTPUT}" "${PACKAGE_NAME}")
