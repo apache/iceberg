@@ -28,6 +28,7 @@ import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -229,7 +230,7 @@ public class TestS3FileIOProperties {
             "true",
             CatalogProperties.URI,
             uri,
-            CatalogProperties.SIGNER_ENDPOINT,
+            RESTCatalogProperties.SIGNER_ENDPOINT,
             "v1/sign/s3");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
     S3ClientBuilder builder = S3Client.builder();
@@ -253,7 +254,7 @@ public class TestS3FileIOProperties {
             "true",
             CatalogProperties.URI,
             uri,
-            CatalogProperties.SIGNER_ENDPOINT,
+            RESTCatalogProperties.SIGNER_ENDPOINT,
             "v1/sign/s3");
     S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
     S3ClientBuilder builder = S3Client.builder();

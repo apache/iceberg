@@ -163,16 +163,4 @@ public class CatalogProperties {
 
   public static final String ENCRYPTION_KMS_TYPE = "encryption.kms-type";
   public static final String ENCRYPTION_KMS_IMPL = "encryption.kms-impl";
-
-  /**
-   * The base URI of the remote signer endpoint. Optional, defaults to {@linkplain #URI the base URI
-   * of the REST catalog server}.
-   */
-  public static final String SIGNER_URI = "signer.uri";
-
-  /**
-   * The endpoint path of the remote signer endpoint. If remote signing has been requested, this
-   * must be set.
-   */
-  public static final String SIGNER_ENDPOINT = "signer.endpoint";
 }
