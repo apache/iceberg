@@ -276,6 +276,37 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
         catalogName, tableIdent);
   }
 
+  @TestTemplate
+  public void testRewritePositionDeletesWithMapColumns() throws Exception {
+    sql(
+        "CREATE TABLE %s (id BIGINT, data STRING, props MAP<STRING, BIGINT>) "
+            + "USING iceberg TBLPROPERTIES"
+            + "('format-version'='2', 'write.delete.mode'='merge-on-read', 'write.update.mode'='merge-on-read')",
+        tableName);
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, 'a', map('x', cast(10 as bigint))), "
+            + "(2, 'b', map('y', cast(20 as bigint))), "
+            + "(3, 'c', map('z', cast(30 as bigint))), "
+            + "(4, 'd', map('w', cast(40 as bigint))), "
+            + "(5, 'e', map('v', cast(50 as bigint))), "
+            + "(6, 'f', map('u', cast(60 as bigint)))",
+        tableName);
+
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+    sql("DELETE FROM %s WHERE id = 2", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(TestHelpers.deleteFiles(table)).hasSizeGreaterThanOrEqualTo(1);
+
+    sql(
+        "CALL %s.system.rewrite_position_delete_files("
+            + "table => '%s',"
+            + "options => map('rewrite-all','true'))",
+        catalogName, tableIdent);
+  }
+
   private Map<String, String> snapshotSummary() {
     return validationCatalog.loadTable(tableIdent).currentSnapshot().summary();
   }
