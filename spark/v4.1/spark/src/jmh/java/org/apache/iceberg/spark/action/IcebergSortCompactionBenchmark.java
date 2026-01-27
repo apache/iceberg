@@ -26,6 +26,7 @@ import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.UUID;
@@ -373,11 +374,12 @@ public class IcebergSortCompactionBenchmark {
 
   protected String getCatalogWarehouse() {
     try {
-      String location =
-          Files.createTempDirectory("benchmark-").toAbsolutePath() + "/" + UUID.randomUUID() + "/";
-      return location;
+      return Files.createTempDirectory("benchmark-").toAbsolutePath()
+          + "/"
+          + UUID.randomUUID()
+          + "/";
     } catch (IOException e) {
-      throw new RuntimeException(e);
+      throw new UncheckedIOException(e);
     }
   }
 

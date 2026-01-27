@@ -20,6 +20,9 @@ package org.apache.iceberg.spark.action;
 
 import static org.apache.spark.sql.functions.lit;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Locale;
@@ -32,7 +35,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -161,7 +163,14 @@ public class DeleteOrphanFilesBenchmark {
   }
 
   private String catalogWarehouse() {
-    return Files.createTempDir().getAbsolutePath() + "/" + UUID.randomUUID() + "/";
+    try {
+      return Files.createTempDirectory("benchmark-").toAbsolutePath()
+          + "/"
+          + UUID.randomUUID()
+          + "/";
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private void setupSpark() {
