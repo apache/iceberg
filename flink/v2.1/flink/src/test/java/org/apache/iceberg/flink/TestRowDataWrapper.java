@@ -30,6 +30,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.junit.jupiter.api.Disabled;
 
 public class TestRowDataWrapper extends RecordWrapperTestBase {
 
@@ -90,5 +91,17 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
 
     assertThat(actual).isExhausted();
     assertThat(expected).isExhausted();
+  }
+
+  @Disabled
+  @Override
+  public void testTimestampNanoWithoutZone() {
+    // Flink does not support nanosecond timestamp without zone.
+  }
+
+  @Disabled
+  @Override
+  public void testTimestampNanoWithZone() {
+    // Flink does not support nanosecond timestamp with zone.
   }
 }

@@ -91,7 +91,7 @@ public class TestAllManifestsTableTaskParser {
         fileIO,
         AllManifestsTable.MANIFEST_FILE_SCHEMA,
         specsById,
-        "/path/manifest-list-file.avro",
+        new BaseManifestListFile("/path/manifest-list-file.avro", "a"),
         Expressions.equal("id", 1),
         1L);
   }
@@ -121,10 +121,12 @@ public class TestAllManifestsTableTaskParser {
         + "{\"id\":11,\"name\":\"contains_nan\",\"required\":true,\"type\":\"boolean\"},"
         + "{\"id\":12,\"name\":\"lower_bound\",\"required\":false,\"type\":\"string\"},"
         + "{\"id\":13,\"name\":\"upper_bound\",\"required\":false,\"type\":\"string\"}]},\"element-required\":true}},"
-        + "{\"id\":18,\"name\":\"reference_snapshot_id\",\"required\":true,\"type\":\"long\"}]},"
+        + "{\"id\":18,\"name\":\"reference_snapshot_id\",\"required\":true,\"type\":\"long\"},"
+        + "{\"id\":19,\"name\":\"key_metadata\",\"required\":false,\"type\":\"binary\"}]},"
         + "\"partition-specs\":[{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
         + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]}],"
         + "\"manifest-list-Location\":\"/path/manifest-list-file.avro\","
+        + "\"manifest-list-key-id\":\"a\","
         + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1},"
         + "\"reference-snapshot-id\":1}";
   }
@@ -145,7 +147,9 @@ public class TestAllManifestsTableTaskParser {
         .isEqualTo(expected.schema().asStruct());
 
     assertThat(actual.specsById()).isEqualTo(expected.specsById());
-    assertThat(actual.manifestListLocation()).isEqualTo(expected.manifestListLocation());
+    assertThat(actual.manifestList().location()).isEqualTo(expected.manifestList().location());
+    assertThat(actual.manifestList().encryptionKeyID())
+        .isEqualTo(expected.manifestList().encryptionKeyID());
     assertThat(actual.residual().toString()).isEqualTo(expected.residual().toString());
     assertThat(actual.referenceSnapshotId()).isEqualTo(expected.referenceSnapshotId());
   }

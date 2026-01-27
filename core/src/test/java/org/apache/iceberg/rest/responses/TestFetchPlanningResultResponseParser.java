@@ -40,8 +40,12 @@ import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.RESTSerializers;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -140,7 +144,6 @@ public class TestFetchPlanningResultResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
-
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     assertThatThrownBy(
             () -> {
@@ -186,7 +189,6 @@ public class TestFetchPlanningResultResponseParser {
         FetchPlanningResultResponse.builder()
             .withPlanStatus(planStatus)
             .withFileScanTasks(List.of(fileScanTask))
-            .withDeleteFiles(List.of(FILE_A_DELETES))
             // assume this has been set
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
@@ -219,12 +221,113 @@ public class TestFetchPlanningResultResponseParser {
         FetchPlanningResultResponse.builder()
             .withPlanStatus(fromResponse.planStatus())
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
     assertThat(FetchPlanningResultResponseParser.toJson(copyResponse, false))
         .isEqualTo(expectedToJson);
+  }
+
+  @Test
+  public void emptyOrInvalidCredentials() {
+    assertThat(
+            FetchPlanningResultResponseParser.fromJson(
+                    "{\"status\": \"completed\",\"storage-credentials\": null}",
+                    PARTITION_SPECS_BY_ID,
+                    false)
+                .credentials())
+        .isEmpty();
+
+    assertThat(
+            FetchPlanningResultResponseParser.fromJson(
+                    "{\"status\": \"completed\",\"storage-credentials\": []}",
+                    PARTITION_SPECS_BY_ID,
+                    false)
+                .credentials())
+        .isEmpty();
+
+    assertThatThrownBy(
+            () ->
+                FetchPlanningResultResponseParser.fromJson(
+                    "{\"status\": \"completed\",\"storage-credentials\": \"invalid\"}",
+                    PARTITION_SPECS_BY_ID,
+                    false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse credentials from non-array: \"invalid\"");
+  }
+
+  @Test
+  public void roundTripSerdeWithCredentials() {
+    List<Credential> credentials =
+        ImmutableList.of(
+            ImmutableCredential.builder()
+                .prefix("s3://custom-uri")
+                .config(
+                    ImmutableMap.of(
+                        "s3.access-key-id",
+                        "keyId",
+                        "s3.secret-access-key",
+                        "accessKey",
+                        "s3.session-token",
+                        "sessionToken"))
+                .build(),
+            ImmutableCredential.builder()
+                .prefix("gs://custom-uri")
+                .config(
+                    ImmutableMap.of(
+                        "gcs.oauth2.token", "gcsToken1", "gcs.oauth2.token-expires-at", "1000"))
+                .build(),
+            ImmutableCredential.builder()
+                .prefix("gs")
+                .config(
+                    ImmutableMap.of(
+                        "gcs.oauth2.token", "gcsToken2", "gcs.oauth2.token-expires-at", "2000"))
+                .build());
+
+    FetchPlanningResultResponse response =
+        FetchPlanningResultResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withCredentials(credentials)
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"status\" : \"completed\",\n"
+            + "  \"storage-credentials\" : [ {\n"
+            + "    \"prefix\" : \"s3://custom-uri\",\n"
+            + "    \"config\" : {\n"
+            + "      \"s3.access-key-id\" : \"keyId\",\n"
+            + "      \"s3.secret-access-key\" : \"accessKey\",\n"
+            + "      \"s3.session-token\" : \"sessionToken\"\n"
+            + "    }\n"
+            + "  }, {\n"
+            + "    \"prefix\" : \"gs://custom-uri\",\n"
+            + "    \"config\" : {\n"
+            + "      \"gcs.oauth2.token\" : \"gcsToken1\",\n"
+            + "      \"gcs.oauth2.token-expires-at\" : \"1000\"\n"
+            + "    }\n"
+            + "  }, {\n"
+            + "    \"prefix\" : \"gs\",\n"
+            + "    \"config\" : {\n"
+            + "      \"gcs.oauth2.token\" : \"gcsToken2\",\n"
+            + "      \"gcs.oauth2.token-expires-at\" : \"2000\"\n"
+            + "    }\n"
+            + "  } ]\n"
+            + "}";
+
+    String json = FetchPlanningResultResponseParser.toJson(response, true);
+    assertThat(json).isEqualTo(expectedJson);
+
+    FetchPlanningResultResponse fromResponse =
+        FetchPlanningResultResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    FetchPlanningResultResponse copyResponse =
+        FetchPlanningResultResponse.builder()
+            .withPlanStatus(fromResponse.planStatus())
+            .withCredentials(credentials)
+            .build();
+
+    assertThat(FetchPlanningResultResponseParser.toJson(copyResponse, true))
+        .isEqualTo(expectedJson);
   }
 }

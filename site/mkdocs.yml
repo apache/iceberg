@@ -18,6 +18,7 @@
 INHERIT: ./nav.yml
 
 site_name: "Apache Iceberg™"
+site_url: "https://iceberg.apache.org"
 
 theme:
   custom_dir: overrides
@@ -48,6 +49,21 @@ theme:
 
 plugins:
   - search
+  - blog:
+      blog_dir: blog
+      blog_toc: true
+      post_date_format: long
+      post_url_format: "{slug}"
+  - rss:
+      feed_description: "Blogs for Apache Iceberg"
+      match_path: "blog/posts/.*"
+      image: "https://iceberg.apache.org/assets/images/Iceberg-logo.svg"
+      date_from_meta:
+        as_creation: date
+      categories:
+        - categories
+      feeds_filenames:
+        rss_created: rss.xml
   - macros
   - monorepo
   - privacy
@@ -84,7 +100,7 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.10.0'
+  icebergVersion: '1.10.1'
   nessieVersion: '0.104.5'
   flinkVersion: '2.0.0'
   flinkVersionMajor: '2.0'

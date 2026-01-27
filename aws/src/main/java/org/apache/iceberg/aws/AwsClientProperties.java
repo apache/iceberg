@@ -20,6 +20,7 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.function.Predicate;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
 import org.apache.iceberg.common.DynClasses;
@@ -28,7 +29,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -97,7 +97,6 @@ public class AwsClientProperties implements Serializable {
   private final String refreshCredentialsEndpoint;
   private final boolean refreshCredentialsEnabled;
   private final boolean legacyMd5pluginEnabled;
-  private final Map<String, String> allProperties;
 
   public AwsClientProperties() {
     this.clientRegion = null;
@@ -106,15 +105,18 @@ public class AwsClientProperties implements Serializable {
     this.refreshCredentialsEndpoint = null;
     this.refreshCredentialsEnabled = true;
     this.legacyMd5pluginEnabled = false;
-    this.allProperties = null;
   }
 
   public AwsClientProperties(Map<String, String> properties) {
-    this.allProperties = SerializableMap.copyOf(properties);
     this.clientRegion = properties.get(CLIENT_REGION);
     this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
+    // Retain all non-prefixed properties and override with prefixed properties
     this.clientCredentialsProviderProperties =
-        PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
+        PropertyUtil.mergeProperties(
+            PropertyUtil.filterProperties(
+                properties,
+                Predicate.not(property -> property.startsWith(CLIENT_CREDENTIAL_PROVIDER_PREFIX))),
+            PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX));
     this.refreshCredentialsEndpoint =
         RESTUtil.resolveEndpoint(
             properties.get(CatalogProperties.URI), properties.get(REFRESH_CREDENTIALS_ENDPOINT));
@@ -211,7 +213,6 @@ public class AwsClientProperties implements Serializable {
   public AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
-      clientCredentialsProviderProperties.putAll(allProperties);
       clientCredentialsProviderProperties.put(
           VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
       return credentialsProvider(VendedCredentialsProvider.class.getName());

@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
@@ -48,6 +49,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.BaseView;
+import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.thrift.TException;
@@ -70,6 +72,7 @@ public class TestHiveViewCommits {
           required(3, "id", Types.IntegerType.get(), "unique ID"),
           required(4, "data", Types.StringType.get()));
   private static final TableIdentifier VIEW_IDENTIFIER = TableIdentifier.of(NS, VIEW_NAME);
+  private static final String VIEW_QUERY = "select * from ns.tbl";
 
   @RegisterExtension
   protected static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
@@ -100,7 +103,7 @@ public class TestHiveViewCommits {
             .buildView(VIEW_IDENTIFIER)
             .withSchema(SCHEMA)
             .withDefaultNamespace(NS)
-            .withQuery("hive", "select * from ns.tbl")
+            .withQuery("hive", VIEW_QUERY)
             .create();
     viewLocation = new Path(view.location());
   }
@@ -109,6 +112,35 @@ public class TestHiveViewCommits {
   public void dropTestView() throws IOException {
     viewLocation.getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf()).delete(viewLocation, true);
     catalog.dropView(VIEW_IDENTIFIER);
+  }
+
+  @Test
+  public void testViewQueryIsUpdatedOnCommit() throws Exception {
+    HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
+    assertThat(view.currentVersion().representations())
+        .containsExactly(
+            ImmutableSQLViewRepresentation.builder().sql(VIEW_QUERY).dialect("hive").build());
+
+    Table hmsTable = ops.loadHmsTable();
+    assertThat(hmsTable.getViewOriginalText()).isEqualTo(VIEW_QUERY);
+    assertThat(hmsTable.getViewExpandedText()).isEqualTo(VIEW_QUERY);
+
+    String newQuery = "select * from ns.tbl2 limit 10";
+    view =
+        catalog
+            .buildView(VIEW_IDENTIFIER)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(NS)
+            .withQuery("hive", newQuery)
+            .replace();
+
+    assertThat(view.currentVersion().representations())
+        .containsExactly(
+            ImmutableSQLViewRepresentation.builder().sql(newQuery).dialect("hive").build());
+
+    Table updatedHmsTable = ops.loadHmsTable();
+    assertThat(updatedHmsTable.getViewOriginalText()).isEqualTo(newQuery);
+    assertThat(updatedHmsTable.getViewExpandedText()).isEqualTo(newQuery);
   }
 
   @Test

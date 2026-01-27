@@ -42,6 +42,13 @@ jobs:
       with:
         distribution: zulu
         java-version: 21
+    - uses: actions/cache@v5
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: ${{ runner.os }}-gradle-
     - name: Build Iceberg Open API project
       run: ./gradlew :iceberg-open-api:shadowJar
     - name: Login to Docker Hub

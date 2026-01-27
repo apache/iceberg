@@ -88,6 +88,7 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -161,7 +162,9 @@ public class IcebergSink
   private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
 
   private final Table table;
-  private final Set<String> equalityFieldColumns = null;
+  // This should only be used for logging/error messages. For any actual logic always use
+  // equalityFieldIds instead.
+  private final Set<String> equalityFieldColumns;
 
   private IcebergSink(
       TableLoader tableLoader,
@@ -175,7 +178,8 @@ public class IcebergSink
       Set<Integer> equalityFieldIds,
       String branch,
       boolean overwriteMode,
-      FlinkMaintenanceConfig flinkMaintenanceConfig) {
+      FlinkMaintenanceConfig flinkMaintenanceConfig,
+      Set<String> equalityFieldColumns) {
     this.tableLoader = tableLoader;
     this.snapshotProperties = snapshotProperties;
     this.uidSuffix = uidSuffix;
@@ -197,6 +201,7 @@ public class IcebergSink
     this.sinkId = UUID.randomUUID().toString();
     this.compactMode = flinkWriteConf.compactMode();
     this.flinkMaintenanceConfig = flinkMaintenanceConfig;
+    this.equalityFieldColumns = equalityFieldColumns;
   }
 
   @Override
@@ -665,6 +670,9 @@ public class IcebergSink
       FlinkMaintenanceConfig flinkMaintenanceConfig =
           new FlinkMaintenanceConfig(table, writeOptions, readableConfig);
 
+      Set<String> equalityFieldColumnsSet =
+          equalityFieldColumns != null ? Sets.newHashSet(equalityFieldColumns) : null;
+
       return new IcebergSink(
           tableLoader,
           table,
@@ -679,7 +687,8 @@ public class IcebergSink
           equalityFieldIds,
           flinkWriteConf.branch(),
           overwriteMode,
-          flinkMaintenanceConfig);
+          flinkMaintenanceConfig,
+          equalityFieldColumnsSet);
     }
 
     /**

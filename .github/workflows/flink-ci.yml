@@ -61,6 +61,7 @@ on:
     - 'CONTRIBUTING.md'
     - '**/LICENSE'
     - '**/NOTICE'
+    - 'doap.rdf'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -73,7 +74,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        jvm: [11, 17, 21]
+        jvm: [17, 21]
         flink: ['1.20', '2.0', '2.1']
     env:
       SPARK_LOCAL_IP: localhost
@@ -83,7 +84,7 @@ jobs:
       with:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
-    - uses: actions/cache@v4
+    - uses: actions/cache@v5
       with:
         path: |
           ~/.gradle/caches
@@ -92,7 +93,7 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew -DsparkVersions= -DkafkaVersions= -DflinkVersions=${{ matrix.flink }} :iceberg-flink:iceberg-flink-${{ matrix.flink }}:check :iceberg-flink:iceberg-flink-runtime-${{ matrix.flink }}:check -Pquick=true -x javadoc -DtestParallelism=auto
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v6
       if: failure()
       with:
         name: test logs

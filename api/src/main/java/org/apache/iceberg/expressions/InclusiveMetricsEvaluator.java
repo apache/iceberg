@@ -327,6 +327,14 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean notEq(Bound<T> term, Literal<T> lit) {
       // because the bounds are not necessarily a min or max value, this cannot be answered using
       // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
+      // However, when min == max and the file has no nulls or NaN values, we can safely prune
+      // if that value equals the literal.
+      T value = uniqueValue(term);
+
+      if (value != null && lit.comparator().compare(value, lit.value()) == 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
       return ROWS_MIGHT_MATCH;
     }
 
@@ -381,6 +389,14 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean notIn(Bound<T> term, Set<T> literalSet) {
       // because the bounds are not necessarily a min or max value, this cannot be answered using
       // them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
+      // However, when min == max and the file has no nulls or NaN values, we can safely prune
+      // if that value is in the exclusion set.
+      T value = uniqueValue(term);
+
+      if (value != null && literalSet.contains(value)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
       return ROWS_MIGHT_MATCH;
     }
 
@@ -488,6 +504,34 @@ public class InclusiveMetricsEvaluator {
           && nanCounts.containsKey(id)
           && valueCounts != null
           && nanCounts.get(id).equals(valueCounts.get(id));
+    }
+
+    /**
+     * Returns the column's single value if all rows contain the same value. Defined as a column
+     * with no nulls, no NaNs, and lower bound equals upper bound. Returns null otherwise.
+     */
+    private <T> T uniqueValue(Bound<T> term) {
+      int id = term.ref().fieldId();
+      if (mayContainNull(id)) {
+        return null;
+      }
+
+      T lower = lowerBound(term);
+      T upper = upperBound(term);
+
+      if (lower == null || upper == null || NaNUtil.isNaN(lower) || NaNUtil.isNaN(upper)) {
+        return null;
+      }
+
+      if (nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) != 0) {
+        return null;
+      }
+
+      if (!lower.equals(upper)) {
+        return null;
+      }
+
+      return lower;
     }
 
     private <T> T lowerBound(Bound<T> term) {
