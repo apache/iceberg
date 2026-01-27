@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.compression.CompressionCodecFactory;
+import org.apache.parquet.crypto.InternalFileEncryptor;
 import org.apache.parquet.hadoop.ColumnChunkPageWriteStore;
 import org.apache.parquet.schema.MessageType;
 
@@ -78,10 +79,15 @@ public interface WriterLazyInitializable {
    * @param props Parquet properties needed for creating write stores
    * @param compressor Bytes compressor for compression
    * @param rowGroupOrdinal The ordinal number of the current row group
+   * @param columnIndexTruncateLength The column index truncate length from ParquetWriter config
+   * @param fileEncryptor The file encryptor from ParquetWriter, may be null if encryption is
+   *     disabled
    * @return InitializationResult containing the finalized schema and write stores
    */
   InitializationResult initialize(
       ParquetProperties props,
       CompressionCodecFactory.BytesInputCompressor compressor,
-      int rowGroupOrdinal);
+      int rowGroupOrdinal,
+      int columnIndexTruncateLength,
+      InternalFileEncryptor fileEncryptor);
 }

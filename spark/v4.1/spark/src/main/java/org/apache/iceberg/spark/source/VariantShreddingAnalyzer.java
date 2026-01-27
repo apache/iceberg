@@ -246,7 +246,10 @@ public class VariantShreddingAnalyzer {
           Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
               .as(LogicalTypeAnnotation.intType(32, true))
               .named(TYPED_VALUE);
-      case INT64 -> Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named(TYPED_VALUE);
+      case INT64 ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.intType(64, true))
+              .named(TYPED_VALUE);
       case FLOAT -> Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(TYPED_VALUE);
       case DOUBLE -> Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(TYPED_VALUE);
       case STRING ->
@@ -296,6 +299,7 @@ public class VariantShreddingAnalyzer {
       // Use BOOLEAN_TRUE for both TRUE/FALSE values
       PhysicalType type =
           value.type() == PhysicalType.BOOLEAN_FALSE ? PhysicalType.BOOLEAN_TRUE : value.type();
+
       observedTypes.add(type);
       typeCounts.compute(type, (k, v) -> (v == null) ? 1 : v + 1);
 
@@ -314,10 +318,61 @@ public class VariantShreddingAnalyzer {
     }
 
     PhysicalType getMostCommonType() {
-      return typeCounts.entrySet().stream()
-          .max(Map.Entry.comparingByValue())
+      Map<PhysicalType, Integer> combinedCounts = Maps.newHashMap();
+
+      int integerTotalCount = 0;
+      PhysicalType mostCapableInteger = null;
+
+      int decimalTotalCount = 0;
+      PhysicalType mostCapableDecimal = null;
+
+      for (Map.Entry<PhysicalType, Integer> entry : typeCounts.entrySet()) {
+        PhysicalType type = entry.getKey();
+        int count = entry.getValue();
+
+        if (isIntegerType(type)) {
+          integerTotalCount += count;
+          if (mostCapableInteger == null || type.ordinal() > mostCapableInteger.ordinal()) {
+            mostCapableInteger = type;
+          }
+        } else if (isDecimalType(type)) {
+          decimalTotalCount += count;
+          if (mostCapableDecimal == null || type.ordinal() > mostCapableDecimal.ordinal()) {
+            mostCapableDecimal = type;
+          }
+        } else {
+          combinedCounts.put(type, count);
+        }
+      }
+
+      if (mostCapableInteger != null) {
+        combinedCounts.put(mostCapableInteger, integerTotalCount);
+      }
+
+      if (mostCapableDecimal != null) {
+        combinedCounts.put(mostCapableDecimal, decimalTotalCount);
+      }
+
+      // Pick the most common type with tie-breaking
+      return combinedCounts.entrySet().stream()
+          .max(
+              Map.Entry.<PhysicalType, Integer>comparingByValue()
+                  .thenComparingInt(entry -> entry.getKey().ordinal()))
           .map(Map.Entry::getKey)
           .orElse(null);
+    }
+
+    private boolean isIntegerType(PhysicalType type) {
+      return type == PhysicalType.INT8
+          || type == PhysicalType.INT16
+          || type == PhysicalType.INT32
+          || type == PhysicalType.INT64;
+    }
+
+    private boolean isDecimalType(PhysicalType type) {
+      return type == PhysicalType.DECIMAL4
+          || type == PhysicalType.DECIMAL8
+          || type == PhysicalType.DECIMAL16;
     }
   }
 }

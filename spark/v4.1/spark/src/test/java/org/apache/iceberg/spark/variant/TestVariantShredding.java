@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.variant;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.parquet.schema.Types.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -109,6 +110,8 @@ public class TestVariantShredding extends CatalogTestBase {
 
   @AfterEach
   public void after() {
+    spark.conf().unset(SparkSQLProperties.SHRED_VARIANTS);
+    spark.conf().unset(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE);
     validationCatalog.dropTable(tableIdent, true);
   }
 
@@ -425,6 +428,159 @@ public class TestVariantShredding extends CatalogTestBase {
     assertThat(rowCount).isEqualTo(7);
   }
 
+  @TestTemplate
+  public void testTieBreakingWithEqualCounts() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    String values =
+        "(1, parse_json('{\"value\": 10}')),"
+            + " (2, parse_json('{\"value\": 20}')),"
+            + " (3, parse_json('{\"value\": \"hello\"}')),"
+            + " (4, parse_json('{\"value\": \"world\"}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    // When counts are tied, sort the types in order and choose the last one
+    GroupType value =
+        field(
+            "value",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(value));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testMultipleRowGroups() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+    spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "3");
+
+    int numRows = 1000;
+    StringBuilder valuesBuilder = new StringBuilder();
+    for (int i = 1; i <= numRows; i++) {
+      if (i > 1) {
+        valuesBuilder.append(", ");
+      }
+      valuesBuilder.append(
+          String.format("(%d, parse_json('{\"name\": \"User%d\", \"age\": %d}'))", i, i, 20 + i));
+    }
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')",
+        tableName, PARQUET_ROW_GROUP_SIZE_BYTES, 1024);
+    sql("INSERT INTO %s VALUES %s", tableName, valuesBuilder.toString());
+
+    GroupType name =
+        field(
+            "name",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType age =
+        field(
+            "age",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age, name));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+
+    long rowCount = spark.read().format("iceberg").load(tableName).count();
+    assertThat(rowCount).isEqualTo(numRows);
+  }
+
+  @TestTemplate
+  public void testColumnIndexTruncateLength() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+    spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "3");
+
+    int customTruncateLength = 10;
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%d')",
+        tableName, "parquet.columnindex.truncate.length", customTruncateLength);
+
+    StringBuilder valuesBuilder = new StringBuilder();
+    for (int i = 1; i <= 10; i++) {
+      if (i > 1) {
+        valuesBuilder.append(", ");
+      }
+      String longValue = "A".repeat(20);
+      valuesBuilder.append(
+          String.format(
+              "(%d, parse_json('{\"description\": \"%s\", \"id\": %d}'))", i, longValue, i));
+    }
+    sql("INSERT INTO %s VALUES %s", tableName, valuesBuilder.toString());
+
+    GroupType description =
+        field(
+            "description",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType id =
+        field(
+            "id",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    GroupType address =
+        variant("address", 2, Type.Repetition.REQUIRED, objectFields(description, id));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+
+    long rowCount = spark.read().format("iceberg").load(tableName).count();
+    assertThat(rowCount).isEqualTo(10);
+  }
+
+  @TestTemplate
+  public void testIntegerFamilyPromotion() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    // Mix of INT8, INT16, INT32, INT64 - should promote to INT64
+    String values =
+        "(1, parse_json('{\"value\": 10}')),"
+            + " (2, parse_json('{\"value\": 1000}')),"
+            + " (3, parse_json('{\"value\": 100000}')),"
+            + " (4, parse_json('{\"value\": 10000000000}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    GroupType value =
+        field(
+            "value",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT64, LogicalTypeAnnotation.intType(64, true)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(value));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testDecimalFamilyPromotion() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    // Test that they get promoted to the most capable decimal type observed
+    String values =
+        "(1, parse_json('{\"value\": 1.5}')),"
+            + " (2, parse_json('{\"value\": 123.456789}')),"
+            + " (3, parse_json('{\"value\": 123456789123456.789}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    GroupType value =
+        field(
+            "value",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT64, LogicalTypeAnnotation.decimalType(6, 18)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(value));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
   private void verifyParquetSchema(Table table, MessageType expectedSchema) throws IOException {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       assertThat(tasks).isNotEmpty();
@@ -439,9 +595,6 @@ public class TestVariantShredding extends CatalogTestBase {
         MessageType actualSchema = reader.getFileMetaData().getSchema();
         assertThat(actualSchema).isEqualTo(expectedSchema);
       }
-
-      // Print the result
-      spark.read().format("iceberg").load(tableName).orderBy("id").show(false);
     }
   }
 
