@@ -249,6 +249,8 @@ public class ErrorHandlers {
           throw new NoSuchNamespaceException("%s", error.message());
         case 409:
           throw new AlreadyExistsException("%s", error.message());
+        case 422:
+          throw createRESTException(error);
       }
 
       super.accept(error);
@@ -301,7 +303,7 @@ public class ErrorHandlers {
         case 405:
           break;
         case 406:
-          throw new UnsupportedOperationException(error.message());
+          break;
         case 500:
           throw new ServiceFailureException("Server error: %s: %s", error.type(), error.message());
         case 501:

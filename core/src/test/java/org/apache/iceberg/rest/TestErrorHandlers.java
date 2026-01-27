@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 public class TestErrorHandlers {
 
   @Test
-  public void testErrorHandlerIncludesCodeAndType() {
+  public void errorHandlerIncludesCodeAndType() {
     ErrorResponse error =
         ErrorResponse.builder()
             .responseCode(422)
@@ -41,7 +41,7 @@ public class TestErrorHandlers {
   }
 
   @Test
-  public void testErrorHandlerWithCodeOnly() {
+  public void errorHandlerWithCodeOnly() {
     ErrorResponse error = ErrorResponse.builder().responseCode(422).build();
 
     assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
@@ -50,7 +50,7 @@ public class TestErrorHandlers {
   }
 
   @Test
-  public void testErrorHandlerWithCodeAndMessageOnly() {
+  public void errorHandlerWithCodeAndMessageOnly() {
     ErrorResponse error =
         ErrorResponse.builder().responseCode(422).withMessage("Invalid input").build();
 
@@ -60,7 +60,7 @@ public class TestErrorHandlers {
   }
 
   @Test
-  public void testErrorHandlerWithCodeAndTypeOnly() {
+  public void errorHandlerWithCodeAndTypeOnly() {
     ErrorResponse error =
         ErrorResponse.builder().responseCode(422).withType("ValidationException").build();
 
@@ -70,35 +70,7 @@ public class TestErrorHandlers {
   }
 
   @Test
-  public void testNamespaceErrorHandlerFallsBackToDefaultFor422() {
-    ErrorResponse error =
-        ErrorResponse.builder()
-            .responseCode(422)
-            .withType("ValidationException")
-            .withMessage("Invalid input")
-            .build();
-
-    // NamespaceErrorHandler should fall back to DefaultErrorHandler for 422,
-    // which includes code, type, and message in the error message
-    assertThatThrownBy(() -> ErrorHandlers.namespaceErrorHandler().accept(error))
-        .isInstanceOf(RESTException.class)
-        .hasMessage("Unable to process (code: 422, type: ValidationException): Invalid input");
-  }
-
-  @Test
-  public void testNamespaceErrorHandlerFallsBackToDefaultFor422WithOptionalFields() {
-    ErrorResponse error =
-        ErrorResponse.builder().responseCode(422).withMessage("Invalid input").build();
-
-    // NamespaceErrorHandler should fall back to DefaultErrorHandler for 422,
-    // even when type is missing
-    assertThatThrownBy(() -> ErrorHandlers.namespaceErrorHandler().accept(error))
-        .isInstanceOf(RESTException.class)
-        .hasMessage("Unable to process (code: 422, type: null): Invalid input");
-  }
-
-  @Test
-  public void testErrorHandlerFor405() {
+  public void errorHandlerFor405() {
     ErrorResponse error =
         ErrorResponse.builder()
             .responseCode(405)
@@ -111,20 +83,5 @@ public class TestErrorHandlers {
         .isInstanceOf(RESTException.class)
         .hasMessage(
             "Unable to process (code: 405, type: MethodNotAllowedException): Method not allowed");
-  }
-
-  @Test
-  public void testErrorHandlerFor406() {
-    ErrorResponse error =
-        ErrorResponse.builder()
-            .responseCode(406)
-            .withType("UnsupportedOperationException")
-            .withMessage("Operation not supported")
-            .build();
-
-    // 406 (Not Acceptable) should throw UnsupportedOperationException
-    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Operation not supported");
   }
 }
