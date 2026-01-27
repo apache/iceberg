@@ -4,7 +4,7 @@ title: Iceberg Meetup Japan 4th Recap
 authors:
   - yuya-ebihara
 categories:
-  - announcement
+  - community
 ---
 
 <!--
