@@ -1,3 +1,14 @@
+error id: file://<WORKSPACE>/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java:_empty_/ServiceFailureException#
+file://<WORKSPACE>/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+empty definition using pc, found symbol in pc: _empty_/ServiceFailureException#
+empty definition using semanticdb
+empty definition using fallback
+non-local guesses:
+
+offset: 10917
+uri: file://<WORKSPACE>/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+text:
+```scala
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -249,8 +260,6 @@ public class ErrorHandlers {
           throw new NoSuchNamespaceException("%s", error.message());
         case 409:
           throw new AlreadyExistsException("%s", error.message());
-        case 422:
-          throw createRESTException(error);
       }
 
       super.accept(error);
@@ -300,10 +309,12 @@ public class ErrorHandlers {
           throw new NotAuthorizedException("Not authorized: %s", error.message());
         case 403:
           throw new ForbiddenException("Forbidden: %s", error.message());
-        case 406:
+        case 405:
           break;
+        case 406:
+          throw new UnsupportedOperationException(error.message());
         case 500:
-          throw new ServiceFailureException("Server error: %s: %s", error.type(), error.message());
+          throw new ServiceFailureExcepti@@on("Server error: %s: %s", error.type(), error.message());
         case 501:
           throw new UnsupportedOperationException(error.message());
         case 503:
@@ -347,3 +358,10 @@ public class ErrorHandlers {
     }
   }
 }
+
+```
+
+
+#### Short summary: 
+
+empty definition using pc, found symbol in pc: _empty_/ServiceFailureException#

@@ -1,0 +1,746 @@
+2026.01.21 09:58:47 INFO  Started: Metals version 1.6.4 in folders '/Users/masfworld/code/iceberg' for client Cursor 1.105.1.
+2026.01.21 09:58:47 WARN  Using H2 2.4.240 which is newer than the version Flyway has been verified with. The latest verified version of H2 is 2.3.232.
+2026.01.21 09:58:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+Jan 21, 2026 9:58:48 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 2
+2026.01.21 09:58:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 09:58:49 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 09:58:49 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 09:58:51 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 09:58:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 09:58:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 09:58:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 09:58:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 09:58:51 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java]
+2026.01.21 09:58:51 INFO  empty definition using pc, found symbol in pc: org/apache/iceberg/rest/TestErrorHandlers#assertThatThrownBy#isInstanceOf# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_09-58-52-156.md")
+2026.01.21 09:58:56 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestHTTPRequest.java
+2026.01.21 09:58:56 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 09:59:18 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:01:39 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:01:39 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:01:39 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:01:50 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:01:50 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:01:56 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestHTTPRequest.java. Using fallback presentation compiler.
+2026.01.21 10:02:52 WARN  no build target for: /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java
+2026.01.21 10:02:52 INFO  no build target found for /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java. Using fallback presentation compiler.
+2026.01.21 10:02:53 INFO  no build target found for /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java. Using fallback presentation compiler.
+2026.01.21 10:02:58 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:02:58 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:02:58 INFO  no build target found for /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java. Using fallback presentation compiler.
+2026.01.21 10:02:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:02:59 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:02:59 INFO  no build target found for /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java. Using fallback presentation compiler.
+2026.01.21 10:03:00 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:03:00 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:03:00 INFO  no build target found for /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java. Using fallback presentation compiler.
+2026.01.21 10:03:02 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:03:02 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:03:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:03:16 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:03:16 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:04:31 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:04:32 INFO  Shutting down server
+2026.01.21 10:04:32 INFO  shutting down Metals
+2026.01.21 10:04:32 INFO  Exiting server
+2026.01.21 10:08:15 INFO  Started: Metals version 1.6.4 in folders '/Users/masfworld/code/iceberg' for client Cursor 1.105.1.
+2026.01.21 10:08:15 WARN  Using H2 2.4.240 which is newer than the version Flyway has been verified with. The latest verified version of H2 is 2.3.232.
+2026.01.21 10:08:16 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:08:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:08:26 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 10:08:26 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:08:26 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestHTTPRequest.java
+2026.01.21 10:08:26 WARN  no build target for: /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java
+2026.01.21 10:08:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:08:42 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:08:56 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java
+2026.01.21 10:08:58 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:08:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:08:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:08:59 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java
+2026.01.21 10:08:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:09:02 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:09:02 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:09:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:09:03 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:09:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:09:04 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:09:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:09:34 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java
+2026.01.21 10:09:35 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:09:57 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:09:57 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:09:57 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:09:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:10:02 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:02 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:10:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:03 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:10:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:04 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:10:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:10:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:10:08 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java
+2026.01.21 10:10:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:10:12 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:10:13 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java. Using fallback presentation compiler.
+2026.01.21 10:10:13 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:10:13 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:18 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:25 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/RESTUtil.java
+2026.01.21 10:10:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:25 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:10:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:28 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:10:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:52 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:10:55 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:11:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:11:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestHTTPRequest.java. Using fallback presentation compiler.
+2026.01.21 10:11:25 INFO  no build target found for /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java. Using fallback presentation compiler.
+2026.01.21 10:11:45 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 10:11:45 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:11:45 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:11:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:11:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:11:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:11:56 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:12:14 WARN  no build target for: /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java
+2026.01.21 10:12:14 INFO  no build target found for /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java. Using fallback presentation compiler.
+2026.01.21 10:12:14 INFO  no build target found for /Users/masfworld/code/iceberg/api/src/main/java/org/apache/iceberg/exceptions/RESTException.java. Using fallback presentation compiler.
+Jan 21, 2026 10:12:50 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
+INFO: Unsupported notification method: $/setTrace
+2026.01.21 10:12:53 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:12:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:13:02 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:13:05 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:16:44 INFO  Shutting down server
+2026.01.21 10:16:44 INFO  shutting down Metals
+2026.01.21 10:16:44 INFO  Exiting server
+2026.01.21 10:21:06 INFO  Started: Metals version 1.6.4 in folders '/Users/masfworld/code/iceberg' for client Cursor 1.105.1.
+2026.01.21 10:21:06 WARN  Using H2 2.4.240 which is newer than the version Flyway has been verified with. The latest verified version of H2 is 2.3.232.
+2026.01.21 10:21:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:21:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:21:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:21:11 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:21:19 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:21:19 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 10:21:35 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:21:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:21:41 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:21:41 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:21:42 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:21:42 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:21:44 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:21:46 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 10:21:50 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:25:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:25:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:25:48 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java]
+2026.01.21 10:25:48 INFO  empty definition using pc, found symbol in pc: _empty_/ErrorResponse#message# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_10-25-48-574.md")
+2026.01.21 10:26:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 10:45:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 14:59:45 INFO  Shutting down server
+2026.01.21 14:59:45 INFO  shutting down Metals
+2026.01.21 14:59:45 INFO  Exiting server
+2026.01.21 16:49:02 INFO  Started: Metals version 1.6.4 in folders '/Users/masfworld/code/iceberg' for client Cursor 1.105.1.
+2026.01.21 16:49:02 WARN  Using H2 2.4.240 which is newer than the version Flyway has been verified with. The latest verified version of H2 is 2.3.232.
+2026.01.21 16:49:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:06 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:49:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:09 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:09 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:09 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:47 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:49:47 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java]
+2026.01.21 16:49:47 INFO  empty definition using pc, found symbol in pc: _empty_/ServiceUnavailableException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-49-47-498.md")
+2026.01.21 16:50:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:24 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:26 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:26 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:32 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:33 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:50:33 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:36 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:37 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:50:37 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:39 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:39 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:39 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:39 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:59 INFO  empty definition using pc, found symbol in pc: _empty_/ErrorResponse#message# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_10-25-48-574.md")
+2026.01.21 16:50:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:50:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:00 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:00 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java]
+2026.01.21 16:51:00 INFO  empty definition using pc, found symbol in pc: java/lang/UnsupportedOperationException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-00-562.md")
+2026.01.21 16:51:00 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:00 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:00 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:00 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:03 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java
+2026.01.21 16:51:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:09 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:18 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:18 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:51:18 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:19 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:19 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:19 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java]
+2026.01.21 16:51:19 INFO  empty definition using pc, found symbol in pc: java/lang/String#equals(). (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-19-580.md")
+2026.01.21 16:51:26 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:27 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:51:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:28 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:51:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:30 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:51:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:30 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java]
+2026.01.21 16:51:30 INFO  empty definition using pc, found symbol in pc: java/lang/IllegalArgumentException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-30-415.md")
+2026.01.21 16:51:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:30 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java]
+2026.01.21 16:51:30 INFO  empty definition using pc, found symbol in pc: _empty_/BadRequestException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-30-488.md")
+2026.01.21 16:51:30 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java]
+2026.01.21 16:51:30 INFO  empty definition using pc, found symbol in pc: _empty_/NotAuthorizedException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-30-582.md")
+2026.01.21 16:51:30 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java]
+2026.01.21 16:51:30 INFO  empty definition using pc, found symbol in pc: _empty_/ForbiddenException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-30-765.md")
+2026.01.21 16:51:30 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java]
+2026.01.21 16:51:30 INFO  empty definition using pc, found symbol in pc: _empty_/ServiceFailureException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-30-782.md")
+2026.01.21 16:51:36 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:51:47 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java
+2026.01.21 16:51:47 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:56 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:58 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:51:58 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:51:58 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:52:00 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:52:00 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:52:00 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:52:02 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:52:11 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:52:11 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:52:14 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java
+2026.01.21 16:52:14 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.21 16:52:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.21 16:52:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.21 16:52:21 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.21 16:52:21 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java]
+2026.01.21 16:52:21 INFO  empty definition using pc, found symbol in pc: _empty_/RESTCatalogAdapter# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-52-21-387.md")
+2026.01.21 16:52:21 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:52:21 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java
+2026.01.21 16:52:21 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.21 16:52:27 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java
+2026.01.21 16:52:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:52:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:52:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:52:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:52:33 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.21 16:52:33 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java
+2026.01.21 16:52:33 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.21 16:52:35 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.21 16:52:35 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:52:35 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:52:41 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.21 16:52:41 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:52:42 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:05 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 16:53:05 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:05 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:27 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 16:53:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:30 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 16:53:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:32 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:32 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 16:53:37 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 16:53:37 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+Jan 21, 2026 4:54:08 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
+INFO: Unsupported notification method: $/setTrace
+2026.01.21 16:57:11 INFO  Shutting down server
+2026.01.21 16:57:11 INFO  shutting down Metals
+2026.01.21 16:57:11 INFO  Exiting server
+2026.01.21 17:09:50 INFO  Started: Metals version 1.6.4 in folders '/Users/masfworld/code/iceberg' for client Cursor 1.105.1.
+2026.01.21 17:09:50 WARN  Using H2 2.4.240 which is newer than the version Flyway has been verified with. The latest verified version of H2 is 2.3.232.
+2026.01.21 17:09:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:09:55 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:12:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:16 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:21 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:21 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:51 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 17:25:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:25:55 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 17:25:55 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:32:05 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:32:06 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 17:32:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:32:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:32:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:32:11 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.21 17:32:11 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:32:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:32:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:33:38 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.21 17:36:14 INFO  Shutting down server
+2026.01.21 17:36:14 INFO  shutting down Metals
+2026.01.21 17:36:14 INFO  Exiting server
+2026.01.21 17:36:14 ERROR Unexpected error initializing server: 
+org.eclipse.lsp4j.jsonrpc.ResponseErrorException: Request window/showMessageRequest failed with message: Canceled
+	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.handleResponse(RemoteEndpoint.java:220)
+	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.consume(RemoteEndpoint.java:204)
+	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.handleMessage(StreamMessageProducer.java:185)
+	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.listen(StreamMessageProducer.java:97)
+	at org.eclipse.lsp4j.jsonrpc.json.ConcurrentMessageProcessor.run(ConcurrentMessageProcessor.java:114)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:572)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.lang.Thread.run(Thread.java:1583)
+
+2026.01.23 10:29:02 INFO  Started: Metals version 1.6.4 in folders '/Users/masfworld/code/iceberg' for client Cursor 1.105.1.
+2026.01.23 10:29:02 WARN  Using H2 2.4.240 which is newer than the version Flyway has been verified with. The latest verified version of H2 is 2.3.232.
+2026.01.23 10:29:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 10:29:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 10:29:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 10:29:04 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.23 10:29:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 10:29:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 10:32:11 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 10:46:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 10:48:05 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 10:48:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 10:50:55 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 10:51:16 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 12:35:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.23 12:35:22 INFO  Shutting down server
+2026.01.23 12:35:22 INFO  shutting down Metals
+2026.01.23 12:35:22 INFO  Exiting server
+2026.01.23 12:35:22 ERROR Unexpected error initializing server: 
+org.eclipse.lsp4j.jsonrpc.ResponseErrorException: Request window/showMessageRequest failed with message: Canceled
+	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.handleResponse(RemoteEndpoint.java:220)
+	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.consume(RemoteEndpoint.java:204)
+	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.handleMessage(StreamMessageProducer.java:185)
+	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.listen(StreamMessageProducer.java:97)
+	at org.eclipse.lsp4j.jsonrpc.json.ConcurrentMessageProcessor.run(ConcurrentMessageProcessor.java:114)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:572)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.lang.Thread.run(Thread.java:1583)
+
+2026.01.27 18:10:46 INFO  Started: Metals version 1.6.5 in folders '/Users/masfworld/code/iceberg' for client Antigravity 1.104.0.
+2026.01.27 18:10:46 INFO  Memory monitor started
+2026.01.27 18:10:46 WARN  Using H2 2.4.240 which is newer than the version Flyway has been verified with. The latest verified version of H2 is 2.3.232.
+2026.01.27 18:10:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:10:47 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:10:49 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:10:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:10:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:10:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:10:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+Jan 27, 2026 6:10:54 PM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 15
+2026.01.27 18:10:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:10:57 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:11:00 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:11:00 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java]
+2026.01.27 18:11:00 INFO  empty definition using pc, found symbol in pc: _empty_/ErrorResponse#builder# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-27/r_empty-definition_18-11-00-495.md")
+2026.01.27 18:11:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:11:05 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:11:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:13:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestETagProvider.java. Using fallback presentation compiler.
+2026.01.27 18:17:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:17:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:18:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:18:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:18:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:18:35 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:18:39 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:18:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:18:42 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:18:42 INFO  empty definition using pc, found symbol in pc: _empty_/BadRequestException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-30-488.md")
+2026.01.27 18:19:24 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:37 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:38 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:38 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:39 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:44 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:44 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java]
+2026.01.27 18:19:44 INFO  empty definition using pc, found symbol in pc: _empty_/AlreadyExistsException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-27/r_empty-definition_18-19-44-693.md")
+2026.01.27 18:19:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:47 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:47 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:47 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:49 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:49 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:51 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:52 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:56 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:56 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:56 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:19:59 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:10 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:10 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:10 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:10 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:12 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:12 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:12 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:12 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:12 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:12 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:14 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:14 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:17 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:20:23 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:20:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:33 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:33 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:33 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:36 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:38 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:38 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:42 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:20:48 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:21:10 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:21:12 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:21:38 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:21:38 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:21:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:21:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:21:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:21:50 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:22:14 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:22:14 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:22:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:22:17 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:22:17 INFO  empty definition using pc, found symbol in pc: java/lang/UnsupportedOperationException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-00-562.md")
+2026.01.27 18:22:36 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:22:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:22:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:22:46 INFO  empty definition using pc, found symbol in pc: java/lang/IllegalArgumentException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-30-415.md")
+2026.01.27 18:22:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:23:10 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:23:10 INFO  empty definition using pc, found symbol in pc: java/lang/UnsupportedOperationException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-00-562.md")
+2026.01.27 18:23:10 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:23:14 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:23:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:23:15 INFO  empty definition using pc, found symbol in pc: java/lang/UnsupportedOperationException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-00-562.md")
+2026.01.27 18:23:16 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:23:19 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:23:19 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:23:19 INFO  empty definition using pc, found symbol in pc: java/lang/IllegalArgumentException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-30-415.md")
+2026.01.27 18:24:14 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:24:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:24:31 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:24:31 INFO  empty definition using pc, found symbol in pc: _empty_/ErrorResponse#message# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_10-25-48-574.md")
+2026.01.27 18:24:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:24:35 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:24:35 INFO  empty definition using pc, found symbol in pc: _empty_/ErrorResponse#message# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_10-25-48-574.md")
+2026.01.27 18:24:38 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:25:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:26:14 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:26:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:26:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:26:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:26:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:26:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:26:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:27:42 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:27:42 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:27:42 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:27:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:27:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:27:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:27:48 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:27:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:27:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:27:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:27:50 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:27:50 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+Jan 27, 2026 6:27:55 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
+INFO: Unsupported notification method: $/setTrace
+Jan 27, 2026 6:27:55 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
+INFO: Unsupported notification method: $/setTrace
+2026.01.27 18:28:37 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:28:37 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:28:37 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:28:41 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:28:41 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:28:41 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:28:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:28:47 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:28:47 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:28:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:29:01 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:29:03 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:29:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:05 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:10 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:10 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:10 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:29:20 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:29:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:30:18 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:30:37 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java
+2026.01.27 18:30:37 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:30:37 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:30:55 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:30:57 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:31:06 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:31:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:31:08 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:32:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:32:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:34:05 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:34:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogAdapter.java. Using fallback presentation compiler.
+2026.01.27 18:34:07 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:34:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:34:07 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:35:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:35:13 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:36:17 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:36:17 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:36:17 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:36:17 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:36:17 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:36:17 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:36:41 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:36:41 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:37:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:24 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:24 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:26 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:26 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:26 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:26 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:27 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:37:36 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:37:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+Jan 27, 2026 6:37:56 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
+INFO: Unsupported notification method: $/setTrace
+2026.01.27 18:38:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:04 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:38:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:38:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:38:28 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:38:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:45 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:48 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:50 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:50 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:50 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:52 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:52 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:52 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:53 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:38:54 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:39:02 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:39:02 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:39:11 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:39:21 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:39:23 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:39:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:39:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:39:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:39:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:39:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/Route.java. Using fallback presentation compiler.
+2026.01.27 18:39:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/Route.java. Using fallback presentation compiler.
+2026.01.27 18:39:25 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/Route.java. Using fallback presentation compiler.
+2026.01.27 18:43:26 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/Route.java. Using fallback presentation compiler.
+2026.01.27 18:43:26 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:43:26 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:43:33 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:43:33 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:33 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:36 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:37 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/RESTCatalogServlet.java. Using fallback presentation compiler.
+2026.01.27 18:43:37 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestRESTCatalog.java. Using fallback presentation compiler.
+2026.01.27 18:43:38 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestRESTCatalog.java. Using fallback presentation compiler.
+2026.01.27 18:43:43 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:43:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:43:44 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:44:36 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestRESTCatalog.java. Using fallback presentation compiler.
+2026.01.27 18:44:36 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestRESTCatalog.java
+2026.01.27 18:44:37 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestRESTCatalog.java. Using fallback presentation compiler.
+2026.01.27 18:44:40 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:44:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:44:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:44:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:44:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:44:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:44:43 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:44:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:44:43 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:12 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:12 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:12 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:13 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:15 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:16 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:17 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:45:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:22 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:23 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:24 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:24 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:29 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:29 INFO  Created report: Optional[file:///Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java]
+2026.01.27 18:45:29 INFO  empty definition using pc, found symbol in pc: _empty_/ErrorResponse#builder#responseCode# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-27/r_empty-definition_18-45-29-214.md")
+2026.01.27 18:45:28 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:45:29 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:45:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestRESTCatalog.java. Using fallback presentation compiler.
+2026.01.27 18:45:34 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:45:34 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:46:36 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:49:46 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:27 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:30 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java
+2026.01.27 18:50:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:30 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/test/java/org/apache/iceberg/rest/TestErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:32 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:50:32 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:32 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:35 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:39 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:40 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:41 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:41 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:50:42 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:51:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:51:03 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:51:05 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:51:05 WARN  no build target for: /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java
+2026.01.27 18:51:05 INFO  no build target found for /Users/masfworld/code/iceberg/core/src/main/java/org/apache/iceberg/rest/ErrorHandlers.java. Using fallback presentation compiler.
+2026.01.27 18:51:05 INFO  empty definition using pc, found symbol in pc: _empty_/ForbiddenException# (full report at: "/Users/masfworld/code/iceberg/.metals/.reports/metals-full/2026-01-21/r_empty-definition_16-51-30-765.md")
