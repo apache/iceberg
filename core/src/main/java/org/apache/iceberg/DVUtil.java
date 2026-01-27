@@ -57,28 +57,22 @@ class DVUtil {
         duplicateDVsByReferencedFile.entrySet().stream()
             .collect(
                 Collectors.toMap(
-                    Map.Entry::getKey, entry -> mergePositions(ops, entry.getValue(), threadpool)));
+                    Map.Entry::getKey,
+                    entry -> readDVsAndMerge(ops, entry.getValue(), threadpool)));
 
     return writeMergedDVs(
         mergedIndices, duplicateDVsByReferencedFile, ops, tableName, ops.current().specsById());
   }
 
   // Merges the position indices for the duplicate DVs for a given referenced file
-  private static PositionDeleteIndex mergePositions(
+  private static PositionDeleteIndex readDVsAndMerge(
       TableOperations ops, List<DeleteFile> dvsForFile, ExecutorService pool) {
     Preconditions.checkArgument(dvsForFile.size() > 1, "Expected more than 1 DV");
-    PositionDeleteIndex[] duplicateDVIndices = new PositionDeleteIndex[dvsForFile.size()];
-    Tasks.range(dvsForFile.size())
-        .executeWith(pool)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .run(
-            i -> {
-              duplicateDVIndices[i] = Deletes.readDV(dvsForFile.get(i), ops.io(), ops.encryption());
-            });
-    PositionDeleteIndex mergedPositions = duplicateDVIndices[0];
+    PositionDeleteIndex[] dvIndices = readDVs(dvsForFile, pool, ops);
+    PositionDeleteIndex mergedPositions = dvIndices[0];
     DeleteFile firstDV = dvsForFile.get(0);
-    for (int i = 1; i < duplicateDVIndices.length; i++) {
+
+    for (int i = 1; i < dvIndices.length; i++) {
       DeleteFile dv = dvsForFile.get(i);
       Preconditions.checkArgument(
           Objects.equals(dv.dataSequenceNumber(), firstDV.dataSequenceNumber()),
@@ -97,10 +91,26 @@ class DVUtil {
       Preconditions.checkArgument(
           Objects.equals(dv.partition(), firstDV.partition()),
           "Cannot merge duplicate added DVs when partition tuples are different");
-      mergedPositions.merge(duplicateDVIndices[i]);
+
+      mergedPositions.merge(dvIndices[i]);
     }
 
     return mergedPositions;
+  }
+
+  private static PositionDeleteIndex[] readDVs(
+      List<DeleteFile> dvs, ExecutorService pool, TableOperations ops) {
+    PositionDeleteIndex[] dvIndices = new PositionDeleteIndex[dvs.size()];
+    Tasks.range(dvIndices.length)
+        .executeWith(pool)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .run(
+            i -> {
+              dvIndices[i] = Deletes.readDV(dvs.get(i), ops.io(), ops.encryption());
+            });
+
+    return dvIndices;
   }
 
   // Produces a Puffin per partition spec containing the merged DVs for that spec
