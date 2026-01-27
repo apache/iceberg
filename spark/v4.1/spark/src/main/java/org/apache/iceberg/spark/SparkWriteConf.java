@@ -485,10 +485,11 @@ public class SparkWriteConf {
         if (parquetCompressionLevel != null) {
           writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
         }
-        writeProperties.put(SparkSQLProperties.SHRED_VARIANTS, String.valueOf(shredVariants()));
+        boolean shouldShredVariants = shredVariants();
+        writeProperties.put(SparkSQLProperties.SHRED_VARIANTS, String.valueOf(shouldShredVariants));
 
         // Add variant shredding configuration properties
-        if (shredVariants()) {
+        if (shouldShredVariants) {
           String variantBufferSize =
               sessionConf.get(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, null);
           if (variantBufferSize != null) {

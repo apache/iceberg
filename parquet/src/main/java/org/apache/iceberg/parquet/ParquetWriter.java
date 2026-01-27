@@ -51,7 +51,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final Map<String, String> metadata;
   private final ParquetProperties props;
   private final CompressionCodecFactory.BytesInputCompressor compressor;
-  private MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
   private final MetricsConfig metricsConfig;
   private final int columnIndexTruncateLength;
@@ -60,6 +59,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final Configuration conf;
   private final InternalFileEncryptor fileEncryptor;
 
+  private MessageType parquetSchema;
   private ColumnChunkPageWriteStore pageStore = null;
   private ColumnWriteStore writeStore;
   private long recordCount = 0;
@@ -141,7 +141,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
         if (!lazy.needsInitialization()) {
           WriterLazyInitializable.InitializationResult result =
-              lazy.initialize(props, compressor, rowGroupOrdinal);
+              lazy.initialize(
+                  props, compressor, rowGroupOrdinal, columnIndexTruncateLength, fileEncryptor);
           this.parquetSchema = result.getSchema();
           this.pageStore.close();
           this.pageStore = result.getPageStore();
@@ -281,11 +282,13 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     if (!closed) {
       this.closed = true;
 
-      // Force initialization if lazy writer still has buffered data
       if (model instanceof WriterLazyInitializable lazy) {
+        // If initialization is not triggered with few data, lazy writer needs to initialize and
+        // process remaining buffered data
         if (lazy.needsInitialization()) {
           WriterLazyInitializable.InitializationResult result =
-              lazy.initialize(props, compressor, rowGroupOrdinal);
+              lazy.initialize(
+                  props, compressor, rowGroupOrdinal, columnIndexTruncateLength, fileEncryptor);
           this.parquetSchema = result.getSchema();
           this.pageStore.close();
           this.pageStore = result.getPageStore();

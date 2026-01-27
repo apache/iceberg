@@ -108,6 +108,9 @@ public class SparkParquetWriterWithVariantShredding
   @Override
   public void setColumnStore(ColumnWriteStore columnStore) {
     // Ignored for lazy initialization - will be set on actualWriter after initialization
+    if (actualWriter != null) {
+      actualWriter.setColumnStore(columnStore);
+    }
   }
 
   @Override
@@ -127,7 +130,9 @@ public class SparkParquetWriterWithVariantShredding
   public InitializationResult initialize(
       ParquetProperties props,
       CompressionCodecFactory.BytesInputCompressor compressor,
-      int rowGroupOrdinal) {
+      int rowGroupOrdinal,
+      int columnIndexTruncateLength,
+      org.apache.parquet.crypto.InternalFileEncryptor fileEncryptor) {
     if (bufferedRows.isEmpty()) {
       throw new IllegalStateException("No buffered rows available for schema inference");
     }
@@ -151,9 +156,9 @@ public class SparkParquetWriterWithVariantShredding
             compressor,
             shreddedSchema,
             props.getAllocator(),
-            64,
+            columnIndexTruncateLength,
             ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED,
-            null,
+            fileEncryptor,
             rowGroupOrdinal);
 
     ColumnWriteStore columnStore = props.newColumnWriteStore(shreddedSchema, pageStore, pageStore);
