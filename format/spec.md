@@ -621,9 +621,11 @@ A manifest file must store the partition spec and other metadata as properties i
 
 The schema of a manifest file is defined by the `manifest_entry` struct, described in the following section.
 
-#### Manifest Entry Fields
+#### Entries in Manifests
 
-The `manifest_entry` struct consists of the following fields:
+Manifests contain entries that describe files or manifests. In V1-V3, these are called manifest entries. In V4, these are called content entries.
+
+The `manifest_entry` struct (V1-V3) or `content_entry` struct (V4) consists of the following fields:
 
 === "v1"
     | Field id, name         | Status    | Type                                                      | Description |
@@ -640,6 +642,141 @@ The `manifest_entry` struct consists of the following fields:
     | **`3  sequence_number`**      | optional  | `long`                                                    | Data sequence number of the file. Inherited when null and status is 1 (added). |
     | **`4  file_sequence_number`** | optional  | `long`                                                    | File sequence number indicating when the file was added. Inherited when null and status is 1 (added). |
     | **`2  data_file`**            | required  | `data_file` struct (see below)                            | File path, partition tuple, metrics, ... |
+
+=== "v3"
+    | Field id, name                | Status    | Type                                                      | Description |
+    |-------------------------------|-----------|-----------------------------------------------------------|-------------|
+    | **`0  status`**               | required  | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions. Deletes are informational only and not used in scans. |
+    | **`1  snapshot_id`**          | optional  | `long`                                                    | Snapshot id where the file was added, or deleted if status is 2. Inherited when null. |
+    | **`3  sequence_number`**      | optional  | `long`                                                    | Data sequence number of the file. Inherited when null and status is 1 (added). |
+    | **`4  file_sequence_number`** | optional  | `long`                                                    | File sequence number indicating when the file was added. Inherited when null and status is 1 (added). |
+    | **`2  data_file`**            | required  | `data_file` struct (see below)                            | File path, partition tuple, metrics, ... |
+
+=== "v4"
+
+    In V4, entries are called content entries. In V1-V3, these were called manifest entries. The V3 `data_file` struct fields are now flattened directly into the content entry.
+
+    **Changes from V3:**
+
+    Structural changes:
+
+    - Status and sequence number fields moved into `tracking_info` struct
+    - `data_file` struct flattened - all fields now at top level of content entry
+    - Delete vector offset and size moved into `content_info` struct
+    - Column statistics moved into `content_stats` struct (replaces `column_sizes`, `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds`, `upper_bounds`, `partition`)
+
+    New content types:
+
+    - `DATA_MANIFEST` (3) - references a data manifest
+    - `DELETE_MANIFEST` (4) - references a delete manifest
+
+    Renamed fields:
+
+    - `content` → `content_type`
+    - `file_path` → `location` (was `data_file.file_path`)
+    - `file_format` → `file_format` (was `data_file.file_format`)
+    - `referenced_data_file` → `referenced_file`
+    - `content_offset` → moved into `content_info.offset`
+    - `content_size_in_bytes` → moved into `content_info.size_in_bytes`
+
+    New fields:
+
+    - `manifest_stats` - statistics for manifest-type entries
+    - `manifest_dv` - inline delete vectors for manifest entries
+
+    ---
+
+    **Root Manifest Content Entries**
+
+    Root manifests contain content entries that can reference data files, delete files, data manifests, or delete manifests.
+
+    Content Entry Schema:
+
+    | Field id, name | Status | Type | Description |
+    |----------|------|------|-------------|
+    | **`134  content_type`** | required | `int` | Type of content: `0` (DATA), `1` (POSITION_DELETES), `2` (EQUALITY_DELETES), `3` (DATA_MANIFEST), `4` (DELETE_MANIFEST) |
+    | **`100  location`** | required | `string` | Full URI of the file or manifest with FS scheme |
+    | **`101  file_format`** | required | `string` | File format: `avro`, `orc`, `parquet`, or `puffin` |
+    | **`147  tracking_info`** | required | `struct<0: int, 1: long, 3: long, 4: long, 142: long>` | Tracking information including status, snapshot ID, and sequence numbers. See [tracking_info structure](#tracking_info-structure) |
+    | **`148  content_info`** | optional | `struct<144: long, 145: long>` | Content offset and size information for delete vectors. Required when `content_type` is `1`. See [content_info structure](#content_info-structure) |
+    | **`149  partition_spec_id`** | required | `int` | Partition spec ID used to write the file or manifest |
+    | **`140  sort_order_id`** | optional | `int` | Sort order ID. Only valid when `content_type` is `0` |
+    | **`103  record_count`** | required | `long` | Number of records in the file, or cardinality of a delete vector |
+    | **`104  file_size_in_bytes`** | required | `long` | Total file size in bytes |
+    | **`146  content_stats`** | optional | `struct` | Column-level statistics. See Column Statistics section |
+    | **`150  manifest_stats`** | optional | `struct<504: long, 505: long, 506: long, 512: long, 513: long, 514: long, 516: long>` | Manifest statistics. Required when `content_type` is `3` or `4`, must be null otherwise. See [manifest_stats structure](#manifest_stats-structure) |
+    | **`143  referenced_file`** | optional | `string` | Location of the data file that a delete vector references (when `content_type` is `1`), or location of affiliated data manifest (when `content_type` is `4`). Null if delete manifest is unaffiliated |
+    | **`131  key_metadata`** | optional | `binary` | Implementation-specific key metadata for encryption |
+    | **`132  split_offsets`** | optional | `list<133: long>` | Split offsets for the file (e.g., row group offsets in Parquet). Must be sorted ascending |
+    | **`135  equality_ids`** | optional | `list<136: int>` | Field IDs used for equality comparison in equality delete files. Required when `content_type` is `2`, must be null otherwise |
+    | **`151  manifest_dv`** | optional | `binary` | Serialized bitmap delete vector for manifest entries. Deletes entries from the manifest at `location`. Only valid when `content_type` is `3` or `4` |
+
+    Requirements by Content Type:
+
+    | Content Type | Required Fields | Optional Fields | Constraints |
+    |--------------|-----------------|-----------------|-------------|
+    | `DATA` (0) | `content_type`, `location`, `file_format`, `tracking_info`, `partition_spec_id`, `record_count`, `file_size_in_bytes` | `sort_order_id`, `content_stats`, `key_metadata`, `split_offsets` | `content_info`, `manifest_stats`, `equality_ids` must be null |
+    | `POSITION_DELETES` (1) | `content_type`, `location`, `file_format`, `tracking_info`, `content_info`, `partition_spec_id`, `record_count`, `file_size_in_bytes`, `referenced_file` | `content_stats`, `key_metadata` | `sort_order_id`, `manifest_stats`, `equality_ids` must be null |
+    | `EQUALITY_DELETES` (2) | `content_type`, `location`, `file_format`, `tracking_info`, `partition_spec_id`, `record_count`, `file_size_in_bytes`, `equality_ids` | `content_stats`, `key_metadata` | `sort_order_id`, `content_info`, `manifest_stats` must be null |
+    | `DATA_MANIFEST` (3) | `content_type`, `location`, `file_format`, `tracking_info`, `partition_spec_id`, `record_count`, `file_size_in_bytes`, `manifest_stats` | `manifest_dv`, `content_stats`, `key_metadata` | `sort_order_id`, `content_info`, `equality_ids`, `split_offsets`, `referenced_file` must be null |
+    | `DELETE_MANIFEST` (4) | `content_type`, `location`, `file_format`, `tracking_info`, `record_count`, `file_size_in_bytes`, `manifest_stats` | `partition_spec_id`, `manifest_dv`, `referenced_file`, `content_stats`, `key_metadata` | `sort_order_id`, `content_info`, `equality_ids`, `split_offsets` must be null. `referenced_file` indicates affinity to a data manifest |
+
+    ---
+
+    **Leaf Manifest Content Entries**
+
+    Leaf manifests (data manifests and delete manifests) contain content entries that reference data files or delete files. `DATA_MANIFEST` (3) and `DELETE_MANIFEST` (4) content types are not allowed in leaf manifests.
+
+    Content Entry Schema:
+
+    The schema is identical to root manifest content entries with the following restrictions:
+
+    - `content_type` must be `0`, `1`, or `2`
+    - `manifest_stats` must be null
+    - `manifest_dv` must be null
+
+    Requirements by Content Type:
+
+    | Content Type | Required Fields | Optional Fields | Constraints |
+    |--------------|-----------------|-----------------|-------------|
+    | `DATA` (0) | `content_type`, `location`, `file_format`, `tracking_info`, `partition_spec_id`, `record_count`, `file_size_in_bytes` | `sort_order_id`, `content_stats`, `key_metadata`, `split_offsets` | `content_info`, `manifest_stats`, `manifest_dv`, `equality_ids` must be null |
+    | `POSITION_DELETES` (1) | `content_type`, `location`, `file_format`, `tracking_info`, `content_info`, `partition_spec_id`, `record_count`, `file_size_in_bytes`, `referenced_file` | `content_stats`, `key_metadata` | `sort_order_id`, `manifest_stats`, `manifest_dv`, `equality_ids` must be null |
+    | `EQUALITY_DELETES` (2) | `content_type`, `location`, `file_format`, `tracking_info`, `partition_spec_id`, `record_count`, `file_size_in_bytes`, `equality_ids` | `content_stats`, `key_metadata` | `sort_order_id`, `content_info`, `manifest_stats`, `manifest_dv` must be null |
+
+    ---
+
+    **Nested Structures**
+
+    `tracking_info` Structure - Contains tracking information for the content entry including status, snapshot ID, and sequence numbers.
+
+    | Field id, name | Status | Type | Description |
+    |----------|------|------|-------------|
+    | **`0  status`** | required | `int` | Entry status: `0` (EXISTING), `1` (ADDED), `2` (DELETED). Used to track additions and deletions. Deleted entries are required when the snapshot has a non-null parent snapshot ID |
+    | **`1  snapshot_id`** | optional | `long` | Snapshot ID where the file was added, or deleted if status is `2`. Inherited when null |
+    | **`3  sequence_number`** | optional | `long` | Data sequence number of the file. Inherited when null and status is `1` (ADDED). Must be equal to `file_sequence_number` if `content_type` is `3` or `4` |
+    | **`4  file_sequence_number`** | optional | `long` | File sequence number indicating when the file was added. Inherited when null and status is `1` (ADDED). Must be equal to `sequence_number` if `content_type` is `3` or `4` |
+    | **`142  first_row_id`** | optional | `long` | The `_row_id` for the first row in the data file when `content_type` is `0`. When `content_type` is `3`, this is the starting `_row_id` to assign to rows added by ADDED data files in the manifest |
+
+    `content_info` Structure - Contains offset and size information for content stored within a file. Required for position delete entries (`content_type` = 1).
+
+    | Field id, name | Status | Type | Description |
+    |----------|------|------|-------------|
+    | **`144  offset`** | required | `long` | The offset in bytes from the beginning of the file where the content starts |
+    | **`145  size_in_bytes`** | required | `long` | The length in bytes of the content within the file |
+
+    `manifest_stats` Structure - Contains statistics about entries in a manifest. Required when `content_type` is `3` (DATA_MANIFEST) or `4` (DELETE_MANIFEST).
+
+    | Field id, name | Status | Type | Description |
+    |----------|------|------|-------------|
+    | **`504  added_files_count`** | required | `long` | Number of entries with status ADDED |
+    | **`505  existing_files_count`** | required | `long` | Number of entries with status EXISTING |
+    | **`506  deleted_files_count`** | required | `long` | Number of entries with status DELETED |
+    | **`512  added_rows_count`** | required | `long` | Number of rows in entries with status ADDED |
+    | **`513  existing_rows_count`** | required | `long` | Number of rows in entries with status EXISTING |
+    | **`514  deleted_rows_count`** | required | `long` | Number of rows in entries with status DELETED |
+    | **`516  min_sequence_number`** | required | `long` | Minimum data sequence number of all entries in the manifest |
+
+    `content_stats` Structure - Contains column-level statistics for the content. See the Column Statistics section for the full structure. This structure replaces the V3 fields: `column_sizes`, `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds`, `upper_bounds`, and `partition`.
 
 The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct, defined below, is nested inside the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
 
