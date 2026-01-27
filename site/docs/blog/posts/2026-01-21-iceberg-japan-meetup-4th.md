@@ -54,7 +54,7 @@ read/write operations.
 
 ### Apache Iceberg V3: Current Status and Migration
 
-// TODO: Add speakerdeck iframe
+<iframe class="speakerdeck-iframe" frameborder="0" src="https://speakerdeck.com/player/db6c8369596a44c79c9bd6f085bd9ed6" title="Apache Iceberg V3 and migration to V3" allowfullscreen="true" style="border: 0px; background: padding-box padding-box rgba(0, 0, 0, 0.1); margin: 0px; padding: 0px; border-radius: 6px; box-shadow: rgba(0, 0, 0, 0.2) 0px 5px 40px; width: 100%; height: auto; aspect-ratio: 560 / 315;" data-ratio="1.7777777777777777"></iframe>
 
 Tomohiro Tanaka (AWS) discussed new data types and features in Iceberg V3, including unknown, variant, timestamp nanos,
 and geometry/geography types. He also covered Deletion Vectors, Row Lineage, Default Values, Multi-Argument Transforms,
