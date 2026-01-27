@@ -69,6 +69,7 @@ mkdir -p "$FWDIR"/lib
 
 $java_cmd -jar "$rat_jar" \
   --input-exclude-file "$FWDIR"/dev/.rat-excludes \
+  --input-include-std HIDDEN_DIR \
   --output-style missing-headers \
   --log-level ERROR \
   -- "$FWDIR" || exit 1
