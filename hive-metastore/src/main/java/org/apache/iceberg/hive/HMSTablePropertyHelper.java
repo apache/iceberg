@@ -136,7 +136,8 @@ public class HMSTablePropertyHelper {
       ViewMetadata metadata,
       Set<String> obsoleteProps,
       long maxHiveTablePropertySize,
-      String currentLocation) {
+      String currentLocation,
+      String sqlQuery) {
     Map<String, String> parameters =
         Optional.ofNullable(tbl.getParameters()).orElseGet(Maps::newHashMap);
 
@@ -154,6 +155,11 @@ public class HMSTablePropertyHelper {
         metadata.schema(),
         maxHiveTablePropertySize);
     tbl.setParameters(parameters);
+
+    if (sqlQuery != null) {
+      tbl.setViewExpandedText(sqlQuery);
+      tbl.setViewOriginalText(sqlQuery);
+    }
   }
 
   private static void setCommonParameters(

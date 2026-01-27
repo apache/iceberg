@@ -23,6 +23,9 @@ import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAUL
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
+import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -32,10 +35,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
@@ -64,6 +71,8 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -75,6 +84,7 @@ import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -106,7 +116,151 @@ public class CatalogHandlers {
       InMemoryPlanningState.getInstance();
   private static final ExecutorService ASYNC_PLANNING_POOL = Executors.newSingleThreadExecutor();
 
+  // Advanced idempotency store with TTL and in-flight coalescing.
+  //
+  // Note: This is a simple in-memory implementation meant for tests and lightweight usage.
+  // Production servers should provide a durable store.
+  private static final ConcurrentMap<String, IdempotencyEntry> IDEMPOTENCY_STORE =
+      Maps.newConcurrentMap();
+  private static volatile long idempotencyLifetimeMillis = TimeUnit.MINUTES.toMillis(30);
+
   private CatalogHandlers() {}
+
+  @SuppressWarnings("unchecked")
+  static <T extends RESTResponse> T withIdempotency(HTTPRequest httpRequest, Supplier<T> action) {
+    return withIdempotencyInternal(httpRequest, action);
+  }
+
+  static void withIdempotency(HTTPRequest httpRequest, Runnable action) {
+    withIdempotencyInternal(
+        httpRequest,
+        () -> {
+          action.run();
+          return Boolean.TRUE;
+        });
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T withIdempotencyInternal(HTTPRequest httpRequest, Supplier<T> action) {
+    Optional<HTTPHeaders.HTTPHeader> keyHeader =
+        httpRequest.headers().firstEntry(RESTUtil.IDEMPOTENCY_KEY_HEADER);
+    if (keyHeader.isEmpty()) {
+      return action.get();
+    }
+
+    String key = keyHeader.get().value();
+
+    // The "first" request for this Idempotency-Key is the one that wins
+    // IDEMPOTENCY_STORE.compute(...)
+    // and creates (or replaces) the IN_PROGRESS entry. Only that request executes the action and
+    // finalizes the entry; concurrent requests for the same key wait on the latch and then replay
+    // the finalized result/error.
+    AtomicBoolean isFirst = new AtomicBoolean(false);
+    IdempotencyEntry entry =
+        IDEMPOTENCY_STORE.compute(
+            key,
+            (k, current) -> {
+              if (current == null || current.isExpired()) {
+                isFirst.set(true);
+                return IdempotencyEntry.inProgress();
+              }
+              return current;
+            });
+
+    // Fast-path: already finalized (another request completed earlier)
+    if (entry.status == IdempotencyEntry.Status.FINALIZED) {
+      if (entry.error != null) {
+        throw entry.error;
+      }
+      return (T) entry.responseBody;
+    }
+
+    if (!isFirst.get()) {
+      // In-flight coalescing: wait for the first request to finalize
+      entry.awaitFinalization();
+      if (entry.error != null) {
+        throw entry.error;
+      }
+      return (T) entry.responseBody;
+    }
+
+    // First request: execute the action and finalize the entry
+    try {
+      T res = action.get();
+      entry.finalizeSuccess(res);
+      return res;
+    } catch (RuntimeException e) {
+      entry.finalizeError(e);
+      throw e;
+    }
+  }
+
+  @VisibleForTesting
+  static void setIdempotencyLifetimeFromIso(String isoDuration) {
+    if (isoDuration == null) {
+      return;
+    }
+    try {
+      idempotencyLifetimeMillis = Duration.parse(isoDuration).toMillis();
+    } catch (Exception e) {
+      throw new IllegalArgumentException("Invalid idempotency lifetime: " + isoDuration, e);
+    }
+  }
+
+  private static final class IdempotencyEntry {
+    enum Status {
+      IN_PROGRESS,
+      FINALIZED
+    }
+
+    private final CountDownLatch latch;
+    private final long firstSeenMillis;
+    private volatile Status status;
+    private volatile Object responseBody;
+    private volatile RuntimeException error;
+
+    private IdempotencyEntry(Status status) {
+      this.status = status;
+      this.latch = new CountDownLatch(1);
+      this.firstSeenMillis = System.currentTimeMillis();
+    }
+
+    static IdempotencyEntry inProgress() {
+      return new IdempotencyEntry(Status.IN_PROGRESS);
+    }
+
+    void finalizeSuccess(Object body) {
+      this.responseBody = body;
+      this.status = Status.FINALIZED;
+      this.latch.countDown();
+    }
+
+    void finalizeError(RuntimeException cause) {
+      this.error = cause;
+      this.status = Status.FINALIZED;
+      this.latch.countDown();
+    }
+
+    void awaitFinalization() {
+      try {
+        this.latch.await();
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(
+            "Interrupted while waiting for idempotent request to complete", ie);
+      }
+    }
+
+    boolean isExpired() {
+      if (this.status != Status.FINALIZED) {
+        return false;
+      }
+
+      Instant expiry =
+          Instant.ofEpochMilli(this.firstSeenMillis).plusMillis(idempotencyLifetimeMillis);
+      return Instant.now().isAfter(expiry);
+    }
+  }
 
   /**
    * Exception used to avoid retrying commits when assertions fail.
@@ -593,6 +747,18 @@ public class CatalogHandlers {
     }
   }
 
+  public static LoadViewResponse registerView(
+      ViewCatalog catalog, Namespace namespace, RegisterViewRequest request) {
+    request.validate();
+
+    TableIdentifier identifier = TableIdentifier.of(namespace, request.name());
+    View view = catalog.registerView(identifier, request.metadataLocation());
+    return ImmutableLoadViewResponse.builder()
+        .metadata(asBaseView(view).operations().current())
+        .metadataLocation(request.metadataLocation())
+        .build();
+  }
+
   static ViewMetadata commit(ViewOperations ops, UpdateTableRequest request) {
     AtomicBoolean isRetry = new AtomicBoolean(false);
     try {
@@ -805,35 +971,38 @@ public class CatalogHandlers {
    */
   private static Pair<List<FileScanTask>, String> planFilesFor(
       Scan<?, FileScanTask, ?> scan, String planId, String tableId, int tasksPerPlanTask) {
-    Iterable<FileScanTask> planTasks = scan.planFiles();
-    String planTaskPrefix = planId + "-" + tableId + "-";
+    try (CloseableIterable<FileScanTask> planTasks = scan.planFiles()) {
+      String planTaskPrefix = planId + "-" + tableId + "-";
 
-    // Handle empty table scans
-    if (!planTasks.iterator().hasNext()) {
-      String planTaskKey = planTaskPrefix + "0";
-      // Add empty scan to planning state so async calls know the scan completed
-      IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, Collections.emptyList());
-      return Pair.of(Collections.emptyList(), planTaskKey);
-    }
-
-    Iterable<List<FileScanTask>> taskGroupings = Iterables.partition(planTasks, tasksPerPlanTask);
-    int planTaskSequence = 0;
-    String previousPlanTask = null;
-    String firstPlanTaskKey = null;
-    List<FileScanTask> initialFileScanTasks = null;
-    for (List<FileScanTask> taskGrouping : taskGroupings) {
-      String planTaskKey = planTaskPrefix + planTaskSequence++;
-      IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, taskGrouping);
-      if (previousPlanTask != null) {
-        IN_MEMORY_PLANNING_STATE.addNextPlanTask(previousPlanTask, planTaskKey);
-      } else {
-        firstPlanTaskKey = planTaskKey;
-        initialFileScanTasks = taskGrouping;
+      // Handle empty table scans
+      if (!planTasks.iterator().hasNext()) {
+        String planTaskKey = planTaskPrefix + "0";
+        // Add empty scan to planning state so async calls know the scan completed
+        IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, Collections.emptyList());
+        return Pair.of(Collections.emptyList(), planTaskKey);
       }
 
-      previousPlanTask = planTaskKey;
+      Iterable<List<FileScanTask>> taskGroupings = Iterables.partition(planTasks, tasksPerPlanTask);
+      int planTaskSequence = 0;
+      String previousPlanTask = null;
+      String firstPlanTaskKey = null;
+      List<FileScanTask> initialFileScanTasks = null;
+      for (List<FileScanTask> taskGrouping : taskGroupings) {
+        String planTaskKey = planTaskPrefix + planTaskSequence++;
+        IN_MEMORY_PLANNING_STATE.addPlanTask(planTaskKey, taskGrouping);
+        if (previousPlanTask != null) {
+          IN_MEMORY_PLANNING_STATE.addNextPlanTask(previousPlanTask, planTaskKey);
+        } else {
+          firstPlanTaskKey = planTaskKey;
+          initialFileScanTasks = taskGrouping;
+        }
+
+        previousPlanTask = planTaskKey;
+      }
+      return Pair.of(initialFileScanTasks, firstPlanTaskKey);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
-    return Pair.of(initialFileScanTasks, firstPlanTaskKey);
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")

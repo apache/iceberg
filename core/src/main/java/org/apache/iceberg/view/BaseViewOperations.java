@@ -184,7 +184,7 @@ public abstract class BaseViewOperations extends BaseMetastoreOperations impleme
         newLocation,
         shouldRetry,
         numRetries,
-        metadataLocation -> ViewMetadataParser.read(io().newInputFile(metadataLocation)));
+        metadataLocation -> ViewMetadataParser.read(io(), metadataLocation));
   }
 
   protected void refreshFromMetadataLocation(

@@ -53,6 +53,7 @@ import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -69,6 +70,7 @@ import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
@@ -97,6 +99,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           .put(ForbiddenException.class, 403)
           .put(NoSuchNamespaceException.class, 404)
           .put(NoSuchTableException.class, 404)
+          .put(NotFoundException.class, 404)
           .put(NoSuchViewException.class, 404)
           .put(NoSuchIcebergTableException.class, 404)
           .put(UnsupportedOperationException.class, 406)
@@ -205,8 +208,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       case CREATE_NAMESPACE:
         if (asNamespaceCatalog != null) {
           CreateNamespaceRequest request = castRequest(CreateNamespaceRequest.class, body);
-          return castResponse(
-              responseType, CatalogHandlers.createNamespace(asNamespaceCatalog, request));
+          return CatalogHandlers.withIdempotency(
+              httpRequest,
+              () ->
+                  castResponse(
+                      responseType, CatalogHandlers.createNamespace(asNamespaceCatalog, request)));
         }
         break;
 
@@ -227,7 +233,9 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
       case DROP_NAMESPACE:
         if (asNamespaceCatalog != null) {
-          CatalogHandlers.dropNamespace(asNamespaceCatalog, namespaceFromPathVars(vars));
+          CatalogHandlers.withIdempotency(
+              httpRequest,
+              () -> CatalogHandlers.dropNamespace(asNamespaceCatalog, namespaceFromPathVars(vars)));
           return null;
         }
         break;
@@ -237,9 +245,13 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           Namespace namespace = namespaceFromPathVars(vars);
           UpdateNamespacePropertiesRequest request =
               castRequest(UpdateNamespacePropertiesRequest.class, body);
-          return castResponse(
-              responseType,
-              CatalogHandlers.updateNamespaceProperties(asNamespaceCatalog, namespace, request));
+          return CatalogHandlers.withIdempotency(
+              httpRequest,
+              () ->
+                  castResponse(
+                      responseType,
+                      CatalogHandlers.updateNamespaceProperties(
+                          asNamespaceCatalog, namespace, request)));
         }
         break;
 
@@ -266,19 +278,29 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             return castResponse(
                 responseType, CatalogHandlers.stageTableCreate(catalog, namespace, request));
           } else {
-            LoadTableResponse response = CatalogHandlers.createTable(catalog, namespace, request);
-            responseHeaders.accept(
-                ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
-            return castResponse(responseType, response);
+            return CatalogHandlers.withIdempotency(
+                httpRequest,
+                () -> {
+                  LoadTableResponse response =
+                      CatalogHandlers.createTable(catalog, namespace, request);
+                  responseHeaders.accept(
+                      ImmutableMap.of(
+                          HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+                  return castResponse(responseType, response);
+                });
           }
         }
 
       case DROP_TABLE:
         {
           if (PropertyUtil.propertyAsBoolean(vars, "purgeRequested", false)) {
-            CatalogHandlers.purgeTable(catalog, tableIdentFromPathVars(vars));
+            CatalogHandlers.withIdempotency(
+                httpRequest,
+                () -> CatalogHandlers.purgeTable(catalog, tableIdentFromPathVars(vars)));
           } else {
-            CatalogHandlers.dropTable(catalog, tableIdentFromPathVars(vars));
+            CatalogHandlers.withIdempotency(
+                httpRequest,
+                () -> CatalogHandlers.dropTable(catalog, tableIdentFromPathVars(vars)));
           }
           return null;
         }
@@ -350,36 +372,47 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
       case REGISTER_TABLE:
         {
-          LoadTableResponse response =
-              CatalogHandlers.registerTable(
-                  catalog,
-                  namespaceFromPathVars(vars),
-                  castRequest(RegisterTableRequest.class, body));
+          return CatalogHandlers.withIdempotency(
+              httpRequest,
+              () -> {
+                LoadTableResponse response =
+                    CatalogHandlers.registerTable(
+                        catalog,
+                        namespaceFromPathVars(vars),
+                        castRequest(RegisterTableRequest.class, body));
 
-          responseHeaders.accept(
-              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+                responseHeaders.accept(
+                    ImmutableMap.of(
+                        HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
 
-          return castResponse(responseType, response);
+                return castResponse(responseType, response);
+              });
         }
 
       case UPDATE_TABLE:
         {
-          LoadTableResponse response =
-              CatalogHandlers.updateTable(
-                  catalog,
-                  tableIdentFromPathVars(vars),
-                  castRequest(UpdateTableRequest.class, body));
+          return CatalogHandlers.withIdempotency(
+              httpRequest,
+              () -> {
+                LoadTableResponse response =
+                    CatalogHandlers.updateTable(
+                        catalog,
+                        tableIdentFromPathVars(vars),
+                        castRequest(UpdateTableRequest.class, body));
 
-          responseHeaders.accept(
-              ImmutableMap.of(HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
+                responseHeaders.accept(
+                    ImmutableMap.of(
+                        HttpHeaders.ETAG, ETagProvider.of(response.metadataLocation())));
 
-          return castResponse(responseType, response);
+                return castResponse(responseType, response);
+              });
         }
 
       case RENAME_TABLE:
         {
           RenameTableRequest request = castRequest(RenameTableRequest.class, body);
-          CatalogHandlers.renameTable(catalog, request);
+          CatalogHandlers.withIdempotency(
+              httpRequest, () -> CatalogHandlers.renameTable(catalog, request));
           return null;
         }
 
@@ -393,7 +426,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       case COMMIT_TRANSACTION:
         {
           CommitTransactionRequest request = castRequest(CommitTransactionRequest.class, body);
-          commitTransaction(catalog, request);
+          CatalogHandlers.withIdempotency(httpRequest, () -> commitTransaction(catalog, request));
           return null;
         }
 
@@ -420,8 +453,12 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           if (null != asViewCatalog) {
             Namespace namespace = namespaceFromPathVars(vars);
             CreateViewRequest request = castRequest(CreateViewRequest.class, body);
-            return castResponse(
-                responseType, CatalogHandlers.createView(asViewCatalog, namespace, request));
+            return CatalogHandlers.withIdempotency(
+                httpRequest,
+                () ->
+                    castResponse(
+                        responseType,
+                        CatalogHandlers.createView(asViewCatalog, namespace, request)));
           }
           break;
         }
@@ -449,8 +486,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           if (null != asViewCatalog) {
             TableIdentifier ident = viewIdentFromPathVars(vars);
             UpdateTableRequest request = castRequest(UpdateTableRequest.class, body);
-            return castResponse(
-                responseType, CatalogHandlers.updateView(asViewCatalog, ident, request));
+            return CatalogHandlers.withIdempotency(
+                httpRequest,
+                () ->
+                    castResponse(
+                        responseType, CatalogHandlers.updateView(asViewCatalog, ident, request)));
           }
           break;
         }
@@ -459,7 +499,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         {
           if (null != asViewCatalog) {
             RenameTableRequest request = castRequest(RenameTableRequest.class, body);
-            CatalogHandlers.renameView(asViewCatalog, request);
+            CatalogHandlers.withIdempotency(
+                httpRequest, () -> CatalogHandlers.renameView(asViewCatalog, request));
             return null;
           }
           break;
@@ -468,8 +509,21 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       case DROP_VIEW:
         {
           if (null != asViewCatalog) {
-            CatalogHandlers.dropView(asViewCatalog, viewIdentFromPathVars(vars));
+            CatalogHandlers.withIdempotency(
+                httpRequest,
+                () -> CatalogHandlers.dropView(asViewCatalog, viewIdentFromPathVars(vars)));
             return null;
+          }
+          break;
+        }
+
+      case REGISTER_VIEW:
+        {
+          if (null != asViewCatalog) {
+            Namespace namespace = namespaceFromPathVars(vars);
+            RegisterViewRequest request = castRequest(RegisterViewRequest.class, body);
+            return castResponse(
+                responseType, CatalogHandlers.registerView(asViewCatalog, namespace, request));
           }
           break;
         }
@@ -566,8 +620,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         vars.putAll(request.queryParameters());
         vars.putAll(routeAndVars.second());
 
-        return handleRequest(
-            routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
+        T resp =
+            handleRequest(
+                routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
+        return resp;
       } catch (RuntimeException e) {
         configureResponseFromException(e, errorBuilder);
       }

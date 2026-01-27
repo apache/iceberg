@@ -18,24 +18,37 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
+import java.util.Arrays;
 import java.util.Map;
-import org.apache.flink.metrics.MetricGroup;
+import java.util.function.ToLongFunction;
+import org.apache.flink.metrics.groups.SinkWriterMetricGroup;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.flink.sink.IcebergStreamWriterMetrics;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ScanTaskUtil;
 
 class DynamicWriterMetrics {
 
   private final Map<String, IcebergStreamWriterMetrics> metrics;
-  private final MetricGroup mainMetricsGroup;
+  private final SinkWriterMetricGroup mainMetricsGroup;
 
-  DynamicWriterMetrics(MetricGroup mainMetricsGroup) {
+  DynamicWriterMetrics(SinkWriterMetricGroup mainMetricsGroup) {
     this.mainMetricsGroup = mainMetricsGroup;
     this.metrics = Maps.newHashMap();
   }
 
+  SinkWriterMetricGroup mainMetricsGroup() {
+    return this.mainMetricsGroup;
+  }
+
   public void updateFlushResult(String fullTableName, WriteResult result) {
     writerMetrics(fullTableName).updateFlushResult(result);
+
+    long bytesOutTotal = sum(result.dataFiles()) + sum(result.deleteFiles());
+    this.mainMetricsGroup.getNumBytesSendCounter().inc(bytesOutTotal);
   }
 
   public void flushDuration(String fullTableName, long flushDurationMs) {
@@ -45,5 +58,17 @@ class DynamicWriterMetrics {
   IcebergStreamWriterMetrics writerMetrics(String fullTableName) {
     return metrics.computeIfAbsent(
         fullTableName, tableName -> new IcebergStreamWriterMetrics(mainMetricsGroup, tableName));
+  }
+
+  private static long sum(DataFile[] files) {
+    return sum(files, DataFile::fileSizeInBytes);
+  }
+
+  private static long sum(DeleteFile[] files) {
+    return sum(files, ScanTaskUtil::contentSizeInBytes);
+  }
+
+  private static <T extends ContentFile<T>> long sum(T[] files, ToLongFunction<T> sizeExtractor) {
+    return Arrays.stream(files).mapToLong(sizeExtractor).sum();
   }
 }

@@ -37,6 +37,7 @@ public class ManifestFileBean implements ManifestFile, Serializable {
   private Integer content = null;
   private Long sequenceNumber = null;
   private Long firstRowId = null;
+  private byte[] keyMetadata = null;
 
   public static ManifestFileBean fromManifest(ManifestFile manifest) {
     ManifestFileBean bean = new ManifestFileBean();
@@ -48,6 +49,7 @@ public class ManifestFileBean implements ManifestFile, Serializable {
     bean.setContent(manifest.content().id());
     bean.setSequenceNumber(manifest.sequenceNumber());
     bean.setFirstRowId(manifest.firstRowId());
+    bean.setKeyMetadata(manifest.keyMetadata() == null ? null : manifest.keyMetadata().array());
 
     return bean;
   }
@@ -102,6 +104,14 @@ public class ManifestFileBean implements ManifestFile, Serializable {
 
   public void setFirstRowId(Long firstRowId) {
     this.firstRowId = firstRowId;
+  }
+
+  public byte[] getKeyMetadata() {
+    return keyMetadata;
+  }
+
+  public void setKeyMetadata(byte[] keyMetadata) {
+    this.keyMetadata = keyMetadata;
   }
 
   @Override
@@ -176,7 +186,7 @@ public class ManifestFileBean implements ManifestFile, Serializable {
 
   @Override
   public ByteBuffer keyMetadata() {
-    return null;
+    return keyMetadata == null ? null : ByteBuffer.wrap(keyMetadata);
   }
 
   @Override

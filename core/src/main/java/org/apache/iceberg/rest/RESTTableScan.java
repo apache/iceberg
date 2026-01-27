@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -35,8 +37,12 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.TableScanContext;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
@@ -51,6 +57,7 @@ class RESTTableScan extends DataTableScan {
   private static final int MAX_ATTEMPTS = 10; // Max number of poll checks
   private static final long MAX_WAIT_TIME_MS = 5 * 60 * 1000; // Total maximum duration (5 minutes)
   private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
+  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   private final RESTClient client;
   private final Map<String, String> headers;
@@ -60,7 +67,11 @@ class RESTTableScan extends DataTableScan {
   private final TableIdentifier tableIdentifier;
   private final Set<Endpoint> supportedEndpoints;
   private final ParserContext parserContext;
-  private String currentPlanId = null;
+  private final Map<String, String> catalogProperties;
+  private final Object hadoopConf;
+  private final FileIO tableIo;
+  private String planId = null;
+  private FileIO fileIOForPlanId = null;
 
   RESTTableScan(
       Table table,
@@ -71,7 +82,10 @@ class RESTTableScan extends DataTableScan {
       TableOperations operations,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
-      Set<Endpoint> supportedEndpoints) {
+      Set<Endpoint> supportedEndpoints,
+      FileIO tableIo,
+      Map<String, String> catalogProperties,
+      Object hadoopConf) {
     super(table, schema, context);
     this.table = table;
     this.client = client;
@@ -85,6 +99,9 @@ class RESTTableScan extends DataTableScan {
             .add("specsById", table.specs())
             .add("caseSensitive", context().caseSensitive())
             .build();
+    this.tableIo = tableIo;
+    this.catalogProperties = catalogProperties;
+    this.hadoopConf = hadoopConf;
   }
 
   @Override
@@ -99,7 +116,15 @@ class RESTTableScan extends DataTableScan {
         operations,
         tableIdentifier,
         resourcePaths,
-        supportedEndpoints);
+        supportedEndpoints,
+        io(),
+        catalogProperties,
+        hadoopConf);
+  }
+
+  @Override
+  protected FileIO io() {
+    return null != fileIOForPlanId ? fileIOForPlanId : tableIo;
   }
 
   @Override
@@ -149,31 +174,44 @@ class RESTTableScan extends DataTableScan {
             stringStringMap -> {},
             parserContext);
 
+    this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
+    if (null != planId && !response.credentials().isEmpty()) {
+      this.fileIOForPlanId = fileIOForPlanId(response.credentials());
+    }
+
     switch (planStatus) {
       case COMPLETED:
-        currentPlanId = response.planId();
         return scanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
         Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
-        return fetchPlanningResult(response.planId());
+        return fetchPlanningResult();
       case FAILED:
         throw new IllegalStateException(
-            String.format(
-                "Received status: %s for planId: %s", PlanStatus.FAILED, response.planId()));
+            String.format("Received status: %s for planId: %s", PlanStatus.FAILED, planId));
       case CANCELLED:
         throw new IllegalStateException(
-            String.format(
-                "Received status: %s for planId: %s", PlanStatus.CANCELLED, response.planId()));
+            String.format("Received status: %s for planId: %s", PlanStatus.CANCELLED, planId));
       default:
         throw new IllegalStateException(
-            String.format("Invalid planStatus: %s for planId: %s", planStatus, response.planId()));
+            String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
     }
   }
 
-  private CloseableIterable<FileScanTask> fetchPlanningResult(String planId) {
-    currentPlanId = planId;
+  private FileIO fileIOForPlanId(List<Credential> storageCredentials) {
+    return CatalogUtil.loadFileIO(
+        catalogProperties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL),
+        ImmutableMap.<String, String>builder()
+            .putAll(catalogProperties)
+            .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId)
+            .buildKeepingLast(),
+        hadoopConf,
+        storageCredentials.stream()
+            .map(c -> StorageCredential.create(c.prefix(), c.config()))
+            .collect(Collectors.toList()));
+  }
 
+  private CloseableIterable<FileScanTask> fetchPlanningResult() {
     RetryPolicy<FetchPlanningResultResponse> retryPolicy =
         RetryPolicy.<FetchPlanningResultResponse>builder()
             .handleResultIf(response -> response.planStatus() == PlanStatus.SUBMITTED)
@@ -220,6 +258,10 @@ class RESTTableScan extends DataTableScan {
           response.planStatus(),
           planId);
 
+      if (!response.credentials().isEmpty()) {
+        this.fileIOForPlanId = fileIOForPlanId(response.credentials());
+      }
+
       return scanTasksIterable(response.planTasks(), response.fileScanTasks());
     } catch (FailsafeException e) {
       // FailsafeException is thrown when retries are exhausted (Max Attempts/Duration)
@@ -260,7 +302,6 @@ class RESTTableScan extends DataTableScan {
   @VisibleForTesting
   @SuppressWarnings("checkstyle:RegexpMultiline")
   public boolean cancelPlan() {
-    String planId = currentPlanId;
     if (planId == null || !supportedEndpoints.contains(Endpoint.V1_CANCEL_TABLE_SCAN_PLAN)) {
       return false;
     }
@@ -272,7 +313,7 @@ class RESTTableScan extends DataTableScan {
           null,
           headers,
           ErrorHandlers.planErrorHandler());
-      currentPlanId = null;
+      this.planId = null;
       return true;
     } catch (Exception e) {
       // Plan might have already completed or failed, which is acceptable

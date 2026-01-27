@@ -61,6 +61,7 @@ on:
     - 'CONTRIBUTING.md'
     - '**/LICENSE'
     - '**/NOTICE'
+    - 'doap.rdf'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -72,7 +73,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        jvm: [11, 17, 21]
+        jvm: [17, 21]
     env:
       SPARK_LOCAL_IP: localhost
     steps:

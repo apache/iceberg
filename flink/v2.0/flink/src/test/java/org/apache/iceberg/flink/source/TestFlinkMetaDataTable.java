@@ -50,6 +50,7 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.avro.Avro;
@@ -625,8 +626,9 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     assertThat(metadataLog.getField("latest_snapshot_id")).isEqualTo(parentSnapshot.snapshotId());
 
     metadataLog = metadataLogs.get(2);
-    assertThat(metadataLog.getField("timestamp"))
-        .isEqualTo(Instant.ofEpochMilli(currentSnapshot.timestampMillis()));
+    assertThat((Instant) metadataLog.getFieldAs("timestamp"))
+        .isAfterOrEqualTo(Instant.ofEpochMilli(currentSnapshot.timestampMillis()))
+        .isEqualTo(Instant.ofEpochMilli(tableMetadata.lastUpdatedMillis()));
     assertThat(metadataLog.getField("file")).isEqualTo(tableMetadata.metadataFileLocation());
     assertThat(metadataLog.getField("latest_snapshot_id")).isEqualTo(currentSnapshot.snapshotId());
     assertThat(metadataLog.getField("latest_schema_id")).isEqualTo(currentSnapshot.schemaId());
@@ -640,7 +642,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
             TABLE_NAME, currentSnapshotId);
     assertThat(metadataLogWithFilters).hasSize(1);
     metadataLog = metadataLogWithFilters.get(0);
-    assertThat(Instant.ofEpochMilli(tableMetadata.currentSnapshot().timestampMillis()))
+    assertThat(Instant.ofEpochMilli(tableMetadata.lastUpdatedMillis()))
         .isEqualTo(metadataLog.getField("timestamp"));
 
     assertThat(metadataLog.getField("file")).isEqualTo(tableMetadata.metadataFileLocation());
@@ -695,7 +697,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     // Check branch entries in refs table
     List<Row> mainBranch =
         sql("SELECT * FROM %s$refs WHERE name='main' AND type='BRANCH'", TABLE_NAME);
-    assertThat((String) mainBranch.get(0).getFieldAs("name")).isEqualTo("main");
+    assertThat((String) mainBranch.get(0).getFieldAs("name")).isEqualTo(SnapshotRef.MAIN_BRANCH);
     assertThat((String) mainBranch.get(0).getFieldAs("type")).isEqualTo("BRANCH");
     assertThat((Long) mainBranch.get(0).getFieldAs("snapshot_id")).isEqualTo(currentSnapshotId);
     List<Row> testBranch =
@@ -732,7 +734,8 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     assertThat((String) testTagProjection.get(0).getFieldAs("min_snapshots_to_keep")).isNull();
     List<Row> mainBranchProjection =
         sql("SELECT name, type FROM %s$refs WHERE name='main' AND type = 'BRANCH'", TABLE_NAME);
-    assertThat((String) mainBranchProjection.get(0).getFieldAs("name")).isEqualTo("main");
+    assertThat((String) mainBranchProjection.get(0).getFieldAs("name"))
+        .isEqualTo(SnapshotRef.MAIN_BRANCH);
     assertThat((String) mainBranchProjection.get(0).getFieldAs("type")).isEqualTo("BRANCH");
     List<Row> testBranchProjection =
         sql(

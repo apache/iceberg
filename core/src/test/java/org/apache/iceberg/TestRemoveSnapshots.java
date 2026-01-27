@@ -1388,7 +1388,7 @@ public class TestRemoveSnapshots extends TestBase {
     table
         .manageSnapshots()
         .createTag("tag", table.currentSnapshot().snapshotId())
-        .replaceBranch("main", initialSnapshotId)
+        .replaceBranch(SnapshotRef.MAIN_BRANCH, initialSnapshotId)
         .commit();
 
     removeSnapshots(table)
@@ -1426,7 +1426,7 @@ public class TestRemoveSnapshots extends TestBase {
         .manageSnapshots()
         .createBranch("branch", table.currentSnapshot().snapshotId())
         .setMaxSnapshotAgeMs("branch", Long.MAX_VALUE)
-        .replaceBranch("main", initialSnapshotId)
+        .replaceBranch(SnapshotRef.MAIN_BRANCH, initialSnapshotId)
         .commit();
 
     removeSnapshots(table)
