@@ -52,7 +52,6 @@ class DVUtil {
       TableOperations ops,
       Map<String, List<DeleteFile>> duplicateDVsByReferencedFile,
       String tableName,
-      Map<Integer, PartitionSpec> specs,
       ExecutorService threadpool) {
     Map<String, PositionDeleteIndex> mergedIndices =
         duplicateDVsByReferencedFile.entrySet().stream()
@@ -60,7 +59,8 @@ class DVUtil {
                 Collectors.toMap(
                     Map.Entry::getKey, entry -> mergePositions(ops, entry.getValue(), threadpool)));
 
-    return writeMergedDVs(mergedIndices, duplicateDVsByReferencedFile, ops, tableName, specs);
+    return writeMergedDVs(
+        mergedIndices, duplicateDVsByReferencedFile, ops, tableName, ops.current().specsById());
   }
 
   // Merges the position indices for the duplicate DVs for a given referenced file
