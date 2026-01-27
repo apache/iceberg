@@ -207,7 +207,8 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
         writeSchema,
         dsSchema,
         useFanoutWriter,
-        writeProperties);
+        writeProperties,
+        writeRequirements.icebergOrdering());
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -700,6 +701,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
     private final boolean useFanoutWriter;
     private final String queryId;
     private final Map<String, String> writeProperties;
+    private final org.apache.iceberg.SortOrder sortOrder;
 
     protected WriterFactory(
         Broadcast<Table> tableBroadcast,
@@ -710,7 +712,8 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
         Schema writeSchema,
         StructType dsSchema,
         boolean useFanoutWriter,
-        Map<String, String> writeProperties) {
+        Map<String, String> writeProperties,
+        org.apache.iceberg.SortOrder sortOrder) {
       this.tableBroadcast = tableBroadcast;
       this.format = format;
       this.outputSpecId = outputSpecId;
@@ -720,6 +723,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       this.useFanoutWriter = useFanoutWriter;
       this.queryId = queryId;
       this.writeProperties = writeProperties;
+      this.sortOrder = sortOrder;
     }
 
     @Override
@@ -744,6 +748,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
               .dataSchema(writeSchema)
               .dataSparkType(dsSchema)
               .writeProperties(writeProperties)
+              .dataSortOrder(sortOrder)
               .build();
 
       Function<InternalRow, InternalRow> rowLineageExtractor = new ExtractRowLineage(writeSchema);
