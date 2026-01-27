@@ -19,7 +19,9 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.TestTemplate;
@@ -105,5 +107,61 @@ public class TestSetStatistics extends TestBase {
     metadata = readMetadata();
     assertThat(version()).isEqualTo(3);
     assertThat(metadata.statisticsFiles()).isEmpty();
+  }
+
+  @TestTemplate
+  public void testSetStatisticsRetryWithConcurrentModification() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    TableMetadata base = readMetadata();
+    long snapshotId = base.currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
+
+    UpdateStatistics updateStats = table.updateStatistics().setStatistics(statisticsFile);
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    updateStats.commit();
+
+    assertThat(readMetadata().statisticsFiles()).containsExactly(statisticsFile);
+  }
+
+  @TestTemplate
+  public void testSetStatisticsRetryExhaustion() {
+    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "2").commit();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotId = readMetadata().currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
+
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(3);
+
+    UpdateStatistics updateStats = table.updateStatistics().setStatistics(statisticsFile);
+    assertThatThrownBy(updateStats::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+  }
+
+  @TestTemplate
+  public void testSetStatisticsRetrySuccess() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotId = readMetadata().currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
+
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(2);
+
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    assertThat(readMetadata().statisticsFiles()).containsExactly(statisticsFile);
   }
 }
