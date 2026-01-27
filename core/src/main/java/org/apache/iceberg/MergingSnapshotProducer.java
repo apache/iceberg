@@ -1081,11 +1081,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
           duplicateDVs.isEmpty()
               ? ImmutableList.of()
               : DVUtil.mergeDVsAndWrite(
-                  ops(),
-                  duplicateDVs,
-                  tableName,
-                  ops().current().specsById(),
-                  ThreadPools.getDeleteWorkerPool());
+                  ops(), duplicateDVs, tableName, ThreadPools.getDeleteWorkerPool());
       // Prevent commiting duplicate V2 deletes by deduping them
       Map<Integer, List<DeleteFile>> newDeleteFilesBySpec =
           Streams.stream(
