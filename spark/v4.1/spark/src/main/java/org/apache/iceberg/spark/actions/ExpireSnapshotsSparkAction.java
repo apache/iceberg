@@ -22,23 +22,16 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 import static org.apache.spark.sql.functions.col;
 
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AllManifestsTable;
-import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ExpireSnapshots.CleanupLevel;
 import org.apache.iceberg.HasTableOperations;
-import org.apache.iceberg.ManifestContent;
-import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -46,17 +39,13 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.actions.ImmutableExpireSnapshots;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
@@ -367,39 +356,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
             .repartition(numShufflePartitions)
             .as(ManifestFileBean.ENCODER);
 
-    return manifestBeanDS.flatMap(new ReadManifestContent(tableBroadcast), FileInfo.ENCODER);
-  }
-
-  private static class ReadManifestContent implements FlatMapFunction<ManifestFileBean, FileInfo> {
-    private final Broadcast<Table> table;
-
-    ReadManifestContent(Broadcast<Table> table) {
-      this.table = table;
-    }
-
-    @Override
-    public Iterator<FileInfo> call(ManifestFileBean manifest) throws IOException {
-      ManifestContent content = manifest.content();
-      FileIO io = table.getValue().io();
-      Map<Integer, PartitionSpec> specs = table.getValue().specs();
-      List<String> proj = ImmutableList.of(DataFile.FILE_PATH.name(), DataFile.CONTENT.name());
-
-      switch (content) {
-        case DATA:
-          return CloseableIterator.transform(
-              ManifestFiles.read(manifest, io, specs).select(proj).iterator(),
-              ReadManifestContent::toFileInfo);
-        case DELETES:
-          return CloseableIterator.transform(
-              ManifestFiles.readDeleteManifest(manifest, io, specs).select(proj).iterator(),
-              ReadManifestContent::toFileInfo);
-        default:
-          throw new IllegalArgumentException("Unsupported manifest content type: " + content);
-      }
-    }
-
-    private static FileInfo toFileInfo(ContentFile<?> file) {
-      return new FileInfo(file.location(), file.content().toString());
-    }
+    return manifestBeanDS.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
   }
 }

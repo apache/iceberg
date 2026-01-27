@@ -409,7 +409,7 @@ abstract class BaseSparkAction<ThisT> {
     }
   }
 
-  private static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {
+  protected static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {
     private final Broadcast<Table> table;
 
     ReadManifest(Broadcast<Table> table) {
