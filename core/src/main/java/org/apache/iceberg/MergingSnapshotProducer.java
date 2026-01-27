@@ -90,7 +90,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private Long newDataFilesDataSequenceNumber;
   private final List<DeleteFile> positionAndEqualityDeletes = Lists.newArrayList();
-  private final Map<String, List<DeleteFile>> dvsByReferencedFile = Maps.newHashMap();
+  private final Map<String, List<DeleteFile>> dvsByReferencedFile = Maps.newLinkedHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
