@@ -16,7 +16,7 @@ services:
   jobmanager:
     build:
       context: .
-      dockerfile: Dockerfile.flink
+      dockerfile: Dockerfile
     hostname: jobmanager
     container_name: jobmanager
     depends_on:
@@ -45,7 +45,7 @@ services:
   taskmanager:
     build:
       context: .
-      dockerfile: Dockerfile.flink
+      dockerfile: Dockerfile
     hostname: taskmanager
     depends_on:
       - jobmanager
