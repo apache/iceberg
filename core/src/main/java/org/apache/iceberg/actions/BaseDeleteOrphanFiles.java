@@ -29,5 +29,11 @@ import org.immutables.value.Value;
 interface BaseDeleteOrphanFiles extends DeleteOrphanFiles {
 
   @Value.Immutable
-  interface Result extends DeleteOrphanFiles.Result {}
+  interface Result extends DeleteOrphanFiles.Result {
+    @Override
+    @Value.Default
+    default long orphanFilesCount() {
+      return 0;
+    }
+  }
 }
