@@ -64,7 +64,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
     super.before();
     Table table = createTable();
     this.tableName = table.name();
-    lockReleasedEvent = new LockReleasedEvent(tableName, 1L, false);
+    lockReleasedEvent = new LockReleasedEvent(tableName, 1L);
     this.tableMaintenanceCoordinator = createCoordinator();
     try {
       tableMaintenanceCoordinator.start();
@@ -218,7 +218,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
 
   @Test
   void testEqDeleteFileCount() throws Exception {
-
     TriggerManagerOperator operator =
         createOperator(
             new TriggerEvaluator.Builder().eqDeleteFileCount(3).build(),
@@ -291,7 +290,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).hasSize(1);
 
       // Remove the lock to allow the next trigger
-      operator.handleLockReleaseResult(lockReleasedEvent);
+      operator.handleLockReleaseResult(new LockReleasedEvent(tableName, newTime));
 
       // Send a new event
       testHarness.setProcessingTime(newTime + 1);
@@ -343,7 +342,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       testHarness.processElement(TableChange.builder().commitCount(1).build(), EVENT_TIME_2);
 
       // Remove the lock to allow the next trigger
-      newOperator.handleOperatorEvent(new LockReleasedEvent("test-table", 1L, true));
+      newOperator.handleOperatorEvent(lockReleasedEvent);
       testHarness.setProcessingTime(EVENT_TIME_2);
 
       // At this point the output contains the recovery trigger and the real trigger
@@ -458,18 +457,18 @@ class TestTriggerManagerOperator extends OperatorTestBase {
           .isEqualTo(1L);
 
       // manual unlock
-      tableMaintenanceCoordinator.handleReleaseLock(lockReleasedEvent);
+      tableMaintenanceCoordinator.handleReleaseLock(
+          new LockReleasedEvent(tableName, Long.MAX_VALUE));
       // Trigger both of the tasks - tests TRIGGERED
       source.sendRecord(TableChange.builder().commitCount(2).build());
       // Wait until we receive the trigger
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // manual unlock
-      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, lockReleasedEvent);
+      tableMaintenanceCoordinator.handleReleaseLock(
+          new LockReleasedEvent(tableName, Long.MAX_VALUE));
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
-      // manual unlock
-      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, lockReleasedEvent);
       assertThat(
               MetricsReporterFactoryForTests.counter(
                   ImmutableList.of(DUMMY_TASK_NAME, tableName, TASKS[0], "0", TRIGGERED)))
@@ -620,7 +619,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
     assertThat(testHarness.extractOutputValues()).hasSize(expectedSize);
     if (removeLock) {
       // Remove the lock to allow the next trigger
-      operator.handleLockReleaseResult(lockReleasedEvent);
+      operator.handleLockReleaseResult(new LockReleasedEvent(tableName, processingTime));
     }
   }
 

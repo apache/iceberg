@@ -40,10 +40,8 @@ class TestTableMaintenanceCoordinator extends OperatorTestBase {
   private static final int NUM_SUBTASKS = 1;
   private static final LockRegisterEvent LOCK_REGISTER_EVENT =
       new LockRegisterEvent(DUMMY_TABLE_NAME, 1L);
-  private static final LockRegisterEvent RECOVER_LOCK_ACQUIRED_EVENT =
-      new LockRegisterEvent(DUMMY_TABLE_NAME, Long.MAX_VALUE);
   private static final LockReleasedEvent LOCK_RELEASE_EVENT =
-      new LockReleasedEvent(DUMMY_TABLE_NAME, 1L, false);
+      new LockReleasedEvent(DUMMY_TABLE_NAME, 1L);
 
   private EventReceivingTasks receivingTasks;
   private EventReceivingTasks receivingTasks1;

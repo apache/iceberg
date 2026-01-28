@@ -85,8 +85,8 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
   private transient int startsFrom = 0;
   private transient boolean triggered = false;
   private final String tableName;
-  private transient boolean restoreTasks = false;
-  private transient boolean lockHeld = false;
+  private transient Long lockTime;
+  private transient boolean shouldRestoreTasks = false;
 
   public TriggerManagerOperator(
       StreamOperatorParameters<Trigger> parameters,
@@ -185,8 +185,8 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
       // in the end. The result of the 'tryLock' is ignored as an already existing lock prevents
       // collisions as well.
       // register the recover lock
-      restoreTasks = true;
-      lockHeld = false;
+      this.lockTime = current;
+      this.shouldRestoreTasks = true;
       output.collect(new StreamRecord<>(Trigger.recovery(current), current));
       if (nextEvaluationTime == null) {
         schedule(getProcessingTimeService(), current + minFireDelayMs);
@@ -194,8 +194,7 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
         schedule(getProcessingTimeService(), nextEvaluationTime);
       }
     } else {
-      restoreTasks = false;
-      lockHeld = false;
+      this.lockTime = null;
     }
   }
 
@@ -253,26 +252,30 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
   @Override
   public void close() throws Exception {
     super.close();
-    this.lockHeld = false;
-    this.restoreTasks = false;
+    this.lockTime = null;
   }
 
   @VisibleForTesting
   void handleLockReleaseResult(LockReleasedEvent event) {
-    if (event.isWatermark()) {
-      this.restoreTasks = false;
+    if (lockTime == null) {
+      return;
     }
 
-    this.lockHeld = false;
+    if (event.timestamp() >= lockTime) {
+      this.lockTime = null;
+      this.shouldRestoreTasks = false;
+    }
   }
 
   private void checkAndFire(ProcessingTimeService timerService) {
     long current = timerService.getCurrentProcessingTime();
-    if (restoreTasks) {
-      // Recovered tasks in progress. Skip trigger check
-      LOG.info("The recovery lock is still held at {}", current);
-      schedule(timerService, current + lockCheckDelayMs);
-      return;
+    if (shouldRestoreTasks) {
+      if (lockTime != null) {
+        // Recovered tasks in progress. Skip trigger check
+        LOG.info("The recovery lock is still held at {}", current);
+        schedule(timerService, current + lockCheckDelayMs);
+        return;
+      }
     }
 
     Integer taskToStart =
@@ -293,8 +296,8 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
       return;
     }
 
-    if (!lockHeld) {
-      this.lockHeld = true;
+    if (lockTime == null) {
+      this.lockTime = current;
       TableChange change = accumulatedChanges.get(taskToStart);
       output.collect(new StreamRecord<>(Trigger.create(current, taskToStart), current));
       LOG.debug("Fired event with time: {}, collected: {} for {}", current, change, tableName);
