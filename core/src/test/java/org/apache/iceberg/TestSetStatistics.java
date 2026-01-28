@@ -140,7 +140,9 @@ public class TestSetStatistics extends TestBase {
             snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
 
     TestTables.TestTableOperations ops = table.ops();
-    ops.failCommits(3);
+    int configuredRetries =
+        Integer.parseInt(table.properties().getOrDefault(TableProperties.COMMIT_NUM_RETRIES, "4"));
+    ops.failCommits(configuredRetries + 1);
 
     UpdateStatistics updateStats = table.updateStatistics().setStatistics(statisticsFile);
     assertThatThrownBy(updateStats::commit)
