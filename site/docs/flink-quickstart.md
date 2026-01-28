@@ -39,7 +39,7 @@ Once you have those, save these two files into a new folder:
 
     ![An overview of the Flink quickstart containers](/assets/images/flink-quickstart.excalidraw.png)
 
-* [`Dockerfile.flink`](https://raw.githubusercontent.com/apache/iceberg/refs/heads/main/flink/v2.0/quickstart/Dockerfile.flink) - base Flink image, plus some required JARs for S3 and Iceberg.
+* [`Dockerfile`](https://raw.githubusercontent.com/apache/iceberg/refs/heads/main/flink/v2.0/quickstart/Dockerfile) - base Flink image, plus some required JARs for S3 and Iceberg.
 
 Next, start up the docker containers with this command:
 
