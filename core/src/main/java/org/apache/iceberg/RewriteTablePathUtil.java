@@ -728,12 +728,17 @@ public class RewriteTablePathUtil {
   }
 
   /**
-   * Replace path reference
+   * Rewrite a path by replacing its source prefix with a target prefix.
    *
-   * @param path path reference
+   * <p>If the path equals the source prefix (representing a directory location), the result will be
+   * the target prefix with a trailing separator, since directories are represented with trailing
+   * separators internally.
+   *
+   * @param path absolute path to rewrite
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
-   * @return new path reference
+   * @return new path with source prefix replaced by target prefix
+   * @throws IllegalArgumentException if path is not under or equal to sourcePrefix
    */
   public static String newPath(String path, String sourcePrefix, String targetPrefix) {
     return combinePaths(targetPrefix, relativize(path, sourcePrefix));
@@ -754,14 +759,33 @@ public class RewriteTablePathUtil {
     return filename;
   }
 
-  /** Relativize a path. */
+  /**
+   * Compute the relative path from a prefix to a given path.
+   *
+   * <p>If the path is under the prefix, returns the portion after the prefix. If the path equals
+   * the prefix (representing the root directory itself), returns an empty string.
+   *
+   * <p>Trailing separators are normalized: both "/a" and "/a/" are treated as equivalent prefixes.
+   *
+   * @param path absolute path to relativize
+   * @param prefix prefix path to remove
+   * @return relative path from prefix to path, or empty string if path equals prefix
+   * @throws IllegalArgumentException if path is not under or equal to prefix
+   */
   public static String relativize(String path, String prefix) {
     String toRemove = maybeAppendFileSeparator(prefix);
-    if (!path.startsWith(toRemove)) {
-      throw new IllegalArgumentException(
-          String.format("Path %s does not start with %s", path, toRemove));
+
+    if (path.startsWith(toRemove)) {
+      return path.substring(toRemove.length());
     }
-    return path.substring(toRemove.length());
+
+    // Handle exact match where path equals prefix (without trailing separator)
+    if (maybeAppendFileSeparator(path).equals(toRemove)) {
+      return "";
+    }
+
+    throw new IllegalArgumentException(
+        String.format("Path %s does not start with %s", path, toRemove));
   }
 
   public static String maybeAppendFileSeparator(String path) {
