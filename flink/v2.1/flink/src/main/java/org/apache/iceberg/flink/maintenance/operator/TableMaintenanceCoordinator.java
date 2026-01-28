@@ -54,11 +54,11 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
 
   private final ExecutorService coordinatorExecutor;
   private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
-  private transient boolean started;
+  private boolean started;
   private final transient SubtaskGateways subtaskGateways;
   private static final Map<String, Consumer<LockReleasedEvent>> LOCK_RELEASE_CONSUMERS =
       Maps.newConcurrentMap();
-  private transient List<LockReleasedEvent> pendingReleaseEvents = Lists.newArrayList();
+  private final List<LockReleasedEvent> pendingReleaseEvents = Lists.newArrayList();
 
   public TableMaintenanceCoordinator(String operatorName, Context context) {
     this.operatorName = operatorName;
@@ -98,7 +98,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
               operatorName,
               event);
           if (event instanceof LockRegisterEvent) {
-            registerTriggerManagerReceiveReleaseEvent((LockRegisterEvent) event);
+            registerLock((LockRegisterEvent) event);
           } else if (event instanceof LockReleasedEvent) {
             handleReleaseLock((LockReleasedEvent) event);
           } else {
@@ -115,7 +115,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
-  private void registerTriggerManagerReceiveReleaseEvent(LockRegisterEvent lockRegisterEvent) {
+  private void registerLock(LockRegisterEvent lockRegisterEvent) {
     LOCK_RELEASE_CONSUMERS.put(
         lockRegisterEvent.lockId(),
         lock -> {
@@ -127,10 +127,8 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
           this.subtaskGateways.getSubtaskGateway(0).sendEvent(lock);
         });
 
-    if (!pendingReleaseEvents.isEmpty()) {
-      pendingReleaseEvents.forEach(this::handleReleaseLock);
-      pendingReleaseEvents.clear();
-    }
+    pendingReleaseEvents.forEach(this::handleReleaseLock);
+    pendingReleaseEvents.clear();
   }
 
   /** Release the lock and optionally trigger the next pending task. */
