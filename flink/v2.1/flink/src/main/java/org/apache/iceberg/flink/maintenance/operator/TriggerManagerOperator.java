@@ -37,7 +37,6 @@ import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -243,11 +242,6 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
           maintenanceTaskNames);
       rateLimiterTriggeredCounter.inc();
     }
-  }
-
-  @Override
-  public void processWatermark(Watermark mark) throws Exception {
-    super.processWatermark(mark);
   }
 
   @Override
