@@ -29,10 +29,12 @@ public class LockReleasedEvent implements OperatorEvent {
 
   private final String lockId;
   private final long timestamp;
+  private final boolean isWatermark;
 
-  public LockReleasedEvent(String lockId, long timestamp) {
+  public LockReleasedEvent(String lockId, long timestamp, boolean isWatermark) {
     this.lockId = lockId;
     this.timestamp = timestamp;
+    this.isWatermark = isWatermark;
   }
 
   public long timestamp() {
@@ -43,11 +45,16 @@ public class LockReleasedEvent implements OperatorEvent {
     return lockId;
   }
 
+  public boolean isWatermark() {
+    return isWatermark;
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("lockId", lockId)
         .add("timestamp", timestamp)
+        .add("isWatermark", isWatermark)
         .toString();
   }
 }

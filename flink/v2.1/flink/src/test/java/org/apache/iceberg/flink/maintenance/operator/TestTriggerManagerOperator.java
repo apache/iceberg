@@ -57,12 +57,14 @@ class TestTriggerManagerOperator extends OperatorTestBase {
   private long processingTime = 0L;
   private String tableName;
   private TableMaintenanceCoordinator tableMaintenanceCoordinator;
+  private LockReleasedEvent lockReleasedEvent;
 
   @BeforeEach
   void before() {
     super.before();
     Table table = createTable();
     this.tableName = table.name();
+    lockReleasedEvent = new LockReleasedEvent(tableName, 1L, false);
     this.tableMaintenanceCoordinator = createCoordinator();
     try {
       tableMaintenanceCoordinator.start();
@@ -289,7 +291,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).hasSize(1);
 
       // Remove the lock to allow the next trigger
-      operator.handleLockReleaseResult(new LockReleasedEvent(tableName, 1L));
+      operator.handleLockReleaseResult(lockReleasedEvent);
 
       // Send a new event
       testHarness.setProcessingTime(newTime + 1);
@@ -341,7 +343,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       testHarness.processElement(TableChange.builder().commitCount(1).build(), EVENT_TIME_2);
 
       // Remove the lock to allow the next trigger
-      newOperator.handleOperatorEvent(new LockReleasedEvent(tableName, 1L));
+      newOperator.handleOperatorEvent(new LockReleasedEvent("test-table", 1L, true));
       testHarness.setProcessingTime(EVENT_TIME_2);
 
       // At this point the output contains the recovery trigger and the real trigger
@@ -397,7 +399,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       long currentTime = testHarness.getProcessingTime();
 
       // Remove the lock, and still no trigger
-      operator.handleOperatorEvent(new LockReleasedEvent(tableName, 1L));
+      operator.handleOperatorEvent(lockReleasedEvent);
       assertThat(testHarness.extractOutputValues()).hasSize(1);
 
       // Check that the trigger fired after the delay
@@ -456,21 +458,18 @@ class TestTriggerManagerOperator extends OperatorTestBase {
           .isEqualTo(1L);
 
       // manual unlock
-      tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockReleasedEvent(tableName, 1L));
+      tableMaintenanceCoordinator.handleReleaseLock(lockReleasedEvent);
       // Trigger both of the tasks - tests TRIGGERED
       source.sendRecord(TableChange.builder().commitCount(2).build());
       // Wait until we receive the trigger
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // manual unlock
-      tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockReleasedEvent(tableName, 1L));
+      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, lockReleasedEvent);
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // manual unlock
-      tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockReleasedEvent(tableName, 1L));
+      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, lockReleasedEvent);
       assertThat(
               MetricsReporterFactoryForTests.counter(
                   ImmutableList.of(DUMMY_TASK_NAME, tableName, TASKS[0], "0", TRIGGERED)))
@@ -520,8 +519,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // Remove the lock to allow the next trigger
-      tableMaintenanceCoordinator.handleEventFromOperator(
-          0, 0, new LockReleasedEvent(tableName, 1L));
+      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, lockReleasedEvent);
 
       // The second trigger will be blocked
       source.sendRecord(TableChange.builder().commitCount(2).build());
@@ -622,7 +620,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
     assertThat(testHarness.extractOutputValues()).hasSize(expectedSize);
     if (removeLock) {
       // Remove the lock to allow the next trigger
-      operator.handleLockReleaseResult(new LockReleasedEvent(tableName, 1L));
+      operator.handleLockReleaseResult(lockReleasedEvent);
     }
   }
 

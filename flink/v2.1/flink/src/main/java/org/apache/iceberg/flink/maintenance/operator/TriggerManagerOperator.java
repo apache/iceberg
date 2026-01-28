@@ -265,10 +265,11 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
 
   @VisibleForTesting
   void handleLockReleaseResult(LockReleasedEvent event) {
-    if (event.lockId().equals(tableName)) {
-      this.lockHeld = false;
+    if (event.isWatermark()) {
       this.restoreTasks = false;
     }
+
+    this.lockHeld = false;
   }
 
   private void checkAndFire(ProcessingTimeService timerService) {

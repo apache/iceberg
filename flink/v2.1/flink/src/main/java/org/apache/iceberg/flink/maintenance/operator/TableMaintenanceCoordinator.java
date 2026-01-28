@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -37,6 +38,7 @@ import org.apache.flink.util.FatalExitExceptionHandler;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,6 +58,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
   private final transient SubtaskGateways subtaskGateways;
   private static final Map<String, Consumer<LockReleasedEvent>> LOCK_RELEASE_CONSUMERS =
       Maps.newConcurrentMap();
+  private transient List<LockReleasedEvent> pendingReleaseEvents = Lists.newArrayList();
 
   public TableMaintenanceCoordinator(String operatorName, Context context) {
     this.operatorName = operatorName;
@@ -81,6 +84,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
     this.started = false;
     LOG.info("Closed TableMaintenanceCoordinator: {}", operatorName);
     LOCK_RELEASE_CONSUMERS.clear();
+    pendingReleaseEvents.clear();
   }
 
   @Override
@@ -122,10 +126,16 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
               operatorName);
           this.subtaskGateways.getSubtaskGateway(0).sendEvent(lock);
         });
+
+    if (!pendingReleaseEvents.isEmpty()) {
+      pendingReleaseEvents.forEach(this::handleReleaseLock);
+      pendingReleaseEvents.clear();
+    }
   }
 
   /** Release the lock and optionally trigger the next pending task. */
-  private void handleReleaseLock(LockReleasedEvent lockReleasedEvent) {
+  @VisibleForTesting
+  void handleReleaseLock(LockReleasedEvent lockReleasedEvent) {
     if (LOCK_RELEASE_CONSUMERS.containsKey(lockReleasedEvent.lockId())) {
       LOCK_RELEASE_CONSUMERS.get(lockReleasedEvent.lockId()).accept(lockReleasedEvent);
       LOG.info(
@@ -133,6 +143,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
           lockReleasedEvent.lockId(),
           lockReleasedEvent.timestamp());
     } else {
+      pendingReleaseEvents.add(lockReleasedEvent);
       LOG.info(
           "No consumer for lock id {}, timestamp: {}",
           lockReleasedEvent.lockId(),
