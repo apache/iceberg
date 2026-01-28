@@ -108,6 +108,7 @@ public class DynamicIcebergSink
     this.sinkId = UUID.randomUUID().toString();
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public SinkWriter<DynamicRecordInternal> createWriter(InitContext context) throws IOException {
     return new DynamicWriter(

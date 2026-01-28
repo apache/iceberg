@@ -1006,6 +1006,7 @@ public class S3FileIOProperties implements Serializable {
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3SignerConfiguration)
    * </pre>
    */
+  @SuppressWarnings("deprecation")
   public <T extends S3ClientBuilder> void applySignerConfiguration(T builder) {
     if (isRemoteSigningEnabled) {
       ClientOverrideConfiguration.Builder configBuilder =
@@ -1060,6 +1061,7 @@ public class S3FileIOProperties implements Serializable {
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyRetryConfigurations)
    * </pre>
    */
+  @SuppressWarnings("deprecation")
   public <T extends S3ClientBuilder> void applyRetryConfigurations(T builder) {
     ClientOverrideConfiguration.Builder configBuilder =
         null != builder.overrideConfiguration()
