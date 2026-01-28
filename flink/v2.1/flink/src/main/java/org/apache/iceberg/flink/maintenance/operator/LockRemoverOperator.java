@@ -97,9 +97,6 @@ public class LockRemoverOperator extends AbstractStreamOperator<Void>
         taskResult,
         maintenanceTaskNames.get(taskResult.taskIndex()));
     long duration = System.currentTimeMillis() - taskResult.startEpoch();
-    operatorEventGateway.sendEventToCoordinator(
-        new LockReleasedEvent(tableName, streamRecord.getTimestamp(), false));
-
     // Update the metrics
     taskLastRunDurationMs.get(taskResult.taskIndex()).set(duration);
     if (taskResult.success()) {
@@ -112,7 +109,7 @@ public class LockRemoverOperator extends AbstractStreamOperator<Void>
   @Override
   public void processWatermark(Watermark mark) throws Exception {
     operatorEventGateway.sendEventToCoordinator(
-        new LockReleasedEvent(tableName, mark.getTimestamp(), true));
+        new LockReleasedEvent(tableName, mark.getTimestamp()));
     super.processWatermark(mark);
   }
 }

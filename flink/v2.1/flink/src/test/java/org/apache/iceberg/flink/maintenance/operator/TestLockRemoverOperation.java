@@ -80,12 +80,12 @@ class TestLockRemoverOperation extends OperatorTestBase {
     try (OneInputStreamOperatorTestHarness<TaskResult, Void> testHarness =
         createHarness(operator)) {
 
-      operator.processElement(
+      testHarness.processElement(
           new StreamRecord<>(new TaskResult(0, 0L, true, Lists.newArrayList())));
-      assertThat(mockGateway.getEventsSent()).hasSize(1);
+      assertThat(mockGateway.getEventsSent()).hasSize(0);
 
-      operator.processWatermark(WATERMARK);
-      assertThat(mockGateway.getEventsSent()).hasSize(2);
+      testHarness.processWatermark(WATERMARK);
+      assertThat(mockGateway.getEventsSent()).hasSize(1);
     }
   }
 
