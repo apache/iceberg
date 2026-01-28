@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -43,10 +44,10 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
   private final int minCountToMerge;
   private final boolean mergeEnabled;
 
+  // count of manifests that were replaced (merged) during bin-packing
+  private final AtomicInteger replacedManifestsCount = new AtomicInteger(0);
   // cache merge results to reuse when retrying
   private final Map<List<ManifestFile>, ManifestFile> mergedManifests = Maps.newConcurrentMap();
-  // count of manifests that were replaced (merged) during bin-packing
-  private int replacedManifestsCount = 0;
 
   private final Supplier<ExecutorService> workerPoolSupplier;
 
@@ -97,7 +98,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
    * @return the count of replaced manifests
    */
   int replacedManifestsCount() {
-    return replacedManifestsCount;
+    return replacedManifestsCount.get();
   }
 
   void cleanUncommitted(Set<ManifestFile> committed) {
@@ -113,7 +114,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
         // remove the deleted file from the cache and update replaced count
         List<ManifestFile> bin = entry.getKey();
         mergedManifests.remove(bin);
-        replacedManifestsCount -= bin.size();
+        replacedManifestsCount.addAndGet(-bin.size());
       }
     }
   }
@@ -218,7 +219,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
 
     // update the cache and track replaced manifests
     mergedManifests.put(bin, manifest);
-    replacedManifestsCount += bin.size();
+    replacedManifestsCount.addAndGet(bin.size());
 
     return manifest;
   }
