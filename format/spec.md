@@ -75,9 +75,9 @@ This table format tracks individual data files in a table instead of directories
 
 Table state is maintained in metadata files. All changes to table state create a new metadata file and replace the old metadata with an atomic swap. The table metadata file tracks the table schema, partitioning config, custom properties, and snapshots of the table contents. A snapshot represents the state of a table at some time and is used to access the complete set of data files in the table.
 
-Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, and its metrics. The data in a snapshot is the union of all files in its manifests. Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
+Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, and its metrics. The data in a snapshot is the union of all files in its manifests. Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Data manifests and delete manifests can track files with any subset of a table and are not associated with partitions.
 
-The manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation.
+In V1-V3, the manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation. In V4, manifest lists are replaced by a single root manifest per snapshot, which can contain references to data files, delete files, and other data and delete manifests in a unified structure.
 
 ### Optimistic Concurrency
 
@@ -130,8 +130,10 @@ Tables do not require rename, except for tables that use atomic rename to implem
 * **Schema** -- Names and types of fields in a table.
 * **Partition spec** -- A definition of how partition values are derived from data fields.
 * **Snapshot** -- The state of a table at some point in time, including the set of all data files.
-* **Manifest list** -- A file that lists manifest files; one per snapshot.
-* **Manifest** -- A file that lists data or delete files; a subset of a snapshot.
+* **Manifest list** -- (V1-V3 only) A file that lists manifest files; one per snapshot.
+* **Root Manifest** -- (V4+) A manifest that can reference data files, delete files, and other data and delete manifests; one per snapshot. Replaces manifest lists in V4.
+* **Data manifest** -- A file that lists data files; a subset of a snapshot.
+* **Delete manifest** -- A file that lists delete files; a subset of a snapshot.
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
 
@@ -484,7 +486,7 @@ Note that:
 
 ### Partitioning
 
-Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. (Manifests store data files from any partition, as long as the partition spec is the same for the data files.)
+Data files are stored in manifests with partition values that are used in scans to filter out files that cannot contain records that match the scan's filter predicate. Partition values for a data file must be the same for all records stored in the data file. In V1-V3, manifests store data files from any partition, as long as the partition spec is the same for the data files. In V4, manifests can store data files from different partition specs because partition values are stored as column statistics.
 
 Tables are configured with a **partition spec** that defines how to produce a tuple of partition values from a record. A partition spec has a list of fields that consist of:
 
@@ -590,15 +592,24 @@ A data or delete file is associated with a sort order by the sort order's id wit
 
 ### Manifests
 
-A manifest is an immutable Avro file that lists data files or delete files, along with each file’s partition data tuple, metrics, and tracking information. One or more manifest files are used to store a [snapshot](#snapshots), which tracks all of the files in a table at some point in time. Manifests are tracked by a [manifest list](#manifest-lists) for each table snapshot.
+A manifest is an immutable file that lists data files or delete files, along with each file's partition data, metrics, and tracking information. One or more manifest files are used to store a [snapshot](#snapshots), which tracks all of the files in a table at some point in time. In V1-V3, manifests are tracked by a [manifest list](#manifest-lists) for each table snapshot. In V4, a single root manifest per snapshot can directly reference data files, delete files, and other data and delete manifests.
 
-A manifest is a valid Iceberg data file: files must use valid Iceberg formats, schemas, and column projection.
+Manifests are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection.
 
 A manifest may store either data files or delete files, but not both because manifests that contain delete files are scanned first during job planning. Whether a manifest is a data manifest or a delete manifest is stored in manifest metadata.
 
-A manifest stores files for a single partition spec. When a table’s partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file’s schema is based on its partition spec (see below). The partition spec of each manifest is also used to transform predicates on the table's data rows into predicates on partition values that are used during job planning to select files from a manifest.
+**Partition Spec Binding:**
 
-A manifest file must store the partition spec and other metadata as properties in the Avro file's key-value metadata:
+- V1-V3: A manifest stores files for a single partition spec. When a table's partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file's schema is based on its partition spec. The partition spec of each manifest is used to transform predicates on the table's data rows into predicates on partition values during job planning.
+- V4: Manifests are not bound to a single partition spec. Files with different partition specs can coexist in the same manifest because partition values are stored in column statistics using source column IDs rather than in a partition-spec-specific struct. The `partition-spec-id` in manifest metadata is tracked for informational purposes but does not constrain the contents.
+
+#### Manifest File Format
+
+Manifests are Avro files in V1-V3. Starting in V4, writers must produce manifests in Parquet.
+
+#### Manifest Metadata
+
+A manifest file must store the partition spec and other metadata as properties in the file's key-value metadata (Avro file metadata for V1-V3, Parquet file metadata for V4):
 
 === "v1"
     | Key                 | Status    | Value                                                                                                                                   |
@@ -619,7 +630,27 @@ A manifest file must store the partition spec and other metadata as properties i
     | `format-version`    | required  | Table format version number of the manifest as a string                                                                                 |
     | `content`           | required  | Type of content files tracked by the manifest: "data" or "deletes"                                                                      |
 
-The schema of a manifest file is defined by the `manifest_entry` struct, described in the following section.
+=== "v3"
+    | Key                 | Status    | Value                                                                                                                                   |
+    |---------------------|-----------|-----------------------------------------------------------------------------------------------------------------------------------------|
+    | `schema`            | required  | JSON representation of the table schema at the time the manifest was written                                                            |
+    | `schema-id`         | required  | ID of the schema used to write the manifest as a string                                                                                 |
+    | `partition-spec`    | required  | JSON representation of only the partition fields array of the partition spec used to write the manifest. See [Appendix C](#partition-specs) |
+    | `partition-spec-id` | required  | ID of the partition spec used to write the manifest as a string                                                                         |
+    | `format-version`    | required  | Table format version number of the manifest as a string                                                                                 |
+    | `content`           | required  | Type of content files tracked by the manifest: "data" or "deletes"                                                                      |
+
+=== "v4"
+    | Key                 | Status    | Value                                                                                                                                   |
+    |---------------------|-----------|-----------------------------------------------------------------------------------------------------------------------------------------|
+    | `schema-id`         | required  | ID of the schema used to write the manifest as a string                                                                                 |
+    | `partition-spec-id` | required  | ID of the partition spec used to write the manifest as a string                                                                         |
+    | `format-version`    | required  | Table format version number of the manifest as a string                                                                                 |
+    | `content`           | required  | Type of content files tracked by the manifest: "data" or "deletes"                                                                      |
+
+    V4 removes the `schema` and `partition-spec` fields from manifest metadata to reduce redundancy. The schema and partition spec must be looked up from the table metadata using the `schema-id` and `partition-spec-id`.
+
+The schema of a manifest file is defined by the `manifest_entry` struct (V1-V3) or `content_entry` struct (V4), described in the following section.
 
 #### Entries in Manifests
 
@@ -634,6 +665,29 @@ The `manifest_entry` struct (V1-V3) or `content_entry` struct (V4) consists of t
     | **`1  snapshot_id`**   | required  | `long`                                                    | Snapshot id where the file was added, or deleted if status is 2. Inherited when null. |
     | **`2  data_file`**     | required  | `data_file` struct (see below)                            | File path, partition tuple, metrics, ... |
 
+    The `data_file` struct consists of the following fields:
+
+    | Field id, name                   | Status    | Type                                              | Description |
+    |----------------------------------|-----------|---------------------------------------------------|-------------|
+    | **`100  file_path`**              | required  | string                                            | Full URI for the file with FS scheme |
+    | **`101  file_format`**            | required  | string                                            | String file format name, `avro`, `orc`, `parquet`, or `puffin` |
+    | **`102  partition`**              | required  | struct<...>                                       | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
+    | **`103  record_count`**           | required  | long                                              | Number of records in this file, or the cardinality of a deletion vector |
+    | **`104  file_size_in_bytes`**     | required  | long                                              | Total file size in bytes |
+    | ~~**`105 block_size_in_bytes`**~~ | required  | long                                              | **Deprecated. Always write a default in v1. Do not write in v2 or v3.** |
+    | ~~**`106  file_ordinal`**~~       | optional  | int                                               | **Deprecated. Do not write.** |
+    | ~~**`107  sort_columns`**~~       | optional  | list<112: int>                                    | **Deprecated. Do not write.** |
+    | **`108  column_sizes`**           | optional  | map<117: int, 118: long>                          | Map from column id to the total size on disk of all regions that store the column. Leave null for row-oriented formats (Avro) |
+    | **`109  value_counts`**           | optional  | map<119: int, 120: long>                          | Map from column id to number of values in the column (including null and NaN values) |
+    | **`110  null_value_counts`**      | optional  | map<121: int, 122: long>                          | Map from column id to number of null values in the column |
+    | **`137  nan_value_counts`**       | optional  | map<138: int, 139: long>                          | Map from column id to number of NaN values in the column |
+    | ~~**`111  distinct_counts`**~~    | optional  | map<123: int, 124: long>                          | **Deprecated. Do not write.** |
+    | **`125  lower_bounds`**           | optional  | map<126: int, 127: binary>                        | Map from column id to lower bound in the column serialized as binary. Each value must be less than or equal to all non-null, non-NaN values in the column for the file |
+    | **`128  upper_bounds`**           | optional  | map<129: int, 130: binary>                        | Map from column id to upper bound in the column serialized as binary. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file |
+    | **`131  key_metadata`**           | optional  | binary                                            | Implementation-specific key metadata for encryption |
+    | **`132  split_offsets`**          | optional  | list<133: long>                                   | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
+    | **`140  sort_order_id`**          | optional  | int                                               | ID representing sort order for this file |
+
 === "v2"
     | Field id, name                | Status    | Type                                                      | Description |
     |-------------------------------|-----------|-----------------------------------------------------------|-------------|
@@ -643,6 +697,28 @@ The `manifest_entry` struct (V1-V3) or `content_entry` struct (V4) consists of t
     | **`4  file_sequence_number`** | optional  | `long`                                                    | File sequence number indicating when the file was added. Inherited when null and status is 1 (added). |
     | **`2  data_file`**            | required  | `data_file` struct (see below)                            | File path, partition tuple, metrics, ... |
 
+    The `data_file` struct consists of the following fields:
+
+    | Field id, name                   | Status    | Type                                              | Description |
+    |----------------------------------|-----------|---------------------------------------------------|-------------|
+    | **`134  content`**                | required  | int (0: DATA, 1: POSITION DELETES, 2: EQUALITY DELETES) | Type of content stored by the data file: data, equality deletes, or position deletes (all v1 files are data files) |
+    | **`100  file_path`**              | required  | string                                            | Full URI for the file with FS scheme |
+    | **`101  file_format`**            | required  | string                                            | String file format name, `avro`, `orc`, `parquet`, or `puffin` |
+    | **`102  partition`**              | required  | struct<...>                                       | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
+    | **`103  record_count`**           | required  | long                                              | Number of records in this file, or the cardinality of a deletion vector |
+    | **`104  file_size_in_bytes`**     | required  | long                                              | Total file size in bytes |
+    | **`108  column_sizes`**           | optional  | map<117: int, 118: long>                          | Map from column id to the total size on disk of all regions that store the column. Leave null for row-oriented formats (Avro) |
+    | **`109  value_counts`**           | optional  | map<119: int, 120: long>                          | Map from column id to number of values in the column (including null and NaN values) |
+    | **`110  null_value_counts`**      | optional  | map<121: int, 122: long>                          | Map from column id to number of null values in the column |
+    | **`137  nan_value_counts`**       | optional  | map<138: int, 139: long>                          | Map from column id to number of NaN values in the column |
+    | **`125  lower_bounds`**           | optional  | map<126: int, 127: binary>                        | Map from column id to lower bound in the column serialized as binary. Each value must be less than or equal to all non-null, non-NaN values in the column for the file |
+    | **`128  upper_bounds`**           | optional  | map<129: int, 130: binary>                        | Map from column id to upper bound in the column serialized as binary. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file |
+    | **`131  key_metadata`**           | optional  | binary                                            | Implementation-specific key metadata for encryption |
+    | **`132  split_offsets`**          | optional  | list<133: long>                                   | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
+    | **`135  equality_ids`**           | optional  | list<136: int>                                    | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
+    | **`140  sort_order_id`**          | optional  | int                                               | ID representing sort order for this file |
+    | **`143  referenced_data_file`**   | optional  | string                                            | Fully qualified location (URI with FS scheme) of a data file that all deletes reference |
+
 === "v3"
     | Field id, name                | Status    | Type                                                      | Description |
     |-------------------------------|-----------|-----------------------------------------------------------|-------------|
@@ -651,6 +727,31 @@ The `manifest_entry` struct (V1-V3) or `content_entry` struct (V4) consists of t
     | **`3  sequence_number`**      | optional  | `long`                                                    | Data sequence number of the file. Inherited when null and status is 1 (added). |
     | **`4  file_sequence_number`** | optional  | `long`                                                    | File sequence number indicating when the file was added. Inherited when null and status is 1 (added). |
     | **`2  data_file`**            | required  | `data_file` struct (see below)                            | File path, partition tuple, metrics, ... |
+
+    The `data_file` struct consists of the following fields:
+
+    | Field id, name                   | Status    | Type                                              | Description |
+    |----------------------------------|-----------|---------------------------------------------------|-------------|
+    | **`134  content`**                | required  | int (0: DATA, 1: POSITION DELETES, 2: EQUALITY DELETES) | Type of content stored by the data file: data, equality deletes, or position deletes (all v1 files are data files) |
+    | **`100  file_path`**              | required  | string                                            | Full URI for the file with FS scheme |
+    | **`101  file_format`**            | required  | string                                            | String file format name, `avro`, `orc`, `parquet`, or `puffin` |
+    | **`102  partition`**              | required  | struct<...>                                       | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
+    | **`103  record_count`**           | required  | long                                              | Number of records in this file, or the cardinality of a deletion vector |
+    | **`104  file_size_in_bytes`**     | required  | long                                              | Total file size in bytes |
+    | **`108  column_sizes`**           | optional  | map<117: int, 118: long>                          | Map from column id to the total size on disk of all regions that store the column. Leave null for row-oriented formats (Avro) |
+    | **`109  value_counts`**           | optional  | map<119: int, 120: long>                          | Map from column id to number of values in the column (including null and NaN values) |
+    | **`110  null_value_counts`**      | optional  | map<121: int, 122: long>                          | Map from column id to number of null values in the column |
+    | **`137  nan_value_counts`**       | optional  | map<138: int, 139: long>                          | Map from column id to number of NaN values in the column |
+    | **`125  lower_bounds`**           | optional  | map<126: int, 127: binary>                        | Map from column id to lower bound in the column serialized as binary. Each value must be less than or equal to all non-null, non-NaN values in the column for the file |
+    | **`128  upper_bounds`**           | optional  | map<129: int, 130: binary>                        | Map from column id to upper bound in the column serialized as binary. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file |
+    | **`131  key_metadata`**           | optional  | binary                                            | Implementation-specific key metadata for encryption |
+    | **`132  split_offsets`**          | optional  | list<133: long>                                   | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
+    | **`135  equality_ids`**           | optional  | list<136: int>                                    | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
+    | **`140  sort_order_id`**          | optional  | int                                               | ID representing sort order for this file |
+    | **`142  first_row_id`**           | optional  | long                                              | The `_row_id` for the first row in the data file. See [First Row ID Inheritance](#first-row-id-inheritance) |
+    | **`143  referenced_data_file`**   | optional  | string                                            | Fully qualified location (URI with FS scheme) of a data file that all deletes reference |
+    | **`144  content_offset`**         | optional  | long                                              | The offset in the file where the content starts |
+    | **`145  content_size_in_bytes`**  | optional  | long                                              | The length of a referenced content stored in the file; required if `content_offset` is present |
 
 === "v4"
 
@@ -776,9 +877,29 @@ The `manifest_entry` struct (V1-V3) or `content_entry` struct (V4) consists of t
     | **`514  deleted_rows_count`** | required | `long` | Number of rows in entries with status DELETED |
     | **`516  min_sequence_number`** | required | `long` | Minimum data sequence number of all entries in the manifest |
 
-    `content_stats` Structure - Contains column-level statistics for the content. See the Column Statistics section for the full structure. This structure replaces the V3 fields: `column_sizes`, `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds`, `upper_bounds`, and `partition`.
+    `content_stats` Structure - Contains column-level statistics for the content. This structure replaces the V3 fields: `column_sizes`, `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds`, `upper_bounds`, and `partition`.
 
-The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct, defined below, is nested inside the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
+    The `content_stats` struct is a map from column ID (int) to a statistics struct containing:
+
+    | Field id, name | Status | Type | Description |
+    |----------|------|------|-------------|
+    | **`500  value_count`** | required | `long` | Number of values in the column (including null and NaN values) |
+    | **`501  null_count`** | optional | `long` | Number of null values in the column |
+    | **`502  nan_count`** | optional | `long` | Number of NaN values in the column |
+    | **`503  lower_bound`** | optional | `binary` | Lower bound in the column serialized as binary. Each value must be less than or equal to all non-null, non-NaN values in the column |
+    | **`507  upper_bound`** | optional | `binary` | Upper bound in the column serialized as binary. Each value must be greater than or equal to all non-null, non-NaN values in the column |
+
+    **Partition Values in Column Statistics:**
+
+    In V4, partition values are stored as column statistics using the source column ID from the partition spec. For identity-transformed partition fields, the statistics for the partition column represent the exact partition value. For non-identity transforms, the partition value is derived by applying the transform to the source column's statistics.
+
+    **Writer Requirements for Partitioned Files:**
+
+    1. If a file is partitioned by a spec with transforms, the `lower_bound` and `upper_bound` of the transform of the column must be equal.
+
+    2. For identity-transformed partition fields with string or binary types, writers must ensure that `lower_bound` and `upper_bound` are exact (not truncated).
+
+    This approach eliminates the redundant `partition` struct from V3 while preserving all partition pruning capabilities. During scan planning, partition filters are translated into equivalent data predicates on the source columns and evaluated against the column statistics.
 
 When a file is added to the dataset, its manifest entry should store the snapshot ID in which the file was added and set status to 1 (added).
 
@@ -794,89 +915,23 @@ Notes:
 1. Technically, data files can be deleted when the last snapshot that contains the file as “live” data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.  It is not recommended to add a deleted file back to a table. Adding a deleted file can lead to edge cases where incremental deletes can break table snapshots.
 2. Manifest list files are required in v2, so that the `sequence_number` and `snapshot_id` to inherit are always available.
 
-##### Data File Fields
+Notes on manifest entries and data files:
 
-The `data_file` struct consists of the following fields:
+**Partition Values:**
 
-=== "v1"
-    | Field id, name                   | Status    | Type                                              | Description |
-    |----------------------------------|-----------|---------------------------------------------------|-------------|
-    | **`100  file_path`**              | required  | string                                            | Full URI for the file with FS scheme |
-    | **`101  file_format`**            | required  | string                                            | String file format name, `avro`, `orc`, `parquet`, or `puffin` |
-    | **`102  partition`**              | required  | struct<...>                                       | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
-    | **`103  record_count`**           | required  | long                                              | Number of records in this file, or the cardinality of a deletion vector |
-    | **`104  file_size_in_bytes`**     | required  | long                                              | Total file size in bytes |
-    | ~~**`105 block_size_in_bytes`**~~ | required  | long                                              | **Deprecated. Always write a default in v1. Do not write in v2 or v3.** |
-    | ~~**`106  file_ordinal`**~~       | optional  | int                                               | **Deprecated. Do not write.** |
-    | ~~**`107  sort_columns`**~~       | optional  | list<112: int>                                    | **Deprecated. Do not write.** |
-    | **`108  column_sizes`**           | optional  | map<117: int, 118: long>                          | Map from column id to the total size on disk of all regions that store the column. Leave null for row-oriented formats (Avro) |
-    | **`109  value_counts`**           | optional  | map<119: int, 120: long>                          | Map from column id to number of values in the column (including null and NaN values) |
-    | **`110  null_value_counts`**      | optional  | map<121: int, 122: long>                          | Map from column id to number of null values in the column |
-    | **`137  nan_value_counts`**       | optional  | map<138: int, 139: long>                          | Map from column id to number of NaN values in the column |
-    | ~~**`111  distinct_counts`**~~    | optional  | map<123: int, 124: long>                          | **Deprecated. Do not write.** |
-    | **`125  lower_bounds`**           | optional  | map<126: int, 127: binary>                        | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
-    | **`128  upper_bounds`**           | optional  | map<129: int, 130: binary>                        | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] |
-    | **`131  key_metadata`**           | optional  | binary                                            | Implementation-specific key metadata for encryption |
-    | **`132  split_offsets`**          | optional  | list<133: long>                                   | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
-    | **`140  sort_order_id`**          | optional  | int                                               | ID representing sort order for this file [3]. |
+- V1-V3: The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2+, the partition struct's field ids must match the ids from the partition spec.
+- V4: Partition values are represented in the `content_stats` structure using the source column IDs from the partition spec. There is no separate `partition` struct.
 
-=== "v2"
-    | Field id, name                   | Status    | Type                                              | Description |
-    |----------------------------------|-----------|---------------------------------------------------|-------------|
-    | **`134  content`**                | required  | int (0: DATA, 1: POSITION DELETES, 2: EQUALITY DELETES) | Type of content stored by the data file: data, equality deletes, or position deletes (all v1 files are data files) |
-    | **`100  file_path`**              | required  | string                                            | Full URI for the file with FS scheme |
-    | **`101  file_format`**            | required  | string                                            | String file format name, `avro`, `orc`, `parquet`, or `puffin` |
-    | **`102  partition`**              | required  | struct<...>                                       | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
-    | **`103  record_count`**           | required  | long                                              | Number of records in this file, or the cardinality of a deletion vector |
-    | **`104  file_size_in_bytes`**     | required  | long                                              | Total file size in bytes |
-    | **`108  column_sizes`**           | optional  | map<117: int, 118: long>                          | Map from column id to the total size on disk of all regions that store the column. Leave null for row-oriented formats (Avro) |
-    | **`109  value_counts`**           | optional  | map<119: int, 120: long>                          | Map from column id to number of values in the column (including null and NaN values) |
-    | **`110  null_value_counts`**      | optional  | map<121: int, 122: long>                          | Map from column id to number of null values in the column |
-    | **`137  nan_value_counts`**       | optional  | map<138: int, 139: long>                          | Map from column id to number of NaN values in the column |
-    | **`125  lower_bounds`**           | optional  | map<126: int, 127: binary>                        | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
-    | **`128  upper_bounds`**           | optional  | map<129: int, 130: binary>                        | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] |
-    | **`131  key_metadata`**           | optional  | binary                                            | Implementation-specific key metadata for encryption |
-    | **`132  split_offsets`**          | optional  | list<133: long>                                   | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
-    | **`135  equality_ids`**           | optional  | list<136: int>                                    | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
-    | **`140  sort_order_id`**          | optional  | int                                               | ID representing sort order for this file [3]. |
-    | **`143  referenced_data_file`**   | optional  | string                                            | Fully qualified location (URI with FS scheme) of a data file that all deletes reference [4] |
+**Column Metrics:**
 
-=== "v3"
-    | Field id, name                   | Status    | Type                                              | Description |
-    |----------------------------------|-----------|---------------------------------------------------|-------------|
-    | **`134  content`**                | required  | int (0: DATA, 1: POSITION DELETES, 2: EQUALITY DELETES) | Type of content stored by the data file: data, equality deletes, or position deletes (all v1 files are data files) |
-    | **`100  file_path`**              | required  | string                                            | Full URI for the file with FS scheme |
-    | **`101  file_format`**            | required  | string                                            | String file format name, `avro`, `orc`, `parquet`, or `puffin` |
-    | **`102  partition`**              | required  | struct<...>                                       | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
-    | **`103  record_count`**           | required  | long                                              | Number of records in this file, or the cardinality of a deletion vector |
-    | **`104  file_size_in_bytes`**     | required  | long                                              | Total file size in bytes |
-    | **`108  column_sizes`**           | optional  | map<117: int, 118: long>                          | Map from column id to the total size on disk of all regions that store the column. Leave null for row-oriented formats (Avro) |
-    | **`109  value_counts`**           | optional  | map<119: int, 120: long>                          | Map from column id to number of values in the column (including null and NaN values) |
-    | **`110  null_value_counts`**      | optional  | map<121: int, 122: long>                          | Map from column id to number of null values in the column |
-    | **`137  nan_value_counts`**       | optional  | map<138: int, 139: long>                          | Map from column id to number of NaN values in the column |
-    | **`125  lower_bounds`**           | optional  | map<126: int, 127: binary>                        | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
-    | **`128  upper_bounds`**           | optional  | map<129: int, 130: binary>                        | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] |
-    | **`131  key_metadata`**           | optional  | binary                                            | Implementation-specific key metadata for encryption |
-    | **`132  split_offsets`**          | optional  | list<133: long>                                   | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
-    | **`135  equality_ids`**           | optional  | list<136: int>                                    | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
-    | **`140  sort_order_id`**          | optional  | int                                               | ID representing sort order for this file [3]. |
-    | **`142  first_row_id`**           | optional  | long                                              | The `_row_id` for the first row in the data file. See [First Row ID Inheritance](#first-row-id-inheritance) |
-    | **`143  referenced_data_file`**   | optional  | string                                            | Fully qualified location (URI with FS scheme) of a data file that all deletes reference [4] |
-    | **`144  content_offset`**         | optional  | long                                              | The offset in the file where the content starts [5] |
-    | **`145  content_size_in_bytes`**  | optional  | long                                              | The length of a referenced content stored in the file; required if `content_offset` is present [5] |
+The column metrics maps (V1-V3) or `content_stats` structure (V4) are used when filtering to select both data and delete files. For delete files, the metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
 
-The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
-
-The column metrics maps are used when filtering to select both data and delete files. For delete files, the metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
-
-Notes:
-
-1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
-2. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
-3. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
-4. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
-5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
-6. The following field ids are reserved on `data_file`: 141.
+- Single-value serialization for lower and upper bounds is detailed in Appendix D.
+- For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
+- If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
+- Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
+- In V3, the `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
+- The following field ids are reserved on `data_file`: 141.
 
 ###### Bounds for Variant, Geometry, and Geography
 
@@ -974,8 +1029,8 @@ For other optional snapshot summary fields, see [Appendix F](#optional-snapshot-
 
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
-* Appends can add a new manifest to minimize the amount of data written, instead of adding new records by rewriting and appending to an existing manifest. (This is called a “fast append”.)
-* Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Each manifest uses a single partition spec, and queries do not need to change because partition filters are derived from data predicates.
+* Appends can add a new manifest to minimize the amount of data written, instead of adding new records by rewriting and appending to an existing manifest. (This is called a "fast append".)
+* Tables can use multiple partition specs. A table's partition configuration can evolve if, for example, its data volume changes. In V1-V3, each manifest uses a single partition spec. In V4, manifests can contain files from multiple partition specs. Queries do not need to change because partition filters are derived from data predicates.
 * Large tables can be split across multiple manifests so that implementations can parallelize job planning or reduce the cost of rewriting a manifest.
 
 Manifests for a snapshot are tracked by a manifest list.
@@ -994,6 +1049,8 @@ It can be more than the number of rows added in this snapshot and include some e
 see [Row Lineage Example](#row-lineage-example).
 
 ### Manifest Lists
+
+**Note:** Manifest lists are only used in V1-V3 tables. In V4, manifest lists are replaced by a single root manifest per snapshot, which unifies the tracking of data files, delete files, and other data and delete manifests. See the V4 content entries in the [Entries in Manifests](#entries-in-manifests) section for details on root manifest structure.
 
 Snapshots are embedded in table metadata, but the list of manifests for a snapshot are stored in a separate manifest list file.
 
@@ -1096,7 +1153,11 @@ Scans are planned by reading the manifest files for the current snapshot. Delete
 
 Manifests that contain no matching files, determined using either file counts or partition summaries, may be skipped.
 
-For each manifest, scan predicates, which filter data rows, are converted to partition predicates, which filter partition tuples. These partition predicates are used to select relevant data files, delete files, and deletion vector metadata. Conversion uses the partition spec that was used to write the manifest file regardless of the current partition spec.
+For each manifest, predicates are used to select relevant data files, delete files, and deletion vector metadata.
+
+In V1-V3, scan predicates (which filter data rows) are converted to partition predicates (which filter partition tuples). Conversion uses the partition spec that was used to write the manifest file regardless of the current partition spec.
+
+In V4, partition filters are translated into equivalent data predicates on the source columns. These data predicates are then evaluated against column statistics. Since partition values are stored as column statistics using source column IDs, files with different partition specs can be filtered using the same mechanism without needing partition-spec-specific conversion.
 
 Scan predicates are converted to partition predicates using an _inclusive projection_: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is called _inclusive_ [1] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
 
