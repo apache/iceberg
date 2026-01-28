@@ -1200,6 +1200,8 @@ public class TestExpireSnapshotsAction extends TestBase {
 
           checkExpirationResults(1L, 0L, 0L, 1L, 2L, results);
 
+          // Job count reflects distributed operations for manifest path filtering,
+          // early exit checks, and join-based filtering
           assertThat(jobsRunDuringStreamResults)
               .as(
                   "Expected total number of jobs with stream-results should match the expected number")
