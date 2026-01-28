@@ -2664,5 +2664,4 @@ public class TestSchemaUpdate {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot change column type: ts: date -> timestamp");
   }
-  }
 }
