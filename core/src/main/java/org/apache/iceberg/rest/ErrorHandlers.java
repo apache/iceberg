@@ -300,6 +300,7 @@ public class ErrorHandlers {
           throw new NotAuthorizedException("Not authorized: %s", error.message());
         case 403:
           throw new ForbiddenException("Forbidden: %s", error.message());
+        case 405:
         case 406:
           break;
         case 500:
