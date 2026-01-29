@@ -82,6 +82,7 @@ public class RewriteDataFilesSparkAction
           REWRITE_JOB_ORDER,
           OUTPUT_SPEC_ID,
           REMOVE_DANGLING_DELETES,
+          USE_PARQUET_ROW_GROUP_MERGE,
           BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
@@ -121,7 +122,18 @@ public class RewriteDataFilesSparkAction
   @Override
   public RewriteDataFilesSparkAction binPack() {
     ensureRunnerNotSet();
-    this.runner = new SparkBinPackFileRewriteRunner(spark(), table);
+    // Read the option from action options only (no table property fallback)
+    boolean useParquetRowGroupMerge =
+        PropertyUtil.propertyAsBoolean(
+            options(), USE_PARQUET_ROW_GROUP_MERGE, USE_PARQUET_ROW_GROUP_MERGE_DEFAULT);
+
+    if (useParquetRowGroupMerge) {
+      LOG.info("Using Parquet row-group merge runner for rewrite operation");
+      this.runner = new SparkParquetFileMergeRunner(spark(), table);
+    } else {
+      this.runner = new SparkBinPackFileRewriteRunner(spark(), table);
+    }
+
     return this;
   }
 
@@ -244,6 +256,11 @@ public class RewriteDataFilesSparkAction
   RewriteDataFilesCommitManager commitManager(long startingSnapshotId) {
     return new RewriteDataFilesCommitManager(
         table, startingSnapshotId, useStartingSequenceNumber, commitSummary(), branch);
+  }
+
+  @VisibleForTesting
+  String runnerDescription() {
+    return runner != null ? runner.description() : null;
   }
 
   private Builder doExecute(
