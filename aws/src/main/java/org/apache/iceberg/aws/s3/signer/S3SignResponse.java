@@ -18,23 +18,13 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
-import java.net.URI;
-import java.util.List;
-import java.util.Map;
-import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.rest.responses.RemoteSignResponse;
 import org.immutables.value.Value;
 
 /**
- * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
- *     org.apache.iceberg.rest.responses.RemoteSignResponse} instead.
+ * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link RemoteSignResponse} instead.
  */
 @Deprecated
 @Value.Immutable
-public interface S3SignResponse extends RESTResponse {
-  URI uri();
-
-  Map<String, List<String>> headers();
-
-  @Override
-  default void validate() {}
-}
+@SuppressWarnings("immutables:subtype")
+public interface S3SignResponse extends RemoteSignResponse {}

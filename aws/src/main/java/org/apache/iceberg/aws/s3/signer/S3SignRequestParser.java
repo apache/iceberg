@@ -21,113 +21,47 @@ package org.apache.iceberg.aws.s3.signer;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.JsonUtil;
+import org.apache.iceberg.rest.requests.RemoteSignRequest;
+import org.apache.iceberg.rest.requests.RemoteSignRequestParser;
 
 /**
- * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
- *     org.apache.iceberg.rest.requests.RemoteSignRequestParser} instead.
+ * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link RemoteSignRequestParser} instead.
  */
 @Deprecated
 public class S3SignRequestParser {
 
-  private static final String REGION = "region";
-  private static final String METHOD = "method";
-  private static final String URI = "uri";
-  private static final String HEADERS = "headers";
-  private static final String PROPERTIES = "properties";
-  private static final String BODY = "body";
-
   private S3SignRequestParser() {}
 
   public static String toJson(S3SignRequest request) {
-    return toJson(request, false);
+    return RemoteSignRequestParser.toJson(request, false);
   }
 
   public static String toJson(S3SignRequest request, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(request, gen), pretty);
+    return RemoteSignRequestParser.toJson(request, pretty);
   }
 
   public static void toJson(S3SignRequest request, JsonGenerator gen) throws IOException {
-    Preconditions.checkArgument(null != request, "Invalid s3 sign request: null");
-
-    gen.writeStartObject();
-
-    gen.writeStringField(REGION, request.region());
-    gen.writeStringField(METHOD, request.method());
-    gen.writeStringField(URI, request.uri().toString());
-    headersToJson(HEADERS, request.headers(), gen);
-
-    if (!request.properties().isEmpty()) {
-      JsonUtil.writeStringMap(PROPERTIES, request.properties(), gen);
-    }
-
-    if (request.body() != null && !request.body().isEmpty()) {
-      gen.writeStringField(BODY, request.body());
-    }
-
-    gen.writeEndObject();
+    RemoteSignRequestParser.toJson(request, gen);
   }
 
   public static S3SignRequest fromJson(String json) {
-    return JsonUtil.parse(json, S3SignRequestParser::fromJson);
+    RemoteSignRequest request = RemoteSignRequestParser.fromJson(json);
+    return ImmutableS3SignRequest.builder().from(request).build();
   }
 
   public static S3SignRequest fromJson(JsonNode json) {
-    Preconditions.checkArgument(null != json, "Cannot parse s3 sign request from null object");
-    Preconditions.checkArgument(
-        json.isObject(), "Cannot parse s3 sign request from non-object: %s", json);
-
-    String region = JsonUtil.getString(REGION, json);
-    String method = JsonUtil.getString(METHOD, json);
-    java.net.URI uri = java.net.URI.create(JsonUtil.getString(URI, json));
-    Map<String, List<String>> headers = headersFromJson(HEADERS, json);
-
-    ImmutableS3SignRequest.Builder builder =
-        ImmutableS3SignRequest.builder().region(region).method(method).uri(uri).headers(headers);
-
-    if (json.has(PROPERTIES)) {
-      builder.properties(JsonUtil.getStringMap(PROPERTIES, json));
-    }
-
-    if (json.has(BODY)) {
-      builder.body(JsonUtil.getString(BODY, json));
-    }
-
-    return builder.build();
+    RemoteSignRequest request = RemoteSignRequestParser.fromJson(json);
+    return ImmutableS3SignRequest.builder().from(request).build();
   }
 
   static void headersToJson(String property, Map<String, List<String>> headers, JsonGenerator gen)
       throws IOException {
-    gen.writeObjectFieldStart(property);
-    for (Entry<String, List<String>> entry : headers.entrySet()) {
-      gen.writeFieldName(entry.getKey());
-
-      gen.writeStartArray();
-      for (String val : entry.getValue()) {
-        gen.writeString(val);
-      }
-      gen.writeEndArray();
-    }
-    gen.writeEndObject();
+    RemoteSignRequestParser.headersToJson(property, headers, gen);
   }
 
   static Map<String, List<String>> headersFromJson(String property, JsonNode json) {
-    Map<String, List<String>> headers = Maps.newHashMap();
-    JsonNode headersNode = JsonUtil.get(property, json);
-    headersNode
-        .fields()
-        .forEachRemaining(
-            entry -> {
-              String key = entry.getKey();
-              List<String> values = Arrays.asList(JsonUtil.getStringArray(entry.getValue()));
-              headers.put(key, values);
-            });
-    return headers;
+    return RemoteSignRequestParser.headersFromJson(property, json);
   }
 }
