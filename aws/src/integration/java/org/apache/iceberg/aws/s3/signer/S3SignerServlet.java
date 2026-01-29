@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.rest.HttpMethod;
 import org.apache.iceberg.rest.RemoteSignerServlet;
 import org.apache.iceberg.rest.requests.RemoteSignRequest;
 import org.apache.iceberg.rest.responses.ImmutableRemoteSignResponse;
@@ -61,7 +62,8 @@ public class S3SignerServlet extends RemoteSignerServlet {
 
   @Override
   protected void validateSignRequest(RemoteSignRequest request) {
-    if ("POST".equalsIgnoreCase(request.method()) && request.uri().getQuery().contains("delete")) {
+    if (HttpMethod.POST.name().equalsIgnoreCase(request.method())
+        && request.uri().getQuery().contains("delete")) {
       String body = request.body();
       Preconditions.checkArgument(
           body != null && !body.isEmpty(),
