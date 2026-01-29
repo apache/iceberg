@@ -24,6 +24,11 @@ import java.util.Map;
 import org.apache.iceberg.rest.RESTResponse;
 import org.immutables.value.Value;
 
+/**
+ * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+ *     org.apache.iceberg.rest.responses.RemoteSignResponse} instead.
+ */
+@Deprecated
 @Value.Immutable
 public interface S3SignResponse extends RESTResponse {
   URI uri();

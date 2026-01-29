@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3.signer;
+package org.apache.iceberg.rest.requests;
 
 import java.net.URI;
 import java.util.List;
@@ -25,13 +25,8 @@ import javax.annotation.Nullable;
 import org.apache.iceberg.rest.RESTRequest;
 import org.immutables.value.Value;
 
-/**
- * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
- *     org.apache.iceberg.rest.requests.RemoteSignRequest} instead.
- */
-@Deprecated
 @Value.Immutable
-public interface S3SignRequest extends RESTRequest {
+public interface RemoteSignRequest extends RESTRequest {
   String region();
 
   String method();

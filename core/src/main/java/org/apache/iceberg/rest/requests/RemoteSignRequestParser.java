@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3.signer;
+package org.apache.iceberg.rest.requests;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,12 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.JsonUtil;
 
-/**
- * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
- *     org.apache.iceberg.rest.requests.RemoteSignRequestParser} instead.
- */
-@Deprecated
-public class S3SignRequestParser {
+public class RemoteSignRequestParser {
 
   private static final String REGION = "region";
   private static final String METHOD = "method";
@@ -43,18 +38,18 @@ public class S3SignRequestParser {
   private static final String PROPERTIES = "properties";
   private static final String BODY = "body";
 
-  private S3SignRequestParser() {}
+  private RemoteSignRequestParser() {}
 
-  public static String toJson(S3SignRequest request) {
+  public static String toJson(RemoteSignRequest request) {
     return toJson(request, false);
   }
 
-  public static String toJson(S3SignRequest request, boolean pretty) {
+  public static String toJson(RemoteSignRequest request, boolean pretty) {
     return JsonUtil.generate(gen -> toJson(request, gen), pretty);
   }
 
-  public static void toJson(S3SignRequest request, JsonGenerator gen) throws IOException {
-    Preconditions.checkArgument(null != request, "Invalid s3 sign request: null");
+  public static void toJson(RemoteSignRequest request, JsonGenerator gen) throws IOException {
+    Preconditions.checkArgument(null != request, "Invalid remote sign request: null");
 
     gen.writeStartObject();
 
@@ -74,22 +69,26 @@ public class S3SignRequestParser {
     gen.writeEndObject();
   }
 
-  public static S3SignRequest fromJson(String json) {
-    return JsonUtil.parse(json, S3SignRequestParser::fromJson);
+  public static RemoteSignRequest fromJson(String json) {
+    return JsonUtil.parse(json, RemoteSignRequestParser::fromJson);
   }
 
-  public static S3SignRequest fromJson(JsonNode json) {
-    Preconditions.checkArgument(null != json, "Cannot parse s3 sign request from null object");
+  public static RemoteSignRequest fromJson(JsonNode json) {
+    Preconditions.checkArgument(null != json, "Cannot parse remote sign request from null object");
     Preconditions.checkArgument(
-        json.isObject(), "Cannot parse s3 sign request from non-object: %s", json);
+        json.isObject(), "Cannot parse remote sign request from non-object: %s", json);
 
     String region = JsonUtil.getString(REGION, json);
     String method = JsonUtil.getString(METHOD, json);
     java.net.URI uri = java.net.URI.create(JsonUtil.getString(URI, json));
     Map<String, List<String>> headers = headersFromJson(HEADERS, json);
 
-    ImmutableS3SignRequest.Builder builder =
-        ImmutableS3SignRequest.builder().region(region).method(method).uri(uri).headers(headers);
+    ImmutableRemoteSignRequest.Builder builder =
+        ImmutableRemoteSignRequest.builder()
+            .region(region)
+            .method(method)
+            .uri(uri)
+            .headers(headers);
 
     if (json.has(PROPERTIES)) {
       builder.properties(JsonUtil.getStringMap(PROPERTIES, json));
@@ -102,8 +101,8 @@ public class S3SignRequestParser {
     return builder.build();
   }
 
-  static void headersToJson(String property, Map<String, List<String>> headers, JsonGenerator gen)
-      throws IOException {
+  public static void headersToJson(
+      String property, Map<String, List<String>> headers, JsonGenerator gen) throws IOException {
     gen.writeObjectFieldStart(property);
     for (Entry<String, List<String>> entry : headers.entrySet()) {
       gen.writeFieldName(entry.getKey());
@@ -117,12 +116,12 @@ public class S3SignRequestParser {
     gen.writeEndObject();
   }
 
-  static Map<String, List<String>> headersFromJson(String property, JsonNode json) {
+  public static Map<String, List<String>> headersFromJson(String property, JsonNode json) {
     Map<String, List<String>> headers = Maps.newHashMap();
     JsonNode headersNode = JsonUtil.get(property, json);
     headersNode
-        .properties()
-        .forEach(
+        .fields()
+        .forEachRemaining(
             entry -> {
               String key = entry.getKey();
               List<String> values = Arrays.asList(JsonUtil.getStringArray(entry.getValue()));
