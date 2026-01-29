@@ -347,10 +347,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     try {
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      // Explicitly send purgeRequested=false to ensure catalogs that default to purge=true
+      // (e.g., for Spark compatibility) preserve table data when drop without purge is intended.
+      // See: https://github.com/apache/iceberg/issues/11023
       client
           .withAuthSession(contextualSession)
           .delete(
-              paths.table(identifier), null, mutationHeaders, ErrorHandlers.tableErrorHandler());
+              paths.table(identifier),
+              ImmutableMap.of("purgeRequested", "false"),
+              null,
+              mutationHeaders,
+              ErrorHandlers.tableErrorHandler());
       return true;
     } catch (NoSuchTableException e) {
       return false;
