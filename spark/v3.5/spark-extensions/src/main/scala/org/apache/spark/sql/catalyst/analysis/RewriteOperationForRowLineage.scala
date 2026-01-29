@@ -42,6 +42,7 @@ trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
         r.table match {
           case sparkTable: SparkTable =>
             TableUtil.supportsRowLineage(sparkTable.table())
+          case _ => false
         }
       case _ => false
     }
