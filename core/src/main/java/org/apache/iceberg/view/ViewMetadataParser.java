@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.JsonUtil;
 
 public class ViewMetadataParser {
@@ -52,6 +53,7 @@ public class ViewMetadataParser {
   static final String VERSION_LOG = "version-log";
   static final String PROPERTIES = "properties";
   static final String SCHEMAS = "schemas";
+  static final String MAX_STALENESS_MS = "max-staleness-ms";
 
   private ViewMetadataParser() {}
 
@@ -71,6 +73,11 @@ public class ViewMetadataParser {
     gen.writeStringField(VIEW_UUID, metadata.uuid());
     gen.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     gen.writeStringField(LOCATION, metadata.location());
+
+    if (metadata.maxStaleness() != null) {
+      gen.writeNumberField(MAX_STALENESS_MS, metadata.maxStaleness());
+    }
+
     if (!metadata.properties().isEmpty()) {
       JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), gen);
     }
@@ -118,8 +125,22 @@ public class ViewMetadataParser {
     String uuid = JsonUtil.getString(VIEW_UUID, json);
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, json);
     String location = JsonUtil.getString(LOCATION, json);
-    Map<String, String> properties =
-        json.has(PROPERTIES) ? JsonUtil.getStringMap(PROPERTIES, json) : ImmutableMap.of();
+
+    Map<String, String> properties;
+    Long maxStaleness = null;
+    if (json.has(MAX_STALENESS_MS)) {
+      maxStaleness = JsonUtil.getLong(MAX_STALENESS_MS, json);
+      // Store max-staleness-ms in properties for ViewMetadata.maxStaleness() to access
+      Map<String, String> mutableProps = Maps.newHashMap();
+      if (json.has(PROPERTIES)) {
+        mutableProps.putAll(JsonUtil.getStringMap(PROPERTIES, json));
+      }
+      mutableProps.put(ViewProperties.MAX_STALENESS_MS, maxStaleness.toString());
+      properties = mutableProps;
+    } else {
+      properties =
+          json.has(PROPERTIES) ? JsonUtil.getStringMap(PROPERTIES, json) : ImmutableMap.of();
+    }
 
     JsonNode schemasNode = JsonUtil.get(SCHEMAS, json);
 
