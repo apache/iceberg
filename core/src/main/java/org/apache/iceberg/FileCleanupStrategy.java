@@ -18,14 +18,18 @@
  */
 package org.apache.iceberg;
 
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -42,6 +46,9 @@ abstract class FileCleanupStrategy {
       };
 
   private static final Logger LOG = LoggerFactory.getLogger(FileCleanupStrategy.class);
+  protected static final String MANIFEST = "manifest";
+  protected static final String MANIFEST_LIST = "manifest list";
+  protected static final String STATISTICS_FILES = "statistics files";
 
   protected final FileIO fileIO;
   protected final ExecutorService planExecutorService;
@@ -72,7 +79,7 @@ abstract class FileCleanupStrategy {
    * @param afterExpiration table metadata after snapshot expiration
    * @param cleanupLevel controls which types of files are eligible for deletion
    */
-  public abstract void cleanFiles(
+  public abstract DeleteSummary cleanFiles(
       TableMetadata beforeExpiration,
       TableMetadata afterExpiration,
       ExpireSnapshots.CleanupLevel cleanupLevel);
@@ -99,8 +106,9 @@ abstract class FileCleanupStrategy {
     }
   }
 
-  protected void deleteFiles(Set<String> pathsToDelete, String fileType) {
+  protected void deleteFiles(Set<String> pathsToDelete, String fileType, DeleteSummary summary) {
     if (deleteFunc == null && fileIO instanceof SupportsBulkOperations) {
+      int failures = 0;
       try {
         ((SupportsBulkOperations) fileIO).deleteFiles(pathsToDelete);
       } catch (BulkDeletionFailureException e) {
@@ -110,9 +118,11 @@ abstract class FileCleanupStrategy {
             pathsToDelete.size(),
             fileType,
             e);
+        failures = e.numberFailedObjects();
       } catch (RuntimeException e) {
         LOG.warn("Bulk deletion failed", e);
       }
+      summary.deletedFiles(fileType, pathsToDelete.size() - failures);
     } else {
       Consumer<String> deleteFuncToUse = deleteFunc == null ? defaultDeleteFunc : deleteFunc;
 
@@ -124,7 +134,92 @@ abstract class FileCleanupStrategy {
           .suppressFailureWhenFinished()
           .onFailure(
               (file, thrown) -> LOG.warn("Delete failed for {} file: {}", fileType, file, thrown))
-          .run(deleteFuncToUse::accept);
+          .run(
+              file -> {
+                deleteFuncToUse.accept(file);
+                summary.deletedFile(fileType);
+              });
+    }
+  }
+
+  static class DeleteSummary {
+    private final AtomicLong dataFilesCount = new AtomicLong(0L);
+    private final AtomicLong positionDeleteFilesCount = new AtomicLong(0L);
+    private final AtomicLong equalityDeleteFilesCount = new AtomicLong(0L);
+    private final AtomicLong manifestsCount = new AtomicLong(0L);
+    private final AtomicLong manifestListsCount = new AtomicLong(0L);
+    private final AtomicLong statisticsFilesCount = new AtomicLong(0L);
+
+    public void deletedFiles(String type, int numFiles) {
+      if (FileContent.DATA.name().equalsIgnoreCase(type)) {
+        dataFilesCount.addAndGet(numFiles);
+
+      } else if (FileContent.POSITION_DELETES.name().equalsIgnoreCase(type)) {
+        positionDeleteFilesCount.addAndGet(numFiles);
+
+      } else if (FileContent.EQUALITY_DELETES.name().equalsIgnoreCase(type)) {
+        equalityDeleteFilesCount.addAndGet(numFiles);
+
+      } else if (MANIFEST.equalsIgnoreCase(type)) {
+        manifestsCount.addAndGet(numFiles);
+
+      } else if (MANIFEST_LIST.equalsIgnoreCase(type)) {
+        manifestListsCount.addAndGet(numFiles);
+
+      } else if (STATISTICS_FILES.equalsIgnoreCase(type)) {
+        statisticsFilesCount.addAndGet(numFiles);
+
+      } else {
+        throw new ValidationException("Illegal file type: %s", type);
+      }
+    }
+
+    public void deletedFile(String type) {
+      if (FileContent.DATA.name().equalsIgnoreCase(type)) {
+        dataFilesCount.incrementAndGet();
+
+      } else if (FileContent.POSITION_DELETES.name().equalsIgnoreCase(type)) {
+        positionDeleteFilesCount.incrementAndGet();
+
+      } else if (FileContent.EQUALITY_DELETES.name().equalsIgnoreCase(type)) {
+        equalityDeleteFilesCount.incrementAndGet();
+
+      } else if (MANIFEST.equalsIgnoreCase(type)) {
+        manifestsCount.incrementAndGet();
+
+      } else if (MANIFEST_LIST.equalsIgnoreCase(type)) {
+        manifestListsCount.incrementAndGet();
+
+      } else if (STATISTICS_FILES.equalsIgnoreCase(type)) {
+        statisticsFilesCount.incrementAndGet();
+
+      } else {
+        throw new ValidationException("Illegal file type: %s", type);
+      }
+    }
+
+    public long dataFilesCount() {
+      return dataFilesCount.get();
+    }
+
+    public long positionDeleteFilesCount() {
+      return positionDeleteFilesCount.get();
+    }
+
+    public long equalityDeleteFilesCount() {
+      return equalityDeleteFilesCount.get();
+    }
+
+    public long manifestsCount() {
+      return manifestsCount.get();
+    }
+
+    public long manifestListsCount() {
+      return manifestListsCount.get();
+    }
+
+    public long statisticsFilesCount() {
+      return statisticsFilesCount.get();
     }
   }
 
@@ -139,6 +234,46 @@ abstract class FileCleanupStrategy {
     Set<String> statsFileLocationsAfterExpiration = statsFileLocations(afterExpiration);
 
     return Sets.difference(statsFileLocationsBeforeExpiration, statsFileLocationsAfterExpiration);
+  }
+
+  protected static class FileInfo {
+    private final FileContent content;
+    private final String path;
+
+    public FileInfo(FileContent content, String path) {
+      this.content = content;
+      this.path = path;
+    }
+
+    public FileContent getContent() {
+      return content;
+    }
+
+    public String getPath() {
+      return path;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+
+      FileInfo fileInfo = (FileInfo) other;
+      return Objects.equals(content, fileInfo.content) && Objects.equals(path, fileInfo.path);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(content, path);
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this).add("content", content).add("path", path).toString();
+    }
   }
 
   private Set<String> statsFileLocations(TableMetadata tableMetadata) {
