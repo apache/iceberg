@@ -18,5 +18,9 @@
  */
 package org.apache.iceberg;
 
-/** Marker interface to indicate whether a Table requires remote scan planning */
-public interface RequiresRemoteScanPlanning {}
+/** Marker interface to indicate whether a Table supports distributed scan planning */
+public interface SupportsDistributedScanPlanning {
+  default boolean allowDistributedPlanning() {
+    return true;
+  }
+}
