@@ -20,17 +20,20 @@ package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.parquet.schema.Types.primitive;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
+import org.apache.iceberg.arrow.vectorized.parquet.VectorizedPageIterator;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -48,9 +51,13 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.bytes.ByteBufferInputStream;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
@@ -295,12 +302,16 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
   public void testSupportedReadsForParquetV2() throws Exception {
     // Float and double column types are written using plain encoding with Parquet V2,
     // also Parquet V2 will dictionary encode decimals that use fixed length binary
-    // (i.e. decimals > 8 bytes)
+    // (i.e. decimals > 8 bytes). Int and long types use DELTA_BINARY_PACKED.
+    // Boolean types use RLE.
     Schema schema =
         new Schema(
             optional(102, "float_data", Types.FloatType.get()),
             optional(103, "double_data", Types.DoubleType.get()),
-            optional(104, "decimal_data", Types.DecimalType.of(25, 5)));
+            optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
+            optional(105, "int_data", Types.IntegerType.get()),
+            optional(106, "long_data", Types.LongType.get()),
+            optional(107, "boolean_data", Types.BooleanType.get()));
 
     OutputFile outputFile = new InMemoryOutputFile();
     Iterable<GenericData.Record> data =
@@ -329,6 +340,33 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageStartingWith("Cannot support vectorized reads for column")
         .hasMessageEndingWith("Disable vectorized reads to read this table/file");
+  }
+
+  @Test
+  public void testRLEEncodingOnlySupportsBooleanDataPage() {
+    MessageType schema =
+        new MessageType(
+            "test",
+            primitive(PrimitiveTypeName.INT32, Type.Repetition.OPTIONAL).id(1).named("int_col"));
+    ColumnDescriptor intColumnDesc = schema.getColumnDescription(new String[] {"int_col"});
+    ByteBufferInputStream stream = ByteBufferInputStream.wrap(ByteBuffer.allocate(0));
+
+    String expectedMessage =
+        "Cannot support vectorized reads for column "
+            + intColumnDesc
+            + " with encoding "
+            + Encoding.RLE
+            + ". Disable vectorized reads to read this table/file";
+
+    assertThatThrownBy(
+            () ->
+                new VectorizedPageIterator(intColumnDesc, "parquet-mr", false) {
+                  {
+                    initDataReader(Encoding.RLE, stream, 0);
+                  }
+                })
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(expectedMessage);
   }
 
   @Test
