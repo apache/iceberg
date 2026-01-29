@@ -82,6 +82,7 @@ class RESTFileScanTaskParser {
     DataFile dataFile =
         (DataFile) ContentFileParser.fromJson(JsonUtil.get(DATA_FILE, jsonNode), specsById);
     int specId = dataFile.specId();
+    PartitionSpec spec = specsById.get(specId);
 
     DeleteFile[] deleteFiles = null;
     if (jsonNode.has(DELETE_FILE_REFERENCES)) {
@@ -96,13 +97,12 @@ class RESTFileScanTaskParser {
 
     Expression filter = null;
     if (jsonNode.has(RESIDUAL_FILTER)) {
-      filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL_FILTER));
+      filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL_FILTER), spec.schema());
     }
 
-    String schemaString = SchemaParser.toJson(specsById.get(specId).schema());
-    String specString = PartitionSpecParser.toJson(specsById.get(specId));
-    ResidualEvaluator boundResidual =
-        ResidualEvaluator.of(specsById.get(specId), filter, isCaseSensitive);
+    String schemaString = SchemaParser.toJson(spec.schema());
+    String specString = PartitionSpecParser.toJson(spec);
+    ResidualEvaluator boundResidual = ResidualEvaluator.of(spec, filter, isCaseSensitive);
 
     return new BaseFileScanTask(dataFile, deleteFiles, schemaString, specString, boundResidual);
   }
