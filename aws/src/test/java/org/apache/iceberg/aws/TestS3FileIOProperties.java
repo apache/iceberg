@@ -320,4 +320,63 @@ public class TestS3FileIOProperties {
     S3FileIOProperties properties = new S3FileIOProperties(map);
     assertThat(properties.isS3DirectoryBucketListPrefixAsDirectory()).isEqualTo(false);
   }
+
+  @Test
+  public void testMetricsPublisherWithCreateMethod() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            S3FileIOProperties.METRICS_PUBLISHER_IMPL, FactoryMetricPublisher.class.getName());
+    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applyMetricsPublisherConfiguration(builder);
+
+    assertThat(builder.overrideConfiguration().metricPublishers()).hasSize(1);
+  }
+
+  @Test
+  public void testMetricsPublisherWithNoArgConstructor() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            S3FileIOProperties.METRICS_PUBLISHER_IMPL, NoArgMetricPublisher.class.getName());
+    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applyMetricsPublisherConfiguration(builder);
+
+    assertThat(builder.overrideConfiguration().metricPublishers()).hasSize(1);
+  }
+
+  @Test
+  public void testMetricsPublisherDisabled() {
+    Map<String, String> properties = ImmutableMap.of();
+    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
+    S3ClientBuilder builder = S3Client.builder();
+
+    s3Properties.applyMetricsPublisherConfiguration(builder);
+
+    assertThat(builder.overrideConfiguration().metricPublishers()).isEmpty();
+  }
+
+  public static class FactoryMetricPublisher
+      implements software.amazon.awssdk.metrics.MetricPublisher {
+    public static FactoryMetricPublisher create(Map<String, String> properties) {
+      return new FactoryMetricPublisher();
+    }
+
+    @Override
+    public void publish(software.amazon.awssdk.metrics.MetricCollection metricCollection) {}
+
+    @Override
+    public void close() {}
+  }
+
+  public static class NoArgMetricPublisher
+      implements software.amazon.awssdk.metrics.MetricPublisher {
+    @Override
+    public void publish(software.amazon.awssdk.metrics.MetricCollection metricCollection) {}
+
+    @Override
+    public void close() {}
+  }
 }
