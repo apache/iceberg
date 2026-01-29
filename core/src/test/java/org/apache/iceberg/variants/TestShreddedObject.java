@@ -214,6 +214,28 @@ public class TestShreddedObject {
   }
 
   @Test
+  public void testPartiallyShreddedUnserializedObjectSerializationMinimalBuffer() {
+    ShreddedObject partial = createUnserializedObject(FIELDS);
+    VariantMetadata metadata = partial.metadata();
+
+    // replace field c with a new value
+    partial.put("c", Variants.ofIsoDate("2024-10-12"));
+    partial.remove("b");
+
+    VariantValue value = roundTripMinimalBuffer(partial, metadata);
+
+    assertThat(value).isInstanceOf(SerializedObject.class);
+    SerializedObject actual = (SerializedObject) value;
+
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").type()).isEqualTo(PhysicalType.DATE);
+    assertThat(actual.get("c").asPrimitive().get())
+        .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
+  }
+
+  @Test
   public void testPartiallyShreddedObjectSerializationLargeBuffer() {
     ShreddedObject partial = createUnshreddedObject(FIELDS);
     VariantMetadata metadata = partial.metadata();
@@ -402,6 +424,12 @@ public class TestShreddedObject {
     }
 
     return object;
+  }
+
+  private static ShreddedObject createUnserializedObject(Map<String, VariantValue> fields) {
+    ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(fields.keySet(), false);
+    VariantMetadata metadata = SerializedMetadata.from(metadataBuffer);
+    return new ShreddedObject(metadata, createShreddedObject(metadata, fields));
   }
 
   /** Creates a ShreddedObject with fields in its shredded map */
