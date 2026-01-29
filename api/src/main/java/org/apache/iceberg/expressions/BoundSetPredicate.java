@@ -56,14 +56,12 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
 
   @Override
   public boolean test(T value) {
-    switch (op()) {
-      case IN:
-        return literalSet.contains(value);
-      case NOT_IN:
-        return !literalSet.contains(value);
-      default:
-        throw new IllegalStateException("Invalid operation for BoundSetPredicate: " + op());
-    }
+    return switch (op()) {
+      case IN -> literalSet.contains(value);
+      case NOT_IN -> !literalSet.contains(value);
+      default ->
+          throw new IllegalStateException("Invalid operation for BoundSetPredicate: " + op());
+    };
   }
 
   @Override
@@ -80,13 +78,10 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
 
   @Override
   public String toString() {
-    switch (op()) {
-      case IN:
-        return term() + " in (" + COMMA.join(literalSet) + ")";
-      case NOT_IN:
-        return term() + " not in (" + COMMA.join(literalSet) + ")";
-      default:
-        return "Invalid unary predicate: operation = " + op();
-    }
+    return switch (op()) {
+      case IN -> term() + " in (" + COMMA.join(literalSet) + ")";
+      case NOT_IN -> term() + " not in (" + COMMA.join(literalSet) + ")";
+      default -> "Invalid unary predicate: operation = " + op();
+    };
   }
 }

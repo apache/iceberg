@@ -56,35 +56,37 @@ class ManifestLists {
       Long parentSnapshotId,
       long sequenceNumber,
       Long firstRowId) {
-    switch (formatVersion) {
-      case 1:
+    return switch (formatVersion) {
+      case 1 -> {
         Preconditions.checkArgument(
             sequenceNumber == TableMetadata.INITIAL_SEQUENCE_NUMBER,
             "Invalid sequence number for v1 manifest list: %s",
             sequenceNumber);
-        return new ManifestListWriter.V1Writer(
+        yield new ManifestListWriter.V1Writer(
             manifestListFile, encryptionManager, snapshotId, parentSnapshotId);
-      case 2:
-        return new ManifestListWriter.V2Writer(
-            manifestListFile, encryptionManager, snapshotId, parentSnapshotId, sequenceNumber);
-      case 3:
-        return new ManifestListWriter.V3Writer(
-            manifestListFile,
-            encryptionManager,
-            snapshotId,
-            parentSnapshotId,
-            sequenceNumber,
-            firstRowId);
-      case 4:
-        return new ManifestListWriter.V4Writer(
-            manifestListFile,
-            encryptionManager,
-            snapshotId,
-            parentSnapshotId,
-            sequenceNumber,
-            firstRowId);
-    }
-    throw new UnsupportedOperationException(
-        "Cannot write manifest list for table version: " + formatVersion);
+      }
+      case 2 ->
+          new ManifestListWriter.V2Writer(
+              manifestListFile, encryptionManager, snapshotId, parentSnapshotId, sequenceNumber);
+      case 3 ->
+          new ManifestListWriter.V3Writer(
+              manifestListFile,
+              encryptionManager,
+              snapshotId,
+              parentSnapshotId,
+              sequenceNumber,
+              firstRowId);
+      case 4 ->
+          new ManifestListWriter.V4Writer(
+              manifestListFile,
+              encryptionManager,
+              snapshotId,
+              parentSnapshotId,
+              sequenceNumber,
+              firstRowId);
+      default ->
+          throw new UnsupportedOperationException(
+              "Cannot write manifest list for table version: " + formatVersion);
+    };
   }
 }

@@ -83,14 +83,11 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
     LogicalTypeAnnotation.TimeUnit unit =
         ((LogicalTypeAnnotation.TimeLogicalTypeAnnotation) time).getUnit();
-    switch (unit) {
-      case MICROS:
-        return new GenericParquetReaders.TimeReader(desc);
-      case MILLIS:
-        return new GenericParquetReaders.TimeMillisReader(desc);
-      default:
-        throw new UnsupportedOperationException("Unsupported unit for time: " + unit);
-    }
+    return switch (unit) {
+      case MICROS -> new TimeReader(desc);
+      case MILLIS -> new TimeMillisReader(desc);
+      default -> throw new UnsupportedOperationException("Unsupported unit for time: " + unit);
+    };
   }
 
   @Override
@@ -106,22 +103,19 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
     LogicalTypeAnnotation.TimeUnit unit =
         ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) timestamp).getUnit();
-    switch (unit) {
-      case NANOS:
-        return isAdjustedToUTC
-            ? new GenericParquetReaders.TimestamptzReader(desc, ChronoUnit.NANOS)
-            : new GenericParquetReaders.TimestampReader(desc, ChronoUnit.NANOS);
-      case MICROS:
-        return isAdjustedToUTC
-            ? new GenericParquetReaders.TimestamptzReader(desc, ChronoUnit.MICROS)
-            : new GenericParquetReaders.TimestampReader(desc, ChronoUnit.MICROS);
-      case MILLIS:
-        return isAdjustedToUTC
-            ? new GenericParquetReaders.TimestamptzMillisReader(desc)
-            : new GenericParquetReaders.TimestampMillisReader(desc);
-      default:
-        throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
-    }
+    return switch (unit) {
+      case NANOS ->
+          isAdjustedToUTC
+              ? new TimestamptzReader(desc, ChronoUnit.NANOS)
+              : new TimestampReader(desc, ChronoUnit.NANOS);
+      case MICROS ->
+          isAdjustedToUTC
+              ? new TimestamptzReader(desc, ChronoUnit.MICROS)
+              : new TimestampReader(desc, ChronoUnit.MICROS);
+      case MILLIS ->
+          isAdjustedToUTC ? new TimestamptzMillisReader(desc) : new TimestampMillisReader(desc);
+      default -> throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
+    };
   }
 
   @Override

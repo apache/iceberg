@@ -102,13 +102,10 @@ public class DataComplete implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (AvroUtil.positionToId(i, avroSchema)) {
-      case COMMIT_ID:
-        return commitId;
-      case ASSIGNMENTS:
-        return assignments;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (AvroUtil.positionToId(i, avroSchema)) {
+      case COMMIT_ID -> commitId;
+      case ASSIGNMENTS -> assignments;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 }

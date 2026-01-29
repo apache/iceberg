@@ -159,15 +159,10 @@ public class ParquetUtil {
 
   public static boolean isIntType(PrimitiveType primitiveType) {
     if (primitiveType.getOriginalType() != null) {
-      switch (primitiveType.getOriginalType()) {
-        case INT_8:
-        case INT_16:
-        case INT_32:
-        case DATE:
-          return true;
-        default:
-          return false;
-      }
+      return switch (primitiveType.getOriginalType()) {
+        case INT_8, INT_16, INT_32, DATE -> true;
+        default -> false;
+      };
     }
     return primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32;
   }

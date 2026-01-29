@@ -26,15 +26,11 @@ public interface JavaHash<T> {
 
   @SuppressWarnings("unchecked")
   static <T> JavaHash<T> forType(Type type) {
-    switch (type.typeId()) {
-      case STRING:
-        return (JavaHash<T>) JavaHashes.strings();
-      case STRUCT:
-        return (JavaHash<T>) JavaHashes.struct(type.asStructType());
-      case LIST:
-        return (JavaHash<T>) JavaHashes.list(type.asListType());
-      default:
-        return Objects::hashCode;
-    }
+    return switch (type.typeId()) {
+      case STRING -> (JavaHash<T>) JavaHashes.strings();
+      case STRUCT -> (JavaHash<T>) JavaHashes.struct(type.asStructType());
+      case LIST -> (JavaHash<T>) JavaHashes.list(type.asListType());
+      default -> Objects::hashCode;
+    };
   }
 }

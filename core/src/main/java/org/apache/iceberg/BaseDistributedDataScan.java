@@ -240,21 +240,15 @@ abstract class BaseDistributedDataScan
       return true;
     }
 
-    switch (mode) {
-      case LOCAL:
-        return true;
-
-      case DISTRIBUTED:
-        return manifests.isEmpty();
-
-      case AUTO:
-        return remoteParallelism() <= localParallelism
-            || manifests.size() <= 2 * localParallelism
-            || totalSize(manifests) <= localPlanningSizeThreshold;
-
-      default:
-        throw new IllegalArgumentException("Unknown planning mode: " + mode);
-    }
+    return switch (mode) {
+      case LOCAL -> true;
+      case DISTRIBUTED -> manifests.isEmpty();
+      case AUTO ->
+          remoteParallelism() <= localParallelism
+              || manifests.size() <= 2 * localParallelism
+              || totalSize(manifests) <= localPlanningSizeThreshold;
+      default -> throw new IllegalArgumentException("Unknown planning mode: " + mode);
+    };
   }
 
   private long totalSize(List<ManifestFile> manifests) {

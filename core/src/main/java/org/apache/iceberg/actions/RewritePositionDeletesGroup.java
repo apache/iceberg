@@ -108,19 +108,16 @@ public class RewritePositionDeletesGroup
   }
 
   public static Comparator<RewritePositionDeletesGroup> comparator(RewriteJobOrder order) {
-    switch (order) {
-      case BYTES_ASC:
-        return Comparator.comparing(RewritePositionDeletesGroup::inputFilesSizeInBytes);
-      case BYTES_DESC:
-        return Comparator.comparing(
-            RewritePositionDeletesGroup::inputFilesSizeInBytes, Comparator.reverseOrder());
-      case FILES_ASC:
-        return Comparator.comparing(RewritePositionDeletesGroup::inputFileNum);
-      case FILES_DESC:
-        return Comparator.comparing(
-            RewritePositionDeletesGroup::inputFileNum, Comparator.reverseOrder());
-      default:
-        return (unused, unused2) -> 0;
-    }
+    return switch (order) {
+      case BYTES_ASC -> Comparator.comparing(RewritePositionDeletesGroup::inputFilesSizeInBytes);
+      case BYTES_DESC ->
+          Comparator.comparing(
+              RewritePositionDeletesGroup::inputFilesSizeInBytes, Comparator.reverseOrder());
+      case FILES_ASC -> Comparator.comparing(RewritePositionDeletesGroup::inputFileNum);
+      case FILES_DESC ->
+          Comparator.comparing(
+              RewritePositionDeletesGroup::inputFileNum, Comparator.reverseOrder());
+      default -> (unused, unused2) -> 0;
+    };
   }
 }

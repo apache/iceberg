@@ -222,23 +222,22 @@ public class FlinkParquetReaders {
       @Override
       public Optional<ParquetValueReader<?>> visit(
           DecimalLogicalTypeAnnotation decimalLogicalType) {
-        switch (primitive.getPrimitiveTypeName()) {
-          case BINARY:
-          case FIXED_LEN_BYTE_ARRAY:
-            return Optional.of(
-                new BinaryDecimalReader(
-                    desc, decimalLogicalType.getPrecision(), decimalLogicalType.getScale()));
-          case INT64:
-            return Optional.of(
-                new LongDecimalReader(
-                    desc, decimalLogicalType.getPrecision(), decimalLogicalType.getScale()));
-          case INT32:
-            return Optional.of(
-                new IntegerDecimalReader(
-                    desc, decimalLogicalType.getPrecision(), decimalLogicalType.getScale()));
-        }
-
-        return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(decimalLogicalType);
+        return switch (primitive.getPrimitiveTypeName()) {
+          case BINARY, FIXED_LEN_BYTE_ARRAY ->
+              Optional.of(
+                  new BinaryDecimalReader(
+                      desc, decimalLogicalType.getPrecision(), decimalLogicalType.getScale()));
+          case INT64 ->
+              Optional.of(
+                  new LongDecimalReader(
+                      desc, decimalLogicalType.getPrecision(), decimalLogicalType.getScale()));
+          case INT32 ->
+              Optional.of(
+                  new IntegerDecimalReader(
+                      desc, decimalLogicalType.getPrecision(), decimalLogicalType.getScale()));
+          default ->
+              LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(decimalLogicalType);
+        };
       }
 
       @Override

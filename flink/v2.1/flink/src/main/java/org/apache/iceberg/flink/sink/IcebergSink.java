@@ -797,16 +797,13 @@ public class IcebergSink
     SortOrder sortOrder = table.sortOrder();
 
     LOG.info("Write distribution mode is '{}'", mode.modeName());
-    switch (mode) {
-      case NONE:
-        return distributeDataStreamByNoneDistributionMode(input, schema);
-      case HASH:
-        return distributeDataStreamByHashDistributionMode(input, schema, spec);
-      case RANGE:
-        return distributeDataStreamByRangeDistributionMode(input, schema, spec, sortOrder);
-      default:
-        throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + mode);
-    }
+    return switch (mode) {
+      case NONE -> distributeDataStreamByNoneDistributionMode(input, schema);
+      case HASH -> distributeDataStreamByHashDistributionMode(input, schema, spec);
+      case RANGE -> distributeDataStreamByRangeDistributionMode(input, schema, spec, sortOrder);
+      default ->
+          throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + mode);
+    };
   }
 
   private DataStream<RowData> distributeDataStreamByNoneDistributionMode(

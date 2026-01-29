@@ -138,45 +138,39 @@ public class GenericArrowVectorAccessorFactory<
         case TIMESTAMP_MICROS:
           return new DictionaryLongAccessor<>((IntVector) vector, dictionary);
         case DECIMAL:
-          switch (primitive.getPrimitiveTypeName()) {
-            case BINARY:
-            case FIXED_LEN_BYTE_ARRAY:
-              return new DictionaryDecimalBinaryAccessor<>(
-                  (IntVector) vector, dictionary, decimalFactorySupplier.get());
-            case INT64:
-              return new DictionaryDecimalLongAccessor<>(
-                  (IntVector) vector, dictionary, decimalFactorySupplier.get());
-            case INT32:
-              return new DictionaryDecimalIntAccessor<>(
-                  (IntVector) vector, dictionary, decimalFactorySupplier.get());
-            default:
-              throw new UnsupportedOperationException(
-                  "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-          }
+          return switch (primitive.getPrimitiveTypeName()) {
+            case BINARY, FIXED_LEN_BYTE_ARRAY ->
+                new DictionaryDecimalBinaryAccessor<>(
+                    (IntVector) vector, dictionary, decimalFactorySupplier.get());
+            case INT64 ->
+                new DictionaryDecimalLongAccessor<>(
+                    (IntVector) vector, dictionary, decimalFactorySupplier.get());
+            case INT32 ->
+                new DictionaryDecimalIntAccessor<>(
+                    (IntVector) vector, dictionary, decimalFactorySupplier.get());
+            default ->
+                throw new UnsupportedOperationException(
+                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+          };
         default:
           throw new UnsupportedOperationException(
               "Unsupported logical type: " + primitive.getOriginalType());
       }
     } else {
-      switch (primitive.getPrimitiveTypeName()) {
-        case FIXED_LEN_BYTE_ARRAY:
-        case BINARY:
-          return new DictionaryBinaryAccessor<>(
-              (IntVector) vector, dictionary, stringFactorySupplier.get());
-        case FLOAT:
-          return new DictionaryFloatAccessor<>((IntVector) vector, dictionary);
-        case INT64:
-          return new DictionaryLongAccessor<>((IntVector) vector, dictionary);
-        case INT96:
-          // Impala & Spark used to write timestamps as INT96 by default. For backwards
-          // compatibility we try to read INT96 as timestamps. But INT96 is not recommended
-          // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
-          return new DictionaryTimestampInt96Accessor<>((IntVector) vector, dictionary);
-        case DOUBLE:
-          return new DictionaryDoubleAccessor<>((IntVector) vector, dictionary);
-        default:
-          throw new UnsupportedOperationException("Unsupported type: " + primitive);
-      }
+      return switch (primitive.getPrimitiveTypeName()) {
+        case FIXED_LEN_BYTE_ARRAY, BINARY ->
+            new DictionaryBinaryAccessor<>(
+                (IntVector) vector, dictionary, stringFactorySupplier.get());
+        case FLOAT -> new DictionaryFloatAccessor<>((IntVector) vector, dictionary);
+        case INT64 -> new DictionaryLongAccessor<>((IntVector) vector, dictionary);
+        case INT96 ->
+            // Impala & Spark used to write timestamps as INT96 by default. For backwards
+            // compatibility we try to read INT96 as timestamps. But INT96 is not recommended
+            // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
+            new DictionaryTimestampInt96Accessor<>((IntVector) vector, dictionary);
+        case DOUBLE -> new DictionaryDoubleAccessor<>((IntVector) vector, dictionary);
+        default -> throw new UnsupportedOperationException("Unsupported type: " + primitive);
+      };
     }
   }
 

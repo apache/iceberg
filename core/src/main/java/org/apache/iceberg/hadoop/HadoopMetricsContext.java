@@ -66,24 +66,28 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   @Override
   @SuppressWarnings("unchecked")
   public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
-    switch (name) {
-      case READ_BYTES:
+    return switch (name) {
+      case READ_BYTES -> {
         ValidationException.check(type == Long.class, "'%s' requires Long type", READ_BYTES);
-        return (Counter<T>) longCounter(statistics()::incrementBytesRead);
-      case READ_OPERATIONS:
+        yield (Counter<T>) longCounter(statistics()::incrementBytesRead);
+      }
+      case READ_OPERATIONS -> {
         ValidationException.check(
             type == Integer.class, "'%s' requires Integer type", READ_OPERATIONS);
-        return (Counter<T>) integerCounter(statistics()::incrementReadOps);
-      case WRITE_BYTES:
+        yield (Counter<T>) integerCounter(statistics()::incrementReadOps);
+      }
+      case WRITE_BYTES -> {
         ValidationException.check(type == Long.class, "'%s' requires Long type", WRITE_BYTES);
-        return (Counter<T>) longCounter(statistics()::incrementBytesWritten);
-      case WRITE_OPERATIONS:
+        yield (Counter<T>) longCounter(statistics()::incrementBytesWritten);
+      }
+      case WRITE_OPERATIONS -> {
         ValidationException.check(
             type == Integer.class, "'%s' requires Integer type", WRITE_OPERATIONS);
-        return (Counter<T>) integerCounter(statistics()::incrementWriteOps);
-      default:
-        throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
-    }
+        yield (Counter<T>) integerCounter(statistics()::incrementWriteOps);
+      }
+      default ->
+          throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
+    };
   }
 
   private Counter<Long> longCounter(Consumer<Long> consumer) {
@@ -125,19 +129,17 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
    */
   @Override
   public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
-    switch (name) {
-      case READ_BYTES:
-        return counter(statistics()::incrementBytesRead, statistics()::getBytesRead);
-      case READ_OPERATIONS:
-        return counter((long x) -> statistics.incrementReadOps((int) x), statistics()::getReadOps);
-      case WRITE_BYTES:
-        return counter(statistics()::incrementBytesWritten, statistics()::getBytesWritten);
-      case WRITE_OPERATIONS:
-        return counter(
-            (long x) -> statistics.incrementWriteOps((int) x), statistics()::getWriteOps);
-      default:
-        throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
-    }
+    return switch (name) {
+      case READ_BYTES -> counter(statistics()::incrementBytesRead, statistics()::getBytesRead);
+      case READ_OPERATIONS ->
+          counter((long x) -> statistics.incrementReadOps((int) x), statistics()::getReadOps);
+      case WRITE_BYTES ->
+          counter(statistics()::incrementBytesWritten, statistics()::getBytesWritten);
+      case WRITE_OPERATIONS ->
+          counter((long x) -> statistics.incrementWriteOps((int) x), statistics()::getWriteOps);
+      default ->
+          throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
+    };
   }
 
   private org.apache.iceberg.metrics.Counter counter(LongConsumer consumer, LongSupplier supplier) {

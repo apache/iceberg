@@ -127,17 +127,13 @@ public class CommitToTable implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (AvroUtil.positionToId(i, avroSchema)) {
-      case COMMIT_ID:
-        return commitId;
-      case TABLE_REFERENCE:
-        return tableReference;
-      case SNAPSHOT_ID:
-        return snapshotId;
-      case VALID_THROUGH_TS:
-        return validThroughTs == null ? null : DateTimeUtil.microsFromTimestamptz(validThroughTs);
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (AvroUtil.positionToId(i, avroSchema)) {
+      case COMMIT_ID -> commitId;
+      case TABLE_REFERENCE -> tableReference;
+      case SNAPSHOT_ID -> snapshotId;
+      case VALID_THROUGH_TS ->
+          validThroughTs == null ? null : DateTimeUtil.microsFromTimestamptz(validThroughTs);
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 }

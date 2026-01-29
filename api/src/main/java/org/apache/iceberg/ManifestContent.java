@@ -34,12 +34,10 @@ public enum ManifestContent {
   }
 
   public static ManifestContent fromId(int id) {
-    switch (id) {
-      case 0:
-        return DATA;
-      case 1:
-        return DELETES;
-    }
-    throw new IllegalArgumentException("Unknown manifest content: " + id);
+    return switch (id) {
+      case 0 -> DATA;
+      case 1 -> DELETES;
+      default -> throw new IllegalArgumentException("Unknown manifest content: " + id);
+    };
   }
 }

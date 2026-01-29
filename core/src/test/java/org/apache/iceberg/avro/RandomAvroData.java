@@ -104,18 +104,13 @@ public class RandomAvroData {
       Object result = RandomUtil.generatePrimitive(primitive, random);
       // For the primitives that Avro needs a different type than Spark, fix
       // them here.
-      switch (primitive.typeId()) {
-        case STRING:
-          return new Utf8((String) result);
-        case FIXED:
-          return new GenericData.Fixed(typeToSchema.get(primitive), (byte[]) result);
-        case BINARY:
-          return ByteBuffer.wrap((byte[]) result);
-        case UUID:
-          return UUID.nameUUIDFromBytes((byte[]) result);
-        default:
-          return result;
-      }
+      return switch (primitive.typeId()) {
+        case STRING -> new Utf8((String) result);
+        case FIXED -> new GenericData.Fixed(typeToSchema.get(primitive), (byte[]) result);
+        case BINARY -> ByteBuffer.wrap((byte[]) result);
+        case UUID -> UUID.nameUUIDFromBytes((byte[]) result);
+        default -> result;
+      };
     }
   }
 }

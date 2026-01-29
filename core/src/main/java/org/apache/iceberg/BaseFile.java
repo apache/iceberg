@@ -393,54 +393,31 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   }
 
   private Object getByPos(int basePos) {
-    switch (basePos) {
-      case 0:
-        return content.id();
-      case 1:
-        return filePath;
-      case 2:
-        return format != null ? format.toString() : null;
-      case 3:
-        return partitionSpecId;
-      case 4:
-        return partitionData;
-      case 5:
-        return recordCount;
-      case 6:
-        return fileSizeInBytes;
-      case 7:
-        return columnSizes;
-      case 8:
-        return valueCounts;
-      case 9:
-        return nullValueCounts;
-      case 10:
-        return nanValueCounts;
-      case 11:
-        return lowerBounds;
-      case 12:
-        return upperBounds;
-      case 13:
-        return keyMetadata();
-      case 14:
-        return splitOffsets();
-      case 15:
-        return equalityFieldIds();
-      case 16:
-        return sortOrderId;
-      case 17:
-        return firstRowId;
-      case 18:
-        return referencedDataFile;
-      case 19:
-        return contentOffset;
-      case 20:
-        return contentSizeInBytes;
-      case 21:
-        return fileOrdinal;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
-    }
+    return switch (basePos) {
+      case 0 -> content.id();
+      case 1 -> filePath;
+      case 2 -> format != null ? format.toString() : null;
+      case 3 -> partitionSpecId;
+      case 4 -> partitionData;
+      case 5 -> recordCount;
+      case 6 -> fileSizeInBytes;
+      case 7 -> columnSizes;
+      case 8 -> valueCounts;
+      case 9 -> nullValueCounts;
+      case 10 -> nanValueCounts;
+      case 11 -> lowerBounds;
+      case 12 -> upperBounds;
+      case 13 -> keyMetadata();
+      case 14 -> splitOffsets();
+      case 15 -> equalityFieldIds();
+      case 16 -> sortOrderId;
+      case 17 -> firstRowId;
+      case 18 -> referencedDataFile;
+      case 19 -> contentOffset;
+      case 20 -> contentSizeInBytes;
+      case 21 -> fileOrdinal;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
+    };
   }
 
   @Override

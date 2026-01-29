@@ -42,16 +42,12 @@ public class LockFactoryBuilder {
         LockConfig.LOCK_TYPE_OPTION.key());
 
     // Set lock id to catalog.db.table if not set
-    switch (lockType) {
-      case LockConfig.JdbcLockConfig.JDBC:
-        return createJdbcLockFactory(lockConfig, tableName);
-
-      case LockConfig.ZkLockConfig.ZK:
-        return createZkLockFactory(lockConfig, tableName);
-
-      default:
-        throw new IllegalArgumentException(String.format("Unsupported lock type: %s ", lockType));
-    }
+    return switch (lockType) {
+      case LockConfig.JdbcLockConfig.JDBC -> createJdbcLockFactory(lockConfig, tableName);
+      case LockConfig.ZkLockConfig.ZK -> createZkLockFactory(lockConfig, tableName);
+      default ->
+          throw new IllegalArgumentException(String.format("Unsupported lock type: %s ", lockType));
+    };
   }
 
   private static TriggerLockFactory createJdbcLockFactory(LockConfig lockConfig, String tableName) {

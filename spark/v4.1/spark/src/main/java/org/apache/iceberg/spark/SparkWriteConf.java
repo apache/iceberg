@@ -176,16 +176,12 @@ public class SparkWriteConf {
   }
 
   private String dataCompressionCodec() {
-    switch (dataFileFormat()) {
-      case PARQUET:
-        return parquetCompressionCodec();
-      case AVRO:
-        return avroCompressionCodec();
-      case ORC:
-        return orcCompressionCodec();
-      default:
-        return null;
-    }
+    return switch (dataFileFormat()) {
+      case PARQUET -> parquetCompressionCodec();
+      case AVRO -> avroCompressionCodec();
+      case ORC -> orcCompressionCodec();
+      default -> null;
+    };
   }
 
   public long targetDataFileSize() {
@@ -230,16 +226,12 @@ public class SparkWriteConf {
   }
 
   private String deleteCompressionCodec() {
-    switch (deleteFileFormat()) {
-      case PARQUET:
-        return deleteParquetCompressionCodec();
-      case AVRO:
-        return deleteAvroCompressionCodec();
-      case ORC:
-        return deleteOrcCompressionCodec();
-      default:
-        return null;
-    }
+    return switch (deleteFileFormat()) {
+      case PARQUET -> deleteParquetCompressionCodec();
+      case AVRO -> deleteAvroCompressionCodec();
+      case ORC -> deleteOrcCompressionCodec();
+      default -> null;
+    };
   }
 
   public long targetDeleteFileSize() {
@@ -338,16 +330,12 @@ public class SparkWriteConf {
 
   @VisibleForTesting
   DistributionMode copyOnWriteDistributionMode(Command command) {
-    switch (command) {
-      case DELETE:
-        return deleteDistributionMode();
-      case UPDATE:
-        return updateDistributionMode();
-      case MERGE:
-        return copyOnWriteMergeDistributionMode();
-      default:
-        throw new IllegalArgumentException("Unexpected command: " + command);
-    }
+    return switch (command) {
+      case DELETE -> deleteDistributionMode();
+      case UPDATE -> updateDistributionMode();
+      case MERGE -> copyOnWriteMergeDistributionMode();
+      default -> throw new IllegalArgumentException("Unexpected command: " + command);
+    };
   }
 
   public SparkWriteRequirements positionDeltaRequirements(Command command) {
@@ -366,16 +354,12 @@ public class SparkWriteConf {
 
   @VisibleForTesting
   DistributionMode positionDeltaDistributionMode(Command command) {
-    switch (command) {
-      case DELETE:
-        return deleteDistributionMode();
-      case UPDATE:
-        return updateDistributionMode();
-      case MERGE:
-        return positionDeltaMergeDistributionMode();
-      default:
-        throw new IllegalArgumentException("Unexpected command: " + command);
-    }
+    return switch (command) {
+      case DELETE -> deleteDistributionMode();
+      case UPDATE -> updateDistributionMode();
+      case MERGE -> positionDeltaMergeDistributionMode();
+      default -> throw new IllegalArgumentException("Unexpected command: " + command);
+    };
   }
 
   private DistributionMode deleteDistributionMode() {

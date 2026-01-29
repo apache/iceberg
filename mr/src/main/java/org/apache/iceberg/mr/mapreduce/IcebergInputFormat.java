@@ -326,21 +326,16 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           encryptionManager.decrypt(
               EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
 
-      CloseableIterable<T> iterable;
-      switch (file.format()) {
-        case AVRO:
-          iterable = newAvroIterable(inputFile, currentTask, readSchema);
-          break;
-        case ORC:
-          iterable = newOrcIterable(inputFile, currentTask, readSchema);
-          break;
-        case PARQUET:
-          iterable = newParquetIterable(inputFile, currentTask, readSchema);
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              String.format("Cannot read %s file: %s", file.format().name(), file.location()));
-      }
+      CloseableIterable<T> iterable =
+          switch (file.format()) {
+            case AVRO -> newAvroIterable(inputFile, currentTask, readSchema);
+            case ORC -> newOrcIterable(inputFile, currentTask, readSchema);
+            case PARQUET -> newParquetIterable(inputFile, currentTask, readSchema);
+            default ->
+                throw new UnsupportedOperationException(
+                    String.format(
+                        "Cannot read %s file: %s", file.format().name(), file.location()));
+          };
 
       return iterable;
     }

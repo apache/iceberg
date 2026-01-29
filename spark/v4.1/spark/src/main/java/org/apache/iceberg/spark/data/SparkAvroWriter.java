@@ -117,54 +117,41 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
     public ValueWriter<?> primitive(DataType type, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
-        switch (logicalType.getName()) {
-          case "date":
-            // Spark uses the same representation
-            return ValueWriters.ints();
-
-          case "timestamp-micros":
-            // Spark uses the same representation
-            return ValueWriters.longs();
-
-          case "decimal":
+        return switch (logicalType.getName()) {
+          case "date" ->
+              // Spark uses the same representation
+              ValueWriters.ints();
+          case "timestamp-micros" ->
+              // Spark uses the same representation
+              ValueWriters.longs();
+          case "decimal" -> {
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return SparkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
-
-          case "uuid":
-            return SparkValueWriters.uuids();
-
-          default:
-            throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
-        }
-      }
-
-      switch (primitive.getType()) {
-        case NULL:
-          return ValueWriters.nulls();
-        case BOOLEAN:
-          return ValueWriters.booleans();
-        case INT:
-          if (type instanceof ByteType) {
-            return ValueWriters.tinyints();
-          } else if (type instanceof ShortType) {
-            return ValueWriters.shorts();
+            yield SparkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
           }
-          return ValueWriters.ints();
-        case LONG:
-          return ValueWriters.longs();
-        case FLOAT:
-          return ValueWriters.floats();
-        case DOUBLE:
-          return ValueWriters.doubles();
-        case STRING:
-          return SparkValueWriters.strings();
-        case FIXED:
-          return ValueWriters.fixed(primitive.getFixedSize());
-        case BYTES:
-          return ValueWriters.bytes();
-        default:
-          throw new IllegalArgumentException("Unsupported type: " + primitive);
+          case "uuid" -> SparkValueWriters.uuids();
+          default -> throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
+        };
       }
+
+      return switch (primitive.getType()) {
+        case NULL -> ValueWriters.nulls();
+        case BOOLEAN -> ValueWriters.booleans();
+        case INT -> {
+          if (type instanceof ByteType) {
+            yield ValueWriters.tinyints();
+          } else if (type instanceof ShortType) {
+            yield ValueWriters.shorts();
+          }
+          yield ValueWriters.ints();
+        }
+        case LONG -> ValueWriters.longs();
+        case FLOAT -> ValueWriters.floats();
+        case DOUBLE -> ValueWriters.doubles();
+        case STRING -> SparkValueWriters.strings();
+        case FIXED -> ValueWriters.fixed(primitive.getFixedSize());
+        case BYTES -> ValueWriters.bytes();
+        default -> throw new IllegalArgumentException("Unsupported type: " + primitive);
+      };
     }
   }
 }

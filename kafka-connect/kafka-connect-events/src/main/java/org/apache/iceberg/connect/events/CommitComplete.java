@@ -103,13 +103,11 @@ public class CommitComplete implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (AvroUtil.positionToId(i, avroSchema)) {
-      case COMMIT_ID:
-        return commitId;
-      case VALID_THROUGH_TS:
-        return validThroughTs == null ? null : DateTimeUtil.microsFromTimestamptz(validThroughTs);
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (AvroUtil.positionToId(i, avroSchema)) {
+      case COMMIT_ID -> commitId;
+      case VALID_THROUGH_TS ->
+          validThroughTs == null ? null : DateTimeUtil.microsFromTimestamptz(validThroughTs);
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 }

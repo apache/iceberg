@@ -112,23 +112,15 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     if (task.isDataTask()) {
       throw new UnsupportedOperationException("Cannot read data task.");
     } else {
-      switch (task.file().format()) {
-        case PARQUET:
-          iter = newParquetIterable(task, schema, idToConstant, inputFilesDecryptor);
-          break;
-
-        case AVRO:
-          iter = newAvroIterable(task, schema, idToConstant, inputFilesDecryptor);
-          break;
-
-        case ORC:
-          iter = newOrcIterable(task, schema, idToConstant, inputFilesDecryptor);
-          break;
-
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot read unknown format: " + task.file().format());
-      }
+      iter =
+          switch (task.file().format()) {
+            case PARQUET -> newParquetIterable(task, schema, idToConstant, inputFilesDecryptor);
+            case AVRO -> newAvroIterable(task, schema, idToConstant, inputFilesDecryptor);
+            case ORC -> newOrcIterable(task, schema, idToConstant, inputFilesDecryptor);
+            default ->
+                throw new UnsupportedOperationException(
+                    "Cannot read unknown format: " + task.file().format());
+          };
     }
 
     if (rowFilter != null) {

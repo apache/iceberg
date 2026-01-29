@@ -155,15 +155,14 @@ public class MongoDataConverter {
 
       case ARRAY:
         if (keyValueForStruct.getValue().asArray().isEmpty()) {
-          switch (arrayEncoding) {
-            case ARRAY:
-              colValue = Lists.newArrayList();
-              break;
-            case DOCUMENT:
-              final Schema fieldSchema = schema.field(key).schema();
-              colValue = new Struct(fieldSchema);
-              break;
-          }
+          colValue =
+              switch (arrayEncoding) {
+                case ARRAY -> Lists.newArrayList();
+                case DOCUMENT -> {
+                  final Schema fieldSchema = schema.field(key).schema();
+                  yield new Struct(fieldSchema);
+                }
+              };
         } else {
           switch (arrayEncoding) {
             case ARRAY:

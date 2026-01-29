@@ -58,12 +58,9 @@ class ViewRepresentationParser {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse view representation from non-object: %s", node);
     String type = JsonUtil.getString(TYPE, node).toLowerCase(Locale.ENGLISH);
-    switch (type) {
-      case ViewRepresentation.Type.SQL:
-        return SQLViewRepresentationParser.fromJson(node);
-
-      default:
-        return ImmutableUnknownViewRepresentation.builder().type(type).build();
-    }
+    return switch (type) {
+      case ViewRepresentation.Type.SQL -> SQLViewRepresentationParser.fromJson(node);
+      default -> ImmutableUnknownViewRepresentation.builder().type(type).build();
+    };
   }
 }

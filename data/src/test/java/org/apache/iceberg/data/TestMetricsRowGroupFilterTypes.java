@@ -309,15 +309,13 @@ public class TestMetricsRowGroupFilterTypes {
   }
 
   private boolean shouldRead(Object value) {
-    switch (format) {
-      case ORC:
-        return shouldReadOrc(value);
-      case PARQUET:
-        return shouldReadParquet(value);
-      default:
-        throw new UnsupportedOperationException(
-            "Row group filter types tests not supported for " + format);
-    }
+    return switch (format) {
+      case ORC -> shouldReadOrc(value);
+      case PARQUET -> shouldReadParquet(value);
+      default ->
+          throw new UnsupportedOperationException(
+              "Row group filter types tests not supported for " + format);
+    };
   }
 
   private boolean shouldReadOrc(Object value) {

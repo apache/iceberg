@@ -52,28 +52,12 @@ public class EstimateOrcAvgWidthVisitor extends OrcSchemaVisitor<Integer> {
       return 0;
     }
 
-    switch (primitive.getCategory()) {
-      case BYTE:
-      case CHAR:
-      case SHORT:
-      case INT:
-      case FLOAT:
-      case BOOLEAN:
-      case LONG:
-      case DOUBLE:
-      case DATE:
-        return 8;
-      case TIMESTAMP:
-      case TIMESTAMP_INSTANT:
-        return 12;
-      case STRING:
-      case VARCHAR:
-      case BINARY:
-        return 128;
-      case DECIMAL:
-        return primitive.getPrecision() + 2;
-      default:
-        throw new IllegalArgumentException("Can't handle " + primitive);
-    }
+    return switch (primitive.getCategory()) {
+      case BYTE, CHAR, SHORT, INT, FLOAT, BOOLEAN, LONG, DOUBLE, DATE -> 8;
+      case TIMESTAMP, TIMESTAMP_INSTANT -> 12;
+      case STRING, VARCHAR, BINARY -> 128;
+      case DECIMAL -> primitive.getPrecision() + 2;
+      default -> throw new IllegalArgumentException("Can't handle " + primitive);
+    };
   }
 }

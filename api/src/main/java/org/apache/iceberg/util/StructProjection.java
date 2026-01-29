@@ -119,48 +119,46 @@ public class StructProjection implements StructLike {
         if (projectedField.fieldId() == dataField.fieldId()) {
           found = true;
           positionMap[pos] = i;
-          switch (projectedField.type().typeId()) {
-            case STRUCT:
-              nestedProjections[pos] =
-                  new StructProjection(
-                      dataField.type().asStructType(), projectedField.type().asStructType());
-              break;
-            case MAP:
-              MapType projectedMap = projectedField.type().asMapType();
-              MapType originalMap = dataField.type().asMapType();
+          nestedProjections[pos] =
+              switch (projectedField.type().typeId()) {
+                case STRUCT ->
+                    new StructProjection(
+                        dataField.type().asStructType(), projectedField.type().asStructType());
+                case MAP -> {
+                  MapType projectedMap = projectedField.type().asMapType();
+                  MapType originalMap = dataField.type().asMapType();
 
-              boolean keyProjectable =
-                  !projectedMap.keyType().isNestedType()
-                      || projectedMap.keyType().equals(originalMap.keyType());
-              boolean valueProjectable =
-                  !projectedMap.valueType().isNestedType()
-                      || projectedMap.valueType().equals(originalMap.valueType());
-              Preconditions.checkArgument(
-                  keyProjectable && valueProjectable,
-                  "Cannot project a partial map key or value struct. Trying to project %s out of %s",
-                  projectedField,
-                  dataField);
+                  boolean keyProjectable =
+                      !projectedMap.keyType().isNestedType()
+                          || projectedMap.keyType().equals(originalMap.keyType());
+                  boolean valueProjectable =
+                      !projectedMap.valueType().isNestedType()
+                          || projectedMap.valueType().equals(originalMap.valueType());
+                  Preconditions.checkArgument(
+                      keyProjectable && valueProjectable,
+                      "Cannot project a partial map key or value struct. Trying to project %s out of %s",
+                      projectedField,
+                      dataField);
 
-              nestedProjections[pos] = null;
-              break;
-            case LIST:
-              ListType projectedList = projectedField.type().asListType();
-              ListType originalList = dataField.type().asListType();
+                  yield null;
+                }
+                case LIST -> {
+                  ListType projectedList = projectedField.type().asListType();
+                  ListType originalList = dataField.type().asListType();
 
-              boolean elementProjectable =
-                  !projectedList.elementType().isNestedType()
-                      || projectedList.elementType().equals(originalList.elementType());
-              Preconditions.checkArgument(
-                  elementProjectable,
-                  "Cannot project a partial list element struct. Trying to project %s out of %s",
-                  projectedField,
-                  dataField);
+                  boolean elementProjectable =
+                      !projectedList.elementType().isNestedType()
+                          || projectedList.elementType().equals(originalList.elementType());
+                  Preconditions.checkArgument(
+                      elementProjectable,
+                      "Cannot project a partial list element struct. Trying to project %s out of %s",
+                      projectedField,
+                      dataField);
 
-              nestedProjections[pos] = null;
-              break;
-            default:
-              nestedProjections[pos] = null;
-          }
+                  yield null;
+                }
+                default -> null;
+              };
         }
       }
 

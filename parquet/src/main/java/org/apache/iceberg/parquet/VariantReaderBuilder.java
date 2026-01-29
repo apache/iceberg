@@ -235,31 +235,24 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
         throw new UnsupportedOperationException("Unsupported shredded value type: " + logical);
       }
 
-      VariantValueReader reader;
-      switch (logical.getBitWidth()) {
-        case 64:
-          reader =
-              ParquetVariantReaders.asVariant(
-                  PhysicalType.INT64, ParquetValueReaders.unboxed(desc));
-          break;
-        case 32:
-          reader =
-              ParquetVariantReaders.asVariant(
-                  PhysicalType.INT32, ParquetValueReaders.unboxed(desc));
-          break;
-        case 16:
-          reader =
-              ParquetVariantReaders.asVariant(
-                  PhysicalType.INT16, ParquetValueReaders.intsAsShort(desc));
-          break;
-        case 8:
-          reader =
-              ParquetVariantReaders.asVariant(
-                  PhysicalType.INT8, ParquetValueReaders.intsAsByte(desc));
-          break;
-        default:
-          throw new IllegalArgumentException("Invalid bit width for int: " + logical.getBitWidth());
-      }
+      VariantValueReader reader =
+          switch (logical.getBitWidth()) {
+            case 64 ->
+                ParquetVariantReaders.asVariant(
+                    PhysicalType.INT64, ParquetValueReaders.unboxed(desc));
+            case 32 ->
+                ParquetVariantReaders.asVariant(
+                    PhysicalType.INT32, ParquetValueReaders.unboxed(desc));
+            case 16 ->
+                ParquetVariantReaders.asVariant(
+                    PhysicalType.INT16, ParquetValueReaders.intsAsShort(desc));
+            case 8 ->
+                ParquetVariantReaders.asVariant(
+                    PhysicalType.INT8, ParquetValueReaders.intsAsByte(desc));
+            default ->
+                throw new IllegalArgumentException(
+                    "Invalid bit width for int: " + logical.getBitWidth());
+          };
 
       return Optional.of(reader);
     }
@@ -272,17 +265,13 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
     }
 
     private static PhysicalType variantDecimalType(PrimitiveType primitive) {
-      switch (primitive.getPrimitiveTypeName()) {
-        case FIXED_LEN_BYTE_ARRAY:
-        case BINARY:
-          return PhysicalType.DECIMAL16;
-        case INT64:
-          return PhysicalType.DECIMAL8;
-        case INT32:
-          return PhysicalType.DECIMAL4;
-      }
-
-      throw new IllegalArgumentException("Invalid primitive type for decimal: " + primitive);
+      return switch (primitive.getPrimitiveTypeName()) {
+        case FIXED_LEN_BYTE_ARRAY, BINARY -> PhysicalType.DECIMAL16;
+        case INT64 -> PhysicalType.DECIMAL8;
+        case INT32 -> PhysicalType.DECIMAL4;
+        default ->
+            throw new IllegalArgumentException("Invalid primitive type for decimal: " + primitive);
+      };
     }
   }
 }

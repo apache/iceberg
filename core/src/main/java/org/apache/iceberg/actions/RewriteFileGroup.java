@@ -104,18 +104,14 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
   }
 
   public static Comparator<RewriteFileGroup> comparator(RewriteJobOrder rewriteJobOrder) {
-    switch (rewriteJobOrder) {
-      case BYTES_ASC:
-        return Comparator.comparing(RewriteFileGroup::inputFilesSizeInBytes);
-      case BYTES_DESC:
-        return Comparator.comparing(
-            RewriteFileGroup::inputFilesSizeInBytes, Comparator.reverseOrder());
-      case FILES_ASC:
-        return Comparator.comparing(RewriteFileGroup::inputFileNum);
-      case FILES_DESC:
-        return Comparator.comparing(RewriteFileGroup::inputFileNum, Comparator.reverseOrder());
-      default:
-        return (unused, unused2) -> 0;
-    }
+    return switch (rewriteJobOrder) {
+      case BYTES_ASC -> Comparator.comparing(RewriteFileGroup::inputFilesSizeInBytes);
+      case BYTES_DESC ->
+          Comparator.comparing(RewriteFileGroup::inputFilesSizeInBytes, Comparator.reverseOrder());
+      case FILES_ASC -> Comparator.comparing(RewriteFileGroup::inputFileNum);
+      case FILES_DESC ->
+          Comparator.comparing(RewriteFileGroup::inputFileNum, Comparator.reverseOrder());
+      default -> (unused, unused2) -> 0;
+    };
   }
 }

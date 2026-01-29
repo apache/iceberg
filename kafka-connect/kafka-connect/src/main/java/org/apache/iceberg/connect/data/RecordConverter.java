@@ -109,41 +109,25 @@ class RecordConverter {
     if (value == null) {
       return null;
     }
-    switch (type.typeId()) {
-      case STRUCT:
-        return convertStructValue(value, type.asStructType(), fieldId, schemaUpdateConsumer);
-      case LIST:
-        return convertListValue(value, type.asListType(), schemaUpdateConsumer);
-      case MAP:
-        return convertMapValue(value, type.asMapType(), schemaUpdateConsumer);
-      case INTEGER:
-        return convertInt(value);
-      case LONG:
-        return convertLong(value);
-      case FLOAT:
-        return convertFloat(value);
-      case DOUBLE:
-        return convertDouble(value);
-      case DECIMAL:
-        return convertDecimal(value, (DecimalType) type);
-      case BOOLEAN:
-        return convertBoolean(value);
-      case STRING:
-        return convertString(value);
-      case UUID:
-        return convertUUID(value);
-      case BINARY:
-        return convertBase64Binary(value);
-      case FIXED:
-        return ByteBuffers.toByteArray(convertBase64Binary(value));
-      case DATE:
-        return convertDateValue(value);
-      case TIME:
-        return convertTimeValue(value);
-      case TIMESTAMP:
-        return convertTimestampValue(value, (TimestampType) type);
-    }
-    throw new UnsupportedOperationException("Unsupported type: " + type.typeId());
+    return switch (type.typeId()) {
+      case STRUCT -> convertStructValue(value, type.asStructType(), fieldId, schemaUpdateConsumer);
+      case LIST -> convertListValue(value, type.asListType(), schemaUpdateConsumer);
+      case MAP -> convertMapValue(value, type.asMapType(), schemaUpdateConsumer);
+      case INTEGER -> convertInt(value);
+      case LONG -> convertLong(value);
+      case FLOAT -> convertFloat(value);
+      case DOUBLE -> convertDouble(value);
+      case DECIMAL -> convertDecimal(value, (DecimalType) type);
+      case BOOLEAN -> convertBoolean(value);
+      case STRING -> convertString(value);
+      case UUID -> convertUUID(value);
+      case BINARY -> convertBase64Binary(value);
+      case FIXED -> ByteBuffers.toByteArray(convertBase64Binary(value));
+      case DATE -> convertDateValue(value);
+      case TIME -> convertTimeValue(value);
+      case TIMESTAMP -> convertTimestampValue(value, (TimestampType) type);
+      default -> throw new UnsupportedOperationException("Unsupported type: " + type.typeId());
+    };
   }
 
   protected GenericRecord convertStructValue(

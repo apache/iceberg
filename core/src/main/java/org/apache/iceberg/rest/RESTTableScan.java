@@ -180,22 +180,22 @@ class RESTTableScan extends DataTableScan {
       this.fileIOForPlanId = fileIOForPlanId(response.credentials());
     }
 
-    switch (planStatus) {
-      case COMPLETED:
-        return scanTasksIterable(response.planTasks(), response.fileScanTasks());
-      case SUBMITTED:
+    return switch (planStatus) {
+      case COMPLETED -> scanTasksIterable(response.planTasks(), response.fileScanTasks());
+      case SUBMITTED -> {
         Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
-        return fetchPlanningResult();
-      case FAILED:
-        throw new IllegalStateException(
-            String.format("Received status: %s for planId: %s", PlanStatus.FAILED, planId));
-      case CANCELLED:
-        throw new IllegalStateException(
-            String.format("Received status: %s for planId: %s", PlanStatus.CANCELLED, planId));
-      default:
-        throw new IllegalStateException(
-            String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
-    }
+        yield fetchPlanningResult();
+      }
+      case FAILED ->
+          throw new IllegalStateException(
+              String.format("Received status: %s for planId: %s", PlanStatus.FAILED, planId));
+      case CANCELLED ->
+          throw new IllegalStateException(
+              String.format("Received status: %s for planId: %s", PlanStatus.CANCELLED, planId));
+      default ->
+          throw new IllegalStateException(
+              String.format("Invalid planStatus: %s for planId: %s", planStatus, planId));
+    };
   }
 
   private FileIO fileIOForPlanId(List<Credential> storageCredentials) {

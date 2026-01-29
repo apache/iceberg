@@ -352,17 +352,15 @@ public class OrcMetrics {
     MetricsModes.Truncate truncateMode = (MetricsModes.Truncate) metricsMode;
     int truncateLength = truncateMode.length();
 
-    switch (bound) {
-      case UPPER:
-        return Optional.ofNullable(
-                UnicodeUtil.truncateStringMax(Literal.of(charSequence), truncateLength))
-            .map(Literal::value)
-            .orElse(charSequence);
-      case LOWER:
-        return UnicodeUtil.truncateStringMin(Literal.of(charSequence), truncateLength).value();
-      default:
-        throw new RuntimeException("No other bound is defined.");
-    }
+    return switch (bound) {
+      case UPPER ->
+          Optional.ofNullable(
+                  UnicodeUtil.truncateStringMax(Literal.of(charSequence), truncateLength))
+              .map(Literal::value)
+              .orElse(charSequence);
+      case LOWER -> UnicodeUtil.truncateStringMin(Literal.of(charSequence), truncateLength).value();
+      default -> throw new RuntimeException("No other bound is defined.");
+    };
   }
 
   private static Set<Integer> statsColumns(TypeDescription schema) {

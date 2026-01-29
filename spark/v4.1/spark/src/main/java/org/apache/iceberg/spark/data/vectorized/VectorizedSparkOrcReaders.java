@@ -119,50 +119,25 @@ public class VectorizedSparkOrcReaders {
 
     @Override
     public Converter primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
-      final OrcValueReader<?> primitiveValueReader;
-      switch (primitive.getCategory()) {
-        case BOOLEAN:
-          primitiveValueReader = OrcValueReaders.booleans();
-          break;
-        case BYTE:
-          // Iceberg does not have a byte type. Use int
-        case SHORT:
-          // Iceberg does not have a short type. Use int
-        case DATE:
-        case INT:
-          primitiveValueReader = OrcValueReaders.ints();
-          break;
-        case LONG:
-          primitiveValueReader = OrcValueReaders.longs();
-          break;
-        case FLOAT:
-          primitiveValueReader = OrcValueReaders.floats();
-          break;
-        case DOUBLE:
-          primitiveValueReader = OrcValueReaders.doubles();
-          break;
-        case TIMESTAMP_INSTANT:
-        case TIMESTAMP:
-          primitiveValueReader = SparkOrcValueReaders.timestampTzs();
-          break;
-        case DECIMAL:
-          primitiveValueReader =
-              SparkOrcValueReaders.decimals(primitive.getPrecision(), primitive.getScale());
-          break;
-        case CHAR:
-        case VARCHAR:
-        case STRING:
-          primitiveValueReader = SparkOrcValueReaders.utf8String();
-          break;
-        case BINARY:
-          primitiveValueReader =
-              Type.TypeID.UUID == iPrimitive.typeId()
-                  ? SparkOrcValueReaders.uuids()
-                  : OrcValueReaders.bytes();
-          break;
-        default:
-          throw new IllegalArgumentException("Unhandled type " + primitive);
-      }
+      final OrcValueReader<?> primitiveValueReader =
+          switch (primitive.getCategory()) {
+            case BOOLEAN -> OrcValueReaders.booleans();
+              // Iceberg does not have a byte type. Use int
+              // Iceberg does not have a short type. Use int
+            case BYTE, SHORT, DATE, INT -> OrcValueReaders.ints();
+            case LONG -> OrcValueReaders.longs();
+            case FLOAT -> OrcValueReaders.floats();
+            case DOUBLE -> OrcValueReaders.doubles();
+            case TIMESTAMP_INSTANT, TIMESTAMP -> SparkOrcValueReaders.timestampTzs();
+            case DECIMAL ->
+                SparkOrcValueReaders.decimals(primitive.getPrecision(), primitive.getScale());
+            case CHAR, VARCHAR, STRING -> SparkOrcValueReaders.utf8String();
+            case BINARY ->
+                Type.TypeID.UUID == iPrimitive.typeId()
+                    ? SparkOrcValueReaders.uuids()
+                    : OrcValueReaders.bytes();
+            default -> throw new IllegalArgumentException("Unhandled type " + primitive);
+          };
       return (columnVector, batchSize, batchOffsetInFile, isSelectedInUse, selected) ->
           new PrimitiveOrcColumnVector(
               iPrimitive, batchSize, columnVector, primitiveValueReader, isSelectedInUse, selected);

@@ -127,62 +127,37 @@ public class ArrowSchemaUtil {
 
     @Override
     public Field primitive(Type.PrimitiveType primitive) {
-      final ArrowType arrowType;
-
-      switch (primitive.typeId()) {
-        case BINARY:
-          arrowType = ArrowType.Binary.INSTANCE;
-          break;
-        case FIXED:
-          final Types.FixedType fixedType = (Types.FixedType) primitive;
-          arrowType = new ArrowType.FixedSizeBinary(fixedType.length());
-          break;
-        case BOOLEAN:
-          arrowType = ArrowType.Bool.INSTANCE;
-          break;
-        case INTEGER:
-          arrowType = new ArrowType.Int(Integer.SIZE, true /* signed */);
-          break;
-        case LONG:
-          arrowType = new ArrowType.Int(Long.SIZE, true /* signed */);
-          break;
-        case FLOAT:
-          arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
-          break;
-        case DOUBLE:
-          arrowType = new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
-          break;
-        case DECIMAL:
-          final Types.DecimalType decimalType = (Types.DecimalType) primitive;
-          arrowType = new ArrowType.Decimal(decimalType.precision(), decimalType.scale(), 128);
-          break;
-        case STRING:
-          arrowType = ArrowType.Utf8.INSTANCE;
-          break;
-        case TIME:
-          arrowType = new ArrowType.Time(TimeUnit.MICROSECOND, Long.SIZE);
-          break;
-        case UUID:
-          arrowType = new ArrowType.FixedSizeBinary(16);
-          break;
-        case TIMESTAMP:
-          arrowType =
-              new ArrowType.Timestamp(
-                  TimeUnit.MICROSECOND,
-                  ((Types.TimestampType) primitive).shouldAdjustToUTC() ? "UTC" : null);
-          break;
-        case TIMESTAMP_NANO:
-          arrowType =
-              new ArrowType.Timestamp(
-                  TimeUnit.NANOSECOND,
-                  ((Types.TimestampNanoType) primitive).shouldAdjustToUTC() ? "UTC" : null);
-          break;
-        case DATE:
-          arrowType = new ArrowType.Date(DateUnit.DAY);
-          break;
-        default:
-          throw new UnsupportedOperationException("Unsupported primitive type: " + primitive);
-      }
+      final ArrowType arrowType =
+          switch (primitive.typeId()) {
+            case BINARY -> ArrowType.Binary.INSTANCE;
+            case FIXED -> {
+              final Types.FixedType fixedType = (Types.FixedType) primitive;
+              yield new ArrowType.FixedSizeBinary(fixedType.length());
+            }
+            case BOOLEAN -> ArrowType.Bool.INSTANCE;
+            case INTEGER -> new ArrowType.Int(Integer.SIZE, true /* signed */);
+            case LONG -> new ArrowType.Int(Long.SIZE, true /* signed */);
+            case FLOAT -> new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE);
+            case DOUBLE -> new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE);
+            case DECIMAL -> {
+              final Types.DecimalType decimalType = (Types.DecimalType) primitive;
+              yield new ArrowType.Decimal(decimalType.precision(), decimalType.scale(), 128);
+            }
+            case STRING -> ArrowType.Utf8.INSTANCE;
+            case TIME -> new ArrowType.Time(TimeUnit.MICROSECOND, Long.SIZE);
+            case UUID -> new ArrowType.FixedSizeBinary(16);
+            case TIMESTAMP ->
+                new ArrowType.Timestamp(
+                    TimeUnit.MICROSECOND,
+                    ((Types.TimestampType) primitive).shouldAdjustToUTC() ? "UTC" : null);
+            case TIMESTAMP_NANO ->
+                new ArrowType.Timestamp(
+                    TimeUnit.NANOSECOND,
+                    ((Types.TimestampNanoType) primitive).shouldAdjustToUTC() ? "UTC" : null);
+            case DATE -> new ArrowType.Date(DateUnit.DAY);
+            default ->
+                throw new UnsupportedOperationException("Unsupported primitive type: " + primitive);
+          };
 
       return new Field(
           currentField.name(),

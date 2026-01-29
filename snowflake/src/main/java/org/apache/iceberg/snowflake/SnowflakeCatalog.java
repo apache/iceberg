@@ -177,20 +177,16 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
     SnowflakeIdentifier scope = NamespaceHelpers.toSnowflakeIdentifier(namespace);
-    List<SnowflakeIdentifier> results;
-    switch (scope.type()) {
-      case ROOT:
-        results = snowflakeClient.listDatabases();
-        break;
-      case DATABASE:
-        results = snowflakeClient.listSchemas(scope);
-        break;
-      default:
-        throw new IllegalArgumentException(
-            String.format(
-                "listNamespaces must be at either ROOT or DATABASE level; got %s from namespace %s",
-                scope, namespace));
-    }
+    List<SnowflakeIdentifier> results =
+        switch (scope.type()) {
+          case ROOT -> snowflakeClient.listDatabases();
+          case DATABASE -> snowflakeClient.listSchemas(scope);
+          default ->
+              throw new IllegalArgumentException(
+                  String.format(
+                      "listNamespaces must be at either ROOT or DATABASE level; got %s from namespace %s",
+                      scope, namespace));
+        };
 
     return results.stream().map(NamespaceHelpers::toIcebergNamespace).collect(Collectors.toList());
   }
@@ -199,20 +195,16 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
     SnowflakeIdentifier id = NamespaceHelpers.toSnowflakeIdentifier(namespace);
-    boolean namespaceExists;
-    switch (id.type()) {
-      case DATABASE:
-        namespaceExists = snowflakeClient.databaseExists(id);
-        break;
-      case SCHEMA:
-        namespaceExists = snowflakeClient.schemaExists(id);
-        break;
-      default:
-        throw new IllegalArgumentException(
-            String.format(
-                "loadNamespaceMetadata must be at either DATABASE or SCHEMA level; got %s from namespace %s",
-                id, namespace));
-    }
+    boolean namespaceExists =
+        switch (id.type()) {
+          case DATABASE -> snowflakeClient.databaseExists(id);
+          case SCHEMA -> snowflakeClient.schemaExists(id);
+          default ->
+              throw new IllegalArgumentException(
+                  String.format(
+                      "loadNamespaceMetadata must be at either DATABASE or SCHEMA level; got %s from namespace %s",
+                      id, namespace));
+        };
     if (namespaceExists) {
       return ImmutableMap.of();
     } else {

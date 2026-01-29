@@ -65,51 +65,31 @@ public enum PhysicalType {
   }
 
   public static PhysicalType from(int primitiveType) {
-    switch (primitiveType) {
-      case Primitives.TYPE_NULL:
-        return NULL;
-      case Primitives.TYPE_TRUE:
-        return BOOLEAN_TRUE;
-      case Primitives.TYPE_FALSE:
-        return BOOLEAN_FALSE;
-      case Primitives.TYPE_INT8:
-        return INT8;
-      case Primitives.TYPE_INT16:
-        return INT16;
-      case Primitives.TYPE_INT32:
-        return INT32;
-      case Primitives.TYPE_INT64:
-        return INT64;
-      case Primitives.TYPE_DATE:
-        return DATE;
-      case Primitives.TYPE_TIMESTAMPTZ:
-        return TIMESTAMPTZ;
-      case Primitives.TYPE_TIMESTAMPNTZ:
-        return TIMESTAMPNTZ;
-      case Primitives.TYPE_FLOAT:
-        return FLOAT;
-      case Primitives.TYPE_DOUBLE:
-        return DOUBLE;
-      case Primitives.TYPE_DECIMAL4:
-        return DECIMAL4;
-      case Primitives.TYPE_DECIMAL8:
-        return DECIMAL8;
-      case Primitives.TYPE_DECIMAL16:
-        return DECIMAL16;
-      case Primitives.TYPE_BINARY:
-        return BINARY;
-      case Primitives.TYPE_STRING:
-        return STRING;
-      case Primitives.TYPE_TIME:
-        return TIME;
-      case Primitives.TYPE_TIMESTAMPTZ_NANOS:
-        return TIMESTAMPTZ_NANOS;
-      case Primitives.TYPE_TIMESTAMPNTZ_NANOS:
-        return TIMESTAMPNTZ_NANOS;
-      case Primitives.TYPE_UUID:
-        return UUID;
-    }
-
-    throw new UnsupportedOperationException("Unknown primitive physical type: " + primitiveType);
+    return switch (primitiveType) {
+      case Primitives.TYPE_NULL -> NULL;
+      case Primitives.TYPE_TRUE -> BOOLEAN_TRUE;
+      case Primitives.TYPE_FALSE -> BOOLEAN_FALSE;
+      case Primitives.TYPE_INT8 -> INT8;
+      case Primitives.TYPE_INT16 -> INT16;
+      case Primitives.TYPE_INT32 -> INT32;
+      case Primitives.TYPE_INT64 -> INT64;
+      case Primitives.TYPE_DATE -> DATE;
+      case Primitives.TYPE_TIMESTAMPTZ -> TIMESTAMPTZ;
+      case Primitives.TYPE_TIMESTAMPNTZ -> TIMESTAMPNTZ;
+      case Primitives.TYPE_FLOAT -> FLOAT;
+      case Primitives.TYPE_DOUBLE -> DOUBLE;
+      case Primitives.TYPE_DECIMAL4 -> DECIMAL4;
+      case Primitives.TYPE_DECIMAL8 -> DECIMAL8;
+      case Primitives.TYPE_DECIMAL16 -> DECIMAL16;
+      case Primitives.TYPE_BINARY -> BINARY;
+      case Primitives.TYPE_STRING -> STRING;
+      case Primitives.TYPE_TIME -> TIME;
+      case Primitives.TYPE_TIMESTAMPTZ_NANOS -> TIMESTAMPTZ_NANOS;
+      case Primitives.TYPE_TIMESTAMPNTZ_NANOS -> TIMESTAMPNTZ_NANOS;
+      case Primitives.TYPE_UUID -> UUID;
+      default ->
+          throw new UnsupportedOperationException(
+              "Unknown primitive physical type: " + primitiveType);
+    };
   }
 }

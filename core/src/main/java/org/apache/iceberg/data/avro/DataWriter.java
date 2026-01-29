@@ -111,59 +111,42 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
     public ValueWriter<?> primitive(Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
-        switch (logicalType.getName()) {
-          case "date":
-            return GenericWriters.dates();
-
-          case "time-micros":
-            return GenericWriters.times();
-
-          case "timestamp-micros":
+        return switch (logicalType.getName()) {
+          case "date" -> GenericWriters.dates();
+          case "time-micros" -> GenericWriters.times();
+          case "timestamp-micros" -> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              return GenericWriters.timestamptz();
+              yield GenericWriters.timestamptz();
             }
-            return GenericWriters.timestamps();
-
-          case "timestamp-nanos":
+            yield GenericWriters.timestamps();
+          }
+          case "timestamp-nanos" -> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
-              return GenericWriters.timestamptzNanos();
+              yield GenericWriters.timestamptzNanos();
             }
-            return GenericWriters.timestampNanos();
-
-          case "decimal":
+            yield GenericWriters.timestampNanos();
+          }
+          case "decimal" -> {
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
-
-          case "uuid":
-            return ValueWriters.uuids();
-
-          default:
-            throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
-        }
+            yield ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+          }
+          case "uuid" -> ValueWriters.uuids();
+          default -> throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
+        };
       }
 
-      switch (primitive.getType()) {
-        case NULL:
-          return ValueWriters.nulls();
-        case BOOLEAN:
-          return ValueWriters.booleans();
-        case INT:
-          return ValueWriters.ints();
-        case LONG:
-          return ValueWriters.longs();
-        case FLOAT:
-          return ValueWriters.floats();
-        case DOUBLE:
-          return ValueWriters.doubles();
-        case STRING:
-          return ValueWriters.strings();
-        case FIXED:
-          return ValueWriters.fixed(primitive.getFixedSize());
-        case BYTES:
-          return ValueWriters.byteBuffers();
-        default:
-          throw new IllegalArgumentException("Unsupported type: " + primitive);
-      }
+      return switch (primitive.getType()) {
+        case NULL -> ValueWriters.nulls();
+        case BOOLEAN -> ValueWriters.booleans();
+        case INT -> ValueWriters.ints();
+        case LONG -> ValueWriters.longs();
+        case FLOAT -> ValueWriters.floats();
+        case DOUBLE -> ValueWriters.doubles();
+        case STRING -> ValueWriters.strings();
+        case FIXED -> ValueWriters.fixed(primitive.getFixedSize());
+        case BYTES -> ValueWriters.byteBuffers();
+        default -> throw new IllegalArgumentException("Unsupported type: " + primitive);
+      };
     }
   }
 }

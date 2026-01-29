@@ -132,36 +132,22 @@ public class BasePartitionStatistics extends SupportsIndexProjection
   }
 
   private Object getByPos(int pos) {
-    switch (pos) {
-      case PARTITION_POSITION:
-        return partition;
-      case SPEC_ID_POSITION:
-        return specId;
-      case DATA_RECORD_COUNT_POSITION:
-        return dataRecordCount;
-      case DATA_FILE_COUNT_POSITION:
-        return dataFileCount;
-      case TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION:
-        return totalDataFileSizeInBytes;
-      case POSITION_DELETE_RECORD_COUNT_POSITION:
-        return positionDeleteRecordCount;
-      case POSITION_DELETE_FILE_COUNT_POSITION:
-        return positionDeleteFileCount;
-      case EQUALITY_DELETE_RECORD_COUNT_POSITION:
-        return equalityDeleteRecordCount;
-      case EQUALITY_DELETE_FILE_COUNT_POSITION:
-        return equalityDeleteFileCount;
-      case TOTAL_RECORD_COUNT_POSITION:
-        return totalRecordCount;
-      case LAST_UPDATED_AT_POSITION:
-        return lastUpdatedAt;
-      case LAST_UPDATED_SNAPSHOT_ID_POSITION:
-        return lastUpdatedSnapshotId;
-      case DV_COUNT_POSITION:
-        return dvCount;
-      default:
-        throw new UnsupportedOperationException("Unknown position: " + pos);
-    }
+    return switch (pos) {
+      case PARTITION_POSITION -> partition;
+      case SPEC_ID_POSITION -> specId;
+      case DATA_RECORD_COUNT_POSITION -> dataRecordCount;
+      case DATA_FILE_COUNT_POSITION -> dataFileCount;
+      case TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION -> totalDataFileSizeInBytes;
+      case POSITION_DELETE_RECORD_COUNT_POSITION -> positionDeleteRecordCount;
+      case POSITION_DELETE_FILE_COUNT_POSITION -> positionDeleteFileCount;
+      case EQUALITY_DELETE_RECORD_COUNT_POSITION -> equalityDeleteRecordCount;
+      case EQUALITY_DELETE_FILE_COUNT_POSITION -> equalityDeleteFileCount;
+      case TOTAL_RECORD_COUNT_POSITION -> totalRecordCount;
+      case LAST_UPDATED_AT_POSITION -> lastUpdatedAt;
+      case LAST_UPDATED_SNAPSHOT_ID_POSITION -> lastUpdatedSnapshotId;
+      case DV_COUNT_POSITION -> dvCount;
+      default -> throw new UnsupportedOperationException("Unknown position: " + pos);
+    };
   }
 
   @Override
