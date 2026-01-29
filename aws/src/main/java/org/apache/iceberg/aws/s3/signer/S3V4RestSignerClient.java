@@ -23,7 +23,6 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -66,6 +65,7 @@ public abstract class S3V4RestSignerClient
   private static final Logger LOG = LoggerFactory.getLogger(S3V4RestSignerClient.class);
   public static final String S3_SIGNER_URI = "s3.signer.uri";
   public static final String S3_SIGNER_ENDPOINT = "s3.signer.endpoint";
+  public static final String S3_SIGNER_PROPERTIES_PREFIX = "s3.signer.properties.";
   static final String S3_SIGNER_DEFAULT_ENDPOINT = "v1/aws/s3/sign";
   static final String UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
   static final String CACHE_CONTROL = "Cache-Control";
@@ -89,7 +89,7 @@ public abstract class S3V4RestSignerClient
 
   @Value.Default
   public Supplier<Map<String, String>> requestPropertiesSupplier() {
-    return Collections::emptyMap;
+    return () -> PropertyUtil.propertiesWithPrefix(properties(), S3_SIGNER_PROPERTIES_PREFIX);
   }
 
   @Value.Lazy
