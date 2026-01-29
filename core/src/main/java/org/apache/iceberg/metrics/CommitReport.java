@@ -19,6 +19,8 @@
 package org.apache.iceberg.metrics;
 
 import java.util.Map;
+import javax.annotation.Nullable;
+import org.apache.iceberg.expressions.Expression;
 import org.immutables.value.Value;
 
 /** A commit report that contains all relevant information from a Snapshot. */
@@ -32,6 +34,12 @@ public interface CommitReport extends MetricsReport {
   long sequenceNumber();
 
   String operation();
+
+  @Nullable
+  @Value.Default
+  default Expression filter() {
+    return null;
+  }
 
   CommitMetricsResult commitMetrics();
 
