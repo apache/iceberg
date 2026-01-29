@@ -33,10 +33,8 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
-import org.apache.iceberg.formats.DataWriteBuilder;
-import org.apache.iceberg.formats.EqualityDeleteWriteBuilder;
+import org.apache.iceberg.formats.FileWriterBuilder;
 import org.apache.iceberg.formats.FormatModelRegistry;
-import org.apache.iceberg.formats.PositionDeleteWriteBuilder;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -107,7 +105,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.getDefault();
 
     try {
-      DataWriteBuilder<T, S> builder =
+      FileWriterBuilder<DataWriter<T>, S> builder =
           FormatModelRegistry.dataWriteBuilder(dataFileFormat, inputType, file);
       return builder
           .schema(dataSchema)
@@ -137,15 +135,15 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.getDefault();
 
     try {
-      EqualityDeleteWriteBuilder<T, S> builder =
-          FormatModelRegistry.equalityDeleteWriteBuilder(deleteFileFormat, inputType, file);
+      FileWriterBuilder<EqualityDeleteWriter<T>, S> builder =
+          FormatModelRegistry.equalityDeleteWriteBuilder(
+              deleteFileFormat, inputType, file, equalityFieldIds);
       return builder
           .setAll(properties)
           .setAll(writerProperties)
           .metricsConfig(metricsConfig)
           .schema(equalityDeleteRowSchema)
           .engineSchema(equalityDeleteInputSchema())
-          .equalityFieldIds(equalityFieldIds)
           .spec(spec)
           .partition(partition)
           .keyMetadata(keyMetadata)
@@ -166,7 +164,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
         table != null ? MetricsConfig.forPositionDelete(table) : MetricsConfig.forPositionDelete();
 
     try {
-      PositionDeleteWriteBuilder builder =
+      FileWriterBuilder<PositionDeleteWriter<T>, ?> builder =
           FormatModelRegistry.positionDeleteWriteBuilder(deleteFileFormat, file);
       return builder
           .setAll(properties)

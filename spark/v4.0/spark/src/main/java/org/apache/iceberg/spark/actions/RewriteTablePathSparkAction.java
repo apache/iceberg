@@ -57,8 +57,8 @@ import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.formats.FileWriterBuilder;
 import org.apache.iceberg.formats.FormatModelRegistry;
-import org.apache.iceberg.formats.PositionDeleteWriteBuilder;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
@@ -740,7 +740,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       Schema rowSchema)
       throws IOException {
     if (rowSchema == null) {
-      PositionDeleteWriteBuilder builder =
+      FileWriterBuilder<PositionDeleteWriter<Record>, ?> builder =
           FormatModelRegistry.positionDeleteWriteBuilder(
               format, EncryptedFiles.plainAsEncryptedOutput(outputFile));
       return builder.partition(partition).spec(spec).build();
