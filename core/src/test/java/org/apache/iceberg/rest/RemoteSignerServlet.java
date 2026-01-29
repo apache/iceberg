@@ -27,7 +27,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.RESTException;
@@ -55,7 +57,10 @@ public abstract class RemoteSignerServlet extends HttpServlet {
   private static final String CACHE_CONTROL_PRIVATE = "private";
   private static final String CACHE_CONTROL_NO_CACHE = "no-cache";
 
-  private final Map<String, String> responseHeaders =
+  private static final Set<HttpMethod> CACHEABLE_METHODS =
+      EnumSet.of(HttpMethod.GET, HttpMethod.HEAD);
+
+  private static final Map<String, String> RESPONSE_HEADERS =
       ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
 
   private final String signEndpoint;
@@ -110,7 +115,7 @@ public abstract class RemoteSignerServlet extends HttpServlet {
    * @param response the HTTP response to add headers to
    */
   protected void addSignResponseHeaders(RemoteSignRequest request, HttpServletResponse response) {
-    if (request.method().equalsIgnoreCase("GET") || request.method().equalsIgnoreCase("HEAD")) {
+    if (CACHEABLE_METHODS.contains(HttpMethod.valueOf(request.method()))) {
       // tell the client this can be cached
       response.setHeader(CACHE_CONTROL, CACHE_CONTROL_PRIVATE);
     } else {
@@ -153,7 +158,7 @@ public abstract class RemoteSignerServlet extends HttpServlet {
 
   protected void execute(HttpServletRequest request, HttpServletResponse response) {
     response.setStatus(HttpServletResponse.SC_OK);
-    responseHeaders.forEach(response::setHeader);
+    RESPONSE_HEADERS.forEach(response::setHeader);
 
     String path = request.getRequestURI().substring(1);
     Object requestBody;
