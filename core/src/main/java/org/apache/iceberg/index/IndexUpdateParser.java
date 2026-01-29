@@ -42,8 +42,6 @@ public class IndexUpdateParser {
   static final String SET_CURRENT_VERSION = "set-current-version";
   static final String ADD_VERSION = "add-version";
   static final String SET_LOCATION = "set-location";
-  static final String SET_PROPERTIES = "set-properties";
-  static final String REMOVE_PROPERTIES = "remove-properties";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -63,22 +61,14 @@ public class IndexUpdateParser {
   // SetLocation
   private static final String LOCATION = "location";
 
-  // SetProperties
-  private static final String UPDATES = "updates";
-
-  // RemoveProperties
-  private static final String REMOVALS = "removals";
-
   private static final Map<Class<? extends IndexUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends IndexUpdate>, String>builder()
           .put(IndexUpdate.AssignUUID.class, ASSIGN_UUID)
-          .put(IndexUpdate.AddIndexSnapshot.class, ADD_SNAPSHOT)
-          .put(IndexUpdate.RemoveIndexSnapshots.class, REMOVE_SNAPSHOTS)
-          .put(IndexUpdate.SetIndexCurrentVersion.class, SET_CURRENT_VERSION)
-          .put(IndexUpdate.AddIndexVersion.class, ADD_VERSION)
-          .put(IndexUpdate.SetIndexLocation.class, SET_LOCATION)
-          .put(IndexUpdate.SetIndexProperties.class, SET_PROPERTIES)
-          .put(IndexUpdate.RemoveIndexProperties.class, REMOVE_PROPERTIES)
+          .put(IndexUpdate.AddSnapshot.class, ADD_SNAPSHOT)
+          .put(IndexUpdate.RemoveSnapshots.class, REMOVE_SNAPSHOTS)
+          .put(IndexUpdate.SetCurrentVersion.class, SET_CURRENT_VERSION)
+          .put(IndexUpdate.AddVersion.class, ADD_VERSION)
+          .put(IndexUpdate.SetLocation.class, SET_LOCATION)
           .buildOrThrow();
 
   public static String toJson(IndexUpdate indexUpdate) {
@@ -105,25 +95,19 @@ public class IndexUpdateParser {
         writeAssignUUID((IndexUpdate.AssignUUID) indexUpdate, generator);
         break;
       case ADD_SNAPSHOT:
-        writeAddIndexSnapshot((IndexUpdate.AddIndexSnapshot) indexUpdate, generator);
+        writeAddIndexSnapshot((IndexUpdate.AddSnapshot) indexUpdate, generator);
         break;
       case REMOVE_SNAPSHOTS:
-        writeRemoveIndexSnapshots((IndexUpdate.RemoveIndexSnapshots) indexUpdate, generator);
+        writeRemoveIndexSnapshots((IndexUpdate.RemoveSnapshots) indexUpdate, generator);
         break;
       case SET_CURRENT_VERSION:
-        writeSetIndexCurrentVersion((IndexUpdate.SetIndexCurrentVersion) indexUpdate, generator);
+        writeSetIndexCurrentVersion((IndexUpdate.SetCurrentVersion) indexUpdate, generator);
         break;
       case ADD_VERSION:
-        writeAddIndexVersion((IndexUpdate.AddIndexVersion) indexUpdate, generator);
+        writeAddIndexVersion((IndexUpdate.AddVersion) indexUpdate, generator);
         break;
       case SET_LOCATION:
-        writeSetLocation((IndexUpdate.SetIndexLocation) indexUpdate, generator);
-        break;
-      case SET_PROPERTIES:
-        writeSetProperties((IndexUpdate.SetIndexProperties) indexUpdate, generator);
-        break;
-      case REMOVE_PROPERTIES:
-        writeRemoveProperties((IndexUpdate.RemoveIndexProperties) indexUpdate, generator);
+        writeSetLocation((IndexUpdate.SetLocation) indexUpdate, generator);
         break;
       default:
         throw new IllegalArgumentException(
@@ -167,10 +151,6 @@ public class IndexUpdateParser {
         return readAddIndexVersion(jsonNode);
       case SET_LOCATION:
         return readSetLocation(jsonNode);
-      case SET_PROPERTIES:
-        return readSetProperties(jsonNode);
-      case REMOVE_PROPERTIES:
-        return readRemoveProperties(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert index update action from json: %s", action));
@@ -182,43 +162,31 @@ public class IndexUpdateParser {
     gen.writeStringField(UUID, update.uuid());
   }
 
-  private static void writeAddIndexSnapshot(IndexUpdate.AddIndexSnapshot update, JsonGenerator gen)
+  private static void writeAddIndexSnapshot(IndexUpdate.AddSnapshot update, JsonGenerator gen)
       throws IOException {
     gen.writeFieldName(SNAPSHOT);
     IndexSnapshotParser.toJson(update.indexSnapshot(), gen);
   }
 
   private static void writeRemoveIndexSnapshots(
-      IndexUpdate.RemoveIndexSnapshots update, JsonGenerator gen) throws IOException {
+      IndexUpdate.RemoveSnapshots update, JsonGenerator gen) throws IOException {
     JsonUtil.writeLongArray(SNAPSHOT_IDS, update.indexSnapshotIds(), gen);
   }
 
   private static void writeSetIndexCurrentVersion(
-      IndexUpdate.SetIndexCurrentVersion update, JsonGenerator gen) throws IOException {
+      IndexUpdate.SetCurrentVersion update, JsonGenerator gen) throws IOException {
     gen.writeNumberField(VERSION_ID, update.versionId());
   }
 
-  private static void writeAddIndexVersion(IndexUpdate.AddIndexVersion update, JsonGenerator gen)
+  private static void writeAddIndexVersion(IndexUpdate.AddVersion update, JsonGenerator gen)
       throws IOException {
     gen.writeFieldName(VERSION);
     IndexVersionParser.toJson(update.indexVersion(), gen);
   }
 
-  private static void writeSetLocation(IndexUpdate.SetIndexLocation update, JsonGenerator gen)
+  private static void writeSetLocation(IndexUpdate.SetLocation update, JsonGenerator gen)
       throws IOException {
     gen.writeStringField(LOCATION, update.location());
-  }
-
-  private static void writeSetProperties(IndexUpdate.SetIndexProperties update, JsonGenerator gen)
-      throws IOException {
-    gen.writeFieldName(UPDATES);
-    gen.writeObject(update.updated());
-  }
-
-  private static void writeRemoveProperties(
-      IndexUpdate.RemoveIndexProperties update, JsonGenerator gen) throws IOException {
-    gen.writeFieldName(REMOVALS);
-    gen.writeObject(update.removed());
   }
 
   private static IndexUpdate readAssignUUID(JsonNode node) {
@@ -229,7 +197,7 @@ public class IndexUpdateParser {
   private static IndexUpdate readAddIndexSnapshot(JsonNode node) {
     JsonNode snapshotNode = JsonUtil.get(SNAPSHOT, node);
     IndexSnapshot snapshot = IndexSnapshotParser.fromJson(snapshotNode);
-    return new IndexUpdate.AddIndexSnapshot(snapshot);
+    return new IndexUpdate.AddSnapshot(snapshot);
   }
 
   private static IndexUpdate readRemoveIndexSnapshots(JsonNode node) {
@@ -238,32 +206,22 @@ public class IndexUpdateParser {
         snapshotIds != null,
         "Invalid set of index snapshot ids to remove: must be non-null",
         snapshotIds);
-    return new IndexUpdate.RemoveIndexSnapshots(snapshotIds);
+    return new IndexUpdate.RemoveSnapshots(snapshotIds);
   }
 
   private static IndexUpdate readSetIndexCurrentVersion(JsonNode node) {
     int versionId = JsonUtil.getInt(VERSION_ID, node);
-    return new IndexUpdate.SetIndexCurrentVersion(versionId);
+    return new IndexUpdate.SetCurrentVersion(versionId);
   }
 
   private static IndexUpdate readAddIndexVersion(JsonNode node) {
     JsonNode versionNode = JsonUtil.get(VERSION, node);
     IndexVersion version = IndexVersionParser.fromJson(versionNode);
-    return new IndexUpdate.AddIndexVersion(version);
+    return new IndexUpdate.AddVersion(version);
   }
 
   private static IndexUpdate readSetLocation(JsonNode node) {
     String location = JsonUtil.getString(LOCATION, node);
-    return new IndexUpdate.SetIndexLocation(location);
-  }
-
-  private static IndexUpdate readSetProperties(JsonNode node) {
-    Map<String, String> updates = JsonUtil.getStringMap(UPDATES, node);
-    return new IndexUpdate.SetIndexProperties(updates);
-  }
-
-  private static IndexUpdate readRemoveProperties(JsonNode node) {
-    Set<String> removals = JsonUtil.getStringSet(REMOVALS, node);
-    return new IndexUpdate.RemoveIndexProperties(removals);
+    return new IndexUpdate.SetLocation(location);
   }
 }

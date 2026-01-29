@@ -57,7 +57,18 @@ class IndexPropertiesUpdate implements UpdateIndexProperties {
   IndexMetadata internalApply() {
     this.base = ops.refresh();
 
-    return IndexMetadata.buildFrom(base).setProperties(updates).removeProperties(removals).build();
+    Map<String, String> newProperties = Maps.newHashMap(base.currentVersion().properties());
+    removals.forEach(newProperties::remove);
+    newProperties.putAll(updates);
+
+    return IndexMetadata.buildFrom(base)
+        .setCurrentVersion(
+            ImmutableIndexVersion.builder()
+                .timestampMillis(System.currentTimeMillis())
+                .versionId(base.currentVersionId())
+                .properties(newProperties)
+                .build())
+        .build();
   }
 
   @Override

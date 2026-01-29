@@ -421,24 +421,17 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
           "Cannot create index without specifying optimized column ids");
 
       IndexVersion indexVersion = indexVersion(1);
-      IndexSnapshot indexSnapshot = indexSnapshot(1);
       IndexMetadata.Builder builder =
           IndexMetadata.builder()
               .setType(type)
               .setIndexColumnIds(indexColumnIds)
               .setOptimizedColumnIds(optimizedColumnIds)
-              .setLocation(null != location ? location : defaultIndexLocation(identifier));
+              .setLocation(null != location ? location : defaultIndexLocation(identifier))
+              .setCurrentVersion(indexVersion);
 
-      if (indexVersion != null) {
-        builder.setCurrentVersion(indexVersion);
-      }
-
+      IndexSnapshot indexSnapshot = indexSnapshot(1);
       if (indexSnapshot != null) {
         builder.addSnapshot(indexSnapshot);
-      }
-
-      if (snapshotIdsToRemove != null) {
-        builder.removeSnapshots(snapshotIdsToRemove);
       }
 
       try {
@@ -501,23 +494,14 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
     }
 
     private IndexVersion indexVersion(int versionId) {
-      if (properties != null) {
-        Map<String, String> mergedProperties = Maps.newHashMap(properties);
-        mergedProperties.putAll(indexOverrideProperties());
-
-        return ImmutableIndexVersion.builder()
-            .versionId(versionId)
-            .timestampMillis(System.currentTimeMillis())
-            .properties(mergedProperties)
-            .build();
-      } else if (versionId == 1) {
-        return ImmutableIndexVersion.builder()
-            .versionId(versionId)
-            .timestampMillis(System.currentTimeMillis())
-            .build();
-      } else {
-        return null;
-      }
+      Map<String, String> mergedProperties =
+          Maps.newHashMap(properties != null ? properties : indexDefaultProperties());
+      mergedProperties.putAll(indexOverrideProperties());
+      return ImmutableIndexVersion.builder()
+          .versionId(versionId)
+          .timestampMillis(System.currentTimeMillis())
+          .properties(mergedProperties)
+          .build();
     }
 
     private IndexSnapshot indexSnapshot(int versionId) {

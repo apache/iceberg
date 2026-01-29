@@ -483,8 +483,6 @@ class IndexUpdate(BaseModel):
         'set-current-version',
         'add-version',
         'set-location',
-        'set-properties',
-        'remove-properties',
     ] = Field(..., description='The type of update')
 
 
@@ -506,14 +504,6 @@ class AddIndexVersionUpdate(IndexUpdate):
 
 class SetIndexLocationUpdate(IndexUpdate):
     location: str
-
-
-class SetIndexPropertiesUpdate(IndexUpdate):
-    updates: dict[str, str]
-
-
-class RemoveIndexPropertiesUpdate(IndexUpdate):
-    removals: list[str]
 
 
 class LoadIndexResult(BaseModel):
@@ -602,8 +592,6 @@ class CommitIndexRequest(BaseModel):
             | SetIndexCurrentVersionUpdate
             | AddIndexVersionUpdate
             | SetIndexLocationUpdate
-            | SetIndexPropertiesUpdate
-            | RemoveIndexPropertiesUpdate
         ]
         | None
     ) = Field(None, description='Updates to apply to the index')

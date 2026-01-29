@@ -19,7 +19,6 @@
 package org.apache.iceberg.index;
 
 import java.io.Serializable;
-import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
@@ -46,10 +45,10 @@ public interface IndexUpdate extends Serializable {
   }
 
   /** Adds a new index version to the index metadata. */
-  class AddIndexVersion implements IndexUpdate {
+  class AddVersion implements IndexUpdate {
     private final IndexVersion indexVersion;
 
-    public AddIndexVersion(IndexVersion indexVersion) {
+    public AddVersion(IndexVersion indexVersion) {
       this.indexVersion = indexVersion;
     }
 
@@ -64,10 +63,10 @@ public interface IndexUpdate extends Serializable {
   }
 
   /** Sets the current index version in the index metadata. */
-  class SetIndexCurrentVersion implements IndexUpdate {
+  class SetCurrentVersion implements IndexUpdate {
     private final int versionId;
 
-    public SetIndexCurrentVersion(int versionId) {
+    public SetCurrentVersion(int versionId) {
       this.versionId = versionId;
     }
 
@@ -82,10 +81,10 @@ public interface IndexUpdate extends Serializable {
   }
 
   /** Adds a new index snapshot to the index metadata. */
-  class AddIndexSnapshot implements IndexUpdate {
+  class AddSnapshot implements IndexUpdate {
     private final IndexSnapshot indexSnapshot;
 
-    public AddIndexSnapshot(IndexSnapshot indexSnapshot) {
+    public AddSnapshot(IndexSnapshot indexSnapshot) {
       this.indexSnapshot = indexSnapshot;
     }
 
@@ -100,14 +99,14 @@ public interface IndexUpdate extends Serializable {
   }
 
   /** Removes index snapshots from the index metadata. */
-  class RemoveIndexSnapshots implements IndexUpdate {
+  class RemoveSnapshots implements IndexUpdate {
     private final Set<Long> indexSnapshotIds;
 
-    public RemoveIndexSnapshots(long indexSnapshotId) {
+    public RemoveSnapshots(long indexSnapshotId) {
       this.indexSnapshotIds = ImmutableSet.of(indexSnapshotId);
     }
 
-    public RemoveIndexSnapshots(Set<Long> indexSnapshotIds) {
+    public RemoveSnapshots(Set<Long> indexSnapshotIds) {
       this.indexSnapshotIds = ImmutableSet.copyOf(indexSnapshotIds);
     }
 
@@ -122,10 +121,10 @@ public interface IndexUpdate extends Serializable {
   }
 
   /** Sets the location of the index. */
-  class SetIndexLocation implements IndexUpdate {
+  class SetLocation implements IndexUpdate {
     private final String location;
 
-    public SetIndexLocation(String location) {
+    public SetLocation(String location) {
       this.location = location;
     }
 
@@ -136,42 +135,6 @@ public interface IndexUpdate extends Serializable {
     @Override
     public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
       indexMetadataBuilder.setLocation(location);
-    }
-  }
-
-  /** Sets properties on the index. */
-  class SetIndexProperties implements IndexUpdate {
-    private final Map<String, String> updated;
-
-    public SetIndexProperties(Map<String, String> updated) {
-      this.updated = updated;
-    }
-
-    public Map<String, String> updated() {
-      return updated;
-    }
-
-    @Override
-    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-      indexMetadataBuilder.setProperties(updated);
-    }
-  }
-
-  /** Removes properties from the index. */
-  class RemoveIndexProperties implements IndexUpdate {
-    private final Set<String> removed;
-
-    public RemoveIndexProperties(Set<String> removed) {
-      this.removed = removed;
-    }
-
-    public Set<String> removed() {
-      return removed;
-    }
-
-    @Override
-    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-      indexMetadataBuilder.removeProperties(removed);
     }
   }
 }

@@ -345,7 +345,7 @@ public interface IndexMetadata extends Serializable {
       }
 
       this.location = newLocation;
-      changes.add(new IndexUpdate.SetIndexLocation(newLocation));
+      changes.add(new IndexUpdate.SetLocation(newLocation));
       return this;
     }
 
@@ -403,16 +403,16 @@ public interface IndexMetadata extends Serializable {
       this.currentVersionId = newVersionId;
 
       if (lastAddedVersionId != null && lastAddedVersionId == newVersionId) {
-        changes.add(new IndexUpdate.SetIndexCurrentVersion(LAST_ADDED));
+        changes.add(new IndexUpdate.SetCurrentVersion(LAST_ADDED));
       } else {
-        changes.add(new IndexUpdate.SetIndexCurrentVersion(newVersionId));
+        changes.add(new IndexUpdate.SetCurrentVersion(newVersionId));
       }
 
       // Use the timestamp from the index version if it was added in current set of changes.
       // Otherwise, use the current system time. This handles cases where the index version
       // was set as current in the past and is being re-activated.
       boolean versionAddedInThisChange =
-          changes(IndexUpdate.AddIndexVersion.class)
+          changes(IndexUpdate.AddVersion.class)
               .anyMatch(added -> added.indexVersion().versionId() == newVersionId);
 
       this.historyEntry =
@@ -443,7 +443,7 @@ public interface IndexMetadata extends Serializable {
 
       if (versionsById.containsKey(newVersionId)) {
         boolean addedInBuilder =
-            changes(IndexUpdate.AddIndexVersion.class)
+            changes(IndexUpdate.AddVersion.class)
                 .anyMatch(added -> added.indexVersion().versionId() == newVersionId);
         this.lastAddedVersionId = addedInBuilder ? newVersionId : null;
         return newVersionId;
@@ -452,7 +452,7 @@ public interface IndexMetadata extends Serializable {
       versions.add(version);
       versionsById.put(version.versionId(), version);
 
-      changes.add(new IndexUpdate.AddIndexVersion(version));
+      changes.add(new IndexUpdate.AddVersion(version));
 
       this.lastAddedVersionId = newVersionId;
 
@@ -491,60 +491,25 @@ public interface IndexMetadata extends Serializable {
           "Cannot add snapshot with duplicate id: %s",
           snapshot.indexSnapshotId());
 
-      snapshots.add(snapshot);
-      snapshotsById.put(snapshot.indexSnapshotId(), snapshot);
-      changes.add(new IndexUpdate.AddIndexSnapshot(snapshot));
-      return this;
-    }
-
-    public Builder setProperties(Map<String, String> updated) {
-      if (updated.isEmpty()) {
-        return this;
+      IndexSnapshot newSnapshot = snapshot;
+      if (snapshot.versionId() == LAST_ADDED) {
+        Preconditions.checkState(
+            lastAddedVersionId != null,
+            "Cannot add snapshot with last added version id: no version has been added");
+        newSnapshot =
+            ImmutableIndexSnapshot.builder().from(snapshot).versionId(lastAddedVersionId).build();
       }
 
-      IndexVersion currentVersion = versionsById.get(currentVersionId);
-      Map<String, String> newProperties = Maps.newHashMap();
-      if (currentVersion.properties() != null) {
-        newProperties.putAll(currentVersion.properties());
+      snapshots.add(newSnapshot);
+      snapshotsById.put(snapshot.indexSnapshotId(), newSnapshot);
+      if (lastAddedVersionId == null || snapshot.versionId() != lastAddedVersionId) {
+        changes.add(new IndexUpdate.AddSnapshot(snapshot));
+      } else {
+        changes.add(
+            new IndexUpdate.AddSnapshot(
+                ImmutableIndexSnapshot.builder().from(snapshot).versionId(LAST_ADDED).build()));
       }
 
-      newProperties.putAll(updated);
-
-      IndexVersion newVersion =
-          ImmutableIndexVersion.builder()
-              .from(currentVersion)
-              .versionId(currentVersion.versionId() + 1)
-              .timestampMillis(System.currentTimeMillis())
-              .properties(newProperties)
-              .build();
-
-      setCurrentVersion(newVersion);
-      changes.add(new IndexUpdate.SetIndexProperties(updated));
-      return this;
-    }
-
-    public Builder removeProperties(Set<String> propertiesToRemove) {
-      if (propertiesToRemove.isEmpty()) {
-        return this;
-      }
-
-      IndexVersion currentVersion = versionsById.get(currentVersionId);
-      Map<String, String> newProperties = Maps.newHashMap();
-      if (currentVersion.properties() != null) {
-        newProperties.putAll(currentVersion.properties());
-      }
-      propertiesToRemove.forEach(newProperties::remove);
-
-      IndexVersion newVersion =
-          ImmutableIndexVersion.builder()
-              .from(currentVersion)
-              .versionId(currentVersion.versionId() + 1)
-              .timestampMillis(System.currentTimeMillis())
-              .properties(newProperties)
-              .build();
-
-      setCurrentVersion(newVersion);
-      changes.add(new IndexUpdate.RemoveIndexProperties(propertiesToRemove));
       return this;
     }
 
@@ -565,7 +530,7 @@ public interface IndexMetadata extends Serializable {
       snapshots.removeAll(snapshotsToRemove);
 
       if (!snapshotsToRemove.isEmpty()) {
-        changes.add(new IndexUpdate.RemoveIndexSnapshots(indexSnapshotIdsToRemove));
+        changes.add(new IndexUpdate.RemoveSnapshots(indexSnapshotIdsToRemove));
       }
 
       return this;
@@ -608,7 +573,7 @@ public interface IndexMetadata extends Serializable {
       int numVersions =
           ImmutableSet.builder()
               .addAll(
-                  changes(IndexUpdate.AddIndexVersion.class)
+                  changes(IndexUpdate.AddVersion.class)
                       .map(v -> v.indexVersion().versionId())
                       .collect(Collectors.toSet()))
               .add(currentVersionId)

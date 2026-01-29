@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -60,7 +61,8 @@ class IndexSnapshotsRemove implements RemoveIndexSnapshots {
     return snapshotsToRemove;
   }
 
-  private IndexMetadata internalApply() {
+  @VisibleForTesting
+  IndexMetadata internalApply() {
     this.base = ops.refresh();
 
     return IndexMetadata.buildFrom(base).removeSnapshots(snapshotIdsToRemove).build();

@@ -61,6 +61,7 @@ import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.index.BaseIndex;
 import org.apache.iceberg.index.ImmutableIndexSnapshot;
 import org.apache.iceberg.index.ImmutableIndexSummary;
+import org.apache.iceberg.index.ImmutableIndexVersion;
 import org.apache.iceberg.index.Index;
 import org.apache.iceberg.index.IndexBuilder;
 import org.apache.iceberg.index.IndexMetadata;
@@ -68,6 +69,7 @@ import org.apache.iceberg.index.IndexRequirements;
 import org.apache.iceberg.index.IndexSnapshot;
 import org.apache.iceberg.index.IndexSummary;
 import org.apache.iceberg.index.IndexType;
+import org.apache.iceberg.index.IndexVersion;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
@@ -2241,8 +2243,22 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
 
       IndexMetadata.Builder builder = IndexMetadata.buildFrom(metadata);
 
+      int currentVersionId = metadata.currentVersionId();
       if (properties != null) {
-        builder = builder.setProperties(properties);
+        int maxVersionId =
+            metadata.versions().stream()
+                .map(IndexVersion::versionId)
+                .max(Integer::compareTo)
+                .orElseGet(metadata::currentVersionId);
+
+        IndexVersion newVersion =
+            ImmutableIndexVersion.builder()
+                .versionId(maxVersionId + 1)
+                .timestampMillis(System.currentTimeMillis())
+                .properties(properties)
+                .build();
+        builder = builder.setCurrentVersion(newVersion);
+        currentVersionId = newVersion.versionId();
       }
 
       if (tableSnapshotId != -1 || indexSnapshotId != -1 || snapshotProperties != null) {
@@ -2257,7 +2273,7 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
             ImmutableIndexSnapshot.builder()
                 .indexSnapshotId(indexSnapshotId)
                 .tableSnapshotId(tableSnapshotId)
-                .versionId(-1)
+                .versionId(currentVersionId)
                 .properties(snapshotProperties)
                 .build());
       }
