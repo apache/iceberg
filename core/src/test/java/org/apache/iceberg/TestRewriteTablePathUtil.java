@@ -19,10 +19,16 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestRewriteTablePathUtil {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRewriteTablePathUtil extends TestBase {
 
   @Test
   public void testStagingPathPreservesDirectoryStructure() {
@@ -79,5 +85,35 @@ public class TestRewriteTablePathUtil {
     String newMethodResult =
         RewriteTablePathUtil.stagingPath(fileDirectlyUnderPrefix, sourcePrefix, stagingDir);
     assertThat(newMethodResult).isEqualTo("/staging/file.parquet");
+  }
+
+  @TestTemplate
+  public void testRewritingMultiplePositionDeleteEntriesWithinManifestFile() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2")
+        .isGreaterThanOrEqualTo(2);
+
+    String sourcePrefix = "/path/to/";
+    String stagingDir = "/staging/";
+    String targetPrefix = "/path/new/";
+
+    ManifestFile manifest =
+        writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
+
+    RewriteTablePathUtil.RewriteResult<DeleteFile> deleteFileRewriteResult =
+        RewriteTablePathUtil.rewriteDeleteManifest(
+            manifest,
+            Set.of(1000L),
+            org.apache.iceberg.Files.localOutput(
+                FileFormat.AVRO.addExtension(
+                    temp.resolve("junit" + System.nanoTime()).toFile().toString())),
+            table.io(),
+            formatVersion,
+            table.specs(),
+            sourcePrefix,
+            targetPrefix,
+            stagingDir);
+
+    assertThat(deleteFileRewriteResult.toRewrite()).hasSize(2);
   }
 }
