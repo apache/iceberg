@@ -220,6 +220,8 @@ spark.read
 | stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used                                                             |
 | streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch                                                                                                                                        |
 | streaming-max-rows-per-micro-batch  | INT_MAX | "Soft maximum" number of rows per microbatch; always includes all rows in next unprocessed file, excludes additional files if their inclusion would exceed the soft max limit |
+| streaming-overwrite-mode | fail | How to handle overwrite snapshots in streaming reads: `fail` (throw exception), `skip` (ignore overwrite snapshots), `added-files-only` (process only added files, may produce duplicates) |
+| streaming-skip-delete-snapshots | false | When true, ignores delete snapshots in streaming reads                                                                                                                        |
 
 ### Write options
 
