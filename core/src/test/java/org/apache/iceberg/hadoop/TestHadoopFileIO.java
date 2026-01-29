@@ -49,6 +49,7 @@ import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -59,22 +60,49 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class TestHadoopFileIO {
   private final Random random = new Random(1);
 
-  /** A filesystem. */
   private FileSystem fs;
-
   private HadoopFileIO hadoopFileIO;
+  private boolean trashEnabled;
 
   @TempDir private File tempDir;
-  private UserGroupInformation currentUser;
 
   @BeforeEach
   public void before() throws Exception {
+    resetBinding(false);
+  }
+
+  /**
+   * Purge trash as a cleanup operation if the test case created a FS with trash enabled;
+   * avoids accrual of many empty files in this path.
+   * Note: this affects the entire user account.
+   */
+  @AfterEach
+  public void purgeTrash() throws IOException {
+      if (trashEnabled) {
+        fs.delete(fs.getTrashRoot(new Path(tempDir.toURI())), true);
+      }
+  }
+
+  /**
+   * Resets fs and hadoopFileIO fields to a configuration built from the supplied settings.
+   *
+   * @param useTrash enable trash settings
+   * @throws UncheckedIOException on failures to create a new FS.
+   */
+  private void resetBinding(boolean useTrash) {
     Configuration conf = new Configuration();
-    // remove all filesystems for the current user from cache.
-    // The next call to FileSystem.get("file://") will get one with the supplied config
-    currentUser = UserGroupInformation.getCurrentUser();
-    resetLocalFS(false);
-    hadoopFileIO = new HadoopFileIO(conf);
+    trashEnabled = useTrash;
+    if (useTrash) {
+      conf.set(FS_TRASH_INTERVAL_KEY, "60");
+      conf.set(DELETE_TRASH_SCHEMAS, " file , hdfs, viewfs");
+    }
+    try {
+      FileSystem.closeAllForUGI(UserGroupInformation.getCurrentUser());
+      fs = FileSystem.getLocal(conf);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    hadoopFileIO = new HadoopFileIO(fs.getConf());
   }
 
   @Test
@@ -140,10 +168,8 @@ public class TestHadoopFileIO {
   }
 
   @Test
-  public void testDeletePrefixWithTrashEnabled() throws IOException {
-    resetLocalFS(true);
-
-    hadoopFileIO = new HadoopFileIO(fs.getConf());
+  public void testDeletePrefixWithTrashEnabled() {
+    resetBinding(true);
     Path parent = new Path(tempDir.toURI());
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
@@ -169,6 +195,8 @@ public class TestHadoopFileIO {
                     String trashPath =
                         fs.getTrashRoot(scalePath).toString() + "/Current" + fileSuffix;
                     assertPathExists(trashPath);
+                    // delete that path. As it is in trash, it gets deleted.
+                    hadoopFileIO.deleteFile(trashPath);
                   });
             });
 
@@ -179,24 +207,6 @@ public class TestHadoopFileIO {
         .hasMessageContaining("java.io.FileNotFoundException");
   }
 
-  /**
-   * Closes active filesystems then creates a new filesystem with the chosen trash policy and
-   * updates the {@code fs} field with it. This guarantees that HadoopFileIO's getFileSystem() calls
-   * will get the same filesystem and its configuration settings.
-   *
-   * @param useTrash enable trash settings
-   * @throws IOException failure to create.
-   */
-  private void resetLocalFS(boolean useTrash) throws IOException {
-    Configuration conf = new Configuration();
-    if (useTrash) {
-      conf.set(FS_TRASH_INTERVAL_KEY, "60");
-      conf.set(DELETE_TRASH_SCHEMAS, " file , hdfs, viewfs");
-    }
-    FileSystem.closeAllForUGI(currentUser);
-    fs = FileSystem.getLocal(conf);
-  }
-
   @Test
   public void testDeleteFiles() {
     Path parent = new Path(tempDir.toURI());
@@ -204,7 +214,7 @@ public class TestHadoopFileIO {
     hadoopFileIO.deleteFiles(
         filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
     filesCreated.forEach(
-        file -> assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
+        file -> assertPathDoesNotExist(file.toString()));
   }
 
   @Test
@@ -231,8 +241,8 @@ public class TestHadoopFileIO {
   }
 
   @Test
-  public void testDeleteFilesWithTrashEnabled() throws IOException {
-    resetLocalFS(true);
+  public void testDeleteFilesWithTrashEnabled() {
+    resetBinding(true);
     hadoopFileIO = new HadoopFileIO(fs.getConf());
     assertThat(hadoopFileIO.isTrashSchema(new Path("file:///"))).isTrue();
 
@@ -247,12 +257,19 @@ public class TestHadoopFileIO {
           String fileSuffix = Path.getPathWithoutSchemeAndAuthority(file).toString();
           String trashPath = fs.getTrashRoot(parent).toString() + "/Current" + fileSuffix;
           assertPathExists(trashPath);
+          // delete that path. As it is in trash, it gets deleted.
+          hadoopFileIO.deleteFile(trashPath);
         });
   }
 
+  /**
+   * Use a trash policy which raises an exception when moving a file to trash;
+   * verify that deleteFile() falls back to delete. Various counters are
+   * checked simply to verify that the failing trash policy was invoked.
+   */
   @Test
   public void testTrashFailureFallBack() throws Exception {
-    resetLocalFS(true);
+    resetBinding(true);
     // the filesystem config needs to be modified to use the test trash policy.
     final Configuration conf = fs.getConf();
     conf.set("fs.trash.classname", TestTrashPolicy.class.getName());
@@ -290,9 +307,8 @@ public class TestHadoopFileIO {
    */
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  public void testDeleteMissingFileToTrash(boolean useTrash) throws IOException {
-    resetLocalFS(useTrash);
-    hadoopFileIO = new HadoopFileIO(fs.getConf());
+  public void testDeleteMissingFileToTrash(boolean useTrash) {
+    resetBinding(useTrash);
     Path path = new Path(new Path(tempDir.toURI()), "missing");
     final String missing = path.toUri().toString();
     hadoopFileIO.deleteFile(missing);
@@ -325,15 +341,15 @@ public class TestHadoopFileIO {
 
   @Test
   public void testResolvingFileIOLoad() {
-    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
-    resolvingFileIO.setConf(new Configuration());
-    resolvingFileIO.initialize(ImmutableMap.of());
-    FileIO result =
-        DynMethods.builder("io")
-            .hiddenImpl(ResolvingFileIO.class, String.class)
-            .build(resolvingFileIO)
-            .invoke("hdfs://foo/bar");
-    assertThat(result).isInstanceOf(HadoopFileIO.class);
+      try (ResolvingFileIO resolvingFileIO = new ResolvingFileIO()) {
+        resolvingFileIO.setConf(new Configuration());
+        resolvingFileIO.initialize(ImmutableMap.of());
+        FileIO result = DynMethods.builder("io")
+                  .hiddenImpl(ResolvingFileIO.class, String.class)
+                  .build(resolvingFileIO)
+                  .invoke("hdfs://foo/bar");
+        assertThat(result).isInstanceOf(HadoopFileIO.class);
+      }
   }
 
   @Test
@@ -435,10 +451,10 @@ public class TestHadoopFileIO {
     }
 
     @Override
-    public void initialize(Configuration conf, FileSystem fs, Path home) {}
+    public void initialize(Configuration conf, FileSystem filesystem, Path home) {}
 
     @Override
-    public void initialize(Configuration conf, FileSystem fs) {}
+    public void initialize(Configuration conf, FileSystem filesystem) {}
 
     @Override
     public boolean isEnabled() {
@@ -452,13 +468,13 @@ public class TestHadoopFileIO {
     }
 
     @Override
-    public void createCheckpoint() throws IOException {}
+    public void createCheckpoint() {}
 
     @Override
-    public void deleteCheckpoint() throws IOException {}
+    public void deleteCheckpoint() {}
 
     @Override
-    public void deleteCheckpointsImmediately() throws IOException {}
+    public void deleteCheckpointsImmediately() {}
 
     @Override
     public Path getCurrentTrashDir() {
@@ -466,12 +482,12 @@ public class TestHadoopFileIO {
     }
 
     @Override
-    public Path getCurrentTrashDir(Path path) throws IOException {
+    public Path getCurrentTrashDir(Path path) {
       return null;
     }
 
     @Override
-    public Runnable getEmptier() throws IOException {
+    public Runnable getEmptier() {
       return null;
     }
   }
