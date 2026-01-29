@@ -48,7 +48,7 @@ nav:
       - Python: https://py.iceberg.apache.org/
       - Rust: https://rust.iceberg.apache.org/
       - Go: https://go.iceberg.apache.org/
-      - C++: https://github.com/apache/iceberg-cpp/
+      - C++: https://cpp.iceberg.apache.org/
     - Third-party:
       - Catalogs:
         - Apache Gravitino: https://gravitino.apache.org/
