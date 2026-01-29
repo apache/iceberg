@@ -27,5 +27,5 @@ gradle/**
 sitemap.xml
 **/derby.log
 .python-version
-.*_index.md
+**/*_index.md
 site/docs/blog/**
