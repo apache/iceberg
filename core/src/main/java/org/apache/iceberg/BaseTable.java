@@ -38,7 +38,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * BaseTable using a {@link StaticTableOperations}. This way no Catalog related calls are needed
  * when reading the table data after deserialization.
  */
-public class BaseTable implements Table, HasTableOperations, Serializable {
+public class BaseTable
+    implements Table, HasTableOperations, Serializable, SupportsDistributedScanPlanning {
   private final TableOperations ops;
   private final String name;
   private final MetricsReporter reporter;

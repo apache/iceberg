@@ -25,13 +25,13 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.BatchScanAdapter;
 import org.apache.iceberg.ImmutableTableScanContext;
-import org.apache.iceberg.RequiresRemoteScanPlanning;
+import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.metrics.MetricsReporter;
 
-class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
+class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final RESTClient client;
   private final Supplier<Map<String, String>> headers;
   private final MetricsReporter reporter;
@@ -83,5 +83,10 @@ class RESTTable extends BaseTable implements RequiresRemoteScanPlanning {
   @Override
   public BatchScan newBatchScan() {
     return new BatchScanAdapter(newScan());
+  }
+
+  @Override
+  public boolean allowDistributedPlanning() {
+    return false;
   }
 }
