@@ -1839,6 +1839,16 @@ Some implementations require that GZIP compressed files have the suffix `.gz.met
 
 Although the spec allows for including the deleted row itself (in addition to the path and position of the row in the data file) in v2 position delete files, writing the row is optional and no implementation currently writes it. The ability to write and read the row is supported in the Java implementation but is deprecated in version 1.11.0.
 
+### Determining Manifest List Format Version
+
+Manifest list files are stored as Avro Object Container Files (OCF), a format that embeds the writer schema in the file header and allows readers to use a different schema (see [Manifest Lists](#manifest-lists) for the schema). Avro schema resolution automatically reconciles differences between the embedded writer schema and the reader's expected schema: fields absent from the writer schema are populated with default values (e.g., `content` defaults to `0`, `sequence_number` defaults to `0`), and fields absent from the reader schema are ignored.
+
+This allows implementations to read manifest lists from older format versions using the latest schema supported by the implementation, without needing to detect the exact format version of each manifest list in advance. The Java reference implementation uses this approach.
+
+When an implementation does need to determine the exact format version of a manifest list, it is recommended to examine the writer schema embedded in the Avro file header. The format version can be inferred from the presence of fields: a manifest list is v1 if the writer schema does not include fields added in v2 (such as `content`, `sequence_number`, and `min_sequence_number`), v2 if it includes those fields but not `first_row_id`, and v3 if it includes `first_row_id`.
+
+Note that some implementations also write `format-version` to the manifest list's Avro key-value metadata. However, unlike manifest files, which are required to include `format-version` in v2 and later (see [Manifests](#manifests)), this field is not specified for manifest lists and cannot be reliably used for version detection.
+
 ## Appendix G: Geospatial Notes
 
 The Geometry and Geography class hierarchy and its Well-known text (WKT) and Well-known binary (WKB) serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
