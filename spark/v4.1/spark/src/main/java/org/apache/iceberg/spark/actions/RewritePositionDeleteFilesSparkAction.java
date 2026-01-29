@@ -59,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecut
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -362,7 +363,7 @@ public class RewritePositionDeleteFilesSparkAction
           runner.description(),
           group.info().globalIndex(),
           plan.totalGroupCount(),
-          partition,
+          partitionDescription(partition),
           group.info().partitionIndex(),
           plan.groupsInPartition(partition),
           table.name());
@@ -376,5 +377,11 @@ public class RewritePositionDeleteFilesSparkAction
           plan.totalGroupCount(),
           table.name());
     }
+  }
+
+  private String partitionDescription(StructLike partition) {
+    return partition instanceof StructProjection
+        ? ((StructProjection) partition).description()
+        : "";
   }
 }
