@@ -1259,6 +1259,8 @@ class TableUpdate(BaseModel):
         | RemovePropertiesUpdate
         | SetStatisticsUpdate
         | RemoveStatisticsUpdate
+        | SetPartitionStatisticsUpdate
+        | RemovePartitionStatisticsUpdate
         | RemovePartitionSpecsUpdate
         | RemoveSchemasUpdate
         | AddEncryptionKeyUpdate
