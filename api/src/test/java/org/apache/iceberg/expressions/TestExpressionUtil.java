@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
@@ -1349,5 +1350,106 @@ public class TestExpressionUtil {
         .as("Should apply the same transform")
         .hasToString(expected.transform().toString());
     assertEquals(expected.ref(), actual.ref());
+  }
+
+  // Tests for UUID bounds predicate detection and transformation
+
+  @Test
+  public void testToSignedUUIDLiteralDetectsUuidLt() {
+    Expression original = Expressions.lessThan("uuid_col", UUID.randomUUID());
+
+    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
+        .as("Should detect UUID lt predicate")
+        .isNotNull();
+  }
+
+  @Test
+  public void testToSignedUUIDLiteralDetectsUuidEq() {
+    Expression original = Expressions.equal("uuid_col", UUID.randomUUID());
+
+    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
+        .as("Should detect UUID eq predicate")
+        .isNotNull();
+  }
+
+  @Test
+  public void testToSignedUUIDLiteralDetectsUuidIn() {
+    Expression original = Expressions.in("uuid_col", UUID.randomUUID(), UUID.randomUUID());
+
+    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
+        .as("Should detect UUID in predicate")
+        .isNotNull();
+  }
+
+  @Test
+  public void testToSignedUUIDLiteralNoDetectionForNonUuid() {
+    Expression original = Expressions.equal("id", 42L);
+
+    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
+        .as("Should not detect non-UUID predicate")
+        .isNull();
+  }
+
+  @Test
+  public void testToSignedUUIDLiteralNoDetectionForIsNull() {
+    Expression original = Expressions.isNull("uuid_col");
+
+    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
+        .as("Should not detect UUID isNull predicate (doesn't compare against bounds)")
+        .isNull();
+  }
+
+  @Test
+  public void testToSignedUUIDLiteralDetectsInCompoundExpression() {
+    Expression original =
+        Expressions.and(
+            Expressions.equal("id", 42L), Expressions.greaterThan("uuid_col", UUID.randomUUID()));
+
+    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
+        .as("Should detect UUID predicate in compound expression")
+        .isNotNull();
+  }
+
+  @Test
+  public void testToSignedUUIDLiteralTransformsLiteral() {
+    UUID testUuid = UUID.randomUUID();
+    Expression original = Expressions.equal("uuid_col", testUuid);
+
+    Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
+    assertThat(result).isNotNull();
+    assertThat(result).isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> pred = (UnboundPredicate<?>) result;
+    assertThat(pred.literal().value()).isEqualTo(testUuid);
+    // The literal should now use the signed comparator
+    assertThat(pred.literal()).isInstanceOf(Literals.UUIDLiteral.class);
+  }
+
+  @Test
+  public void testToSignedUUIDLiteralTransformsInPredicate() {
+    UUID uuid1 = UUID.randomUUID();
+    UUID uuid2 = UUID.randomUUID();
+    Expression original = Expressions.in("uuid_col", uuid1, uuid2);
+
+    Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
+    assertThat(result).isNotNull();
+    assertThat(result).isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> pred = (UnboundPredicate<?>) result;
+    assertThat(pred.literals()).hasSize(2);
+  }
+
+  @Test
+  public void testToSignedUUIDLiteralTransformsCompoundExpression() {
+    UUID testUuid = UUID.randomUUID();
+    Expression original =
+        Expressions.and(
+            Expressions.equal("id", 42L), Expressions.greaterThan("uuid_col", testUuid));
+
+    Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
+    assertThat(result).isNotNull();
+    assertThat(result).isInstanceOf(And.class);
+    And and = (And) result;
+    // Both children should be transformed
+    assertThat(and.left()).isInstanceOf(UnboundPredicate.class);
+    assertThat(and.right()).isInstanceOf(UnboundPredicate.class);
   }
 }
