@@ -18,16 +18,19 @@
  */
 package org.apache.iceberg.formats;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.FileWriter;
 
 /**
  * A generic builder interface for creating specialized file writers in the Iceberg ecosystem.
@@ -44,9 +47,10 @@ import org.apache.iceberg.io.DataWriter;
  * <p>Each concrete implementation configures the underlying file format writer while adding
  * content-specific metadata and behaviors.
  *
- * @param <B> the concrete builder type for method chaining
+ * @param <W> the concrete writer type the builder produces
+ * @param <S> the type of the schema for the input data
  */
-interface CommonWriteBuilder<B extends CommonWriteBuilder<B>> {
+public interface FileWriterBuilder<W extends FileWriter<?, ?>, S> {
 
   /**
    * Set a writer configuration property which affects the writer behavior.
@@ -55,7 +59,7 @@ interface CommonWriteBuilder<B extends CommonWriteBuilder<B>> {
    * @param value config value
    * @return this for method chaining
    */
-  B set(String property, String value);
+  FileWriterBuilder<W, S> set(String property, String value);
 
   /**
    * Adds the new properties to the writer configuration.
@@ -63,9 +67,9 @@ interface CommonWriteBuilder<B extends CommonWriteBuilder<B>> {
    * @param properties a map of writer config properties
    * @return this for method chaining
    */
-  default B setAll(Map<String, String> properties) {
+  default FileWriterBuilder<W, S> setAll(Map<String, String> properties) {
     properties.forEach(this::set);
-    return self();
+    return this;
   }
 
   /**
@@ -75,7 +79,7 @@ interface CommonWriteBuilder<B extends CommonWriteBuilder<B>> {
    * @param value config value
    * @return this for method chaining
    */
-  B meta(String property, String value);
+  FileWriterBuilder<W, S> meta(String property, String value);
 
   /**
    * Add the new properties to file metadata for the created file.
@@ -83,40 +87,56 @@ interface CommonWriteBuilder<B extends CommonWriteBuilder<B>> {
    * @param properties a map of file metadata properties
    * @return this for method chaining
    */
-  default B meta(Map<String, String> properties) {
+  default FileWriterBuilder<W, S> meta(Map<String, String> properties) {
     properties.forEach(this::meta);
-    return self();
+    return this;
   }
 
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
-  B metricsConfig(MetricsConfig metricsConfig);
+  FileWriterBuilder<W, S> metricsConfig(MetricsConfig metricsConfig);
 
   /** Overwrite the file if it already exists. By default, overwrite is disabled. */
-  B overwrite();
+  FileWriterBuilder<W, S> overwrite();
 
   /**
    * Sets the encryption key used for writing the file. If the writer does not support encryption,
    * then an exception should be thrown.
    */
-  B withFileEncryptionKey(ByteBuffer encryptionKey);
+  FileWriterBuilder<W, S> withFileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
    * Sets the additional authentication data (AAD) prefix used for writing the file. If the writer
    * does not support encryption, then an exception should be thrown.
    */
-  B withAADPrefix(ByteBuffer aadPrefix);
+  FileWriterBuilder<W, S> withAADPrefix(ByteBuffer aadPrefix);
 
   /** Sets the partition specification for the Iceberg metadata. */
-  B spec(PartitionSpec newSpec);
+  FileWriterBuilder<W, S> spec(PartitionSpec newSpec);
 
   /** Sets the partition value for the Iceberg metadata. */
-  B partition(StructLike partition);
+  FileWriterBuilder<W, S> partition(StructLike partition);
 
   /** Sets the encryption key metadata for Iceberg metadata. */
-  B keyMetadata(EncryptionKeyMetadata keyMetadata);
+  FileWriterBuilder<W, S> keyMetadata(EncryptionKeyMetadata keyMetadata);
 
   /** Sets the sort order for the Iceberg metadata. */
-  B sortOrder(SortOrder sortOrder);
+  FileWriterBuilder<W, S> sortOrder(SortOrder sortOrder);
 
-  B self();
+  /** Set the file schema. */
+  FileWriterBuilder<W, S> schema(Schema schema);
+
+  /**
+   * Sets the engine's representation accepted by the writer.
+   *
+   * <p>Some data types require additional type information from the engine schema that cannot be
+   * fully expressed by the Iceberg schema or the data itself. For example, a variant type may use a
+   * shredded representation that relies on engine-specific metadata to map back to the Iceberg
+   * schema.
+   *
+   * <p>The engine schema must be aligned with the Iceberg schema, but may include representation
+   * details that Iceberg considers equivalent.
+   */
+  FileWriterBuilder<W, S> engineSchema(S schema);
+
+  W build() throws IOException;
 }
