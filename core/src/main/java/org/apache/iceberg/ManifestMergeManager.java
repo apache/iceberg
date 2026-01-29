@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -43,6 +44,8 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
   private final int minCountToMerge;
   private final boolean mergeEnabled;
 
+  // count of manifests that were replaced (merged) during bin-packing
+  private final AtomicInteger replacedManifestsCount = new AtomicInteger(0);
   // cache merge results to reuse when retrying
   private final Map<List<ManifestFile>, ManifestFile> mergedManifests = Maps.newConcurrentMap();
 
@@ -86,6 +89,18 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     return merged;
   }
 
+  /**
+   * Returns the count of manifests that were replaced (merged) during bin-packing.
+   *
+   * <p>When multiple manifests are merged into a single manifest, each of the original manifests is
+   * considered replaced.
+   *
+   * @return the count of replaced manifests
+   */
+  int replacedManifestsCount() {
+    return replacedManifestsCount.get();
+  }
+
   void cleanUncommitted(Set<ManifestFile> committed) {
     // iterate over a copy of entries to avoid concurrent modification
     List<Map.Entry<List<ManifestFile>, ManifestFile>> entries =
@@ -96,8 +111,10 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
       ManifestFile merged = entry.getValue();
       if (!committed.contains(merged)) {
         deleteFile(merged.path());
-        // remove the deleted file from the cache
-        mergedManifests.remove(entry.getKey());
+        // remove the deleted file from the cache and update replaced count
+        List<ManifestFile> bin = entry.getKey();
+        mergedManifests.remove(bin);
+        replacedManifestsCount.addAndGet(-bin.size());
       }
     }
   }
@@ -200,8 +217,9 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
 
     ManifestFile manifest = writer.toManifestFile();
 
-    // update the cache
+    // update the cache and track replaced manifests
     mergedManifests.put(bin, manifest);
+    replacedManifestsCount.addAndGet(bin.size());
 
     return manifest;
   }
