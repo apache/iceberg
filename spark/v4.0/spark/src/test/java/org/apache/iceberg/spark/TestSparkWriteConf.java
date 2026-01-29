@@ -631,6 +631,49 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         });
   }
 
+  @TestTemplate
+  public void testExtraSnapshotMetadataPersistedOnRowLevelDelete() {
+    String propertyKey = "test-key";
+    String propertyValue = "session-value";
+
+    // Insert data to have rows to delete
+    sql(
+        "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00'), "
+            + "(2, 'b', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
+        tableName);
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
+        () -> {
+          // Row-level delete produces overwrite snapshot
+          sql("DELETE FROM %s WHERE id = 1", tableName);
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.currentSnapshot().operation()).isEqualTo("overwrite");
+          assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
+        });
+  }
+
+  @TestTemplate
+  public void testExtraSnapshotMetadataPersistedOnFileLevelDelete() {
+    String propertyKey = "test-key";
+    String propertyValue = "session-value";
+
+    // Insert data
+    sql(
+        "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
+        tableName);
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
+        () -> {
+          // File-level delete (deleting entire partition) produces delete snapshot
+          sql("DELETE FROM %s WHERE date = DATE '2021-01-01'", tableName);
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.currentSnapshot().operation()).isEqualTo("delete");
+          assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
+        });
+  }
+
   private void checkMode(DistributionMode expectedMode, SparkWriteConf writeConf) {
     assertThat(writeConf.distributionMode()).isEqualTo(expectedMode);
     assertThat(writeConf.copyOnWriteDistributionMode(DELETE)).isEqualTo(expectedMode);
