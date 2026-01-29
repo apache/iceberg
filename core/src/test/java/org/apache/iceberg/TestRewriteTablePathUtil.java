@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
@@ -79,5 +80,90 @@ public class TestRewriteTablePathUtil {
     String newMethodResult =
         RewriteTablePathUtil.stagingPath(fileDirectlyUnderPrefix, sourcePrefix, stagingDir);
     assertThat(newMethodResult).isEqualTo("/staging/file.parquet");
+  }
+
+  @Test
+  public void testRelativizePathUnderPrefix() {
+    // Normal case: path is under prefix
+    assertThat(RewriteTablePathUtil.relativize("/a/b/c", "/a")).isEqualTo("b/c");
+    assertThat(RewriteTablePathUtil.relativize("/a/b", "/a")).isEqualTo("b");
+    assertThat(RewriteTablePathUtil.relativize("/source/table/data/file.parquet", "/source/table"))
+        .isEqualTo("data/file.parquet");
+  }
+
+  @Test
+  public void testRelativizePathEqualsPrefix() {
+    // Edge case: path equals prefix exactly (issue #15172)
+    assertThat(RewriteTablePathUtil.relativize("/a", "/a")).isEqualTo("");
+    assertThat(RewriteTablePathUtil.relativize("/source/table", "/source/table")).isEqualTo("");
+    assertThat(RewriteTablePathUtil.relativize("s3://bucket/warehouse", "s3://bucket/warehouse"))
+        .isEqualTo("");
+  }
+
+  @Test
+  public void testRelativizePathEqualsPrefixWithTrailingSeparator() {
+    // Edge case: path equals prefix with trailing separator on path
+    assertThat(RewriteTablePathUtil.relativize("/a/", "/a")).isEqualTo("");
+    assertThat(RewriteTablePathUtil.relativize("/source/table/", "/source/table")).isEqualTo("");
+
+    // Edge case: prefix has trailing separator
+    assertThat(RewriteTablePathUtil.relativize("/a", "/a/")).isEqualTo("");
+    assertThat(RewriteTablePathUtil.relativize("/a/", "/a/")).isEqualTo("");
+  }
+
+  @Test
+  public void testRelativizeInvalidPath() {
+    // Error case: path does not start with prefix
+    assertThatThrownBy(() -> RewriteTablePathUtil.relativize("/other/path", "/source/table"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+  }
+
+  @Test
+  public void testNewPathUnderPrefix() {
+    // Normal case: path is under prefix
+    assertThat(RewriteTablePathUtil.newPath("/src/data/file.parquet", "/src", "/tgt"))
+        .isEqualTo("/tgt/data/file.parquet");
+  }
+
+  @Test
+  public void testNewPathEqualsPrefix() {
+    // Edge case: path equals prefix (issue #15172)
+    // Result has trailing separator since directories are represented with trailing separators
+    assertThat(RewriteTablePathUtil.newPath("/src", "/src", "/tgt")).isEqualTo("/tgt/");
+    assertThat(
+            RewriteTablePathUtil.newPath(
+                "s3://bucket/warehouse", "s3://bucket/warehouse", "s3://bucket-dr/warehouse"))
+        .isEqualTo("s3://bucket-dr/warehouse/");
+  }
+
+  @Test
+  public void testNewPathTargetIsSubdirectoryOfSource() {
+    // Rewriting to a subdirectory of the original location (e.g., backup scenario)
+    assertThat(RewriteTablePathUtil.newPath("/table/data/file.parquet", "/table", "/table/backup"))
+        .isEqualTo("/table/backup/data/file.parquet");
+    // Edge case: rewriting root to subdirectory
+    assertThat(RewriteTablePathUtil.newPath("/table", "/table", "/table/backup"))
+        .isEqualTo("/table/backup/");
+  }
+
+  @Test
+  public void testNewPathSourceIsSubdirectoryOfTarget() {
+    // Rewriting from subdirectory to parent (e.g., restore from backup)
+    assertThat(
+            RewriteTablePathUtil.newPath(
+                "/table/backup/data/file.parquet", "/table/backup", "/table"))
+        .isEqualTo("/table/data/file.parquet");
+    // Edge case: rewriting backup root to parent
+    assertThat(RewriteTablePathUtil.newPath("/table/backup", "/table/backup", "/table"))
+        .isEqualTo("/table/");
+  }
+
+  @Test
+  public void testRelativizeRejectsOverlappingNames() {
+    // Ensure /table-old is NOT matched by prefix /table (would be a bug)
+    assertThatThrownBy(() -> RewriteTablePathUtil.relativize("/table-old/data", "/table"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
   }
 }
