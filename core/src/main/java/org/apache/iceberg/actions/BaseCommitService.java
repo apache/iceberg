@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.io.Closeable;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -51,16 +52,19 @@ abstract class BaseCommitService<T> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseCommitService.class);
 
   public static final long TIMEOUT_IN_MS_DEFAULT = TimeUnit.MINUTES.toMillis(120);
+  private static final int MAX_RECORDED_FAILURES = 100;
 
   private final Table table;
   private final ExecutorService committerService;
   private final ConcurrentLinkedQueue<T> completedRewrites;
   private final ConcurrentLinkedQueue<String> inProgressCommits;
   private final ConcurrentLinkedQueue<T> committedRewrites;
+  private final List<Exception> recentCommitFailures;
   private final int rewritesPerCommit;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final long timeoutInMS;
   private int succeededCommits = 0;
+  private int failedCommits = 0;
 
   /**
    * Constructs a {@link BaseCommitService}
@@ -94,6 +98,7 @@ abstract class BaseCommitService<T> implements Closeable {
     completedRewrites = Queues.newConcurrentLinkedQueue();
     committedRewrites = Queues.newConcurrentLinkedQueue();
     inProgressCommits = Queues.newConcurrentLinkedQueue();
+    recentCommitFailures = Collections.synchronizedList(Lists.newArrayList());
   }
 
   /**
@@ -231,6 +236,10 @@ abstract class BaseCommitService<T> implements Closeable {
         succeededCommits++;
       } catch (Exception e) {
         LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
+        failedCommits++;
+        if (recentCommitFailures.size() < MAX_RECORDED_FAILURES) {
+          recentCommitFailures.add(e);
+        }
       }
       inProgressCommits.remove(inProgressCommitToken);
     }
@@ -238,6 +247,14 @@ abstract class BaseCommitService<T> implements Closeable {
 
   public int succeededCommits() {
     return succeededCommits;
+  }
+
+  public int failedCommits() {
+    return failedCommits;
+  }
+
+  public List<Exception> recentCommitFailures() {
+    return Lists.newArrayList(recentCommitFailures);
   }
 
   @VisibleForTesting
