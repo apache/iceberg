@@ -30,6 +30,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.IndexCatalog;
+import org.apache.iceberg.catalog.IndexIdentifier;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -39,18 +41,28 @@ import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.index.Index;
+import org.apache.iceberg.index.IndexBuilder;
+import org.apache.iceberg.index.IndexSummary;
+import org.apache.iceberg.index.IndexType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
 public class RESTCatalog
-    implements Catalog, ViewCatalog, SupportsNamespaces, Configurable<Object>, Closeable {
+    implements Catalog,
+        ViewCatalog,
+        SupportsNamespaces,
+        Configurable<Object>,
+        Closeable,
+        IndexCatalog {
   private final RESTSessionCatalog sessionCatalog;
   private final Catalog delegate;
   private final SupportsNamespaces nsDelegate;
   private final SessionCatalog.SessionContext context;
   private final ViewCatalog viewSessionCatalog;
+  private final IndexCatalog indexSessionCatalog;
 
   public RESTCatalog() {
     this(
@@ -74,6 +86,7 @@ public class RESTCatalog
     this.nsDelegate = (SupportsNamespaces) delegate;
     this.context = context;
     this.viewSessionCatalog = sessionCatalog.asViewCatalog(context);
+    this.indexSessionCatalog = sessionCatalog.asIndexCatalog(context);
   }
 
   /**
@@ -333,5 +346,42 @@ public class RESTCatalog
   @Override
   public View registerView(TableIdentifier identifier, String metadataFileLocation) {
     return viewSessionCatalog.registerView(identifier, metadataFileLocation);
+  }
+
+  // IndexCatalog delegate methods
+
+  @Override
+  public List<IndexSummary> listIndexes(TableIdentifier tableIdentifier, IndexType... types) {
+    return indexSessionCatalog.listIndexes(tableIdentifier, types);
+  }
+
+  @Override
+  public Index loadIndex(IndexIdentifier identifier) {
+    return indexSessionCatalog.loadIndex(identifier);
+  }
+
+  @Override
+  public boolean indexExists(IndexIdentifier identifier) {
+    return indexSessionCatalog.indexExists(identifier);
+  }
+
+  @Override
+  public IndexBuilder buildIndex(IndexIdentifier identifier) {
+    return indexSessionCatalog.buildIndex(identifier);
+  }
+
+  @Override
+  public boolean dropIndex(IndexIdentifier identifier) {
+    return indexSessionCatalog.dropIndex(identifier);
+  }
+
+  @Override
+  public void invalidateIndex(IndexIdentifier identifier) {
+    indexSessionCatalog.invalidateIndex(identifier);
+  }
+
+  @Override
+  public Index registerIndex(IndexIdentifier identifier, String metadataFileLocation) {
+    return indexSessionCatalog.registerIndex(identifier, metadataFileLocation);
   }
 }

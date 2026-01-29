@@ -288,6 +288,327 @@ class ViewVersion(BaseModel):
     default_namespace: Namespace = Field(..., alias='default-namespace')
 
 
+class IndexIdentifier(BaseModel):
+    """
+    Identifies an index within a catalog, scoped to a table
+    """
+
+    namespace: Namespace
+    table: str = Field(..., description='The table name')
+    name: str = Field(..., description='The index name')
+
+
+class IndexType(BaseModel):
+    __root__: Literal['bloom', 'btree', 'term', 'ivf'] = Field(
+        ..., description='The type of index algorithm', example='btree'
+    )
+
+
+class IndexSummary(BaseModel):
+    """
+    A lightweight summary of an index for discovery and optimization
+    """
+
+    identifier: IndexIdentifier
+    type: IndexType
+    index_column_ids: list[int] = Field(
+        ...,
+        alias='index-column-ids',
+        description='IDs of columns stored losslessly in the index',
+        example=[1, 2],
+    )
+    optimized_column_ids: list[int] = Field(
+        ...,
+        alias='optimized-column-ids',
+        description='IDs of columns the index is optimized for retrieval',
+        example=[1],
+    )
+    available_table_snapshots: list[int] = Field(
+        ...,
+        alias='available-table-snapshots',
+        description='Table snapshot IDs for which this index has valid snapshots',
+        example=[1234567890123, 1234567890456],
+    )
+
+
+class IndexSnapshot(BaseModel):
+    """
+    Represents a point-in-time snapshot of an index
+    """
+
+    index_snapshot_id: int = Field(
+        ...,
+        alias='index-snapshot-id',
+        description='Unique identifier for this index snapshot',
+    )
+    table_snapshot_id: int = Field(
+        ...,
+        alias='table-snapshot-id',
+        description='The table snapshot ID this index snapshot corresponds to',
+    )
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when this snapshot was created (ms since epoch)',
+    )
+    manifest_list: str = Field(
+        ...,
+        alias='manifest-list',
+        description='Location of the manifest list for this snapshot',
+    )
+    snapshot_properties: dict[str, str] | None = Field(
+        None,
+        alias='snapshot-properties',
+        description='Properties for this index snapshot typically set by the index maintenance process',
+    )
+
+
+class IndexVersion(BaseModel):
+    """
+    Represents a version of the index schema/configuration
+    """
+
+    version_id: int = Field(
+        ..., alias='version-id', description='Unique identifier for this version'
+    )
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when this version was created (ms since epoch)',
+    )
+    snapshot_id: int | None = Field(
+        None,
+        alias='snapshot-id',
+        description='The index snapshot ID associated with this version',
+    )
+    user_properties: dict[str, str] | None = Field(
+        None,
+        alias='user-properties',
+        description='User provided properties for this version',
+    )
+
+
+class IndexHistoryEntry(BaseModel):
+    """
+    An entry in the index version history
+    """
+
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp of the history entry (ms since epoch)',
+    )
+    version_id: int = Field(
+        ..., alias='version-id', description='The version ID at this point in history'
+    )
+
+
+class IndexMetadata(BaseModel):
+    """
+    Full metadata for an index
+    """
+
+    format_version: int = Field(
+        ...,
+        alias='format-version',
+        description='Format version of the index metadata',
+        example=1,
+    )
+    index_uuid: UUID = Field(
+        ..., alias='index-uuid', description='Unique UUID for this index'
+    )
+    name: str = Field(..., description='The name of the index')
+    type: IndexType
+    location: str = Field(..., description='Base location for index files')
+    index_column_ids: list[int] = Field(
+        ...,
+        alias='index-column-ids',
+        description='IDs of columns stored losslessly in the index',
+    )
+    optimized_column_ids: list[int] = Field(
+        ...,
+        alias='optimized-column-ids',
+        description='IDs of columns the index is optimized for retrieval',
+    )
+    current_version_id: int = Field(
+        ..., alias='current-version-id', description='ID of the current index version'
+    )
+    versions: list[IndexVersion] | None = Field(
+        None, description='List of known index versions'
+    )
+    version_history: list[IndexHistoryEntry] | None = Field(
+        None, alias='version-history', description='History of version changes'
+    )
+    snapshots: list[IndexSnapshot] | None = Field(
+        None, description='List of index snapshots'
+    )
+
+
+class IndexRequirement(BaseModel):
+    """
+    A requirement that must be met for an index commit to succeed
+    """
+
+    type: Literal['assert-index-uuid', 'assert-current-version-id'] = Field(
+        ..., description='The type of requirement'
+    )
+    uuid: UUID | None = Field(None, description='Required for assert-index-uuid')
+    current_version_id: int | None = Field(
+        None,
+        alias='current-version-id',
+        description='Required for assert-current-version-id',
+    )
+
+
+class AssertIndexUUID(IndexRequirement):
+    uuid: UUID = Field(..., description='Required for assert-index-uuid')
+
+
+class AssertIndexCurrentVersionId(IndexRequirement):
+    current_version_id: int = Field(
+        ...,
+        alias='current-version-id',
+        description='Required for assert-current-version-id',
+    )
+
+
+class IndexUpdate(BaseModel):
+    """
+    An update to apply to an index
+    """
+
+    action: Literal[
+        'add-snapshot',
+        'remove-snapshots',
+        'set-current-version',
+        'add-version',
+        'set-location',
+        'set-properties',
+        'remove-properties',
+    ] = Field(..., description='The type of update')
+
+
+class AddIndexSnapshotUpdate(IndexUpdate):
+    snapshot: IndexSnapshot
+
+
+class RemoveIndexSnapshotsUpdate(IndexUpdate):
+    snapshot_ids: list[int] = Field(..., alias='snapshot-ids')
+
+
+class SetIndexCurrentVersionUpdate(IndexUpdate):
+    version_id: int = Field(..., alias='version-id')
+
+
+class AddIndexVersionUpdate(IndexUpdate):
+    version: IndexVersion
+
+
+class SetIndexLocationUpdate(IndexUpdate):
+    location: str
+
+
+class SetIndexPropertiesUpdate(IndexUpdate):
+    updates: dict[str, str]
+
+
+class RemoveIndexPropertiesUpdate(IndexUpdate):
+    removals: list[str]
+
+
+class LoadIndexResult(BaseModel):
+    """
+    Result for loading an index
+    """
+
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='The location of the index metadata file',
+    )
+    metadata: IndexMetadata
+    config: dict[str, str] | None = None
+
+
+class CreateIndexRequest(BaseModel):
+    """
+    Request to create a new index
+    """
+
+    name: str = Field(
+        ..., description='The name for the new index', example='customer_id_btree_idx'
+    )
+    type: IndexType
+    index_column_ids: list[int] = Field(
+        ...,
+        alias='index-column-ids',
+        description='IDs of columns to store losslessly in the index',
+        example=[1, 2],
+    )
+    optimized_column_ids: list[int] | None = Field(
+        None,
+        alias='optimized-column-ids',
+        description='IDs of columns the index is optimized for retrieval',
+        example=[1],
+    )
+    location: str | None = Field(
+        None, description='Optional base location for index files'
+    )
+    properties: dict[str, str] | None = Field(
+        None, description='Index-specific properties'
+    )
+    index_snapshot_id: int | None = Field(
+        None,
+        alias='index-snapshot-id',
+        description='Unique identifier for this index snapshot',
+    )
+    table_snapshot_id: int | None = Field(
+        None,
+        alias='table-snapshot-id',
+        description='The table snapshot ID this index snapshot corresponds to',
+    )
+    snapshot_properties: dict[str, str] | None = Field(
+        None,
+        alias='snapshot-properties',
+        description='Properties for this index snapshot typically set by the index maintenance process',
+    )
+
+
+class RegisterIndexRequest(BaseModel):
+    """
+    Request to register an existing index by metadata file location
+    """
+
+    name: str = Field(..., description='The name to register the index under')
+    metadata_location: str = Field(
+        ...,
+        alias='metadata-location',
+        description='Location of the index metadata file',
+    )
+
+
+class CommitIndexRequest(BaseModel):
+    """
+    Request to commit updates to an index
+    """
+
+    requirements: list[AssertIndexUUID | AssertIndexCurrentVersionId] | None = Field(
+        None, description='Requirements that must be met before applying updates'
+    )
+    updates: (
+        list[
+            AddIndexSnapshotUpdate
+            | RemoveIndexSnapshotsUpdate
+            | SetIndexCurrentVersionUpdate
+            | AddIndexVersionUpdate
+            | SetIndexLocationUpdate
+            | SetIndexPropertiesUpdate
+            | RemoveIndexPropertiesUpdate
+        ]
+        | None
+    ) = Field(None, description='Updates to apply to the index')
+
+
 class BaseUpdate(BaseModel):
     action: str
 
