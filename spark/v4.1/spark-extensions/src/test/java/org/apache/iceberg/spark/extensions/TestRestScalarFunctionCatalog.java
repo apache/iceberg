@@ -20,21 +20,17 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Arrays;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,22 +43,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRestScalarFunctionCatalog extends ExtensionsTestBase {
 
-  // REST-backed functions are not currently supported for Spark's v1 session catalog
-  // (`spark_catalog`)
-  // because Spark resolves those via v1 persistent function lookup.
+  private static final String FUNCTION_NAMESPACE = "udf_ns";
+
+  // Catalog-backed (production) REST functions are only supported for the REST catalog type.
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   protected static Object[][] parameters() {
     return new Object[][] {
-      {
-        SparkCatalogConfig.HIVE.catalogName(),
-        SparkCatalogConfig.HIVE.implementation(),
-        SparkCatalogConfig.HIVE.properties()
-      },
-      {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties()
-      },
       {
         SparkCatalogConfig.REST.catalogName(),
         SparkCatalogConfig.REST.implementation(),
@@ -74,8 +60,7 @@ public class TestRestScalarFunctionCatalog extends ExtensionsTestBase {
     };
   }
 
-  private HttpServer server;
-  private String baseUrl;
+  private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private static final String ADD_ONE_SPEC =
       "{"
@@ -106,78 +91,34 @@ public class TestRestScalarFunctionCatalog extends ExtensionsTestBase {
 
   @BeforeEach
   public void before() {
-    try {
-      server = HttpServer.create(new InetSocketAddress(0), 0);
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to start test HTTP server", e);
-    }
-
-    int port = server.getAddress().getPort();
-    baseUrl = "http://localhost:" + port;
-
-    // /v1/functions?namespace=
-    server.createContext(
-        "/v1/functions",
-        exchange -> {
-          String query = exchange.getRequestURI().getQuery();
-          if (query != null && query.contains("namespace=")) {
-            String body = "{\"names\":[\"add_one_file\"]}";
-            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
-            try (OutputStream os = exchange.getResponseBody()) {
-              os.write(bytes);
-            }
-            return;
-          }
-          exchange.sendResponseHeaders(400, -1);
-          exchange.close();
-        });
-
-    // /v1/functions/{namespace}/{name}
-    server.createContext(
-        "/v1/functions/default/add_one_file", ex -> respondWithWrappedJson(ex, ADD_ONE_SPEC));
-
-    server.start();
-
-    // Point the configured Iceberg catalog to the REST function service before base setup
-    spark.conf().set("spark.sql.catalog." + catalogName + ".functions.rest.uri", baseUrl);
     super.before();
 
     // Ensure unqualified function names resolve against the parameterized Iceberg catalog
     spark.conf().set("spark.sql.defaultCatalog", catalogName);
-  }
 
-  @AfterEach
-  public void after() {
-    if (server != null) {
-      server.stop(0);
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", catalogName + "." + FUNCTION_NAMESPACE);
+
+    // Register a function spec in the REST catalog test server.
+    ObjectNode spec;
+    try {
+      spec = (ObjectNode) MAPPER.readTree(ADD_ONE_SPEC);
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to parse function spec JSON", e);
     }
+
+    REST_SERVER_EXTENSION.putFunction(Namespace.of(FUNCTION_NAMESPACE), "add_one_file", spec);
   }
 
   @TestTemplate
   public void testListAndExecuteScalarFromRest() throws Exception {
     FunctionCatalog functionCatalog = castToFunctionCatalog(catalogName);
-    Identifier[] functions = functionCatalog.listFunctions(new String[] {});
+    Identifier[] functions = functionCatalog.listFunctions(new String[] {FUNCTION_NAMESPACE});
     long userCount =
         Arrays.stream(functions).filter(id -> id.name().equals("add_one_file")).count();
     assertThat(userCount).isEqualTo(1);
 
-    Object result = scalarSql("SELECT add_one_file(41)");
+    Object result = scalarSql("SELECT %s.%s.add_one_file(41)", catalogName, FUNCTION_NAMESPACE);
     assertThat(((Number) result).intValue()).isEqualTo(42);
-  }
-
-  private void respondWithWrappedJson(HttpExchange exchange, String json) throws IOException {
-    if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-      exchange.sendResponseHeaders(405, -1);
-      exchange.close();
-      return;
-    }
-    String body = "{\"spec\":" + json + "}";
-    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-    exchange.sendResponseHeaders(200, bytes.length);
-    try (OutputStream os = exchange.getResponseBody()) {
-      os.write(bytes);
-    }
   }
 
   private FunctionCatalog castToFunctionCatalog(String name) {

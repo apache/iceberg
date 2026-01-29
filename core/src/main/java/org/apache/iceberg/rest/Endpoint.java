@@ -77,6 +77,11 @@ public class Endpoint {
   public static final Endpoint V1_FETCH_TABLE_SCAN_PLAN_TASKS =
       Endpoint.create("POST", ResourcePaths.V1_TABLE_SCAN_PLAN_TASKS);
 
+  // function endpoints
+  public static final Endpoint V1_LIST_FUNCTIONS =
+      Endpoint.create("GET", ResourcePaths.V1_FUNCTIONS);
+  public static final Endpoint V1_LOAD_FUNCTION = Endpoint.create("GET", ResourcePaths.V1_FUNCTION);
+
   // view endpoints
   public static final Endpoint V1_LIST_VIEWS = Endpoint.create("GET", ResourcePaths.V1_VIEWS);
   public static final Endpoint V1_LOAD_VIEW = Endpoint.create("GET", ResourcePaths.V1_VIEW);

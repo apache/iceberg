@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark;
 
 import java.util.Set;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.functions.RestFunctionService;
 import org.apache.iceberg.spark.functions.SparkFunctions;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
@@ -56,7 +58,10 @@ abstract class BaseCatalog
   private String functionsRestUri = null;
   private String functionsRestAuth = null;
   private RestFunctionService restFunctions = null;
-  private java.util.List<String> cachedRestFunctionNames = null;
+  private final java.util.Map<String, java.util.List<String>> cachedRestFunctionNamesByNamespace =
+      new java.util.concurrent.ConcurrentHashMap<>();
+  private final java.util.Map<String, java.util.List<String>>
+      cachedCatalogFunctionNamesByNamespace = new java.util.concurrent.ConcurrentHashMap<>();
 
   @Override
   public UnboundProcedure loadProcedure(Identifier ident) {
@@ -93,12 +98,32 @@ abstract class BaseCatalog
     // with an empty namespace, such as `bucket`.
     // Otherwise, use `system` namespace.
     //
+    if (namespace.length == 0 || isSystemNamespace(namespace)) {
+      return true;
+    }
+
     // Note: user namespaces (e.g. `default`) are NOT function namespaces for built-in Iceberg
-    // functions. They may only be treated as function namespaces when REST-backed SQL functions
-    // are enabled (see functions.rest.uri).
-    return namespace.length == 0
-        || isSystemNamespace(namespace)
-        || (restFunctions != null && namespaceExists(namespace));
+    // functions. They are treated as function namespaces only when user-defined functions exist.
+    //
+    // For the (legacy) POC REST function service (functions.rest.uri), namespaces are treated as
+    // function namespaces if they exist.
+    if (restFunctions != null) {
+      return namespaceExists(namespace);
+    }
+
+    // For catalog-backed REST functions, treat namespaces as function namespaces only if the
+    // catalog reports at least one function under the namespace. This preserves the historical
+    // behavior that existing namespaces (like `default`) don't implicitly expose functions.
+    RESTCatalog catalog = restCatalog();
+    if (catalog != null && namespaceExists(namespace)) {
+      String cacheKey = namespaceCacheKey(namespace);
+      java.util.List<String> cached =
+          cachedCatalogFunctionNamesByNamespace.computeIfAbsent(
+              cacheKey, ignored -> catalog.listFunctions(Namespace.of(namespace)));
+      return !cached.isEmpty();
+    }
+
+    return false;
   }
 
   @Override
@@ -114,12 +139,19 @@ abstract class BaseCatalog
             USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS,
             USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT);
 
-    // Opt-in config for REST-backed function listing/loading (read-only Stage 1: list/load specs)
+    // Optional POC config for REST-backed function listing/loading (read-only Stage 1: list/load
+    // specs). A production REST-catalog implementation should serve functions from the catalog
+    // server itself, in which case this config is not needed.
     this.functionsRestUri = options.get("functions.rest.uri");
     this.functionsRestAuth = options.get("functions.rest.auth");
     if (functionsRestUri != null && !functionsRestUri.isEmpty()) {
       this.restFunctions = new RestFunctionService(functionsRestUri, functionsRestAuth);
     }
+  }
+
+  private static String namespaceCacheKey(String[] namespace) {
+    // deterministic and unambiguous enough for caching test usage
+    return String.join("\u0001", namespace);
   }
 
   @Override
@@ -131,32 +163,66 @@ abstract class BaseCatalog
     return namespace.length == 1 && namespace[0].equalsIgnoreCase("system");
   }
 
+  private RESTCatalog restCatalog() {
+    // Note: when SparkCatalog wraps the underlying Iceberg catalog in CachingCatalog, the runtime
+    // type will no longer be RESTCatalog. For now, REST-backed functions via the catalog are only
+    // supported when the underlying catalog is directly a RESTCatalog (cache disabled).
+    if (icebergCatalog() instanceof RESTCatalog) {
+      return (RESTCatalog) icebergCatalog();
+    }
+
+    return null;
+  }
+
+  private void addBuiltInFunctions(Set<String> names, String[] namespace) {
+    if (namespace.length == 0 || isSystemNamespace(namespace)) {
+      names.addAll(SparkFunctions.list());
+    }
+  }
+
+  private void addRestServiceFunctions(Set<String> names, String[] namespace) {
+    if (restFunctions == null) {
+      return;
+    }
+
+    String cacheKey = namespaceCacheKey(namespace);
+    java.util.List<String> cached =
+        cachedRestFunctionNamesByNamespace.computeIfAbsent(
+            cacheKey, ignored -> restFunctions.listFunctions(namespace));
+    names.addAll(cached);
+  }
+
+  private void addRestCatalogFunctions(Set<String> names, String[] namespace) {
+    if (namespace.length == 0 || isSystemNamespace(namespace)) {
+      return;
+    }
+
+    RESTCatalog catalog = restCatalog();
+    if (catalog == null) {
+      return;
+    }
+
+    String cacheKey = namespaceCacheKey(namespace);
+    java.util.List<String> cached =
+        cachedCatalogFunctionNamesByNamespace.computeIfAbsent(
+            cacheKey, ignored -> catalog.listFunctions(Namespace.of(namespace)));
+    names.addAll(cached);
+  }
+
   @Override
   public Identifier[] listFunctions(String[] namespace) throws NoSuchNamespaceException {
-    if (isFunctionNamespace(namespace)) {
-      Set<String> names = new java.util.LinkedHashSet<>();
-      // Built-in Iceberg functions are only exposed in empty/system namespaces.
-      if (namespace.length == 0 || isSystemNamespace(namespace)) {
-        names.addAll(SparkFunctions.list());
+    if (!isFunctionNamespace(namespace)) {
+      if (isExistingNamespace(namespace)) {
+        return new Identifier[0];
       }
-
-      if (restFunctions != null) {
-        if (cachedRestFunctionNames == null) {
-          cachedRestFunctionNames = restFunctions.listFunctions(namespace);
-        }
-
-        for (String fn : cachedRestFunctionNames) {
-          if (!names.contains(fn)) {
-            names.add(fn);
-          }
-        }
-      }
-
-      return names.stream().map(name -> Identifier.of(namespace, name)).toArray(Identifier[]::new);
-    } else if (isExistingNamespace(namespace)) {
-      return new Identifier[0];
+      throw new NoSuchNamespaceException(namespace);
     }
-    throw new NoSuchNamespaceException(namespace);
+
+    Set<String> names = new java.util.LinkedHashSet<>();
+    addBuiltInFunctions(names, namespace);
+    addRestServiceFunctions(names, namespace);
+    addRestCatalogFunctions(names, namespace);
+    return names.stream().map(name -> Identifier.of(namespace, name)).toArray(Identifier[]::new);
   }
 
   @Override
@@ -194,15 +260,27 @@ abstract class BaseCatalog
       throw new NoSuchFunctionException(ident);
     }
 
-    if (restFunctions == null) {
-      throw new NoSuchFunctionException(ident);
+    // If explicitly configured, use the (legacy) POC REST function service.
+    if (restFunctions != null) {
+      try {
+        String json = restFunctions.getFunctionSpecJson(namespace, name);
+        return SqlFunctionSpecParser.parseScalar(json);
+      } catch (RuntimeException e) {
+        throw new NoSuchFunctionException(ident);
+      }
     }
 
-    try {
-      String json = restFunctions.getFunctionSpecJson(namespace, name);
-      return SqlFunctionSpecParser.parseScalar(json);
-    } catch (RuntimeException e) {
-      throw new NoSuchFunctionException(ident);
+    // Otherwise, prefer REST-catalog-backed functions if available.
+    RESTCatalog catalog = restCatalog();
+    if (catalog != null && namespace.length > 0 && !isSystemNamespace(namespace)) {
+      try {
+        String json = catalog.loadFunctionSpec(Namespace.of(namespace), name).toString();
+        return SqlFunctionSpecParser.parseScalar(json);
+      } catch (RuntimeException e) {
+        throw new NoSuchFunctionException(ident);
+      }
     }
+
+    throw new NoSuchFunctionException(ident);
   }
 }
