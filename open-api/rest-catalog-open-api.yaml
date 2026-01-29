@@ -1003,7 +1003,7 @@ paths:
             Multiple view identifiers are separated by commas. Servers should split the parameter value on comma characters
             to parse individual view identifiers. If view names contain commas, they must be url-coded as %2C.
 
-            Example with multiple views (where prod%1Fanalytics refers to a nested namespace) - prod%1Fanalytics.monthly_view,prod%1Fanalytics.quarterly_view
+            Example with multiple views (where prod%1Fanalytics refers to a nested namespace) - prod%1Fanalytics.quarterly_view,prod%1Fanalytics.monthly_view
           required: false
           schema:
             type: string
