@@ -375,7 +375,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     assertThatThrownBy(() -> TestableCachingCatalog.wrap(hadoopCatalog(), Duration.ZERO, ticker))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "When cache.expiration-interval-ms is set to 0, the catalog cache should be disabled. This indicates a bug.");
+            "When both cache.expiration-interval-ms and cache.expiration.expire-after-write-interval-ms are set to 0, the catalog cache should be disabled. This indicates a bug.");
   }
 
   @Test
@@ -405,6 +405,49 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     catalog.invalidateTable(tableIdent);
     assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
     assertThat(wrappedCatalog.cache().asMap()).doesNotContainKey(tableIdent);
+  }
+
+  @Test
+  public void testCachePolicyExpireAfterWrite() throws Exception {
+    Duration expireAfterWriteInterval = Duration.ofMinutes(3);
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(
+            hadoopCatalog(), EXPIRATION_TTL, ticker, expireAfterWriteInterval);
+
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key", "value"));
+
+    // Ensure table is cached with full ttl remaining upon creation
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(catalog.remainingAgeFor(tableIdent)).isPresent().get().isEqualTo(EXPIRATION_TTL);
+    assertThat(catalog.cache().policy().expireAfterWrite().flatMap(t -> t.ageOf(tableIdent)))
+        .isPresent()
+        .get()
+        .isEqualTo(Duration.ZERO);
+
+    ticker.advance(HALF_OF_EXPIRATION);
+    assertThat(catalog.cache().asMap()).containsKey(tableIdent);
+    assertThat(catalog.ageOf(tableIdent)).isPresent().get().isEqualTo(HALF_OF_EXPIRATION);
+    assertThat(catalog.cache().policy().expireAfterWrite().flatMap(t -> t.ageOf(tableIdent)))
+        .isPresent()
+        .get()
+        .isEqualTo(HALF_OF_EXPIRATION);
+
+    // Access the cache to check policy behaviour
+    catalog.loadTable(tableIdent);
+
+    //  Object age does not change after access
+    assertThat(catalog.cache().policy().expireAfterWrite().get().ageOf(tableIdent))
+        .isPresent()
+        .get()
+        .isEqualTo(HALF_OF_EXPIRATION);
+
+    ticker.advance(HALF_OF_EXPIRATION.plus(Duration.ofMinutes(1)));
+    assertThat(catalog.cache().asMap()).doesNotContainKey(tableIdent);
+    assertThat(catalog.loadTable(tableIdent))
+        .as("CachingCatalog should return a new instance after expiration")
+        .isNotSameAs(table);
   }
 
   public static TableIdentifier[] metadataTables(TableIdentifier tableIdent) {

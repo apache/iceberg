@@ -32,6 +32,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
@@ -52,12 +53,34 @@ public class CachingCatalog implements Catalog {
   }
 
   public static Catalog wrap(Catalog catalog, long expirationIntervalMillis) {
-    return wrap(catalog, true, expirationIntervalMillis);
+    return wrap(
+        catalog,
+        true,
+        expirationIntervalMillis,
+        CatalogProperties.CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS_DEFAULT);
+  }
+
+  public static Catalog wrap(
+      Catalog catalog, long expirationIntervalMillis, long expireAfterWriteIntervalMillis) {
+    return wrap(catalog, true, expirationIntervalMillis, expireAfterWriteIntervalMillis);
   }
 
   public static Catalog wrap(
       Catalog catalog, boolean caseSensitive, long expirationIntervalMillis) {
-    return new CachingCatalog(catalog, caseSensitive, expirationIntervalMillis);
+    return wrap(
+        catalog,
+        caseSensitive,
+        expirationIntervalMillis,
+        CatalogProperties.CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS_DEFAULT);
+  }
+
+  public static Catalog wrap(
+      Catalog catalog,
+      boolean caseSensitive,
+      long expirationIntervalMillis,
+      long expireAfterWriteIntervalMillis) {
+    return new CachingCatalog(
+        catalog, caseSensitive, expirationIntervalMillis, expireAfterWriteIntervalMillis);
   }
 
   private final Catalog catalog;
@@ -67,22 +90,60 @@ public class CachingCatalog implements Catalog {
   protected final long expirationIntervalMillis;
 
   @SuppressWarnings("checkstyle:VisibilityModifier")
+  protected long expireAfterWriteIntervalMillis;
+
+  @SuppressWarnings("checkstyle:VisibilityModifier")
   protected final Cache<TableIdentifier, Table> tableCache;
 
-  private CachingCatalog(Catalog catalog, boolean caseSensitive, long expirationIntervalMillis) {
-    this(catalog, caseSensitive, expirationIntervalMillis, Ticker.systemTicker());
+  private CachingCatalog(
+      Catalog catalog,
+      boolean caseSensitive,
+      long expirationIntervalMillis,
+      long expireAfterWriteIntervalMillis) {
+    this(
+        catalog,
+        caseSensitive,
+        expirationIntervalMillis,
+        Ticker.systemTicker(),
+        expireAfterWriteIntervalMillis);
   }
 
+  /**
+   * Caching Catalog
+   *
+   * @deprecated will be removed in 1.12.0; use {@link #CachingCatalog(Catalog, boolean, long,
+   *     Ticker, long)} instead.
+   */
+  @Deprecated
+  @VisibleForTesting
   @SuppressWarnings("checkstyle:VisibilityModifier")
   protected CachingCatalog(
       Catalog catalog, boolean caseSensitive, long expirationIntervalMillis, Ticker ticker) {
+    this(
+        catalog,
+        caseSensitive,
+        expirationIntervalMillis,
+        ticker,
+        CatalogProperties.CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS_DEFAULT);
+  }
+
+  @VisibleForTesting
+  CachingCatalog(
+      Catalog catalog,
+      boolean caseSensitive,
+      long expirationIntervalMillis,
+      Ticker ticker,
+      long expireAfterWriteIntervalMillis) {
     Preconditions.checkArgument(
-        expirationIntervalMillis != 0,
-        "When %s is set to 0, the catalog cache should be disabled. This indicates a bug.",
-        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS);
+        expirationIntervalMillis != 0 || expireAfterWriteIntervalMillis != 0,
+        "When both %s and %s are set to 0, the catalog cache should be disabled. This indicates a bug.",
+        CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
+        CatalogProperties.CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS);
+
     this.catalog = catalog;
     this.caseSensitive = caseSensitive;
     this.expirationIntervalMillis = expirationIntervalMillis;
+    this.expireAfterWriteIntervalMillis = expireAfterWriteIntervalMillis;
     this.tableCache = createTableCache(ticker);
   }
 
@@ -104,15 +165,25 @@ public class CachingCatalog implements Catalog {
   }
 
   private Cache<TableIdentifier, Table> createTableCache(Ticker ticker) {
-    Caffeine<Object, Object> cacheBuilder = Caffeine.newBuilder().softValues();
+
+    if (expirationIntervalMillis <= 0 && expireAfterWriteIntervalMillis <= 0) {
+      return Caffeine.newBuilder().softValues().build();
+    }
+
+    Caffeine<TableIdentifier, Table> cacheBuilder =
+        Caffeine.newBuilder()
+            .softValues()
+            .removalListener(new MetadataTableInvalidatingRemovalListener())
+            .executor(Runnable::run) // Makes the callbacks to removal listener synchronous
+            .ticker(ticker);
 
     if (expirationIntervalMillis > 0) {
-      return cacheBuilder
-          .removalListener(new MetadataTableInvalidatingRemovalListener())
-          .executor(Runnable::run) // Makes the callbacks to removal listener synchronous
-          .expireAfterAccess(Duration.ofMillis(expirationIntervalMillis))
-          .ticker(ticker)
-          .build();
+      cacheBuilder = cacheBuilder.expireAfterAccess(Duration.ofMillis(expirationIntervalMillis));
+    }
+
+    if (expireAfterWriteIntervalMillis > 0) {
+      cacheBuilder =
+          cacheBuilder.expireAfterWrite(Duration.ofMillis(expireAfterWriteIntervalMillis));
     }
 
     return cacheBuilder.build();

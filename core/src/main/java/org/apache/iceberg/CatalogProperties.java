@@ -56,14 +56,18 @@ public class CatalogProperties {
    * <ul>
    *   <li>Zero - Caching and cache expiration are both disabled
    *   <li>Negative Values - Cache expiration is turned off and entries expire only on refresh etc
-   *   <li>Positive Values - Cache entries expire if not accessed via the cache after this many
-   *       milliseconds
+   *   <li>Positive Values - Cache entries expire this milliseconds based on the cache expiration
+   *       policy
    * </ul>
    */
   public static final String CACHE_EXPIRATION_INTERVAL_MS = "cache.expiration-interval-ms";
 
   public static final long CACHE_EXPIRATION_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(30);
   public static final long CACHE_EXPIRATION_INTERVAL_MS_OFF = -1;
+
+  public static final String CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS =
+      "cache.expiration.expire-after-write-interval-ms";
+  public static final long CACHE_EXPIRATION_EXPIRE_AFTER_WRITE_INTERVAL_MS_DEFAULT = 0;
 
   /**
    * Controls whether to use caching during manifest reads or not.
