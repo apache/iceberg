@@ -21,7 +21,6 @@ package org.apache.iceberg.index;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -71,15 +70,14 @@ public class TestIndexUpdateParser {
 
     IndexUpdate update = IndexUpdateParser.fromJson(json);
 
-    assertThat(update).isInstanceOf(IndexUpdate.AddIndexSnapshot.class);
-    IndexUpdate.AddIndexSnapshot addIndexSnapshot = (IndexUpdate.AddIndexSnapshot) update;
-    assertThat(addIndexSnapshot.indexSnapshot().tableSnapshotId())
+    assertThat(update).isInstanceOf(IndexUpdate.AddSnapshot.class);
+    IndexUpdate.AddSnapshot addSnapshot = (IndexUpdate.AddSnapshot) update;
+    assertThat(addSnapshot.indexSnapshot().tableSnapshotId())
         .isEqualTo(INDEX_SNAPSHOT.tableSnapshotId());
-    assertThat(addIndexSnapshot.indexSnapshot().indexSnapshotId())
+    assertThat(addSnapshot.indexSnapshot().indexSnapshotId())
         .isEqualTo(INDEX_SNAPSHOT.indexSnapshotId());
-    assertThat(addIndexSnapshot.indexSnapshot().versionId()).isEqualTo(INDEX_SNAPSHOT.versionId());
-    assertThat(addIndexSnapshot.indexSnapshot().properties())
-        .isEqualTo(INDEX_SNAPSHOT.properties());
+    assertThat(addSnapshot.indexSnapshot().versionId()).isEqualTo(INDEX_SNAPSHOT.versionId());
+    assertThat(addSnapshot.indexSnapshot().properties()).isEqualTo(INDEX_SNAPSHOT.properties());
   }
 
   @Test
@@ -89,7 +87,7 @@ public class TestIndexUpdateParser {
         String.format(
             "{\"action\":\"%s\",\"snapshot\":%s}", IndexUpdateParser.ADD_SNAPSHOT, snapshotJson);
 
-    IndexUpdate update = new IndexUpdate.AddIndexSnapshot(INDEX_SNAPSHOT);
+    IndexUpdate update = new IndexUpdate.AddSnapshot(INDEX_SNAPSHOT);
     String actual = IndexUpdateParser.toJson(update);
 
     assertThat(actual)
@@ -99,12 +97,12 @@ public class TestIndexUpdateParser {
 
   @Test
   public void testAddIndexSnapshotRoundTrip() {
-    IndexUpdate original = new IndexUpdate.AddIndexSnapshot(INDEX_SNAPSHOT);
+    IndexUpdate original = new IndexUpdate.AddSnapshot(INDEX_SNAPSHOT);
     String json = IndexUpdateParser.toJson(original);
     IndexUpdate parsed = IndexUpdateParser.fromJson(json);
 
-    assertThat(parsed).isInstanceOf(IndexUpdate.AddIndexSnapshot.class);
-    IndexUpdate.AddIndexSnapshot parsedUpdate = (IndexUpdate.AddIndexSnapshot) parsed;
+    assertThat(parsed).isInstanceOf(IndexUpdate.AddSnapshot.class);
+    IndexUpdate.AddSnapshot parsedUpdate = (IndexUpdate.AddSnapshot) parsed;
     assertThat(parsedUpdate.indexSnapshot()).isEqualTo(INDEX_SNAPSHOT);
   }
 
@@ -117,15 +115,15 @@ public class TestIndexUpdateParser {
 
     IndexUpdate update = IndexUpdateParser.fromJson(json);
 
-    assertThat(update).isInstanceOf(IndexUpdate.RemoveIndexSnapshots.class);
-    IndexUpdate.RemoveIndexSnapshots removeSnapshots = (IndexUpdate.RemoveIndexSnapshots) update;
+    assertThat(update).isInstanceOf(IndexUpdate.RemoveSnapshots.class);
+    IndexUpdate.RemoveSnapshots removeSnapshots = (IndexUpdate.RemoveSnapshots) update;
     assertThat(removeSnapshots.indexSnapshotIds()).isEqualTo(snapshotIds);
   }
 
   @Test
   public void testRemoveIndexSnapshotsToJson() {
     Set<Long> snapshotIds = ImmutableSet.of(1L, 2L, 3L);
-    IndexUpdate update = new IndexUpdate.RemoveIndexSnapshots(snapshotIds);
+    IndexUpdate update = new IndexUpdate.RemoveSnapshots(snapshotIds);
     String json = IndexUpdateParser.toJson(update);
 
     assertThat(json).contains("\"action\":\"remove-snapshots\"");
@@ -133,19 +131,18 @@ public class TestIndexUpdateParser {
 
     // Verify round-trip
     IndexUpdate parsed = IndexUpdateParser.fromJson(json);
-    assertThat(parsed).isInstanceOf(IndexUpdate.RemoveIndexSnapshots.class);
-    assertThat(((IndexUpdate.RemoveIndexSnapshots) parsed).indexSnapshotIds())
-        .isEqualTo(snapshotIds);
+    assertThat(parsed).isInstanceOf(IndexUpdate.RemoveSnapshots.class);
+    assertThat(((IndexUpdate.RemoveSnapshots) parsed).indexSnapshotIds()).isEqualTo(snapshotIds);
   }
 
   @Test
   public void testRemoveIndexSnapshotsSingleId() {
-    IndexUpdate update = new IndexUpdate.RemoveIndexSnapshots(42L);
+    IndexUpdate update = new IndexUpdate.RemoveSnapshots(42L);
     String json = IndexUpdateParser.toJson(update);
     IndexUpdate parsed = IndexUpdateParser.fromJson(json);
 
-    assertThat(parsed).isInstanceOf(IndexUpdate.RemoveIndexSnapshots.class);
-    assertThat(((IndexUpdate.RemoveIndexSnapshots) parsed).indexSnapshotIds()).containsExactly(42L);
+    assertThat(parsed).isInstanceOf(IndexUpdate.RemoveSnapshots.class);
+    assertThat(((IndexUpdate.RemoveSnapshots) parsed).indexSnapshotIds()).containsExactly(42L);
   }
 
   /** SetIndexCurrentVersion */
@@ -157,9 +154,8 @@ public class TestIndexUpdateParser {
 
     IndexUpdate update = IndexUpdateParser.fromJson(json);
 
-    assertThat(update).isInstanceOf(IndexUpdate.SetIndexCurrentVersion.class);
-    IndexUpdate.SetIndexCurrentVersion setCurrentVersion =
-        (IndexUpdate.SetIndexCurrentVersion) update;
+    assertThat(update).isInstanceOf(IndexUpdate.SetCurrentVersion.class);
+    IndexUpdate.SetCurrentVersion setCurrentVersion = (IndexUpdate.SetCurrentVersion) update;
     assertThat(setCurrentVersion.versionId()).isEqualTo(versionId);
   }
 
@@ -171,7 +167,7 @@ public class TestIndexUpdateParser {
             "{\"action\":\"%s\",\"version-id\":%d}",
             IndexUpdateParser.SET_CURRENT_VERSION, versionId);
 
-    IndexUpdate update = new IndexUpdate.SetIndexCurrentVersion(versionId);
+    IndexUpdate update = new IndexUpdate.SetCurrentVersion(versionId);
     String actual = IndexUpdateParser.toJson(update);
 
     assertThat(actual)
@@ -182,12 +178,12 @@ public class TestIndexUpdateParser {
   @Test
   public void testSetIndexCurrentVersionRoundTrip() {
     int versionId = 42;
-    IndexUpdate original = new IndexUpdate.SetIndexCurrentVersion(versionId);
+    IndexUpdate original = new IndexUpdate.SetCurrentVersion(versionId);
     String json = IndexUpdateParser.toJson(original);
     IndexUpdate parsed = IndexUpdateParser.fromJson(json);
 
-    assertThat(parsed).isInstanceOf(IndexUpdate.SetIndexCurrentVersion.class);
-    assertThat(((IndexUpdate.SetIndexCurrentVersion) parsed).versionId()).isEqualTo(versionId);
+    assertThat(parsed).isInstanceOf(IndexUpdate.SetCurrentVersion.class);
+    assertThat(((IndexUpdate.SetCurrentVersion) parsed).versionId()).isEqualTo(versionId);
   }
 
   /** AddIndexVersion */
@@ -199,8 +195,8 @@ public class TestIndexUpdateParser {
 
     IndexUpdate update = IndexUpdateParser.fromJson(json);
 
-    assertThat(update).isInstanceOf(IndexUpdate.AddIndexVersion.class);
-    IndexUpdate.AddIndexVersion addVersion = (IndexUpdate.AddIndexVersion) update;
+    assertThat(update).isInstanceOf(IndexUpdate.AddVersion.class);
+    IndexUpdate.AddVersion addVersion = (IndexUpdate.AddVersion) update;
     assertThat(addVersion.indexVersion().versionId()).isEqualTo(INDEX_VERSION.versionId());
     assertThat(addVersion.indexVersion().timestampMillis())
         .isEqualTo(INDEX_VERSION.timestampMillis());
@@ -214,7 +210,7 @@ public class TestIndexUpdateParser {
         String.format(
             "{\"action\":\"%s\",\"version\":%s}", IndexUpdateParser.ADD_VERSION, versionJson);
 
-    IndexUpdate update = new IndexUpdate.AddIndexVersion(INDEX_VERSION);
+    IndexUpdate update = new IndexUpdate.AddVersion(INDEX_VERSION);
     String actual = IndexUpdateParser.toJson(update);
 
     assertThat(actual)
@@ -224,12 +220,12 @@ public class TestIndexUpdateParser {
 
   @Test
   public void testAddIndexVersionRoundTrip() {
-    IndexUpdate original = new IndexUpdate.AddIndexVersion(INDEX_VERSION);
+    IndexUpdate original = new IndexUpdate.AddVersion(INDEX_VERSION);
     String json = IndexUpdateParser.toJson(original);
     IndexUpdate parsed = IndexUpdateParser.fromJson(json);
 
-    assertThat(parsed).isInstanceOf(IndexUpdate.AddIndexVersion.class);
-    IndexUpdate.AddIndexVersion parsedUpdate = (IndexUpdate.AddIndexVersion) parsed;
+    assertThat(parsed).isInstanceOf(IndexUpdate.AddVersion.class);
+    IndexUpdate.AddVersion parsedUpdate = (IndexUpdate.AddVersion) parsed;
     assertThat(parsedUpdate.indexVersion()).isEqualTo(INDEX_VERSION);
   }
 
@@ -242,12 +238,12 @@ public class TestIndexUpdateParser {
             .properties(ImmutableMap.of())
             .build();
 
-    IndexUpdate original = new IndexUpdate.AddIndexVersion(versionWithoutProps);
+    IndexUpdate original = new IndexUpdate.AddVersion(versionWithoutProps);
     String json = IndexUpdateParser.toJson(original);
     IndexUpdate parsed = IndexUpdateParser.fromJson(json);
 
-    assertThat(parsed).isInstanceOf(IndexUpdate.AddIndexVersion.class);
-    IndexUpdate.AddIndexVersion parsedUpdate = (IndexUpdate.AddIndexVersion) parsed;
+    assertThat(parsed).isInstanceOf(IndexUpdate.AddVersion.class);
+    IndexUpdate.AddVersion parsedUpdate = (IndexUpdate.AddVersion) parsed;
     assertThat(parsedUpdate.indexVersion().versionId()).isEqualTo(2);
     assertThat(parsedUpdate.indexVersion().timestampMillis()).isEqualTo(67890L);
     assertThat(parsedUpdate.indexVersion().properties()).isEmpty();
@@ -262,8 +258,8 @@ public class TestIndexUpdateParser {
 
     IndexUpdate update = IndexUpdateParser.fromJson(json);
 
-    assertThat(update).isInstanceOf(IndexUpdate.SetIndexLocation.class);
-    IndexUpdate.SetIndexLocation setLocation = (IndexUpdate.SetIndexLocation) update;
+    assertThat(update).isInstanceOf(IndexUpdate.SetLocation.class);
+    IndexUpdate.SetLocation setLocation = (IndexUpdate.SetLocation) update;
     assertThat(setLocation.location()).isEqualTo(location);
   }
 
@@ -274,7 +270,7 @@ public class TestIndexUpdateParser {
         String.format(
             "{\"action\":\"%s\",\"location\":\"%s\"}", IndexUpdateParser.SET_LOCATION, location);
 
-    IndexUpdate update = new IndexUpdate.SetIndexLocation(location);
+    IndexUpdate update = new IndexUpdate.SetLocation(location);
     String actual = IndexUpdateParser.toJson(update);
 
     assertThat(actual)
@@ -285,91 +281,12 @@ public class TestIndexUpdateParser {
   @Test
   public void testSetLocationRoundTrip() {
     String location = "hdfs://namenode/warehouse/index";
-    IndexUpdate original = new IndexUpdate.SetIndexLocation(location);
+    IndexUpdate original = new IndexUpdate.SetLocation(location);
     String json = IndexUpdateParser.toJson(original);
     IndexUpdate parsed = IndexUpdateParser.fromJson(json);
 
-    assertThat(parsed).isInstanceOf(IndexUpdate.SetIndexLocation.class);
-    assertThat(((IndexUpdate.SetIndexLocation) parsed).location()).isEqualTo(location);
-  }
-
-  /** SetIndexProperties */
-  @Test
-  public void testSetPropertiesFromJson() {
-    String action = IndexUpdateParser.SET_PROPERTIES;
-    String json =
-        String.format(
-            "{\"action\":\"%s\",\"updates\":{\"key1\":\"value1\",\"key2\":\"value2\"}}", action);
-
-    IndexUpdate update = IndexUpdateParser.fromJson(json);
-
-    assertThat(update).isInstanceOf(IndexUpdate.SetIndexProperties.class);
-    IndexUpdate.SetIndexProperties setProperties = (IndexUpdate.SetIndexProperties) update;
-    assertThat(setProperties.updated())
-        .containsEntry("key1", "value1")
-        .containsEntry("key2", "value2");
-  }
-
-  @Test
-  public void testSetPropertiesToJson() {
-    Map<String, String> props = ImmutableMap.of("key1", "value1", "key2", "value2");
-    IndexUpdate update = new IndexUpdate.SetIndexProperties(props);
-    String json = IndexUpdateParser.toJson(update);
-
-    assertThat(json).contains("\"action\":\"set-properties\"");
-    assertThat(json).contains("\"updates\":");
-    assertThat(json).contains("\"key1\":\"value1\"");
-    assertThat(json).contains("\"key2\":\"value2\"");
-  }
-
-  @Test
-  public void testSetPropertiesRoundTrip() {
-    Map<String, String> props = ImmutableMap.of("prop1", "val1", "prop2", "val2");
-    IndexUpdate original = new IndexUpdate.SetIndexProperties(props);
-    String json = IndexUpdateParser.toJson(original);
-    IndexUpdate parsed = IndexUpdateParser.fromJson(json);
-
-    assertThat(parsed).isInstanceOf(IndexUpdate.SetIndexProperties.class);
-    assertThat(((IndexUpdate.SetIndexProperties) parsed).updated()).isEqualTo(props);
-  }
-
-  /** RemoveIndexProperties */
-  @Test
-  public void testRemovePropertiesFromJson() {
-    String action = IndexUpdateParser.REMOVE_PROPERTIES;
-    String json = String.format("{\"action\":\"%s\",\"removals\":[\"key1\",\"key2\"]}", action);
-
-    IndexUpdate update = IndexUpdateParser.fromJson(json);
-
-    assertThat(update).isInstanceOf(IndexUpdate.RemoveIndexProperties.class);
-    IndexUpdate.RemoveIndexProperties removeProperties = (IndexUpdate.RemoveIndexProperties) update;
-    assertThat(removeProperties.removed()).containsExactlyInAnyOrder("key1", "key2");
-  }
-
-  @Test
-  public void testRemovePropertiesToJson() {
-    Set<String> toRemove = ImmutableSet.of("key1", "key2");
-    IndexUpdate update = new IndexUpdate.RemoveIndexProperties(toRemove);
-    String json = IndexUpdateParser.toJson(update);
-
-    assertThat(json).contains("\"action\":\"remove-properties\"");
-    assertThat(json).contains("\"removals\":");
-
-    // Verify round-trip
-    IndexUpdate parsed = IndexUpdateParser.fromJson(json);
-    assertThat(parsed).isInstanceOf(IndexUpdate.RemoveIndexProperties.class);
-    assertThat(((IndexUpdate.RemoveIndexProperties) parsed).removed()).isEqualTo(toRemove);
-  }
-
-  @Test
-  public void testRemovePropertiesRoundTrip() {
-    Set<String> toRemove = ImmutableSet.of("prop1", "prop2", "prop3");
-    IndexUpdate original = new IndexUpdate.RemoveIndexProperties(toRemove);
-    String json = IndexUpdateParser.toJson(original);
-    IndexUpdate parsed = IndexUpdateParser.fromJson(json);
-
-    assertThat(parsed).isInstanceOf(IndexUpdate.RemoveIndexProperties.class);
-    assertThat(((IndexUpdate.RemoveIndexProperties) parsed).removed()).isEqualTo(toRemove);
+    assertThat(parsed).isInstanceOf(IndexUpdate.SetLocation.class);
+    assertThat(((IndexUpdate.SetLocation) parsed).location()).isEqualTo(location);
   }
 
   /** Error cases */
@@ -439,23 +356,5 @@ public class TestIndexUpdateParser {
     assertThatThrownBy(() -> IndexUpdateParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse missing string: location");
-  }
-
-  @Test
-  public void testSetPropertiesMissingUpdates() {
-    String json = "{\"action\":\"set-properties\"}";
-
-    assertThatThrownBy(() -> IndexUpdateParser.fromJson(json))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot parse missing map: updates");
-  }
-
-  @Test
-  public void testRemovePropertiesMissingRemovals() {
-    String json = "{\"action\":\"remove-properties\"}";
-
-    assertThatThrownBy(() -> IndexUpdateParser.fromJson(json))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot parse missing set: removals");
   }
 }

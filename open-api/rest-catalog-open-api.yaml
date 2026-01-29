@@ -3461,8 +3461,6 @@ components:
             - set-current-version
             - add-version
             - set-location
-            - set-properties
-            - remove-properties
           description: The type of update
       discriminator:
         propertyName: action
@@ -3472,8 +3470,6 @@ components:
           set-current-version: '#/components/schemas/SetIndexCurrentVersionUpdate'
           add-version: '#/components/schemas/AddIndexVersionUpdate'
           set-location: '#/components/schemas/SetIndexLocationUpdate'
-          set-properties: '#/components/schemas/SetIndexPropertiesUpdate'
-          remove-properties: '#/components/schemas/RemoveIndexPropertiesUpdate'
 
     AddIndexSnapshotUpdate:
       allOf:
@@ -3527,30 +3523,6 @@ components:
           properties:
             location:
               type: string
-
-    SetIndexPropertiesUpdate:
-      allOf:
-        - $ref: '#/components/schemas/IndexUpdate'
-        - type: object
-          required:
-            - updates
-          properties:
-            updates:
-              type: object
-              additionalProperties:
-                type: string
-
-    RemoveIndexPropertiesUpdate:
-      allOf:
-        - $ref: '#/components/schemas/IndexUpdate'
-        - type: object
-          required:
-            - removals
-          properties:
-            removals:
-              type: array
-              items:
-                type: string
 
     LoadIndexResult:
       type: object

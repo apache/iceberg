@@ -161,7 +161,7 @@ public class TestUpdateIndexRequestParser {
                 new IndexRequirement.AssertIndexUUID(uuid),
                 new IndexRequirement.AssertIndexDoesNotExist()),
             ImmutableList.of(
-                new IndexUpdate.AssignUUID(uuid), new IndexUpdate.SetIndexCurrentVersion(23)));
+                new IndexUpdate.AssignUUID(uuid), new IndexUpdate.SetCurrentVersion(23)));
 
     String expectedJson =
         """
@@ -210,7 +210,7 @@ public class TestUpdateIndexRequestParser {
                 new IndexRequirement.AssertIndexUUID(uuid),
                 new IndexRequirement.AssertIndexDoesNotExist()),
             ImmutableList.of(
-                new IndexUpdate.AssignUUID(uuid), new IndexUpdate.SetIndexCurrentVersion(23)));
+                new IndexUpdate.AssignUUID(uuid), new IndexUpdate.SetCurrentVersion(23)));
 
     String expectedJson =
         """

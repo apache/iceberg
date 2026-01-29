@@ -256,37 +256,37 @@ public class TestIndexMetadata {
     assertThat(changes).hasSize(5);
     assertThat(changes)
         .element(0)
-        .isInstanceOf(IndexUpdate.SetIndexLocation.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetIndexLocation.class))
-        .extracting(IndexUpdate.SetIndexLocation::location)
+        .isInstanceOf(IndexUpdate.SetLocation.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetLocation.class))
+        .extracting(IndexUpdate.SetLocation::location)
         .isEqualTo("location");
 
     assertThat(changes)
         .element(1)
-        .isInstanceOf(IndexUpdate.AddIndexVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddIndexVersion.class))
-        .extracting(IndexUpdate.AddIndexVersion::indexVersion)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
         .isEqualTo(indexVersionOne);
 
     assertThat(changes)
         .element(2)
-        .isInstanceOf(IndexUpdate.AddIndexVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddIndexVersion.class))
-        .extracting(IndexUpdate.AddIndexVersion::indexVersion)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
         .isEqualTo(indexVersionTwo);
 
     assertThat(changes)
         .element(3)
-        .isInstanceOf(IndexUpdate.AddIndexVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddIndexVersion.class))
-        .extracting(IndexUpdate.AddIndexVersion::indexVersion)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
         .isEqualTo(indexVersionThree);
 
     assertThat(changes)
         .element(4)
-        .isInstanceOf(IndexUpdate.SetIndexCurrentVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetIndexCurrentVersion.class))
-        .extracting(IndexUpdate.SetIndexCurrentVersion::versionId)
+        .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
+        .extracting(IndexUpdate.SetCurrentVersion::versionId)
         .isEqualTo(-1);
   }
 
@@ -546,37 +546,37 @@ public class TestIndexMetadata {
 
     assertThat(changes)
         .element(1)
-        .isInstanceOf(IndexUpdate.SetIndexLocation.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetIndexLocation.class))
-        .extracting(IndexUpdate.SetIndexLocation::location)
+        .isInstanceOf(IndexUpdate.SetLocation.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetLocation.class))
+        .extracting(IndexUpdate.SetLocation::location)
         .isEqualTo("custom-location");
 
     assertThat(changes)
         .element(2)
-        .isInstanceOf(IndexUpdate.AddIndexVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddIndexVersion.class))
-        .extracting(IndexUpdate.AddIndexVersion::indexVersion)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
         .isEqualTo(indexVersionOne);
 
     assertThat(changes)
         .element(3)
-        .isInstanceOf(IndexUpdate.AddIndexVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddIndexVersion.class))
-        .extracting(IndexUpdate.AddIndexVersion::indexVersion)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
         .isEqualTo(indexVersionTwo);
 
     assertThat(changes)
         .element(4)
-        .isInstanceOf(IndexUpdate.AddIndexVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddIndexVersion.class))
-        .extracting(IndexUpdate.AddIndexVersion::indexVersion)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
         .isEqualTo(indexVersionThree);
 
     assertThat(changes)
         .element(5)
-        .isInstanceOf(IndexUpdate.SetIndexCurrentVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetIndexCurrentVersion.class))
-        .extracting(IndexUpdate.SetIndexCurrentVersion::versionId)
+        .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
+        .extracting(IndexUpdate.SetCurrentVersion::versionId)
         .isEqualTo(-1);
   }
 
@@ -781,6 +781,82 @@ public class TestIndexMetadata {
     assertThat(indexMetadata.snapshots()).hasSize(1).containsExactly(snapshot);
     assertThat(indexMetadata.snapshot(1L)).isEqualTo(snapshot);
     assertThat(indexMetadata.snapshotForTableSnapshot(100L)).isEqualTo(snapshot);
+  }
+
+  @Test
+  public void addSnapshotAndConcurrentAddVersion() {
+    IndexVersion indexVersion =
+        ImmutableIndexVersion.builder()
+            .versionId(1)
+            .timestampMillis(23L)
+            .properties(ImmutableMap.of())
+            .build();
+
+    IndexSnapshot snapshotOne =
+        ImmutableIndexSnapshot.builder()
+            .tableSnapshotId(100L)
+            .indexSnapshotId(1L)
+            .versionId(1)
+            .build();
+
+    IndexMetadata indexMetadata =
+        IndexMetadata.builder()
+            .setLocation("custom-location")
+            .setType(IndexType.BTREE)
+            .setIndexColumnIds(INDEX_COLUMN_IDS)
+            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
+            .addVersion(indexVersion)
+            .setCurrentVersionId(1)
+            .addSnapshot(snapshotOne)
+            .build();
+
+    IndexMetadata updateMetadata =
+        IndexMetadata.buildFrom(indexMetadata)
+            .addVersion(
+                ImmutableIndexVersion.builder()
+                    .versionId(2)
+                    .timestampMillis(45L)
+                    .properties(ImmutableMap.of("one", "two"))
+                    .build())
+            .setCurrentVersionId(2)
+            .build();
+
+    IndexSnapshot snapshotTwo =
+        ImmutableIndexSnapshot.builder()
+            .tableSnapshotId(200L)
+            .indexSnapshotId(2L)
+            .versionId(2)
+            .build();
+
+    List<IndexUpdate> addSnapshotAndAddVersionUpdate =
+        IndexMetadata.buildFrom(indexMetadata)
+            .addVersion(
+                ImmutableIndexVersion.builder()
+                    .versionId(2)
+                    .timestampMillis(45L)
+                    .properties(ImmutableMap.of("three", "four"))
+                    .build())
+            .setCurrentVersionId(2)
+            .addSnapshot(snapshotTwo)
+            .build()
+            .changes();
+
+    IndexMetadata.Builder metadataBuilder = IndexMetadata.buildFrom(updateMetadata);
+    addSnapshotAndAddVersionUpdate.forEach(update -> update.applyTo(metadataBuilder));
+    IndexMetadata finalMetadata = metadataBuilder.build();
+
+    IndexSnapshot expectedSnapshot =
+        ImmutableIndexSnapshot.builder()
+            .tableSnapshotId(200L)
+            .indexSnapshotId(2L)
+            .versionId(3)
+            .build();
+
+    assertThat(finalMetadata.snapshots()).hasSize(2).containsExactly(snapshotOne, expectedSnapshot);
+    assertThat(finalMetadata.snapshot(1L)).isEqualTo(snapshotOne);
+    assertThat(finalMetadata.snapshotForTableSnapshot(100L)).isEqualTo(snapshotOne);
+    assertThat(finalMetadata.snapshot(2L)).isEqualTo(expectedSnapshot);
+    assertThat(finalMetadata.snapshotForTableSnapshot(200L)).isEqualTo(expectedSnapshot);
   }
 
   @Test
@@ -1029,9 +1105,9 @@ public class TestIndexMetadata {
     assertThat(updated.changes())
         .hasSize(1)
         .first()
-        .isInstanceOf(IndexUpdate.AddIndexSnapshot.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddIndexSnapshot.class))
-        .extracting(IndexUpdate.AddIndexSnapshot::indexSnapshot)
+        .isInstanceOf(IndexUpdate.AddSnapshot.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddSnapshot.class))
+        .extracting(IndexUpdate.AddSnapshot::indexSnapshot)
         .isEqualTo(snapshot2);
   }
 
@@ -1162,9 +1238,9 @@ public class TestIndexMetadata {
     assertThat(updated.changes())
         .hasSize(1)
         .first()
-        .isInstanceOf(IndexUpdate.RemoveIndexSnapshots.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.RemoveIndexSnapshots.class))
-        .extracting(IndexUpdate.RemoveIndexSnapshots::indexSnapshotIds)
+        .isInstanceOf(IndexUpdate.RemoveSnapshots.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.RemoveSnapshots.class))
+        .extracting(IndexUpdate.RemoveSnapshots::indexSnapshotIds)
         .isEqualTo(ImmutableSet.of(2L));
   }
 
@@ -1396,9 +1472,9 @@ public class TestIndexMetadata {
     assertThat(updated.changes())
         .hasSize(1)
         .first()
-        .isInstanceOf(IndexUpdate.RemoveIndexSnapshots.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.RemoveIndexSnapshots.class))
-        .extracting(IndexUpdate.RemoveIndexSnapshots::indexSnapshotIds)
+        .isInstanceOf(IndexUpdate.RemoveSnapshots.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.RemoveSnapshots.class))
+        .extracting(IndexUpdate.RemoveSnapshots::indexSnapshotIds)
         .isEqualTo(ImmutableSet.of(1L, 999L));
   }
 
@@ -1458,7 +1534,7 @@ public class TestIndexMetadata {
 
     // Verify both changes were recorded
     assertThat(updated.changes()).hasSize(2);
-    assertThat(updated.changes().get(0)).isInstanceOf(IndexUpdate.RemoveIndexSnapshots.class);
-    assertThat(updated.changes().get(1)).isInstanceOf(IndexUpdate.AddIndexSnapshot.class);
+    assertThat(updated.changes().get(0)).isInstanceOf(IndexUpdate.RemoveSnapshots.class);
+    assertThat(updated.changes().get(1)).isInstanceOf(IndexUpdate.AddSnapshot.class);
   }
 }

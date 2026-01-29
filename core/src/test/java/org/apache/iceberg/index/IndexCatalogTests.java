@@ -21,6 +21,7 @@ package org.apache.iceberg.index;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -1510,5 +1511,117 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     assertThatThrownBy(() -> catalog().registerIndex(indexIdentifier, ""))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot register an empty metadata file location");
+  }
+
+  @Test
+  public void concurrentIndexUpdates() {
+    assumeThat(supportsServerSideRetry()).isTrue();
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
+    IndexIdentifier indexIdentifier =
+        IndexIdentifier.of(tableIdentifier, "concurrent_snapshot_index");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
+
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
+
+    Index index =
+        catalog()
+            .buildIndex(indexIdentifier)
+            .withType(IndexType.BTREE)
+            .withIndexColumnIds(3)
+            .withOptimizedColumnIds(3)
+            .withIndexSnapshotId(0L)
+            .withTableSnapshotId(0L)
+            .create();
+
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should exist").isTrue();
+    assertThat(index.snapshots()).hasSize(1);
+
+    AddIndexSnapshot addSnapshotOne =
+        index
+            .addIndexSnapshot()
+            .withTableSnapshotId(100L)
+            .withIndexSnapshotId(1L)
+            .withSnapshotProperty("source", "snapshot-one");
+
+    UpdateIndexProperties updatePropertiesOne = index.updateProperties().set("prop1", "value1");
+
+    RemoveIndexSnapshots removeSnapshot = index.removeIndexSnapshots().removeSnapshotById(0L);
+
+    AddIndexSnapshot addSnapshotTwo =
+        index
+            .addIndexSnapshot()
+            .withTableSnapshotId(200L)
+            .withIndexSnapshotId(2L)
+            .withSnapshotProperty("source", "snapshot-two");
+
+    UpdateIndexProperties updatePropertiesTwo = index.updateProperties().set("prop2", "value2");
+
+    // simulate a concurrent add of the index snapshot
+    IndexOperations indexOps = ((BaseIndex) index).operations();
+    IndexMetadata current = indexOps.current();
+
+    IndexMetadata firstAdd = ((IndexSnapshotAdd) addSnapshotOne).internalApply();
+    IndexMetadata firstUpdate = ((IndexPropertiesUpdate) updatePropertiesOne).internalApply();
+    IndexMetadata firstRemove = ((IndexSnapshotsRemove) removeSnapshot).internalApply();
+    IndexMetadata secondAdd = ((IndexSnapshotAdd) addSnapshotTwo).internalApply();
+    IndexMetadata secondUpdate = ((IndexPropertiesUpdate) updatePropertiesTwo).internalApply();
+
+    indexOps.commit(current, firstAdd);
+
+    Index updatedIndex = catalog().loadIndex(indexIdentifier);
+    assertThat(updatedIndex.snapshots()).hasSize(2);
+
+    indexOps.commit(current, firstUpdate);
+
+    updatedIndex = catalog().loadIndex(indexIdentifier);
+    assertThat(updatedIndex.versions()).hasSize(2);
+
+    indexOps.commit(current, firstRemove);
+
+    updatedIndex = catalog().loadIndex(indexIdentifier);
+    assertThat(updatedIndex.snapshots()).hasSize(1);
+
+    indexOps.commit(current, secondAdd);
+
+    updatedIndex = catalog().loadIndex(indexIdentifier);
+    assertThat(updatedIndex.snapshots()).hasSize(2);
+
+    indexOps.commit(current, secondUpdate);
+
+    updatedIndex = catalog().loadIndex(indexIdentifier);
+    assertThat(updatedIndex.versions()).hasSize(3);
+
+    IndexSnapshot snapshot1 = updatedIndex.snapshot(1L);
+    assertThat(snapshot1).isNotNull();
+    assertThat(snapshot1.tableSnapshotId()).isEqualTo(100L);
+    assertThat(snapshot1.properties()).containsEntry("source", "snapshot-one");
+    assertThat(snapshot1.versionId()).isEqualTo(1L);
+
+    IndexSnapshot snapshot2 = updatedIndex.snapshot(2L);
+    assertThat(snapshot2).isNotNull();
+    assertThat(snapshot2.tableSnapshotId()).isEqualTo(200L);
+    assertThat(snapshot2.properties()).containsEntry("source", "snapshot-two");
+    assertThat(snapshot1.versionId()).isEqualTo(1L);
+
+    IndexVersion version1 = updatedIndex.version(1);
+    assertThat(version1).isNotNull();
+    assertThat(version1.properties()).isEmpty();
+
+    IndexVersion version2 = updatedIndex.version(2);
+    assertThat(version2).isNotNull();
+    assertThat(version2.properties()).containsEntry("prop1", "value1");
+
+    IndexVersion version3 = updatedIndex.version(3);
+    assertThat(version3).isNotNull();
+    assertThat(version3.properties()).containsEntry("prop2", "value2");
+
+    assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
+    assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
   }
 }
