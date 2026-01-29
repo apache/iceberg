@@ -303,31 +303,18 @@ public class CatalogUtil {
     if (catalogImpl == null) {
       String catalogType =
           PropertyUtil.propertyAsString(options, ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
-      switch (catalogType.toLowerCase(Locale.ENGLISH)) {
-        case ICEBERG_CATALOG_TYPE_HIVE:
-          catalogImpl = ICEBERG_CATALOG_HIVE;
-          break;
-        case ICEBERG_CATALOG_TYPE_HADOOP:
-          catalogImpl = ICEBERG_CATALOG_HADOOP;
-          break;
-        case ICEBERG_CATALOG_TYPE_REST:
-          catalogImpl = ICEBERG_CATALOG_REST;
-          break;
-        case ICEBERG_CATALOG_TYPE_GLUE:
-          catalogImpl = ICEBERG_CATALOG_GLUE;
-          break;
-        case ICEBERG_CATALOG_TYPE_NESSIE:
-          catalogImpl = ICEBERG_CATALOG_NESSIE;
-          break;
-        case ICEBERG_CATALOG_TYPE_JDBC:
-          catalogImpl = ICEBERG_CATALOG_JDBC;
-          break;
-        case ICEBERG_CATALOG_TYPE_BIGQUERY:
-          catalogImpl = ICEBERG_CATALOG_BIGQUERY;
-          break;
-        default:
-          throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
-      }
+      catalogImpl =
+          switch (catalogType.toLowerCase(Locale.ENGLISH)) {
+            case ICEBERG_CATALOG_TYPE_HIVE -> ICEBERG_CATALOG_HIVE;
+            case ICEBERG_CATALOG_TYPE_HADOOP -> ICEBERG_CATALOG_HADOOP;
+            case ICEBERG_CATALOG_TYPE_REST -> ICEBERG_CATALOG_REST;
+            case ICEBERG_CATALOG_TYPE_GLUE -> ICEBERG_CATALOG_GLUE;
+            case ICEBERG_CATALOG_TYPE_NESSIE -> ICEBERG_CATALOG_NESSIE;
+            case ICEBERG_CATALOG_TYPE_JDBC -> ICEBERG_CATALOG_JDBC;
+            case ICEBERG_CATALOG_TYPE_BIGQUERY -> ICEBERG_CATALOG_BIGQUERY;
+            default ->
+                throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
+          };
     } else {
       String catalogType = options.get(ICEBERG_CATALOG_TYPE);
       Preconditions.checkArgument(

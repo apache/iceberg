@@ -675,32 +675,19 @@ public class TestHelpers {
     if (row.isNullAt(ord)) {
       return null;
     }
-    switch (type.typeId()) {
-      case BOOLEAN:
-        return row.getBoolean(ord);
-      case INTEGER:
-        return row.getInt(ord);
-      case LONG:
-        return row.getLong(ord);
-      case FLOAT:
-        return row.getFloat(ord);
-      case DOUBLE:
-        return row.getDouble(ord);
-      case STRING:
-        return row.getString(ord);
-      case BINARY:
-      case FIXED:
-      case UUID:
-        return row.get(ord);
-      case DATE:
-        return row.getDate(ord);
-      case TIMESTAMP:
-        return row.getTimestamp(ord);
-      case DECIMAL:
-        return row.getDecimal(ord);
-      default:
-        throw new IllegalArgumentException("Unhandled type " + type);
-    }
+    return switch (type.typeId()) {
+      case BOOLEAN -> row.getBoolean(ord);
+      case INTEGER -> row.getInt(ord);
+      case LONG -> row.getLong(ord);
+      case FLOAT -> row.getFloat(ord);
+      case DOUBLE -> row.getDouble(ord);
+      case STRING -> row.getString(ord);
+      case BINARY, FIXED, UUID -> row.get(ord);
+      case DATE -> row.getDate(ord);
+      case TIMESTAMP -> row.getTimestamp(ord);
+      case DECIMAL -> row.getDecimal(ord);
+      default -> throw new IllegalArgumentException("Unhandled type " + type);
+    };
   }
 
   private static <K, V> Map<K, V> toJavaMap(scala.collection.Map<K, V> map) {

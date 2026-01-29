@@ -97,39 +97,26 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
 
     @Override
     public OrcValueReader<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
-      switch (primitive.getCategory()) {
-        case BOOLEAN:
-          return OrcValueReaders.booleans();
-        case BYTE:
+      return switch (primitive.getCategory()) {
+        case BOOLEAN -> OrcValueReaders.booleans();
           // Iceberg does not have a byte type. Use int
-        case SHORT:
           // Iceberg does not have a short type. Use int
-        case DATE:
-        case INT:
-          return OrcValueReaders.ints();
-        case LONG:
-          return OrcValueReaders.longs();
-        case FLOAT:
-          return OrcValueReaders.floats();
-        case DOUBLE:
-          return OrcValueReaders.doubles();
-        case TIMESTAMP_INSTANT:
-        case TIMESTAMP:
-          return SparkOrcValueReaders.timestampTzs();
-        case DECIMAL:
-          return SparkOrcValueReaders.decimals(primitive.getPrecision(), primitive.getScale());
-        case CHAR:
-        case VARCHAR:
-        case STRING:
-          return SparkOrcValueReaders.utf8String();
-        case BINARY:
+        case BYTE, SHORT, DATE, INT -> OrcValueReaders.ints();
+        case LONG -> OrcValueReaders.longs();
+        case FLOAT -> OrcValueReaders.floats();
+        case DOUBLE -> OrcValueReaders.doubles();
+        case TIMESTAMP_INSTANT, TIMESTAMP -> SparkOrcValueReaders.timestampTzs();
+        case DECIMAL ->
+            SparkOrcValueReaders.decimals(primitive.getPrecision(), primitive.getScale());
+        case CHAR, VARCHAR, STRING -> SparkOrcValueReaders.utf8String();
+        case BINARY -> {
           if (Type.TypeID.UUID == iPrimitive.typeId()) {
-            return SparkOrcValueReaders.uuids();
+            yield SparkOrcValueReaders.uuids();
           }
-          return OrcValueReaders.bytes();
-        default:
-          throw new IllegalArgumentException("Unhandled type " + primitive);
-      }
+          yield OrcValueReaders.bytes();
+        }
+        default -> throw new IllegalArgumentException("Unhandled type " + primitive);
+      };
     }
   }
 }

@@ -105,26 +105,17 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   private Table createMetadataTable() {
-    switch (type) {
-      case FILES:
-        return new FilesTable(table);
-      case DATA_FILES:
-        return new DataFilesTable(table);
-      case DELETE_FILES:
-        return new DeleteFilesTable(table);
-      case ALL_DATA_FILES:
-        return new AllDataFilesTable(table);
-      case ALL_DELETE_FILES:
-        return new AllDeleteFilesTable(table);
-      case ALL_FILES:
-        return new AllFilesTable(table);
-      case ENTRIES:
-        return new ManifestEntriesTable(table);
-      case ALL_ENTRIES:
-        return new AllEntriesTable(table);
-      default:
-        throw new IllegalArgumentException("Unsupported metadata table type:" + type);
-    }
+    return switch (type) {
+      case FILES -> new FilesTable(table);
+      case DATA_FILES -> new DataFilesTable(table);
+      case DELETE_FILES -> new DeleteFilesTable(table);
+      case ALL_DATA_FILES -> new AllDataFilesTable(table);
+      case ALL_DELETE_FILES -> new AllDeleteFilesTable(table);
+      case ALL_FILES -> new AllFilesTable(table);
+      case ENTRIES -> new ManifestEntriesTable(table);
+      case ALL_ENTRIES -> new AllEntriesTable(table);
+      default -> throw new IllegalArgumentException("Unsupported metadata table type:" + type);
+    };
   }
 
   private int expectedScanTaskCount(int partitions) {
@@ -159,40 +150,24 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   private String partitionColumn(String colName) {
-    switch (type) {
-      case FILES:
-      case DATA_FILES:
-      case DELETE_FILES:
-      case ALL_DATA_FILES:
-      case ALL_DELETE_FILES:
-      case ALL_FILES:
-        return String.format("partition.%s", colName);
-      case ENTRIES:
-      case ALL_ENTRIES:
-        return String.format("data_file.partition.%s", colName);
-      default:
-        throw new IllegalArgumentException("Unsupported metadata table type:" + type);
-    }
+    return switch (type) {
+      case FILES, DATA_FILES, DELETE_FILES, ALL_DATA_FILES, ALL_DELETE_FILES, ALL_FILES ->
+          String.format("partition.%s", colName);
+      case ENTRIES, ALL_ENTRIES -> String.format("data_file.partition.%s", colName);
+      default -> throw new IllegalArgumentException("Unsupported metadata table type:" + type);
+    };
   }
 
   /**
    * @return a basic expression that always evaluates to true, to test AND logic
    */
   private Expression dummyExpression() {
-    switch (type) {
-      case FILES:
-      case DATA_FILES:
-      case DELETE_FILES:
-      case ALL_DATA_FILES:
-      case ALL_DELETE_FILES:
-      case ALL_FILES:
-        return Expressions.greaterThan("record_count", 0);
-      case ENTRIES:
-      case ALL_ENTRIES:
-        return Expressions.greaterThan("data_file.record_count", 0);
-      default:
-        throw new IllegalArgumentException("Unsupported metadata table type:" + type);
-    }
+    return switch (type) {
+      case FILES, DATA_FILES, DELETE_FILES, ALL_DATA_FILES, ALL_DELETE_FILES, ALL_FILES ->
+          Expressions.greaterThan("record_count", 0);
+      case ENTRIES, ALL_ENTRIES -> Expressions.greaterThan("data_file.record_count", 0);
+      default -> throw new IllegalArgumentException("Unsupported metadata table type:" + type);
+    };
   }
 
   @TestTemplate

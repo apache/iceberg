@@ -361,14 +361,11 @@ public class RewriteManifestsSparkAction
   }
 
   private List<ManifestFile> loadManifests(ManifestContent content, Snapshot snapshot) {
-    switch (content) {
-      case DATA:
-        return snapshot.dataManifests(table.io());
-      case DELETES:
-        return snapshot.deleteManifests(table.io());
-      default:
-        throw new IllegalArgumentException("Unknown manifest content: " + content);
-    }
+    return switch (content) {
+      case DATA -> snapshot.dataManifests(table.io());
+      case DELETES -> snapshot.deleteManifests(table.io());
+      default -> throw new IllegalArgumentException("Unknown manifest content: " + content);
+    };
   }
 
   private int targetNumManifests(long totalSizeBytes) {

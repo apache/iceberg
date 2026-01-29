@@ -84,22 +84,15 @@ public class Transforms {
     }
 
     String lowerTransform = transform.toLowerCase(Locale.ENGLISH);
-    switch (lowerTransform) {
-      case "identity":
-        return Identity.get(type);
-      case "year":
-        return Years.get().toEnum(type);
-      case "month":
-        return Months.get().toEnum(type);
-      case "day":
-        return Days.get().toEnum(type);
-      case "hour":
-        return Hours.get().toEnum(type);
-      case "void":
-        return VoidTransform.get();
-    }
-
-    return new UnknownTransform<>(transform);
+    return switch (lowerTransform) {
+      case "identity" -> Identity.get(type);
+      case "year" -> Years.get().toEnum(type);
+      case "month" -> Months.get().toEnum(type);
+      case "day" -> Days.get().toEnum(type);
+      case "hour" -> Hours.get().toEnum(type);
+      case "void" -> VoidTransform.get();
+      default -> new UnknownTransform<>(transform);
+    };
   }
 
   /**

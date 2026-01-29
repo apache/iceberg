@@ -650,35 +650,26 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     CloseableIterable<Record> iterable;
 
     InputFile inputFile = Files.localInput(path.toString());
-    switch (format) {
-      case PARQUET:
-        iterable =
-            Parquet.read(inputFile)
-                .project(schema)
-                .createReaderFunc(
-                    fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-                .build();
-        break;
-
-      case AVRO:
-        iterable =
-            Avro.read(inputFile)
-                .project(schema)
-                .createResolvingReader(PlannedDataReader::create)
-                .build();
-        break;
-
-      case ORC:
-        iterable =
-            ORC.read(inputFile)
-                .project(schema)
-                .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
-                .build();
-        break;
-
-      default:
-        throw new UnsupportedOperationException("Unsupported file format: " + format);
-    }
+    iterable =
+        switch (format) {
+          case PARQUET ->
+              Parquet.read(inputFile)
+                  .project(schema)
+                  .createReaderFunc(
+                      fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+                  .build();
+          case AVRO ->
+              Avro.read(inputFile)
+                  .project(schema)
+                  .createResolvingReader(PlannedDataReader::create)
+                  .build();
+          case ORC ->
+              ORC.read(inputFile)
+                  .project(schema)
+                  .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+                  .build();
+          default -> throw new UnsupportedOperationException("Unsupported file format: " + format);
+        };
 
     try (CloseableIterable<Record> closeableIterable = iterable) {
       return Lists.newArrayList(closeableIterable);

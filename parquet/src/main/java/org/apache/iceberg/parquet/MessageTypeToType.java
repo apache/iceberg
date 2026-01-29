@@ -157,26 +157,16 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     }
 
     // last, use the primitive type
-    switch (primitive.getPrimitiveTypeName()) {
-      case BOOLEAN:
-        return Types.BooleanType.get();
-      case INT32:
-        return Types.IntegerType.get();
-      case INT64:
-        return Types.LongType.get();
-      case FLOAT:
-        return Types.FloatType.get();
-      case DOUBLE:
-        return Types.DoubleType.get();
-      case FIXED_LEN_BYTE_ARRAY:
-        return Types.FixedType.ofLength(primitive.getTypeLength());
-      case INT96:
-        return Types.TimestampType.withZone();
-      case BINARY:
-        return Types.BinaryType.get();
-    }
-
-    throw new UnsupportedOperationException("Cannot convert unknown primitive type: " + primitive);
+    return switch (primitive.getPrimitiveTypeName()) {
+      case BOOLEAN -> Types.BooleanType.get();
+      case INT32 -> Types.IntegerType.get();
+      case INT64 -> Types.LongType.get();
+      case FLOAT -> Types.FloatType.get();
+      case DOUBLE -> Types.DoubleType.get();
+      case FIXED_LEN_BYTE_ARRAY -> Types.FixedType.ofLength(primitive.getTypeLength());
+      case INT96 -> TimestampType.withZone();
+      case BINARY -> Types.BinaryType.get();
+    };
   }
 
   @Override

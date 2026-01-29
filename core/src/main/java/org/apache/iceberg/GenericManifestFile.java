@@ -290,42 +290,25 @@ public class GenericManifestFile extends SupportsIndexProjection
   }
 
   private Object getByPos(int basePos) {
-    switch (basePos) {
-      case 0:
-        return manifestPath;
-      case 1:
-        return lazyLength();
-      case 2:
-        return specId;
-      case 3:
-        return content.id();
-      case 4:
-        return sequenceNumber;
-      case 5:
-        return minSequenceNumber;
-      case 6:
-        return snapshotId;
-      case 7:
-        return addedFilesCount;
-      case 8:
-        return existingFilesCount;
-      case 9:
-        return deletedFilesCount;
-      case 10:
-        return addedRowsCount;
-      case 11:
-        return existingRowsCount;
-      case 12:
-        return deletedRowsCount;
-      case 13:
-        return partitions();
-      case 14:
-        return keyMetadata();
-      case 15:
-        return firstRowId();
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
-    }
+    return switch (basePos) {
+      case 0 -> manifestPath;
+      case 1 -> lazyLength();
+      case 2 -> specId;
+      case 3 -> content.id();
+      case 4 -> sequenceNumber;
+      case 5 -> minSequenceNumber;
+      case 6 -> snapshotId;
+      case 7 -> addedFilesCount;
+      case 8 -> existingFilesCount;
+      case 9 -> deletedFilesCount;
+      case 10 -> addedRowsCount;
+      case 11 -> existingRowsCount;
+      case 12 -> deletedRowsCount;
+      case 13 -> partitions();
+      case 14 -> keyMetadata();
+      case 15 -> firstRowId();
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
+    };
   }
 
   @Override

@@ -159,13 +159,10 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
   }
 
   private static ChronoUnit fromParquet(LogicalTypeAnnotation.TimeUnit unit) {
-    switch (unit) {
-      case MICROS:
-        return ChronoUnit.MICROS;
-      case NANOS:
-        return ChronoUnit.NANOS;
-      default:
-        throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
-    }
+    return switch (unit) {
+      case MICROS -> ChronoUnit.MICROS;
+      case NANOS -> ChronoUnit.NANOS;
+      default -> throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
+    };
   }
 }

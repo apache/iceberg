@@ -107,13 +107,11 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
         case BOOLEAN:
           return GenericOrcWriters.booleans();
         case INTEGER:
-          switch (flinkPrimitive.getTypeRoot()) {
-            case TINYINT:
-              return GenericOrcWriters.bytes();
-            case SMALLINT:
-              return GenericOrcWriters.shorts();
-          }
-          return GenericOrcWriters.ints();
+          return switch (flinkPrimitive.getTypeRoot()) {
+            case TINYINT -> GenericOrcWriters.bytes();
+            case SMALLINT -> GenericOrcWriters.shorts();
+            default -> GenericOrcWriters.ints();
+          };
         case LONG:
           return GenericOrcWriters.longs();
         case FLOAT:

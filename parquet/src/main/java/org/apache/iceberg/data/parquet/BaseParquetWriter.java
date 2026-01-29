@@ -141,24 +141,16 @@ abstract class BaseParquetWriter<T> {
         }
       }
 
-      switch (primitive.getPrimitiveTypeName()) {
-        case FIXED_LEN_BYTE_ARRAY:
-          return fixedWriter(desc);
-        case BINARY:
-          return ParquetValueWriters.byteBuffers(desc);
-        case BOOLEAN:
-          return ParquetValueWriters.booleans(desc);
-        case INT32:
-          return ParquetValueWriters.ints(desc);
-        case INT64:
-          return ParquetValueWriters.longs(desc);
-        case FLOAT:
-          return ParquetValueWriters.floats(desc);
-        case DOUBLE:
-          return ParquetValueWriters.doubles(desc);
-        default:
-          throw new UnsupportedOperationException("Unsupported type: " + primitive);
-      }
+      return switch (primitive.getPrimitiveTypeName()) {
+        case FIXED_LEN_BYTE_ARRAY -> fixedWriter(desc);
+        case BINARY -> ParquetValueWriters.byteBuffers(desc);
+        case BOOLEAN -> ParquetValueWriters.booleans(desc);
+        case INT32 -> ParquetValueWriters.ints(desc);
+        case INT64 -> ParquetValueWriters.longs(desc);
+        case FLOAT -> ParquetValueWriters.floats(desc);
+        case DOUBLE -> ParquetValueWriters.doubles(desc);
+        default -> throw new UnsupportedOperationException("Unsupported type: " + primitive);
+      };
     }
 
     @Override
@@ -196,22 +188,21 @@ abstract class BaseParquetWriter<T> {
     @Override
     public Optional<ParquetValueWriter<?>> visit(
         LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
-      switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
-        case INT32:
-          return Optional.of(
-              ParquetValueWriters.decimalAsInteger(
-                  desc, decimalType.getPrecision(), decimalType.getScale()));
-        case INT64:
-          return Optional.of(
-              ParquetValueWriters.decimalAsLong(
-                  desc, decimalType.getPrecision(), decimalType.getScale()));
-        case BINARY:
-        case FIXED_LEN_BYTE_ARRAY:
-          return Optional.of(
-              ParquetValueWriters.decimalAsFixed(
-                  desc, decimalType.getPrecision(), decimalType.getScale()));
-      }
-      return Optional.empty();
+      return switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+        case INT32 ->
+            Optional.of(
+                ParquetValueWriters.decimalAsInteger(
+                    desc, decimalType.getPrecision(), decimalType.getScale()));
+        case INT64 ->
+            Optional.of(
+                ParquetValueWriters.decimalAsLong(
+                    desc, decimalType.getPrecision(), decimalType.getScale()));
+        case BINARY, FIXED_LEN_BYTE_ARRAY ->
+            Optional.of(
+                ParquetValueWriters.decimalAsFixed(
+                    desc, decimalType.getPrecision(), decimalType.getScale()));
+        default -> Optional.empty();
+      };
     }
 
     @Override

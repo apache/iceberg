@@ -189,16 +189,15 @@ public class AvroSchemaUtil {
   }
 
   static Schema toOption(Schema schema) {
-    switch (schema.getType()) {
-      case UNION:
+    return switch (schema.getType()) {
+      case UNION -> {
         Preconditions.checkArgument(
             isOptionSchema(schema), "Union schemas are not supported: %s", schema);
-        return schema;
-      case NULL:
-        return schema;
-      default:
-        return Schema.createUnion(NULL, schema);
-    }
+        yield schema;
+      }
+      case NULL -> schema;
+      default -> Schema.createUnion(NULL, schema);
+    };
   }
 
   static Schema fromOption(Schema schema) {

@@ -935,18 +935,17 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     BiFunction<Integer, List<Integer>, ThreeColumnRecord> recordFunction =
         (i, partValues) -> {
-          switch (partitionTypeSize) {
-            case (0):
-              return new ThreeColumnRecord(i, String.valueOf(i), String.valueOf(i));
-            case (1):
-              return new ThreeColumnRecord(partValues.get(0), String.valueOf(i), String.valueOf(i));
-            case (2):
-              return new ThreeColumnRecord(
-                  partValues.get(0), String.valueOf(partValues.get(1)), String.valueOf(i));
-            default:
-              throw new ValidationException(
-                  "This method currently supports only two columns as partition columns");
-          }
+          return switch (partitionTypeSize) {
+            case (0) -> new ThreeColumnRecord(i, String.valueOf(i), String.valueOf(i));
+            case (1) ->
+                new ThreeColumnRecord(partValues.get(0), String.valueOf(i), String.valueOf(i));
+            case (2) ->
+                new ThreeColumnRecord(
+                    partValues.get(0), String.valueOf(partValues.get(1)), String.valueOf(i));
+            default ->
+                throw new ValidationException(
+                    "This method currently supports only two columns as partition columns");
+          };
         };
     List<ThreeColumnRecord> records =
         partitions.stream()

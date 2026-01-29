@@ -249,26 +249,20 @@ public class Avro {
       private static CodecFactory toCodec(String codecAsString, String compressionLevel) {
         CodecFactory codecFactory;
         try {
-          switch (Codec.valueOf(codecAsString.toUpperCase(Locale.ENGLISH))) {
-            case UNCOMPRESSED:
-              codecFactory = CodecFactory.nullCodec();
-              break;
-            case SNAPPY:
-              codecFactory = CodecFactory.snappyCodec();
-              break;
-            case ZSTD:
-              codecFactory =
-                  CodecFactory.zstandardCodec(
-                      compressionLevelAsInt(compressionLevel, ZSTD_COMPRESSION_LEVEL_DEFAULT));
-              break;
-            case GZIP:
-              codecFactory =
-                  CodecFactory.deflateCodec(
-                      compressionLevelAsInt(compressionLevel, GZIP_COMPRESSION_LEVEL_DEFAULT));
-              break;
-            default:
-              throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
-          }
+          codecFactory =
+              switch (Codec.valueOf(codecAsString.toUpperCase(Locale.ENGLISH))) {
+                case UNCOMPRESSED -> CodecFactory.nullCodec();
+                case SNAPPY -> CodecFactory.snappyCodec();
+                case ZSTD ->
+                    CodecFactory.zstandardCodec(
+                        compressionLevelAsInt(compressionLevel, ZSTD_COMPRESSION_LEVEL_DEFAULT));
+                case GZIP ->
+                    CodecFactory.deflateCodec(
+                        compressionLevelAsInt(compressionLevel, GZIP_COMPRESSION_LEVEL_DEFAULT));
+                default ->
+                    throw new IllegalArgumentException(
+                        "Unsupported compression codec: " + codecAsString);
+              };
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
         }

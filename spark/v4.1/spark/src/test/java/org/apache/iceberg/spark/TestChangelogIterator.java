@@ -100,24 +100,23 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   }
 
   private List<Row> toOriginalRows(RowType rowType, int index) {
-    switch (rowType) {
-      case DELETED:
-        return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "b", "data", DELETE, 0, 0}, null));
-      case INSERTED:
-        return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "c", "data", INSERT, 0, 0}, null));
-      case CARRY_OVER:
-        return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "d", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {index, "d", "data", INSERT, 0, 0}, null));
-      case UPDATED:
-        return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {index, "a", "new_data", INSERT, 0, 0}, null));
-      default:
-        throw new IllegalArgumentException("Unknown row type: " + rowType);
-    }
+    return switch (rowType) {
+      case DELETED ->
+          Lists.newArrayList(
+              new GenericRowWithSchema(new Object[] {index, "b", "data", DELETE, 0, 0}, null));
+      case INSERTED ->
+          Lists.newArrayList(
+              new GenericRowWithSchema(new Object[] {index, "c", "data", INSERT, 0, 0}, null));
+      case CARRY_OVER ->
+          Lists.newArrayList(
+              new GenericRowWithSchema(new Object[] {index, "d", "data", DELETE, 0, 0}, null),
+              new GenericRowWithSchema(new Object[] {index, "d", "data", INSERT, 0, 0}, null));
+      case UPDATED ->
+          Lists.newArrayList(
+              new GenericRowWithSchema(new Object[] {index, "a", "data", DELETE, 0, 0}, null),
+              new GenericRowWithSchema(new Object[] {index, "a", "new_data", INSERT, 0, 0}, null));
+      default -> throw new IllegalArgumentException("Unknown row type: " + rowType);
+    };
   }
 
   private List<Object[]> toExpectedRows(RowType rowType, int order) {

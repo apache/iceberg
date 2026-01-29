@@ -33,26 +33,19 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
   }
 
   public static <T> T visit(Type iType, Schema schema, AvroSchemaWithTypeVisitor<T> visitor) {
-    switch (schema.getType()) {
-      case RECORD:
-        return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
-
-      case UNION:
-        return visitUnion(iType, schema, visitor);
-
-      case ARRAY:
-        return visitArray(iType, schema, visitor);
-
-      case MAP:
+    return switch (schema.getType()) {
+      case RECORD -> visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
+      case UNION -> visitUnion(iType, schema, visitor);
+      case ARRAY -> visitArray(iType, schema, visitor);
+      case MAP -> {
         Types.MapType map = iType != null ? iType.asMapType() : null;
-        return visitor.map(
+        yield visitor.map(
             map,
             schema,
             visit(map != null ? map.valueType() : null, schema.getValueType(), visitor));
-
-      default:
-        return visitor.primitive(iType != null ? iType.asPrimitiveType() : null, schema);
-    }
+      }
+      default -> visitor.primitive(iType != null ? iType.asPrimitiveType() : null, schema);
+    };
   }
 
   private static <T> T visitRecord(

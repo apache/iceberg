@@ -55,43 +55,27 @@ public class MetadataTableUtils {
 
   private static Table createMetadataTableInstance(
       Table baseTable, String metadataTableName, MetadataTableType type) {
-    switch (type) {
-      case ENTRIES:
-        return new ManifestEntriesTable(baseTable, metadataTableName);
-      case FILES:
-        return new FilesTable(baseTable, metadataTableName);
-      case DATA_FILES:
-        return new DataFilesTable(baseTable, metadataTableName);
-      case DELETE_FILES:
-        return new DeleteFilesTable(baseTable, metadataTableName);
-      case HISTORY:
-        return new HistoryTable(baseTable, metadataTableName);
-      case SNAPSHOTS:
-        return new SnapshotsTable(baseTable, metadataTableName);
-      case METADATA_LOG_ENTRIES:
-        return new MetadataLogEntriesTable(baseTable, metadataTableName);
-      case REFS:
-        return new RefsTable(baseTable, metadataTableName);
-      case MANIFESTS:
-        return new ManifestsTable(baseTable, metadataTableName);
-      case PARTITIONS:
-        return new PartitionsTable(baseTable, metadataTableName);
-      case ALL_DATA_FILES:
-        return new AllDataFilesTable(baseTable, metadataTableName);
-      case ALL_DELETE_FILES:
-        return new AllDeleteFilesTable(baseTable, metadataTableName);
-      case ALL_FILES:
-        return new AllFilesTable(baseTable, metadataTableName);
-      case ALL_MANIFESTS:
-        return new AllManifestsTable(baseTable, metadataTableName);
-      case ALL_ENTRIES:
-        return new AllEntriesTable(baseTable, metadataTableName);
-      case POSITION_DELETES:
-        return new PositionDeletesTable(baseTable, metadataTableName);
-      default:
-        throw new NoSuchTableException(
-            "Unknown metadata table type: %s for %s", type, metadataTableName);
-    }
+    return switch (type) {
+      case ENTRIES -> new ManifestEntriesTable(baseTable, metadataTableName);
+      case FILES -> new FilesTable(baseTable, metadataTableName);
+      case DATA_FILES -> new DataFilesTable(baseTable, metadataTableName);
+      case DELETE_FILES -> new DeleteFilesTable(baseTable, metadataTableName);
+      case HISTORY -> new HistoryTable(baseTable, metadataTableName);
+      case SNAPSHOTS -> new SnapshotsTable(baseTable, metadataTableName);
+      case METADATA_LOG_ENTRIES -> new MetadataLogEntriesTable(baseTable, metadataTableName);
+      case REFS -> new RefsTable(baseTable, metadataTableName);
+      case MANIFESTS -> new ManifestsTable(baseTable, metadataTableName);
+      case PARTITIONS -> new PartitionsTable(baseTable, metadataTableName);
+      case ALL_DATA_FILES -> new AllDataFilesTable(baseTable, metadataTableName);
+      case ALL_DELETE_FILES -> new AllDeleteFilesTable(baseTable, metadataTableName);
+      case ALL_FILES -> new AllFilesTable(baseTable, metadataTableName);
+      case ALL_MANIFESTS -> new AllManifestsTable(baseTable, metadataTableName);
+      case ALL_ENTRIES -> new AllEntriesTable(baseTable, metadataTableName);
+      case POSITION_DELETES -> new PositionDeletesTable(baseTable, metadataTableName);
+      default ->
+          throw new NoSuchTableException(
+              "Unknown metadata table type: %s for %s", type, metadataTableName);
+    };
   }
 
   public static Table createMetadataTableInstance(

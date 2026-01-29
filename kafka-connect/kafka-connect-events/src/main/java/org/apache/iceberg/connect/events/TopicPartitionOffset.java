@@ -110,17 +110,12 @@ public class TopicPartitionOffset implements IndexedRecord {
 
   @Override
   public Object get(int i) {
-    switch (AvroUtil.positionToId(i, avroSchema)) {
-      case TOPIC:
-        return topic;
-      case PARTITION:
-        return partition;
-      case OFFSET:
-        return offset;
-      case TIMESTAMP:
-        return timestamp == null ? null : DateTimeUtil.microsFromTimestamptz(timestamp);
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (AvroUtil.positionToId(i, avroSchema)) {
+      case TOPIC -> topic;
+      case PARTITION -> partition;
+      case OFFSET -> offset;
+      case TIMESTAMP -> timestamp == null ? null : DateTimeUtil.microsFromTimestamptz(timestamp);
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 }

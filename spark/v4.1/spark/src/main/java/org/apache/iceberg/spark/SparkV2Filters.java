@@ -407,21 +407,22 @@ public class SparkV2Filters {
     Operation op = FILTERS.get(predicate.name());
 
     if (op != null) {
-      switch (op) {
-        case AND:
+      return switch (op) {
+        case AND -> {
           And andPredicate = (And) predicate;
-          return hasNoInFilter(andPredicate.left()) && hasNoInFilter(andPredicate.right());
-        case OR:
+          yield hasNoInFilter(andPredicate.left()) && hasNoInFilter(andPredicate.right());
+        }
+        case OR -> {
           Or orPredicate = (Or) predicate;
-          return hasNoInFilter(orPredicate.left()) && hasNoInFilter(orPredicate.right());
-        case NOT:
+          yield hasNoInFilter(orPredicate.left()) && hasNoInFilter(orPredicate.right());
+        }
+        case NOT -> {
           Not notPredicate = (Not) predicate;
-          return hasNoInFilter(notPredicate.child());
-        case IN:
-          return false;
-        default:
-          return true;
-      }
+          yield hasNoInFilter(notPredicate.child());
+        }
+        case IN -> false;
+        default -> true;
+      };
     }
 
     return false;

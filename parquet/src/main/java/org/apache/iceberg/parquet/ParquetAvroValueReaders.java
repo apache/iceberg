@@ -183,18 +183,14 @@ public class ParquetAvroValueReaders {
           case DECIMAL:
             DecimalLogicalTypeAnnotation decimal =
                 (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
-            switch (primitive.getPrimitiveTypeName()) {
-              case BINARY:
-              case FIXED_LEN_BYTE_ARRAY:
-                return new DecimalReader(desc, decimal.getScale());
-              case INT64:
-                return new LongAsDecimalReader(desc, decimal.getScale());
-              case INT32:
-                return new IntegerAsDecimalReader(desc, decimal.getScale());
-              default:
-                throw new UnsupportedOperationException(
-                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-            }
+            return switch (primitive.getPrimitiveTypeName()) {
+              case BINARY, FIXED_LEN_BYTE_ARRAY -> new DecimalReader(desc, decimal.getScale());
+              case INT64 -> new LongAsDecimalReader(desc, decimal.getScale());
+              case INT32 -> new IntegerAsDecimalReader(desc, decimal.getScale());
+              default ->
+                  throw new UnsupportedOperationException(
+                      "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+            };
           case BSON:
             return new BytesReader(desc);
           default:

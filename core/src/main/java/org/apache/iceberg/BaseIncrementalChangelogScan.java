@@ -153,30 +153,28 @@ class BaseIncrementalChangelogScan
             int changeOrdinal = snapshotOrdinals.get(commitSnapshotId);
             DataFile dataFile = entry.file().copy(context.shouldKeepStats());
 
-            switch (entry.status()) {
-              case ADDED:
-                return new BaseAddedRowsScanTask(
-                    changeOrdinal,
-                    commitSnapshotId,
-                    dataFile,
-                    NO_DELETES,
-                    context.schemaAsString(),
-                    context.specAsString(),
-                    context.residuals());
-
-              case DELETED:
-                return new BaseDeletedDataFileScanTask(
-                    changeOrdinal,
-                    commitSnapshotId,
-                    dataFile,
-                    NO_DELETES,
-                    context.schemaAsString(),
-                    context.specAsString(),
-                    context.residuals());
-
-              default:
-                throw new IllegalArgumentException("Unexpected entry status: " + entry.status());
-            }
+            return switch (entry.status()) {
+              case ADDED ->
+                  new BaseAddedRowsScanTask(
+                      changeOrdinal,
+                      commitSnapshotId,
+                      dataFile,
+                      NO_DELETES,
+                      context.schemaAsString(),
+                      context.specAsString(),
+                      context.residuals());
+              case DELETED ->
+                  new BaseDeletedDataFileScanTask(
+                      changeOrdinal,
+                      commitSnapshotId,
+                      dataFile,
+                      NO_DELETES,
+                      context.schemaAsString(),
+                      context.specAsString(),
+                      context.residuals());
+              default ->
+                  throw new IllegalArgumentException("Unexpected entry status: " + entry.status());
+            };
           });
     }
   }

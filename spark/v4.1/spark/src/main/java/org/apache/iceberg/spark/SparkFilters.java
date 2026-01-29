@@ -258,21 +258,22 @@ public class SparkFilters {
     Operation op = FILTERS.get(filter.getClass());
 
     if (op != null) {
-      switch (op) {
-        case AND:
+      return switch (op) {
+        case AND -> {
           And andFilter = (And) filter;
-          return hasNoInFilter(andFilter.left()) && hasNoInFilter(andFilter.right());
-        case OR:
+          yield hasNoInFilter(andFilter.left()) && hasNoInFilter(andFilter.right());
+        }
+        case OR -> {
           Or orFilter = (Or) filter;
-          return hasNoInFilter(orFilter.left()) && hasNoInFilter(orFilter.right());
-        case NOT:
+          yield hasNoInFilter(orFilter.left()) && hasNoInFilter(orFilter.right());
+        }
+        case NOT -> {
           Not notFilter = (Not) filter;
-          return hasNoInFilter(notFilter.child());
-        case IN:
-          return false;
-        default:
-          return true;
-      }
+          yield hasNoInFilter(notFilter.child());
+        }
+        case IN -> false;
+        default -> true;
+      };
     }
 
     return false;

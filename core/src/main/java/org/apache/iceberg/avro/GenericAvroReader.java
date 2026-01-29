@@ -173,67 +173,51 @@ public class GenericAvroReader<T>
     public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
-        switch (logicalType.getName()) {
-          case "date":
-            // Spark uses the same representation
-            return ValueReaders.ints();
-
-          case "time-micros":
-            return ValueReaders.longs();
-
-          case "timestamp-millis":
+        return switch (logicalType.getName()) {
+          case "date" ->
+              // Spark uses the same representation
+              ValueReaders.ints();
+          case "time-micros" -> ValueReaders.longs();
+          case "timestamp-millis" -> {
             // adjust to microseconds
             ValueReader<Long> longs = ValueReaders.longs();
-            return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
-
-          case "timestamp-micros":
-          case "timestamp-nanos":
-            // both are handled in memory as long values, using the type to track units
-            return ValueReaders.longs();
-
-          case "decimal":
-            return ValueReaders.decimal(
-                ValueReaders.decimalBytesReader(primitive),
-                ((LogicalTypes.Decimal) logicalType).getScale());
-
-          case "uuid":
-            return ValueReaders.uuids();
-
-          default:
-            throw new IllegalArgumentException("Unknown logical type: " + logicalType);
-        }
+            yield (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
+          }
+          case "timestamp-micros", "timestamp-nanos" ->
+              // both are handled in memory as long values, using the type to track units
+              ValueReaders.longs();
+          case "decimal" ->
+              ValueReaders.decimal(
+                  ValueReaders.decimalBytesReader(primitive),
+                  ((LogicalTypes.Decimal) logicalType).getScale());
+          case "uuid" -> ValueReaders.uuids();
+          default -> throw new IllegalArgumentException("Unknown logical type: " + logicalType);
+        };
       }
 
-      switch (primitive.getType()) {
-        case NULL:
-          return ValueReaders.nulls();
-        case BOOLEAN:
-          return ValueReaders.booleans();
-        case INT:
+      return switch (primitive.getType()) {
+        case NULL -> ValueReaders.nulls();
+        case BOOLEAN -> ValueReaders.booleans();
+        case INT -> {
           if (partner != null && partner.typeId() == Type.TypeID.LONG) {
-            return ValueReaders.intsAsLongs();
+            yield ValueReaders.intsAsLongs();
           }
-          return ValueReaders.ints();
-        case LONG:
-          return ValueReaders.longs();
-        case FLOAT:
+          yield ValueReaders.ints();
+        }
+        case LONG -> ValueReaders.longs();
+        case FLOAT -> {
           if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
-            return ValueReaders.floatsAsDoubles();
+            yield ValueReaders.floatsAsDoubles();
           }
-          return ValueReaders.floats();
-        case DOUBLE:
-          return ValueReaders.doubles();
-        case STRING:
-          return ValueReaders.utf8s();
-        case FIXED:
-          return ValueReaders.fixed(primitive);
-        case BYTES:
-          return ValueReaders.byteBuffers();
-        case ENUM:
-          return ValueReaders.enums(primitive.getEnumSymbols());
-        default:
-          throw new IllegalArgumentException("Unsupported type: " + primitive);
-      }
+          yield ValueReaders.floats();
+        }
+        case DOUBLE -> ValueReaders.doubles();
+        case STRING -> ValueReaders.utf8s();
+        case FIXED -> ValueReaders.fixed(primitive);
+        case BYTES -> ValueReaders.byteBuffers();
+        case ENUM -> ValueReaders.enums(primitive.getEnumSymbols());
+        default -> throw new IllegalArgumentException("Unsupported type: " + primitive);
+      };
     }
   }
 }

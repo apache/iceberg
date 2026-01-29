@@ -113,19 +113,14 @@ public class ScanTaskParser {
       taskType = TaskType.fromTypeName(taskTypeStr);
     }
 
-    switch (taskType) {
-      case FILE_SCAN_TASK:
-        return FileScanTaskParser.fromJson(jsonNode, caseSensitive);
-      case DATA_TASK:
-        return DataTaskParser.fromJson(jsonNode);
-      case FILES_TABLE_TASK:
-        return FilesTableTaskParser.fromJson(jsonNode);
-      case ALL_MANIFESTS_TABLE_TASK:
-        return AllManifestsTableTaskParser.fromJson(jsonNode);
-      case MANIFEST_ENTRIES_TABLE_TASK:
-        return ManifestEntriesTableTaskParser.fromJson(jsonNode);
-      default:
-        throw new UnsupportedOperationException("Unsupported task type: " + taskType.typeName());
-    }
+    return switch (taskType) {
+      case FILE_SCAN_TASK -> FileScanTaskParser.fromJson(jsonNode, caseSensitive);
+      case DATA_TASK -> DataTaskParser.fromJson(jsonNode);
+      case FILES_TABLE_TASK -> FilesTableTaskParser.fromJson(jsonNode);
+      case ALL_MANIFESTS_TABLE_TASK -> AllManifestsTableTaskParser.fromJson(jsonNode);
+      case MANIFEST_ENTRIES_TABLE_TASK -> ManifestEntriesTableTaskParser.fromJson(jsonNode);
+      default ->
+          throw new UnsupportedOperationException("Unsupported task type: " + taskType.typeName());
+    };
   }
 }

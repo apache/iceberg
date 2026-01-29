@@ -618,14 +618,11 @@ class ParquetMetrics {
       return null;
     }
 
-    switch (type.typeId()) {
-      case STRING:
-        return (T) UnicodeUtil.truncateStringMin((String) value, length);
-      case BINARY:
-        return (T) BinaryUtil.truncateBinaryMin((ByteBuffer) value, length);
-      default:
-        return value;
-    }
+    return switch (type.typeId()) {
+      case STRING -> (T) UnicodeUtil.truncateStringMin((String) value, length);
+      case BINARY -> (T) BinaryUtil.truncateBinaryMin((ByteBuffer) value, length);
+      default -> value;
+    };
   }
 
   @SuppressWarnings("unchecked")
@@ -635,13 +632,10 @@ class ParquetMetrics {
       return null;
     }
 
-    switch (type.typeId()) {
-      case STRING:
-        return (T) UnicodeUtil.truncateStringMax((String) value, length);
-      case BINARY:
-        return (T) BinaryUtil.truncateBinaryMax((ByteBuffer) value, length);
-      default:
-        return value;
-    }
+    return switch (type.typeId()) {
+      case STRING -> (T) UnicodeUtil.truncateStringMax((String) value, length);
+      case BINARY -> (T) BinaryUtil.truncateBinaryMax((ByteBuffer) value, length);
+      default -> value;
+    };
   }
 }

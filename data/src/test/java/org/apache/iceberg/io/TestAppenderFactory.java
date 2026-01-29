@@ -329,27 +329,23 @@ public abstract class TestAppenderFactory<T> extends TestBase {
   }
 
   private CloseableIterable<Record> createReader(Schema schema, InputFile inputFile) {
-    switch (format) {
-      case PARQUET:
-        return Parquet.read(inputFile)
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-            .build();
-
-      case AVRO:
-        return Avro.read(inputFile)
-            .project(schema)
-            .createResolvingReader(PlannedDataReader::create)
-            .build();
-
-      case ORC:
-        return ORC.read(inputFile)
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
-            .build();
-
-      default:
-        throw new UnsupportedOperationException("Unsupported file format: " + format);
-    }
+    return switch (format) {
+      case PARQUET ->
+          Parquet.read(inputFile)
+              .project(schema)
+              .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+              .build();
+      case AVRO ->
+          Avro.read(inputFile)
+              .project(schema)
+              .createResolvingReader(PlannedDataReader::create)
+              .build();
+      case ORC ->
+          ORC.read(inputFile)
+              .project(schema)
+              .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+              .build();
+      default -> throw new UnsupportedOperationException("Unsupported file format: " + format);
+    };
   }
 }

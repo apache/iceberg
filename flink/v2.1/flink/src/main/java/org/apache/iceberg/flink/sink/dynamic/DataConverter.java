@@ -69,63 +69,61 @@ interface DataConverter {
   }
 
   static DataConverter get(LogicalType sourceType, LogicalType targetType) {
-    switch (targetType.getTypeRoot()) {
-      case BOOLEAN:
-      case INTEGER:
-      case FLOAT:
-      case VARCHAR:
-      case DATE:
-      case TIME_WITHOUT_TIME_ZONE:
-      case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
-      case BINARY:
-      case VARBINARY:
-        return object -> object;
-      case DOUBLE:
-        return object -> {
-          if (object instanceof Float) {
-            return ((Float) object).doubleValue();
-          } else {
-            return object;
-          }
-        };
-      case BIGINT:
-        return object -> {
-          if (object instanceof Integer) {
-            return ((Integer) object).longValue();
-          } else {
-            return object;
-          }
-        };
-      case DECIMAL:
-        return object -> {
-          DecimalType toDecimalType = (DecimalType) targetType;
-          DecimalData decimalData = (DecimalData) object;
-          if (((DecimalType) sourceType).getPrecision() == toDecimalType.getPrecision()) {
-            return object;
-          } else {
-            return DecimalData.fromBigDecimal(
-                decimalData.toBigDecimal(), toDecimalType.getPrecision(), toDecimalType.getScale());
-          }
-        };
-      case TIMESTAMP_WITHOUT_TIME_ZONE:
-        return object -> {
-          if (object instanceof Integer) {
-            LocalDateTime dateTime =
-                LocalDateTime.of(LocalDate.ofEpochDay((Integer) object), LocalTime.MIN);
-            return TimestampData.fromLocalDateTime(dateTime);
-          } else {
-            return object;
-          }
-        };
-      case ROW:
-        return new RowDataConverter((RowType) sourceType, (RowType) targetType);
-      case ARRAY:
-        return new ArrayConverter((ArrayType) sourceType, (ArrayType) targetType);
-      case MAP:
-        return new MapConverter((MapType) sourceType, (MapType) targetType);
-      default:
-        throw new UnsupportedOperationException("Not a supported type: " + targetType);
-    }
+    return switch (targetType.getTypeRoot()) {
+      case BOOLEAN,
+              INTEGER,
+              FLOAT,
+              VARCHAR,
+              DATE,
+              TIME_WITHOUT_TIME_ZONE,
+              TIMESTAMP_WITH_LOCAL_TIME_ZONE,
+              BINARY,
+              VARBINARY ->
+          object -> object;
+      case DOUBLE ->
+          object -> {
+            if (object instanceof Float) {
+              return ((Float) object).doubleValue();
+            } else {
+              return object;
+            }
+          };
+      case BIGINT ->
+          object -> {
+            if (object instanceof Integer) {
+              return ((Integer) object).longValue();
+            } else {
+              return object;
+            }
+          };
+      case DECIMAL ->
+          object -> {
+            DecimalType toDecimalType = (DecimalType) targetType;
+            DecimalData decimalData = (DecimalData) object;
+            if (((DecimalType) sourceType).getPrecision() == toDecimalType.getPrecision()) {
+              return object;
+            } else {
+              return DecimalData.fromBigDecimal(
+                  decimalData.toBigDecimal(),
+                  toDecimalType.getPrecision(),
+                  toDecimalType.getScale());
+            }
+          };
+      case TIMESTAMP_WITHOUT_TIME_ZONE ->
+          object -> {
+            if (object instanceof Integer) {
+              LocalDateTime dateTime =
+                  LocalDateTime.of(LocalDate.ofEpochDay((Integer) object), LocalTime.MIN);
+              return TimestampData.fromLocalDateTime(dateTime);
+            } else {
+              return object;
+            }
+          };
+      case ROW -> new RowDataConverter((RowType) sourceType, (RowType) targetType);
+      case ARRAY -> new ArrayConverter((ArrayType) sourceType, (ArrayType) targetType);
+      case MAP -> new MapConverter((MapType) sourceType, (MapType) targetType);
+      default -> throw new UnsupportedOperationException("Not a supported type: " + targetType);
+    };
   }
 
   static DataConverter nullable(DataConverter converter) {

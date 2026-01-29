@@ -96,15 +96,11 @@ public class RandomInternalData {
     public Object primitive(Type.PrimitiveType primitive) {
       Object result = RandomUtil.generatePrimitive(primitive, random);
 
-      switch (primitive.typeId()) {
-        case FIXED:
-        case BINARY:
-          return ByteBuffer.wrap((byte[]) result);
-        case UUID:
-          return UUID.nameUUIDFromBytes((byte[]) result);
-        default:
-          return result;
-      }
+      return switch (primitive.typeId()) {
+        case FIXED, BINARY -> ByteBuffer.wrap((byte[]) result);
+        case UUID -> UUID.nameUUIDFromBytes((byte[]) result);
+        default -> result;
+      };
     }
   }
 }

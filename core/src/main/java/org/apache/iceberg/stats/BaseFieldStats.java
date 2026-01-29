@@ -116,26 +116,17 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
 
   @Override
   public <X> X get(int pos, Class<X> javaClass) {
-    switch (FieldStatistic.fromOffset(pos)) {
-      case VALUE_COUNT:
-        return javaClass.cast(valueCount);
-      case NULL_VALUE_COUNT:
-        return javaClass.cast(nullValueCount);
-      case NAN_VALUE_COUNT:
-        return javaClass.cast(nanValueCount);
-      case AVG_VALUE_SIZE:
-        return javaClass.cast(avgValueSize);
-      case MAX_VALUE_SIZE:
-        return javaClass.cast(maxValueSize);
-      case LOWER_BOUND:
-        return javaClass.cast(lowerBound);
-      case UPPER_BOUND:
-        return javaClass.cast(upperBound);
-      case EXACT_BOUNDS:
-        return javaClass.cast(hasExactBounds);
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
+    return switch (FieldStatistic.fromOffset(pos)) {
+      case VALUE_COUNT -> javaClass.cast(valueCount);
+      case NULL_VALUE_COUNT -> javaClass.cast(nullValueCount);
+      case NAN_VALUE_COUNT -> javaClass.cast(nanValueCount);
+      case AVG_VALUE_SIZE -> javaClass.cast(avgValueSize);
+      case MAX_VALUE_SIZE -> javaClass.cast(maxValueSize);
+      case LOWER_BOUND -> javaClass.cast(lowerBound);
+      case UPPER_BOUND -> javaClass.cast(upperBound);
+      case EXACT_BOUNDS -> javaClass.cast(hasExactBounds);
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override

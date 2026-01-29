@@ -129,68 +129,50 @@ public class FlinkPlannedAvroReader implements DatumReader<RowData>, SupportsRow
     public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
-        switch (logicalType.getName()) {
-          case "date":
-            // Flink uses the same representation
-            return ValueReaders.ints();
-
-          case "time-micros":
-            return FlinkValueReaders.timeMicros();
-
-          case "timestamp-millis":
-            return FlinkValueReaders.timestampMills();
-
-          case "timestamp-micros":
-            return FlinkValueReaders.timestampMicros();
-
-          case "timestamp-nanos":
-            return FlinkValueReaders.timestampNanos();
-
-          case "decimal":
+        return switch (logicalType.getName()) {
+          case "date" ->
+              // Flink uses the same representation
+              ValueReaders.ints();
+          case "time-micros" -> FlinkValueReaders.timeMicros();
+          case "timestamp-millis" -> FlinkValueReaders.timestampMills();
+          case "timestamp-micros" -> FlinkValueReaders.timestampMicros();
+          case "timestamp-nanos" -> FlinkValueReaders.timestampNanos();
+          case "decimal" -> {
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return FlinkValueReaders.decimal(
+            yield FlinkValueReaders.decimal(
                 ValueReaders.decimalBytesReader(primitive),
                 decimal.getPrecision(),
                 decimal.getScale());
-
-          case "uuid":
-            return FlinkValueReaders.uuids();
-
-          default:
-            throw new IllegalArgumentException("Unknown logical type: " + logicalType.getName());
-        }
+          }
+          case "uuid" -> FlinkValueReaders.uuids();
+          default ->
+              throw new IllegalArgumentException("Unknown logical type: " + logicalType.getName());
+        };
       }
 
-      switch (primitive.getType()) {
-        case NULL:
-          return ValueReaders.nulls();
-        case BOOLEAN:
-          return ValueReaders.booleans();
-        case INT:
+      return switch (primitive.getType()) {
+        case NULL -> ValueReaders.nulls();
+        case BOOLEAN -> ValueReaders.booleans();
+        case INT -> {
           if (partner != null && partner.typeId() == Type.TypeID.LONG) {
-            return ValueReaders.intsAsLongs();
+            yield ValueReaders.intsAsLongs();
           }
-          return ValueReaders.ints();
-        case LONG:
-          return ValueReaders.longs();
-        case FLOAT:
+          yield ValueReaders.ints();
+        }
+        case LONG -> ValueReaders.longs();
+        case FLOAT -> {
           if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
-            return ValueReaders.floatsAsDoubles();
+            yield ValueReaders.floatsAsDoubles();
           }
-          return ValueReaders.floats();
-        case DOUBLE:
-          return ValueReaders.doubles();
-        case STRING:
-          return FlinkValueReaders.strings();
-        case FIXED:
-          return ValueReaders.fixed(primitive.getFixedSize());
-        case BYTES:
-          return ValueReaders.bytes();
-        case ENUM:
-          return FlinkValueReaders.enums(primitive.getEnumSymbols());
-        default:
-          throw new IllegalArgumentException("Unsupported type: " + primitive);
-      }
+          yield ValueReaders.floats();
+        }
+        case DOUBLE -> ValueReaders.doubles();
+        case STRING -> FlinkValueReaders.strings();
+        case FIXED -> ValueReaders.fixed(primitive.getFixedSize());
+        case BYTES -> ValueReaders.bytes();
+        case ENUM -> FlinkValueReaders.enums(primitive.getEnumSymbols());
+        default -> throw new IllegalArgumentException("Unsupported type: " + primitive);
+      };
     }
   }
 }

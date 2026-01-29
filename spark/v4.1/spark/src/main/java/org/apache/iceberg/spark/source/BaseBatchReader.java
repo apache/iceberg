@@ -76,20 +76,16 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Expression residual,
       Map<Integer, ?> idToConstant,
       @Nonnull SparkDeleteFilter deleteFilter) {
-    CloseableIterable<ColumnarBatch> iterable;
-    switch (format) {
-      case PARQUET:
-        iterable =
-            newParquetIterable(
-                inputFile, start, length, residual, idToConstant, deleteFilter.requiredSchema());
-        break;
-      case ORC:
-        iterable = newOrcIterable(inputFile, start, length, residual, idToConstant);
-        break;
-      default:
-        throw new UnsupportedOperationException(
-            "Format: " + format + " not supported for batched reads");
-    }
+    CloseableIterable<ColumnarBatch> iterable =
+        switch (format) {
+          case PARQUET ->
+              newParquetIterable(
+                  inputFile, start, length, residual, idToConstant, deleteFilter.requiredSchema());
+          case ORC -> newOrcIterable(inputFile, start, length, residual, idToConstant);
+          default ->
+              throw new UnsupportedOperationException(
+                  "Format: " + format + " not supported for batched reads");
+        };
 
     return CloseableIterable.transform(iterable, new BatchDeleteFilter(deleteFilter)::filterBatch);
   }

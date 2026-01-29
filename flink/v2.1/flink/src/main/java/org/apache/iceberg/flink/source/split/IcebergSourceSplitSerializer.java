@@ -45,20 +45,17 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
 
   @Override
   public IcebergSourceSplit deserialize(int version, byte[] serialized) throws IOException {
-    switch (version) {
-      case 1:
-        return IcebergSourceSplit.deserializeV1(serialized);
-      case 2:
-        return IcebergSourceSplit.deserializeV2(serialized, caseSensitive);
-      case 3:
-        return IcebergSourceSplit.deserializeV3(serialized, caseSensitive);
-      default:
-        throw new IOException(
-            String.format(
-                Locale.ROOT,
-                "Failed to deserialize IcebergSourceSplit. "
-                    + "Encountered unsupported version: %d. Supported version are [1]",
-                version));
-    }
+    return switch (version) {
+      case 1 -> IcebergSourceSplit.deserializeV1(serialized);
+      case 2 -> IcebergSourceSplit.deserializeV2(serialized, caseSensitive);
+      case 3 -> IcebergSourceSplit.deserializeV3(serialized, caseSensitive);
+      default ->
+          throw new IOException(
+              String.format(
+                  Locale.ROOT,
+                  "Failed to deserialize IcebergSourceSplit. "
+                      + "Encountered unsupported version: %d. Supported version are [1]",
+                  version));
+    };
   }
 }

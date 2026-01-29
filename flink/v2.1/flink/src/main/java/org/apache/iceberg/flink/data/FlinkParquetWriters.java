@@ -164,23 +164,15 @@ public class FlinkParquetWriters {
         }
       }
 
-      switch (primitive.getPrimitiveTypeName()) {
-        case FIXED_LEN_BYTE_ARRAY:
-        case BINARY:
-          return byteArrays(desc);
-        case BOOLEAN:
-          return ParquetValueWriters.booleans(desc);
-        case INT32:
-          return ints(fType, desc);
-        case INT64:
-          return ParquetValueWriters.longs(desc);
-        case FLOAT:
-          return ParquetValueWriters.floats(desc);
-        case DOUBLE:
-          return ParquetValueWriters.doubles(desc);
-        default:
-          throw new UnsupportedOperationException("Unsupported type: " + primitive);
-      }
+      return switch (primitive.getPrimitiveTypeName()) {
+        case FIXED_LEN_BYTE_ARRAY, BINARY -> byteArrays(desc);
+        case BOOLEAN -> ParquetValueWriters.booleans(desc);
+        case INT32 -> ints(fType, desc);
+        case INT64 -> ParquetValueWriters.longs(desc);
+        case FLOAT -> ParquetValueWriters.floats(desc);
+        case DOUBLE -> ParquetValueWriters.doubles(desc);
+        default -> throw new UnsupportedOperationException("Unsupported type: " + primitive);
+      };
     }
   }
 
@@ -206,23 +198,17 @@ public class FlinkParquetWriters {
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(DecimalLogicalTypeAnnotation decimal) {
-      ParquetValueWriter<DecimalData> writer;
-      switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
-        case INT32:
-          writer = decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
-          break;
-        case INT64:
-          writer = decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
-          break;
-        case BINARY:
-        case FIXED_LEN_BYTE_ARRAY:
-          writer = decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported base type for decimal: "
-                  + desc.getPrimitiveType().getPrimitiveTypeName());
-      }
+      ParquetValueWriter<DecimalData> writer =
+          switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+            case INT32 -> decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
+            case INT64 -> decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
+            case BINARY, FIXED_LEN_BYTE_ARRAY ->
+                decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
+            default ->
+                throw new UnsupportedOperationException(
+                    "Unsupported base type for decimal: "
+                        + desc.getPrimitiveType().getPrimitiveTypeName());
+          };
       return Optional.of(writer);
     }
 
@@ -242,17 +228,14 @@ public class FlinkParquetWriters {
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(TimestampLogicalTypeAnnotation timestamps) {
-      ParquetValueWriter<TimestampData> writer;
-      switch (timestamps.getUnit()) {
-        case NANOS:
-          writer = timestampNanos(desc);
-          break;
-        case MICROS:
-          writer = timestamps(desc);
-          break;
-        default:
-          throw new UnsupportedOperationException("Unsupported timestamp type: " + timestamps);
-      }
+      ParquetValueWriter<TimestampData> writer =
+          switch (timestamps.getUnit()) {
+            case NANOS -> timestampNanos(desc);
+            case MICROS -> timestamps(desc);
+            default ->
+                throw new UnsupportedOperationException(
+                    "Unsupported timestamp type: " + timestamps);
+          };
 
       return Optional.of(writer);
     }

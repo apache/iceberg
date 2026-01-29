@@ -596,20 +596,17 @@ public class TestHTTPClient {
       ErrorHandler onError,
       Consumer<Map<String, String>> responseHeaders) {
     Map<String, String> headers = ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
-    switch (method) {
-      case POST:
-        return restClient.post(path, body, Item.class, headers, onError, responseHeaders);
-      case GET:
-        return restClient.get(
-            path, ImmutableMap.of(), Item.class, headers, onError, responseHeaders);
-      case HEAD:
+    return switch (method) {
+      case POST -> restClient.post(path, body, Item.class, headers, onError, responseHeaders);
+      case GET ->
+          restClient.get(path, ImmutableMap.of(), Item.class, headers, onError, responseHeaders);
+      case HEAD -> {
         restClient.head(path, headers, onError);
-        return null;
-      case DELETE:
-        return restClient.delete(path, Item.class, () -> headers, onError);
-      default:
-        throw new IllegalArgumentException(String.format("Invalid method: %s", method));
-    }
+        yield null;
+      }
+      case DELETE -> restClient.delete(path, Item.class, () -> headers, onError);
+      default -> throw new IllegalArgumentException(String.format("Invalid method: %s", method));
+    };
   }
 
   public static class Item implements RESTRequest, RESTResponse {

@@ -46,34 +46,35 @@ public class RowDataUtil {
       return null;
     }
 
-    switch (type.typeId()) {
-      case DECIMAL: // DecimalData
+    return switch (type.typeId()) {
+      case DECIMAL -> {
         Types.DecimalType decimal = (Types.DecimalType) type;
-        return DecimalData.fromBigDecimal((BigDecimal) value, decimal.precision(), decimal.scale());
-      case STRING: // StringData
+        yield DecimalData.fromBigDecimal((BigDecimal) value, decimal.precision(), decimal.scale());
+      }
+      case STRING -> {
         if (value instanceof Utf8) {
           Utf8 utf8 = (Utf8) value;
-          return StringData.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
+          yield StringData.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
         }
-        return StringData.fromString(value.toString());
-      case FIXED: // byte[]
+        yield StringData.fromString(value.toString());
+      }
+      case FIXED -> {
         if (value instanceof byte[]) {
-          return value;
+          yield value;
         } else if (value instanceof GenericData.Fixed) {
-          return ((GenericData.Fixed) value).bytes();
+          yield ((GenericData.Fixed) value).bytes();
         }
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      case BINARY: // byte[]
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      case TIME: // int mills instead of long
-        return (int) ((Long) value / 1000);
-      case TIMESTAMP: // TimestampData
-        return TimestampData.fromLocalDateTime(DateTimeUtil.timestampFromMicros((Long) value));
-      case UUID:
-        return UUIDUtil.convert((UUID) value);
-      default:
-    }
-    return value;
+        yield ByteBuffers.toByteArray((ByteBuffer) value);
+      }
+      case BINARY -> // byte[]
+          ByteBuffers.toByteArray((ByteBuffer) value);
+      case TIME -> // int mills instead of long
+          (int) ((Long) value / 1000);
+      case TIMESTAMP -> // TimestampData
+          TimestampData.fromLocalDateTime(DateTimeUtil.timestampFromMicros((Long) value));
+      case UUID -> UUIDUtil.convert((UUID) value);
+      default -> value;
+    };
   }
 
   /**

@@ -47,34 +47,25 @@ public class Conversions {
       return null;
     }
 
-    switch (type.typeId()) {
-      case BOOLEAN:
-        return Boolean.valueOf(asString);
-      case INTEGER:
-        return Integer.valueOf(asString);
-      case LONG:
-        return Long.valueOf(asString);
-      case FLOAT:
-        return Float.valueOf(asString);
-      case DOUBLE:
-        return Double.valueOf(asString);
-      case STRING:
-        return asString;
-      case UUID:
-        return UUID.fromString(asString);
-      case FIXED:
+    return switch (type.typeId()) {
+      case BOOLEAN -> Boolean.valueOf(asString);
+      case INTEGER -> Integer.valueOf(asString);
+      case LONG -> Long.valueOf(asString);
+      case FLOAT -> Float.valueOf(asString);
+      case DOUBLE -> Double.valueOf(asString);
+      case STRING -> asString;
+      case UUID -> UUID.fromString(asString);
+      case FIXED -> {
         Types.FixedType fixed = (Types.FixedType) type;
-        return Arrays.copyOf(asString.getBytes(StandardCharsets.UTF_8), fixed.length());
-      case BINARY:
-        return asString.getBytes(StandardCharsets.UTF_8);
-      case DECIMAL:
-        return new BigDecimal(asString);
-      case DATE:
-        return Literal.of(asString).to(Types.DateType.get()).value();
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported type for fromPartitionString: " + type);
-    }
+        yield Arrays.copyOf(asString.getBytes(StandardCharsets.UTF_8), fixed.length());
+      }
+      case BINARY -> asString.getBytes(StandardCharsets.UTF_8);
+      case DECIMAL -> new BigDecimal(asString);
+      case DATE -> Literal.of(asString).to(Types.DateType.get()).value();
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported type for fromPartitionString: " + type);
+    };
   }
 
   private static final ThreadLocal<CharsetEncoder> ENCODER =

@@ -697,15 +697,13 @@ public class ParquetValueWriters {
 
     @Override
     protected Object get(PositionDelete<R> delete, int index) {
-      switch (index) {
-        case 0:
-          return pathTransformFunc.apply(delete.path());
-        case 1:
-          return delete.pos();
-        case 2:
-          return delete.row();
-      }
-      throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
+      return switch (index) {
+        case 0 -> pathTransformFunc.apply(delete.path());
+        case 1 -> delete.pos();
+        case 2 -> delete.row();
+        default ->
+            throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
+      };
     }
   }
 

@@ -136,63 +136,50 @@ public class SparkPlannedAvroReader implements DatumReader<InternalRow>, Support
     public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
-        switch (logicalType.getName()) {
-          case "date":
-            // Spark uses the same representation
-            return ValueReaders.ints();
-
-          case "timestamp-millis":
+        return switch (logicalType.getName()) {
+          case "date" ->
+              // Spark uses the same representation
+              ValueReaders.ints();
+          case "timestamp-millis" -> {
             // adjust to microseconds
             ValueReader<Long> longs = ValueReaders.longs();
-            return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
-
-          case "timestamp-micros":
-            // Spark uses the same representation
-            return ValueReaders.longs();
-
-          case "decimal":
-            return SparkValueReaders.decimal(
-                ValueReaders.decimalBytesReader(primitive),
-                ((LogicalTypes.Decimal) logicalType).getScale());
-
-          case "uuid":
-            return SparkValueReaders.uuids();
-
-          default:
-            throw new IllegalArgumentException("Unknown logical type: " + logicalType);
-        }
+            yield (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
+          }
+          case "timestamp-micros" ->
+              // Spark uses the same representation
+              ValueReaders.longs();
+          case "decimal" ->
+              SparkValueReaders.decimal(
+                  ValueReaders.decimalBytesReader(primitive),
+                  ((LogicalTypes.Decimal) logicalType).getScale());
+          case "uuid" -> SparkValueReaders.uuids();
+          default -> throw new IllegalArgumentException("Unknown logical type: " + logicalType);
+        };
       }
 
-      switch (primitive.getType()) {
-        case NULL:
-          return ValueReaders.nulls();
-        case BOOLEAN:
-          return ValueReaders.booleans();
-        case INT:
+      return switch (primitive.getType()) {
+        case NULL -> ValueReaders.nulls();
+        case BOOLEAN -> ValueReaders.booleans();
+        case INT -> {
           if (partner != null && partner.typeId() == Type.TypeID.LONG) {
-            return ValueReaders.intsAsLongs();
+            yield ValueReaders.intsAsLongs();
           }
-          return ValueReaders.ints();
-        case LONG:
-          return ValueReaders.longs();
-        case FLOAT:
+          yield ValueReaders.ints();
+        }
+        case LONG -> ValueReaders.longs();
+        case FLOAT -> {
           if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
-            return ValueReaders.floatsAsDoubles();
+            yield ValueReaders.floatsAsDoubles();
           }
-          return ValueReaders.floats();
-        case DOUBLE:
-          return ValueReaders.doubles();
-        case STRING:
-          return SparkValueReaders.strings();
-        case FIXED:
-          return ValueReaders.fixed(primitive.getFixedSize());
-        case BYTES:
-          return ValueReaders.bytes();
-        case ENUM:
-          return SparkValueReaders.enums(primitive.getEnumSymbols());
-        default:
-          throw new IllegalArgumentException("Unsupported type: " + primitive);
-      }
+          yield ValueReaders.floats();
+        }
+        case DOUBLE -> ValueReaders.doubles();
+        case STRING -> SparkValueReaders.strings();
+        case FIXED -> ValueReaders.fixed(primitive.getFixedSize());
+        case BYTES -> ValueReaders.bytes();
+        case ENUM -> SparkValueReaders.enums(primitive.getEnumSymbols());
+        default -> throw new IllegalArgumentException("Unsupported type: " + primitive);
+      };
     }
   }
 }
