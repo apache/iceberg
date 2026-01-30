@@ -632,6 +632,27 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testExtraSnapshotMetadataOnMetadataOnlyDelete() {
+    String propertyKey = "test-key";
+    String propertyValue = "session-value";
+
+    // Insert data
+    sql(
+        "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
+        tableName);
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
+        () -> {
+          // Metadata-only delete (deleting entire partition) produces delete snapshot
+          sql("DELETE FROM %s WHERE date = DATE '2021-01-01'", tableName);
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.currentSnapshot().operation()).isEqualTo("delete");
+          assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
+        });
+  }
+
+  @TestTemplate
   public void testExtraSnapshotMetadataOnCopyOnWriteDelete() {
     String propertyKey = "test-key";
     String propertyValue = "session-value";
@@ -653,27 +674,6 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
           sql("DELETE FROM %s WHERE id = 1", tableName);
           table.refresh();
           assertThat(table.currentSnapshot().operation()).isEqualTo("overwrite");
-          assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
-        });
-  }
-
-  @TestTemplate
-  public void testExtraSnapshotMetadataOnMetadataOnlyDelete() {
-    String propertyKey = "test-key";
-    String propertyValue = "session-value";
-
-    // Insert data
-    sql(
-        "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
-        tableName);
-
-    withSQLConf(
-        ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
-        () -> {
-          // Metadata-only delete (deleting entire partition) produces delete snapshot
-          sql("DELETE FROM %s WHERE date = DATE '2021-01-01'", tableName);
-          Table table = validationCatalog.loadTable(tableIdent);
-          assertThat(table.currentSnapshot().operation()).isEqualTo("delete");
           assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
         });
   }

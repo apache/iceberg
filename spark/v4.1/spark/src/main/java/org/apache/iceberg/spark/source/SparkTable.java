@@ -277,9 +277,9 @@ public class SparkTable extends BaseSparkTable
             .deleteFromRowFilter(deleteExpr);
 
     // Apply snapshot properties from session configuration
-    SparkWriteConf writeConf = new SparkWriteConf(sparkSession(), icebergTable, Maps.newHashMap());
+    SparkWriteConf writeConf =
+        new SparkWriteConf(spark(), table(), CaseInsensitiveStringMap.empty());
     writeConf.extraSnapshotMetadata().forEach(deleteFiles::set);
-
 
     if (branch != null) {
       deleteFiles.toBranch(branch);
