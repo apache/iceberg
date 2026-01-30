@@ -21,33 +21,30 @@ package org.apache.iceberg.index;
 import java.util.Set;
 
 /**
- * A builder interface for removing IndexSnapshots from an index.
+ * A builder interface for removing {@link IndexSnapshot}s from an {@link Index}.
+ *
+ * <p>This API accumulates snapshot deletions for fluent chaining.
  *
  * @param <T> the concrete builder type for method chaining
  */
 public interface RemoveSnapshotsBuilder<T> {
 
   /**
-   * Add a snapshot to remove by its index snapshot ID.
+   * Adds a snapshot to remove by its index snapshot ID.
    *
    * @param indexSnapshotId the index snapshot ID to remove
-   * @return this for method chaining
    */
   T removeSnapshotById(long indexSnapshotId);
 
   /**
-   * Add multiple snapshots to remove by their index snapshot IDs.
+   * Adds multiple snapshots to remove by their index snapshot IDs.
    *
    * @param indexSnapshotIds the index snapshot IDs to remove
-   * @return this for method chaining
    */
   T removeSnapshotsByIds(Set<Long> indexSnapshotIds);
 
   /**
-   * Add multiple snapshots to remove by their index snapshot IDs.
-   *
-   * @param indexSnapshotIds the index snapshot IDs to remove
-   * @return this for method chaining
+   * Varargs overload of @see #removeSnapshotsByIds(Set)
    */
   T removeSnapshotsByIds(long... indexSnapshotIds);
 }

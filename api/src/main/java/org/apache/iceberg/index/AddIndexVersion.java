@@ -21,17 +21,17 @@ package org.apache.iceberg.index;
 import org.apache.iceberg.PendingUpdate;
 
 /**
- * API for adding a new snapshot to an {@link Index}.
+ * API for adding a new {@link Index} version.
  *
  * <p>This interface combines {@link PendingUpdate} for committing changes with {@link
- * SnapshotBuilder} for fluent snapshot construction.
+ * VersionBuilder} for fluent version construction.
  *
- * <p>The {@link #apply()} method returns the new {@link IndexSnapshot} for validation.
+ * <p>The {@link #apply()} method returns the new {@link IndexVersion} for validation.
  *
- * <p>When committing, these new snapshot will be added to the {@link Index} metadata.
+ * <p>When committing, the new version will be added to the {@link Index} metadata.
  *
  * <p>Commit conflicts will be resolved by applying the pending changes to the new {@link Index}
  * metadata.
  */
-public interface AddIndexSnapshot
-    extends PendingUpdate<IndexSnapshot>, SnapshotBuilder<AddIndexSnapshot> {}
+public interface AddIndexVersion
+    extends PendingUpdate<IndexVersion>, VersionBuilder<AddIndexVersion> {}

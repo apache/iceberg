@@ -20,6 +20,7 @@ package org.apache.iceberg.catalog;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -82,18 +83,18 @@ public class IndexIdentifier implements Serializable {
         identifier != null && !identifier.isEmpty(),
         "Cannot parse index identifier: null or empty");
 
-    String[] parts = identifier.split("\\.");
-    Preconditions.checkArgument(
-        parts.length >= 3,
-        "Cannot parse index identifier '%s': must contain at least namespace, table, and index name",
-        identifier);
+    return IndexIdentifier.of(identifier.split("\\."));
+  }
 
-    String indexName = parts[parts.length - 1];
-    String tableName = parts[parts.length - 2];
-    String[] namespaceParts = Arrays.copyOfRange(parts, 0, parts.length - 2);
+  public static IndexIdentifier of(String... names) {
+    Preconditions.checkArgument(names != null, "Cannot create index identifier from null array");
+    Preconditions.checkArgument(
+        names.length > 0, "Cannot create index identifier without a index name");
+    Preconditions.checkArgument(
+        names.length > 1, "Cannot create index identifier without a table name");
 
     return new IndexIdentifier(
-        TableIdentifier.of(Namespace.of(namespaceParts), tableName), indexName);
+        TableIdentifier.of(Arrays.copyOf(names, names.length - 1)), names[names.length - 1]);
   }
 
   /**
@@ -148,9 +149,7 @@ public class IndexIdentifier implements Serializable {
 
   @Override
   public int hashCode() {
-    int result = tableIdentifier.hashCode();
-    result = 31 * result + name.hashCode();
-    return result;
+    return Objects.hash(tableIdentifier, name);
   }
 
   @Override

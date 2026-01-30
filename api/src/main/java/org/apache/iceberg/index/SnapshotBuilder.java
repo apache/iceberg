@@ -23,40 +23,37 @@ import java.util.Map;
 /**
  * A builder interface for creating {@link IndexSnapshot} instances.
  *
+ * <p>This API collects snapshot configuration for fluent chaining.
+ *
  * @param <T> the concrete builder type for method chaining
  */
 public interface SnapshotBuilder<T> {
-
   /**
-   * Set the table snapshot ID which is the base of the index snapshot.
+   * Sets the table snapshot ID which is the base of the index snapshot.
    *
    * @param tableSnapshotId the table snapshot ID
-   * @return this for method chaining
    */
   T withTableSnapshotId(long tableSnapshotId);
 
   /**
-   * Set the index snapshot ID.
+   * Sets the index snapshot ID.
    *
    * @param indexSnapshotId the index snapshot ID
-   * @return this for method chaining
    */
   T withIndexSnapshotId(long indexSnapshotId);
 
   /**
-   * Set properties for the index snapshot.
+   * Sets properties for the index snapshot.
    *
    * @param properties a map of string properties
-   * @return this for method chaining
    */
   T withSnapshotProperties(Map<String, String> properties);
 
   /**
-   * Add a key/value property to the index snapshot.
+   * Adds a key/value property to the index snapshot.
    *
-   * @param key a key
-   * @param value a value
-   * @return this for method chaining
+   * @param key the property key
+   * @param value the property value
    */
   T withSnapshotProperty(String key, String value);
 }

@@ -109,12 +109,12 @@ public interface IndexCatalog {
   default void invalidateIndex(IndexIdentifier identifier) {}
 
   /**
-   * Register a index with the catalog if it does not exist.
+   * Register an index with the catalog if it does not exist.
    *
    * @param identifier a index identifier
    * @param metadataFileLocation the location of a metadata file
-   * @return a Index instance
-   * @throws AlreadyExistsException if a index with the same identifier already exists in the
+   * @return an Index instance
+   * @throws AlreadyExistsException if an index with the same identifier already exists in the
    *     catalog.
    */
   default Index registerIndex(IndexIdentifier identifier, String metadataFileLocation) {
@@ -122,7 +122,7 @@ public interface IndexCatalog {
   }
 
   /**
-   * Initialize a view catalog given a custom name and a map of catalog properties.
+   * Initialize an index catalog given a custom name and a map of catalog properties.
    *
    * <p>A custom index catalog implementation must have a no-arg constructor. A compute engine like
    * Spark or Flink will first initialize the catalog without any arguments, and then call this

@@ -20,21 +20,29 @@ package org.apache.iceberg.index;
 
 import java.util.Map;
 
+/**
+ * Builder interface for constructing {@link IndexVersion} instances with custom properties.
+ *
+ * <p>Properties from the {@link Index}'s current version are not inherited. Only properties added
+ * through this builder are applied to the newly built version.
+ *
+ * <p>This API collects version configuration for fluent chaining.
+ *
+ * @param <T> the concrete builder type for method chaining
+ */
 public interface VersionBuilder<T> {
   /**
-   * Add key/value properties to the index.
+   * Adds key/value properties to the index.
    *
    * @param properties key/value properties
-   * @return this for method chaining
    */
   T withProperties(Map<String, String> properties);
 
   /**
-   * Add a key/value property to the index.
+   * Adds a key/value property to the index version.
    *
-   * @param key a key
-   * @param value a value
-   * @return this for method chaining
+   * @param key the property key
+   * @param value the property value
    */
   T withProperty(String key, String value);
 }

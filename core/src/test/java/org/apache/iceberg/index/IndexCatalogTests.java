@@ -513,14 +513,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
             .withOptimizedColumnIds(3)
             .create();
 
-    IndexVersion indexVersion = index.currentVersion();
-
-    index
-        .updateProperties()
-        .set("key1", "val1")
-        .set("key2", "val2")
-        .remove("non-existing")
-        .commit();
+    index.addVersion().withProperty("key1", "val1").withProperty("key2", "val2").commit();
 
     Index updatedIndex = catalog().loadIndex(indexIdentifier);
 
@@ -561,20 +554,9 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
             () ->
                 catalog()
                     .loadIndex(indexIdentifier)
-                    .updateProperties()
-                    .set(null, "new-val1")
+                    .addVersion()
+                    .withProperty(null, "new-val1")
                     .commit())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid key: null");
-
-    assertThatThrownBy(
-            () ->
-                catalog().loadIndex(indexIdentifier).updateProperties().set("key1", null).commit())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid value: null");
-
-    assertThatThrownBy(
-            () -> catalog().loadIndex(indexIdentifier).updateProperties().remove(null).commit())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid key: null");
 
@@ -582,14 +564,11 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
             () ->
                 catalog()
                     .loadIndex(indexIdentifier)
-                    .updateProperties()
-                    .set("key1", "x")
-                    .set("key3", "y")
-                    .remove("key2")
-                    .set("key2", "z")
+                    .addVersion()
+                    .withProperty("key1", null)
                     .commit())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot remove and update the same key: key2");
+        .hasMessage("Invalid value: null");
   }
 
   @Test
@@ -615,13 +594,13 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
             .create();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should exist").isTrue();
-    UpdateIndexProperties updateIndexProperties = index.updateProperties();
+    AddIndexVersion addIndexVersion = index.addVersion();
 
     // drop index and then try to use the updateProperties API
     catalog().dropIndex(indexIdentifier);
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
 
-    assertThatThrownBy(() -> updateIndexProperties.set("key1", "val1").commit())
+    assertThatThrownBy(() -> addIndexVersion.withProperty("key1", "val1").commit())
         .isInstanceOf(NoSuchIndexException.class)
         .hasMessageContaining("Index does not exist");
   }
@@ -1293,7 +1272,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
   @Disabled
   @Test
-  public void concurrentUpdateProperties() {
+  public void concurrentAddVersion() {
     TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
     IndexIdentifier indexIdentifier =
         IndexIdentifier.of(tableIdentifier, "concurrent_update_props_index");
@@ -1317,18 +1296,18 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should exist").isTrue();
 
-    UpdateIndexProperties updatePropsOne =
-        index.updateProperties().set("key1", "value1").set("source", "update-one");
+    AddIndexVersion updatePropsOne =
+        index.addVersion().withProperty("key1", "value1").withProperty("source", "update-one");
 
-    UpdateIndexProperties updatePropsTwo =
-        index.updateProperties().set("key2", "value2").set("source", "update-two");
+    AddIndexVersion updatePropsTwo =
+        index.addVersion().withProperty("key2", "value2").withProperty("source", "update-two");
 
     // simulate a concurrent update of the index properties
     IndexOperations indexOps = ((BaseIndex) index).operations();
     IndexMetadata current = indexOps.current();
 
-    IndexMetadata firstUpdate = ((IndexPropertiesUpdate) updatePropsOne).internalApply();
-    IndexMetadata secondUpdate = ((IndexPropertiesUpdate) updatePropsTwo).internalApply();
+    IndexMetadata firstUpdate = ((IndexVersionAdd) updatePropsOne).internalApply();
+    IndexMetadata secondUpdate = ((IndexVersionAdd) updatePropsTwo).internalApply();
 
     indexOps.commit(current, firstUpdate);
 
@@ -1549,7 +1528,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
             .withIndexSnapshotId(1L)
             .withSnapshotProperty("source", "snapshot-one");
 
-    UpdateIndexProperties updatePropertiesOne = index.updateProperties().set("prop1", "value1");
+    AddIndexVersion updatePropertiesOne = index.addVersion().withProperty("prop1", "value1");
 
     RemoveIndexSnapshots removeSnapshot = index.removeIndexSnapshots().removeSnapshotById(0L);
 
@@ -1560,17 +1539,17 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
             .withIndexSnapshotId(2L)
             .withSnapshotProperty("source", "snapshot-two");
 
-    UpdateIndexProperties updatePropertiesTwo = index.updateProperties().set("prop2", "value2");
+    AddIndexVersion updatePropertiesTwo = index.addVersion().withProperty("prop2", "value2");
 
     // simulate a concurrent add of the index snapshot
     IndexOperations indexOps = ((BaseIndex) index).operations();
     IndexMetadata current = indexOps.current();
 
     IndexMetadata firstAdd = ((IndexSnapshotAdd) addSnapshotOne).internalApply();
-    IndexMetadata firstUpdate = ((IndexPropertiesUpdate) updatePropertiesOne).internalApply();
+    IndexMetadata firstUpdate = ((IndexVersionAdd) updatePropertiesOne).internalApply();
     IndexMetadata firstRemove = ((IndexSnapshotsRemove) removeSnapshot).internalApply();
     IndexMetadata secondAdd = ((IndexSnapshotAdd) addSnapshotTwo).internalApply();
-    IndexMetadata secondUpdate = ((IndexPropertiesUpdate) updatePropertiesTwo).internalApply();
+    IndexMetadata secondUpdate = ((IndexVersionAdd) updatePropertiesTwo).internalApply();
 
     indexOps.commit(current, firstAdd);
 
