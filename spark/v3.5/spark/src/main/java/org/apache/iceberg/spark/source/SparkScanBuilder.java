@@ -38,6 +38,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SparkDistributedDataScan;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.AggregateEvaluator;
@@ -760,7 +761,10 @@ public class SparkScanBuilder
   }
 
   private BatchScan newBatchScan() {
-    if (table instanceof BaseTable && readConf.distributedPlanningEnabled()) {
+    if (table instanceof SupportsDistributedScanPlanning
+        && !((SupportsDistributedScanPlanning) table).allowDistributedPlanning()) {
+      return table.newBatchScan();
+    } else if (table instanceof BaseTable && readConf.distributedPlanningEnabled()) {
       return new SparkDistributedDataScan(spark, table, readConf);
     } else {
       return table.newBatchScan();
