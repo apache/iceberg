@@ -47,12 +47,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * TriggerManagerOperator sends events to the coordinator to acquire a lock, then waits for the
- * response. If the response indicates that the lock has been acquired, it fires a trigger;
- * otherwise, it schedules the next attempt. When the job recovers from a failure, tasks from
- * different execution paths of the previous run may still be running. Therefore, it first needs to
- * send a lock with the maximum timestamp, and then send a recovery trigger. Only after the
- * downstream removes this lock can we be sure that all tasks have fully stopped.
+ * The TriggerManagerOperator itself holds the lock and registers a callback method with the
+ * coordinator. When a task finishes, it sends a signal from downstream to the coordinator to
+ * trigger this callback, allowing the TriggerManagerOperator to release the lock.
  */
 @Experimental
 @Internal
@@ -180,7 +177,6 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
       // When the job state is restored, there could be ongoing tasks.
       // To prevent collision with the new triggers the following is done:
       //  - add a recovery lock
-      //  - fire a recovery trigger
       // This ensures that the tasks of the previous trigger are executed, and the lock is removed
       // in the end. The result of the 'tryLock' is ignored as an already existing lock prevents
       // collisions as well.
