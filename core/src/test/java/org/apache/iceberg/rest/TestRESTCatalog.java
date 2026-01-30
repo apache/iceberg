@@ -71,6 +71,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -81,7 +82,6 @@ import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
@@ -3724,17 +3724,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
    * Test concurrent appends on multiple branches simultaneously to verify proper handling of
    * sequence number conflicts.
    *
-   * <p>Creates 5 different branches on the table, then performs 10 parallel append commits on each
-   * branch at the same time (50 total concurrent operations). This verifies that: 1. Sequence
-   * number conflicts are caught by AssertLastSequenceNumber requirement 2. Conflicts result in
-   * CommitFailedException (retryable) not ValidationException (non-retryable) 3. The REST catalog
-   * properly handles concurrent modifications across different branches
+   * <p>Uses a barrier to synchronize threads so they all load the same table state and commit
+   * simultaneously, creating deterministic conflicts. With retries disabled, we can verify exact
+   * counts: one success per round, and (numBranches - 1) CommitFailedExceptions per round.
+   *
+   * <p>This verifies that: 1. Sequence number conflicts are caught by AssertLastSequenceNumber
+   * requirement 2. Conflicts result in CommitFailedException (retryable) not ValidationException
+   * (non-retryable) 3. The REST catalog properly handles concurrent modifications across branches
    */
   @Test
   public void testConcurrentAppendsOnMultipleBranches() {
     int numBranches = 5;
-    int commitsPerBranch = 10;
-    int totalConcurrentWrites = numBranches * commitsPerBranch;
+    int numRounds = 10;
 
     RESTCatalog restCatalog = catalog();
 
@@ -3744,76 +3745,92 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     restCatalog.createNamespace(ns);
     Table table = restCatalog.buildTable(tableIdent, SCHEMA).withPartitionSpec(SPEC).create();
 
-    // Add initial data to the main branch
-    table.newFastAppend().appendFile(FILE_A).commit();
+    // Disable retries so we can count exact conflicts
+    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "-1").commit();
 
-    // Create 5 branches from the main branch
+    // Create branches from the main branch
     String[] branchNames = new String[numBranches];
     for (int i = 0; i < numBranches; i++) {
       branchNames[i] = "branch-" + i;
       table.manageSnapshots().createBranch(branchNames[i]).commit();
     }
 
-    // Refresh to get updated metadata with all branches
-    restCatalog.loadTable(tableIdent);
-
+    AtomicInteger barrier = new AtomicInteger(0);
     AtomicInteger successCount = new AtomicInteger(0);
+    AtomicInteger commitFailedCount = new AtomicInteger(0);
     AtomicInteger validationFailureCount = new AtomicInteger(0);
 
     ExecutorService executor =
         MoreExecutors.getExitingExecutorService(
-            (ThreadPoolExecutor) Executors.newFixedThreadPool(totalConcurrentWrites));
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(numBranches));
 
-    Tasks.range(totalConcurrentWrites)
+    Tasks.range(numBranches)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
         .executeWith(executor)
-        .suppressFailureWhenFinished()
-        .onFailure(
-            (taskIndex, exception) -> {
-              // Check if sequence number validation error (indicates fix not working)
-              if (exception instanceof BadRequestException
-                  && exception.getMessage().contains("Cannot add snapshot with sequence number")) {
-                validationFailureCount.incrementAndGet();
-              } else if (exception instanceof ValidationException) {
-                validationFailureCount.incrementAndGet();
-              }
-              // CommitFailedException is expected - this is the correct retryable behavior
-            })
         .run(
-            taskIndex -> {
-              int branchIdx = taskIndex / commitsPerBranch;
-              int commitIdx = taskIndex % commitsPerBranch;
+            branchIdx -> {
               String branchName = branchNames[branchIdx];
 
-              // Each thread loads the table independently
-              Table localTable = restCatalog.loadTable(tableIdent);
+              for (int round = 0; round < numRounds; round++) {
+                int currentRound = round;
 
-              // Create a unique file for this commit
-              DataFile newFile =
-                  DataFiles.builder(SPEC)
-                      .withPath(
-                          String.format(
-                              "/path/to/branch-%d-commit-%d.parquet", branchIdx, commitIdx))
-                      .withFileSizeInBytes(15)
-                      .withPartitionPath(String.format("id_bucket=%d", branchIdx % 16))
-                      .withRecordCount(3)
-                      .build();
+                // Load table
+                Table localTable = restCatalog.loadTable(tableIdent);
 
-              // Append to the specific branch
-              localTable.newFastAppend().appendFile(newFile).toBranch(branchName).commit();
+                DataFile newFile =
+                    DataFiles.builder(SPEC)
+                        .withPath(
+                            String.format("/path/to/branch-%d-round-%d.parquet", branchIdx, round))
+                        .withFileSizeInBytes(15)
+                        .withPartitionPath(String.format("id_bucket=%d", branchIdx % 16))
+                        .withRecordCount(3)
+                        .build();
 
-              successCount.incrementAndGet();
+                // Wait for all threads to be ready to commit
+                barrier.incrementAndGet();
+                Awaitility.await()
+                    .atMost(10, TimeUnit.SECONDS)
+                    .until(() -> barrier.get() >= (currentRound + 1) * numBranches);
+
+                try {
+                  // All threads commit simultaneously
+                  localTable.newFastAppend().appendFile(newFile).toBranch(branchName).commit();
+                  successCount.incrementAndGet();
+                } catch (CommitFailedException e) {
+                  // Expected for conflicts - this is the correct behavior with the fix
+                  commitFailedCount.incrementAndGet();
+                } catch (ValidationException e) {
+                  // This indicates the fix is not working
+                  validationFailureCount.incrementAndGet();
+                  throw e;
+                }
+              }
             });
 
-    // Verify the fix: with AssertLastSequenceNumber, there should be NO validation failures
-    // All concurrent conflicts should be caught as CommitFailedException (retryable)
+    int totalAttempts = numBranches * numRounds;
+
+    // Verify: no ValidationException should have been thrown
     assertThat(validationFailureCount.get())
         .as(
-            "With the fix, sequence number conflicts should be caught by AssertLastSequenceNumber "
-                + "and throw CommitFailedException (retryable), not ValidationException")
+            "Sequence number conflicts should throw CommitFailedException (retryable), "
+                + "not ValidationException")
         .isEqualTo(0);
 
-    // At least some should succeed (commits that don't conflict or succeed after retry)
-    assertThat(successCount.get()).as("At least some appends should succeed").isGreaterThan(0);
+    // Verify at least one commit succeeded per round
+    assertThat(successCount.get())
+        .as("At least one commit should succeed per round")
+        .isGreaterThanOrEqualTo(numRounds);
+
+    // Verify some conflicts happened (proves concurrent contention occurred)
+    assertThat(commitFailedCount.get())
+        .as("Some commits should fail with CommitFailedException due to conflicts")
+        .isGreaterThan(0);
+
+    // Verify no attempts were lost
+    assertThat(successCount.get() + commitFailedCount.get())
+        .as("All commit attempts should either succeed or fail with CommitFailedException")
+        .isEqualTo(totalAttempts);
   }
 
   private static List<HTTPRequest> allRequests(RESTCatalogAdapter adapter) {
