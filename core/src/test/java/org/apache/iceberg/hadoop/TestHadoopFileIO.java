@@ -72,15 +72,14 @@ public class TestHadoopFileIO {
   }
 
   /**
-   * Purge trash as a cleanup operation if the test case created a FS with trash enabled;
-   * avoids accrual of many empty files in this path.
-   * Note: this affects the entire user account.
+   * Purge trash as a cleanup operation if the test case created a FS with trash enabled; avoids
+   * accrual of many empty files in this path. Note: this affects the entire user account.
    */
   @AfterEach
   public void purgeTrash() throws IOException {
-      if (trashEnabled) {
-        fs.delete(fs.getTrashRoot(new Path(tempDir.toURI())), true);
-      }
+    if (trashEnabled) {
+      fs.delete(fs.getTrashRoot(new Path(tempDir.toURI())), true);
+    }
   }
 
   /**
@@ -213,8 +212,7 @@ public class TestHadoopFileIO {
     List<Path> filesCreated = createRandomFiles(parent, 10);
     hadoopFileIO.deleteFiles(
         filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
-    filesCreated.forEach(
-        file -> assertPathDoesNotExist(file.toString()));
+    filesCreated.forEach(file -> assertPathDoesNotExist(file.toString()));
   }
 
   @Test
@@ -263,9 +261,9 @@ public class TestHadoopFileIO {
   }
 
   /**
-   * Use a trash policy which raises an exception when moving a file to trash;
-   * verify that deleteFile() falls back to delete. Various counters are
-   * checked simply to verify that the failing trash policy was invoked.
+   * Use a trash policy which raises an exception when moving a file to trash; verify that
+   * deleteFile() falls back to delete. Various counters are checked simply to verify that the
+   * failing trash policy was invoked.
    */
   @Test
   public void testTrashFailureFallBack() throws Exception {
@@ -341,15 +339,16 @@ public class TestHadoopFileIO {
 
   @Test
   public void testResolvingFileIOLoad() {
-      try (ResolvingFileIO resolvingFileIO = new ResolvingFileIO()) {
-        resolvingFileIO.setConf(new Configuration());
-        resolvingFileIO.initialize(ImmutableMap.of());
-        FileIO result = DynMethods.builder("io")
-                  .hiddenImpl(ResolvingFileIO.class, String.class)
-                  .build(resolvingFileIO)
-                  .invoke("hdfs://foo/bar");
-        assertThat(result).isInstanceOf(HadoopFileIO.class);
-      }
+    try (ResolvingFileIO resolvingFileIO = new ResolvingFileIO()) {
+      resolvingFileIO.setConf(new Configuration());
+      resolvingFileIO.initialize(ImmutableMap.of());
+      FileIO result =
+          DynMethods.builder("io")
+              .hiddenImpl(ResolvingFileIO.class, String.class)
+              .build(resolvingFileIO)
+              .invoke("hdfs://foo/bar");
+      assertThat(result).isInstanceOf(HadoopFileIO.class);
+    }
   }
 
   @Test
