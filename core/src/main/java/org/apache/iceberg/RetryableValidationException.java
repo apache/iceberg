@@ -16,9 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.exceptions;
+package org.apache.iceberg;
 
 import com.google.errorprone.annotations.FormatMethod;
+import org.apache.iceberg.exceptions.ValidationException;
 
 /**
  * A {@link ValidationException} that indicates the client can retry with refreshed metadata.
