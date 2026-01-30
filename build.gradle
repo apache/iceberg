@@ -118,6 +118,10 @@ allprojects {
     mavenCentral()
     mavenLocal()
     maven { url 'https://jitpack.io/' }
+    maven {
+      name = "asfStaging"
+      url = uri("https://repository.apache.org/content/groups/staging/")
+    }
   }
 }
 
