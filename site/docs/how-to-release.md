@@ -166,6 +166,11 @@ To build and publish the convenience binaries, run the `dev/stage-binaries.sh` s
 dev/stage-binaries.sh
 ```
 
+!!! Note
+    The staged binaries include the Kafka Connect runtime distribution
+    (`iceberg-kafka-connect-runtime-<VERSION>.zip`), which bundles the connector
+    with all required dependencies for Kafka Connect plugin installation.
+
 Next, you need to close the staging repository:
 
 1. Go to [Nexus](https://repository.apache.org/) and log in
@@ -296,6 +301,25 @@ Java artifacts are available from Maven Central.
 
 Thanks to everyone for contributing!
 ```
+
+#### Confluent Marketplace Submission
+
+After the release is published to Maven Central, the Kafka Connect runtime distribution
+can be [submitted to](https://docs.confluent.io/platform/current/connect/confluent-hub/contributing.html)
+[Confluent Marketplace](https://www.confluent.io/hub/) for broader distribution.
+
+To submit to Confluent Hub:
+
+1. [Contact the Confluent Hub team](mailto:confluent-hub@confluent.io) with the Maven Central URL for the distribution zip:
+
+      ```
+      https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-kafka-connect-runtime/<VERSION>/iceberg-kafka-connect-runtime-<VERSION>.zip
+      ```
+
+2. Confluent will publish to the Marketplace
+
+!!! Note
+    This step is optional and can be performed by any PMC member after the release is finalized.
 
 #### Update revapi
 
