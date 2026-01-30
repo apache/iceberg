@@ -72,7 +72,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
-import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.exceptions.RetryableValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -637,17 +637,13 @@ public class CatalogHandlers {
                 TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(base);
                 try {
                   request.updates().forEach(update -> update.applyTo(metadataBuilder));
-                } catch (ValidationException e) {
+                } catch (RetryableValidationException e) {
                   // Sequence number conflicts from concurrent commits are retryable by the client,
                   // but server-side retry won't help since the sequence number is in the request.
                   // Wrap in ValidationFailureException to skip server retry, return to client as
                   // CommitFailedException so the client can retry with refreshed metadata.
-                  if (e.getMessage() != null
-                      && e.getMessage().contains("older than last sequence number")) {
-                    throw new ValidationFailureException(
-                        new CommitFailedException(e, "Commit conflict: %s", e.getMessage()));
-                  }
-                  throw e;
+                  throw new ValidationFailureException(
+                      new CommitFailedException(e, "Commit conflict: %s", e.getMessage()));
                 }
 
                 TableMetadata updated = metadataBuilder.build();
