@@ -993,18 +993,16 @@ paths:
             For nested views (a view referencing another view which references the table), the list contains multiple
             view identifiers representing the complete dependency chain.
 
-            Each view identifier has the format namespace.viewName where multipart namespaces follow the same
-            encoding rules as the `parent` parameter in the list namespaces endpoint (using `namespace-separator`
-            as defined in `/config`).
-
-            The namespace and view name are separated by a dot. When parsing, the dot separator is located by
-            finding the first dot character after the last namespace separator.
+            The view identifier is a composite string of the format {namespace}{separator}{viewName}.
+            The namespace-separator (defined in /config) acts as the delimiter.
+            When parsing, the last occurrence of this separator identifies the boundary between the namespace and the view name.
+            Multipart namespaces must follow the encoding rules of the parent parameter in the list namespaces endpoint.
 
             Multiple view identifiers are separated by commas. Servers should split the parameter value on comma characters
             to parse individual view identifiers. If view names contain commas, they must be url-encoded as %2C.
 
             Example with multiple views (where prod%1Fanalytics is a nested namespace which has a quarterly_view which references to monthly_view
-            which then references to table being loaded) - prod%1Fanalytics.quarterly_view,prod%1Fanalytics.monthly_view
+            which then references to table being loaded) - prod%1Fanalytics%1Fquarterly_view,prod%1Fanalytics%1Fmonthly_view
           required: false
           schema:
             type: string
