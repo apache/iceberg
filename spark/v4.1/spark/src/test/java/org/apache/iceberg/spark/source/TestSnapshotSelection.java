@@ -41,6 +41,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -49,6 +50,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -81,6 +83,7 @@ public class TestSnapshotSelection {
   @TempDir private Path temp;
 
   private static SparkSession spark = null;
+  private final long timestampBeforeAnySnapshots = 1L; // no snapshot at this time
 
   @Parameter(index = 0)
   private Map<String, String> properties;
@@ -99,6 +102,11 @@ public class TestSnapshotSelection {
     SparkSession currentSpark = TestSnapshotSelection.spark;
     TestSnapshotSelection.spark = null;
     currentSpark.stop();
+  }
+
+  @AfterEach
+  public void cleanupSessionProperties() {
+    spark.conf().unset(SparkSQLProperties.AS_OF_TIMESTAMP);
   }
 
   @TestTemplate
@@ -145,6 +153,23 @@ public class TestSnapshotSelection {
         previousSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(previousSnapshotRecords)
         .as("Previous snapshot rows should match")
+        .isEqualTo(firstBatchRecords);
+
+    // verify explicit snapshot-id option overrides session property
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, timestampBeforeAnySnapshots);
+    Dataset<Row> withExplicitSnapshotIdResult =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SNAPSHOT_ID, parentSnapshotId)
+            .load(tableLocation);
+    List<SimpleRecord> withExplicitSnapshotIdRecords =
+        withExplicitSnapshotIdResult
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    assertThat(withExplicitSnapshotIdRecords)
+        .as("Explicit snapshot-id should override session property")
         .isEqualTo(firstBatchRecords);
   }
 
@@ -198,6 +223,71 @@ public class TestSnapshotSelection {
     assertThat(previousSnapshotRecords)
         .as("Previous snapshot rows should match")
         .isEqualTo(firstBatchRecords);
+
+    // verify explicit as-of-timestamp option overrides session property
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, timestampBeforeAnySnapshots);
+    Dataset<Row> withExplicitTimestampResult =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.AS_OF_TIMESTAMP, firstSnapshotTimestamp)
+            .load(tableLocation);
+    List<SimpleRecord> withExplicitTimestampRecords =
+        withExplicitTimestampResult
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    assertThat(withExplicitTimestampRecords)
+        .as("Explicit as-of-timestamp should override session property")
+        .isEqualTo(firstBatchRecords);
+  }
+
+  @TestTemplate
+  public void testSessionPropertyAsDefault() {
+    String tableLocation = temp.resolve("iceberg-table").toFile().toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, properties, tableLocation);
+
+    // produce the first snapshot
+    List<SimpleRecord> firstBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+    Dataset<Row> firstDf = spark.createDataFrame(firstBatchRecords, SimpleRecord.class);
+    firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    // remember the time when the first snapshot was valid
+    long firstSnapshotTimestamp = System.currentTimeMillis();
+
+    // produce the second snapshot
+    List<SimpleRecord> secondBatchRecords =
+        Lists.newArrayList(
+            new SimpleRecord(4, "d"), new SimpleRecord(5, "e"), new SimpleRecord(6, "f"));
+    Dataset<Row> secondDf = spark.createDataFrame(secondBatchRecords, SimpleRecord.class);
+    secondDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
+
+    assertThat(table.snapshots()).as("Expected 2 snapshots").hasSize(2);
+
+    // verify without session property, current snapshot is read
+    Dataset<Row> currentSnapshotResult = spark.read().format("iceberg").load(tableLocation);
+    List<SimpleRecord> currentSnapshotRecords =
+        currentSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(firstBatchRecords);
+    expectedRecords.addAll(secondBatchRecords);
+    assertThat(currentSnapshotRecords)
+        .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
+
+    // verify with session property, only first snapshot data is read
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, firstSnapshotTimestamp);
+    Dataset<Row> sessionPropertyResult = spark.read().format("iceberg").load(tableLocation);
+    List<SimpleRecord> sessionPropertyRecords =
+        sessionPropertyResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    assertThat(sessionPropertyRecords)
+        .as("First snapshot should be read when session property set.")
+        .isEqualTo(firstBatchRecords);
   }
 
   @TestTemplate
@@ -233,6 +323,20 @@ public class TestSnapshotSelection {
                     .load(tableLocation))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot find a snapshot older than");
+
+    // verify invalid session property timestamp raises exception
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, timestamp);
+    assertThatThrownBy(() -> spark.read().format("iceberg").load(tableLocation).collectAsList())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find a snapshot older than");
+
+    // verify malformatted session property timestamp raises exception
+    String malformattedSessionTimestamp = "2020-01-01 10:00:00";
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, malformattedSessionTimestamp);
+    assertThatThrownBy(() -> spark.read().format("iceberg").load(tableLocation).collectAsList())
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessageContaining(
+            String.format("For input string: \"%s\"", malformattedSessionTimestamp));
   }
 
   @TestTemplate
@@ -301,6 +405,16 @@ public class TestSnapshotSelection {
     assertThat(currentSnapshotRecords)
         .as("Current snapshot rows should match")
         .isEqualTo(expectedRecords);
+
+    // verify explicit tag option overrides invalid session property
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, timestampBeforeAnySnapshots);
+    Dataset<Row> withExplicitTagResult =
+        spark.read().format("iceberg").option(SparkReadOptions.TAG, "tag").load(tableLocation);
+    List<SimpleRecord> withExplicitTagRecords =
+        withExplicitTagResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    assertThat(withExplicitTagRecords)
+        .as("Explicit tag should override session property")
+        .isEqualTo(expectedRecords);
   }
 
   @TestTemplate
@@ -336,6 +450,23 @@ public class TestSnapshotSelection {
     expectedRecords.addAll(firstBatchRecords);
     assertThat(currentSnapshotRecords)
         .as("Current snapshot rows should match")
+        .isEqualTo(expectedRecords);
+
+    // verify explicit branch option overrides invalid session property
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, timestampBeforeAnySnapshots);
+    Dataset<Row> withExplicitBranchResult =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.BRANCH, "branch")
+            .load(tableLocation);
+    List<SimpleRecord> withExplicitBranchRecords =
+        withExplicitBranchResult
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
+    assertThat(withExplicitBranchRecords)
+        .as("Explicit branch should override session property")
         .isEqualTo(expectedRecords);
   }
 
