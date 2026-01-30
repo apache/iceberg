@@ -568,26 +568,26 @@ public class TestRewriteTablePathsAction extends TestBase {
   /**
    * Test for https://github.com/apache/iceberg/issues/14814
    *
-   * <p>This test verifies that rewrite_table_path correctly handles position delete files when
-   * multiple snapshots exist. The fix uses DeleteFileSet to properly deduplicate delete files based
-   * on file location, content offset, and content size, rather than relying on object identity.
+   * <p>This test verifies that rewrite_table_path correctly deduplicates delete files when the same
+   * delete file appears in multiple manifests. Without the DeleteFileSet fix, this test would fail
+   * with AlreadyExistsException because DeleteFile objects don't override equals() and the same
+   * file would be processed multiple times.
    *
-   * <p>Note: The original bug occurred when the same delete file appeared in multiple manifest
-   * entries (e.g., with ADDED and DELETED status), causing AlreadyExistsException. This test
-   * exercises the code path with DeleteFileSet deduplication but may not fully reproduce the edge
-   * case that occurs in production environments with complex manifest structures.
+   * <p>The test creates a scenario where the same delete file is added to multiple snapshots,
+   * causing it to appear in multiple manifest entries. When these manifests are processed, the same
+   * delete file is returned as different object instances which need proper deduplication.
    */
   @TestTemplate
-  public void testPositionDeletesWithMultipleSnapshots() throws Exception {
+  public void testPositionDeletesDeduplication() throws Exception {
     // Format versions 3 and 4 use Deletion Vectors stored in Puffin files, which have different
-    // validation rules that prevent adding multiple position deletes for the same data file
+    // validation rules that prevent adding the same delete file multiple times
     assumeThat(formatVersion)
         .as("Format versions 3+ use DVs with different validation rules")
         .isEqualTo(2);
 
     Table tableWithPosDeletes =
         createTableWithSnapshots(
-            tableDir.toFile().toURI().toString().concat("tableWithMultipleSnapshots"),
+            tableDir.toFile().toURI().toString().concat("tableWithDuplicateDeletes"),
             2,
             Map.of(TableProperties.DELETE_DEFAULT_FILE_FORMAT, "parquet"));
 
@@ -599,43 +599,38 @@ public class TestRewriteTablePathsAction extends TestBase {
             .iterator()
             .next();
 
-    // Create first position delete file
-    List<Pair<CharSequence, Long>> deletes1 =
-        Lists.newArrayList(Pair.of(dataFile.location(), 0L));
-    File file1 =
+    // Create a position delete file
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(Pair.of(dataFile.location(), 0L));
+    File deleteFile =
         new File(
-            removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes_1.parquet"));
-    DeleteFile positionDeletes1 =
+            removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes.parquet"));
+    DeleteFile positionDeletes =
         FileHelpers.writeDeleteFile(
                 tableWithPosDeletes,
-                tableWithPosDeletes.io().newOutputFile(file1.toURI().toString()),
-                deletes1,
+                tableWithPosDeletes.io().newOutputFile(deleteFile.toURI().toString()),
+                deletes,
                 formatVersion)
             .first();
-    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes1).commit();
+
+    // Add the SAME delete file in the first snapshot
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
     long snapshot1 = tableWithPosDeletes.currentSnapshot().snapshotId();
 
-    // Create second position delete file
-    List<Pair<CharSequence, Long>> deletes2 =
-        Lists.newArrayList(Pair.of(dataFile.location(), 1L));
-    File file2 =
-        new File(
-            removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes_2.parquet"));
-    DeleteFile positionDeletes2 =
-        FileHelpers.writeDeleteFile(
-                tableWithPosDeletes,
-                tableWithPosDeletes.io().newOutputFile(file2.toURI().toString()),
-                deletes2,
-                formatVersion)
-            .first();
-    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes2).commit();
+    // Add the SAME delete file AGAIN in a second snapshot - this creates a duplicate entry
+    // in a new manifest, which will cause duplicate DeleteFile objects when processing
+    tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
     long snapshot2 = tableWithPosDeletes.currentSnapshot().snapshotId();
 
-    // Create tags on different snapshots (simulating the production scenario)
+    // Create tags to ensure both snapshots are processed
     tableWithPosDeletes.manageSnapshots().createTag("tag1", snapshot1).commit();
     tableWithPosDeletes.manageSnapshots().createTag("tag2", snapshot2).commit();
 
-    // This should NOT throw AlreadyExistsException
+    // This should NOT throw AlreadyExistsException - the fix uses DeleteFileSet to deduplicate
+    // Without the fix (using Collectors.toSet()), this would fail because:
+    // 1. Both manifests contain entries for the same delete file
+    // 2. Processing returns two different DeleteFile objects for the same file
+    // 3. HashSet doesn't deduplicate them (DeleteFile doesn't override equals())
+    // 4. rewritePositionDeletes tries to write the same file twice -> AlreadyExistsException
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(tableWithPosDeletes)
@@ -643,10 +638,11 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
             .execute();
 
-    // Verify the rewrite completed successfully - should have rewritten 2 delete files
+    // Verify the rewrite completed successfully - should have rewritten exactly 1 delete file
+    // (the duplicate should be deduplicated by DeleteFileSet)
     assertThat(result.rewrittenDeleteFilePathsCount())
-        .as("Should have rewritten exactly 2 delete files")
-        .isEqualTo(2);
+        .as("Should have rewritten exactly 1 delete file after deduplication")
+        .isEqualTo(1);
 
     // Copy the metadata files and data files
     copyTableFiles(result);
