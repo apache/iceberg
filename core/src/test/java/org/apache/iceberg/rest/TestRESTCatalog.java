@@ -2544,7 +2544,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testNoCleanup503MappedToCommitStateUnknownCreateTransaction() {
+  public void testNoCleanupOnCreate503() {
     RESTCatalogAdapter adapter =
         Mockito.spy(
             new RESTCatalogAdapter(backendCatalog) {
