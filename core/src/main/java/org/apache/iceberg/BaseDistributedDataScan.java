@@ -144,11 +144,6 @@ abstract class BaseDistributedDataScan
 
   @Override
   protected CloseableIterable<ScanTask> doPlanFiles() {
-    if (table() instanceof SupportsDistributedScanPlanning
-        && !((SupportsDistributedScanPlanning) table()).allowDistributedPlanning()) {
-      return table().newBatchScan().planFiles();
-    }
-
     Snapshot snapshot = snapshot();
 
     List<ManifestFile> deleteManifests = findMatchingDeleteManifests(snapshot);
