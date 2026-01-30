@@ -174,6 +174,53 @@ public class TestStrictMetricsEvaluator {
           // upper bounds
           ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")));
 
+  // UUIDs for testing dual-comparator behavior with high-bit values
+  // These UUIDs span the signed/unsigned comparison boundary
+  private static final UUID UUID_MIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
+  private static final UUID UUID_MAX = UUID.fromString("80000000-0000-0000-0000-000000000001");
+
+  private static final DataFile UUID_FILE =
+      new TestDataFile(
+          "uuid_file.avro",
+          Row.of(),
+          50,
+          ImmutableMap.of(18, 50L),
+          ImmutableMap.of(18, 0L),
+          null,
+          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), UUID_MIN)),
+          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), UUID_MAX)));
+
+  // File with single UUID value (lower == upper)
+  private static final UUID SINGLE_UUID = UUID.fromString("40000000-0000-0000-0000-000000000001");
+  private static final DataFile SINGLE_UUID_FILE =
+      new TestDataFile(
+          "single_uuid_file.avro",
+          Row.of(),
+          50,
+          ImmutableMap.of(18, 50L),
+          ImmutableMap.of(18, 0L),
+          null,
+          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), SINGLE_UUID)),
+          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), SINGLE_UUID)));
+
+  // File with inverted UUID bounds (as would be written by legacy signed comparator)
+  // In RFC unsigned order: 0x40... < 0x80..., so lower > upper when interpreted with RFC
+  private static final UUID LEGACY_UUID_LOWER =
+      UUID.fromString("80000000-0000-0000-0000-000000000001");
+  private static final UUID LEGACY_UUID_UPPER =
+      UUID.fromString("40000000-0000-0000-0000-000000000001");
+
+  private static final DataFile LEGACY_UUID_FILE =
+      new TestDataFile(
+          "legacy_uuid_file.avro",
+          Row.of(),
+          50,
+          ImmutableMap.of(18, 50L),
+          ImmutableMap.of(18, 0L),
+          null,
+          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_LOWER)),
+          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_UPPER)));
+
   @Test
   public void testAllNulls() {
     boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("all_nulls")).eval(FILE);
@@ -689,20 +736,6 @@ public class TestStrictMetricsEvaluator {
 
   // Tests for UUID with StrictMetricsEvaluator using RFC-compliant comparison only
 
-  private static final UUID UUID_MIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
-  private static final UUID UUID_MAX = UUID.fromString("80000000-0000-0000-0000-000000000001");
-
-  private static final DataFile UUID_FILE =
-      new TestDataFile(
-          "uuid_file.avro",
-          Row.of(),
-          50,
-          ImmutableMap.of(18, 50L),
-          ImmutableMap.of(18, 0L),
-          null,
-          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), UUID_MIN)),
-          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), UUID_MAX)));
-
   @Test
   public void testStrictUuidGt() {
     // Query: uuid > 0x00... (all UUIDs in file should be > this)
@@ -740,19 +773,6 @@ public class TestStrictMetricsEvaluator {
         new StrictMetricsEvaluator(SCHEMA, in("uuid", middle1, middle2)).eval(UUID_FILE);
     assertThat(allMatch).as("Strict IN should not match range").isFalse();
   }
-
-  // File with single UUID value (lower == upper)
-  private static final UUID SINGLE_UUID = UUID.fromString("40000000-0000-0000-0000-000000000001");
-  private static final DataFile SINGLE_UUID_FILE =
-      new TestDataFile(
-          "single_uuid_file.avro",
-          Row.of(),
-          50,
-          ImmutableMap.of(18, 50L),
-          ImmutableMap.of(18, 0L),
-          null,
-          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), SINGLE_UUID)),
-          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), SINGLE_UUID)));
 
   @Test
   public void testStrictUuidInMatchesSingleValue() {
@@ -792,25 +812,9 @@ public class TestStrictMetricsEvaluator {
   }
 
   // Tests for file with inverted UUID bounds (as would be written by legacy signed comparator)
-  // In RFC unsigned order: 0x40... < 0x80..., so lower > upper when interpreted with RFC
-  private static final UUID LEGACY_UUID_LOWER =
-      UUID.fromString("80000000-0000-0000-0000-000000000001");
-  private static final UUID LEGACY_UUID_UPPER =
-      UUID.fromString("40000000-0000-0000-0000-000000000001");
-
-  private static final DataFile LEGACY_UUID_FILE =
-      new TestDataFile(
-          "legacy_uuid_file.avro",
-          Row.of(),
-          50,
-          ImmutableMap.of(18, 50L),
-          ImmutableMap.of(18, 0L),
-          null,
-          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_LOWER)),
-          ImmutableMap.of(18, toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_UPPER)));
 
   @Test
-  public void testStrictUuidInWithInvertedBounds() {
+  public void testStrictUuidInWithLegacyInvertedBounds() {
     // With inverted bounds [0x80..., 0x40...] where lower > upper in RFC order,
     // strict IN should never match since lower != upper
     UUID uuid1 = UUID.fromString("20000000-0000-0000-0000-000000000001");
@@ -821,7 +825,7 @@ public class TestStrictMetricsEvaluator {
   }
 
   @Test
-  public void testStrictUuidNotInWithInvertedBounds() {
+  public void testStrictUuidNotInWithLegacyInvertedBounds() {
     // Query: NOT IN (0x50..., 0x60...)
     // With inverted bounds [0x80..., 0x40...], in RFC order: 0x40... < 0x50... < 0x60... < 0x80...
     // The values 0x50... and 0x60... are between upper (0x40...) and lower (0x80...) in RFC order

@@ -45,6 +45,7 @@ import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 
 public class TestExpressionUtil {
@@ -1355,73 +1356,68 @@ public class TestExpressionUtil {
   // Tests for UUID bounds predicate detection and transformation
 
   @Test
-  public void testToSignedUUIDLiteralDetectsUuidLt() {
-    Expression original = Expressions.lessThan("uuid_col", UUID.randomUUID());
-
-    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
-        .as("Should detect UUID lt predicate")
-        .isNotNull();
-  }
-
-  @Test
-  public void testToSignedUUIDLiteralDetectsUuidEq() {
-    Expression original = Expressions.equal("uuid_col", UUID.randomUUID());
-
-    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
-        .as("Should detect UUID eq predicate")
-        .isNotNull();
-  }
-
-  @Test
-  public void testToSignedUUIDLiteralDetectsUuidIn() {
-    Expression original = Expressions.in("uuid_col", UUID.randomUUID(), UUID.randomUUID());
-
-    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
-        .as("Should detect UUID in predicate")
-        .isNotNull();
-  }
-
-  @Test
-  public void testToSignedUUIDLiteralNoDetectionForNonUuid() {
+  public void testToSignedUUIDLiteralNoTransformForNonUuid() {
     Expression original = Expressions.equal("id", 42L);
+    Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
 
-    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
-        .as("Should not detect non-UUID predicate")
-        .isNull();
+    assertThat(result).as("Should return null for non-UUID predicate").isNull();
   }
 
   @Test
-  public void testToSignedUUIDLiteralNoDetectionForIsNull() {
+  public void testToSignedUUIDLiteralNoTransformForIsNull() {
     Expression original = Expressions.isNull("uuid_col");
+    Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
 
-    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
-        .as("Should not detect UUID isNull predicate (doesn't compare against bounds)")
+    assertThat(result)
+        .as("Should return null for UUID isNull (doesn't compare against bounds)")
         .isNull();
   }
 
   @Test
-  public void testToSignedUUIDLiteralDetectsInCompoundExpression() {
-    Expression original =
-        Expressions.and(
-            Expressions.equal("id", 42L), Expressions.greaterThan("uuid_col", UUID.randomUUID()));
-
-    assertThat(ExpressionUtil.toSignedUUIDLiteral(original))
-        .as("Should detect UUID predicate in compound expression")
-        .isNotNull();
-  }
-
-  @Test
-  public void testToSignedUUIDLiteralTransformsLiteral() {
+  public void testToSignedUUIDLiteralTransformsEqPredicate() {
     UUID testUuid = UUID.randomUUID();
     Expression original = Expressions.equal("uuid_col", testUuid);
 
     Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
-    assertThat(result).isNotNull();
-    assertThat(result).isInstanceOf(UnboundPredicate.class);
-    UnboundPredicate<?> pred = (UnboundPredicate<?>) result;
-    assertThat(pred.literal().value()).isEqualTo(testUuid);
+    assertThat(result).isNotNull().isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> predicate = (UnboundPredicate<?>) result;
+    assertThat(predicate.literal().value()).isEqualTo(testUuid);
     // The literal should now use the signed comparator
-    assertThat(pred.literal()).isInstanceOf(Literals.UUIDLiteral.class);
+    assertThat(predicate.literal())
+        .isInstanceOf(Literals.UUIDLiteral.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(Literals.UUIDLiteral.class))
+        .extracting("useSignedComparator")
+        .isEqualTo(true);
+  }
+
+  @Test
+  public void testToSignedUUIDLiteralTransformsLtPredicate() {
+    UUID testUuid = UUID.randomUUID();
+    Expression original = Expressions.lessThan("uuid_col", testUuid);
+
+    Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
+    assertThat(result).isNotNull().isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> predicate = (UnboundPredicate<?>) result;
+    assertThat(predicate.literal())
+        .isInstanceOf(Literals.UUIDLiteral.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(Literals.UUIDLiteral.class))
+        .extracting("useSignedComparator")
+        .isEqualTo(true);
+  }
+
+  @Test
+  public void testToSignedUUIDLiteralTransformsGtPredicate() {
+    UUID testUuid = UUID.randomUUID();
+    Expression original = Expressions.greaterThan("uuid_col", testUuid);
+
+    Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
+    assertThat(result).isNotNull().isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> predicate = (UnboundPredicate<?>) result;
+    assertThat(predicate.literal())
+        .isInstanceOf(Literals.UUIDLiteral.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(Literals.UUIDLiteral.class))
+        .extracting("useSignedComparator")
+        .isEqualTo(true);
   }
 
   @Test
@@ -1431,10 +1427,20 @@ public class TestExpressionUtil {
     Expression original = Expressions.in("uuid_col", uuid1, uuid2);
 
     Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
-    assertThat(result).isNotNull();
-    assertThat(result).isInstanceOf(UnboundPredicate.class);
-    UnboundPredicate<?> pred = (UnboundPredicate<?>) result;
-    assertThat(pred.literals()).hasSize(2);
+    assertThat(result).isNotNull().isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> predicate = (UnboundPredicate<?>) result;
+    assertThat(predicate.literals()).hasSize(2);
+    // All literals should use the signed comparator
+    predicate
+        .literals()
+        .forEach(
+            lit -> {
+              assertThat(lit)
+                  .isInstanceOf(Literals.UUIDLiteral.class)
+                  .asInstanceOf(InstanceOfAssertFactories.type(Literals.UUIDLiteral.class))
+                  .extracting("useSignedComparator")
+                  .isEqualTo(true);
+            });
   }
 
   @Test
@@ -1445,11 +1451,23 @@ public class TestExpressionUtil {
             Expressions.equal("id", 42L), Expressions.greaterThan("uuid_col", testUuid));
 
     Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
-    assertThat(result).isNotNull();
-    assertThat(result).isInstanceOf(And.class);
+    assertThat(result).isNotNull().isInstanceOf(And.class);
     And and = (And) result;
-    // Both children should be transformed
+
+    // Verify the non-UUID predicate is unchanged
     assertThat(and.left()).isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> leftPredicate = (UnboundPredicate<?>) and.left();
+    assertThat(leftPredicate.literal())
+        .isInstanceOf(Literals.LongLiteral.class)
+        .extracting("value")
+        .isEqualTo(42L);
+
+    // Verify the UUID predicate is transformed with signed comparator
     assertThat(and.right()).isInstanceOf(UnboundPredicate.class);
+    UnboundPredicate<?> rightPredicate = (UnboundPredicate<?>) and.right();
+    assertThat(rightPredicate.literal())
+        .isInstanceOf(Literals.UUIDLiteral.class)
+        .extracting("useSignedComparator")
+        .isEqualTo(true);
   }
 }

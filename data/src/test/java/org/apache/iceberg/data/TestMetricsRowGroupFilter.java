@@ -162,6 +162,17 @@ public class TestMetricsRowGroupFilter {
   private static final UUID UUID_WITH_ZEROS =
       UUID.fromString("00000000-0000-0000-0000-000000000000");
 
+  // UUIDs for testing dual-comparator behavior with high-bit values
+  // These UUIDs span the signed/unsigned comparison boundary
+  private static final UUID UUID_LOW = UUID.fromString("00000000-0000-0000-0000-000000000001");
+  private static final UUID UUID_MID = UUID.fromString("40000000-0000-0000-0000-000000000001");
+  private static final UUID UUID_HIGH = UUID.fromString("80000000-0000-0000-0000-000000000001");
+  private static final UUID UUID_HIGHER = UUID.fromString("c0000000-0000-0000-0000-000000000001");
+
+  private static final Schema UUID_SCHEMA =
+      new Schema(
+          required(1, "id", IntegerType.get()), optional(2, "uuid_col", Types.UUIDType.get()));
+
   private File orcFile = null;
   private MessageType parquetSchema = null;
   private BlockMetaData rowGroupMetadata = null;
@@ -1137,17 +1148,6 @@ public class TestMetricsRowGroupFilter {
         .as("Should read: column contains null values not in the exclusion list")
         .isTrue();
   }
-
-  // UUIDs for testing dual-comparator behavior with high-bit values
-  // These UUIDs span the signed/unsigned comparison boundary
-  private static final UUID UUID_LOW = UUID.fromString("00000000-0000-0000-0000-000000000001");
-  private static final UUID UUID_MID = UUID.fromString("40000000-0000-0000-0000-000000000001");
-  private static final UUID UUID_HIGH = UUID.fromString("80000000-0000-0000-0000-000000000001");
-  private static final UUID UUID_HIGHER = UUID.fromString("c0000000-0000-0000-0000-000000000001");
-
-  private static final Schema UUID_SCHEMA =
-      new Schema(
-          required(1, "id", IntegerType.get()), optional(2, "uuid_col", Types.UUIDType.get()));
 
   /**
    * Tests UUID filtering with values that span the signed/unsigned comparison boundary. In RFC 9562
