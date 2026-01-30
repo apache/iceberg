@@ -21,38 +21,33 @@ package org.apache.iceberg.index;
 import java.util.Map;
 
 /**
- * A version of the index at a point in time.
+ * A version of the {@link Index} created at a specific point in time, defined by user‑provided
+ * properties.
  *
- * <p>A version consists of index metadata and user-supplied properties.
- *
- * <p>Versions are created by index operations, like Create and Alter.
+ * <p>Versions are added to the index using the {@link AddIndexVersion} operation.
  */
 public interface IndexVersion {
 
   /**
-   * Return this version's id.
+   * Returns this version's unique identifier.
    *
    * <p>Version ids are monotonically increasing.
-   *
-   * @return the version ID
    */
   int versionId();
 
   /**
-   * Return this version's timestamp.
+   * Returns this version's creation timestamp in milliseconds since epoch.
    *
    * <p>This timestamp is the same as those produced by {@link System#currentTimeMillis()}.
-   *
-   * @return a long timestamp in milliseconds
    */
   long timestampMillis();
 
   /**
-   * Return the user-supplied properties for this version.
+   * Returns the user-supplied properties for this version.
    *
    * <p>A map of index properties, represented as string-to-string pairs, supplied by the user.
    *
-   * @return a map of string properties, or null if not set
+   * @return an unmodifiable of properties, or empty if none set
    */
   Map<String, String> properties();
 }

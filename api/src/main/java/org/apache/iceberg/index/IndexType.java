@@ -27,16 +27,32 @@ import java.util.Locale;
  * behavior of the index.
  */
 public enum IndexType {
-  /** Bloom Filter File Skipping Index for efficient search in low cardinality columns. */
+  /**
+   * Bloom Filter index for probabilistic file testing.
+   *
+   * <p>Efficient for file skipping on low cardinality columns with equality or in predicates.
+   */
   BLOOM("bloom"),
 
-  /** B-Tree index for efficient range queries and point lookups on orderable columns. */
+  /**
+   * B-Tree index for ordered data access.
+   *
+   * <p>Efficient for range queries and point lookups on orderable columns.
+   */
   BTREE("btree"),
 
-  /** Term index for full-text search capabilities. */
+  /**
+   * Term index for full-text search capabilities.
+   *
+   * <p>Efficient for text matching, tokenized search, and keyword lookups on string columns.
+   */
   TERM("term"),
 
-  /** IVF (Inverted File) index for vector similarity search. */
+  /**
+   * IVF (Inverted File) index for vector similarity search.
+   *
+   * <p>Efficient for approximate nearest neighbor queries on high-dimensional vector columns.
+   */
   IVF("ivf");
 
   private final String name;
@@ -55,6 +71,7 @@ public enum IndexType {
         return type;
       }
     }
+
     throw new IllegalArgumentException(
         String.format("Unknown index type: %s", typeName.toLowerCase(Locale.ROOT)));
   }

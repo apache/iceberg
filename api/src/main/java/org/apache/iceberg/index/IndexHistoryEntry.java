@@ -19,7 +19,7 @@
 package org.apache.iceberg.index;
 
 /**
- * Index history entry.
+ * Represents a history entry for an {@link Index}.
  *
  * <p>An entry contains a change to the index state. At the given timestamp, the current version was
  * set to the given version ID.
@@ -28,8 +28,8 @@ package org.apache.iceberg.index;
  * allows reconstructing what version of the index would have been used at some point in time.
  *
  * <p>Note that this is not the version's creation time, which is stored in each version's metadata.
- * A version can appear multiple times in the version log, indicating that the index definition was
- * rolled back.
+ * An {@link IndexVersion} can appear multiple times in the version log, indicating that the index
+ * definition was rolled back.
  */
 public interface IndexHistoryEntry {
 
@@ -37,8 +37,6 @@ public interface IndexHistoryEntry {
    * Return the timestamp in milliseconds of the change.
    *
    * <p>Timestamp when the index's current-version-id was updated (ms from epoch).
-   *
-   * @return the timestamp in milliseconds
    */
   long timestampMillis();
 
@@ -46,8 +44,6 @@ public interface IndexHistoryEntry {
    * Return ID of the new current version.
    *
    * <p>ID that current-version-id was set to.
-   *
-   * @return the version ID
    */
   int versionId();
 }

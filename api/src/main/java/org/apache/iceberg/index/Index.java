@@ -70,7 +70,8 @@ public interface Index {
   /**
    * Return the column IDs contained by this index.
    *
-   * <p>The ids of the columns contained by the index.
+   * <p>The ids of the columns contained by the index. Must be supplied during the creation of an
+   * index and must not be changed.
    *
    * @return a list of column IDs
    */
@@ -79,7 +80,8 @@ public interface Index {
   /**
    * Return the column IDs that this index is optimized for.
    *
-   * <p>The ids of the columns that the index is designed to optimize for retrieval.
+   * <p>The ids of the columns that the index is designed to optimize for retrieval. Must be
+   * supplied during the creation of an index and must not be changed.
    *
    * @return a list of column IDs
    */
@@ -94,25 +96,17 @@ public interface Index {
    */
   String location();
 
-  /**
-   * Return the ID of the current version of this index.
-   *
-   * @return the current version ID
-   */
+  /** Return the ID of the current version of this index. */
   int currentVersionId();
 
-  /**
-   * Get the current version for this index, or null if there are no versions.
-   *
-   * @return the current index version
-   */
+  /** Get the current version for this index. */
   IndexVersion currentVersion();
 
   /**
    * Get the versions of this index.
    *
    * <p>A list of known versions of the index, the number of versions retained is
-   * implementation-specific. current-version-id must be present in this list.
+   * implementation-specific. A version with a current-version-id must be present in this list.
    *
    * @return an Iterable of versions of this index
    */
@@ -151,7 +145,7 @@ public interface Index {
    * Get a snapshot in this index by index snapshot ID.
    *
    * @param indexSnapshotId index snapshot ID
-   * @return a snapshot, or null if the ID cannot be found
+   * @return a snapshot, or <code>null</code> if the ID cannot be found
    */
   IndexSnapshot snapshot(long indexSnapshotId);
 
@@ -159,42 +153,26 @@ public interface Index {
    * Get a snapshot in this index by table snapshot ID.
    *
    * @param tableSnapshotId table snapshot ID
-   * @return a snapshot, or null if no index snapshot exists for the table snapshot
+   * @return a snapshot, or <code>null</code> if no index snapshot exists for the table snapshot
    */
   IndexSnapshot snapshotForTableSnapshot(long tableSnapshotId);
 
-  /**
-   * Create a new {@link UpdateIndexProperties} to replace the properties for the index.
-   *
-   * @return a new {@link UpdateIndexProperties}
-   */
-  default UpdateIndexProperties updateProperties() {
-    throw new UnsupportedOperationException("Updating index properties is not supported.");
+  /** Create a new {@link AddIndexVersion} to replace the properties for the index. */
+  default AddIndexVersion addVersion() {
+    throw new UnsupportedOperationException("Updating index version is not supported.");
   }
 
-  /**
-   * Create a new {@link UpdateLocation} to set the index's location.
-   *
-   * @return a new {@link UpdateLocation}
-   */
+  /** Create a new {@link UpdateLocation} to set the index's location. */
   default UpdateLocation updateLocation() {
     throw new UnsupportedOperationException("Updating index location is not supported.");
   }
 
-  /**
-   * Create a new {@link AddIndexSnapshot} to for the index.
-   *
-   * @return a new {@link AddIndexSnapshot}
-   */
+  /** Create a new {@link AddIndexSnapshot} for the index. */
   default AddIndexSnapshot addIndexSnapshot() {
     throw new UnsupportedOperationException("Adding index snapshot is not supported.");
   }
 
-  /**
-   * Create a new {@link RemoveIndexSnapshots} to remove snapshots from the index.
-   *
-   * @return a new {@link RemoveIndexSnapshots}
-   */
+  /** Create a new {@link RemoveIndexSnapshots} to remove snapshots from the index. */
   default RemoveIndexSnapshots removeIndexSnapshots() {
     throw new UnsupportedOperationException("Removing index snapshots is not supported.");
   }

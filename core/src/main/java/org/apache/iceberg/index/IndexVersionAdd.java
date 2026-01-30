@@ -28,88 +28,76 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 
-class IndexPropertiesUpdate implements UpdateIndexProperties {
+class IndexVersionAdd implements AddIndexVersion {
   private final IndexOperations ops;
-  private final Map<String, String> updates = Maps.newHashMap();
-  private final Set<String> removals = Sets.newHashSet();
+  private final Map<String, String> properties = Maps.newHashMap();
   private IndexMetadata base;
 
-  IndexPropertiesUpdate(IndexOperations ops) {
+  IndexVersionAdd(IndexOperations ops) {
     this.ops = ops;
     this.base = ops.current();
   }
 
   @Override
-  public Map<String, String> apply() {
-    return internalApply().currentVersion().properties();
+  public IndexVersion apply() {
+    return internalApply().currentVersion();
   }
 
   @VisibleForTesting
   IndexMetadata internalApply() {
     this.base = ops.refresh();
 
-    Map<String, String> newProperties = Maps.newHashMap(base.currentVersion().properties());
-    removals.forEach(newProperties::remove);
-    newProperties.putAll(updates);
-
     return IndexMetadata.buildFrom(base)
         .setCurrentVersion(
             ImmutableIndexVersion.builder()
                 .timestampMillis(System.currentTimeMillis())
                 .versionId(base.currentVersionId())
-                .properties(newProperties)
+                .properties(properties)
                 .build())
         .build();
   }
 
   @Override
   public void commit() {
-    Map<String, String> properties =
+    Map<String, String> currentProperties =
         base.currentVersion().properties() != null
             ? base.currentVersion().properties()
             : Maps.newHashMap();
     Tasks.foreach(ops)
         .retry(
-            PropertyUtil.propertyAsInt(properties, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+            PropertyUtil.propertyAsInt(
+                currentProperties, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
             PropertyUtil.propertyAsInt(
-                properties, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+                currentProperties, COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
             PropertyUtil.propertyAsInt(
-                properties, COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+                currentProperties, COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
             PropertyUtil.propertyAsInt(
-                properties, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+                currentProperties, COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
         .run(taskOps -> taskOps.commit(base, internalApply()));
   }
 
   @Override
-  public UpdateIndexProperties set(String key, String value) {
-    Preconditions.checkArgument(null != key, "Invalid key: null");
-    Preconditions.checkArgument(null != value, "Invalid value: null");
-    Preconditions.checkArgument(
-        !removals.contains(key), "Cannot remove and update the same key: %s", key);
-
-    updates.put(key, value);
+  public AddIndexVersion withProperties(Map<String, String> newProperties) {
+    newProperties.forEach(this::withProperty);
     return this;
   }
 
   @Override
-  public UpdateIndexProperties remove(String key) {
+  public AddIndexVersion withProperty(String key, String value) {
     Preconditions.checkArgument(null != key, "Invalid key: null");
-    Preconditions.checkArgument(
-        !updates.containsKey(key), "Cannot remove and update the same key: %s", key);
+    Preconditions.checkArgument(null != value, "Invalid value: null");
 
-    removals.add(key);
+    properties.put(key, value);
     return this;
   }
 }

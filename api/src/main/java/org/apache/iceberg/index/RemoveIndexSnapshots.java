@@ -23,38 +23,33 @@ import java.util.Set;
 import org.apache.iceberg.PendingUpdate;
 
 /**
- * A builder interface for removing {@link IndexSnapshot} instances from an index.
+ * A builder interface for removing {@link IndexSnapshot} instances from an {@link Index}.
  *
- * <p>This API accumulates snapshot deletions and commits the new list to the index metadata.
+ * <p>This API accumulates snapshot deletions and the {@link #apply()} method returns the collected
+ * list for validation.
  *
- * <p>When committing, these changes will be applied to the current index metadata. Commit conflicts
- * will be resolved by applying the pending changes to the new index metadata.
+ * <p>When committing, the collected snapshots will be removed from the index metadata.
  *
- * <p>{@link #apply()} returns a list of the snapshots that will be removed.
+ * <p>Commit conflicts will be resolved by applying the pending changes to the new index metadata.
  */
 public interface RemoveIndexSnapshots extends PendingUpdate<List<IndexSnapshot>> {
 
   /**
-   * Add a snapshot to remove by its index snapshot ID.
+   * Adds a snapshot to remove by its index snapshot ID.
    *
    * @param indexSnapshotId the index snapshot ID to remove
-   * @return this for method chaining
    */
   RemoveIndexSnapshots removeSnapshotById(long indexSnapshotId);
 
   /**
-   * Add multiple snapshots to remove by their index snapshot IDs.
+   * Adds multiple snapshots to remove by their index snapshot IDs.
    *
    * @param indexSnapshotIds the index snapshot IDs to remove
-   * @return this for method chaining
    */
   RemoveIndexSnapshots removeSnapshotsByIds(Set<Long> indexSnapshotIds);
 
   /**
-   * Add multiple snapshots to remove by their index snapshot IDs.
-   *
-   * @param indexSnapshotIds the index snapshot IDs to remove
-   * @return this for method chaining
+   * Varargs overload of @see #removeSnapshotsByIds(Set)
    */
   RemoveIndexSnapshots removeSnapshotsByIds(long... indexSnapshotIds);
 }

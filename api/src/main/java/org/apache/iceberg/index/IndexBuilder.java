@@ -36,7 +36,6 @@ public interface IndexBuilder
    * Set the index type.
    *
    * @param type the type of the index (e.g., BTREE, TERM, IVF)
-   * @return this for method chaining
    */
   IndexBuilder withType(IndexType type);
 
@@ -44,7 +43,6 @@ public interface IndexBuilder
    * Set the column IDs to be stored losslessly in the index.
    *
    * @param columnIds the IDs of columns contained by the index
-   * @return this for method chaining
    */
   IndexBuilder withIndexColumnIds(List<Integer> columnIds);
 
@@ -52,15 +50,13 @@ public interface IndexBuilder
    * Set the column IDs to be stored losslessly in the index.
    *
    * @param columnIds the IDs of columns contained by the index
-   * @return this for method chaining
    */
   IndexBuilder withIndexColumnIds(int... columnIds);
 
   /**
-   * Set the column IDs that this index is optimized for.
+   * Set the column IDs that this index is optimized for retrieval operations.
    *
    * @param columnIds the IDs of columns the index is optimized for retrieval
-   * @return this for method chaining
    */
   IndexBuilder withOptimizedColumnIds(List<Integer> columnIds);
 
@@ -68,7 +64,6 @@ public interface IndexBuilder
    * Set the column IDs that this index is optimized for.
    *
    * @param columnIds the IDs of columns the index is optimized for retrieval
-   * @return this for method chaining
    */
   IndexBuilder withOptimizedColumnIds(int... columnIds);
 
@@ -76,7 +71,6 @@ public interface IndexBuilder
    * Sets a location for the index.
    *
    * @param location the base location to set for the index; used to create index file locations
-   * @return this for method chaining
    */
   default IndexBuilder withLocation(String location) {
     throw new UnsupportedOperationException("Setting an index's location is not supported");

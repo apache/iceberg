@@ -119,8 +119,8 @@ public class BaseIndex implements Index, Serializable {
   }
 
   @Override
-  public UpdateIndexProperties updateProperties() {
-    return new IndexPropertiesUpdate(ops);
+  public AddIndexVersion addVersion() {
+    return new IndexVersionAdd(ops);
   }
 
   @Override
