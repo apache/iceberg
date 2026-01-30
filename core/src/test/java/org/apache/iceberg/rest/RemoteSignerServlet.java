@@ -27,7 +27,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.hc.core5.http.ContentType;
@@ -57,8 +57,7 @@ public abstract class RemoteSignerServlet extends HttpServlet {
   private static final String CACHE_CONTROL_PRIVATE = "private";
   private static final String CACHE_CONTROL_NO_CACHE = "no-cache";
 
-  private static final Set<HttpMethod> CACHEABLE_METHODS =
-      EnumSet.of(HttpMethod.GET, HttpMethod.HEAD);
+  private static final Set<String> CACHEABLE_METHODS = Set.of("GET", "HEAD");
 
   private static final Map<String, String> RESPONSE_HEADERS =
       ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
@@ -115,7 +114,7 @@ public abstract class RemoteSignerServlet extends HttpServlet {
    * @param response the HTTP response to add headers to
    */
   protected void addSignResponseHeaders(RemoteSignRequest request, HttpServletResponse response) {
-    if (CACHEABLE_METHODS.contains(HttpMethod.valueOf(request.method()))) {
+    if (CACHEABLE_METHODS.contains(request.method().toUpperCase(Locale.ROOT))) {
       // tell the client this can be cached
       response.setHeader(CACHE_CONTROL, CACHE_CONTROL_PRIVATE);
     } else {
