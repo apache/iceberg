@@ -1001,9 +1001,10 @@ paths:
             finding the first dot character after the last namespace separator.
 
             Multiple view identifiers are separated by commas. Servers should split the parameter value on comma characters
-            to parse individual view identifiers. If view names contain commas, they must be url-coded as %2C.
+            to parse individual view identifiers. If view names contain commas, they must be url-encoded as %2C.
 
-            Example with multiple views (where prod%1Fanalytics refers to a nested namespace) - prod%1Fanalytics.quarterly_view,prod%1Fanalytics.monthly_view
+            Example with multiple views (where prod%1Fanalytics is a nested namespace which has a quarterly_view which references to monthly_view
+            which then references to table being loaded) - prod%1Fanalytics.quarterly_view,prod%1Fanalytics.monthly_view
           required: false
           schema:
             type: string
