@@ -600,8 +600,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .next();
 
     // Create first position delete file
-    List<Pair<CharSequence, Long>> deletes1 =
-        Lists.newArrayList(Pair.of(dataFile.location(), 0L));
+    List<Pair<CharSequence, Long>> deletes1 = Lists.newArrayList(Pair.of(dataFile.location(), 0L));
     File file1 =
         new File(
             removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes_1.parquet"));
@@ -616,8 +615,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     long snapshot1 = tableWithPosDeletes.currentSnapshot().snapshotId();
 
     // Create second position delete file
-    List<Pair<CharSequence, Long>> deletes2 =
-        Lists.newArrayList(Pair.of(dataFile.location(), 1L));
+    List<Pair<CharSequence, Long>> deletes2 = Lists.newArrayList(Pair.of(dataFile.location(), 1L));
     File file2 =
         new File(
             removePrefix(tableWithPosDeletes.location() + "/data/deeply/nested/deletes_2.parquet"));
