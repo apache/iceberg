@@ -3737,13 +3737,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     int numBranches = 5;
     int numRounds = 10;
 
-    RESTCatalog restCatalog = catalog();
+    RESTCatalog catalog = catalog();
 
     Namespace ns = Namespace.of("concurrent_test");
     TableIdentifier tableIdent = TableIdentifier.of(ns, "test_table");
 
-    restCatalog.createNamespace(ns);
-    Table table = restCatalog.buildTable(tableIdent, SCHEMA).withPartitionSpec(SPEC).create();
+    catalog.createNamespace(ns);
+    Table table = catalog.buildTable(tableIdent, SCHEMA).withPartitionSpec(SPEC).create();
 
     // Disable retries so we can count exact conflicts
     table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "-1").commit();
@@ -3776,7 +3776,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 int currentRound = round;
 
                 // Load table
-                Table localTable = restCatalog.loadTable(tableIdent);
+                Table localTable = catalog.loadTable(tableIdent);
 
                 DataFile newFile =
                     DataFiles.builder(SPEC)
