@@ -1318,6 +1318,47 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/tables/batch-load:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/data-access'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Load a batch of tables from the catalog
+      operationId: batchLoadTables
+      description: |
+        Load a batch of tables from the catalog.
+
+        200 status may have tables that were not found or not modified.
+        Response payload contains a list of table load results.
+        Each item has a status code (integer) that indicates the individual table result: 200 (Ok), 304 (NotModified), 404 (NotFound).
+
+        403 status indicates the requester is not authorized to access one or more tables in the request.
+      requestBody:
+        description: The request containing the batch of requested tables
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchLoadTablesRequest'
+        required: true
+      responses:
+        200:
+          $ref: '#/components/responses/BatchLoadTablesResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/BatchLoadTablesForbiddenResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -1897,6 +1938,47 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/views/batch-load:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Load a batch of views from the catalog
+      operationId: batchLoadViews
+      description: |
+        Load a batch of views from the catalog.
+
+        200 status may have views that were not found.
+        Response payload contains a list of view load results.
+        Each item has a status code (integer) that indicates the individual view result: 200 (Ok), 404 (NotFound).
+
+        403 status indicates the requester is not authorized to access one or more views in the request.
+      requestBody:
+        description: The request containing the batch of requested views
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchLoadViewsRequest'
+        required: true
+      responses:
+        200:
+          $ref: '#/components/responses/BatchLoadViewsResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/BatchLoadViewsForbiddenResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+
 components:
   #######################################################
   # Common Parameter Definitions Used In Several Routes #
@@ -2183,6 +2265,157 @@ components:
           $ref: '#/components/schemas/TableIdentifier'
         destination:
           $ref: '#/components/schemas/TableIdentifier'
+
+    BatchLoadTablesRequest:
+      type: object
+      required:
+        - tables
+      properties:
+        tables:
+          description:
+            "List of tables to load. The `identifier` field for each table must be unique
+            across all items in the array"
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchLoadRequestedTable'
+
+    BatchLoadRequestedTable:
+      type: object
+      required:
+        - identifier
+      properties:
+        identifier:
+          $ref: '#/components/schemas/TableIdentifier'
+        if-non-match:
+          type: string
+          description:
+            "ETag value. if it matches the current table ETag, the server can skip table metadata in response"
+        requested-snapshots:
+          type: string
+          enum: ["all", "refs"]
+
+    BatchLoadTablesResultItem:
+      description: Result item for a single table in a batch load response
+      type: object
+      required:
+        - identifier
+        - status
+      properties:
+        identifier:
+          $ref: '#/components/schemas/TableIdentifier'
+        status:
+          description:
+            Load table status.
+
+            200 indicates the table was loaded successfully and the `result` field is populated.
+            304 indicates the table hasn't changed since the provided ETag, and the `result` field is omitted.
+            404 indicates the table identifier does not exist, and the `result` field is omitted.
+          type: integer
+          enum: [200, 304, 404]
+        etag:
+          description: Identifies a unique version of the table metadata
+          type: string
+        result:
+          $ref: '#/components/schemas/LoadTableResult'
+
+    BatchLoadTablesResult:
+      description: |
+        Results used when a batch of tables are successfully loaded.
+
+        Each table in the request will have a corresponding item in the results list.
+        Each item has an individual status field indicate the load result: Ok, NotModified, NotFound.
+      type: object
+      required:
+        - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchLoadTablesResultItem'
+        unprocessed-tables:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchLoadRequestedTable'
+
+    BatchLoadTablesForbiddenResponseResult:
+      description: |
+        Results used when the batch load request is forbidden due to lack of permissions on one or more tables.
+
+        The response contains a list of table identifiers that were not accessible.
+      allOf:
+        - $ref: '#/components/schemas/ErrorModel'
+      type: object
+      required:
+        - forbidden-tables
+      properties:
+        forbidden-tables:
+          type: array
+          items:
+            $ref: '#/components/schemas/TableIdentifier'
+
+    BatchLoadViewsForbiddenResponseResult:
+      description: |
+        Results used when the batch load request is forbidden due to lack of permissions on one or more views.
+
+        The response contains a list of view identifiers that were not accessible.
+      allOf:
+        - $ref: '#/components/schemas/ErrorModel'
+      type: object
+      required:
+        - forbidden-views
+      properties:
+        forbidden-views:
+          type: array
+          items:
+            $ref: '#/components/schemas/TableIdentifier'
+
+    BatchLoadViewsRequest:
+      type: object
+      required:
+        - views
+      properties:
+        views:
+          description:
+            "List of views to load. The `identifier` field for each view must be unique
+            across all items in the array"
+          type: array
+          items:
+            $ref: '#/components/schemas/TableIdentifier'
+
+    BatchLoadViewsResultItem:
+      description: Result item for a single view in a batch load response
+      type: object
+      required:
+        - identifier
+        - status
+      properties:
+        identifier:
+          $ref: '#/components/schemas/TableIdentifier'
+        status:
+          description:
+            Load view status.
+
+            200 indicates the view was loaded successfully and the `result` field is populated.
+            404 indicates the view identifier does not exist, and the `result` field is omitted.
+          type: integer
+          enum: [200, 404]
+        result:
+          $ref: '#/components/schemas/LoadViewResult'
+
+    BatchLoadViewsResult:
+      description: |
+        Results used when a batch of views are successfully loaded.
+
+        Each view in the request will have a corresponding item in the results list.
+        Each item has an individual status code that indicates the load result: 200 (Ok), 404 (NotFound).
+      type: object
+      required:
+        - views
+      properties:
+        views:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchLoadViewsResultItem'
 
     Namespace:
       description: Reference to one or more levels of a namespace
@@ -4947,12 +5180,42 @@ components:
         etag:
           $ref: '#/components/parameters/etag'
 
+    BatchLoadTablesResponse:
+      description: Results of loading a batch of tables
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchLoadTablesResult'
+
+    BatchLoadTablesForbiddenResponse:
+      description:
+        Forbidden. Authenticated user does not have the necessary permissions to load one or more tables in the batch.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchLoadTablesForbiddenResponseResult'
+
     LoadViewResponse:
       description: View metadata result when loading a view
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadViewResult'
+
+    BatchLoadViewsResponse:
+      description: Results of loading a batch of views
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchLoadViewsResult'
+
+    BatchLoadViewsForbiddenResponse:
+      description:
+        Forbidden. Authenticated user does not have the necessary permissions to load one or more views in the batch.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchLoadViewsForbiddenResponseResult'
 
     CommitTableResponse:
       description:
