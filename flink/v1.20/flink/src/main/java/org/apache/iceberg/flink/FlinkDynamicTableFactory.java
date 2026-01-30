@@ -142,17 +142,16 @@ public class FlinkDynamicTableFactory
 
     mergedProps.forEach(flinkConf::setString);
 
-    String catalogName = flinkConf.getString(FlinkCreateTableOptions.CATALOG_NAME);
+    String catalogName = flinkConf.get(FlinkCreateTableOptions.CATALOG_NAME);
     Preconditions.checkNotNull(
         catalogName,
         "Table property '%s' cannot be null",
         FlinkCreateTableOptions.CATALOG_NAME.key());
 
-    String catalogDatabase =
-        flinkConf.getString(FlinkCreateTableOptions.CATALOG_DATABASE, databaseName);
+    String catalogDatabase = flinkConf.get(FlinkCreateTableOptions.CATALOG_DATABASE, databaseName);
     Preconditions.checkNotNull(catalogDatabase, "The iceberg database name cannot be null");
 
-    String catalogTable = flinkConf.getString(FlinkCreateTableOptions.CATALOG_TABLE, tableName);
+    String catalogTable = flinkConf.get(FlinkCreateTableOptions.CATALOG_TABLE, tableName);
     Preconditions.checkNotNull(catalogTable, "The iceberg table name cannot be null");
 
     org.apache.hadoop.conf.Configuration hadoopConf = FlinkCatalogFactory.clusterHadoopConf();

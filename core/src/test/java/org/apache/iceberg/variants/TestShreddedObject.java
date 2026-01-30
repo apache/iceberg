@@ -214,6 +214,28 @@ public class TestShreddedObject {
   }
 
   @Test
+  public void testPartiallyShreddedUnserializedObjectSerializationMinimalBuffer() {
+    ShreddedObject partial = createUnserializedObject(FIELDS);
+    VariantMetadata metadata = partial.metadata();
+
+    // replace field c with a new value
+    partial.put("c", Variants.ofIsoDate("2024-10-12"));
+    partial.remove("b");
+
+    VariantValue value = roundTripMinimalBuffer(partial, metadata);
+
+    assertThat(value).isInstanceOf(SerializedObject.class);
+    SerializedObject actual = (SerializedObject) value;
+
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").type()).isEqualTo(PhysicalType.DATE);
+    assertThat(actual.get("c").asPrimitive().get())
+        .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
+  }
+
+  @Test
   public void testPartiallyShreddedObjectSerializationLargeBuffer() {
     ShreddedObject partial = createUnshreddedObject(FIELDS);
     VariantMetadata metadata = partial.metadata();
@@ -233,6 +255,29 @@ public class TestShreddedObject {
     assertThat(actual.get("c").type()).isEqualTo(PhysicalType.DATE);
     assertThat(actual.get("c").asPrimitive().get())
         .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
+  }
+
+  @Test
+  public void testRemoveInvalidatesSerializationState() {
+    ShreddedObject object = createShreddedObject(FIELDS);
+    VariantMetadata metadata = object.metadata();
+
+    // warm the serialization cache
+    VariantValue first = roundTripMinimalBuffer(object, metadata);
+    assertThat(first).isInstanceOf(SerializedObject.class);
+    assertThat(((SerializedObject) first).numFields()).isEqualTo(3);
+
+    // remove a field after caching
+    object.remove("b");
+    assertThat(object.get("b")).as("removed field should be hidden from reads").isNull();
+    assertThat(object.numFields()).as("numFields should reflect removal").isEqualTo(2);
+
+    // re-serialize: should not include the removed field
+    VariantValue second = roundTripMinimalBuffer(object, metadata);
+    assertThat(second).isInstanceOf(SerializedObject.class);
+    SerializedObject actual = (SerializedObject) second;
+    assertThat(actual.numFields()).isEqualTo(2);
+    assertThat(actual.get("b")).as("removed field must not be serialized").isNull();
   }
 
   @ParameterizedTest
@@ -379,6 +424,12 @@ public class TestShreddedObject {
     }
 
     return object;
+  }
+
+  private static ShreddedObject createUnserializedObject(Map<String, VariantValue> fields) {
+    ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(fields.keySet(), false);
+    VariantMetadata metadata = SerializedMetadata.from(metadataBuffer);
+    return new ShreddedObject(metadata, createShreddedObject(metadata, fields));
   }
 
   /** Creates a ShreddedObject with fields in its shredded map */

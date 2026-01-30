@@ -211,6 +211,7 @@ public abstract class S3V4RestSignerClient
     checkSignerParams(signerParams);
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   protected void processRequestPayload(
       SdkHttpFullRequest.Builder mutableRequest,
