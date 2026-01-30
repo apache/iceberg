@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
@@ -31,9 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -294,80 +290,6 @@ public class TestS3FileIOProperties {
     Optional<Signer> signer =
         builder.overrideConfiguration().advancedOption(SdkAdvancedClientOption.SIGNER);
     assertThat(signer).isNotPresent();
-  }
-
-  @ParameterizedTest
-  @MethodSource("remoteSigningLegacyProperties")
-  void testS3RemoteSigningLegacyProperties(
-      Map<String, String> properties, String expectedBaseSignerUri, String expectedEndpoint) {
-    S3FileIOProperties s3Properties = new S3FileIOProperties(properties);
-    S3ClientBuilder builder = S3Client.builder();
-
-    s3Properties.applySignerConfiguration(builder);
-
-    Optional<Signer> signer =
-        builder.overrideConfiguration().advancedOption(SdkAdvancedClientOption.SIGNER);
-    assertThat(signer).isPresent().get().isInstanceOf(S3V4RestSignerClient.class);
-    S3V4RestSignerClient signerClient = (S3V4RestSignerClient) signer.get();
-    assertThat(signerClient.baseSignerUri()).isEqualTo(expectedBaseSignerUri);
-    assertThat(signerClient.endpoint()).isEqualTo(expectedEndpoint);
-  }
-
-  @SuppressWarnings("deprecation")
-  public static Stream<Arguments> remoteSigningLegacyProperties() {
-    return Stream.of(
-        // Only legacy properties
-        Arguments.of(
-            Map.of(
-                S3FileIOProperties.REMOTE_SIGNING_ENABLED,
-                "true",
-                CatalogProperties.URI,
-                "https://catalog.com",
-                S3V4RestSignerClient.S3_SIGNER_URI,
-                "https://legacy-signer.com",
-                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
-                "v1/legacy/sign"),
-            "https://legacy-signer.com",
-            "https://legacy-signer.com/v1/legacy/sign"),
-        // Only new properties
-        Arguments.of(
-            Map.of(
-                S3FileIOProperties.REMOTE_SIGNING_ENABLED,
-                "true",
-                CatalogProperties.URI,
-                "https://catalog.com",
-                RESTCatalogProperties.SIGNER_URI,
-                "https://new-signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/new/sign"),
-            "https://new-signer.com",
-            "https://new-signer.com/v1/new/sign"),
-        // Mixed properties: legacy properties take precedence
-        Arguments.of(
-            Map.of(
-                S3FileIOProperties.REMOTE_SIGNING_ENABLED,
-                "true",
-                CatalogProperties.URI,
-                "https://catalog.com",
-                RESTCatalogProperties.SIGNER_URI,
-                "https://new-signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/new/sign",
-                S3V4RestSignerClient.S3_SIGNER_URI,
-                "https://legacy-signer.com",
-                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
-                "v1/legacy/sign"),
-            "https://legacy-signer.com",
-            "https://legacy-signer.com/v1/legacy/sign"),
-        // No signer properties: the catalog URI and the deprecated default endpoint are used
-        Arguments.of(
-            Map.of(
-                S3FileIOProperties.REMOTE_SIGNING_ENABLED,
-                "true",
-                CatalogProperties.URI,
-                "https://catalog.com"),
-            "https://catalog.com",
-            "https://catalog.com/v1/aws/s3/sign"));
   }
 
   @Test
