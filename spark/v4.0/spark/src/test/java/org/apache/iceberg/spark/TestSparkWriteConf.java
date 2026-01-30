@@ -632,9 +632,13 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testExtraSnapshotMetadataPersistedOnRowLevelDelete() {
+  public void testExtraSnapshotMetadataOnCopyOnWriteDelete() {
     String propertyKey = "test-key";
     String propertyValue = "session-value";
+
+    // Set table to use copy-on-write for deletes
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.DELETE_MODE, "copy-on-write").commit();
 
     // Insert data to have rows to delete
     sql(
@@ -645,16 +649,16 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     withSQLConf(
         ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
         () -> {
-          // Row-level delete produces overwrite snapshot
+          // Row-level delete in copy-on-write mode produces overwrite snapshot
           sql("DELETE FROM %s WHERE id = 1", tableName);
-          Table table = validationCatalog.loadTable(tableIdent);
+          table.refresh();
           assertThat(table.currentSnapshot().operation()).isEqualTo("overwrite");
           assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
         });
   }
 
   @TestTemplate
-  public void testExtraSnapshotMetadataPersistedOnFileLevelDelete() {
+  public void testExtraSnapshotMetadataOnMetadataOnlyDelete() {
     String propertyKey = "test-key";
     String propertyValue = "session-value";
 
@@ -666,9 +670,35 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     withSQLConf(
         ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
         () -> {
-          // File-level delete (deleting entire partition) produces delete snapshot
+          // Metadata-only delete (deleting entire partition) produces delete snapshot
           sql("DELETE FROM %s WHERE date = DATE '2021-01-01'", tableName);
           Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.currentSnapshot().operation()).isEqualTo("delete");
+          assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
+        });
+  }
+
+  @TestTemplate
+  public void testExtraSnapshotMetadataOnMergeOnReadDelete() {
+    String propertyKey = "test-key";
+    String propertyValue = "session-value";
+
+    // Set table to use merge-on-read for deletes
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.DELETE_MODE, "merge-on-read").commit();
+
+    // Insert data to have rows to delete
+    sql(
+        "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00'), "
+            + "(2, 'b', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
+        tableName);
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
+        () -> {
+          // Row-level delete in merge-on-read mode produces delete snapshot
+          sql("DELETE FROM %s WHERE id = 1", tableName);
+          table.refresh();
           assertThat(table.currentSnapshot().operation()).isEqualTo("delete");
           assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
         });
