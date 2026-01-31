@@ -8,23 +8,6 @@ categories:
   - release
 ---
 
-<!--
- - Licensed to the Apache Software Foundation (ASF) under one or more
- - contributor license agreements.  See the NOTICE file distributed with
- - this work for additional information regarding copyright ownership.
- - The ASF licenses this file to You under the Apache License, Version 2.0
- - (the "License"); you may not use this file except in compliance with
- - the License.  You may obtain a copy of the License at
- -
- -   http://www.apache.org/licenses/LICENSE-2.0
- -
- - Unless required by applicable law or agreed to in writing, software
- - distributed under the License is distributed on an "AS IS" BASIS,
- - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- - See the License for the specific language governing permissions and
- - limitations under the License.
- -->
-
 The Apache Iceberg community is pleased to announce the 0.2.0 release of Apache Iceberg C++. This release includes [over 200 merged pull requests](https://github.com/apache/iceberg-cpp/compare/v0.1.0...v0.2.0) from 23 distinct contributors.
 
 The release notes below are not exhaustive and only expose selected highlights of the release. Many other bugfixes and improvements have been made: we refer you to the [complete changelog](https://github.com/apache/iceberg-cpp/releases/tag/v0.2.0) for details.
