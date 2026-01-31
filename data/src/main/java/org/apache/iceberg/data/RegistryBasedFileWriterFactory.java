@@ -136,14 +136,14 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
 
     try {
       FileWriterBuilder<EqualityDeleteWriter<T>, S> builder =
-          FormatModelRegistry.equalityDeleteWriteBuilder(
-              deleteFileFormat, inputType, file, equalityFieldIds);
+          FormatModelRegistry.equalityDeleteWriteBuilder(deleteFileFormat, inputType, file);
       return builder
           .setAll(properties)
           .setAll(writerProperties)
           .metricsConfig(metricsConfig)
           .schema(equalityDeleteRowSchema)
           .engineSchema(equalityDeleteInputSchema())
+          .equalityFieldIds(equalityFieldIds)
           .spec(spec)
           .partition(partition)
           .keyMetadata(keyMetadata)
