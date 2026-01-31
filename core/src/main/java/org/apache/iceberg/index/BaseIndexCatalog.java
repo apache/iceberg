@@ -40,11 +40,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Base implementation of {@link IndexCatalog} that provides common functionality for index catalog
- * operations.
- *
- * <p>This abstract class provides a base implementation for index catalogs, similar to how {@link
- * org.apache.iceberg.view.BaseMetastoreViewCatalog} provides a base for view catalogs.
+ * Base implementation of {@link IndexCatalog} that provides a base implementation for index
+ * catalogs.
  */
 public abstract class BaseIndexCatalog implements IndexCatalog {
   private static final Logger LOG = LoggerFactory.getLogger(BaseIndexCatalog.class);
@@ -141,6 +138,25 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
       throw new NoSuchTableException("Table does not exist: %s", tableIdentifier);
     }
 
+    return doListIndexes(tableIdentifier, types);
+  }
+
+  /**
+   * List all indexes for a table. Subclasses must implement this method.
+   *
+   * @param tableIdentifier the table identifier
+   * @return a list of index summaries
+   */
+  protected abstract List<IndexSummary> doListIndexes(TableIdentifier tableIdentifier);
+
+  /**
+   * List all indexes for a table. Subclasses could implement this method for efficient filtering.
+   *
+   * @param tableIdentifier the table identifier
+   * @param types the index types to filter by
+   * @return a list of index summaries
+   */
+  protected List<IndexSummary> doListIndexes(TableIdentifier tableIdentifier, IndexType[] types) {
     List<IndexSummary> allIndexes = doListIndexes(tableIdentifier);
 
     if (types == null || types.length == 0) {
@@ -152,14 +168,6 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
         .filter(summary -> typeFilter.contains(summary.type()))
         .collect(Collectors.toList());
   }
-
-  /**
-   * List all indexes for a table. Subclasses must implement this method.
-   *
-   * @param tableIdentifier the table identifier
-   * @return a list of index summaries
-   */
-  protected abstract List<IndexSummary> doListIndexes(TableIdentifier tableIdentifier);
 
   @Override
   public IndexBuilder buildIndex(IndexIdentifier identifier) {

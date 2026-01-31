@@ -1537,4 +1537,91 @@ public class TestIndexMetadata {
     assertThat(updated.changes().get(0)).isInstanceOf(IndexUpdate.RemoveSnapshots.class);
     assertThat(updated.changes().get(1)).isInstanceOf(IndexUpdate.AddSnapshot.class);
   }
+
+  @Test
+  public void versionConcurrency() {
+    IndexVersion indexVersion =
+        ImmutableIndexVersion.builder()
+            .versionId(1)
+            .timestampMillis(23L)
+            .properties(ImmutableMap.of())
+            .build();
+
+    IndexMetadata originalIndex =
+        IndexMetadata.builder()
+            .setLocation("custom-location")
+            .setType(IndexType.BTREE)
+            .setIndexColumnIds(INDEX_COLUMN_IDS)
+            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
+            .addVersion(indexVersion)
+            .setCurrentVersionId(1)
+            .build();
+
+    // Add version with new properties based on the originalIndex, call the result a newIndex
+    IndexVersion newVersionOne =
+        ImmutableIndexVersion.builder()
+            .versionId(2)
+            .timestampMillis(100L)
+            .properties(ImmutableMap.of("first", "update"))
+            .build();
+
+    IndexMetadata newIndex =
+        IndexMetadata.buildFrom(originalIndex).setCurrentVersion(newVersionOne).build();
+
+    List<IndexUpdate> firstUpdateChanges = newIndex.changes();
+
+    // Add version with another set of new properties based on the originalIndex
+    IndexVersion newVersionTwo =
+        ImmutableIndexVersion.builder()
+            .versionId(2)
+            .timestampMillis(200L)
+            .properties(ImmutableMap.of("second", "update"))
+            .build();
+
+    IndexMetadata secondUpdate =
+        IndexMetadata.buildFrom(originalIndex)
+            .setCurrentVersion(newVersionTwo)
+            .build();
+
+    // Validate secondUpdate state
+    assertThat(secondUpdate.versions()).hasSize(2);
+    assertThat(secondUpdate.version(1)).isNotNull();
+    assertThat(secondUpdate.version(2)).isNotNull();
+    assertThat(secondUpdate.version(2).properties()).containsEntry("second", "update");
+    assertThat(secondUpdate.currentVersionId()).isEqualTo(2);
+
+    List<IndexUpdate> secondUpdateChanges = secondUpdate.changes();
+
+    // Apply the changes from the second update to the newIndex
+    IndexMetadata.Builder builderAfterSecond = IndexMetadata.buildFrom(newIndex);
+    secondUpdateChanges.forEach(update -> update.applyTo(builderAfterSecond));
+    IndexMetadata indexAfterSecondApplied = builderAfterSecond.build();
+
+    // Verify that the final index has both new versions added
+    assertThat(indexAfterSecondApplied.versions()).hasSize(3);
+    assertThat(indexAfterSecondApplied.version(1)).isNotNull();
+    assertThat(indexAfterSecondApplied.version(2)).isNotNull();
+    assertThat(indexAfterSecondApplied.version(3)).isNotNull();
+    assertThat(indexAfterSecondApplied.version(2).properties()).containsEntry("first", "update");
+    assertThat(indexAfterSecondApplied.version(3).properties()).containsEntry("second", "update");
+    assertThat(indexAfterSecondApplied.currentVersionId()).isEqualTo(3);
+
+    // Apply the changes from the first update to the index resulting from the second update
+    IndexMetadata.Builder builderAfterThird = IndexMetadata.buildFrom(indexAfterSecondApplied);
+    firstUpdateChanges.forEach(update -> update.applyTo(builderAfterThird));
+    IndexMetadata indexAfterFirstAppliedAgain = builderAfterThird.build();
+
+    // Verify that the final index has both new versions added, and the current one is the first
+    // version added
+    assertThat(indexAfterFirstAppliedAgain.versions()).hasSize(3);
+    assertThat(indexAfterFirstAppliedAgain.version(1)).isNotNull();
+    assertThat(indexAfterFirstAppliedAgain.version(2)).isNotNull();
+    assertThat(indexAfterFirstAppliedAgain.version(3)).isNotNull();
+    assertThat(indexAfterFirstAppliedAgain.version(2).properties())
+        .containsEntry("first", "update");
+    assertThat(indexAfterFirstAppliedAgain.version(3).properties())
+        .containsEntry("second", "update");
+    // The current version should be the one from the first update
+    assertThat(indexAfterFirstAppliedAgain.currentVersionId()).isEqualTo(2);
+  }
 }

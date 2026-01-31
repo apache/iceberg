@@ -42,7 +42,9 @@ import org.immutables.value.Value;
  * Metadata for an index.
  *
  * <p>Index metadata is stored in metadata files and contains the full state of an index at a point
- * in time.
+ * in time. The actual index data is stored separately, typically in the index location, and the
+ * metadata contains pointers to these data files. Engines can use the index type to understand
+ * where the data is stored and in what format.
  */
 @SuppressWarnings("ImmutablesStyle")
 @Value.Immutable(builder = false)
@@ -85,7 +87,8 @@ public interface IndexMetadata extends Serializable {
   /**
    * Return the column IDs contained by this index.
    *
-   * <p>The ids of the columns contained by the index.
+   * <p>The ids of the columns which are stored losslessly in the index instance. Must be supplied
+   * during the creation of an index and must not be changed.
    *
    * @return a list of column IDs
    */
@@ -94,7 +97,8 @@ public interface IndexMetadata extends Serializable {
   /**
    * Return the column IDs that this index is optimized for.
    *
-   * <p>The ids of the columns that the index is designed to optimize for retrieval.
+   * <p>The ids of the columns that the index is designed to optimize for retrieval. Must be
+   * supplied during the creation of an index and must not be changed.
    *
    * @return a list of column IDs
    */
@@ -286,6 +290,7 @@ public interface IndexMetadata extends Serializable {
 
     // internal change tracking
     private Integer lastAddedVersionId = null;
+    private Integer lastSeenExistingVersionId = null;
     private IndexHistoryEntry historyEntry = null;
 
     // indexes
@@ -340,12 +345,11 @@ public interface IndexMetadata extends Serializable {
 
     public Builder setLocation(String newLocation) {
       Preconditions.checkArgument(null != newLocation, "Invalid location: null");
-      if (null != location && location.equals(newLocation)) {
-        return this;
+      if (!newLocation.equals(location)) {
+        this.location = newLocation;
+        changes.add(new IndexUpdate.SetLocation(newLocation));
       }
 
-      this.location = newLocation;
-      changes.add(new IndexUpdate.SetLocation(newLocation));
       return this;
     }
 
@@ -387,9 +391,10 @@ public interface IndexMetadata extends Serializable {
     public Builder setCurrentVersionId(int newVersionId) {
       if (newVersionId == LAST_ADDED) {
         Preconditions.checkState(
-            lastAddedVersionId != null,
+            lastAddedVersionId != null || lastSeenExistingVersionId != null,
             "Cannot set last version id: no current version id has been set");
-        return setCurrentVersionId(lastAddedVersionId);
+        return setCurrentVersionId(
+            null != lastAddedVersionId ? lastAddedVersionId : lastSeenExistingVersionId);
       }
 
       if (currentVersionId == newVersionId) {
@@ -446,6 +451,7 @@ public interface IndexMetadata extends Serializable {
             changes(IndexUpdate.AddVersion.class)
                 .anyMatch(added -> added.indexVersion().versionId() == newVersionId);
         this.lastAddedVersionId = addedInBuilder ? newVersionId : null;
+        this.lastSeenExistingVersionId = newVersionId;
         return newVersionId;
       }
 
