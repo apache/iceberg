@@ -70,13 +70,13 @@ public interface FormatModel<D, S> {
   /**
    * Creates a writer builder for data files.
    *
-   * <p>The returned {@link WriteBuilder} configures and creates a writer that converts input
+   * <p>The returned {@link ModelWriteBuilder} configures and creates a writer that converts input
    * objects into the file format supported by this factory.
    *
    * @param outputFile destination for the written data
    * @return configured writer builder
    */
-  WriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile);
+  ModelWriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile);
 
   /**
    * Creates a file reader builder for the specified input file.

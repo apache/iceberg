@@ -20,6 +20,7 @@ package org.apache.iceberg.formats;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
@@ -31,6 +32,7 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileWriter;
+import org.apache.iceberg.util.ArrayUtil;
 
 /**
  * A generic builder interface for creating specialized file writers in the Iceberg ecosystem.
@@ -137,6 +139,20 @@ public interface FileWriterBuilder<W extends FileWriter<?, ?>, S> {
    * details that Iceberg considers equivalent.
    */
   FileWriterBuilder<W, S> engineSchema(S schema);
+
+  /**
+   * Sets the equality field ids for the equality delete writer. Only applicable when building an
+   * {@link EqualityDeleteWriter}.
+   */
+  default FileWriterBuilder<W, S> equalityFieldIds(List<Integer> fieldIds) {
+    return equalityFieldIds(ArrayUtil.toIntArray(fieldIds));
+  }
+
+  /**
+   * Sets the equality field ids for the equality delete writer. Only applicable when building an
+   * {@link EqualityDeleteWriter}.
+   */
+  FileWriterBuilder<W, S> equalityFieldIds(int... fieldIds);
 
   W build() throws IOException;
 }

@@ -28,9 +28,9 @@ import org.apache.iceberg.io.FileAppender;
 
 /**
  * Builder interface for creating file writers across supported data file formats. The {@link
- * FormatModel} implementations provide the appropriate {@link WriteBuilder} instances.
+ * FormatModel} implementations provide the appropriate {@link ModelWriteBuilder} instances.
  *
- * <p>The {@link WriteBuilder} follows the builder pattern to configure and create {@link
+ * <p>The {@link ModelWriteBuilder} follows the builder pattern to configure and create {@link
  * FileAppender} instances that write data to the target output files.
  *
  * <p>This interface is directly exposed to users for parameterizing when only an appender is
@@ -39,9 +39,9 @@ import org.apache.iceberg.io.FileAppender;
  * @param <D> the output data type produced by the reader
  * @param <S> the type of the schema for the output data type
  */
-public interface WriteBuilder<D, S> {
+public interface ModelWriteBuilder<D, S> {
   /** Set the file schema. */
-  WriteBuilder<D, S> schema(Schema schema);
+  ModelWriteBuilder<D, S> schema(Schema schema);
 
   /**
    * Sets the engine's representation accepted by the writer.
@@ -54,7 +54,7 @@ public interface WriteBuilder<D, S> {
    * <p>The engine schema must be aligned with the Iceberg schema, but may include representation
    * details that Iceberg considers equivalent.
    */
-  WriteBuilder<D, S> engineSchema(S schema);
+  ModelWriteBuilder<D, S> engineSchema(S schema);
 
   /**
    * Set a writer configuration property which affects the writer behavior. Writer builders should
@@ -64,7 +64,7 @@ public interface WriteBuilder<D, S> {
    * @param value config value
    * @return this for method chaining
    */
-  WriteBuilder<D, S> set(String property, String value);
+  ModelWriteBuilder<D, S> set(String property, String value);
 
   /**
    * Sets multiple writer configuration properties that affect the writer behavior. Writer builders
@@ -73,7 +73,7 @@ public interface WriteBuilder<D, S> {
    * @param properties writer config properties to set
    * @return this for method chaining
    */
-  default WriteBuilder<D, S> setAll(Map<String, String> properties) {
+  default ModelWriteBuilder<D, S> setAll(Map<String, String> properties) {
     properties.forEach(this::set);
     return this;
   }
@@ -85,7 +85,7 @@ public interface WriteBuilder<D, S> {
    * @param value config value
    * @return this for method chaining
    */
-  WriteBuilder<D, S> meta(String property, String value);
+  ModelWriteBuilder<D, S> meta(String property, String value);
 
   /**
    * Sets multiple file metadata properties in the created file.
@@ -93,7 +93,7 @@ public interface WriteBuilder<D, S> {
    * @param properties file metadata properties to set
    * @return this for method chaining
    */
-  default WriteBuilder<D, S> meta(Map<String, String> properties) {
+  default ModelWriteBuilder<D, S> meta(Map<String, String> properties) {
     properties.forEach(this::meta);
     return this;
   }
@@ -102,25 +102,25 @@ public interface WriteBuilder<D, S> {
    * Based on the target file content the generated {@link FileAppender} needs different
    * configuration.
    */
-  WriteBuilder<D, S> content(FileContent content);
+  ModelWriteBuilder<D, S> content(FileContent content);
 
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
-  WriteBuilder<D, S> metricsConfig(MetricsConfig metricsConfig);
+  ModelWriteBuilder<D, S> metricsConfig(MetricsConfig metricsConfig);
 
   /** Overwrite the file if it already exists. By default, overwrite is disabled. */
-  WriteBuilder<D, S> overwrite();
+  ModelWriteBuilder<D, S> overwrite();
 
   /**
    * Sets the encryption key used for writing the file. If the writer does not support encryption,
    * then an exception should be thrown.
    */
-  WriteBuilder<D, S> withFileEncryptionKey(ByteBuffer encryptionKey);
+  ModelWriteBuilder<D, S> withFileEncryptionKey(ByteBuffer encryptionKey);
 
   /**
    * Sets the additional authentication data (AAD) prefix used for writing the file. If the writer
    * does not support encryption, then an exception should be thrown.
    */
-  WriteBuilder<D, S> withAADPrefix(ByteBuffer aadPrefix);
+  ModelWriteBuilder<D, S> withAADPrefix(ByteBuffer aadPrefix);
 
   /** Finalizes the configuration and builds the {@link FileAppender}. */
   FileAppender<D> build() throws IOException;

@@ -31,8 +31,8 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.BaseFormatModel;
+import org.apache.iceberg.formats.ModelWriteBuilder;
 import org.apache.iceberg.formats.ReadBuilder;
-import org.apache.iceberg.formats.WriteBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
@@ -67,7 +67,7 @@ public class AvroFormatModel<D, S>
   }
 
   @Override
-  public WriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
+  public ModelWriteBuilder<D, S> writeBuilder(EncryptedOutputFile outputFile) {
     return new WriteBuilderWrapper<>(outputFile, writerFunction());
   }
 
@@ -76,7 +76,7 @@ public class AvroFormatModel<D, S>
     return new ReadBuilderWrapper<>(inputFile, readerFunction());
   }
 
-  private static class WriteBuilderWrapper<D, S> implements WriteBuilder<D, S> {
+  private static class WriteBuilderWrapper<D, S> implements ModelWriteBuilder<D, S> {
     private final Avro.WriteBuilder internal;
     private final WriterFunction<DatumWriter<D>, S, Schema> writerFunction;
     private S inputSchema;
@@ -89,66 +89,66 @@ public class AvroFormatModel<D, S>
     }
 
     @Override
-    public WriteBuilder<D, S> schema(org.apache.iceberg.Schema schema) {
+    public ModelWriteBuilder<D, S> schema(org.apache.iceberg.Schema schema) {
       internal.schema(schema);
       return this;
     }
 
     @Override
-    public WriteBuilder<D, S> engineSchema(S schema) {
+    public ModelWriteBuilder<D, S> engineSchema(S schema) {
       this.inputSchema = schema;
       return this;
     }
 
     @Override
-    public WriteBuilder<D, S> set(String property, String value) {
+    public ModelWriteBuilder<D, S> set(String property, String value) {
       internal.set(property, value);
       return this;
     }
 
     @Override
-    public WriteBuilder<D, S> setAll(Map<String, String> properties) {
+    public ModelWriteBuilder<D, S> setAll(Map<String, String> properties) {
       internal.setAll(properties);
       return this;
     }
 
     @Override
-    public WriteBuilder<D, S> meta(String property, String value) {
+    public ModelWriteBuilder<D, S> meta(String property, String value) {
       internal.meta(property, value);
       return this;
     }
 
     @Override
-    public WriteBuilder<D, S> meta(Map<String, String> properties) {
+    public ModelWriteBuilder<D, S> meta(Map<String, String> properties) {
       internal.meta(properties);
       return this;
     }
 
     @Override
-    public WriteBuilder<D, S> content(FileContent newContent) {
+    public ModelWriteBuilder<D, S> content(FileContent newContent) {
       this.content = newContent;
       return this;
     }
 
     @Override
-    public WriteBuilder<D, S> metricsConfig(MetricsConfig metricsConfig) {
+    public ModelWriteBuilder<D, S> metricsConfig(MetricsConfig metricsConfig) {
       internal.metricsConfig(metricsConfig);
       return this;
     }
 
     @Override
-    public WriteBuilder<D, S> overwrite() {
+    public ModelWriteBuilder<D, S> overwrite() {
       internal.overwrite();
       return this;
     }
 
     @Override
-    public WriteBuilder<D, S> withFileEncryptionKey(ByteBuffer encryptionKey) {
+    public ModelWriteBuilder<D, S> withFileEncryptionKey(ByteBuffer encryptionKey) {
       throw new UnsupportedOperationException("Avro does not support file encryption keys");
     }
 
     @Override
-    public WriteBuilder<D, S> withAADPrefix(ByteBuffer aadPrefix) {
+    public ModelWriteBuilder<D, S> withAADPrefix(ByteBuffer aadPrefix) {
       throw new UnsupportedOperationException("Avro does not support AAD prefix");
     }
 

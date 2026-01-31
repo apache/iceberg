@@ -113,7 +113,7 @@ class TestFormatModelRegistry {
     }
 
     @Override
-    public WriteBuilder<Object, Object> writeBuilder(EncryptedOutputFile outputFile) {
+    public ModelWriteBuilder<Object, Object> writeBuilder(EncryptedOutputFile outputFile) {
       return null;
     }
 
