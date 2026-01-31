@@ -136,6 +136,43 @@ class TestSparkParquetFileMergeRunner extends TestBase {
     assertThat(runner.canMergeAndGetSchema(group)).isNull();
   }
 
+  @Test
+  public void testCanMergeAndGetSchemaReturnsNullForPartitionSpecEvolution() {
+    // Create a partitioned table with initial spec
+    Table table =
+        TABLES.create(
+            SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("c2").build(), tableLocation);
+
+    // Verify initial spec ID is 0
+    assertThat(table.spec().specId()).isEqualTo(0);
+
+    // Create partition data for the file
+    GenericRecord partition = GenericRecord.create(table.spec().partitionType());
+    partition.set(0, "partition1");
+
+    // Generate a data file with the initial partition spec (specId = 0)
+    DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
+    assertThat(dataFile.specId()).isEqualTo(0);
+
+    // Evolve the partition spec (now specId will be 1)
+    table.updateSpec().addField("c1").commit();
+    assertThat(table.spec().specId()).isEqualTo(1);
+
+    // Create a RewriteFileGroup where output spec is 1 but file spec is 0
+    MockFileScanTask task = new MockFileScanTask(dataFile);
+    RewriteDataFiles.FileGroupInfo info = fileGroupInfo(0);
+    int outputSpecId = table.spec().specId(); // This is 1
+    RewriteFileGroup group =
+        new RewriteFileGroup(info, Lists.newArrayList(task), outputSpecId, Long.MAX_VALUE, 0, 1);
+
+    // Create runner and test canMergeAndGetSchema
+    SparkParquetFileMergeRunner runner = new SparkParquetFileMergeRunner(spark, table);
+
+    // Should return null because file spec (0) doesn't match output spec (1)
+    // Binary merge cannot transform partition specs
+    assertThat(runner.canMergeAndGetSchema(group)).isNull();
+  }
+
   private static RewriteDataFiles.FileGroupInfo fileGroupInfo(int globalIndex) {
     // Create an empty partition for unpartitioned tables
     StructLike emptyPartition = GenericRecord.create(PartitionSpec.unpartitioned().partitionType());

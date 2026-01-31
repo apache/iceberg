@@ -124,6 +124,14 @@ public class SparkParquetFileMergeRunner extends SparkBinPackFileRewriteRunner {
       return null;
     }
 
+    // Check that all files match the output spec (binary merge cannot transform partition specs)
+    int outputSpecId = group.outputSpecId();
+    boolean specMismatch =
+        group.rewrittenFiles().stream().anyMatch(file -> file.specId() != outputSpecId);
+    if (specMismatch) {
+      return null;
+    }
+
     // Validate Parquet-specific requirements and get schema
     return ParquetFileMerger.canMergeAndGetSchema(
         Lists.newArrayList(group.rewrittenFiles()), table().io(), group.maxOutputFileSize());
