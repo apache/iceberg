@@ -69,7 +69,7 @@ mkdir -p "$FWDIR"/lib
 
 $java_cmd -jar "$rat_jar" \
   --input-exclude-file "$FWDIR"/dev/.rat-excludes \
-  --input-exclude-std GIT IDEA MAC -- \
+  --input-exclude-std GIT IDEA MAC \
   --input-include-std HIDDEN_DIR \
   --output-style missing-headers \
   --log-level ERROR \
