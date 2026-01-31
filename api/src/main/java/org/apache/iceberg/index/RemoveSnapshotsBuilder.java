@@ -43,8 +43,6 @@ public interface RemoveSnapshotsBuilder<T> {
    */
   T removeSnapshotsByIds(Set<Long> indexSnapshotIds);
 
-  /**
-   * Varargs overload of @see #removeSnapshotsByIds(Set)
-   */
+  /** Varargs overload of @see #removeSnapshotsByIds(Set) */
   T removeSnapshotsByIds(long... indexSnapshotIds);
 }

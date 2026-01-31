@@ -48,8 +48,6 @@ public interface RemoveIndexSnapshots extends PendingUpdate<List<IndexSnapshot>>
    */
   RemoveIndexSnapshots removeSnapshotsByIds(Set<Long> indexSnapshotIds);
 
-  /**
-   * Varargs overload of @see #removeSnapshotsByIds(Set)
-   */
+  /** Varargs overload of @see #removeSnapshotsByIds(Set) */
   RemoveIndexSnapshots removeSnapshotsByIds(long... indexSnapshotIds);
 }
