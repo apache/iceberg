@@ -35,6 +35,11 @@ public final class RESTCatalogProperties {
   public static final String VIEW_ENDPOINTS_SUPPORTED = "view-endpoints-supported";
   public static final boolean VIEW_ENDPOINTS_SUPPORTED_DEFAULT = false;
 
+  // for backwards compatibility with older REST servers where it can be assumed that a particular
+  // server supports index endpoints but doesn't send the "endpoints" field in the ConfigResponse
+  public static final String INDEX_ENDPOINTS_SUPPORTED = "index-endpoints-supported";
+  public static final boolean INDEX_ENDPOINTS_SUPPORTED_DEFAULT = false;
+
   public static final String PAGE_SIZE = "rest-page-size";
 
   public static final String NAMESPACE_SEPARATOR = "namespace-separator";
