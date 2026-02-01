@@ -1587,6 +1587,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
   }
 
   @TestTemplate
@@ -1623,6 +1624,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
   }
 
   @TestTemplate
@@ -1654,6 +1656,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
@@ -1694,6 +1697,50 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveLastCommitSorted(table, "c3");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
+  }
+
+  @TestTemplate
+  public void testSortPastTableSortOrderGetsAppliedToFiles() {
+    int partitions = 4;
+    Table table = createTable();
+    writeRecords(20, SCALE, partitions);
+    shouldHaveLastCommitUnsorted(table, "c3");
+
+    table.updateSpec().addField("c1").commit();
+
+    table.replaceSortOrder().asc("c3").commit();
+    SortOrder c3SortOrder = table.sortOrder();
+
+    table.replaceSortOrder().asc("c2").commit();
+    shouldHaveFiles(table, 20);
+
+    List<Object[]> originalData = currentData();
+    long dataSizeBefore = testDataSize(table);
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .sort(SortOrder.builderFor(table.schema()).asc("c3").build())
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .option(
+                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(averageFileSize(table) / partitions))
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+    shouldHaveMultipleFiles(table);
+    shouldHaveLastCommitUnsorted(table, "c2");
+    shouldHaveLastCommitSorted(table, "c3");
+    dataFilesShouldHaveSortOrderIdMatching(table, c3SortOrder);
   }
 
   @TestTemplate
@@ -1734,6 +1781,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
@@ -2655,6 +2703,20 @@ public class TestRewriteDataFilesAction extends TestBase {
     @Override
     public boolean matches(RewriteFileGroup argument) {
       return groupIDs.contains(argument.info().globalIndex());
+    }
+  }
+
+  private void dataFilesSortOrderShouldMatchTableSortOrder(Table table) {
+    dataFilesShouldHaveSortOrderIdMatching(table, table.sortOrder());
+  }
+
+  private void dataFilesShouldHaveSortOrderIdMatching(Table table, SortOrder sortOrder) {
+    try (CloseableIterable<FileScanTask> files = table.newScan().planFiles()) {
+      assertThat(files)
+          .extracting(fileScanTask -> fileScanTask.file().sortOrderId())
+          .containsOnly(sortOrder.orderId());
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to close file scan tasks", e);
     }
   }
 }
