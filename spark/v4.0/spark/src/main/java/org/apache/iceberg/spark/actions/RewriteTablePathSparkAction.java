@@ -72,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.api.java.function.ForeachFunction;
 import org.apache.spark.api.java.function.MapFunction;
@@ -297,11 +298,22 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         rewriteManifests(deltaSnapshots, endMetadata, rewriteManifestListResult.toRewrite());
 
     // rebuild position delete files
-    Set<DeleteFile> deleteFiles =
+    // Use DeleteFileSet to ensure proper equality comparison based on file location, content
+    // offset,
+    // and content size. This is particularly important for deletion vectors (DV files) where
+    // multiple DV entries can reference the same Puffin file but have different offsets and sizes.
+    List<ContentFile<?>> allDeleteFiles =
         rewriteManifestResult.toRewrite().stream()
             .filter(e -> e instanceof DeleteFile)
+            .collect(Collectors.toList());
+    Set<DeleteFile> deleteFiles =
+        allDeleteFiles.stream()
             .map(e -> (DeleteFile) e)
-            .collect(Collectors.toSet());
+            .collect(Collectors.toCollection(DeleteFileSet::create));
+    LOG.debug(
+        "Delete files before deduplication: {}, after deduplication with DeleteFileSet: {}",
+        allDeleteFiles.size(),
+        deleteFiles.size());
     rewritePositionDeletes(deleteFiles);
 
     ImmutableRewriteTablePath.Result.Builder builder =
