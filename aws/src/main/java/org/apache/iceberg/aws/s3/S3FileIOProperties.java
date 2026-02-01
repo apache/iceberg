@@ -67,6 +67,14 @@ public class S3FileIOProperties implements Serializable {
   public static final String CLIENT_FACTORY = "s3.client-factory-impl";
 
   /**
+   * This property is used to configure a custom {@link
+   * software.amazon.awssdk.metrics.MetricPublisher} for the S3 client. The class must implement
+   * {@link software.amazon.awssdk.metrics.MetricPublisher} and provide either a static {@code
+   * create(Map<String, String>)} factory method or a no-arg constructor.
+   */
+  public static final String METRICS_PUBLISHER_IMPL = "s3.metrics-publisher-impl";
+
+  /**
    * This property is used to enable using the S3 Access Grants product to control authorization to
    * S3 data. More information regarding this feature can be found at:
    * https://aws.amazon.com/s3/features/access-grants/.
@@ -534,6 +542,7 @@ public class S3FileIOProperties implements Serializable {
   private long s3RetryMaxWaitMs;
 
   private boolean s3DirectoryBucketListPrefixAsDirectory;
+  private final String metricsPublisherImpl;
   private final Map<String, String> allProperties;
 
   public S3FileIOProperties() {
@@ -576,6 +585,7 @@ public class S3FileIOProperties implements Serializable {
     this.s3AnalyticsacceleratorProperties = Maps.newHashMap();
     this.isS3CRTEnabled = S3_CRT_ENABLED_DEFAULT;
     this.s3CrtMaxConcurrency = S3_CRT_MAX_CONCURRENCY_DEFAULT;
+    this.metricsPublisherImpl = null;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -698,6 +708,7 @@ public class S3FileIOProperties implements Serializable {
     this.s3CrtMaxConcurrency =
         PropertyUtil.propertyAsInt(
             properties, S3_CRT_MAX_CONCURRENCY, S3_CRT_MAX_CONCURRENCY_DEFAULT);
+    this.metricsPublisherImpl = properties.get(METRICS_PUBLISHER_IMPL);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -1134,6 +1145,53 @@ public class S3FileIOProperties implements Serializable {
               S3AccessGrantsPluginConfigurations.class.getName(), allProperties);
       s3AccessGrantsPluginConfigurations.configureS3ClientBuilder(builder);
     }
+  }
+
+  public <T extends S3ClientBuilder> void applyMetricsPublisherConfiguration(T builder) {
+    if (metricsPublisherImpl != null) {
+      software.amazon.awssdk.metrics.MetricPublisher metricPublisher =
+          loadMetricPublisher(metricsPublisherImpl, allProperties);
+      ClientOverrideConfiguration.Builder configBuilder =
+          builder.overrideConfiguration() != null
+              ? builder.overrideConfiguration().toBuilder()
+              : ClientOverrideConfiguration.builder();
+      builder.overrideConfiguration(configBuilder.addMetricPublisher(metricPublisher).build());
+    }
+  }
+
+  /**
+   * Load a MetricPublisher implementation. Tries static create(Map) factory method first, falls
+   * back to no-arg constructor.
+   */
+  private software.amazon.awssdk.metrics.MetricPublisher loadMetricPublisher(
+      String impl, Map<String, String> properties) {
+    // Try static create(Map) factory method first
+    try {
+      return DynMethods.builder("create")
+          .hiddenImpl(impl, Map.class)
+          .buildStaticChecked()
+          .invoke(properties);
+    } catch (NoSuchMethodException e) {
+      // Fall back to no-arg constructor
+      try {
+        return Class.forName(impl)
+            .asSubclass(software.amazon.awssdk.metrics.MetricPublisher.class)
+            .getDeclaredConstructor()
+            .newInstance();
+      } catch (Exception ex) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot instantiate MetricPublisher %s. "
+                    + "Class must have either a static create(Map<String, String>) method "
+                    + "or a no-arg constructor.",
+                impl),
+            ex);
+      }
+    }
+  }
+
+  public String metricsPublisherImpl() {
+    return metricsPublisherImpl;
   }
 
   public <T extends S3ClientBuilder> void applyUserAgentConfigurations(T builder) {
