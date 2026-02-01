@@ -449,4 +449,58 @@ public class TestViewMetadataParser {
         .ignoringFields("changes")
         .isEqualTo(viewMetadata);
   }
+
+  @Test
+  public void testMaxStalenessRoundtrip() {
+    String uuid = "123e4567-e89b-12d3-a456-426614174000";
+    ViewMetadata originalMetadata =
+        ViewMetadata.builder()
+            .assignUUID(uuid)
+            .setLocation("s3://bucket/warehouse/analytics/hourly_metrics")
+            .addSchema(TEST_SCHEMA)
+            .addVersion(
+                ImmutableViewVersion.builder()
+                    .schemaId(0)
+                    .versionId(1)
+                    .timestampMillis(99999L)
+                    .summary(ImmutableMap.of("user", "admin", "operation", "create_mv"))
+                    .defaultNamespace(Namespace.of("analytics"))
+                    .defaultCatalog("prod_catalog")
+                    .addRepresentations(
+                        ImmutableSQLViewRepresentation.builder()
+                            .sql("select hour, sum(value) from metrics group by hour")
+                            .dialect("spark")
+                            .build())
+                    .build())
+            .setCurrentVersionId(1)
+            .setProperties(
+                ImmutableMap.of(
+                    "comment",
+                    "Hourly aggregated metrics",
+                    ViewProperties.MAX_STALENESS_MS,
+                    "7200000"))
+            .build();
+
+    assertThat(originalMetadata.maxStaleness())
+        .as("Original max staleness should be 7200000ms")
+        .isEqualTo(7200000L);
+
+    String json = ViewMetadataParser.toJson(originalMetadata);
+    ViewMetadata parsedMetadata = ViewMetadataParser.fromJson(json);
+
+    assertThat(parsedMetadata)
+        .as("Roundtrip should preserve all metadata")
+        .usingRecursiveComparison()
+        .ignoringFieldsOfTypes(Schema.class)
+        .ignoringFields("changes")
+        .isEqualTo(originalMetadata);
+
+    assertThat(parsedMetadata.maxStaleness())
+        .as("Parsed max staleness should match original")
+        .isEqualTo(7200000L);
+
+    assertThat(parsedMetadata.properties().get("comment"))
+        .as("Other properties should be preserved")
+        .isEqualTo("Hourly aggregated metrics");
+  }
 }
