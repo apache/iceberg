@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -107,6 +108,24 @@ public class RESTCatalog
 
   public Map<String, String> properties() {
     return sessionCatalog.properties();
+  }
+
+  /**
+   * Lists catalog-backed function names in a namespace.
+   *
+   * <p>This is supported only when the server advertises {@link Endpoint#V1_LIST_FUNCTIONS}.
+   */
+  public List<String> listFunctions(Namespace ns) {
+    return sessionCatalog.listFunctions(context, ns);
+  }
+
+  /**
+   * Loads a function spec JSON payload from the REST catalog.
+   *
+   * <p>This is supported only when the server advertises {@link Endpoint#V1_LOAD_FUNCTION}.
+   */
+  public ObjectNode loadFunctionSpec(Namespace ns, String functionName) {
+    return sessionCatalog.loadFunctionSpec(context, ns, functionName);
   }
 
   @Override

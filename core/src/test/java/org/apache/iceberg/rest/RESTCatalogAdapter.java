@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
@@ -46,6 +47,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchFunctionException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchPlanIdException;
@@ -60,6 +62,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -77,6 +80,8 @@ import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ListFunctionsResponse;
+import org.apache.iceberg.rest.responses.LoadFunctionResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.Pair;
@@ -101,6 +106,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           .put(NoSuchTableException.class, 404)
           .put(NotFoundException.class, 404)
           .put(NoSuchViewException.class, 404)
+          .put(NoSuchFunctionException.class, 404)
           .put(NoSuchIcebergTableException.class, 404)
           .put(UnsupportedOperationException.class, 406)
           .put(AlreadyExistsException.class, 409)
@@ -115,6 +121,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private final SupportsNamespaces asNamespaceCatalog;
   private final ViewCatalog asViewCatalog;
 
+  // Minimal in-memory function store for the test servlet. Real servers should back this with a
+  // durable catalog store.
+  private final Map<Namespace, Map<String, ObjectNode>> functionsByNamespace =
+      Maps.newConcurrentMap();
+
   private AuthSession authSession = AuthSession.EMPTY;
   private PlanningBehavior planningBehavior;
 
@@ -123,6 +134,11 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     this.asNamespaceCatalog =
         catalog instanceof SupportsNamespaces ? (SupportsNamespaces) catalog : null;
     this.asViewCatalog = catalog instanceof ViewCatalog ? (ViewCatalog) catalog : null;
+  }
+
+  @VisibleForTesting
+  void putFunction(Namespace ns, String name, ObjectNode spec) {
+    functionsByNamespace.computeIfAbsent(ns, ignored -> Maps.newConcurrentMap()).put(name, spec);
   }
 
   private static OAuthTokenResponse handleOAuthRequest(Object body) {
@@ -268,6 +284,17 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           }
         }
 
+      case LIST_FUNCTIONS:
+        {
+          Namespace namespace = namespaceFromPathVars(vars);
+          Map<String, ObjectNode> funcs = functionsByNamespace.getOrDefault(namespace, Map.of());
+          List<String> names =
+              funcs.keySet().stream()
+                  .sorted(String.CASE_INSENSITIVE_ORDER)
+                  .collect(Collectors.toList());
+          return castResponse(responseType, ListFunctionsResponse.builder().addAll(names).build());
+        }
+
       case CREATE_TABLE:
         {
           Namespace namespace = namespaceFromPathVars(vars);
@@ -332,6 +359,19 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           responseHeaders.accept(ImmutableMap.of(HttpHeaders.ETAG, eTag));
 
           return castResponse(responseType, response);
+        }
+
+      case LOAD_FUNCTION:
+        {
+          Namespace namespace = namespaceFromPathVars(vars);
+          String functionName = functionNameFromPathVars(vars);
+          Map<String, ObjectNode> funcs = functionsByNamespace.getOrDefault(namespace, Map.of());
+          ObjectNode spec = funcs.get(functionName);
+          if (spec == null) {
+            throw new NoSuchFunctionException(
+                "Cannot find function %s in namespace %s", functionName, namespace);
+          }
+          return castResponse(responseType, LoadFunctionResponse.builder().spec(spec).build());
         }
 
       case PLAN_TABLE_SCAN:
@@ -726,6 +766,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   private static TableIdentifier viewIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
         namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("view")));
+  }
+
+  private static String functionNameFromPathVars(Map<String, String> pathVars) {
+    return RESTUtil.decodeString(pathVars.get("function"));
   }
 
   private static String planIDFromPathVars(Map<String, String> pathVars) {

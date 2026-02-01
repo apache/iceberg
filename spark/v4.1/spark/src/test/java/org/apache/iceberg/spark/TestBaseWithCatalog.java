@@ -58,7 +58,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   protected static File warehouse = null;
 
   @RegisterExtension
-  private static final RESTServerExtension REST_SERVER_EXTENSION =
+  protected static final RESTServerExtension REST_SERVER_EXTENSION =
       new RESTServerExtension(
           Map.of(
               RESTCatalogServer.REST_PORT,

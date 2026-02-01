@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Extra, Field
@@ -752,9 +752,21 @@ class ListTablesResponse(BaseModel):
     identifiers: list[TableIdentifier] | None = Field(None, unique_items=True)
 
 
+class ListFunctionsResponse(BaseModel):
+    next_page_token: PageToken | None = Field(None, alias='next-page-token')
+    names: list[str] | None = Field(None, unique_items=True)
+
+
 class ListNamespacesResponse(BaseModel):
     next_page_token: PageToken | None = Field(None, alias='next-page-token')
     namespaces: list[Namespace] | None = Field(None, unique_items=True)
+
+
+class LoadFunctionResponse(BaseModel):
+    spec: dict[str, Any] = Field(
+        ...,
+        description='The function spec JSON. The schema of this document is defined by the Iceberg function spec version negotiated between the client and the server.\n',
+    )
 
 
 class UpdateNamespacePropertiesResponse(BaseModel):
