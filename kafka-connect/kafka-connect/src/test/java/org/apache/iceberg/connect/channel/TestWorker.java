@@ -24,6 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -49,13 +50,14 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 public class TestWorker extends ChannelTestBase {
 
   @Test
-  public void testSave() throws InterruptedException {
+  public void testSave() {
     when(config.catalogName()).thenReturn("catalog");
 
     try (MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class)) {
@@ -100,7 +102,11 @@ public class TestWorker extends ChannelTestBase {
       consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
 
       // Give background thread time to poll and buffer the event
-      Thread.sleep(500);
+      Awaitility.await()
+          .pollDelay(Duration.ofMillis(500))
+          .atMost(Duration.ofMillis(600))
+          .until(() -> true);
+
       worker.process();
 
       assertThat(producer.history()).hasSize(2);
@@ -122,7 +128,7 @@ public class TestWorker extends ChannelTestBase {
   }
 
   @Test
-  public void testBackgroundPollingBuffersEvents() throws InterruptedException {
+  public void testBackgroundPollingBuffersEvents() {
     when(config.catalogName()).thenReturn("catalog");
     when(config.controlPollIntervalMs()).thenReturn(50);
 
@@ -157,7 +163,10 @@ public class TestWorker extends ChannelTestBase {
           new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", AvroUtil.encode(event2)));
 
       // Wait for background polling to buffer events
-      Thread.sleep(300);
+      Awaitility.await()
+          .pollDelay(Duration.ofMillis(300))
+          .atMost(Duration.ofMillis(400))
+          .until(() -> true);
 
       // Process should handle both buffered events
       worker.process();
@@ -170,7 +179,7 @@ public class TestWorker extends ChannelTestBase {
   }
 
   @Test
-  public void testWorkerIgnoresNonRelevantEvents() throws InterruptedException {
+  public void testWorkerIgnoresNonRelevantEvents() {
     when(config.catalogName()).thenReturn("catalog");
 
     try (MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class)) {
@@ -194,7 +203,12 @@ public class TestWorker extends ChannelTestBase {
       Event event = new Event("different-group-id", new StartCommit(commitId));
       consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", AvroUtil.encode(event)));
 
-      Thread.sleep(200);
+      // Give background thread time to poll
+      Awaitility.await()
+          .pollDelay(Duration.ofMillis(200))
+          .atMost(Duration.ofMillis(300))
+          .until(() -> true);
+
       worker.process();
 
       // Should not produce any events since the group ID doesn't match
@@ -205,7 +219,7 @@ public class TestWorker extends ChannelTestBase {
   }
 
   @Test
-  public void testWorkerGracefulShutdown() throws InterruptedException {
+  public void testWorkerGracefulShutdown() {
     when(config.catalogName()).thenReturn("catalog");
 
     try (MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class)) {
@@ -233,7 +247,7 @@ public class TestWorker extends ChannelTestBase {
   }
 
   @Test
-  public void testWorkerProcessesMultipleEventTypes() throws InterruptedException {
+  public void testWorkerProcessesMultipleEventTypes() {
     when(config.catalogName()).thenReturn("catalog");
 
     try (MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class)) {
@@ -280,7 +294,11 @@ public class TestWorker extends ChannelTestBase {
       consumer.addRecord(
           new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 3, "key", AvroUtil.encode(commitToTable)));
 
-      Thread.sleep(300);
+      // Wait for background thread to buffer all events
+      Awaitility.await()
+          .pollDelay(Duration.ofMillis(300))
+          .atMost(Duration.ofMillis(400))
+          .until(() -> true);
 
       // All events should be buffered
       worker.process();
@@ -293,7 +311,7 @@ public class TestWorker extends ChannelTestBase {
   }
 
   @Test
-  public void testWorkerHandlesEmptyQueue() throws InterruptedException {
+  public void testWorkerHandlesEmptyQueue() {
     when(config.catalogName()).thenReturn("catalog");
 
     try (MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class)) {
@@ -324,7 +342,7 @@ public class TestWorker extends ChannelTestBase {
   }
 
   @Test
-  public void testWorkerWithCustomPollInterval() throws InterruptedException {
+  public void testWorkerWithCustomPollInterval() {
     when(config.catalogName()).thenReturn("catalog");
     when(config.controlPollIntervalMs()).thenReturn(1000); // 1 second
 
@@ -352,7 +370,10 @@ public class TestWorker extends ChannelTestBase {
       consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", AvroUtil.encode(event)));
 
       // Wait for longer than poll interval to ensure event is buffered
-      Thread.sleep(1500);
+      Awaitility.await()
+          .pollDelay(Duration.ofMillis(1500))
+          .atMost(Duration.ofMillis(1600))
+          .until(() -> true);
 
       worker.process();
 
@@ -363,7 +384,7 @@ public class TestWorker extends ChannelTestBase {
   }
 
   @Test
-  public void testWorkerMultipleStartCommits() throws InterruptedException {
+  public void testWorkerMultipleStartCommits() {
     when(config.catalogName()).thenReturn("catalog");
 
     try (MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class)) {
@@ -414,14 +435,17 @@ public class TestWorker extends ChannelTestBase {
       consumer.addRecord(
           new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", AvroUtil.encode(event2)));
 
-      Thread.sleep(300);
+      // Wait for background thread to buffer both commits
+      Awaitility.await()
+          .pollDelay(Duration.ofMillis(300))
+          .atMost(Duration.ofMillis(400))
+          .until(() -> true);
 
       // Process both commits
       worker.process();
 
-      // Should have events for both commits
-      assertThat(producer.history().size())
-          .isGreaterThanOrEqualTo(4); // 2 data written + 2 data complete
+      // Should have events for both commits (2 data written + 2 data complete)
+      assertThat(producer.history().size()).isGreaterThanOrEqualTo(4);
 
       worker.stop();
     }
