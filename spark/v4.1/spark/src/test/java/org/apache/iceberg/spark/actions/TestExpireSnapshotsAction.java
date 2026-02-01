@@ -271,6 +271,50 @@ public class TestExpireSnapshotsAction extends TestBase {
   }
 
   @TestTemplate
+  public void testEarlyExitWhenNoOrphanedManifests() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    ExpireSnapshots.Result results =
+        SparkActions.get()
+            .expireSnapshots(table)
+            .expireSnapshotId(firstSnapshot.snapshotId())
+            .execute();
+
+    checkExpirationResults(0L, 0L, 0L, 0L, 1L, results);
+  }
+
+  @TestTemplate
+  public void testManifestReusedAcrossSnapshots() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    ManifestFile firstManifest = firstSnapshot.allManifests(table.io()).get(0);
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    assertThat(secondSnapshot.allManifests(table.io()))
+        .extracting(ManifestFile::path)
+        .contains(firstManifest.path());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    SparkActions.get()
+        .expireSnapshots(table)
+        .expireSnapshotId(firstSnapshot.snapshotId())
+        .deleteWith(deletedFiles::add)
+        .execute();
+
+    assertThat(deletedFiles)
+        .as("Shared manifest should not be deleted")
+        .doesNotContain(firstManifest.path());
+  }
+
+  @TestTemplate
   public void testCleanupRepeatedOverwrites() throws Exception {
     table.newFastAppend().appendFile(FILE_A).commit();
 
@@ -1200,10 +1244,12 @@ public class TestExpireSnapshotsAction extends TestBase {
 
           checkExpirationResults(1L, 0L, 0L, 1L, 2L, results);
 
+          // Job count reflects distributed operations for manifest path filtering,
+          // early exit checks, and join-based filtering
           assertThat(jobsRunDuringStreamResults)
               .as(
                   "Expected total number of jobs with stream-results should match the expected number")
-              .isEqualTo(4L);
+              .isEqualTo(12L);
         });
   }
 
