@@ -1250,7 +1250,7 @@ public class TableMetadata implements Serializable {
           "Snapshot already exists for id: %s",
           snapshot.snapshotId());
 
-      ValidationException.check(
+      RetryableValidationException.check(
           formatVersion == 1
               || snapshot.sequenceNumber() > lastSequenceNumber
               || snapshot.parentId() == null,

@@ -46,8 +46,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -67,6 +71,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -83,6 +88,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
@@ -90,6 +96,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -109,6 +116,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.Tasks;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
@@ -3604,6 +3612,119 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
     return catalog;
+  }
+
+  /**
+   * Test concurrent appends on multiple branches simultaneously to verify proper handling of
+   * sequence number conflicts.
+   *
+   * <p>Uses a barrier to synchronize threads so they all load the same table state and commit
+   * simultaneously, creating deterministic conflicts. With retries disabled, we can verify exact
+   * counts: one success per round, and (numBranches - 1) CommitFailedExceptions per round.
+   *
+   * <p>This verifies that: 1. Sequence number conflicts are caught by AssertLastSequenceNumber
+   * requirement 2. Conflicts result in CommitFailedException (retryable) not ValidationException
+   * (non-retryable) 3. The REST catalog properly handles concurrent modifications across branches
+   */
+  @Test
+  public void testConcurrentAppendsOnMultipleBranches() {
+    int numBranches = 5;
+    int numRounds = 10;
+
+    RESTCatalog catalog = catalog();
+
+    Namespace ns = Namespace.of("concurrent_test");
+    TableIdentifier tableIdent = TableIdentifier.of(ns, "test_table");
+
+    catalog.createNamespace(ns);
+    Table table = catalog.buildTable(tableIdent, SCHEMA).withPartitionSpec(SPEC).create();
+
+    // Disable retries so we can count exact conflicts
+    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "-1").commit();
+
+    // Create branches from the main branch
+    String[] branchNames = new String[numBranches];
+    for (int i = 0; i < numBranches; i++) {
+      branchNames[i] = "branch-" + i;
+      table.manageSnapshots().createBranch(branchNames[i]).commit();
+    }
+
+    AtomicInteger barrier = new AtomicInteger(0);
+    AtomicInteger successCount = new AtomicInteger(0);
+    AtomicInteger commitFailedCount = new AtomicInteger(0);
+    AtomicInteger validationFailureCount = new AtomicInteger(0);
+
+    ExecutorService executor =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(numBranches));
+
+    Tasks.range(numBranches)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(executor)
+        .run(
+            branchIdx -> {
+              String branchName = branchNames[branchIdx];
+
+              for (int round = 0; round < numRounds; round++) {
+                int currentRound = round;
+
+                // Load table
+                Table localTable = catalog.loadTable(tableIdent);
+
+                DataFile newFile =
+                    DataFiles.builder(SPEC)
+                        .withPath(
+                            String.format("/path/to/branch-%d-round-%d.parquet", branchIdx, round))
+                        .withFileSizeInBytes(15)
+                        .withPartitionPath(String.format("id_bucket=%d", branchIdx % 16))
+                        .withRecordCount(3)
+                        .build();
+
+                // Wait for all threads to be ready to commit
+                barrier.incrementAndGet();
+                Awaitility.await()
+                    .atMost(10, TimeUnit.SECONDS)
+                    .until(() -> barrier.get() >= (currentRound + 1) * numBranches);
+
+                try {
+                  // All threads commit simultaneously
+                  localTable.newFastAppend().appendFile(newFile).toBranch(branchName).commit();
+                  successCount.incrementAndGet();
+                } catch (CommitFailedException e) {
+                  // Expected for conflicts - this is the correct behavior with the fix
+                  commitFailedCount.incrementAndGet();
+                } catch (ValidationException e) {
+                  // This indicates the fix is not working
+                  validationFailureCount.incrementAndGet();
+                  throw e;
+                }
+              }
+            });
+
+    int totalAttempts = numBranches * numRounds;
+
+    // Verify: no ValidationException should have been thrown
+    assertThat(validationFailureCount.get())
+        .as(
+            "Sequence number conflicts should throw CommitFailedException (retryable), "
+                + "not ValidationException")
+        .isEqualTo(0);
+
+    // Verify at least one commit succeeded per round
+    assertThat(successCount.get())
+        .as("At least one commit should succeed per round")
+        .isGreaterThanOrEqualTo(numRounds);
+
+    // Verify some conflicts happened (proves concurrent contention occurred)
+    assertThat(commitFailedCount.get())
+        .as("Some commits should fail with CommitFailedException due to conflicts")
+        .isGreaterThan(0);
+
+    // Verify no attempts were lost
+    assertThat(successCount.get() + commitFailedCount.get())
+        .as("All commit attempts should either succeed or fail with CommitFailedException")
+        .isEqualTo(totalAttempts);
   }
 
   private static List<HTTPRequest> allRequests(RESTCatalogAdapter adapter) {
