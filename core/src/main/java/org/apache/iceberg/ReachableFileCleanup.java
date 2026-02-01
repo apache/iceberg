@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -49,13 +51,14 @@ class ReachableFileCleanup extends FileCleanupStrategy {
   }
 
   @Override
-  public void cleanFiles(
+  public DeleteSummary cleanFiles(
       TableMetadata beforeExpiration,
       TableMetadata afterExpiration,
       ExpireSnapshots.CleanupLevel cleanupLevel) {
+    DeleteSummary summary = new DeleteSummary();
     if (ExpireSnapshots.CleanupLevel.NONE == cleanupLevel) {
       LOG.info("Nothing to clean.");
-      return;
+      return summary;
     }
 
     Set<String> manifestListsToDelete = Sets.newHashSet();
@@ -81,27 +84,39 @@ class ReachableFileCleanup extends FileCleanupStrategy {
 
       if (!manifestsToDelete.isEmpty()) {
         if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
-          Set<String> dataFilesToDelete = findFilesToDelete(manifestsToDelete, currentManifests);
-          LOG.debug("Deleting {} data files", dataFilesToDelete.size());
-          deleteFiles(dataFilesToDelete, "data");
+          Set<FileInfo> filesToDelete = findFilesToDelete(manifestsToDelete, currentManifests);
+          Map<FileContent, Set<String>> groupedFilesToDelete =
+              filesToDelete.stream()
+                  .collect(
+                      Collectors.groupingBy(
+                          FileInfo::getContent,
+                          Collectors.mapping(FileInfo::getPath, Collectors.toSet())));
+
+          for (Map.Entry<FileContent, Set<String>> entry : groupedFilesToDelete.entrySet()) {
+            Set<String> filesToDeleteGroup = entry.getValue();
+            String fileType = entry.getKey().name();
+            LOG.debug("Deleting {} {} files", filesToDeleteGroup.size(), fileType);
+            deleteFiles(filesToDeleteGroup, fileType, summary);
+          }
         }
 
         Set<String> manifestPathsToDelete =
             manifestsToDelete.stream().map(ManifestFile::path).collect(Collectors.toSet());
         LOG.debug("Deleting {} manifest files", manifestPathsToDelete.size());
-        deleteFiles(manifestPathsToDelete, "manifest");
+        deleteFiles(manifestPathsToDelete, MANIFEST, summary);
       }
     }
 
     LOG.debug("Deleting {} manifest-list files", manifestListsToDelete.size());
-    deleteFiles(manifestListsToDelete, "manifest list");
+    deleteFiles(manifestListsToDelete, MANIFEST_LIST, summary);
 
     if (hasAnyStatisticsFiles(beforeExpiration)) {
       Set<String> expiredStatisticsFilesLocations =
           expiredStatisticsFilesLocations(beforeExpiration, afterExpiration);
       LOG.debug("Deleting {} statistics files", expiredStatisticsFilesLocations.size());
-      deleteFiles(expiredStatisticsFilesLocations, "statistics files");
+      deleteFiles(expiredStatisticsFilesLocations, STATISTICS_FILES, summary);
     }
+    return summary;
   }
 
   private Set<ManifestFile> pruneReferencedManifests(
@@ -166,9 +181,9 @@ class ReachableFileCleanup extends FileCleanupStrategy {
   }
 
   // Helper to determine data files to delete
-  private Set<String> findFilesToDelete(
+  private Set<FileInfo> findFilesToDelete(
       Set<ManifestFile> manifestFilesToDelete, Set<ManifestFile> currentManifestFiles) {
-    Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
+    Set<FileInfo> filesToDelete = ConcurrentHashMap.newKeySet();
 
     Tasks.foreach(manifestFilesToDelete)
         .retry(3)
@@ -180,8 +195,11 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                     "Failed to determine live files in manifest {}. Retrying", item.path(), exc))
         .run(
             manifest -> {
-              try (CloseableIterable<String> paths = ManifestFiles.readPaths(manifest, fileIO)) {
-                paths.forEach(filesToDelete::add);
+              try (CloseableIterable<DataFile> entries =
+                  ManifestFiles.readColumns(
+                      manifest, fileIO, ImmutableList.of("content", "file_path"))) {
+                entries.forEach(
+                    entry -> filesToDelete.add(new FileInfo(entry.content(), entry.location())));
               } catch (IOException e) {
                 throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
               }
@@ -208,8 +226,12 @@ class ReachableFileCleanup extends FileCleanupStrategy {
                 }
 
                 // Remove all the live files from the candidate deletion set
-                try (CloseableIterable<String> paths = ManifestFiles.readPaths(manifest, fileIO)) {
-                  paths.forEach(filesToDelete::remove);
+                try (CloseableIterable<DataFile> entries =
+                    ManifestFiles.readColumns(
+                        manifest, fileIO, ImmutableList.of("content", "file_path"))) {
+                  entries.forEach(
+                      entry ->
+                          filesToDelete.remove(new FileInfo(entry.content(), entry.location())));
                 } catch (IOException e) {
                   throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
                 }
