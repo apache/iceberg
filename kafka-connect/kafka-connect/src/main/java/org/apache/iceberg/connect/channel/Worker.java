@@ -88,7 +88,7 @@ class Worker extends Channel {
               Thread thread =
                   new Thread(
                       r, "worker-control-poller-" + config.connectorName() + "-" + config.taskId());
-              thread.setDaemon(true); // Not daemon to ensure graceful shutdown
+              thread.setDaemon(true); // Daemon thread for automatic cleanup
               return thread;
             });
   }
