@@ -32,6 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
+import org.apache.iceberg.EmptyStructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
@@ -85,6 +86,8 @@ class Literals {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
     } else if (value instanceof Variant) {
       return (Literal<T>) new Literals.VariantLiteral((Variant) value);
+    } else if (value instanceof EmptyStructLike) {
+      return (Literal<T>) new Literals.EmptyStructLiteral((EmptyStructLike) value);
     }
 
     throw new IllegalArgumentException(
@@ -717,6 +720,34 @@ class Literals {
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
       return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+    }
+  }
+
+  static class EmptyStructLiteral extends BaseLiteral<EmptyStructLike> {
+    private static final Comparator<EmptyStructLike> CMP = Comparators.nullsFirst();
+
+    EmptyStructLiteral(EmptyStructLike value) {
+      super(value);
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.STRUCT;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <X> Literal<X> to(Type type) {
+      if (type.typeId() == Type.TypeID.STRUCT) {
+        return (Literal<X>) this;
+      }
+
+      return null;
+    }
+
+    @Override
+    public Comparator<EmptyStructLike> comparator() {
+      return CMP;
     }
   }
 }
