@@ -109,4 +109,8 @@ public class SparkSQLProperties {
 
   // Prefix for custom snapshot properties
   public static final String SNAPSHOT_PROPERTY_PREFIX = "spark.sql.iceberg.snapshot-property.";
+
+  // Session-level time-travel property; a timestamp in milliseconds.
+  // The snapshot used will be the snapshot current at this time.
+  public static final String AS_OF_TIMESTAMP = "spark.sql.iceberg.read.as-of-timestamp";
 }
