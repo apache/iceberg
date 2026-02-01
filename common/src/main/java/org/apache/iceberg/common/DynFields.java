@@ -20,8 +20,6 @@ package org.apache.iceberg.common;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -309,7 +307,7 @@ public class DynFields {
 
       try {
         Field hidden = targetClass.getDeclaredField(fieldName);
-        AccessController.doPrivileged(new MakeFieldAccessible(hidden));
+        hidden.setAccessible(true);
         this.field = new UnboundField(hidden, fieldName);
       } catch (SecurityException | NoSuchFieldException e) {
         // unusable
@@ -399,20 +397,6 @@ public class DynFields {
      */
     public <T> StaticField<T> buildStatic() {
       return this.<T>build().asStatic();
-    }
-  }
-
-  private static class MakeFieldAccessible implements PrivilegedAction<Void> {
-    private final Field hidden;
-
-    MakeFieldAccessible(Field hidden) {
-      this.hidden = hidden;
-    }
-
-    @Override
-    public Void run() {
-      hidden.setAccessible(true);
-      return null;
     }
   }
 }
