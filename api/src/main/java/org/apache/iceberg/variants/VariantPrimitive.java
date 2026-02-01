@@ -34,24 +34,16 @@ public interface VariantPrimitive<T> extends VariantValue {
   }
 
   private String valueAsString() {
-    switch (type()) {
-      case DATE:
-        return DateTimeUtil.daysToIsoDate((Integer) get());
-      case TIME:
-        return DateTimeUtil.microsToIsoTime((Long) get());
-      case TIMESTAMPTZ:
-        return DateTimeUtil.microsToIsoTimestamptz((Long) get());
-      case TIMESTAMPNTZ:
-        return DateTimeUtil.microsToIsoTimestamp((Long) get());
-      case TIMESTAMPTZ_NANOS:
-        return DateTimeUtil.nanosToIsoTimestamptz((Long) get());
-      case TIMESTAMPNTZ_NANOS:
-        return DateTimeUtil.nanosToIsoTimestamp((Long) get());
-      case BINARY:
-        return BaseEncoding.base16().encode(ByteBuffers.toByteArray((ByteBuffer) get()));
-      default:
-        return String.valueOf(get());
-    }
+    return switch (type()) {
+      case DATE -> DateTimeUtil.daysToIsoDate((Integer) get());
+      case TIME -> DateTimeUtil.microsToIsoTime((Long) get());
+      case TIMESTAMPTZ -> DateTimeUtil.microsToIsoTimestamptz((Long) get());
+      case TIMESTAMPNTZ -> DateTimeUtil.microsToIsoTimestamp((Long) get());
+      case TIMESTAMPTZ_NANOS -> DateTimeUtil.nanosToIsoTimestamptz((Long) get());
+      case TIMESTAMPNTZ_NANOS -> DateTimeUtil.nanosToIsoTimestamp((Long) get());
+      case BINARY -> BaseEncoding.base16().encode(ByteBuffers.toByteArray((ByteBuffer) get()));
+      default -> String.valueOf(get());
+    };
   }
 
   static String asString(VariantPrimitive<?> primitive) {

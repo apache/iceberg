@@ -377,36 +377,26 @@ public class Spark3Util {
           "Cannot convert transform with more than one column reference: %s",
           transform);
       String colName = DOT.join(transform.references()[0].fieldNames());
-      switch (transform.name().toLowerCase(Locale.ROOT)) {
-        case "identity":
-          return org.apache.iceberg.expressions.Expressions.ref(colName);
-        case "bucket":
-          return org.apache.iceberg.expressions.Expressions.bucket(colName, findWidth(transform));
-        case "year":
-        case "years":
-          return org.apache.iceberg.expressions.Expressions.year(colName);
-        case "month":
-        case "months":
-          return org.apache.iceberg.expressions.Expressions.month(colName);
-        case "date":
-        case "day":
-        case "days":
-          return org.apache.iceberg.expressions.Expressions.day(colName);
-        case "date_hour":
-        case "hour":
-        case "hours":
-          return org.apache.iceberg.expressions.Expressions.hour(colName);
-        case "truncate":
-          return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
-        case "zorder":
-          return new Zorder(
-              Stream.of(transform.references())
-                  .map(ref -> DOT.join(ref.fieldNames()))
-                  .map(org.apache.iceberg.expressions.Expressions::ref)
-                  .collect(Collectors.toList()));
-        default:
-          throw new UnsupportedOperationException("Transform is not supported: " + transform);
-      }
+      return switch (transform.name().toLowerCase(Locale.ROOT)) {
+        case "identity" -> org.apache.iceberg.expressions.Expressions.ref(colName);
+        case "bucket" ->
+            org.apache.iceberg.expressions.Expressions.bucket(colName, findWidth(transform));
+        case "year", "years" -> org.apache.iceberg.expressions.Expressions.year(colName);
+        case "month", "months" -> org.apache.iceberg.expressions.Expressions.month(colName);
+        case "date", "day", "days" -> org.apache.iceberg.expressions.Expressions.day(colName);
+        case "date_hour", "hour", "hours" ->
+            org.apache.iceberg.expressions.Expressions.hour(colName);
+        case "truncate" ->
+            org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
+        case "zorder" ->
+            new Zorder(
+                Stream.of(transform.references())
+                    .map(ref -> DOT.join(ref.fieldNames()))
+                    .map(org.apache.iceberg.expressions.Expressions::ref)
+                    .collect(Collectors.toList()));
+        default ->
+            throw new UnsupportedOperationException("Transform is not supported: " + transform);
+      };
 
     } else if (expr instanceof NamedReference) {
       NamedReference ref = (NamedReference) expr;
@@ -584,34 +574,24 @@ public class Spark3Util {
 
     @Override
     public String primitive(Type.PrimitiveType primitive) {
-      switch (primitive.typeId()) {
-        case BOOLEAN:
-          return "boolean";
-        case INTEGER:
-          return "int";
-        case LONG:
-          return "bigint";
-        case FLOAT:
-          return "float";
-        case DOUBLE:
-          return "double";
-        case DATE:
-          return "date";
-        case TIME:
-          return "time";
-        case TIMESTAMP:
-          return "timestamp";
-        case STRING:
-        case UUID:
-          return "string";
-        case FIXED:
-        case BINARY:
-          return "binary";
-        case DECIMAL:
+      return switch (primitive.typeId()) {
+        case BOOLEAN -> "boolean";
+        case INTEGER -> "int";
+        case LONG -> "bigint";
+        case FLOAT -> "float";
+        case DOUBLE -> "double";
+        case DATE -> "date";
+        case TIME -> "time";
+        case TIMESTAMP -> "timestamp";
+        case STRING, UUID -> "string";
+        case FIXED, BINARY -> "binary";
+        case DECIMAL -> {
           Types.DecimalType decimal = (Types.DecimalType) primitive;
-          return "decimal(" + decimal.precision() + "," + decimal.scale() + ")";
-      }
-      throw new UnsupportedOperationException("Cannot convert type to SQL: " + primitive);
+          yield "decimal(" + decimal.precision() + "," + decimal.scale() + ")";
+        }
+        default ->
+            throw new UnsupportedOperationException("Cannot convert type to SQL: " + primitive);
+      };
     }
   }
 
@@ -653,38 +633,25 @@ public class Spark3Util {
 
     @Override
     public <T> String predicate(UnboundPredicate<T> pred) {
-      switch (pred.op()) {
-        case IS_NULL:
-          return sqlString(pred.term()) + " IS NULL";
-        case NOT_NULL:
-          return sqlString(pred.term()) + " IS NOT NULL";
-        case IS_NAN:
-          return "is_nan(" + sqlString(pred.term()) + ")";
-        case NOT_NAN:
-          return "not_nan(" + sqlString(pred.term()) + ")";
-        case LT:
-          return sqlString(pred.term()) + " < " + sqlString(pred.literal());
-        case LT_EQ:
-          return sqlString(pred.term()) + " <= " + sqlString(pred.literal());
-        case GT:
-          return sqlString(pred.term()) + " > " + sqlString(pred.literal());
-        case GT_EQ:
-          return sqlString(pred.term()) + " >= " + sqlString(pred.literal());
-        case EQ:
-          return sqlString(pred.term()) + " = " + sqlString(pred.literal());
-        case NOT_EQ:
-          return sqlString(pred.term()) + " != " + sqlString(pred.literal());
-        case STARTS_WITH:
-          return sqlString(pred.term()) + " LIKE '" + pred.literal().value() + "%'";
-        case NOT_STARTS_WITH:
-          return sqlString(pred.term()) + " NOT LIKE '" + pred.literal().value() + "%'";
-        case IN:
-          return sqlString(pred.term()) + " IN (" + sqlString(pred.literals()) + ")";
-        case NOT_IN:
-          return sqlString(pred.term()) + " NOT IN (" + sqlString(pred.literals()) + ")";
-        default:
-          throw new UnsupportedOperationException("Cannot convert predicate to SQL: " + pred);
-      }
+      return switch (pred.op()) {
+        case IS_NULL -> sqlString(pred.term()) + " IS NULL";
+        case NOT_NULL -> sqlString(pred.term()) + " IS NOT NULL";
+        case IS_NAN -> "is_nan(" + sqlString(pred.term()) + ")";
+        case NOT_NAN -> "not_nan(" + sqlString(pred.term()) + ")";
+        case LT -> sqlString(pred.term()) + " < " + sqlString(pred.literal());
+        case LT_EQ -> sqlString(pred.term()) + " <= " + sqlString(pred.literal());
+        case GT -> sqlString(pred.term()) + " > " + sqlString(pred.literal());
+        case GT_EQ -> sqlString(pred.term()) + " >= " + sqlString(pred.literal());
+        case EQ -> sqlString(pred.term()) + " = " + sqlString(pred.literal());
+        case NOT_EQ -> sqlString(pred.term()) + " != " + sqlString(pred.literal());
+        case STARTS_WITH -> sqlString(pred.term()) + " LIKE '" + pred.literal().value() + "%'";
+        case NOT_STARTS_WITH ->
+            sqlString(pred.term()) + " NOT LIKE '" + pred.literal().value() + "%'";
+        case IN -> sqlString(pred.term()) + " IN (" + sqlString(pred.literals()) + ")";
+        case NOT_IN -> sqlString(pred.term()) + " NOT IN (" + sqlString(pred.literals()) + ")";
+        default ->
+            throw new UnsupportedOperationException("Cannot convert predicate to SQL: " + pred);
+      };
     }
 
     private static <T> String sqlString(UnboundTerm<T> term) {

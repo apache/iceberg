@@ -62,52 +62,38 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
 
   @Override
   public RowLevelOperation build() {
-    switch (mode) {
-      case COPY_ON_WRITE:
-        return new SparkCopyOnWriteOperation(spark, table, branch, info, isolationLevel);
-      case MERGE_ON_READ:
-        return new SparkPositionDeltaOperation(spark, table, branch, info, isolationLevel);
-      default:
-        throw new IllegalArgumentException("Unsupported operation mode: " + mode);
-    }
+    return switch (mode) {
+      case COPY_ON_WRITE ->
+          new SparkCopyOnWriteOperation(spark, table, branch, info, isolationLevel);
+      case MERGE_ON_READ ->
+          new SparkPositionDeltaOperation(spark, table, branch, info, isolationLevel);
+      default -> throw new IllegalArgumentException("Unsupported operation mode: " + mode);
+    };
   }
 
   private RowLevelOperationMode mode(Map<String, String> properties, Command command) {
-    String modeName;
-
-    switch (command) {
-      case DELETE:
-        modeName = properties.getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
-        break;
-      case UPDATE:
-        modeName = properties.getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT);
-        break;
-      case MERGE:
-        modeName = properties.getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
-        break;
-      default:
-        throw new IllegalArgumentException("Unsupported command: " + command);
-    }
+    String modeName =
+        switch (command) {
+          case DELETE -> properties.getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
+          case UPDATE -> properties.getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT);
+          case MERGE -> properties.getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
+          default -> throw new IllegalArgumentException("Unsupported command: " + command);
+        };
 
     return RowLevelOperationMode.fromName(modeName);
   }
 
   private IsolationLevel isolationLevel(Map<String, String> properties, Command command) {
-    String levelName;
-
-    switch (command) {
-      case DELETE:
-        levelName = properties.getOrDefault(DELETE_ISOLATION_LEVEL, DELETE_ISOLATION_LEVEL_DEFAULT);
-        break;
-      case UPDATE:
-        levelName = properties.getOrDefault(UPDATE_ISOLATION_LEVEL, UPDATE_ISOLATION_LEVEL_DEFAULT);
-        break;
-      case MERGE:
-        levelName = properties.getOrDefault(MERGE_ISOLATION_LEVEL, MERGE_ISOLATION_LEVEL_DEFAULT);
-        break;
-      default:
-        throw new IllegalArgumentException("Unsupported command: " + command);
-    }
+    String levelName =
+        switch (command) {
+          case DELETE ->
+              properties.getOrDefault(DELETE_ISOLATION_LEVEL, DELETE_ISOLATION_LEVEL_DEFAULT);
+          case UPDATE ->
+              properties.getOrDefault(UPDATE_ISOLATION_LEVEL, UPDATE_ISOLATION_LEVEL_DEFAULT);
+          case MERGE ->
+              properties.getOrDefault(MERGE_ISOLATION_LEVEL, MERGE_ISOLATION_LEVEL_DEFAULT);
+          default -> throw new IllegalArgumentException("Unsupported command: " + command);
+        };
 
     return IsolationLevel.fromName(levelName);
   }

@@ -164,13 +164,11 @@ public class SortOrderParser {
   }
 
   private static NullOrder toNullOrder(String nullOrderingAsString) {
-    switch (nullOrderingAsString.toLowerCase(Locale.ROOT)) {
-      case "nulls-first":
-        return NULLS_FIRST;
-      case "nulls-last":
-        return NULLS_LAST;
-      default:
-        throw new IllegalArgumentException("Unexpected null order: " + nullOrderingAsString);
-    }
+    return switch (nullOrderingAsString.toLowerCase(Locale.ROOT)) {
+      case "nulls-first" -> NULLS_FIRST;
+      case "nulls-last" -> NULLS_LAST;
+      default ->
+          throw new IllegalArgumentException("Unexpected null order: " + nullOrderingAsString);
+    };
   }
 }

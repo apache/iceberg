@@ -52,72 +52,46 @@ public class RandomUtil {
         return choice < 10;
 
       case INTEGER:
-        switch (choice) {
-          case 1:
-            return Integer.MIN_VALUE;
-          case 2:
-            return Integer.MAX_VALUE;
-          case 3:
-            return 0;
-          default:
-            return negate(choice) ? -1 * random.nextInt() : random.nextInt();
-        }
+        return switch (choice) {
+          case 1 -> Integer.MIN_VALUE;
+          case 2 -> Integer.MAX_VALUE;
+          case 3 -> 0;
+          default -> negate(choice) ? -1 * random.nextInt() : random.nextInt();
+        };
 
       case LONG:
-        switch (choice) {
-          case 1:
-            return Long.MIN_VALUE;
-          case 2:
-            return Long.MAX_VALUE;
-          case 3:
-            return 0L;
-          default:
-            return negate(choice) ? -1L * random.nextLong() : random.nextLong();
-        }
+        return switch (choice) {
+          case 1 -> Long.MIN_VALUE;
+          case 2 -> Long.MAX_VALUE;
+          case 3 -> 0L;
+          default -> negate(choice) ? -1L * random.nextLong() : random.nextLong();
+        };
 
       case FLOAT:
-        switch (choice) {
-          case 1:
-            return Float.MIN_VALUE;
-          case 2:
-            return -Float.MIN_VALUE;
-          case 3:
-            return Float.MAX_VALUE;
-          case 4:
-            return -Float.MAX_VALUE;
-          case 5:
-            return Float.NEGATIVE_INFINITY;
-          case 6:
-            return Float.POSITIVE_INFINITY;
-          case 7:
-            return 0.0F;
-          case 8:
-            return Float.NaN;
-          default:
-            return negate(choice) ? -1.0F * random.nextFloat() : random.nextFloat();
-        }
+        return switch (choice) {
+          case 1 -> Float.MIN_VALUE;
+          case 2 -> -Float.MIN_VALUE;
+          case 3 -> Float.MAX_VALUE;
+          case 4 -> -Float.MAX_VALUE;
+          case 5 -> Float.NEGATIVE_INFINITY;
+          case 6 -> Float.POSITIVE_INFINITY;
+          case 7 -> 0.0F;
+          case 8 -> Float.NaN;
+          default -> negate(choice) ? -1.0F * random.nextFloat() : random.nextFloat();
+        };
 
       case DOUBLE:
-        switch (choice) {
-          case 1:
-            return Double.MIN_VALUE;
-          case 2:
-            return -Double.MIN_VALUE;
-          case 3:
-            return Double.MAX_VALUE;
-          case 4:
-            return -Double.MAX_VALUE;
-          case 5:
-            return Double.NEGATIVE_INFINITY;
-          case 6:
-            return Double.POSITIVE_INFINITY;
-          case 7:
-            return 0.0D;
-          case 8:
-            return Double.NaN;
-          default:
-            return negate(choice) ? -1.0D * random.nextDouble() : random.nextDouble();
-        }
+        return switch (choice) {
+          case 1 -> Double.MIN_VALUE;
+          case 2 -> -Double.MIN_VALUE;
+          case 3 -> Double.MAX_VALUE;
+          case 4 -> -Double.MAX_VALUE;
+          case 5 -> Double.NEGATIVE_INFINITY;
+          case 6 -> Double.POSITIVE_INFINITY;
+          case 7 -> 0.0D;
+          case 8 -> Double.NaN;
+          default -> negate(choice) ? -1.0D * random.nextDouble() : random.nextDouble();
+        };
 
       case DATE:
         // this will include negative values (dates before 1970-01-01)

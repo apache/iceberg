@@ -109,29 +109,18 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
     public ValueWriter<?> primitive(LogicalType type, Schema primitive) {
       org.apache.avro.LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
-        switch (logicalType.getName()) {
-          case "date":
-            return ValueWriters.ints();
-
-          case "time-micros":
-            return FlinkValueWriters.timeMicros();
-
-          case "timestamp-micros":
-            return FlinkValueWriters.timestampMicros();
-
-          case "timestamp-nanos":
-            return FlinkValueWriters.timestampNanos();
-
-          case "decimal":
+        return switch (logicalType.getName()) {
+          case "date" -> ValueWriters.ints();
+          case "time-micros" -> FlinkValueWriters.timeMicros();
+          case "timestamp-micros" -> FlinkValueWriters.timestampMicros();
+          case "timestamp-nanos" -> FlinkValueWriters.timestampNanos();
+          case "decimal" -> {
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return FlinkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
-
-          case "uuid":
-            return ValueWriters.uuids();
-
-          default:
-            throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
-        }
+            yield FlinkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+          }
+          case "uuid" -> ValueWriters.uuids();
+          default -> throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
+        };
       }
 
       switch (primitive.getType()) {
@@ -140,14 +129,11 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
         case BOOLEAN:
           return ValueWriters.booleans();
         case INT:
-          switch (type.getTypeRoot()) {
-            case TINYINT:
-              return ValueWriters.tinyints();
-            case SMALLINT:
-              return ValueWriters.shorts();
-            default:
-              return ValueWriters.ints();
-          }
+          return switch (type.getTypeRoot()) {
+            case TINYINT -> ValueWriters.tinyints();
+            case SMALLINT -> ValueWriters.shorts();
+            default -> ValueWriters.ints();
+          };
         case LONG:
           return ValueWriters.longs();
         case FLOAT:

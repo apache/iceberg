@@ -46,12 +46,10 @@ class IcebergEnumeratorPositionSerializer
 
   @Override
   public IcebergEnumeratorPosition deserialize(int version, byte[] serialized) throws IOException {
-    switch (version) {
-      case 1:
-        return deserializeV1(serialized);
-      default:
-        throw new IOException("Unknown version: " + version);
-    }
+    return switch (version) {
+      case 1 -> deserializeV1(serialized);
+      default -> throw new IOException("Unknown version: " + version);
+    };
   }
 
   private byte[] serializeV1(IcebergEnumeratorPosition position) throws IOException {

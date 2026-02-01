@@ -209,13 +209,10 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   }
 
   private static String readTaskJson(DataInputDeserializer in, int version) throws IOException {
-    switch (version) {
-      case 2:
-        return in.readUTF();
-      case 3:
-        return SerializerHelper.readLongUTF(in);
-      default:
-        throw new IllegalArgumentException("Unsupported version: " + version);
-    }
+    return switch (version) {
+      case 2 -> in.readUTF();
+      case 3 -> SerializerHelper.readLongUTF(in);
+      default -> throw new IllegalArgumentException("Unsupported version: " + version);
+    };
   }
 }

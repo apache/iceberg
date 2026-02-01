@@ -196,14 +196,12 @@ public class AwsClientFactories {
     if (Strings.isNullOrEmpty(clientType)) {
       clientType = HttpClientProperties.CLIENT_TYPE_DEFAULT;
     }
-    switch (clientType) {
-      case HttpClientProperties.CLIENT_TYPE_URLCONNECTION:
-        return UrlConnectionHttpClient.builder();
-      case HttpClientProperties.CLIENT_TYPE_APACHE:
-        return ApacheHttpClient.builder();
-      default:
-        throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
-    }
+    return switch (clientType) {
+      case HttpClientProperties.CLIENT_TYPE_URLCONNECTION -> UrlConnectionHttpClient.builder();
+      case HttpClientProperties.CLIENT_TYPE_APACHE -> ApacheHttpClient.builder();
+      default ->
+          throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);
+    };
   }
 
   /**

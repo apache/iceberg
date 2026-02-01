@@ -42,114 +42,92 @@ class ProjectionUtil {
   static <T> UnboundPredicate<T> truncateInteger(
       String name, BoundLiteralPredicate<Integer> pred, Function<Integer, T> transform) {
     int boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
-        // adjust closed and then transform ltEq
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1));
-      case LT_EQ:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
-      case GT:
-        // adjust closed and then transform gtEq
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1));
-      case GT_EQ:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
-      case EQ:
-        return predicate(pred.op(), name, transform.apply(boundary));
-      default:
-        return null;
-    }
+    return switch (pred.op()) {
+      case LT ->
+          // adjust closed and then transform ltEq
+          predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1));
+      case LT_EQ -> predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+      case GT ->
+          // adjust closed and then transform gtEq
+          predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1));
+      case GT_EQ -> predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+      case EQ -> predicate(pred.op(), name, transform.apply(boundary));
+      default -> null;
+    };
   }
 
   static <T> UnboundPredicate<T> truncateIntegerStrict(
       String name, BoundLiteralPredicate<Integer> pred, Function<Integer, T> transform) {
     int boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary));
-      case LT_EQ:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary + 1));
-      case GT:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary));
-      case GT_EQ:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary - 1));
-      case NOT_EQ:
-        return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
-      case EQ:
-        // there is no predicate that guarantees equality because adjacent ints transform to the
-        // same value
-        return null;
-      default:
-        return null;
-    }
+    return switch (pred.op()) {
+      case LT -> predicate(Expression.Operation.LT, name, transform.apply(boundary));
+      case LT_EQ -> predicate(Expression.Operation.LT, name, transform.apply(boundary + 1));
+      case GT -> predicate(Expression.Operation.GT, name, transform.apply(boundary));
+      case GT_EQ -> predicate(Expression.Operation.GT, name, transform.apply(boundary - 1));
+      case NOT_EQ -> predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+      case EQ ->
+          // there is no predicate that guarantees equality because adjacent ints transform to the
+          // same value
+          null;
+      default -> null;
+    };
   }
 
   static <T> UnboundPredicate<T> truncateLongStrict(
       String name, BoundLiteralPredicate<Long> pred, Function<Long, T> transform) {
     long boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary));
-      case LT_EQ:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary + 1L));
-      case GT:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary));
-      case GT_EQ:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary - 1L));
-      case NOT_EQ:
-        return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
-      case EQ:
-        // there is no predicate that guarantees equality because adjacent longs transform to the
-        // same value
-        return null;
-      default:
-        return null;
-    }
+    return switch (pred.op()) {
+      case LT -> predicate(Expression.Operation.LT, name, transform.apply(boundary));
+      case LT_EQ -> predicate(Expression.Operation.LT, name, transform.apply(boundary + 1L));
+      case GT -> predicate(Expression.Operation.GT, name, transform.apply(boundary));
+      case GT_EQ -> predicate(Expression.Operation.GT, name, transform.apply(boundary - 1L));
+      case NOT_EQ -> predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+      case EQ ->
+          // there is no predicate that guarantees equality because adjacent longs transform to the
+          // same value
+          null;
+      default -> null;
+    };
   }
 
   static <T> UnboundPredicate<T> truncateLong(
       String name, BoundLiteralPredicate<Long> pred, Function<Long, T> transform) {
     long boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
-        // adjust closed and then transform ltEq
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1L));
-      case LT_EQ:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
-      case GT:
-        // adjust closed and then transform gtEq
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1L));
-      case GT_EQ:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
-      case EQ:
-        return predicate(pred.op(), name, transform.apply(boundary));
-      default:
-        return null;
-    }
+    return switch (pred.op()) {
+      case LT ->
+          // adjust closed and then transform ltEq
+          predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary - 1L));
+      case LT_EQ -> predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+      case GT ->
+          // adjust closed and then transform gtEq
+          predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary + 1L));
+      case GT_EQ -> predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+      case EQ -> predicate(pred.op(), name, transform.apply(boundary));
+      default -> null;
+    };
   }
 
   static <T> UnboundPredicate<T> truncateDecimal(
       String name, BoundLiteralPredicate<BigDecimal> pred, Function<BigDecimal, T> transform) {
     BigDecimal boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
+    return switch (pred.op()) {
+      case LT -> {
         // adjust closed and then transform ltEq
         BigDecimal minusOne =
             new BigDecimal(boundary.unscaledValue().subtract(BigInteger.ONE), boundary.scale());
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(minusOne));
-      case LT_EQ:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
-      case GT:
+        yield predicate(Expression.Operation.LT_EQ, name, transform.apply(minusOne));
+      }
+      case LT_EQ -> predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+      case GT -> {
         // adjust closed and then transform gtEq
         BigDecimal plusOne =
             new BigDecimal(boundary.unscaledValue().add(BigInteger.ONE), boundary.scale());
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(plusOne));
-      case GT_EQ:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
-      case EQ:
-        return predicate(pred.op(), name, transform.apply(boundary));
-      default:
-        return null;
-    }
+        yield predicate(Expression.Operation.GT_EQ, name, transform.apply(plusOne));
+      }
+      case GT_EQ -> predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+      case EQ -> predicate(pred.op(), name, transform.apply(boundary));
+      default -> null;
+    };
   }
 
   static <T> UnboundPredicate<T> truncateDecimalStrict(
@@ -162,66 +140,49 @@ class ProjectionUtil {
     BigDecimal plusOne =
         new BigDecimal(boundary.unscaledValue().add(BigInteger.ONE), boundary.scale());
 
-    switch (pred.op()) {
-      case LT:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary));
-      case LT_EQ:
-        return predicate(Expression.Operation.LT, name, transform.apply(plusOne));
-      case GT:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary));
-      case GT_EQ:
-        return predicate(Expression.Operation.GT, name, transform.apply(minusOne));
-      case NOT_EQ:
-        return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
-      case EQ:
-        // there is no predicate that guarantees equality because adjacent decimals transform to the
-        // same value
-        return null;
-      default:
-        return null;
-    }
+    return switch (pred.op()) {
+      case LT -> predicate(Expression.Operation.LT, name, transform.apply(boundary));
+      case LT_EQ -> predicate(Expression.Operation.LT, name, transform.apply(plusOne));
+      case GT -> predicate(Expression.Operation.GT, name, transform.apply(boundary));
+      case GT_EQ -> predicate(Expression.Operation.GT, name, transform.apply(minusOne));
+      case NOT_EQ -> predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+      case EQ ->
+          // there is no predicate that guarantees equality because adjacent decimals transform to
+          // the
+          // same value
+          null;
+      default -> null;
+    };
   }
 
   static <S, T> UnboundPredicate<T> truncateArray(
       String name, BoundLiteralPredicate<S> pred, Function<S, T> transform) {
     S boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
-      case LT_EQ:
-        return predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
-      case GT:
-      case GT_EQ:
-        return predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
-      case EQ:
-        return predicate(Expression.Operation.EQ, name, transform.apply(boundary));
-      case STARTS_WITH:
-        return predicate(Expression.Operation.STARTS_WITH, name, transform.apply(boundary));
+    return switch (pred.op()) {
+      case LT, LT_EQ -> predicate(Expression.Operation.LT_EQ, name, transform.apply(boundary));
+      case GT, GT_EQ -> predicate(Expression.Operation.GT_EQ, name, transform.apply(boundary));
+      case EQ -> predicate(Expression.Operation.EQ, name, transform.apply(boundary));
+      case STARTS_WITH ->
+          predicate(Expression.Operation.STARTS_WITH, name, transform.apply(boundary));
         //        case IN: // TODO
         //          return Expressions.predicate(Operation.IN, name, transform.apply(boundary));
-      default:
-        return null;
-    }
+      default -> null;
+    };
   }
 
   static <S, T> UnboundPredicate<T> truncateArrayStrict(
       String name, BoundLiteralPredicate<S> pred, Function<S, T> transform) {
     S boundary = pred.literal().value();
-    switch (pred.op()) {
-      case LT:
-      case LT_EQ:
-        return predicate(Expression.Operation.LT, name, transform.apply(boundary));
-      case GT:
-      case GT_EQ:
-        return predicate(Expression.Operation.GT, name, transform.apply(boundary));
-      case NOT_EQ:
-        return predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
-      case EQ:
-        // there is no predicate that guarantees equality because adjacent values transform to the
-        // same partition
-        return null;
-      default:
-        return null;
-    }
+    return switch (pred.op()) {
+      case LT, LT_EQ -> predicate(Expression.Operation.LT, name, transform.apply(boundary));
+      case GT, GT_EQ -> predicate(Expression.Operation.GT, name, transform.apply(boundary));
+      case NOT_EQ -> predicate(Expression.Operation.NOT_EQ, name, transform.apply(boundary));
+      case EQ ->
+          // there is no predicate that guarantees equality because adjacent values transform to the
+          // same partition
+          null;
+      default -> null;
+    };
   }
 
   /**

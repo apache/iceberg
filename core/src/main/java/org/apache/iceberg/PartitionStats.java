@@ -232,36 +232,22 @@ public class PartitionStats implements StructLike {
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    switch (pos) {
-      case 0:
-        return javaClass.cast(partition);
-      case 1:
-        return javaClass.cast(specId);
-      case 2:
-        return javaClass.cast(dataRecordCount);
-      case 3:
-        return javaClass.cast(dataFileCount);
-      case 4:
-        return javaClass.cast(totalDataFileSizeInBytes);
-      case 5:
-        return javaClass.cast(positionDeleteRecordCount);
-      case 6:
-        return javaClass.cast(positionDeleteFileCount);
-      case 7:
-        return javaClass.cast(equalityDeleteRecordCount);
-      case 8:
-        return javaClass.cast(equalityDeleteFileCount);
-      case 9:
-        return javaClass.cast(totalRecordCount);
-      case 10:
-        return javaClass.cast(lastUpdatedAt);
-      case 11:
-        return javaClass.cast(lastUpdatedSnapshotId);
-      case 12:
-        return javaClass.cast(dvCount);
-      default:
-        throw new UnsupportedOperationException("Unknown position: " + pos);
-    }
+    return switch (pos) {
+      case 0 -> javaClass.cast(partition);
+      case 1 -> javaClass.cast(specId);
+      case 2 -> javaClass.cast(dataRecordCount);
+      case 3 -> javaClass.cast(dataFileCount);
+      case 4 -> javaClass.cast(totalDataFileSizeInBytes);
+      case 5 -> javaClass.cast(positionDeleteRecordCount);
+      case 6 -> javaClass.cast(positionDeleteFileCount);
+      case 7 -> javaClass.cast(equalityDeleteRecordCount);
+      case 8 -> javaClass.cast(equalityDeleteFileCount);
+      case 9 -> javaClass.cast(totalRecordCount);
+      case 10 -> javaClass.cast(lastUpdatedAt);
+      case 11 -> javaClass.cast(lastUpdatedSnapshotId);
+      case 12 -> javaClass.cast(dvCount);
+      default -> throw new UnsupportedOperationException("Unknown position: " + pos);
+    };
   }
 
   @Override

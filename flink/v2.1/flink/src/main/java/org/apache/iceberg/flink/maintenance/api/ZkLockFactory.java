@@ -250,22 +250,13 @@ public class ZkLockFactory implements TriggerLockFactory {
     ZKRetryPolicies effectivePolicy =
         (retryPolicy == null) ? ZKRetryPolicies.EXPONENTIAL_BACKOFF : retryPolicy;
 
-    switch (effectivePolicy) {
-      case ONE_TIME:
-        return new RetryOneTime(baseSleepTimeMs);
-
-      case N_TIME:
-        return new RetryNTimes(maxRetries, baseSleepTimeMs);
-
-      case BOUNDED_EXPONENTIAL_BACKOFF:
-        return new BoundedExponentialBackoffRetry(baseSleepTimeMs, maxSleepTimeMs, maxRetries);
-
-      case UNTIL_ELAPSED:
-        return new RetryUntilElapsed(maxSleepTimeMs, baseSleepTimeMs);
-
-      case EXPONENTIAL_BACKOFF:
-      default:
-        return new ExponentialBackoffRetry(baseSleepTimeMs, maxRetries);
-    }
+    return switch (effectivePolicy) {
+      case ONE_TIME -> new RetryOneTime(baseSleepTimeMs);
+      case N_TIME -> new RetryNTimes(maxRetries, baseSleepTimeMs);
+      case BOUNDED_EXPONENTIAL_BACKOFF ->
+          new BoundedExponentialBackoffRetry(baseSleepTimeMs, maxSleepTimeMs, maxRetries);
+      case UNTIL_ELAPSED -> new RetryUntilElapsed(maxSleepTimeMs, baseSleepTimeMs);
+      default -> new ExponentialBackoffRetry(baseSleepTimeMs, maxRetries);
+    };
   }
 }

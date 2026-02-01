@@ -295,20 +295,18 @@ public class ExpressionParser {
     }
 
     Expression.Operation op = fromType(type);
-    switch (op) {
-      case NOT:
-        return Expressions.not(fromJson(JsonUtil.get(CHILD, json), schema));
-      case AND:
-        return Expressions.and(
-            fromJson(JsonUtil.get(LEFT, json), schema),
-            fromJson(JsonUtil.get(RIGHT, json), schema));
-      case OR:
-        return Expressions.or(
-            fromJson(JsonUtil.get(LEFT, json), schema),
-            fromJson(JsonUtil.get(RIGHT, json), schema));
-    }
-
-    return predicateFromJson(op, json, schema);
+    return switch (op) {
+      case NOT -> Expressions.not(fromJson(JsonUtil.get(CHILD, json), schema));
+      case AND ->
+          Expressions.and(
+              fromJson(JsonUtil.get(LEFT, json), schema),
+              fromJson(JsonUtil.get(RIGHT, json), schema));
+      case OR ->
+          Expressions.or(
+              fromJson(JsonUtil.get(LEFT, json), schema),
+              fromJson(JsonUtil.get(RIGHT, json), schema));
+      default -> predicateFromJson(op, json, schema);
+    };
   }
 
   private static Expression.Operation fromType(String type) {

@@ -58,19 +58,12 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Expression residual,
       Schema projection,
       Map<Integer, ?> idToConstant) {
-    switch (format) {
-      case PARQUET:
-        return newParquetIterable(file, start, length, residual, projection, idToConstant);
-
-      case AVRO:
-        return newAvroIterable(file, start, length, projection, idToConstant);
-
-      case ORC:
-        return newOrcIterable(file, start, length, residual, projection, idToConstant);
-
-      default:
-        throw new UnsupportedOperationException("Cannot read unknown format: " + format);
-    }
+    return switch (format) {
+      case PARQUET -> newParquetIterable(file, start, length, residual, projection, idToConstant);
+      case AVRO -> newAvroIterable(file, start, length, projection, idToConstant);
+      case ORC -> newOrcIterable(file, start, length, residual, projection, idToConstant);
+      default -> throw new UnsupportedOperationException("Cannot read unknown format: " + format);
+    };
   }
 
   private CloseableIterable<InternalRow> newAvroIterable(

@@ -212,16 +212,15 @@ public class SparkParquetWriters {
 
       @Override
       public Optional<ParquetValueWriter<?>> visit(DecimalLogicalTypeAnnotation decimal) {
-        switch (primitive.getPrimitiveTypeName()) {
-          case INT32:
-            return Optional.of(decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale()));
-          case INT64:
-            return Optional.of(decimalAsLong(desc, decimal.getPrecision(), decimal.getScale()));
-          case BINARY:
-          case FIXED_LEN_BYTE_ARRAY:
-            return Optional.of(decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale()));
-        }
-        return Optional.empty();
+        return switch (primitive.getPrimitiveTypeName()) {
+          case INT32 ->
+              Optional.of(decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale()));
+          case INT64 ->
+              Optional.of(decimalAsLong(desc, decimal.getPrecision(), decimal.getScale()));
+          case BINARY, FIXED_LEN_BYTE_ARRAY ->
+              Optional.of(decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale()));
+          default -> Optional.empty();
+        };
       }
 
       @Override
@@ -284,23 +283,15 @@ public class SparkParquetWriters {
                         "Unsupported logical type: " + primitive.getLogicalTypeAnnotation()));
       }
 
-      switch (primitive.getPrimitiveTypeName()) {
-        case FIXED_LEN_BYTE_ARRAY:
-        case BINARY:
-          return byteArrays(desc);
-        case BOOLEAN:
-          return ParquetValueWriters.booleans(desc);
-        case INT32:
-          return ints(sType, desc);
-        case INT64:
-          return ParquetValueWriters.longs(desc);
-        case FLOAT:
-          return ParquetValueWriters.floats(desc);
-        case DOUBLE:
-          return ParquetValueWriters.doubles(desc);
-        default:
-          throw new UnsupportedOperationException("Unsupported type: " + primitive);
-      }
+      return switch (primitive.getPrimitiveTypeName()) {
+        case FIXED_LEN_BYTE_ARRAY, BINARY -> byteArrays(desc);
+        case BOOLEAN -> ParquetValueWriters.booleans(desc);
+        case INT32 -> ints(sType, desc);
+        case INT64 -> ParquetValueWriters.longs(desc);
+        case FLOAT -> ParquetValueWriters.floats(desc);
+        case DOUBLE -> ParquetValueWriters.doubles(desc);
+        default -> throw new UnsupportedOperationException("Unsupported type: " + primitive);
+      };
     }
   }
 

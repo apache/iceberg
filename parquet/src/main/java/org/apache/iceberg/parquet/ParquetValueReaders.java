@@ -98,18 +98,14 @@ public class ParquetValueReaders {
 
     int scale = ((DecimalLogicalTypeAnnotation) decimal).getScale();
 
-    switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
-      case FIXED_LEN_BYTE_ARRAY:
-      case BINARY:
-        return new BinaryAsDecimalReader(desc, scale);
-      case INT64:
-        return new LongAsDecimalReader(desc, scale);
-      case INT32:
-        return new IntegerAsDecimalReader(desc, scale);
-    }
-
-    throw new IllegalArgumentException(
-        "Invalid primitive type for decimal: " + desc.getPrimitiveType());
+    return switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+      case FIXED_LEN_BYTE_ARRAY, BINARY -> new BinaryAsDecimalReader(desc, scale);
+      case INT64 -> new LongAsDecimalReader(desc, scale);
+      case INT32 -> new IntegerAsDecimalReader(desc, scale);
+      default ->
+          throw new IllegalArgumentException(
+              "Invalid primitive type for decimal: " + desc.getPrimitiveType());
+    };
   }
 
   public static ParquetValueReader<Long> times(ColumnDescriptor desc) {
@@ -136,15 +132,10 @@ public class ParquetValueReaders {
         "Invalid timestamp logical type: " + timestamp);
 
     TimeUnit unit = ((TimestampLogicalTypeAnnotation) timestamp).getUnit();
-    switch (unit) {
-      case MILLIS:
-        return new TimestampMillisReader(desc);
-      case MICROS:
-      case NANOS:
-        return new UnboxedReader<>(desc);
-    }
-
-    throw new IllegalArgumentException("Unsupported timestamp unit: " + unit);
+    return switch (unit) {
+      case MILLIS -> new TimestampMillisReader(desc);
+      case MICROS, NANOS -> new UnboxedReader<>(desc);
+    };
   }
 
   @SuppressWarnings("unchecked")

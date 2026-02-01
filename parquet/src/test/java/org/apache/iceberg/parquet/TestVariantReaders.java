@@ -1462,74 +1462,62 @@ public class TestVariantReaders {
   }
 
   private static Type shreddedType(VariantValue value) {
-    switch (value.type()) {
-      case BOOLEAN_TRUE:
-      case BOOLEAN_FALSE:
-        return shreddedPrimitive(PrimitiveTypeName.BOOLEAN);
-      case INT8:
-        return shreddedPrimitive(PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8));
-      case INT16:
-        return shreddedPrimitive(PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(16));
-      case INT32:
-        return shreddedPrimitive(PrimitiveTypeName.INT32);
-      case INT64:
-        return shreddedPrimitive(PrimitiveTypeName.INT64);
-      case FLOAT:
-        return shreddedPrimitive(PrimitiveTypeName.FLOAT);
-      case DOUBLE:
-        return shreddedPrimitive(PrimitiveTypeName.DOUBLE);
-      case DECIMAL4:
+    return switch (value.type()) {
+      case BOOLEAN_TRUE, BOOLEAN_FALSE -> shreddedPrimitive(PrimitiveTypeName.BOOLEAN);
+      case INT8 -> shreddedPrimitive(PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8));
+      case INT16 -> shreddedPrimitive(PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(16));
+      case INT32 -> shreddedPrimitive(PrimitiveTypeName.INT32);
+      case INT64 -> shreddedPrimitive(PrimitiveTypeName.INT64);
+      case FLOAT -> shreddedPrimitive(PrimitiveTypeName.FLOAT);
+      case DOUBLE -> shreddedPrimitive(PrimitiveTypeName.DOUBLE);
+      case DECIMAL4 -> {
         BigDecimal decimal4 = (BigDecimal) value.asPrimitive().get();
-        return shreddedPrimitive(
+        yield shreddedPrimitive(
             PrimitiveTypeName.INT32, LogicalTypeAnnotation.decimalType(decimal4.scale(), 9));
-      case DECIMAL8:
+      }
+      case DECIMAL8 -> {
         BigDecimal decimal8 = (BigDecimal) value.asPrimitive().get();
-        return shreddedPrimitive(
+        yield shreddedPrimitive(
             PrimitiveTypeName.INT64, LogicalTypeAnnotation.decimalType(decimal8.scale(), 18));
-      case DECIMAL16:
+      }
+      case DECIMAL16 -> {
         BigDecimal decimal16 = (BigDecimal) value.asPrimitive().get();
-        return shreddedPrimitive(
+        yield shreddedPrimitive(
             PrimitiveTypeName.BINARY, LogicalTypeAnnotation.decimalType(decimal16.scale(), 38));
-      case DATE:
-        return shreddedPrimitive(PrimitiveTypeName.INT32, LogicalTypeAnnotation.dateType());
-      case TIMESTAMPTZ:
-        return shreddedPrimitive(
-            PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(true, TimeUnit.MICROS));
-      case TIMESTAMPNTZ:
-        return shreddedPrimitive(
-            PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(false, TimeUnit.MICROS));
-      case BINARY:
-        return shreddedPrimitive(PrimitiveTypeName.BINARY);
-      case STRING:
-        return shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
-      case TIME:
-        return shreddedPrimitive(
-            PrimitiveTypeName.INT64, LogicalTypeAnnotation.timeType(false, TimeUnit.MICROS));
-      case TIMESTAMPTZ_NANOS:
-        return shreddedPrimitive(
-            PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(true, TimeUnit.NANOS));
-      case TIMESTAMPNTZ_NANOS:
-        return shreddedPrimitive(
-            PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(false, TimeUnit.NANOS));
-      case UUID:
-        return shreddedPrimitive(
-            PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY, LogicalTypeAnnotation.uuidType());
-    }
-
-    throw new UnsupportedOperationException("Unsupported shredding type: " + value.type());
+      }
+      case DATE -> shreddedPrimitive(PrimitiveTypeName.INT32, LogicalTypeAnnotation.dateType());
+      case TIMESTAMPTZ ->
+          shreddedPrimitive(
+              PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(true, TimeUnit.MICROS));
+      case TIMESTAMPNTZ ->
+          shreddedPrimitive(
+              PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(false, TimeUnit.MICROS));
+      case BINARY -> shreddedPrimitive(PrimitiveTypeName.BINARY);
+      case STRING -> shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+      case TIME ->
+          shreddedPrimitive(
+              PrimitiveTypeName.INT64, LogicalTypeAnnotation.timeType(false, TimeUnit.MICROS));
+      case TIMESTAMPTZ_NANOS ->
+          shreddedPrimitive(
+              PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(true, TimeUnit.NANOS));
+      case TIMESTAMPNTZ_NANOS ->
+          shreddedPrimitive(
+              PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(false, TimeUnit.NANOS));
+      case UUID ->
+          shreddedPrimitive(
+              PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY, LogicalTypeAnnotation.uuidType());
+      default ->
+          throw new UnsupportedOperationException("Unsupported shredding type: " + value.type());
+    };
   }
 
   private static Object toAvroValue(VariantPrimitive<?> variant) {
-    switch (variant.type()) {
-      case DECIMAL4:
-        return ((BigDecimal) variant.get()).unscaledValue().intValueExact();
-      case DECIMAL8:
-        return ((BigDecimal) variant.get()).unscaledValue().longValueExact();
-      case DECIMAL16:
-        return ((BigDecimal) variant.get()).unscaledValue().toByteArray();
-      default:
-        return variant.get();
-    }
+    return switch (variant.type()) {
+      case DECIMAL4 -> ((BigDecimal) variant.get()).unscaledValue().intValueExact();
+      case DECIMAL8 -> ((BigDecimal) variant.get()).unscaledValue().longValueExact();
+      case DECIMAL16 -> ((BigDecimal) variant.get()).unscaledValue().toByteArray();
+      default -> variant.get();
+    };
   }
 
   private static GroupType variant(String name, int fieldId, Type shreddedType) {
@@ -1584,14 +1572,11 @@ public class TestVariantReaders {
       MessageType wrapped = Types.buildMessage().addField(schema).named("table");
       org.apache.avro.Schema avro =
           new AvroSchemaConverter(CONF).convert(wrapped).getFields().get(0).schema();
-      switch (avro.getType()) {
-        case RECORD:
-          return avro;
-        case UNION:
-          return avro.getTypes().get(1);
-      }
-
-      throw new IllegalArgumentException("Invalid converted type: " + avro);
+      return switch (avro.getType()) {
+        case RECORD -> avro;
+        case UNION -> avro.getTypes().get(1);
+        default -> throw new IllegalArgumentException("Invalid converted type: " + avro);
+      };
     }
   }
 }

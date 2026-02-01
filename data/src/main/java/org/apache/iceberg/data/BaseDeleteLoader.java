@@ -229,36 +229,33 @@ public class BaseDeleteLoader implements DeleteLoader {
     LOG.trace("Opening delete file {}", deleteFile.location());
     InputFile inputFile = loadInputFile.apply(deleteFile);
 
-    switch (format) {
-      case AVRO:
-        return Avro.read(inputFile)
-            .project(projection)
-            .reuseContainers()
-            .createResolvingReader(PlannedDataReader::create)
-            .build();
-
-      case PARQUET:
-        return Parquet.read(inputFile)
-            .project(projection)
-            .filter(filter)
-            .reuseContainers()
-            .createReaderFunc(newParquetReaderFunc(projection))
-            .build();
-
-      case ORC:
-        // reusing containers is automatic for ORC, no need to call 'reuseContainers'
-        return ORC.read(inputFile)
-            .project(projection)
-            .filter(filter)
-            .createReaderFunc(newOrcReaderFunc(projection))
-            .build();
-
-      default:
-        throw new UnsupportedOperationException(
-            String.format(
-                "Cannot read deletes, %s is not a supported file format: %s",
-                format.name(), inputFile.location()));
-    }
+    return switch (format) {
+      case AVRO ->
+          Avro.read(inputFile)
+              .project(projection)
+              .reuseContainers()
+              .createResolvingReader(PlannedDataReader::create)
+              .build();
+      case PARQUET ->
+          Parquet.read(inputFile)
+              .project(projection)
+              .filter(filter)
+              .reuseContainers()
+              .createReaderFunc(newParquetReaderFunc(projection))
+              .build();
+      case ORC ->
+          // reusing containers is automatic for ORC, no need to call 'reuseContainers'
+          ORC.read(inputFile)
+              .project(projection)
+              .filter(filter)
+              .createReaderFunc(newOrcReaderFunc(projection))
+              .build();
+      default ->
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Cannot read deletes, %s is not a supported file format: %s",
+                  format.name(), inputFile.location()));
+    };
   }
 
   private Function<MessageType, ParquetValueReader<?>> newParquetReaderFunc(Schema projection) {

@@ -504,45 +504,28 @@ public class TestVariantMetrics {
 
   private static VariantValue increment(VariantValue value) {
     VariantPrimitive<?> primitive = value.asPrimitive();
-    switch (value.type()) {
-      case BOOLEAN_TRUE:
-      case BOOLEAN_FALSE:
-        return Variants.of(true);
-      case INT8:
-        return Variants.of(value.type(), (byte) ((Byte) primitive.get() + 1));
-      case INT16:
-        return Variants.of(value.type(), (short) ((Short) primitive.get() + 1));
-      case INT32:
-      case DATE:
-        return Variants.of(value.type(), (Integer) primitive.get() + 1);
-      case INT64:
-      case TIMESTAMPTZ:
-      case TIMESTAMPNTZ:
-      case TIME:
-      case TIMESTAMPTZ_NANOS:
-      case TIMESTAMPNTZ_NANOS:
-        return Variants.of(value.type(), (Long) primitive.get() + 1L);
-      case FLOAT:
-        return Variants.of(value.type(), (Float) primitive.get() + 1.0F);
-      case DOUBLE:
-        return Variants.of(value.type(), (Double) primitive.get() + 1.0D);
-      case DECIMAL4:
-      case DECIMAL8:
-      case DECIMAL16:
-        return Variants.of(value.type(), ((BigDecimal) primitive.get()).add(BigDecimal.ONE));
-      case BINARY:
-        return Variants.of(
-            value.type(), BinaryUtil.truncateBinaryMax((ByteBuffer) primitive.get(), 2));
-      case STRING:
-        return Variants.of(
-            value.type(), UnicodeUtil.truncateStringMax((String) primitive.get(), 5));
-      case UUID:
+    return switch (value.type()) {
+      case BOOLEAN_TRUE, BOOLEAN_FALSE -> Variants.of(true);
+      case INT8 -> Variants.of(value.type(), (byte) ((Byte) primitive.get() + 1));
+      case INT16 -> Variants.of(value.type(), (short) ((Short) primitive.get() + 1));
+      case INT32, DATE -> Variants.of(value.type(), (Integer) primitive.get() + 1);
+      case INT64, TIMESTAMPTZ, TIMESTAMPNTZ, TIME, TIMESTAMPTZ_NANOS, TIMESTAMPNTZ_NANOS ->
+          Variants.of(value.type(), (Long) primitive.get() + 1L);
+      case FLOAT -> Variants.of(value.type(), (Float) primitive.get() + 1.0F);
+      case DOUBLE -> Variants.of(value.type(), (Double) primitive.get() + 1.0D);
+      case DECIMAL4, DECIMAL8, DECIMAL16 ->
+          Variants.of(value.type(), ((BigDecimal) primitive.get()).add(BigDecimal.ONE));
+      case BINARY ->
+          Variants.of(value.type(), BinaryUtil.truncateBinaryMax((ByteBuffer) primitive.get(), 2));
+      case STRING ->
+          Variants.of(value.type(), UnicodeUtil.truncateStringMax((String) primitive.get(), 5));
+      case UUID -> {
         UUID uuid = (UUID) primitive.get();
-        return Variants.of(
+        yield Variants.of(
             value.type(),
             new UUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits() + 1));
-    }
-
-    throw new UnsupportedOperationException("Cannot increment value: " + value);
+      }
+      default -> throw new UnsupportedOperationException("Cannot increment value: " + value);
+    };
   }
 }

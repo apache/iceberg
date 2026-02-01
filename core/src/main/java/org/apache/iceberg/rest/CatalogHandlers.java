@@ -516,21 +516,18 @@ public class CatalogHandlers {
     if (table instanceof BaseTable) {
       TableMetadata loadedMetadata = ((BaseTable) table).operations().current();
 
-      TableMetadata metadata;
-      switch (mode) {
-        case ALL:
-          metadata = loadedMetadata;
-          break;
-        case REFS:
-          metadata =
-              TableMetadata.buildFrom(loadedMetadata)
-                  .withMetadataLocation(loadedMetadata.metadataFileLocation())
-                  .suppressHistoricalSnapshots()
-                  .build();
-          break;
-        default:
-          throw new IllegalArgumentException(String.format("Invalid snapshot mode: %s", mode));
-      }
+      TableMetadata metadata =
+          switch (mode) {
+            case ALL -> loadedMetadata;
+            case REFS ->
+                TableMetadata.buildFrom(loadedMetadata)
+                    .withMetadataLocation(loadedMetadata.metadataFileLocation())
+                    .suppressHistoricalSnapshots()
+                    .build();
+            default ->
+                throw new IllegalArgumentException(
+                    String.format("Invalid snapshot mode: %s", mode));
+          };
 
       return LoadTableResponse.builder().withTableMetadata(metadata).build();
     } else if (table instanceof BaseMetadataTable) {

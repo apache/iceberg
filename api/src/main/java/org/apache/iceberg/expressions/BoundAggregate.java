@@ -73,20 +73,14 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
   }
 
   public String describe() {
-    switch (op()) {
-      case COUNT_STAR:
-        return "count(*)";
-      case COUNT:
-        return "count(" + ExpressionUtil.describe(term()) + ")";
-      case COUNT_NULL:
-        return "count_if(" + ExpressionUtil.describe(term()) + " is null)";
-      case MAX:
-        return "max(" + ExpressionUtil.describe(term()) + ")";
-      case MIN:
-        return "min(" + ExpressionUtil.describe(term()) + ")";
-      default:
-        throw new UnsupportedOperationException("Unsupported aggregate type: " + op());
-    }
+    return switch (op()) {
+      case COUNT_STAR -> "count(*)";
+      case COUNT -> "count(" + ExpressionUtil.describe(term()) + ")";
+      case COUNT_NULL -> "count_if(" + ExpressionUtil.describe(term()) + " is null)";
+      case MAX -> "max(" + ExpressionUtil.describe(term()) + ")";
+      case MIN -> "min(" + ExpressionUtil.describe(term()) + ")";
+      default -> throw new UnsupportedOperationException("Unsupported aggregate type: " + op());
+    };
   }
 
   <V> boolean safeContainsKey(Map<Integer, V> map, int key) {

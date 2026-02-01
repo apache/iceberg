@@ -404,24 +404,16 @@ public class TestBase {
       Long fileSequenceNumber,
       F file) {
 
-    Schema manifestEntrySchema;
-    switch (table.ops().current().formatVersion()) {
-      case 1:
-        manifestEntrySchema = V1Metadata.entrySchema(table.spec().partitionType());
-        break;
-      case 2:
-        manifestEntrySchema = V2Metadata.entrySchema(table.spec().partitionType());
-        break;
-      case 3:
-        manifestEntrySchema = V3Metadata.entrySchema(table.spec().partitionType());
-        break;
-      case 4:
-        manifestEntrySchema = V4Metadata.entrySchema(table.spec().partitionType());
-        break;
-      default:
-        throw new IllegalArgumentException(
-            "Unsupported format version: " + table.ops().current().formatVersion());
-    }
+    Schema manifestEntrySchema =
+        switch (table.ops().current().formatVersion()) {
+          case 1 -> V1Metadata.entrySchema(table.spec().partitionType());
+          case 2 -> V2Metadata.entrySchema(table.spec().partitionType());
+          case 3 -> V3Metadata.entrySchema(table.spec().partitionType());
+          case 4 -> V4Metadata.entrySchema(table.spec().partitionType());
+          default ->
+              throw new IllegalArgumentException(
+                  "Unsupported format version: " + table.ops().current().formatVersion());
+        };
 
     GenericManifestEntry<F> entry =
         new GenericManifestEntry<>(AvroSchemaUtil.convert(manifestEntrySchema, "manifest_entry"));

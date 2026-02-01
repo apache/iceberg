@@ -63,17 +63,11 @@ public interface VariantValue {
   static VariantValue from(VariantMetadata metadata, ByteBuffer value) {
     int header = VariantUtil.readByte(value, 0);
     BasicType basicType = VariantUtil.basicType(header);
-    switch (basicType) {
-      case PRIMITIVE:
-        return SerializedPrimitive.from(value, header);
-      case SHORT_STRING:
-        return SerializedShortString.from(value, header);
-      case OBJECT:
-        return SerializedObject.from(metadata, value, header);
-      case ARRAY:
-        return SerializedArray.from(metadata, value, header);
-    }
-
-    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+    return switch (basicType) {
+      case PRIMITIVE -> SerializedPrimitive.from(value, header);
+      case SHORT_STRING -> SerializedShortString.from(value, header);
+      case OBJECT -> SerializedObject.from(metadata, value, header);
+      case ARRAY -> SerializedArray.from(metadata, value, header);
+    };
   }
 }

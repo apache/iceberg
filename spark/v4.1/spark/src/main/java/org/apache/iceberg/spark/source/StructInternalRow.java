@@ -311,62 +311,54 @@ class StructInternalRow extends InternalRow {
   }
 
   private ArrayData collectionToArrayData(Type elementType, Collection<?> values) {
-    switch (elementType.typeId()) {
-      case BOOLEAN:
-      case INTEGER:
-      case DATE:
-      case TIME:
-      case LONG:
-      case TIMESTAMP:
-      case FLOAT:
-      case DOUBLE:
-        return fillArray(values, array -> (pos, value) -> array[pos] = value);
-      case STRING:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, CharSequence>)
-                    (pos, seq) -> array[pos] = UTF8String.fromString(seq.toString()));
-      case FIXED:
-      case BINARY:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, ByteBuffer>)
-                    (pos, buf) -> array[pos] = ByteBuffers.toByteArray(buf));
-      case DECIMAL:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, BigDecimal>) (pos, dec) -> array[pos] = Decimal.apply(dec));
-      case STRUCT:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, StructLike>)
-                    (pos, tuple) ->
-                        array[pos] = new StructInternalRow(elementType.asStructType(), tuple));
-      case LIST:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, Collection<?>>)
-                    (pos, list) ->
-                        array[pos] =
-                            collectionToArrayData(elementType.asListType().elementType(), list));
-      case MAP:
-        return fillArray(
-            values,
-            array ->
-                (BiConsumer<Integer, Map<?, ?>>)
-                    (pos, map) -> array[pos] = mapToMapData(elementType.asMapType(), map));
-      case VARIANT:
-        return fillArray(
-            values,
-            array -> (BiConsumer<Integer, Object>) (pos, v) -> array[pos] = toVariantVal(v));
-      default:
-        throw new UnsupportedOperationException("Unsupported array element type: " + elementType);
-    }
+    return switch (elementType.typeId()) {
+      case BOOLEAN, INTEGER, DATE, TIME, LONG, TIMESTAMP, FLOAT, DOUBLE ->
+          fillArray(values, array -> (pos, value) -> array[pos] = value);
+      case STRING ->
+          fillArray(
+              values,
+              array ->
+                  (BiConsumer<Integer, CharSequence>)
+                      (pos, seq) -> array[pos] = UTF8String.fromString(seq.toString()));
+      case FIXED, BINARY ->
+          fillArray(
+              values,
+              array ->
+                  (BiConsumer<Integer, ByteBuffer>)
+                      (pos, buf) -> array[pos] = ByteBuffers.toByteArray(buf));
+      case DECIMAL ->
+          fillArray(
+              values,
+              array ->
+                  (BiConsumer<Integer, BigDecimal>) (pos, dec) -> array[pos] = Decimal.apply(dec));
+      case STRUCT ->
+          fillArray(
+              values,
+              array ->
+                  (BiConsumer<Integer, StructLike>)
+                      (pos, tuple) ->
+                          array[pos] = new StructInternalRow(elementType.asStructType(), tuple));
+      case LIST ->
+          fillArray(
+              values,
+              array ->
+                  (BiConsumer<Integer, Collection<?>>)
+                      (pos, list) ->
+                          array[pos] =
+                              collectionToArrayData(elementType.asListType().elementType(), list));
+      case MAP ->
+          fillArray(
+              values,
+              array ->
+                  (BiConsumer<Integer, Map<?, ?>>)
+                      (pos, map) -> array[pos] = mapToMapData(elementType.asMapType(), map));
+      case VARIANT ->
+          fillArray(
+              values,
+              array -> (BiConsumer<Integer, Object>) (pos, v) -> array[pos] = toVariantVal(v));
+      default ->
+          throw new UnsupportedOperationException("Unsupported array element type: " + elementType);
+    };
   }
 
   private static VariantVal toVariantVal(Object value) {

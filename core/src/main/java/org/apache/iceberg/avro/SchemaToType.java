@@ -224,28 +224,18 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       }
     }
 
-    switch (primitive.getType()) {
-      case BOOLEAN:
-        return Types.BooleanType.get();
-      case INT:
-        return Types.IntegerType.get();
-      case LONG:
-        return Types.LongType.get();
-      case FLOAT:
-        return Types.FloatType.get();
-      case DOUBLE:
-        return Types.DoubleType.get();
-      case STRING:
-      case ENUM:
-        return Types.StringType.get();
-      case FIXED:
-        return Types.FixedType.ofLength(primitive.getFixedSize());
-      case BYTES:
-        return Types.BinaryType.get();
-      case NULL:
-        return Types.UnknownType.get();
-    }
-
-    throw new UnsupportedOperationException("Unsupported primitive type: " + primitive);
+    return switch (primitive.getType()) {
+      case BOOLEAN -> Types.BooleanType.get();
+      case INT -> Types.IntegerType.get();
+      case LONG -> Types.LongType.get();
+      case FLOAT -> Types.FloatType.get();
+      case DOUBLE -> Types.DoubleType.get();
+      case STRING, ENUM -> Types.StringType.get();
+      case FIXED -> Types.FixedType.ofLength(primitive.getFixedSize());
+      case BYTES -> Types.BinaryType.get();
+      case NULL -> Types.UnknownType.get();
+      default ->
+          throw new UnsupportedOperationException("Unsupported primitive type: " + primitive);
+    };
   }
 }

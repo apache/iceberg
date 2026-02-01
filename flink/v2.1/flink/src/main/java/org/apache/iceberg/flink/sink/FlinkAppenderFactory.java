@@ -123,38 +123,35 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      switch (format) {
-        case AVRO:
-          return Avro.write(outputFile)
-              .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
-              .setAll(props)
-              .schema(schema)
-              .metricsConfig(metricsConfig)
-              .overwrite()
-              .build();
-
-        case ORC:
-          return ORC.write(outputFile)
-              .createWriterFunc(
-                  (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
-              .setAll(props)
-              .metricsConfig(metricsConfig)
-              .schema(schema)
-              .overwrite()
-              .build();
-
-        case PARQUET:
-          return Parquet.write(outputFile)
-              .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
-              .setAll(props)
-              .metricsConfig(metricsConfig)
-              .schema(schema)
-              .overwrite()
-              .build();
-
-        default:
-          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
-      }
+      return switch (format) {
+        case AVRO ->
+            Avro.write(outputFile)
+                .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
+                .setAll(props)
+                .schema(schema)
+                .metricsConfig(metricsConfig)
+                .overwrite()
+                .build();
+        case ORC ->
+            ORC.write(outputFile)
+                .createWriterFunc(
+                    (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
+                .setAll(props)
+                .metricsConfig(metricsConfig)
+                .schema(schema)
+                .overwrite()
+                .build();
+        case PARQUET ->
+            Parquet.write(outputFile)
+                .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
+                .setAll(props)
+                .metricsConfig(metricsConfig)
+                .schema(schema)
+                .overwrite()
+                .build();
+        default ->
+            throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
+      };
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -184,52 +181,49 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      switch (format) {
-        case AVRO:
-          return Avro.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(ignore -> new FlinkAvroWriter(lazyEqDeleteFlinkSchema()))
-              .withPartition(partition)
-              .overwrite()
-              .setAll(props)
-              .metricsConfig(metricsConfig)
-              .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .equalityFieldIds(equalityFieldIds)
-              .buildEqualityWriter();
-
-        case ORC:
-          return ORC.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(
-                  (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
-              .withPartition(partition)
-              .overwrite()
-              .setAll(props)
-              .metricsConfig(metricsConfig)
-              .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .equalityFieldIds(equalityFieldIds)
-              .buildEqualityWriter();
-
-        case PARQUET:
-          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(
-                  msgType -> FlinkParquetWriters.buildWriter(lazyEqDeleteFlinkSchema(), msgType))
-              .withPartition(partition)
-              .overwrite()
-              .setAll(props)
-              .metricsConfig(metricsConfig)
-              .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .equalityFieldIds(equalityFieldIds)
-              .buildEqualityWriter();
-
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot write equality-deletes for unsupported file format: " + format);
-      }
+      return switch (format) {
+        case AVRO ->
+            Avro.writeDeletes(outputFile.encryptingOutputFile())
+                .createWriterFunc(ignore -> new FlinkAvroWriter(lazyEqDeleteFlinkSchema()))
+                .withPartition(partition)
+                .overwrite()
+                .setAll(props)
+                .metricsConfig(metricsConfig)
+                .rowSchema(eqDeleteRowSchema)
+                .withSpec(spec)
+                .withKeyMetadata(outputFile.keyMetadata())
+                .equalityFieldIds(equalityFieldIds)
+                .buildEqualityWriter();
+        case ORC ->
+            ORC.writeDeletes(outputFile.encryptingOutputFile())
+                .createWriterFunc(
+                    (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
+                .withPartition(partition)
+                .overwrite()
+                .setAll(props)
+                .metricsConfig(metricsConfig)
+                .rowSchema(eqDeleteRowSchema)
+                .withSpec(spec)
+                .withKeyMetadata(outputFile.keyMetadata())
+                .equalityFieldIds(equalityFieldIds)
+                .buildEqualityWriter();
+        case PARQUET ->
+            Parquet.writeDeletes(outputFile.encryptingOutputFile())
+                .createWriterFunc(
+                    msgType -> FlinkParquetWriters.buildWriter(lazyEqDeleteFlinkSchema(), msgType))
+                .withPartition(partition)
+                .overwrite()
+                .setAll(props)
+                .metricsConfig(metricsConfig)
+                .rowSchema(eqDeleteRowSchema)
+                .withSpec(spec)
+                .withKeyMetadata(outputFile.keyMetadata())
+                .equalityFieldIds(equalityFieldIds)
+                .buildEqualityWriter();
+        default ->
+            throw new UnsupportedOperationException(
+                "Cannot write equality-deletes for unsupported file format: " + format);
+      };
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -240,23 +234,22 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       EncryptedOutputFile outputFile, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
     try {
-      switch (format) {
-        case AVRO:
-          return Avro.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(ignore -> new FlinkAvroWriter(lazyPosDeleteFlinkSchema()))
-              .withPartition(partition)
-              .overwrite()
-              .setAll(props)
-              .metricsConfig(metricsConfig)
-              .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .buildPositionWriter();
-
-        case ORC:
+      return switch (format) {
+        case AVRO ->
+            Avro.writeDeletes(outputFile.encryptingOutputFile())
+                .createWriterFunc(ignore -> new FlinkAvroWriter(lazyPosDeleteFlinkSchema()))
+                .withPartition(partition)
+                .overwrite()
+                .setAll(props)
+                .metricsConfig(metricsConfig)
+                .rowSchema(posDeleteRowSchema)
+                .withSpec(spec)
+                .withKeyMetadata(outputFile.keyMetadata())
+                .buildPositionWriter();
+        case ORC -> {
           RowType orcPosDeleteSchema =
               FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
-          return ORC.writeDeletes(outputFile.encryptingOutputFile())
+          yield ORC.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(
                   (iSchema, typDesc) -> FlinkOrcWriter.buildWriter(orcPosDeleteSchema, iSchema))
               .withPartition(partition)
@@ -268,11 +261,11 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .withKeyMetadata(outputFile.keyMetadata())
               .transformPaths(path -> StringData.fromString(path.toString()))
               .buildPositionWriter();
-
-        case PARQUET:
+        }
+        case PARQUET -> {
           RowType flinkPosDeleteSchema =
               FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
-          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+          yield Parquet.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(
                   msgType -> FlinkParquetWriters.buildWriter(flinkPosDeleteSchema, msgType))
               .withPartition(partition)
@@ -284,11 +277,11 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .withKeyMetadata(outputFile.keyMetadata())
               .transformPaths(path -> StringData.fromString(path.toString()))
               .buildPositionWriter();
-
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot write pos-deletes for unsupported file format: " + format);
-      }
+        }
+        default ->
+            throw new UnsupportedOperationException(
+                "Cannot write pos-deletes for unsupported file format: " + format);
+      };
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

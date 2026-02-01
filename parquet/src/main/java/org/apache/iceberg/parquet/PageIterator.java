@@ -37,68 +37,67 @@ import org.apache.parquet.io.api.Binary;
 abstract class PageIterator<T> extends BasePageIterator implements TripleIterator<T> {
   @SuppressWarnings("unchecked")
   static <T> PageIterator<T> newIterator(ColumnDescriptor desc, String writerVersion) {
-    switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
-      case BOOLEAN:
-        return (PageIterator<T>)
-            new PageIterator<Boolean>(desc, writerVersion) {
-              @Override
-              public Boolean next() {
-                return nextBoolean();
-              }
-            };
-      case INT32:
-        return (PageIterator<T>)
-            new PageIterator<Integer>(desc, writerVersion) {
-              @Override
-              public Integer next() {
-                return nextInteger();
-              }
-            };
-      case INT64:
-        return (PageIterator<T>)
-            new PageIterator<Long>(desc, writerVersion) {
-              @Override
-              public Long next() {
-                return nextLong();
-              }
-            };
-      case INT96:
-        return (PageIterator<T>)
-            new PageIterator<Binary>(desc, writerVersion) {
-              @Override
-              public Binary next() {
-                return nextBinary();
-              }
-            };
-      case FLOAT:
-        return (PageIterator<T>)
-            new PageIterator<Float>(desc, writerVersion) {
-              @Override
-              public Float next() {
-                return nextFloat();
-              }
-            };
-      case DOUBLE:
-        return (PageIterator<T>)
-            new PageIterator<Double>(desc, writerVersion) {
-              @Override
-              public Double next() {
-                return nextDouble();
-              }
-            };
-      case FIXED_LEN_BYTE_ARRAY:
-      case BINARY:
-        return (PageIterator<T>)
-            new PageIterator<Binary>(desc, writerVersion) {
-              @Override
-              public Binary next() {
-                return nextBinary();
-              }
-            };
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported primitive type: " + desc.getPrimitiveType().getPrimitiveTypeName());
-    }
+    return switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+      case BOOLEAN ->
+          (PageIterator<T>)
+              new PageIterator<Boolean>(desc, writerVersion) {
+                @Override
+                public Boolean next() {
+                  return nextBoolean();
+                }
+              };
+      case INT32 ->
+          (PageIterator<T>)
+              new PageIterator<Integer>(desc, writerVersion) {
+                @Override
+                public Integer next() {
+                  return nextInteger();
+                }
+              };
+      case INT64 ->
+          (PageIterator<T>)
+              new PageIterator<Long>(desc, writerVersion) {
+                @Override
+                public Long next() {
+                  return nextLong();
+                }
+              };
+      case INT96 ->
+          (PageIterator<T>)
+              new PageIterator<Binary>(desc, writerVersion) {
+                @Override
+                public Binary next() {
+                  return nextBinary();
+                }
+              };
+      case FLOAT ->
+          (PageIterator<T>)
+              new PageIterator<Float>(desc, writerVersion) {
+                @Override
+                public Float next() {
+                  return nextFloat();
+                }
+              };
+      case DOUBLE ->
+          (PageIterator<T>)
+              new PageIterator<Double>(desc, writerVersion) {
+                @Override
+                public Double next() {
+                  return nextDouble();
+                }
+              };
+      case FIXED_LEN_BYTE_ARRAY, BINARY ->
+          (PageIterator<T>)
+              new PageIterator<Binary>(desc, writerVersion) {
+                @Override
+                public Binary next() {
+                  return nextBinary();
+                }
+              };
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported primitive type: " + desc.getPrimitiveType().getPrimitiveTypeName());
+    };
   }
 
   private PageIterator(ColumnDescriptor desc, String writerVersion) {

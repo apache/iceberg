@@ -336,12 +336,10 @@ class V4Metadata {
     }
 
     private Object get(int pos) {
-      switch (pos) {
-        case 0:
-          return wrapped.status().id();
-        case 1:
-          return wrapped.snapshotId();
-        case 2:
+      return switch (pos) {
+        case 0 -> wrapped.status().id();
+        case 1 -> wrapped.snapshotId();
+        case 2 -> {
           if (wrapped.dataSequenceNumber() == null) {
             // if the entry's data sequence number is null,
             // then it will inherit the sequence number of the current commit.
@@ -357,16 +355,14 @@ class V4Metadata {
                 wrapped.status() == Status.ADDED,
                 "Only entries with status ADDED can have null sequence number");
 
-            return null;
+            yield null;
           }
-          return wrapped.dataSequenceNumber();
-        case 3:
-          return wrapped.fileSequenceNumber();
-        case 4:
-          return fileWrapper.wrap(wrapped.file());
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-      }
+          yield wrapped.dataSequenceNumber();
+        }
+        case 3 -> wrapped.fileSequenceNumber();
+        case 4 -> fileWrapper.wrap(wrapped.file());
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
     }
 
     @Override

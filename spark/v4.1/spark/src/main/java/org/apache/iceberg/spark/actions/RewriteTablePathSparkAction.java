@@ -720,31 +720,28 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private static CloseableIterable<Record> positionDeletesReader(
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
     Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
-    switch (format) {
-      case AVRO:
-        return Avro.read(inputFile)
-            .project(deleteSchema)
-            .reuseContainers()
-            .createReaderFunc(fileSchema -> PlannedDataReader.create(deleteSchema))
-            .build();
-
-      case PARQUET:
-        return Parquet.read(inputFile)
-            .project(deleteSchema)
-            .reuseContainers()
-            .createReaderFunc(
-                fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema))
-            .build();
-
-      case ORC:
-        return ORC.read(inputFile)
-            .project(deleteSchema)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema))
-            .build();
-
-      default:
-        throw new UnsupportedOperationException("Unsupported file format: " + format);
-    }
+    return switch (format) {
+      case AVRO ->
+          Avro.read(inputFile)
+              .project(deleteSchema)
+              .reuseContainers()
+              .createReaderFunc(fileSchema -> PlannedDataReader.create(deleteSchema))
+              .build();
+      case PARQUET ->
+          Parquet.read(inputFile)
+              .project(deleteSchema)
+              .reuseContainers()
+              .createReaderFunc(
+                  fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema))
+              .build();
+      case ORC ->
+          ORC.read(inputFile)
+              .project(deleteSchema)
+              .createReaderFunc(
+                  fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema))
+              .build();
+      default -> throw new UnsupportedOperationException("Unsupported file format: " + format);
+    };
   }
 
   private static PositionDeleteWriter<Record> positionDeletesWriter(
@@ -754,31 +751,30 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       StructLike partition,
       Schema rowSchema)
       throws IOException {
-    switch (format) {
-      case AVRO:
-        return Avro.writeDeletes(outputFile)
-            .createWriterFunc(DataWriter::create)
-            .withPartition(partition)
-            .rowSchema(rowSchema)
-            .withSpec(spec)
-            .buildPositionWriter();
-      case PARQUET:
-        return Parquet.writeDeletes(outputFile)
-            .createWriterFunc(GenericParquetWriter::create)
-            .withPartition(partition)
-            .rowSchema(rowSchema)
-            .withSpec(spec)
-            .buildPositionWriter();
-      case ORC:
-        return ORC.writeDeletes(outputFile)
-            .createWriterFunc(GenericOrcWriter::buildWriter)
-            .withPartition(partition)
-            .rowSchema(rowSchema)
-            .withSpec(spec)
-            .buildPositionWriter();
-      default:
-        throw new UnsupportedOperationException("Unsupported file format: " + format);
-    }
+    return switch (format) {
+      case AVRO ->
+          Avro.writeDeletes(outputFile)
+              .createWriterFunc(DataWriter::create)
+              .withPartition(partition)
+              .rowSchema(rowSchema)
+              .withSpec(spec)
+              .buildPositionWriter();
+      case PARQUET ->
+          Parquet.writeDeletes(outputFile)
+              .createWriterFunc(GenericParquetWriter::create)
+              .withPartition(partition)
+              .rowSchema(rowSchema)
+              .withSpec(spec)
+              .buildPositionWriter();
+      case ORC ->
+          ORC.writeDeletes(outputFile)
+              .createWriterFunc(GenericOrcWriter::buildWriter)
+              .withPartition(partition)
+              .rowSchema(rowSchema)
+              .withSpec(spec)
+              .buildPositionWriter();
+      default -> throw new UnsupportedOperationException("Unsupported file format: " + format);
+    };
   }
 
   private Set<Snapshot> snapshotSet(TableMetadata metadata) {

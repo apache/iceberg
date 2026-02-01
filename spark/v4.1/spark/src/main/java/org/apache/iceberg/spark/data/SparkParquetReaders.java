@@ -267,18 +267,16 @@ public class SparkParquetReaders {
           case DECIMAL:
             DecimalLogicalTypeAnnotation decimal =
                 (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
-            switch (primitive.getPrimitiveTypeName()) {
-              case BINARY:
-              case FIXED_LEN_BYTE_ARRAY:
-                return new BinaryDecimalReader(desc, decimal.getScale());
-              case INT64:
-                return new LongDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
-              case INT32:
-                return new IntegerDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
-              default:
-                throw new UnsupportedOperationException(
-                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-            }
+            return switch (primitive.getPrimitiveTypeName()) {
+              case BINARY, FIXED_LEN_BYTE_ARRAY ->
+                  new BinaryDecimalReader(desc, decimal.getScale());
+              case INT64 -> new LongDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
+              case INT32 ->
+                  new IntegerDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
+              default ->
+                  throw new UnsupportedOperationException(
+                      "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+            };
           case BSON:
             return new ParquetValueReaders.ByteArrayReader(desc);
           default:

@@ -74,19 +74,12 @@ public class SparkWriteUtil {
   }
 
   private static Distribution writeDistribution(Table table, DistributionMode mode) {
-    switch (mode) {
-      case NONE:
-        return Distributions.unspecified();
-
-      case HASH:
-        return Distributions.clustered(clustering(table));
-
-      case RANGE:
-        return Distributions.ordered(ordering(table));
-
-      default:
-        throw new IllegalArgumentException("Unsupported distribution mode: " + mode);
-    }
+    return switch (mode) {
+      case NONE -> Distributions.unspecified();
+      case HASH -> Distributions.clustered(clustering(table));
+      case RANGE -> Distributions.ordered(ordering(table));
+      default -> throw new IllegalArgumentException("Unsupported distribution mode: " + mode);
+    };
   }
 
   /** Builds requirements for copy-on-write DELETE, UPDATE, MERGE operations. */

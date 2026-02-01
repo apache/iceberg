@@ -114,16 +114,12 @@ class SnowflakeIdentifier {
 
   /** Returns this identifier as a String suitable for use in a Snowflake IDENTIFIER param. */
   public String toIdentifierString() {
-    switch (type()) {
-      case TABLE:
-        return String.format("%s.%s.%s", databaseName, schemaName, tableName);
-      case SCHEMA:
-        return String.format("%s.%s", databaseName, schemaName);
-      case DATABASE:
-        return databaseName;
-      default:
-        return "";
-    }
+    return switch (type()) {
+      case TABLE -> String.format("%s.%s.%s", databaseName, schemaName, tableName);
+      case SCHEMA -> String.format("%s.%s", databaseName, schemaName);
+      case DATABASE -> databaseName;
+      default -> "";
+    };
   }
 
   @Override

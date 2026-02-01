@@ -232,12 +232,9 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
     }
 
     this.currentCount--;
-    switch (mode) {
-      case RLE:
-        return this.currentValue;
-      case PACKED:
-        return this.packedValuesBuffer[packedValuesBufferIdx++];
-    }
-    throw new RuntimeException("Unrecognized mode: " + mode);
+    return switch (mode) {
+      case RLE -> this.currentValue;
+      case PACKED -> this.packedValuesBuffer[packedValuesBufferIdx++];
+    };
   }
 }

@@ -145,17 +145,12 @@ public class DataWritten implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (AvroUtil.positionToId(i, avroSchema)) {
-      case COMMIT_ID:
-        return commitId;
-      case TABLE_REFERENCE:
-        return tableReference;
-      case DATA_FILES:
-        return dataFiles;
-      case DELETE_FILES:
-        return deleteFiles;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (AvroUtil.positionToId(i, avroSchema)) {
+      case COMMIT_ID -> commitId;
+      case TABLE_REFERENCE -> tableReference;
+      case DATA_FILES -> dataFiles;
+      case DELETE_FILES -> deleteFiles;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 }

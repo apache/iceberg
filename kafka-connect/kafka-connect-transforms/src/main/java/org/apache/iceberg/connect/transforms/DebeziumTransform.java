@@ -167,15 +167,13 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
   }
 
   private String mapOperation(String originalOp) {
-    switch (originalOp) {
-      case "u":
-        return CdcConstants.OP_UPDATE;
-      case "d":
-        return CdcConstants.OP_DELETE;
-      default:
-        // Debezium ops "c", "r", and any others
-        return CdcConstants.OP_INSERT;
-    }
+    return switch (originalOp) {
+      case "u" -> CdcConstants.OP_UPDATE;
+      case "d" -> CdcConstants.OP_DELETE;
+      default ->
+          // Debezium ops "c", "r", and any others
+          CdcConstants.OP_INSERT;
+    };
   }
 
   private void setTableAndTargetFromSourceStruct(Struct source, Struct cdcMetadata) {
