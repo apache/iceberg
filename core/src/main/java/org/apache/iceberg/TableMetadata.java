@@ -594,6 +594,14 @@ public class TableMetadata implements Serializable {
         .build();
   }
 
+  /** Updates the schema for a specific branch */
+  public TableMetadata updateSchema(Schema newSchema, String branchName) {
+    return new Builder(this)
+        .setCurrentSchema(
+            newSchema, Math.max(this.lastColumnId, newSchema.highestFieldId()), branchName)
+        .build();
+  }
+
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
   public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
     return new Builder(this).setDefaultPartitionSpec(newPartitionSpec).build();
@@ -1080,6 +1088,18 @@ public class TableMetadata implements Serializable {
 
     public Builder setCurrentSchema(Schema newSchema, int newLastColumnId) {
       setCurrentSchema(addSchemaInternal(newSchema, newLastColumnId));
+      return this;
+    }
+
+    public Builder setCurrentSchema(Schema newSchema, int newLastColumnId, String branchName) {
+      int schemaId = addSchemaInternal(newSchema, newLastColumnId);
+      if (branchName.equals(SnapshotRef.MAIN_BRANCH)) {
+        setCurrentSchema(schemaId);
+      } else {
+        this.refs.put(
+            branchName,
+            SnapshotRef.builderFrom(this.refs.get(branchName)).schemaId(schemaId).build());
+      }
       return this;
     }
 

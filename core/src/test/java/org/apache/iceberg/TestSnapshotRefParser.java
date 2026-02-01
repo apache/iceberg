@@ -169,4 +169,95 @@ public class TestSnapshotRefParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: max-snapshot-age-ms: \"invalid-age\"");
   }
+
+  @Test
+  public void testBranchWithSchemaIdToJson() {
+    String json =
+        "{\"snapshot-id\":1,\"type\":\"branch\",\"min-snapshots-to-keep\":2,"
+            + "\"max-snapshot-age-ms\":3,\"max-ref-age-ms\":4,\"schema-id\":5}";
+    SnapshotRef ref =
+        SnapshotRef.branchBuilder(1L)
+            .minSnapshotsToKeep(2)
+            .maxSnapshotAgeMs(3L)
+            .maxRefAgeMs(4L)
+            .schemaId(5)
+            .build();
+    assertThat(SnapshotRefParser.toJson(ref))
+        .as("Should be able to serialize branch with schema-id")
+        .isEqualTo(json);
+  }
+
+  @Test
+  public void testTagWithSchemaIdToJson() {
+    String json = "{\"snapshot-id\":1,\"type\":\"tag\",\"max-ref-age-ms\":2,\"schema-id\":3}";
+    SnapshotRef ref = SnapshotRef.tagBuilder(1L).maxRefAgeMs(2L).schemaId(3).build();
+    assertThat(SnapshotRefParser.toJson(ref))
+        .as("Should be able to serialize tag with schema-id")
+        .isEqualTo(json);
+  }
+
+  @Test
+  public void testBranchWithSchemaIdFromJson() {
+    String json =
+        "{\"snapshot-id\":1,\"type\":\"branch\",\"min-snapshots-to-keep\":2,"
+            + "\"max-snapshot-age-ms\":3,\"max-ref-age-ms\":4,\"schema-id\":5}";
+    SnapshotRef ref =
+        SnapshotRef.branchBuilder(1L)
+            .minSnapshotsToKeep(2)
+            .maxSnapshotAgeMs(3L)
+            .maxRefAgeMs(4L)
+            .schemaId(5)
+            .build();
+    assertThat(SnapshotRefParser.fromJson(json))
+        .as("Should be able to deserialize branch with schema-id")
+        .isEqualTo(ref);
+  }
+
+  @Test
+  public void testTagWithSchemaIdFromJson() {
+    String json = "{\"snapshot-id\":1,\"type\":\"tag\",\"max-ref-age-ms\":2,\"schema-id\":3}";
+    SnapshotRef ref = SnapshotRef.tagBuilder(1L).maxRefAgeMs(2L).schemaId(3).build();
+    assertThat(SnapshotRefParser.fromJson(json))
+        .as("Should be able to deserialize tag with schema-id")
+        .isEqualTo(ref);
+  }
+
+  @Test
+  public void testSchemaIdNotRequiredForBackwardCompatibility() {
+    // JSON without schema-id should parse successfully
+    String jsonWithoutSchemaId = "{\"snapshot-id\":1,\"type\":\"branch\"}";
+    SnapshotRef ref = SnapshotRef.branchBuilder(1L).build();
+    assertThat(SnapshotRefParser.fromJson(jsonWithoutSchemaId))
+        .as("Should be able to deserialize branch without schema-id for backward compatibility")
+        .isEqualTo(ref);
+    assertThat(SnapshotRefParser.fromJson(jsonWithoutSchemaId).schemaId()).isNull();
+  }
+
+  @Test
+  public void testInvalidSchemaIdValue() {
+    String invalidSchemaId =
+        "{\"snapshot-id\":1,\"type\":\"branch\",\"schema-id\":\"not-a-number\"}";
+    assertThatThrownBy(() -> SnapshotRefParser.fromJson(invalidSchemaId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to an integer value: schema-id: \"not-a-number\"");
+  }
+
+  @Test
+  public void testRoundTripWithSchemaId() {
+    SnapshotRef original =
+        SnapshotRef.branchBuilder(100L)
+            .minSnapshotsToKeep(10)
+            .maxSnapshotAgeMs(20000L)
+            .maxRefAgeMs(30000L)
+            .schemaId(7)
+            .build();
+
+    String json = SnapshotRefParser.toJson(original);
+    SnapshotRef parsed = SnapshotRefParser.fromJson(json);
+
+    assertThat(parsed)
+        .as("Round-trip serialization should preserve all fields")
+        .isEqualTo(original);
+    assertThat(parsed.schemaId()).isEqualTo(7);
+  }
 }
