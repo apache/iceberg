@@ -33,7 +33,7 @@ public class AzuriteContainer extends GenericContainer<AzuriteContainer> {
 
   private static final int DEFAULT_PORT = 10000; // default blob service port
   private static final String DEFAULT_IMAGE = "mcr.microsoft.com/azure-storage/azurite";
-  private static final String DEFAULT_TAG = "3.35.0";
+  private static final String DEFAULT_TAG = "latest";
   private static final String LOG_WAIT_REGEX =
       "Azurite Blob service is successfully listening at .*";
 
@@ -49,6 +49,7 @@ public class AzuriteContainer extends GenericContainer<AzuriteContainer> {
     super(image == null ? DEFAULT_IMAGE + ":" + DEFAULT_TAG : image);
     this.addExposedPort(DEFAULT_PORT);
     this.addEnv("AZURITE_ACCOUNTS", ACCOUNT + ":" + KEY);
+    this.withCommand("azurite", "--blobHost", "0.0.0.0", "--skipApiVersionCheck");
     this.setWaitStrategy(new LogMessageWaitStrategy().withRegEx(LOG_WAIT_REGEX));
   }
 
