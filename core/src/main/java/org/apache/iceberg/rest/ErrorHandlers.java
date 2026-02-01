@@ -76,6 +76,10 @@ public class ErrorHandlers {
     return CommitErrorHandler.INSTANCE;
   }
 
+  public static Consumer<ErrorResponse> createTableErrorHandler() {
+    return CreateTableErrorHandler.INSTANCE;
+  }
+
   public static Consumer<ErrorResponse> planErrorHandler() {
     return PlanErrorHandler.INSTANCE;
   }
@@ -130,6 +134,23 @@ public class ErrorHandlers {
           } else {
             throw new NoSuchTableException("%s", error.message());
           }
+        case 409:
+          throw new AlreadyExistsException("%s", error.message());
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** Table create error handler. */
+  private static class CreateTableErrorHandler extends CommitErrorHandler {
+    private static final ErrorHandler INSTANCE = new CreateTableErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      switch (error.code()) {
+        case 404:
+          throw new NoSuchNamespaceException("%s", error.message());
         case 409:
           throw new AlreadyExistsException("%s", error.message());
       }
