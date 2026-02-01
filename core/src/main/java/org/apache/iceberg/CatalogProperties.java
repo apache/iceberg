@@ -158,6 +158,15 @@ public class CatalogProperties {
   public static final String APP_NAME = "app-name";
   public static final String USER = "user";
 
+  /**
+   * Requests that the catalog provide unique locations for new tables.
+   *
+   * <p>Relevant only for catalogs which support unique table names.
+   */
+  public static final String UNIQUE_TABLE_LOCATION = "unique-table-location";
+
+  public static final boolean UNIQUE_TABLE_LOCATION_DEFAULT = false;
+
   public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
   public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);
 

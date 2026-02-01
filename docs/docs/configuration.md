@@ -147,6 +147,7 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | cache-enabled                     | true               | Whether to cache catalog entries |
 | cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
 | metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting.md) section for additional details |
+| unique-table-location             | false              | Whether to give each new table a unique storage path. Only for catalogs that support table renaming |
 | encryption.kms-impl               | null               | a custom `KeyManagementClient` implementation to use in a catalog for interactions with KMS (key management service). See the [Encryption](encryption.md) document for additional details |
 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.

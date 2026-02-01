@@ -89,6 +89,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
@@ -132,6 +133,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           ImmutableMap.of(
               RESTCatalogProperties.NAMESPACE_SEPARATOR,
               RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8));
+  private static final Set<String> BACKEND_PROPS =
+      ImmutableSet.of(CatalogProperties.UNIQUE_TABLE_LOCATION);
 
   private static final class IdempotentEnv {
     private final TableIdentifier ident;
@@ -264,12 +267,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @BeforeEach
   public void createCatalog() throws Exception {
-    File warehouse = temp.toFile();
-
     this.backendCatalog = new InMemoryCatalog();
-    this.backendCatalog.initialize(
-        "in-memory",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
 
     HTTPHeaders catalogHeaders =
         HTTPHeaders.of(
@@ -304,6 +302,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Override
   protected RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
+    File warehouse = temp.toFile();
     Configuration conf = new Configuration();
 
     RESTCatalog catalog =
@@ -339,12 +338,26 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "catalog:12345",
             "header.test-header",
             "test-value");
-    catalog.initialize(
-        catalogName,
-        ImmutableMap.<String, String>builder()
-            .putAll(properties)
-            .putAll(additionalProperties)
+
+    var props = ImmutableMap.<String, String>builder().putAll(properties);
+    var backendProps = ImmutableMap.<String, String>builder();
+
+    additionalProperties.forEach(
+        (k, v) -> {
+          if (BACKEND_PROPS.contains(k)) {
+            backendProps.put(k, v);
+          } else {
+            props.put(k, v);
+          }
+        });
+
+    backendCatalog.initialize(
+        "in-memory",
+        backendProps
+            .put(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath())
             .build());
+
+    catalog.initialize(catalogName, props.build());
     return catalog;
   }
 
