@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.UUID;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.types.Type;
 
 /**
@@ -69,6 +70,10 @@ public interface Literal<T> extends Serializable {
 
   static Literal<BigDecimal> of(BigDecimal value) {
     return new Literals.DecimalLiteral(value);
+  }
+
+  static Literal<ByteBuffer> of(BoundingBox value) {
+    return new Literals.BoundingBoxLiteral(value);
   }
 
   /** Returns the value wrapped by this literal. */
