@@ -37,6 +37,7 @@ class ParquetWriteSupport<T> extends WriteSupport<T> {
     this.wrapped = writeSupport;
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public WriteContext init(Configuration configuration) {
     WriteContext wrappedContext = wrapped.init(configuration);

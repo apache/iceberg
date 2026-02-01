@@ -34,6 +34,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
@@ -441,6 +442,49 @@ public class TestVendedAdlsCredentialProvider extends VendedCredentialsTestBase 
           deserializedProvider.credentialForAccount(STORAGE_ACCOUNT).block();
 
       assertThat(azureSasCredential).isNotSameAs(reGeneratedAzureSasCredential);
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.exactly(2));
+  }
+
+  @Test
+  public void planIdQueryParamIsSent() {
+    String planId = "randomPlanId";
+    HttpRequest mockRequest =
+        request("/v1/credentials")
+            .withMethod(HttpMethod.GET.name())
+            .withQueryStringParameter("planId", planId);
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix(CREDENTIAL_PREFIX)
+            .config(
+                ImmutableMap.of(
+                    ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT,
+                    "randomSasToken",
+                    ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + STORAGE_ACCOUNT,
+                    Long.toString(Instant.now().minus(1, ChronoUnit.MINUTES).toEpochMilli())))
+            .build();
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder().addCredentials(credential).build();
+    HttpResponse mockResponse =
+        response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    Map<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .putAll(PROPERTIES)
+            .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId)
+            .build();
+    try (VendedAdlsCredentialProvider provider = new VendedAdlsCredentialProvider(properties)) {
+      String azureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT).block();
+      assertThat(azureSasCredential)
+          .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
+
+      // resolving credentials multiple times should hit the credentials endpoint again and send the
+      // planId again
+      String refreshedAzureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT).block();
+      assertThat(refreshedAzureSasCredential)
+          .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
     }
 
     mockServer.verify(mockRequest, VerificationTimes.exactly(2));

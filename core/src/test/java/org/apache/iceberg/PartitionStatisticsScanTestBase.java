@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_ID;
+import static org.apache.iceberg.PartitionStatistics.EMPTY_PARTITION_FIELD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -27,7 +27,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -218,10 +217,10 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
     }
 
     Snapshot snapshot1 = testTable.currentSnapshot();
-    Schema recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2);
+    Schema recordSchema = PartitionStatistics.schema(Partitioning.partitionType(testTable), 2);
 
     Types.StructType partitionType =
-        recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
+        recordSchema.findField(EMPTY_PARTITION_FIELD.fieldId()).type().asStructType();
     computeAndValidatePartitionStats(
         testTable,
         testTable.currentSnapshot().snapshotId(),
@@ -380,10 +379,10 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
 
     testTable.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
 
-    Schema recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable), 2);
+    Schema recordSchema = PartitionStatistics.schema(Partitioning.partitionType(testTable), 2);
 
     Types.StructType partitionType =
-        recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
+        recordSchema.findField(EMPTY_PARTITION_FIELD.fieldId()).type().asStructType();
 
     computeAndValidatePartitionStats(
         testTable,
@@ -451,30 +450,5 @@ public abstract class PartitionStatisticsScanTestBase extends PartitionStatistic
             PartitionStatistics::lastUpdatedSnapshotId,
             PartitionStatistics::dvCount)
         .containsExactlyInAnyOrder(expectedValues);
-  }
-
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  protected static boolean isEqual(
-      Comparator<StructLike> partitionComparator,
-      PartitionStatistics stats1,
-      PartitionStatistics stats2) {
-    if (stats1 == stats2) {
-      return true;
-    } else if (stats1 == null || stats2 == null) {
-      return false;
-    }
-
-    return partitionComparator.compare(stats1.partition(), stats2.partition()) == 0
-        && Objects.equals(stats1.specId(), stats2.specId())
-        && Objects.equals(stats1.dataRecordCount(), stats2.dataRecordCount())
-        && Objects.equals(stats1.dataFileCount(), stats2.dataFileCount())
-        && Objects.equals(stats1.totalDataFileSizeInBytes(), stats2.totalDataFileSizeInBytes())
-        && Objects.equals(stats1.positionDeleteRecordCount(), stats2.positionDeleteRecordCount())
-        && Objects.equals(stats1.positionDeleteFileCount(), stats2.positionDeleteFileCount())
-        && Objects.equals(stats1.equalityDeleteRecordCount(), stats2.equalityDeleteRecordCount())
-        && Objects.equals(stats1.equalityDeleteFileCount(), stats2.equalityDeleteFileCount())
-        && Objects.equals(stats1.totalRecords(), stats2.totalRecords())
-        && Objects.equals(stats1.lastUpdatedAt(), stats2.lastUpdatedAt())
-        && Objects.equals(stats1.lastUpdatedSnapshotId(), stats2.lastUpdatedSnapshotId());
   }
 }

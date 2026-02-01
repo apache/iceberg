@@ -18,22 +18,24 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.PartitionStatsHandler.DATA_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.DATA_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.EQUALITY_DELETE_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_AT;
-import static org.apache.iceberg.PartitionStatsHandler.LAST_UPDATED_SNAPSHOT_ID;
-import static org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_NAME;
-import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_FILE_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.POSITION_DELETE_RECORD_COUNT;
-import static org.apache.iceberg.PartitionStatsHandler.SPEC_ID;
-import static org.apache.iceberg.PartitionStatsHandler.TOTAL_DATA_FILE_SIZE_IN_BYTES;
-import static org.apache.iceberg.PartitionStatsHandler.TOTAL_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatistics.DATA_FILE_COUNT;
+import static org.apache.iceberg.PartitionStatistics.DATA_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatistics.EMPTY_PARTITION_FIELD;
+import static org.apache.iceberg.PartitionStatistics.EQUALITY_DELETE_FILE_COUNT;
+import static org.apache.iceberg.PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatistics.LAST_UPDATED_AT;
+import static org.apache.iceberg.PartitionStatistics.LAST_UPDATED_SNAPSHOT_ID;
+import static org.apache.iceberg.PartitionStatistics.POSITION_DELETE_FILE_COUNT;
+import static org.apache.iceberg.PartitionStatistics.POSITION_DELETE_RECORD_COUNT;
+import static org.apache.iceberg.PartitionStatistics.SPEC_ID;
+import static org.apache.iceberg.PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES;
+import static org.apache.iceberg.PartitionStatistics.TOTAL_RECORD_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.data.GenericRecord;
@@ -43,19 +45,6 @@ import org.junit.jupiter.api.io.TempDir;
 public abstract class PartitionStatisticsTestBase {
 
   @TempDir private File temp;
-
-  // positions in StructLike
-  protected static final int DATA_RECORD_COUNT_POSITION = 2;
-  protected static final int DATA_FILE_COUNT_POSITION = 3;
-  protected static final int TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION = 4;
-  protected static final int POSITION_DELETE_RECORD_COUNT_POSITION = 5;
-  protected static final int POSITION_DELETE_FILE_COUNT_POSITION = 6;
-  protected static final int EQUALITY_DELETE_RECORD_COUNT_POSITION = 7;
-  protected static final int EQUALITY_DELETE_FILE_COUNT_POSITION = 8;
-  protected static final int TOTAL_RECORD_COUNT_POSITION = 9;
-  protected static final int LAST_UPDATED_AT_POSITION = 10;
-  protected static final int LAST_UPDATED_SNAPSHOT_ID_POSITION = 11;
-  protected static final int DV_COUNT_POSITION = 12;
 
   protected static final Schema SCHEMA =
       new Schema(
@@ -71,7 +60,7 @@ public abstract class PartitionStatisticsTestBase {
   protected Schema invalidOldSchema(Types.StructType unifiedPartitionType) {
     // field ids starts from 0 instead of 1
     return new Schema(
-        Types.NestedField.required(0, PARTITION_FIELD_NAME, unifiedPartitionType),
+        Types.NestedField.required(0, EMPTY_PARTITION_FIELD.name(), unifiedPartitionType),
         Types.NestedField.required(1, SPEC_ID.name(), Types.IntegerType.get()),
         Types.NestedField.required(2, DATA_RECORD_COUNT.name(), Types.LongType.get()),
         Types.NestedField.required(3, DATA_FILE_COUNT.name(), Types.IntegerType.get()),
@@ -85,18 +74,19 @@ public abstract class PartitionStatisticsTestBase {
         Types.NestedField.optional(11, LAST_UPDATED_SNAPSHOT_ID.name(), Types.LongType.get()));
   }
 
-  protected PartitionStats randomStats(Types.StructType partitionType) {
+  protected PartitionStatistics randomStats(Types.StructType partitionType) {
     PartitionData partitionData = new PartitionData(partitionType);
     partitionData.set(0, RANDOM.nextInt());
 
     return randomStats(partitionData);
   }
 
-  protected PartitionStats randomStats(PartitionData partitionData) {
-    PartitionStats stats = new PartitionStats(partitionData, RANDOM.nextInt(10));
-    stats.set(DATA_RECORD_COUNT_POSITION, RANDOM.nextLong());
-    stats.set(DATA_FILE_COUNT_POSITION, RANDOM.nextInt());
-    stats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
+  protected PartitionStatistics randomStats(PartitionData partitionData) {
+    PartitionStatistics stats = new BasePartitionStatistics(partitionData, RANDOM.nextInt(10));
+    stats.set(PartitionStatistics.DATA_RECORD_COUNT_POSITION, RANDOM.nextLong());
+    stats.set(PartitionStatistics.DATA_FILE_COUNT_POSITION, RANDOM.nextInt());
+    stats.set(
+        PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION, 1024L * RANDOM.nextInt(20));
     return stats;
   }
 
@@ -110,5 +100,30 @@ public abstract class PartitionStatisticsTestBase {
     record.set(0, val1);
     record.set(1, val2);
     return record;
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  protected static boolean isEqual(
+      Comparator<StructLike> partitionComparator,
+      PartitionStatistics stats1,
+      PartitionStatistics stats2) {
+    if (stats1 == stats2) {
+      return true;
+    } else if (stats1 == null || stats2 == null) {
+      return false;
+    }
+
+    return partitionComparator.compare(stats1.partition(), stats2.partition()) == 0
+        && Objects.equals(stats1.specId(), stats2.specId())
+        && Objects.equals(stats1.dataRecordCount(), stats2.dataRecordCount())
+        && Objects.equals(stats1.dataFileCount(), stats2.dataFileCount())
+        && Objects.equals(stats1.totalDataFileSizeInBytes(), stats2.totalDataFileSizeInBytes())
+        && Objects.equals(stats1.positionDeleteRecordCount(), stats2.positionDeleteRecordCount())
+        && Objects.equals(stats1.positionDeleteFileCount(), stats2.positionDeleteFileCount())
+        && Objects.equals(stats1.equalityDeleteRecordCount(), stats2.equalityDeleteRecordCount())
+        && Objects.equals(stats1.equalityDeleteFileCount(), stats2.equalityDeleteFileCount())
+        && Objects.equals(stats1.totalRecords(), stats2.totalRecords())
+        && Objects.equals(stats1.lastUpdatedAt(), stats2.lastUpdatedAt())
+        && Objects.equals(stats1.lastUpdatedSnapshotId(), stats2.lastUpdatedSnapshotId());
   }
 }
