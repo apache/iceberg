@@ -339,7 +339,12 @@ public class GenericOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, LocalDate data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = ChronoUnit.DAYS.between(EPOCH_DAY, data);
+      if (data.isBefore(LocalDate.of(1582, 10, 15))) {
+        long days = java.sql.Date.valueOf(data).getTime() / (24 * 60 * 60 * 1000);
+        ((LongColumnVector) output).vector[rowId] = days;
+      } else {
+        ((LongColumnVector) output).vector[rowId] = ChronoUnit.DAYS.between(EPOCH_DAY, data);
+      }
     }
   }
 
@@ -365,9 +370,16 @@ public class GenericOrcWriters {
     public void nonNullWrite(int rowId, LocalDateTime data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       cv.setIsUTC(true);
-      cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli(); // millis
-      cv.nanos[rowId] =
-          (data.getNano() / 1_000) * 1_000; // truncate nanos to only keep microsecond precision
+
+      if (data.isBefore(LocalDateTime.of(1582, 10, 15, 0, 0))) {
+        java.sql.Timestamp ts = java.sql.Timestamp.valueOf(data);
+        cv.time[rowId] = ts.getTime();
+        cv.nanos[rowId] = (ts.getNanos() / 1_000) * 1_000;
+      } else {
+        cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli(); // millis
+        cv.nanos[rowId] =
+            (data.getNano() / 1_000) * 1_000; // truncate nanos to only keep microsecond precision
+      }
     }
   }
 
@@ -392,8 +404,15 @@ public class GenericOrcWriters {
     public void nonNullWrite(int rowId, LocalDateTime data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       cv.setIsUTC(true);
-      cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli(); // millis
-      cv.nanos[rowId] = data.getNano();
+
+      if (data.isBefore(LocalDateTime.of(1582, 10, 15, 0, 0))) {
+        java.sql.Timestamp ts = java.sql.Timestamp.valueOf(data);
+        cv.time[rowId] = ts.getTime();
+        cv.nanos[rowId] = ts.getNanos();
+      } else {
+        cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli(); // millis
+        cv.nanos[rowId] = data.getNano();
+      }
     }
   }
 
