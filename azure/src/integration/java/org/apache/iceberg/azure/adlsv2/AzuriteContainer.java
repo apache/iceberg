@@ -49,6 +49,7 @@ public class AzuriteContainer extends GenericContainer<AzuriteContainer> {
     super(image == null ? DEFAULT_IMAGE + ":" + DEFAULT_TAG : image);
     this.addExposedPort(DEFAULT_PORT);
     this.addEnv("AZURITE_ACCOUNTS", ACCOUNT + ":" + KEY);
+    this.withCommand("azurite", "--blobHost", "0.0.0.0", "--skipApiVersionCheck");
     this.setWaitStrategy(new LogMessageWaitStrategy().withRegEx(LOG_WAIT_REGEX));
   }
 
