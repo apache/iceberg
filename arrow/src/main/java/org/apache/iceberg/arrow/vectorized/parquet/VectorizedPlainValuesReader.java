@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized.parquet;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
@@ -50,6 +51,27 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
     }
   }
 
+  @Override
+  public void skipBinary(int total) {
+    try {
+      for (int i = 0; i < total; i++) {
+        int len = readInteger();
+        getValuesInputStream().skipFully(len);
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to skip " + total + " bytes", e);
+    }
+  }
+
+  @Override
+  public void skipFixedSizeBinary(int total, int len) {
+    try {
+      getValuesInputStream().skipFully(total * (long) len);
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to skip " + total + " bytes", e);
+    }
+  }
+
   private void readValues(int total, FieldVector vec, int rowId, int typeWidth) {
     ByteBuffer buffer = getBuffer(total * typeWidth);
     vec.getDataBuffer().setBytes((long) rowId * typeWidth, buffer);
@@ -61,8 +83,26 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
   }
 
   @Override
+  public void skipIntegers(int total) {
+    try {
+      getValuesInputStream().skipFully((long) total * INT_SIZE);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
   public void readLongs(int total, FieldVector vec, int rowId) {
     readValues(total, vec, rowId, LONG_SIZE);
+  }
+
+  @Override
+  public void skipLongs(int total) {
+    try {
+      getValuesInputStream().skipFully((long) total * LONG_SIZE);
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to skip " + total + " bytes", e);
+    }
   }
 
   @Override
@@ -71,7 +111,32 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
   }
 
   @Override
+  public void skipFloats(int total) {
+    try {
+      getValuesInputStream().skipFully((long) total * FLOAT_SIZE);
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to skip " + total + " bytes", e);
+    }
+  }
+
+  @Override
   public void readDoubles(int total, FieldVector vec, int rowId) {
     readValues(total, vec, rowId, DOUBLE_SIZE);
+  }
+
+  @Override
+  public void skipDoubles(int total) {
+    try {
+      getValuesInputStream().skipFully((long) total * DOUBLE_SIZE);
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to skip " + total + " bytes", e);
+    }
+  }
+
+  @Override
+  public void skipBooleans(int total) {
+    for (int i = 0; i < total; i++) {
+      readBooleanAsInt();
+    }
   }
 }

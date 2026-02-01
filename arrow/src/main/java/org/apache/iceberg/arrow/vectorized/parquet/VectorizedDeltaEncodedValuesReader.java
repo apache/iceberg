@@ -133,8 +133,18 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
   }
 
   @Override
+  public void skipIntegers(int total) {
+    readValues(total, null, -1, INT_SIZE, (f, i, v) -> {});
+  }
+
+  @Override
   public void readLongs(int total, FieldVector vec, int rowId) {
     readValues(total, vec, rowId, LONG_SIZE, (f, i, v) -> f.getDataBuffer().setLong(i, v));
+  }
+
+  @Override
+  public void skipLongs(int total) {
+    readValues(total, null, -1, LONG_SIZE, (f, i, v) -> {});
   }
 
   /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
