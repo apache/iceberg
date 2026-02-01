@@ -352,6 +352,62 @@ public class TestDeleteFiles extends TestBase {
   }
 
   @TestTemplate
+  public void testDeleteFilesWithManifestSnapshotSummary() {
+    // add both data files
+    Snapshot appendFile =
+        commit(table, table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+
+    assertThat(appendFile.allManifests(FILE_IO)).hasSize(1);
+    assertThat(appendFile.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
+
+    validateManifestEntries(
+        appendFile.allManifests(FILE_IO).get(0),
+        ids(appendFile.snapshotId(), appendFile.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
+
+    // delete the first data file by file reference
+    Snapshot deleteByFileReference = commit(table, table.newDelete().deleteFile(FILE_A), branch);
+    assertThat(deleteByFileReference.allManifests(FILE_IO)).hasSize(1);
+    assertThat(deleteByFileReference.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
+    validateManifestEntries(
+        deleteByFileReference.allManifests(FILE_IO).get(0),
+        ids(deleteByFileReference.snapshotId(), appendFile.snapshotId()),
+        files(FILE_A, FILE_B),
+        statuses(Status.DELETED, Status.EXISTING));
+
+    // unmatched delete by row filter
+    Snapshot unmatchedDelete =
+        commit(table, table.newDelete().deleteFromRowFilter(Expressions.alwaysFalse()), branch);
+    assertThat(unmatchedDelete.allManifests(FILE_IO)).hasSize(1);
+    assertThat(unmatchedDelete.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "1");
+
+    // delete the second data file by using file path only
+    Snapshot deleteByFilePath =
+        commit(table, table.newDelete().deleteFile(FILE_B.location()), branch);
+
+    assertThat(deleteByFilePath.allManifests(FILE_IO)).hasSize(1);
+    assertThat(deleteByFilePath.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
+    validateManifestEntries(
+        deleteByFilePath.allManifests(FILE_IO).get(0),
+        ids(deleteByFilePath.snapshotId()),
+        files(FILE_B),
+        statuses(Status.DELETED));
+  }
+
+  @TestTemplate
   public void testDeleteWithCollision() {
     Schema schema = new Schema(Types.NestedField.required(0, "x", Types.StringType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").build();
