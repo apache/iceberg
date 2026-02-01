@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3.signer;
+package org.apache.iceberg.rest.requests;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,37 +28,39 @@ import java.util.Collections;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
-public class TestS3SignRequestParser {
+public class TestRemoteSignRequestParser {
 
   @Test
   public void nullRequest() {
-    assertThatThrownBy(() -> S3SignRequestParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> RemoteSignRequestParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse s3 sign request from null object");
+        .hasMessage("Cannot parse remote sign request from null object");
 
-    assertThatThrownBy(() -> S3SignRequestParser.toJson(null))
+    assertThatThrownBy(() -> RemoteSignRequestParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid s3 sign request: null");
+        .hasMessage("Invalid remote sign request: null");
   }
 
   @Test
   public void missingFields() {
-    assertThatThrownBy(() -> S3SignRequestParser.fromJson("{}"))
+    assertThatThrownBy(() -> RemoteSignRequestParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: region");
 
-    assertThatThrownBy(() -> S3SignRequestParser.fromJson("{\"region\":\"us-west-2\"}"))
+    assertThatThrownBy(() -> RemoteSignRequestParser.fromJson("{\"region\":\"us-west-2\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: method");
 
     assertThatThrownBy(
-            () -> S3SignRequestParser.fromJson("{\"region\":\"us-west-2\", \"method\" : \"PUT\"}"))
+            () ->
+                RemoteSignRequestParser.fromJson(
+                    "{\"region\":\"us-west-2\", \"method\" : \"PUT\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: uri");
 
     assertThatThrownBy(
             () ->
-                S3SignRequestParser.fromJson(
+                RemoteSignRequestParser.fromJson(
                     "{\n"
                         + "  \"region\" : \"us-west-2\",\n"
                         + "  \"method\" : \"PUT\",\n"
@@ -72,7 +74,7 @@ public class TestS3SignRequestParser {
   public void invalidMethod() {
     assertThatThrownBy(
             () ->
-                S3SignRequestParser.fromJson(
+                RemoteSignRequestParser.fromJson(
                     "{\n"
                         + "  \"region\" : \"us-west-2\",\n"
                         + "  \"method\" : 23,\n"
@@ -87,7 +89,7 @@ public class TestS3SignRequestParser {
   public void invalidUri() {
     assertThatThrownBy(
             () ->
-                S3SignRequestParser.fromJson(
+                RemoteSignRequestParser.fromJson(
                     "{\n"
                         + "  \"region\" : \"us-west-2\",\n"
                         + "  \"method\" : \"PUT\",\n"
@@ -102,7 +104,7 @@ public class TestS3SignRequestParser {
   public void invalidRegion() {
     assertThatThrownBy(
             () ->
-                S3SignRequestParser.fromJson(
+                RemoteSignRequestParser.fromJson(
                     "{\n"
                         + "  \"region\" : 23,\n"
                         + "  \"method\" : \"PUT\",\n"
@@ -115,8 +117,8 @@ public class TestS3SignRequestParser {
 
   @Test
   public void roundTripSerde() {
-    ImmutableS3SignRequest s3SignRequest =
-        ImmutableS3SignRequest.builder()
+    RemoteSignRequest request =
+        ImmutableRemoteSignRequest.builder()
             .uri(URI.create("http://localhost:49208/iceberg-signer-test"))
             .method("PUT")
             .region("us-west-2")
@@ -132,8 +134,8 @@ public class TestS3SignRequestParser {
                     Arrays.asList("aws-sdk-java/2.20.18", "Linux/5.4.0-126")))
             .build();
 
-    String json = S3SignRequestParser.toJson(s3SignRequest, true);
-    assertThat(S3SignRequestParser.fromJson(json)).isEqualTo(s3SignRequest);
+    String json = RemoteSignRequestParser.toJson(request, true);
+    assertThat(RemoteSignRequestParser.fromJson(json)).isEqualTo(request);
     assertThat(json)
         .isEqualTo(
             "{\n"
@@ -151,8 +153,8 @@ public class TestS3SignRequestParser {
 
   @Test
   public void roundTripSerdeWithProperties() {
-    ImmutableS3SignRequest s3SignRequest =
-        ImmutableS3SignRequest.builder()
+    RemoteSignRequest request =
+        ImmutableRemoteSignRequest.builder()
             .uri(URI.create("http://localhost:49208/iceberg-signer-test"))
             .method("PUT")
             .region("us-west-2")
@@ -169,8 +171,8 @@ public class TestS3SignRequestParser {
             .properties(ImmutableMap.of("k1", "v1"))
             .build();
 
-    String json = S3SignRequestParser.toJson(s3SignRequest, true);
-    assertThat(S3SignRequestParser.fromJson(json)).isEqualTo(s3SignRequest);
+    String json = RemoteSignRequestParser.toJson(request, true);
+    assertThat(RemoteSignRequestParser.fromJson(json)).isEqualTo(request);
     assertThat(json)
         .isEqualTo(
             "{\n"
@@ -191,8 +193,8 @@ public class TestS3SignRequestParser {
 
   @Test
   public void roundTripWithBody() {
-    ImmutableS3SignRequest s3SignRequest =
-        ImmutableS3SignRequest.builder()
+    RemoteSignRequest request =
+        ImmutableRemoteSignRequest.builder()
             .uri(URI.create("http://localhost:49208/iceberg-signer-test"))
             .method("PUT")
             .region("us-west-2")
@@ -210,8 +212,8 @@ public class TestS3SignRequestParser {
             .body("some-body")
             .build();
 
-    String json = S3SignRequestParser.toJson(s3SignRequest, true);
-    assertThat(S3SignRequestParser.fromJson(json)).isEqualTo(s3SignRequest);
+    String json = RemoteSignRequestParser.toJson(request, true);
+    assertThat(RemoteSignRequestParser.fromJson(json)).isEqualTo(request);
     assertThat(json)
         .isEqualTo(
             "{\n"
