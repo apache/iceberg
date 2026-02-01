@@ -22,7 +22,9 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 
 public class IOUtil {
   // not meant to be instantiated
@@ -46,6 +48,24 @@ public class IOUtil {
     if (bytesRead < length) {
       throw new EOFException(
           "Reached the end of stream with " + (length - bytesRead) + " bytes left to read");
+    }
+  }
+
+  public static byte[] readBytes(InputFile inputFile, long offset, int length) {
+    try (SeekableInputStream stream = inputFile.newStream()) {
+      byte[] bytes = new byte[length];
+
+      if (stream instanceof RangeReadable) {
+        RangeReadable rangeReadable = (RangeReadable) stream;
+        rangeReadable.readFully(offset, bytes);
+      } else {
+        stream.seek(offset);
+        ByteStreams.readFully(stream, bytes);
+      }
+
+      return bytes;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 
