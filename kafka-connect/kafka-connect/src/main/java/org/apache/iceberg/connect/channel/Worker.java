@@ -240,7 +240,7 @@ class Worker extends Channel {
             workerIdentifier);
         throw new ConnectException(
             String.format(
-                "Background polling thread of worker %s did not terminated gracefully.",
+                "Background polling thread of worker %s did not terminate gracefully.",
                 workerIdentifier));
       }
     } catch (InterruptedException e) {
