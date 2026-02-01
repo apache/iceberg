@@ -29,11 +29,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -66,6 +68,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
 class StructInternalRow extends InternalRow {
+  private static final BaseEncoding LOWER_HEX = BaseEncoding.base16().lowerCase();
   private final Types.StructType type;
   private StructLike struct;
 
@@ -178,8 +181,32 @@ class StructInternalRow extends InternalRow {
   }
 
   private UTF8String getUTF8StringInternal(int ordinal) {
-    CharSequence seq = struct.get(ordinal, CharSequence.class);
-    return UTF8String.fromString(seq.toString());
+    Object value = struct.get(ordinal, Object.class);
+
+    if (value == null) {
+      return null;
+    }
+
+    if (value instanceof UTF8String) {
+      return (UTF8String) value;
+    }
+
+    if (value instanceof UUID) {
+      return UTF8String.fromString(value.toString());
+    }
+
+    if (value instanceof ByteBuffer) {
+      // Metrics lower_bound / upper_bound for UUIDs
+      byte[] bytes = ByteBuffers.toByteArray((ByteBuffer) value);
+      return UTF8String.fromString(LOWER_HEX.encode(bytes));
+    }
+
+    if (value instanceof CharSequence) {
+      return UTF8String.fromString(value.toString());
+    }
+
+    // defensive fallback (binary stats, decimals, etc.)
+    return UTF8String.fromString(String.valueOf(value));
   }
 
   @Override
