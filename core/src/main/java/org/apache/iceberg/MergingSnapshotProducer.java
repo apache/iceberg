@@ -151,6 +151,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return spec(Iterables.getOnlyElement(specIds));
   }
 
+  @Override
   protected Expression rowFilter() {
     return deleteExpression;
   }

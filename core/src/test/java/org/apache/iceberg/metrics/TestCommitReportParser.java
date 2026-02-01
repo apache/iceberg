@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
@@ -299,5 +300,65 @@ public class TestCommitReportParser {
     String json = CommitReportParser.toJson(commitReport, true);
     assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
     assertThat(json).isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithFilter() {
+    String tableName = "roundTripTableName";
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName(tableName)
+            .snapshotId(23L)
+            .operation("DELETE")
+            .sequenceNumber(4L)
+            .filter(Expressions.greaterThan("id", 10))
+            .commitMetrics(CommitMetricsResult.from(CommitMetrics.noop(), ImmutableMap.of()))
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"sequence-number\" : 4,\n"
+            + "  \"operation\" : \"DELETE\",\n"
+            + "  \"filter\" : {\n"
+            + "    \"type\" : \"gt\",\n"
+            + "    \"term\" : \"id\",\n"
+            + "    \"value\" : 10\n"
+            + "  },\n"
+            + "  \"metrics\" : { }\n"
+            + "}";
+
+    String json = CommitReportParser.toJson(commitReport, true);
+    assertThat(json).isEqualTo(expectedJson);
+    assertThat(CommitReportParser.fromJson(json).filter().toString())
+        .isEqualTo(commitReport.filter().toString());
+  }
+
+  @Test
+  public void roundTripSerdeWithNullFilter() {
+    String tableName = "roundTripTableName";
+    CommitReport commitReport =
+        ImmutableCommitReport.builder()
+            .tableName(tableName)
+            .snapshotId(23L)
+            .operation("APPEND")
+            .sequenceNumber(4L)
+            .commitMetrics(CommitMetricsResult.from(CommitMetrics.noop(), ImmutableMap.of()))
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"table-name\" : \"roundTripTableName\",\n"
+            + "  \"snapshot-id\" : 23,\n"
+            + "  \"sequence-number\" : 4,\n"
+            + "  \"operation\" : \"APPEND\",\n"
+            + "  \"metrics\" : { }\n"
+            + "}";
+
+    String json = CommitReportParser.toJson(commitReport, true);
+    assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
+    assertThat(json).isEqualTo(expectedJson);
+    assertThat(commitReport.filter()).isNull();
   }
 }
