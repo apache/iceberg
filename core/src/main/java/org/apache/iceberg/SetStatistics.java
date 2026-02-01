@@ -18,17 +18,31 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.Tasks;
 
 public class SetStatistics implements UpdateStatistics {
+
   private final TableOperations ops;
   private final Map<Long, Optional<StatisticsFile>> statisticsToSet = Maps.newHashMap();
+  private TableMetadata base;
 
   public SetStatistics(TableOperations ops) {
     this.ops = ops;
+    this.base = ops.current();
   }
 
   @Override
@@ -45,17 +59,28 @@ public class SetStatistics implements UpdateStatistics {
 
   @Override
   public List<StatisticsFile> apply() {
-    return internalApply(ops.current()).statisticsFiles();
+    return internalApply().statisticsFiles();
   }
 
   @Override
   public void commit() {
-    TableMetadata base = ops.current();
-    TableMetadata newMetadata = internalApply(base);
-    ops.commit(base, newMetadata);
+    Tasks.foreach(ops)
+        .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+        .exponentialBackoff(
+            base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+            base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+            base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+            2.0 /* exponential */)
+        .onlyRetryOn(CommitFailedException.class)
+        .run(
+            item -> {
+              TableMetadata updated = internalApply();
+              ops.commit(base, updated);
+            });
   }
 
-  private TableMetadata internalApply(TableMetadata base) {
+  private TableMetadata internalApply() {
+    this.base = ops.refresh();
     TableMetadata.Builder builder = TableMetadata.buildFrom(base);
     statisticsToSet.forEach(
         (snapshotId, statistics) -> {
