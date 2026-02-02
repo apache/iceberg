@@ -103,7 +103,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
 
     Snapshot latestSnapshot = table.currentSnapshot();
 
-    return new StreamingOffset(latestSnapshot.snapshotId(), addedFilesCount(latestSnapshot), false);
+    return new StreamingOffset(latestSnapshot.snapshotId(), MicroBatchUtils.addedFilesCount(table, latestSnapshot), false);
   }
 
   @Override
@@ -181,7 +181,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset =
             StreamingOffset.START_OFFSET.equals(start)
-            ? determineStartingOffset(table, fromTimestamp)
+            ? MicroBatchUtils.determineStartingOffset(table, fromTimestamp)
             : start;
 
     StreamingOffset currentOffset = null;
@@ -215,7 +215,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
       if (currentOffset.snapshotId() == end.snapshotId()) {
         endFileIndex = end.position();
       } else {
-        endFileIndex = addedFilesCount(currentSnapshot);
+        endFileIndex = MicroBatchUtils.addedFilesCount(table, currentSnapshot);
       }
 
       MicroBatch latestMicroBatch =
@@ -323,7 +323,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     StreamingOffset startingOffset = start;
 
     if (start.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = determineStartingOffset(table, fromTimestamp);
+      startingOffset = MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
     }
 
     Snapshot curSnapshot = table.snapshot(startingOffset.snapshotId());
@@ -508,7 +508,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
       }
 
       table.refresh();
-      StreamingOffset offset = determineStartingOffset(table, fromTimestamp);
+      StreamingOffset offset = MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
       writeOffset(offset, outputFile);
