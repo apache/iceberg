@@ -128,7 +128,7 @@ class CommitterFactory {
         throw new ConfigException(
             String.format(
                 "Provided implementation %s must implement org.apache.iceberg.connect.Committer"
-                    + "Details: %s",
+                    + ". Details: %s",
                 className, message),
             e);
       } else if (message != null && message.contains("Cannot find constructor")) {
