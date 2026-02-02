@@ -63,6 +63,10 @@ public class TestCommitReporting extends TestBase {
     assertThat(metrics.addedFilesSizeInBytes().value()).isEqualTo(20L);
     assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(20L);
 
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(0L);
+    assertThat(metrics.manifestsReplaced().value()).isEqualTo(0L);
+
     // now remove those 2 data files
     table.newDelete().deleteFile(FILE_A).deleteFile(FILE_D).commit();
     report = reporter.lastCommitReport();
@@ -81,6 +85,11 @@ public class TestCommitReporting extends TestBase {
 
     assertThat(metrics.removedFilesSizeInBytes().value()).isEqualTo(20L);
     assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(0L);
+
+    // delete rewrites the manifest to mark files as deleted: 1 created, 0 kept, 1 replaced
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(0L);
+    assertThat(metrics.manifestsReplaced().value()).isEqualTo(1L);
   }
 
   @TestTemplate
@@ -128,6 +137,10 @@ public class TestCommitReporting extends TestBase {
     assertThat(metrics.addedFilesSizeInBytes().value()).isEqualTo(totalDeleteContentSize);
     assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(totalDeleteContentSize);
 
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(0L);
+    assertThat(metrics.manifestsReplaced().value()).isEqualTo(0L);
+
     // now remove those 2 positional + 1 equality delete files
     table
         .newRewrite()
@@ -165,6 +178,11 @@ public class TestCommitReporting extends TestBase {
 
     assertThat(metrics.removedFilesSizeInBytes().value()).isEqualTo(totalDeleteContentSize);
     assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(0L);
+
+    // rewrite creates 1 manifest (delete manifest rewritten), keeps 0, replaces 1
+    assertThat(metrics.manifestsCreated().value()).isEqualTo(1L);
+    assertThat(metrics.manifestsKept().value()).isEqualTo(0L);
+    assertThat(metrics.manifestsReplaced().value()).isEqualTo(1L);
   }
 
   @TestTemplate
@@ -197,8 +215,8 @@ public class TestCommitReporting extends TestBase {
   }
 
   @TestTemplate
-  public void snapshotProducerManifestMetrics() {
-    String tableName = "snapshot-producer-manifest-metrics";
+  public void manifestMetricsForVariousOperations() {
+    String tableName = "manifest-metrics-various-ops";
     Table table =
         TestTables.create(
             tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);

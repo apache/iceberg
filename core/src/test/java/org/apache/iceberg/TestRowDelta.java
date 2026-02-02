@@ -77,6 +77,10 @@ public class TestRowDelta extends TestBase {
     assertThat(snap.sequenceNumber()).isEqualTo(1);
     assertThat(snap.operation()).isEqualTo(DataOperations.DELETE);
     assertThat(snap.deleteManifests(table.io())).hasSize(1);
+    assertThat(snap.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
   }
 
   @TestTemplate
@@ -88,6 +92,10 @@ public class TestRowDelta extends TestBase {
     assertThat(snap.sequenceNumber()).isEqualTo(1);
     assertThat(snap.operation()).isEqualTo(DataOperations.APPEND);
     assertThat(snap.dataManifests(table.io())).hasSize(1);
+    assertThat(snap.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
 
     validateManifest(
         snap.dataManifests(table.io()).get(0),
@@ -111,6 +119,10 @@ public class TestRowDelta extends TestBase {
         .as("Delta commit should use operation 'overwrite'")
         .isEqualTo(DataOperations.OVERWRITE);
     assertThat(snap.dataManifests(table.io())).hasSize(1);
+    assertThat(snap.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
 
     validateManifest(
         snap.dataManifests(table.io()).get(0),
@@ -132,7 +144,12 @@ public class TestRowDelta extends TestBase {
 
   @TestTemplate
   public void testAddRowsRemoveDataFile() {
-    table.newRowDelta().addRows(FILE_A).commit();
+    Snapshot firstSnap = commit(table, table.newRowDelta().addRows(FILE_A), branch);
+    assertThat(firstSnap.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
+
     SnapshotUpdate<?> rowDelta = table.newRowDelta().addRows(FILE_B).removeRows(FILE_A);
 
     commit(table, rowDelta, branch);
@@ -143,6 +160,10 @@ public class TestRowDelta extends TestBase {
         .as("Delta commit should use operation 'overwrite'")
         .isEqualTo(DataOperations.OVERWRITE);
     assertThat(snap.dataManifests(table.io())).hasSize(2);
+    assertThat(snap.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
 
     validateManifest(
         snap.dataManifests(table.io()).get(0),
@@ -1070,8 +1091,7 @@ public class TestRowDelta extends TestBase {
         .containsEntry(TOTAL_DELETE_FILES_PROP, "3")
         .containsEntry(ADDED_POS_DELETES_PROP, String.valueOf(posDeletesCount))
         .containsEntry(TOTAL_POS_DELETES_PROP, String.valueOf(posDeletesCount))
-        // 4 manifests created: 1 data manifest + 3 delete manifests (one per partition spec)
-        // 3 manifests kept: 3 data manifests from previous appends
+        // 4 created (1 data + 3 delete), 3 kept (prior data manifests)
         .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "4")
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "3")
@@ -1165,6 +1185,10 @@ public class TestRowDelta extends TestBase {
     // 2 appends and 1 row delta where delete files belong to different specs
     assertThat(thirdSnapshot.dataManifests(table.io())).hasSize(2);
     assertThat(thirdSnapshot.deleteManifests(table.io())).hasSize(2);
+    assertThat(thirdSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
 
     // commit two more delete files to the same specs to trigger merging
     DeleteFile thirdDeleteFile = newDeletes(firstSnapshotDataFile);
@@ -1608,6 +1632,10 @@ public class TestRowDelta extends TestBase {
     RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
     Snapshot baseSnapshot = commit(table, baseRowDelta, branch);
     assertThat(baseSnapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    assertThat(baseSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
 
     DeleteFile newDeleteFile = newDeletes(dataFile);
     RowDelta rowDelta =
@@ -1618,6 +1646,10 @@ public class TestRowDelta extends TestBase {
             .validateFromSnapshot(baseSnapshot.snapshotId());
     Snapshot snapshot = commit(table, rowDelta, branch);
     assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+    assertThat(snapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
 
     List<ManifestFile> dataManifests = snapshot.dataManifests(table.io());
     assertThat(dataManifests).hasSize(1);
@@ -1917,8 +1949,13 @@ public class TestRowDelta extends TestBase {
     RowDelta rowDelta2 = table.newRowDelta().addDeletes(dv);
     Snapshot dvSnapshot = commit(table, rowDelta2, branch);
 
-    // both must be part of the table and merged into one manifest
+    // both delete files merged into one manifest
     ManifestFile deleteManifest = Iterables.getOnlyElement(dvSnapshot.deleteManifests(table.io()));
+    // 1 created (merged), 1 kept (data), 1 replaced (existing delete manifest)
+    assertThat(dvSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
     validateDeleteManifest(
         deleteManifest,
         dataSeqs(3L, 2L),

@@ -44,7 +44,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
   private final int minCountToMerge;
   private final boolean mergeEnabled;
 
-  // count of manifests that were replaced (merged) during bin-packing
+  // track manifests replaced during bin-packing
   private final AtomicInteger replacedManifestsCount = new AtomicInteger(0);
   // cache merge results to reuse when retrying
   private final Map<List<ManifestFile>, ManifestFile> mergedManifests = Maps.newConcurrentMap();
@@ -111,10 +111,13 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
       ManifestFile merged = entry.getValue();
       if (!committed.contains(merged)) {
         deleteFile(merged.path());
-        // remove the deleted file from the cache and update replaced count
         List<ManifestFile> bin = entry.getKey();
         mergedManifests.remove(bin);
-        replacedManifestsCount.addAndGet(-bin.size());
+        for (ManifestFile m : bin) {
+          if (snapshotId() != m.snapshotId()) {
+            replacedManifestsCount.decrementAndGet();
+          }
+        }
       }
     }
   }
@@ -169,7 +172,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
                 // not enough to merge, add all manifest files to the output list
                 outputManifests.addAll(bin);
               } else {
-                // merge the group
+                // merge the bin into a single manifest
                 outputManifests.add(createManifest(specId, bin));
               }
             });
@@ -217,9 +220,14 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
 
     ManifestFile manifest = writer.toManifestFile();
 
-    // update the cache and track replaced manifests
+    // cache the merged manifest to reuse when retrying and track replaced manifests
     mergedManifests.put(bin, manifest);
-    replacedManifestsCount.addAndGet(bin.size());
+    for (ManifestFile m : bin) {
+      // only count manifests from previous snapshots; in-memory manifests are not replaced
+      if (snapshotId() != m.snapshotId()) {
+        replacedManifestsCount.incrementAndGet();
+      }
+    }
 
     return manifest;
   }
