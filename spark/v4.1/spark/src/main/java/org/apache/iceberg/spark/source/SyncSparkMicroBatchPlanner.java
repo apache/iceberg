@@ -263,33 +263,6 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     }
   }
 
-  private static StreamingOffset determineStartingOffset(Table table, Long fromTimestamp) {
-    if (table.currentSnapshot() == null) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    if (fromTimestamp == null) {
-      // match existing behavior and start from the oldest snapshot
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
-    }
-
-    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    try {
-      Snapshot snapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
-      if (snapshot != null) {
-        return new StreamingOffset(snapshot.snapshotId(), 0, false);
-      } else {
-        return StreamingOffset.START_OFFSET;
-      }
-    } catch (IllegalStateException e) {
-      // could not determine the first snapshot after the timestamp. use the oldest ancestor instead
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
-    }
-  }
-
   private static int getMaxFiles(ReadLimit readLimit) {
     if (readLimit instanceof ReadMaxFiles) {
       return ((ReadMaxFiles) readLimit).maxFiles();
@@ -476,16 +449,6 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
       nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
     }
     return nextSnapshot;
-  }
-
-  private long addedFilesCount(Snapshot snapshot) {
-    long addedFilesCount =
-        PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
-    // iterate through addedFiles iterator to find addedFilesCount.
-    return addedFilesCount == -1
-        ? Iterables.size(snapshot.addedDataFiles(table.io()))
-        : addedFilesCount;
   }
 
   private void validateCurrentSnapshotExists(Snapshot snapshot, StreamingOffset currentOffset) {
