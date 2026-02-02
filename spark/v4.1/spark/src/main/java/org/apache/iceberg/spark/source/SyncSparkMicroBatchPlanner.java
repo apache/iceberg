@@ -68,55 +68,26 @@ import org.apache.spark.sql.connector.read.streaming.SupportsTriggerAvailableNow
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
-  private static final Joiner SLASH = Joiner.on("/");
+class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
-  private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
   private final Table table;
-  private final String branch;
+  private final SparkReadConf readConf;
   private final boolean caseSensitive;
-  private final String expectedSchema;
-  private final Broadcast<Table> tableBroadcast;
-  private final long splitSize;
-  private final int splitLookback;
-  private final long splitOpenFileCost;
-  private final boolean localityPreferred;
-  private final StreamingOffset initialOffset;
   private final boolean skipDelete;
   private final boolean skipOverwrite;
   private final long fromTimestamp;
-  private final int maxFilesPerMicroBatch;
-  private final int maxRecordsPerMicroBatch;
-  private final boolean cacheDeleteFilesOnExecutors;
   private StreamingOffset lastOffsetForTriggerAvailableNow;
 
-  SparkMicroBatchStream(
-      JavaSparkContext sparkContext,
-      Table table,
-      SparkReadConf readConf,
-      Schema expectedSchema,
-      String checkpointLocation) {
+  SyncSparkMicroBatchPlanner(
+          Table table, SparkReadConf readConf, StreamingOffset lastOffsetForTriggerAvailableNow) {
     this.table = table;
-    this.branch = readConf.branch();
+    this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
-    this.expectedSchema = SchemaParser.toJson(expectedSchema);
-    this.localityPreferred = readConf.localityEnabled();
-    this.tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-    this.splitSize = readConf.splitSize();
-    this.splitLookback = readConf.splitLookback();
-    this.splitOpenFileCost = readConf.splitOpenFileCost();
-    this.fromTimestamp = readConf.streamFromTimestamp();
-    this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
-    this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
-    this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
-
-    InitialOffsetStore initialOffsetStore =
-        new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
-    this.initialOffset = initialOffsetStore.initialOffset();
-
     this.skipDelete = readConf.streamingSkipDeleteSnapshots();
     this.skipOverwrite = readConf.streamingSkipOverwriteSnapshots();
+    this.fromTimestamp = readConf.streamFromTimestamp();
+    this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
   }
 
   @Override
@@ -201,14 +172,17 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   public void commit(Offset end) {}
 
   @Override
-  public void stop() {}
+  public void stop() {
+    // No-op for synchronous planner
+  }
 
-  private List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
+  @Override
+  public List<FileScanTask> planFiles(StreamingOffset start, StreamingOffset end) {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset =
-        StreamingOffset.START_OFFSET.equals(startOffset)
+            StreamingOffset.START_OFFSET.equals(start)
             ? determineStartingOffset(table, fromTimestamp)
-            : startOffset;
+            : start;
 
     StreamingOffset currentOffset = null;
 
@@ -221,10 +195,10 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, currentOffset.snapshotId());
         // it may happen that we need to read this snapshot partially in case it's equal to
         // endOffset.
-        if (currentOffset.snapshotId() != endOffset.snapshotId()) {
+        if (currentOffset.snapshotId() != end.snapshotId()) {
           currentOffset = new StreamingOffset(snapshotAfter.snapshotId(), 0L, false);
         } else {
-          currentOffset = endOffset;
+          currentOffset = end;
         }
       }
 
@@ -238,8 +212,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
       }
 
       Snapshot currentSnapshot = table.snapshot(currentOffset.snapshotId());
-      if (currentOffset.snapshotId() == endOffset.snapshotId()) {
-        endFileIndex = endOffset.position();
+      if (currentOffset.snapshotId() == end.snapshotId()) {
+        endFileIndex = end.position();
       } else {
         endFileIndex = addedFilesCount(currentSnapshot);
       }
@@ -255,7 +229,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
                   currentOffset.shouldScanAllFiles());
 
       fileScanTasks.addAll(latestMicroBatch.tasks());
-    } while (currentOffset.snapshotId() != endOffset.snapshotId());
+    } while (currentOffset.snapshotId() != end.snapshotId());
 
     return fileScanTasks;
   }
@@ -359,12 +333,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
 
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public Offset latestOffset(Offset startOffset, ReadLimit limit) {
+  public StreamingOffset latestOffset(StreamingOffset start, ReadLimit limit) {
     // calculate end offset get snapshotId from the startOffset
-    Preconditions.checkArgument(
-        startOffset instanceof StreamingOffset,
-        "Invalid start offset: %s is not a StreamingOffset",
-        startOffset);
+    Preconditions.checkArgument(start != null, "Invalid start offset: %s", start);
 
     table.refresh();
     if (table.currentSnapshot() == null) {
@@ -376,9 +347,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     }
 
     // end offset can expand to multiple snapshots
-    StreamingOffset startingOffset = (StreamingOffset) startOffset;
+    StreamingOffset startingOffset = start;
 
-    if (startOffset.equals(StreamingOffset.START_OFFSET)) {
+    if (start.equals(StreamingOffset.START_OFFSET)) {
       startingOffset = determineStartingOffset(table, fromTimestamp);
     }
 
@@ -399,6 +370,10 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     int curFilesAdded = 0;
     long curRecordCount = 0;
     int curPos = 0;
+
+    // Extract limits once to avoid repeated calls in tight loop
+    int maxFiles = getMaxFiles(limit);
+    int maxRows = getMaxRows(limit);
 
     // Note : we produce nextOffset with pos as non-inclusive
     while (shouldContinueReading) {
@@ -422,7 +397,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (curPos >= startPosOfSnapOffset) {
-              if ((curFilesAdded + 1) > getMaxFiles(limit)) {
+              if ((curFilesAdded + 1) > maxFiles) {
                 // On including the file it might happen that we might exceed, the configured
                 // soft limit on the number of records, since this is a soft limit its acceptable.
                 shouldContinueReading = false;
@@ -432,9 +407,18 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
               curFilesAdded += 1;
               curRecordCount += task.file().recordCount();
 
-              if (curRecordCount >= getMaxRows(limit)) {
+              if (curRecordCount >= maxRows) {
                 // we included the file, so increment the number of files
                 // read in the current snapshot.
+                if (curFilesAdded == 1 && curRecordCount > maxRows) {
+                  LOG.warn(
+                          "File {} contains {} records, exceeding maxRecordsPerMicroBatch limit of {}. "
+                                  + "This file will be processed entirely to guarantee forward progress. "
+                                  + "Consider increasing the limit or writing smaller files to avoid unexpected memory usage.",
+                          task.file().location(),
+                          task.file().recordCount(),
+                          maxRows);
+                }
                 ++curPos;
                 shouldContinueReading = false;
                 break;
