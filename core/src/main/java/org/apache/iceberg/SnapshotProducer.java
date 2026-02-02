@@ -661,7 +661,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     for (ManifestFile manifest : manifests) {
       if (snapshotId() == manifest.snapshotId()) {
         manifestsCreated++;
-      } else {
+      } else if (null != manifest.snapshotId()) {
         manifestsKept++;
       }
     }
