@@ -122,8 +122,13 @@ public class CommitterImpl implements Committer {
   /**
    * Finds the first (minimum) topic partition across all consumer group members.
    *
+   * <p>The "first" partition is determined using {@link TopicPartitionComparator}, which orders
+   * {@link TopicPartition} instances lexicographically by topic name and, for equal topics, by
+   * ascending partition number.
+   *
    * @param members the collection of consumer group members
-   * @return the first topic partition, or null if no partitions are assigned
+   * @return the first topic partition according to {@link TopicPartitionComparator}, or null if no
+   *     partitions are assigned
    */
   @VisibleForTesting
   TopicPartition findFirstTopicPartition(Collection<MemberDescription> members) {
