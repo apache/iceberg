@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.spark.source;
 
 import java.util.Locale;
@@ -27,6 +26,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.sql.connector.read.streaming.CompositeReadLimit;
+import org.apache.spark.sql.connector.read.streaming.ReadLimit;
+import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles;
+import org.apache.spark.sql.connector.read.streaming.ReadMaxRows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +42,7 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     this.table = table;
     this.readConf = readConf;
   }
+
   protected Table table() {
     return table;
   }
@@ -47,7 +51,7 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     return readConf;
   }
 
-  private boolean shouldProcess(Snapshot snapshot) {
+  protected boolean shouldProcess(Snapshot snapshot) {
     String op = snapshot.operation();
     switch (op) {
       case DataOperations.APPEND:
@@ -56,38 +60,54 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
         return false;
       case DataOperations.DELETE:
         Preconditions.checkState(
-                skipDelete,
-                "Cannot process delete snapshot: %s, to ignore deletes, set %s=true",
-                snapshot.snapshotId(),
-                SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
+            readConf.streamingSkipDeleteSnapshots(),
+            "Cannot process delete snapshot: %s, to ignore deletes, set %s=true",
+            snapshot.snapshotId(),
+            SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
         return false;
       case DataOperations.OVERWRITE:
         Preconditions.checkState(
-                skipOverwrite,
-                "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
-                snapshot.snapshotId(),
-                SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
+            readConf.streamingSkipOverwriteSnapshots(),
+            "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
+            snapshot.snapshotId(),
+            SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
         return false;
       default:
         throw new IllegalStateException(
-                String.format(
-                        "Cannot process unknown snapshot operation: %s (snapshot id %s)",
-                        op.toLowerCase(Locale.ROOT), snapshot.snapshotId()));
+            String.format(
+                "Cannot process unknown snapshot operation: %s (snapshot id %s)",
+                op.toLowerCase(Locale.ROOT), snapshot.snapshotId()));
     }
   }
 
   /**
-   * Get the next snapshot skiping over rewrite and delete snapshots.
+   * Get the next snapshot skiping over rewrite and delete snapshots. For Async handles nulls, sync
+   * will never have nulls
    *
    * @param curSnapshot the current snapshot
    * @return the next valid snapshot (not a rewrite or delete snapshot), returns null if all
    *     remaining snapshots should be skipped.
    */
-  private Snapshot nextValidSnapshot(Snapshot curSnapshot) {
-    Snapshot nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+  protected Snapshot nextValidSnapshot(Snapshot curSnapshot) {
+    Snapshot nextSnapshot;
+    // if there were no valid snapshots, check for an initialOffset again
+    if (curSnapshot == null) {
+      StreamingOffset startingOffset =
+          MicroBatchUtils.determineStartingOffset(table, readConf.streamFromTimestamp());
+      LOG.debug("determineStartingOffset picked startingOffset: {}", startingOffset);
+      if (StreamingOffset.START_OFFSET.equals(startingOffset)) {
+        return null;
+      }
+      nextSnapshot = table.snapshot(startingOffset.snapshotId());
+    } else {
+      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
+        return null;
+      }
+      nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+    }
     // skip over rewrite and delete snapshots
     while (!shouldProcess(nextSnapshot)) {
-      LOG.debug("Skipping snapshot: {} of table {}", nextSnapshot.snapshotId(), table.name());
+      LOG.debug("Skipping snapshot: {}", nextSnapshot);
       // if the currentSnapShot was also the mostRecentSnapshot then break
       if (nextSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
         return null;
@@ -95,5 +115,37 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
       nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
     }
     return nextSnapshot;
+  }
+
+  static class UnpackedLimits {
+    private long maxRows = Integer.MAX_VALUE;
+    private long maxFiles = Integer.MAX_VALUE;
+
+    UnpackedLimits(ReadLimit limit) {
+      if (limit instanceof CompositeReadLimit) {
+        ReadLimit[] compositeLimits = ((CompositeReadLimit) limit).getReadLimits();
+        for (ReadLimit individualLimit : compositeLimits) {
+          if (individualLimit instanceof ReadMaxRows) {
+            ReadMaxRows readMaxRows = (ReadMaxRows) individualLimit;
+            this.maxRows = Math.min(this.maxRows, readMaxRows.maxRows());
+          } else if (individualLimit instanceof ReadMaxFiles) {
+            ReadMaxFiles readMaxFiles = (ReadMaxFiles) individualLimit;
+            this.maxFiles = Math.min(this.maxFiles, readMaxFiles.maxFiles());
+          }
+        }
+      } else if (limit instanceof ReadMaxRows) {
+        this.maxRows = ((ReadMaxRows) limit).maxRows();
+      } else if (limit instanceof ReadMaxFiles) {
+        this.maxFiles = ((ReadMaxFiles) limit).maxFiles();
+      }
+    }
+
+    public long getMaxRows() {
+      return maxRows;
+    }
+
+    public long getMaxFiles() {
+      return maxFiles;
+    }
   }
 }
