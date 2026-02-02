@@ -38,11 +38,9 @@ public class SetStatistics implements UpdateStatistics {
 
   private final TableOperations ops;
   private final Map<Long, Optional<StatisticsFile>> statisticsToSet = Maps.newHashMap();
-  private TableMetadata base;
 
   public SetStatistics(TableOperations ops) {
     this.ops = ops;
-    this.base = ops.current();
   }
 
   @Override
@@ -59,28 +57,30 @@ public class SetStatistics implements UpdateStatistics {
 
   @Override
   public List<StatisticsFile> apply() {
-    return internalApply().statisticsFiles();
+    TableMetadata current = ops.current();
+    return internalApply(current).statisticsFiles();
   }
 
   @Override
   public void commit() {
     Tasks.foreach(ops)
-        .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
+        .retry(ops.current().propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
-            base.propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            base.propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            base.propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
+            ops.current().propertyAsInt(COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
+            ops.current().propertyAsInt(COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
+            ops.current()
+                .propertyAsInt(COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
             2.0 /* exponential */)
         .onlyRetryOn(CommitFailedException.class)
         .run(
-            item -> {
-              TableMetadata updated = internalApply();
-              ops.commit(base, updated);
+            taskOps -> {
+              TableMetadata base = taskOps.refresh();
+              TableMetadata updated = internalApply(base);
+              taskOps.commit(base, updated);
             });
   }
 
-  private TableMetadata internalApply() {
-    this.base = ops.refresh();
+  private TableMetadata internalApply(TableMetadata base) {
     TableMetadata.Builder builder = TableMetadata.buildFrom(base);
     statisticsToSet.forEach(
         (snapshotId, statistics) -> {
