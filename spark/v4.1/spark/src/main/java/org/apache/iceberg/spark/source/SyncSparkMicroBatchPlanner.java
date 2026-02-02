@@ -234,35 +234,6 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     return fileScanTasks;
   }
 
-  private boolean shouldProcess(Snapshot snapshot) {
-    String op = snapshot.operation();
-    switch (op) {
-      case DataOperations.APPEND:
-        return true;
-      case DataOperations.REPLACE:
-        return false;
-      case DataOperations.DELETE:
-        Preconditions.checkState(
-            skipDelete,
-            "Cannot process delete snapshot: %s, to ignore deletes, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
-        return false;
-      case DataOperations.OVERWRITE:
-        Preconditions.checkState(
-            skipOverwrite,
-            "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
-        return false;
-      default:
-        throw new IllegalStateException(
-            String.format(
-                "Cannot process unknown snapshot operation: %s (snapshot id %s)",
-                op.toLowerCase(Locale.ROOT), snapshot.snapshotId()));
-    }
-  }
-
   private static int getMaxFiles(ReadLimit readLimit) {
     if (readLimit instanceof ReadMaxFiles) {
       return ((ReadMaxFiles) readLimit).maxFiles();
@@ -428,27 +399,6 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
 
     // if no new data arrived, then return null.
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
-  }
-
-  /**
-   * Get the next snapshot skiping over rewrite and delete snapshots.
-   *
-   * @param curSnapshot the current snapshot
-   * @return the next valid snapshot (not a rewrite or delete snapshot), returns null if all
-   *     remaining snapshots should be skipped.
-   */
-  private Snapshot nextValidSnapshot(Snapshot curSnapshot) {
-    Snapshot nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
-    // skip over rewrite and delete snapshots
-    while (!shouldProcess(nextSnapshot)) {
-      LOG.debug("Skipping snapshot: {} of table {}", nextSnapshot.snapshotId(), table.name());
-      // if the currentSnapShot was also the mostRecentSnapshot then break
-      if (nextSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
-        return null;
-      }
-      nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
-    }
-    return nextSnapshot;
   }
 
   private void validateCurrentSnapshotExists(Snapshot snapshot, StreamingOffset currentOffset) {
