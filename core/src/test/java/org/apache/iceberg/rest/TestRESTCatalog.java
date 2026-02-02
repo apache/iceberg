@@ -2554,7 +2554,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                   Class<T> responseType,
                   Consumer<ErrorResponse> errorHandler,
                   Consumer<Map<String, String>> responseHeaders) {
-                if (request.method() == HTTPMethod.POST && request.path().contains("some_table")) {
+                var response = super.execute(request, responseType, errorHandler, responseHeaders);
+                if (request.method() == HTTPMethod.POST && request.path().contains(TABLE.name())) {
                   // Simulate a 503 Service Unavailable error
                   ErrorResponse error =
                       ErrorResponse.builder()
@@ -2565,7 +2566,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                   errorHandler.accept(error);
                   throw new IllegalStateException("Error handler should have thrown");
                 }
-                return super.execute(request, responseType, errorHandler, responseHeaders);
+                return response;
               }
             });
 
@@ -2575,10 +2576,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       catalog.createNamespace(TABLE.namespace());
     }
 
-    catalog.createTable(TABLE, SCHEMA);
-    TableIdentifier newTable = TableIdentifier.of(TABLE.namespace(), "some_table");
-
-    Transaction createTableTransaction = catalog.newCreateTableTransaction(newTable, SCHEMA);
+    Transaction createTableTransaction = catalog.newCreateTableTransaction(TABLE, SCHEMA);
     createTableTransaction.newAppend().appendFile(FILE_A).commit();
 
     // Verify that 503 is mapped to CommitStateUnknownException (not just ServiceFailureException)
@@ -2593,7 +2591,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .anySatisfy(
             req -> {
               assertThat(req.method()).isEqualTo(HTTPMethod.POST);
-              assertThat(req.path()).isEqualTo(RESOURCE_PATHS.table(newTable));
+              assertThat(req.path()).isEqualTo(RESOURCE_PATHS.table(TABLE));
               assertThat(req.body()).isInstanceOf(UpdateTableRequest.class);
               UpdateTableRequest body = (UpdateTableRequest) req.body();
               assertThat(
