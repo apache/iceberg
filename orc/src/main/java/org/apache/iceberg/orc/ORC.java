@@ -179,7 +179,7 @@ public class ORC {
       return this;
     }
 
-    // supposed to always be a private method used strictly by data and delete write builders
+    // Supposed to always be a private method used strictly by data and delete write builders
     private WriteBuilder createContextFunc(
         Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
