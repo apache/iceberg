@@ -126,8 +126,8 @@ public class TestS3OutputStream {
               stream.write(randomData(10 * 1024 * 1024));
               stream.close();
             })
-            .isInstanceOf(mockException.getClass())
-            .hasMessageContaining(mockException.getMessage());
+        .isInstanceOf(mockException.getClass())
+        .hasMessageContaining(mockException.getMessage());
 
     // Verify that staging files and multipart map are cleared after abort
     assertThat(getStagingFilesList(stream)).isEmpty();
@@ -150,8 +150,8 @@ public class TestS3OutputStream {
               stream.write(randomData(10 * 1024 * 1024));
               stream.close();
             })
-            .isInstanceOf(mockException.getClass())
-            .hasMessageContaining(mockException.getMessage());
+        .isInstanceOf(mockException.getClass())
+        .hasMessageContaining(mockException.getMessage());
 
     // Verify that staging files and multipart map are cleared after abort
     assertThat(getStagingFilesList(stream)).isEmpty();
