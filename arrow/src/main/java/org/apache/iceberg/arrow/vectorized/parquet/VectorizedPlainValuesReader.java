@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
+import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
 
 class VectorizedPlainValuesReader extends ValuesAsBytesReader implements VectorizedValuesReader {
@@ -59,7 +60,7 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
         getValuesInputStream().skipFully(len);
       }
     } catch (IOException e) {
-      throw new RuntimeException("Failed to skip " + total + " bytes", e);
+      throw new ParquetDecodingException("Failed to skip bytes", e);
     }
   }
 
@@ -68,7 +69,7 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
     try {
       getValuesInputStream().skipFully(total * (long) len);
     } catch (IOException e) {
-      throw new RuntimeException("Failed to skip " + total + " bytes", e);
+      throw new ParquetDecodingException("Failed to skip bytes", e);
     }
   }
 
@@ -87,7 +88,7 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
     try {
       getValuesInputStream().skipFully((long) total * INT_SIZE);
     } catch (IOException e) {
-      throw new RuntimeException(e);
+      throw new ParquetDecodingException("Failed to skip bytes", e);
     }
   }
 
@@ -101,7 +102,7 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
     try {
       getValuesInputStream().skipFully((long) total * LONG_SIZE);
     } catch (IOException e) {
-      throw new RuntimeException("Failed to skip " + total + " bytes", e);
+      throw new ParquetDecodingException("Failed to skip bytes", e);
     }
   }
 
@@ -115,7 +116,7 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
     try {
       getValuesInputStream().skipFully((long) total * FLOAT_SIZE);
     } catch (IOException e) {
-      throw new RuntimeException("Failed to skip " + total + " bytes", e);
+      throw new ParquetDecodingException("Failed to skip bytes", e);
     }
   }
 
@@ -129,7 +130,7 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
     try {
       getValuesInputStream().skipFully((long) total * DOUBLE_SIZE);
     } catch (IOException e) {
-      throw new RuntimeException("Failed to skip " + total + " bytes", e);
+      throw new ParquetDecodingException("Failed to skip bytes", e);
     }
   }
 
