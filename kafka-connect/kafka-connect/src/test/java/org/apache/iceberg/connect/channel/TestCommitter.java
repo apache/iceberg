@@ -72,7 +72,7 @@ public class TestCommitter {
   class CommitterImplTests {
 
     @Test
-    public void testIsLeader() {
+    public void testContainsFirstPartition() {
       MemberAssignment assignment1 =
           new MemberAssignment(
               ImmutableSet.of(new TopicPartition("topic1", 0), new TopicPartition("topic2", 1)));
