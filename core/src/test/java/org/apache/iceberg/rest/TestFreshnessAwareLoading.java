@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.TestBase.FILE_A;
+import static org.apache.iceberg.TestBase.FILE_B;
 import static org.apache.iceberg.TestBase.SCHEMA;
 import static org.apache.iceberg.rest.RESTTableCache.SessionIdTableId;
 import static org.apache.iceberg.rest.RESTTableCache.TableWithETag;
@@ -42,6 +43,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.SessionCatalog;
@@ -57,6 +59,7 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.FakeTicker;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -730,8 +733,103 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     assertThat(table.operations()).isInstanceOf(CustomTableOps.class);
   }
 
-  private RESTCatalog catalogWithResponseHeaders(Map<String, String> respHeaders) {
-    RESTCatalogAdapter adapter =
+  @Test
+  public void testTableCacheWithLazySnapshotLoading() {
+    Map<String, String> responseHeaders = Maps.newHashMap();
+    RESTCatalogAdapter adapter = adapterCapturingResponseHeaders(responseHeaders);
+    SessionCatalog.SessionContext sessionContext = SessionCatalog.SessionContext.createEmpty();
+    RESTCatalog catalog = new RESTCatalog(sessionContext, config -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+            RESTCatalogProperties.SnapshotMode.REFS.name()));
+
+    catalog.createNamespace(TABLE.namespace());
+    Table table = catalog.createTable(TABLE, SCHEMA);
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+
+    Table refsTable = catalog.loadTable(TABLE);
+    String eTag = responseHeaders.get(HttpHeaders.ETAG);
+    assertThat(eTag).isNotNull();
+
+    // Verify that only the current snapshot was loaded (refs mode). Access the snapshots field
+    // directly to avoid triggering lazy loading of all snapshots.
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshots")
+        .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+        .hasSize(1);
+
+    Cache<SessionIdTableId, TableWithETag> tableCache =
+        catalog.sessionCatalog().tableCache().cache();
+    assertThat(tableCache.estimatedSize()).isEqualTo(1);
+    SessionIdTableId tableCacheKey = SessionIdTableId.of(sessionContext.sessionId(), TABLE);
+    TableWithETag tableWithEtag = tableCache.asMap().get(tableCacheKey);
+    assertThat(tableWithEtag).isNotNull();
+
+    // Trigger loading all snapshots via the lazy loading mechanism
+    assertThat(refsTable.snapshots()).hasSize(2);
+
+    // After lazy snapshot loading, the cache entry remains the same object. However, the
+    // underlying TableMetadata was refreshed with the full list of snapshots.
+    assertThat(tableCache.estimatedSize()).isEqualTo(1);
+    assertThat(tableWithEtag).isSameAs(tableCache.asMap().get(tableCacheKey));
+    // Lazy snapshot loading doesn't go through the cache
+    assertThat(tableCache.stats().hitCount()).isZero();
+
+    // The next loadTable should hit the cache and return a table with the full snapshot list
+    Table reloadedTable = catalog.loadTable(TABLE);
+    assertThat(tableCache.stats().hitCount()).isOne();
+    assertThat(((BaseTable) reloadedTable).operations().current())
+        .extracting("snapshots")
+        .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+        .hasSize(2);
+
+    // Accessing snapshots again doesn't trigger another load
+    assertThat(reloadedTable.snapshots()).hasSize(2);
+    // Verify the loaded snapshots match the original table's snapshots
+    assertThat(refsTable.snapshots()).containsExactlyInAnyOrderElementsOf(table.snapshots());
+
+    // Verify that the initial table load used the refs query parameter
+    verify(adapter, times(1))
+        .execute(
+            matches(
+                HTTPRequest.HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(),
+                Map.of("snapshots", "refs")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    // Verify the second load table (cache hit) included the IF_NONE_MATCH header
+    verify(adapter, times(1))
+        .execute(
+            matches(
+                HTTPRequest.HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, eTag),
+                Map.of("snapshots", "refs")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    // Verify that lazy snapshot loading triggered exactly one request with snapshots=all
+    verify(adapter, times(1))
+        .execute(
+            matches(
+                HTTPRequest.HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(),
+                Map.of("snapshots", "all")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  private RESTCatalogAdapter adapterCapturingResponseHeaders(Map<String, String> respHeaders) {
+    return Mockito.spy(
         new RESTCatalogAdapter(backendCatalog) {
           @Override
           public <T extends RESTResponse> T execute(
@@ -739,11 +837,18 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
               Class<T> responseType,
               Consumer<ErrorResponse> errorHandler,
               Consumer<Map<String, String>> responseHeaders) {
-            return super.execute(request, responseType, errorHandler, respHeaders::putAll);
+            Consumer<Map<String, String>> compositeConsumer =
+                headers -> {
+                  responseHeaders.accept(headers);
+                  respHeaders.putAll(headers);
+                };
+            return super.execute(request, responseType, errorHandler, compositeConsumer);
           }
-        };
+        });
+  }
 
-    return catalog(adapter);
+  private RESTCatalog catalogWithResponseHeaders(Map<String, String> respHeaders) {
+    return catalog(adapterCapturingResponseHeaders(respHeaders));
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
