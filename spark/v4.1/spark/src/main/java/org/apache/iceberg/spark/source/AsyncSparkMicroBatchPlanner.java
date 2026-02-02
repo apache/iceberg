@@ -22,40 +22,31 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadAllAvailable;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, AutoCloseable {
+class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements AutoCloseable {
   private static final Logger LOG = LoggerFactory.getLogger(AsyncSparkMicroBatchPlanner.class);
+  private static final int PLAN_FILES_CACHE_MAX_SIZE = 10;
+  private static final long QUEUE_POLL_TIMEOUT_MS = 100L; // 100 ms
 
-  private final Table table;
   private final long minQueuedFiles;
   private final long minQueuedRows;
-  private final SparkReadConf readConf;
 
   // Cache for planFiles results to handle duplicate calls
   private final Cache<Pair<StreamingOffset, StreamingOffset>, List<FileScanTask>> planFilesCache;
@@ -88,38 +79,37 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
    * <p>Note: this will capture the state of the table when snapshots are added to the queue. If a
    * snapshot is expired after being added to the queue, the job will still process it.
    */
-  public AsyncSparkMicroBatchPlanner(
+  AsyncSparkMicroBatchPlanner(
       Table table,
       SparkReadConf readConf,
       StreamingOffset initialOffset,
       StreamingOffset maybeEndOffset,
       StreamingOffset lastOffsetForTriggerAvailableNow) {
-    this.table = table;
-    this.minQueuedFiles = readConf.maxFilesPerMicroBatch();
-    this.minQueuedRows = readConf.maxRecordsPerMicroBatch();
-    this.readConf = readConf;
+    super(table, readConf);
+    this.minQueuedFiles = readConf().maxFilesPerMicroBatch();
+    this.minQueuedRows = readConf().maxRecordsPerMicroBatch();
     this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
-    this.planFilesCache = Caffeine.newBuilder().maximumSize(10).build();
+    this.planFilesCache = Caffeine.newBuilder().maximumSize(PLAN_FILES_CACHE_MAX_SIZE).build();
     this.queue = new LinkedBlockingQueue<>();
 
-    table.refresh();
+    table().refresh();
     // Synchronously add data to the queue to meet our initial constraints
     fillQueue(initialOffset, maybeEndOffset);
 
     this.executor =
         Executors.newSingleThreadScheduledExecutor(
             r -> {
-              Thread thread = new Thread(r, "iceberg-async-planner-" + table.name());
+              Thread thread = new Thread(r, "iceberg-async-planner-" + table().name());
               thread.setDaemon(true);
               return thread;
             });
     // Schedule table refresh at configured interval
-    long pollingIntervalMs = readConf.streamingSnapshotPollingIntervalMs();
+    long pollingIntervalMs = readConf().streamingSnapshotPollingIntervalMs();
     this.executor.scheduleWithFixedDelay(
         this::refreshAndTrapException, pollingIntervalMs, pollingIntervalMs, TimeUnit.MILLISECONDS);
     // Schedule queue fill to run frequently (use polling interval for tests, cap at 100ms for
     // production)
-    long queueFillIntervalMs = Math.min(100L, pollingIntervalMs);
+    long queueFillIntervalMs = Math.min(QUEUE_POLL_TIMEOUT_MS, pollingIntervalMs);
     executor.scheduleWithFixedDelay(
         () -> fillQueueAndTrapException(lastQueuedSnapshot),
         0,
@@ -128,27 +118,27 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
 
     LOG.info(
         "Started AsyncSparkMicroBatchPlanner for {} from initialOffset: {}",
-        table.name(),
+        table().name(),
         initialOffset);
   }
 
   @Override
   public synchronized void stop() {
     Preconditions.checkArgument(
-        !stopped, "AsyncSparkMicroBatchPlanner for {} was already stopped", table.name());
+        !stopped, "AsyncSparkMicroBatchPlanner for {} was already stopped", table().name());
     stopped = true;
-    LOG.info("Stopping AsyncSparkMicroBatchPlanner for table: {}", table.name());
+    LOG.info("Stopping AsyncSparkMicroBatchPlanner for table: {}", table().name());
     executor.shutdownNow();
     boolean terminated = false;
     try {
       terminated =
           executor.awaitTermination(
-              readConf.streamingSnapshotPollingIntervalMs() * 2, TimeUnit.MILLISECONDS);
+              readConf().streamingSnapshotPollingIntervalMs() * 2, TimeUnit.MILLISECONDS);
     } catch (InterruptedException ignored) {
       // Restore interrupt status
       Thread.currentThread().interrupt();
     }
-    LOG.info("AsyncSparkMicroBatchPlanner for table: {}, stopped: {}", table.name(), terminated);
+    LOG.info("AsyncSparkMicroBatchPlanner for table: {}, stopped: {}", table().name(), terminated);
   }
 
   @Override
@@ -165,13 +155,13 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
    */
   @Override
   public synchronized List<FileScanTask> planFiles(
-      StreamingOffset startOffset, StreamingOffset endOffset) throws ExecutionException {
+      StreamingOffset startOffset, StreamingOffset endOffset) {
     return planFilesCache.get(
         Pair.of(startOffset, endOffset),
         key -> {
           LOG.info(
               "running planFiles for {}, startOffset: {}, endOffset: {}",
-              table.name(),
+              table().name(),
               startOffset,
               endOffset);
           List<FileScanTask> result = new LinkedList<>();
@@ -185,7 +175,7 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
             // Synchronize here since we are polling, checking for empty and updating tail
             synchronized (queue) {
               try {
-                elem = queue.poll(100, TimeUnit.MILLISECONDS);
+                elem = queue.poll(QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
               } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException("Interrupted while polling queue", e);
@@ -228,7 +218,7 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
 
           LOG.info(
               "completed planFiles for {}, startOffset: {}, endOffset: {}, files: {}, rows: {}",
-              table.name(),
+              table().name(),
               startOffset,
               endOffset,
               filesInPlan,
@@ -249,16 +239,16 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
   public synchronized StreamingOffset latestOffset(StreamingOffset startOffset, ReadLimit limit) {
     LOG.info(
         "running latestOffset for {}, startOffset: {}, limit: {}",
-        table.name(),
+        table().name(),
         startOffset,
         limit);
 
-    if (table.currentSnapshot() == null) {
+    if (table().currentSnapshot() == null) {
       LOG.info("latestOffset returning START_OFFSET, currentSnapshot() is null");
       return StreamingOffset.START_OFFSET;
     }
 
-    if (table.currentSnapshot().timestampMillis() < readConf.streamFromTimestamp()) {
+    if (table().currentSnapshot().timestampMillis() < readConf().streamFromTimestamp()) {
       LOG.info("latestOffset returning START_OFFSET, currentSnapshot() < fromTimestamp");
       return StreamingOffset.START_OFFSET;
     }
@@ -277,7 +267,7 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
       if (this.lastOffsetForTriggerAvailableNow != null) {
         return this.lastOffsetForTriggerAvailableNow;
       }
-      Snapshot lastValidSnapshot = table.snapshot(startOffset.snapshotId());
+      Snapshot lastValidSnapshot = table().snapshot(startOffset.snapshotId());
       Snapshot nextValidSnapshot;
       do {
         nextValidSnapshot = nextValidSnapshot(lastValidSnapshot);
@@ -287,18 +277,15 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
       } while (nextValidSnapshot != null);
       return new StreamingOffset(
           lastValidSnapshot.snapshotId(),
-          addedFilesCount(lastValidSnapshot),
-          false,
-          lastValidSnapshot.timestampMillis(),
-          totalRecords(lastValidSnapshot));
+          MicroBatchUtils.addedFilesCount(table(), lastValidSnapshot),
+          false);
     }
 
-    return computeLimitedOffset(startOffset, limit);
+    return computeLimitedOffset(limit);
   }
 
-  private StreamingOffset computeLimitedOffset(StreamingOffset startOffset, ReadLimit limit) {
-    SparkMicroBatchStream.UnpackedLimits unpackedLimits =
-        new SparkMicroBatchStream.UnpackedLimits(limit);
+  private StreamingOffset computeLimitedOffset(ReadLimit limit) {
+    UnpackedLimits unpackedLimits = new UnpackedLimits(limit);
     long rowsSeen = 0;
     long filesSeen = 0;
     LOG.debug(
@@ -317,7 +304,11 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
         if (filesSeen == 0) {
           return null;
         }
-        LOG.debug("latestOffset found {}, rows: {}, files: {}", elem.first(), rowsSeen, filesSeen);
+        LOG.debug(
+            "latestOffset hit file limit at {}, rows: {}, files: {}",
+            elem.first(),
+            rowsSeen,
+            filesSeen);
         return elem.first();
       }
 
@@ -332,7 +323,7 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
               "File {} at offset {} contains {} records, exceeding maxRecordsPerMicroBatch limit of {}. "
                   + "This file will be processed entirely to guarantee forward progress. "
                   + "Consider increasing the limit or writing smaller files to avoid unexpected memory usage.",
-              elem.second().file().path(),
+              elem.second().file().location(),
               elem.first(),
               fileRows,
               unpackedLimits.getMaxRows());
@@ -340,7 +331,7 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
         // Return the offset of the NEXT element (or synthesize tail+1)
         if (i + 1 < queueList.size()) {
           LOG.debug(
-              "latestOffset found {}, rows: {}, files: {}",
+              "latestOffset hit row limit at {}, rows: {}, files: {}",
               queueList.get(i + 1).first(),
               rowsSeen,
               filesSeen);
@@ -350,12 +341,12 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
           StreamingOffset current = elem.first();
           StreamingOffset result =
               new StreamingOffset(
-                  current.snapshotId(),
-                  current.position() + 1,
-                  current.shouldScanAllFiles(),
-                  current.snapshotTimestampMs(),
-                  current.snapshotTotalRows());
-          LOG.debug("latestOffset tail {}, rows: {}, files: {}", result, rowsSeen, filesSeen);
+                  current.snapshotId(), current.position() + 1, current.shouldScanAllFiles());
+          LOG.debug(
+              "latestOffset hit row limit at tail {}, rows: {}, files: {}",
+              result,
+              rowsSeen,
+              filesSeen);
           return result;
         }
       }
@@ -368,12 +359,8 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
       // position is non-inclusive
       StreamingOffset latestOffset =
           new StreamingOffset(
-              tailOffset.snapshotId(),
-              tailOffset.position() + 1,
-              tailOffset.shouldScanAllFiles(),
-              tailOffset.snapshotTimestampMs(),
-              tailOffset.snapshotTotalRows());
-      LOG.debug("latestOffset tail {}", latestOffset);
+              tailOffset.snapshotId(), tailOffset.position() + 1, tailOffset.shouldScanAllFiles());
+      LOG.debug("latestOffset returning all queued data {}", latestOffset);
       return latestOffset;
     }
 
@@ -382,31 +369,12 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
     return null;
   }
 
-  @Override
-  public Offset reportLatestOffset() {
-    // intentionally not calling table.refresh() here so the background thread is the only thing
-    // making that call
-    Snapshot latestSnapshot = table.currentSnapshot();
-    StreamingOffset latestOffset = null;
-    if (latestSnapshot != null) {
-      latestOffset =
-          new StreamingOffset(
-              latestSnapshot.snapshotId(),
-              addedFilesCount(latestSnapshot),
-              false,
-              latestSnapshot.timestampMillis(),
-              totalRecords(latestSnapshot));
-    }
-    LOG.info("reportLatestOffset: {}", latestOffset);
-    return latestOffset;
-  }
-
   // Background task wrapper that traps exceptions
   private void refreshAndTrapException() {
     try {
-      table.refresh();
+      table().refresh();
     } catch (Throwable t) {
-      LOG.error("Failed to refresh table {}", table.name(), t);
+      LOG.error("Failed to refresh table {}", table().name(), t);
       refreshFailedThrowable = t;
     }
   }
@@ -416,7 +384,7 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
     try {
       fillQueue(snapshot);
     } catch (Throwable t) {
-      LOG.error("Failed to fill queue for table {}", table.name(), t);
+      LOG.error("Failed to fill queue for table {}", table().name(), t);
       fillQueueFailedThrowable = t;
     }
   }
@@ -426,22 +394,15 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
       Snapshot snapshot, long startFileIndex, long endFileIndex, boolean shouldScanAllFile) {
     LOG.info("Adding MicroBatch for snapshot: {} to the queue", snapshot.snapshotId());
     MicroBatches.MicroBatch microBatch =
-        MicroBatches.from(snapshot, table.io())
-            .caseSensitive(readConf.caseSensitive())
-            .specsById(table.specs())
+        MicroBatches.from(snapshot, table().io())
+            .caseSensitive(readConf().caseSensitive())
+            .specsById(table().specs())
             .generate(startFileIndex, endFileIndex, Long.MAX_VALUE, shouldScanAllFile);
 
     long position = startFileIndex;
     for (FileScanTask task : microBatch.tasks()) {
       Pair<StreamingOffset, FileScanTask> elem =
-          Pair.of(
-              new StreamingOffset(
-                  microBatch.snapshotId(),
-                  position,
-                  shouldScanAllFile,
-                  snapshot.timestampMillis(),
-                  totalRecords(snapshot)),
-              task);
+          Pair.of(new StreamingOffset(microBatch.snapshotId(), position, shouldScanAllFile), task);
       queuedFileCount.incrementAndGet();
       queuedRowCount.addAndGet(task.file().recordCount());
       // I have to synchronize here so queue and tail can never be out of sync
@@ -463,13 +424,13 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
 
   private void fillQueue(StreamingOffset fromOffset, StreamingOffset toOffset) {
     LOG.debug("filling queue from {}, to: {}", fromOffset, toOffset);
-    Snapshot currentSnapshot = table.snapshot(fromOffset.snapshotId());
+    Snapshot currentSnapshot = table().snapshot(fromOffset.snapshotId());
     // this could be a partial snapshot so add it outside the loop
     if (currentSnapshot != null) {
       addMicroBatchToQueue(
           currentSnapshot,
           fromOffset.position(),
-          addedFilesCount(currentSnapshot),
+          MicroBatchUtils.addedFilesCount(table(), currentSnapshot),
           fromOffset.shouldScanAllFiles());
     }
     if (toOffset != null) {
@@ -477,7 +438,11 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
         while (currentSnapshot.snapshotId() != toOffset.snapshotId()) {
           currentSnapshot = nextValidSnapshot(currentSnapshot);
           if (currentSnapshot != null) {
-            addMicroBatchToQueue(currentSnapshot, 0, addedFilesCount(currentSnapshot), false);
+            addMicroBatchToQueue(
+                currentSnapshot,
+                0,
+                MicroBatchUtils.addedFilesCount(table(), currentSnapshot),
+                false);
           } else {
             break;
           }
@@ -493,10 +458,10 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
     // toOffset is null - fill initial buffer to prevent queue starvation before background
     // thread starts. Use configured limits to avoid loading all snapshots
     // (which could cause OOM on tables with thousands of snapshots).
-    long targetRows = readConf.asyncQueuePreloadRowLimit();
-    long targetFiles = readConf.asyncQueuePreloadFileLimit();
+    long targetRows = readConf().asyncQueuePreloadRowLimit();
+    long targetFiles = readConf().asyncQueuePreloadFileLimit();
 
-    Snapshot tableCurrentSnapshot = table.currentSnapshot();
+    Snapshot tableCurrentSnapshot = table().currentSnapshot();
     if (tableCurrentSnapshot == null) {
       return; // Empty table
     }
@@ -506,7 +471,7 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
     if (current == null) {
       current = nextValidSnapshot(null);
       if (current != null) {
-        addMicroBatchToQueue(current, 0, addedFilesCount(current), false);
+        addMicroBatchToQueue(current, 0, MicroBatchUtils.addedFilesCount(table(), current), false);
       }
     }
 
@@ -516,7 +481,8 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
           && current.snapshotId() != tableCurrentSnapshot.snapshotId()) {
         current = nextValidSnapshot(current);
         if (current != null) {
-          addMicroBatchToQueue(current, 0, addedFilesCount(current), false);
+          addMicroBatchToQueue(
+              current, 0, MicroBatchUtils.addedFilesCount(table(), current), false);
         } else {
           break;
         }
@@ -548,89 +514,14 @@ public class AsyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner, Auto
       // add an entire snapshot to the queue
       Snapshot nextValidSnapshot = nextValidSnapshot(readFrom);
       if (nextValidSnapshot != null) {
-        addMicroBatchToQueue(nextValidSnapshot, 0, addedFilesCount(nextValidSnapshot), false);
+        addMicroBatchToQueue(
+            nextValidSnapshot,
+            0,
+            MicroBatchUtils.addedFilesCount(table(), nextValidSnapshot),
+            false);
       } else {
         LOG.debug("No snapshots ready to be read");
       }
     }
-  }
-
-  /**
-   * Get the next snapshot skiping over rewrite and delete snapshots.
-   *
-   * @param curSnapshot the current snapshot
-   * @return the next valid snapshot (not a rewrite or delete snapshot), returns null if all
-   *     remaining snapshots should be skipped.
-   */
-  private Snapshot nextValidSnapshot(Snapshot curSnapshot) {
-    Snapshot nextSnapshot;
-    // if there were no valid snapshots, check for an initialOffset again
-    if (curSnapshot == null) {
-      StreamingOffset startingOffset =
-          SparkMicroBatchStream.computeInitialOffset(table, readConf.streamFromTimestamp());
-      LOG.debug("computeInitialOffset picked startingOffset: {}", startingOffset);
-      if (StreamingOffset.START_OFFSET.equals(startingOffset)) {
-        return null;
-      }
-      nextSnapshot = table.snapshot(startingOffset.snapshotId());
-    } else {
-      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
-        return null;
-      }
-      nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
-    }
-    // skip over rewrite and delete snapshots
-    while (!shouldProcess(nextSnapshot)) {
-      LOG.debug("Skipping snapshot: {}", nextSnapshot);
-      // if the currentSnapShot was also the mostRecentSnapshot then break
-      if (nextSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
-        return null;
-      }
-      nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
-    }
-    return nextSnapshot;
-  }
-
-  private boolean shouldProcess(Snapshot snapshot) {
-    String op = snapshot.operation();
-    switch (op) {
-      case DataOperations.APPEND:
-        return true;
-      case DataOperations.REPLACE:
-        return false;
-      case DataOperations.DELETE:
-        Preconditions.checkState(
-            readConf.streamingSkipDeleteSnapshots(),
-            "Cannot process delete snapshot: %s, to ignore deletes, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
-        return false;
-      case DataOperations.OVERWRITE:
-        Preconditions.checkState(
-            readConf.streamingSkipOverwriteSnapshots(),
-            "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
-        return false;
-      default:
-        throw new IllegalStateException(
-            String.format(
-                "Cannot process unknown snapshot operation: %s (snapshot id %s)",
-                op.toLowerCase(Locale.ROOT), snapshot.snapshotId()));
-    }
-  }
-
-  private long addedFilesCount(Snapshot snapshot) {
-    long addedFilesCount =
-        PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
-    // iterate through addedFiles iterator to find addedFilesCount.
-    return addedFilesCount == -1
-        ? Iterables.size(snapshot.addedDataFiles(table.io()))
-        : addedFilesCount;
-  }
-
-  private long totalRecords(Snapshot snapshot) {
-    return PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.TOTAL_RECORDS_PROP, -1);
   }
 }
