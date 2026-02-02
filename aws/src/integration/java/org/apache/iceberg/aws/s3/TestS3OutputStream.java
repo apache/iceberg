@@ -33,12 +33,14 @@ import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -113,39 +115,47 @@ public class TestS3OutputStream {
   }
 
   @Test
-  public void testAbortAfterFailedPartUpload() {
+  public void testAbortAfterFailedPartUpload() throws Exception {
     RuntimeException mockException = new RuntimeException("mock uploadPart failure");
     doThrow(mockException).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
+    S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics());
+
     assertThatThrownBy(
             () -> {
-              try (S3OutputStream stream =
-                  new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-                stream.write(randomData(10 * 1024 * 1024));
-              }
+              stream.write(randomData(10 * 1024 * 1024));
+              stream.close();
             })
-        .isInstanceOf(mockException.getClass())
-        .hasMessageContaining(mockException.getMessage());
+            .isInstanceOf(mockException.getClass())
+            .hasMessageContaining(mockException.getMessage());
+
+    // Verify that staging files and multipart map are cleared after abort
+    assertThat(getStagingFilesList(stream)).isEmpty();
+    assertThat(getMultiPartMap(stream)).isEmpty();
 
     verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
-  public void testAbortMultipart() {
+  public void testAbortMultipart() throws Exception {
     RuntimeException mockException = new RuntimeException("mock completeMultipartUpload failure");
     doThrow(mockException)
         .when(s3mock)
         .completeMultipartUpload((CompleteMultipartUploadRequest) any());
 
+    S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics());
+
     assertThatThrownBy(
             () -> {
-              try (S3OutputStream stream =
-                  new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-                stream.write(randomData(10 * 1024 * 1024));
-              }
+              stream.write(randomData(10 * 1024 * 1024));
+              stream.close();
             })
-        .isInstanceOf(mockException.getClass())
-        .hasMessageContaining(mockException.getMessage());
+            .isInstanceOf(mockException.getClass())
+            .hasMessageContaining(mockException.getMessage());
+
+    // Verify that staging files and multipart map are cleared after abort
+    assertThat(getStagingFilesList(stream)).isEmpty();
+    assertThat(getMultiPartMap(stream)).isEmpty();
 
     verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
@@ -333,5 +343,54 @@ public class TestS3OutputStream {
     } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
       // do nothing
     }
+  }
+
+  @Test
+  public void testStagingFilesAndMultipartMapClearedAfterSuccessfulWrite() throws Exception {
+    // Test single-part upload (small file)
+    byte[] smallData = randomData(1024);
+    S3URI uri = randomURI();
+
+    S3OutputStream stream = new S3OutputStream(s3, uri, properties, nullMetrics());
+    stream.write(smallData);
+    stream.close();
+
+    assertThat(getStagingFilesList(stream)).isEmpty();
+    assertThat(getMultiPartMap(stream)).isEmpty();
+
+    // Verify the data was written successfully
+    byte[] actual = readS3Data(uri);
+    assertThat(actual).isEqualTo(smallData);
+  }
+
+  @Test
+  public void testStagingFilesAndMultipartMapClearedAfterMultipartUpload() throws Exception {
+    // Test multipart upload (large file)
+    byte[] largeData = randomData(10 * 1024 * 1024);
+    S3URI uri = randomURI();
+
+    S3OutputStream stream = new S3OutputStream(s3, uri, properties, nullMetrics());
+    stream.write(largeData);
+    stream.close();
+
+    assertThat(getStagingFilesList(stream)).isEmpty();
+    assertThat(getMultiPartMap(stream)).isEmpty();
+
+    // Verify the data was written successfully
+    byte[] actual = readS3Data(uri);
+    assertThat(actual).isEqualTo(largeData);
+  }
+
+  // Helper methods to access private fields using reflection
+  private List<?> getStagingFilesList(S3OutputStream stream) throws Exception {
+    Field stagingFilesField = S3OutputStream.class.getDeclaredField("stagingFiles");
+    stagingFilesField.setAccessible(true);
+    return (List<?>) stagingFilesField.get(stream);
+  }
+
+  private Map<?, ?> getMultiPartMap(S3OutputStream stream) throws Exception {
+    Field multiPartMapField = S3OutputStream.class.getDeclaredField("multiPartMap");
+    multiPartMapField.setAccessible(true);
+    return (Map<?, ?>) multiPartMapField.get(stream);
   }
 }
