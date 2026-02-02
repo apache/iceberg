@@ -18,53 +18,23 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
-import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.MicroBatches.MicroBatch;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.iceberg.util.TableScanUtil;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.broadcast.Broadcast;
-import org.apache.spark.sql.connector.read.InputPartition;
-import org.apache.spark.sql.connector.read.PartitionReaderFactory;
-import org.apache.spark.sql.connector.read.streaming.CompositeReadLimit;
-import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
-import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
-import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles;
-import org.apache.spark.sql.connector.read.streaming.ReadMaxRows;
-import org.apache.spark.sql.connector.read.streaming.SupportsTriggerAvailableNow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,28 +43,23 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
   private final boolean caseSensitive;
   private final long fromTimestamp;
-  private StreamingOffset lastOffsetForTriggerAvailableNow;
+  private final StreamingOffset lastOffsetForTriggerAvailableNow;
 
   SyncSparkMicroBatchPlanner(
-          Table table, SparkReadConf readConf, StreamingOffset lastOffsetForTriggerAvailableNow) {
+      Table table, SparkReadConf readConf, StreamingOffset lastOffsetForTriggerAvailableNow) {
     super(table, readConf);
-    this.caseSensitive = readConf.caseSensitive();
-    this.fromTimestamp = readConf.streamFromTimestamp();
+    this.caseSensitive = readConf().caseSensitive();
+    this.fromTimestamp = readConf().streamFromTimestamp();
     this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
-  }
-
-  @Override
-  public void stop() {
-    // No-op for synchronous planner
   }
 
   @Override
   public List<FileScanTask> planFiles(StreamingOffset start, StreamingOffset end) {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset =
-            StreamingOffset.START_OFFSET.equals(start)
-                    ? MicroBatchUtils.determineStartingOffset(table(), fromTimestamp)
-                    : start;
+        StreamingOffset.START_OFFSET.equals(start)
+            ? MicroBatchUtils.determineStartingOffset(table(), fromTimestamp)
+            : start;
 
     StreamingOffset currentOffset = null;
 
@@ -131,14 +96,14 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
       }
 
       MicroBatch latestMicroBatch =
-              MicroBatches.from(currentSnapshot, table().io())
-                      .caseSensitive(caseSensitive)
-                      .specsById(table().specs())
-                      .generate(
-                              currentOffset.position(),
-                              endFileIndex,
-                              Long.MAX_VALUE,
-                              currentOffset.shouldScanAllFiles());
+          MicroBatches.from(currentSnapshot, table().io())
+              .caseSensitive(caseSensitive)
+              .specsById(table().specs())
+              .generate(
+                  currentOffset.position(),
+                  endFileIndex,
+                  Long.MAX_VALUE,
+                  currentOffset.shouldScanAllFiles());
 
       fileScanTasks.addAll(latestMicroBatch.tasks());
     } while (currentOffset.snapshotId() != end.snapshotId());
@@ -173,9 +138,9 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
     // Use the pre-computed snapshotId when Trigger.AvailableNow is enabled.
     long latestSnapshotId =
-            lastOffsetForTriggerAvailableNow != null
-                    ? lastOffsetForTriggerAvailableNow.snapshotId()
-                    : table().currentSnapshot().snapshotId();
+        lastOffsetForTriggerAvailableNow != null
+            ? lastOffsetForTriggerAvailableNow.snapshotId()
+            : table().currentSnapshot().snapshotId();
 
     int startPosOfSnapOffset = (int) startingOffset.position();
 
@@ -195,21 +160,21 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     while (shouldContinueReading) {
       // generate manifest index for the curSnapshot
       List<Pair<ManifestFile, Integer>> indexedManifests =
-              MicroBatches.skippedManifestIndexesFromSnapshot(
-                      table().io(), curSnapshot, startPosOfSnapOffset, scanAllFiles);
+          MicroBatches.skippedManifestIndexesFromSnapshot(
+              table().io(), curSnapshot, startPosOfSnapOffset, scanAllFiles);
       // this is under assumption we will be able to add at-least 1 file in the new offset
       for (int idx = 0; idx < indexedManifests.size() && shouldContinueReading; idx++) {
         // be rest assured curPos >= startFileIndex
         curPos = indexedManifests.get(idx).second();
         try (CloseableIterable<FileScanTask> taskIterable =
-                     MicroBatches.openManifestFile(
-                             table().io(),
-                             table().specs(),
-                             caseSensitive,
-                             curSnapshot,
-                             indexedManifests.get(idx).first(),
-                             scanAllFiles);
-             CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
+                MicroBatches.openManifestFile(
+                    table().io(),
+                    table().specs(),
+                    caseSensitive,
+                    curSnapshot,
+                    indexedManifests.get(idx).first(),
+                    scanAllFiles);
+            CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (curPos >= startPosOfSnapOffset) {
@@ -228,12 +193,12 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
                 // read in the current snapshot.
                 if (curFilesAdded == 1 && curRecordCount > maxRows) {
                   LOG.warn(
-                          "File {} contains {} records, exceeding maxRecordsPerMicroBatch limit of {}. "
-                                  + "This file will be processed entirely to guarantee forward progress. "
-                                  + "Consider increasing the limit or writing smaller files to avoid unexpected memory usage.",
-                          task.file().location(),
-                          task.file().recordCount(),
-                          maxRows);
+                      "File {} contains {} records, exceeding maxRecordsPerMicroBatch limit of {}. "
+                          + "This file will be processed entirely to guarantee forward progress. "
+                          + "Consider increasing the limit or writing smaller files to avoid unexpected memory usage.",
+                      task.file().location(),
+                      task.file().recordCount(),
+                      maxRows);
                 }
                 ++curPos;
                 shouldContinueReading = false;
@@ -271,6 +236,11 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
     // if no new data arrived, then return null.
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
+  }
+
+  @Override
+  public void stop() {
+    // No-op for synchronous planner
   }
 
   private void validateCurrentSnapshotExists(Snapshot snapshot, StreamingOffset currentOffset) {
