@@ -27,11 +27,11 @@ categories:
 
 The Apache Iceberg community is pleased to announce version 0.8.0 of [iceberg-rust](https://github.com/apache/iceberg-rust).
 
-iceberg-rust is a native Rust implementation of the Apache Iceberg specification, providing high-performance libraries for reading, writing, and managing Iceberg tables in Rust applications and through Python bindings (PyIceberg-core).
-
-This release covers development work from late November 2025 through early January 2026 and is the result of merging 144 PRs from 37 contributors. See the [changelog] for the complete list of changes.
+This release covers development work from late November 2025 through early January 2026 and is the result of merging **144 PRs** from **37 contributors**. See the [changelog] for the complete list of changes.
 
 [changelog]: https://github.com/apache/iceberg-rust/blob/main/CHANGELOG.md#v080---2026-01-06
+
+`iceberg-rust` is a native Rust implementation of the Apache Iceberg specification, providing high-performance libraries for reading, writing, and managing Iceberg tables in Rust applications and through Python bindings (`pyiceberg-core`).
 
 <!-- more -->
 
@@ -39,7 +39,7 @@ This release covers development work from late November 2025 through early Janua
 
 ### V3 Metadata Support
 
-This release introduces [support for Iceberg V3 metadata format](https://github.com/apache/iceberg-rust/pull/1682), enabling iceberg-rust to work with the latest version of the Iceberg table specification. This includes support for V3 manifests with delete file content and enhanced metadata handling.
+This release introduces [support for Iceberg V3 metadata format](https://github.com/apache/iceberg-rust/pull/1682), enabling `iceberg-rust` to work with the latest version of the Iceberg table specification. This includes support for V3 manifests with delete file content and enhanced metadata handling.
 
 ### Enhanced DataFusion Integration
 
@@ -54,7 +54,7 @@ The DataFusion integration received significant improvements:
 
 ### Advanced Delete File Handling
 
-iceberg-rust now has substantially improved support for Iceberg's delete files:
+`iceberg-rust` now has substantially improved support for Iceberg's delete files:
 
 - **Shared delete file caching**: [Optimized performance](https://github.com/apache/iceberg-rust/pull/1941) by caching and sharing delete files across multiple readers
 - **Mixed delete types**: [Support for both position and equality deletes](https://github.com/apache/iceberg-rust/pull/1778) on the same FileScanTask
@@ -133,11 +133,11 @@ This release includes several breaking changes:
 
 ## Getting Involved
 
-The iceberg-rust project welcomes contributions. We use GitHub [issues](https://github.com/apache/iceberg-rust/issues) for tracking work and the [Apache Iceberg Community Slack](https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A) for discussions.
+The `iceberg-rust` project welcomes contributions. We use GitHub [issues](https://github.com/apache/iceberg-rust/issues) for tracking work and the [Apache Iceberg Community Slack](https://iceberg.apache.org/community/#slack) for discussions.
 
 The easiest way to get started is to:
 
-1. Try iceberg-rust with your workloads and report any issues you encounter
+1. Try `iceberg-rust` with your workloads and report any issues you encounter
 2. Review the [contributor guide](https://github.com/apache/iceberg-rust/blob/main/CONTRIBUTING.md)
 3. Look for [good first issues](https://github.com/apache/iceberg-rust/contribute)
 
