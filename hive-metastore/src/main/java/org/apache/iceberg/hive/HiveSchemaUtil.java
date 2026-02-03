@@ -165,7 +165,7 @@ public final class HiveSchemaUtil {
         }
         return "timestamp";
       case FIXED:
-      case BINARY:
+      case BINARY, VARIANT:
         return "binary";
       case DECIMAL:
         final Types.DecimalType decimalType = (Types.DecimalType) type;
