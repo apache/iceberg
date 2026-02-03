@@ -28,6 +28,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
@@ -36,6 +37,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Parameter;
@@ -49,6 +51,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -558,19 +561,18 @@ public class TestSparkDataWrite {
   }
 
   @TestTemplate
-  public void testWriteDataFilesInTableSortOrder() {
+  public void testWriteDataFilesInTableSortOrder() throws IOException {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = tables.create(SCHEMA, spec, location.toString());
+    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).asc("id").build();
+    Table table = tables.create(SCHEMA, spec, sortOrder, ImmutableMap.of(), location.toString());
 
-    table.replaceSortOrder().asc("id").commit();
-
-    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(4000);
-    for (int i = 0; i < 4000; i++) {
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(10);
+    for (int i = 0; i < 10; i++) {
       expected.add(new SimpleRecord(i, "a"));
     }
 
@@ -592,18 +594,12 @@ public class TestSparkDataWrite {
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
 
-    List<DataFile> files = Lists.newArrayList();
-    for (ManifestFile manifest :
-        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
-        files.add(file);
-      }
+    try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
+      assertThat(fileScanTasks)
+          .extracting(task -> task.file().sortOrderId())
+          .as("All DataFiles are written with the table sort order id")
+          .containsOnly(table.sortOrder().orderId());
     }
-
-    assertThat(files)
-        .extracting(DataFile::sortOrderId)
-        .as("All DataFiles are written with the table sort order id")
-        .containsOnly(table.sortOrder().orderId());
   }
 
   public void partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType option) {

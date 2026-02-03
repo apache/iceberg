@@ -1557,7 +1557,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testSimpleSort() {
+  public void testSimpleSort() throws IOException {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
     table.replaceSortOrder().asc("c2").commit();
@@ -1591,7 +1591,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testSortAfterPartitionChange() {
+  public void testSortAfterPartitionChange() throws IOException {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
     table.updateSpec().addField(Expressions.bucket("c1", 4)).commit();
@@ -1628,7 +1628,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testSortCustomSortOrder() {
+  public void testSortCustomSortOrder() throws IOException {
     Table table = createTable(20);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
@@ -1660,7 +1660,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testSortCustomSortOrderRequiresRepartition() {
+  public void testSortCustomSortOrderRequiresRepartition() throws IOException {
     int partitions = 4;
     Table table = createTable();
     writeRecords(20, SCALE, partitions);
@@ -1701,7 +1701,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testSortPastTableSortOrderGetsAppliedToFiles() {
+  public void testSortPastTableSortOrderGetsAppliedToFiles() throws IOException {
     int partitions = 4;
     Table table = createTable();
     writeRecords(20, SCALE, partitions);
@@ -1744,7 +1744,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testAutoSortShuffleOutput() {
+  public void testAutoSortShuffleOutput() throws IOException {
     Table table = createTable(20);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
@@ -2706,17 +2706,16 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
   }
 
-  private void dataFilesSortOrderShouldMatchTableSortOrder(Table table) {
+  private void dataFilesSortOrderShouldMatchTableSortOrder(Table table) throws IOException {
     dataFilesShouldHaveSortOrderIdMatching(table, table.sortOrder());
   }
 
-  private void dataFilesShouldHaveSortOrderIdMatching(Table table, SortOrder sortOrder) {
+  private void dataFilesShouldHaveSortOrderIdMatching(Table table, SortOrder sortOrder)
+      throws IOException {
     try (CloseableIterable<FileScanTask> files = table.newScan().planFiles()) {
       assertThat(files)
           .extracting(fileScanTask -> fileScanTask.file().sortOrderId())
           .containsOnly(sortOrder.orderId());
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to close file scan tasks", e);
     }
   }
 }
