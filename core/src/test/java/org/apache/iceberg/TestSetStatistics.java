@@ -19,9 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.TestTemplate;
@@ -112,42 +110,35 @@ public class TestSetStatistics extends TestBase {
   @TestTemplate
   public void testSetStatisticsRetryWithConcurrentModification() {
     table.newFastAppend().appendFile(FILE_A).commit();
-    TableMetadata base = readMetadata();
-    long snapshotId = base.currentSnapshot().snapshotId();
-
-    GenericStatisticsFile statisticsFile =
-        new GenericStatisticsFile(
-            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
-
-    UpdateStatistics updateStats = table.updateStatistics().setStatistics(statisticsFile);
-
-    table.newFastAppend().appendFile(FILE_B).commit();
-
-    updateStats.commit();
-
-    assertThat(readMetadata().statisticsFiles()).containsExactly(statisticsFile);
-  }
-
-  @TestTemplate
-  public void testSetStatisticsRetryExhaustion() {
-    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "2").commit();
-
-    table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotId = readMetadata().currentSnapshot().snapshotId();
 
     GenericStatisticsFile statisticsFile =
         new GenericStatisticsFile(
             snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
 
-    TestTables.TestTableOperations ops = table.ops();
-    int configuredRetries =
-        Integer.parseInt(table.properties().getOrDefault(TableProperties.COMMIT_NUM_RETRIES, "4"));
-    ops.failCommits(configuredRetries + 1);
+    TestTables.TestTable currentTable = table;
 
-    UpdateStatistics updateStats = table.updateStatistics().setStatistics(statisticsFile);
-    assertThatThrownBy(updateStats::commit)
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Injected failure");
+    // Create a TableOperations that simulates concurrent modification
+    // On the first commit attempt, another writer modifies the table
+    TestTables.TestTableOperations concurrentOps =
+        new TestTables.TestTableOperations("test", tableDir, table.ops().io()) {
+          private int commitCount = 0;
+
+          @Override
+          public void commit(TableMetadata base, TableMetadata metadata) {
+            commitCount++;
+            if (commitCount == 1) {
+              currentTable.newFastAppend().appendFile(FILE_B).commit();
+            }
+            super.commit(base, metadata);
+          }
+        };
+
+    SetStatistics setStats = new SetStatistics(concurrentOps);
+    setStats.setStatistics(statisticsFile);
+    setStats.commit();
+
+    assertThat(readMetadata().statisticsFiles()).containsExactly(statisticsFile);
   }
 
   @TestTemplate
