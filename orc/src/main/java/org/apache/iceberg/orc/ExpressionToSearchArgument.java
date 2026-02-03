@@ -133,14 +133,12 @@ class ExpressionToSearchArgument
   }
 
   private Object getNaNForType(Type type) {
-    switch (type.typeId()) {
-      case FLOAT:
-        return Float.NaN;
-      case DOUBLE:
-        return Double.NaN;
-      default:
-        throw new IllegalArgumentException("Cannot get NaN value for type " + type.typeId());
-    }
+    return switch (type.typeId()) {
+      case FLOAT -> Float.NaN;
+      case DOUBLE -> Double.NaN;
+      default ->
+          throw new IllegalArgumentException("Cannot get NaN value for type " + type.typeId());
+    };
   }
 
   @Override
@@ -288,56 +286,39 @@ class ExpressionToSearchArgument
   }
 
   private PredicateLeaf.Type type(Type icebergType) {
-    switch (icebergType.typeId()) {
-      case BOOLEAN:
-        return PredicateLeaf.Type.BOOLEAN;
-      case INTEGER:
-      case LONG:
-      case TIME:
-        return PredicateLeaf.Type.LONG;
-      case FLOAT:
-      case DOUBLE:
-        return PredicateLeaf.Type.FLOAT;
-      case DATE:
-        return PredicateLeaf.Type.DATE;
-      case TIMESTAMP:
-        return PredicateLeaf.Type.TIMESTAMP;
-      case STRING:
-        return PredicateLeaf.Type.STRING;
-      case DECIMAL:
-        return PredicateLeaf.Type.DECIMAL;
-      default:
-        throw new UnsupportedOperationException(
-            "Type " + icebergType + " not supported in ORC SearchArguments");
-    }
+    return switch (icebergType.typeId()) {
+      case BOOLEAN -> PredicateLeaf.Type.BOOLEAN;
+      case INTEGER, LONG, TIME -> PredicateLeaf.Type.LONG;
+      case FLOAT, DOUBLE -> PredicateLeaf.Type.FLOAT;
+      case DATE -> PredicateLeaf.Type.DATE;
+      case TIMESTAMP -> PredicateLeaf.Type.TIMESTAMP;
+      case STRING -> PredicateLeaf.Type.STRING;
+      case DECIMAL -> PredicateLeaf.Type.DECIMAL;
+      default ->
+          throw new UnsupportedOperationException(
+              "Type " + icebergType + " not supported in ORC SearchArguments");
+    };
   }
 
   private <T> Object literal(Type icebergType, T icebergLiteral) {
-    switch (icebergType.typeId()) {
-      case BOOLEAN:
-      case LONG:
-      case TIME:
-      case DOUBLE:
-        return icebergLiteral;
-      case INTEGER:
-        return ((Integer) icebergLiteral).longValue();
-      case FLOAT:
-        return ((Float) icebergLiteral).doubleValue();
-      case STRING:
-        return icebergLiteral.toString();
-      case DATE:
-        return Date.valueOf(LocalDate.ofEpochDay((Integer) icebergLiteral));
-      case TIMESTAMP:
+    return switch (icebergType.typeId()) {
+      case BOOLEAN, LONG, TIME, DOUBLE -> icebergLiteral;
+      case INTEGER -> ((Integer) icebergLiteral).longValue();
+      case FLOAT -> ((Float) icebergLiteral).doubleValue();
+      case STRING -> icebergLiteral.toString();
+      case DATE -> Date.valueOf(LocalDate.ofEpochDay((Integer) icebergLiteral));
+      case TIMESTAMP -> {
         long microsFromEpoch = (Long) icebergLiteral;
-        return Timestamp.from(
+        yield Timestamp.from(
             Instant.ofEpochSecond(
                 Math.floorDiv(microsFromEpoch, 1_000_000),
                 Math.floorMod(microsFromEpoch, 1_000_000) * 1_000L));
-      case DECIMAL:
-        return new HiveDecimalWritable(HiveDecimal.create((BigDecimal) icebergLiteral, false));
-      default:
-        throw new UnsupportedOperationException(
-            "Type " + icebergType + " not supported in ORC SearchArguments");
-    }
+      }
+      case DECIMAL ->
+          new HiveDecimalWritable(HiveDecimal.create((BigDecimal) icebergLiteral, false));
+      default ->
+          throw new UnsupportedOperationException(
+              "Type " + icebergType + " not supported in ORC SearchArguments");
+    };
   }
 }

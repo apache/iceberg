@@ -65,31 +65,23 @@ enum Timestamps implements Transform<Long, Integer> {
 
       switch (timestampUnit) {
         case MICROS:
-          switch (granularity) {
-            case YEARS:
-              return DateTimeUtil.microsToYears(timestamp);
-            case MONTHS:
-              return DateTimeUtil.microsToMonths(timestamp);
-            case DAYS:
-              return DateTimeUtil.microsToDays(timestamp);
-            case HOURS:
-              return DateTimeUtil.microsToHours(timestamp);
-            default:
-              throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
-          }
+          return switch (granularity) {
+            case YEARS -> DateTimeUtil.microsToYears(timestamp);
+            case MONTHS -> DateTimeUtil.microsToMonths(timestamp);
+            case DAYS -> DateTimeUtil.microsToDays(timestamp);
+            case HOURS -> DateTimeUtil.microsToHours(timestamp);
+            default ->
+                throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+          };
         case NANOS:
-          switch (granularity) {
-            case YEARS:
-              return DateTimeUtil.nanosToYears(timestamp);
-            case MONTHS:
-              return DateTimeUtil.nanosToMonths(timestamp);
-            case DAYS:
-              return DateTimeUtil.nanosToDays(timestamp);
-            case HOURS:
-              return DateTimeUtil.nanosToHours(timestamp);
-            default:
-              throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
-          }
+          return switch (granularity) {
+            case YEARS -> DateTimeUtil.nanosToYears(timestamp);
+            case MONTHS -> DateTimeUtil.nanosToMonths(timestamp);
+            case DAYS -> DateTimeUtil.nanosToDays(timestamp);
+            case HOURS -> DateTimeUtil.nanosToHours(timestamp);
+            default ->
+                throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+          };
         default:
           throw new UnsupportedOperationException("Unsupported time unit: " + timestampUnit);
       }
@@ -216,18 +208,13 @@ enum Timestamps implements Transform<Long, Integer> {
       return "null";
     }
 
-    switch (granularity) {
-      case YEARS:
-        return TransformUtil.humanYear(value);
-      case MONTHS:
-        return TransformUtil.humanMonth(value);
-      case DAYS:
-        return TransformUtil.humanDay(value);
-      case HOURS:
-        return TransformUtil.humanHour(value);
-      default:
-        throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
-    }
+    return switch (granularity) {
+      case YEARS -> TransformUtil.humanYear(value);
+      case MONTHS -> TransformUtil.humanMonth(value);
+      case DAYS -> TransformUtil.humanDay(value);
+      case HOURS -> TransformUtil.humanHour(value);
+      default -> throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+    };
   }
 
   @Override

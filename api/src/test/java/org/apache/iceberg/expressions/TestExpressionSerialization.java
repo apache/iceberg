@@ -89,21 +89,17 @@ public class TestExpressionSerialization {
       return equals((Predicate) left, (Predicate) right);
     }
 
-    switch (left.op()) {
-      case FALSE:
-      case TRUE:
-        return true;
-      case NOT:
-        return equals(((Not) left).child(), ((Not) right).child());
-      case AND:
-        return equals(((And) left).left(), ((And) right).left())
-            && equals(((And) left).right(), ((And) right).right());
-      case OR:
-        return equals(((Or) left).left(), ((Or) right).left())
-            && equals(((Or) left).right(), ((Or) right).right());
-      default:
-        return false;
-    }
+    return switch (left.op()) {
+      case FALSE, TRUE -> true;
+      case NOT -> equals(((Not) left).child(), ((Not) right).child());
+      case AND ->
+          equals(((And) left).left(), ((And) right).left())
+              && equals(((And) left).right(), ((And) right).right());
+      case OR ->
+          equals(((Or) left).left(), ((Or) right).left())
+              && equals(((Or) left).right(), ((Or) right).right());
+      default -> false;
+    };
   }
 
   private static boolean equals(Term left, Term right) {

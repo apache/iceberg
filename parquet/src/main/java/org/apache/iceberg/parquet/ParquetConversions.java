@@ -56,17 +56,14 @@ class ParquetConversions {
       case DECIMAL:
         int scale =
             ((DecimalLogicalTypeAnnotation) parquetType.getLogicalTypeAnnotation()).getScale();
-        switch (parquetType.getPrimitiveTypeName()) {
-          case INT32:
-          case INT64:
-            return (T) BigDecimal.valueOf(((Number) value).longValue(), scale);
-          case FIXED_LEN_BYTE_ARRAY:
-          case BINARY:
-            return (T) new BigDecimal(new BigInteger(((Binary) value).getBytes()), scale);
-          default:
-            throw new IllegalArgumentException(
-                "Unsupported primitive type for decimal: " + parquetType.getPrimitiveTypeName());
-        }
+        return switch (parquetType.getPrimitiveTypeName()) {
+          case INT32, INT64 -> (T) BigDecimal.valueOf(((Number) value).longValue(), scale);
+          case FIXED_LEN_BYTE_ARRAY, BINARY ->
+              (T) new BigDecimal(new BigInteger(((Binary) value).getBytes()), scale);
+          default ->
+              throw new IllegalArgumentException(
+                  "Unsupported primitive type for decimal: " + parquetType.getPrimitiveTypeName());
+        };
       default:
         throw new IllegalArgumentException("Unsupported primitive type: " + type);
     }
@@ -100,32 +97,25 @@ class ParquetConversions {
           DecimalLogicalTypeAnnotation decimal =
               (DecimalLogicalTypeAnnotation) type.getLogicalTypeAnnotation();
           int scale = decimal.getScale();
-          switch (type.getPrimitiveTypeName()) {
-            case INT32:
-            case INT64:
-              return num -> BigDecimal.valueOf(((Number) num).longValue(), scale);
-            case FIXED_LEN_BYTE_ARRAY:
-            case BINARY:
-              return bin -> new BigDecimal(new BigInteger(((Binary) bin).getBytes()), scale);
-            default:
-              throw new IllegalArgumentException(
-                  "Unsupported primitive type for decimal: " + type.getPrimitiveTypeName());
-          }
+          return switch (type.getPrimitiveTypeName()) {
+            case INT32, INT64 -> num -> BigDecimal.valueOf(((Number) num).longValue(), scale);
+            case FIXED_LEN_BYTE_ARRAY, BINARY ->
+                bin -> new BigDecimal(new BigInteger(((Binary) bin).getBytes()), scale);
+            default ->
+                throw new IllegalArgumentException(
+                    "Unsupported primitive type for decimal: " + type.getPrimitiveTypeName());
+          };
         default:
       }
     }
 
-    switch (type.getPrimitiveTypeName()) {
-      case FIXED_LEN_BYTE_ARRAY:
-      case BINARY:
-        return binary -> ByteBuffer.wrap(((Binary) binary).getBytes());
-      case INT96:
-        return binary ->
-            ParquetUtil.extractTimestampInt96(
-                ByteBuffer.wrap(((Binary) binary).getBytes()).order(ByteOrder.LITTLE_ENDIAN));
-      default:
-    }
-
-    return obj -> obj;
+    return switch (type.getPrimitiveTypeName()) {
+      case FIXED_LEN_BYTE_ARRAY, BINARY -> binary -> ByteBuffer.wrap(((Binary) binary).getBytes());
+      case INT96 ->
+          binary ->
+              ParquetUtil.extractTimestampInt96(
+                  ByteBuffer.wrap(((Binary) binary).getBytes()).order(ByteOrder.LITTLE_ENDIAN));
+      default -> obj -> obj;
+    };
   }
 }

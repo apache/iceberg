@@ -119,17 +119,15 @@ public class GenericOrcReader implements OrcRowReader<Record> {
         case INT:
           return OrcValueReaders.ints();
         case LONG:
-          switch (iPrimitive.typeId()) {
-            case TIME:
-              return GenericOrcReaders.times();
-            case LONG:
-              return OrcValueReaders.longs();
-            default:
-              throw new IllegalStateException(
-                  String.format(
-                      "Invalid iceberg type %s corresponding to ORC type %s",
-                      iPrimitive, primitive));
-          }
+          return switch (iPrimitive.typeId()) {
+            case TIME -> GenericOrcReaders.times();
+            case LONG -> OrcValueReaders.longs();
+            default ->
+                throw new IllegalStateException(
+                    String.format(
+                        "Invalid iceberg type %s corresponding to ORC type %s",
+                        iPrimitive, primitive));
+          };
 
         case FLOAT:
           return OrcValueReaders.floats();
@@ -148,19 +146,16 @@ public class GenericOrcReader implements OrcRowReader<Record> {
         case STRING:
           return GenericOrcReaders.strings();
         case BINARY:
-          switch (iPrimitive.typeId()) {
-            case UUID:
-              return GenericOrcReaders.uuids();
-            case FIXED:
-              return OrcValueReaders.bytes();
-            case BINARY:
-              return GenericOrcReaders.bytes();
-            default:
-              throw new IllegalStateException(
-                  String.format(
-                      "Invalid iceberg type %s corresponding to ORC type %s",
-                      iPrimitive, primitive));
-          }
+          return switch (iPrimitive.typeId()) {
+            case UUID -> GenericOrcReaders.uuids();
+            case FIXED -> OrcValueReaders.bytes();
+            case BINARY -> GenericOrcReaders.bytes();
+            default ->
+                throw new IllegalStateException(
+                    String.format(
+                        "Invalid iceberg type %s corresponding to ORC type %s",
+                        iPrimitive, primitive));
+          };
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);
       }

@@ -151,18 +151,13 @@ public class TableReference implements IndexedRecord {
 
   @Override
   public Object get(int i) {
-    switch (AvroUtil.positionToId(i, avroSchema)) {
-      case CATALOG:
-        return catalog;
-      case NAMESPACE:
-        return namespace;
-      case NAME:
-        return name;
-      case TABLE_UUID:
-        return uuid;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (AvroUtil.positionToId(i, avroSchema)) {
+      case CATALOG -> catalog;
+      case NAMESPACE -> namespace;
+      case NAME -> name;
+      case TABLE_UUID -> uuid;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 
   @Override

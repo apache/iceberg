@@ -60,14 +60,11 @@ public class IcebergEnumeratorStateSerializer
 
   @Override
   public IcebergEnumeratorState deserialize(int version, byte[] serialized) throws IOException {
-    switch (version) {
-      case 1:
-        return deserializeV1(serialized);
-      case 2:
-        return deserializeV2(serialized);
-      default:
-        throw new IOException("Unknown version: " + version);
-    }
+    return switch (version) {
+      case 1 -> deserializeV1(serialized);
+      case 2 -> deserializeV2(serialized);
+      default -> throw new IOException("Unknown version: " + version);
+    };
   }
 
   @VisibleForTesting

@@ -497,27 +497,29 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public Optional<LogicalTypeVisitorResult> visit(
         LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalLogicalType) {
       FieldVector vector = arrowField.createVector(rootAlloc);
-      switch (primitive.getPrimitiveTypeName()) {
-        case BINARY:
-        case FIXED_LEN_BYTE_ARRAY:
+      return switch (primitive.getPrimitiveTypeName()) {
+        case BINARY, FIXED_LEN_BYTE_ARRAY -> {
           ((FixedSizeBinaryVector) vector).allocateNew(batchSize);
-          return Optional.of(
+          yield Optional.of(
               new LogicalTypeVisitorResult(
                   vector, ReadType.FIXED_LENGTH_DECIMAL, primitive.getTypeLength()));
-        case INT64:
+        }
+        case INT64 -> {
           ((BigIntVector) vector).allocateNew(batchSize);
-          return Optional.of(
+          yield Optional.of(
               new LogicalTypeVisitorResult(
                   vector, ReadType.LONG_BACKED_DECIMAL, (int) BigIntVector.TYPE_WIDTH));
-        case INT32:
+        }
+        case INT32 -> {
           ((IntVector) vector).allocateNew(batchSize);
-          return Optional.of(
+          yield Optional.of(
               new LogicalTypeVisitorResult(
                   vector, ReadType.INT_BACKED_DECIMAL, (int) IntVector.TYPE_WIDTH));
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-      }
+        }
+        default ->
+            throw new UnsupportedOperationException(
+                "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+      };
     }
 
     @Override

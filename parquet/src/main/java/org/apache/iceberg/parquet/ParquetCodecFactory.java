@@ -70,24 +70,22 @@ public class ParquetCodecFactory extends CodecFactory {
 
   @SuppressWarnings("deprecation")
   private String cacheKey(CompressionCodecName codecName) {
-    String level = null;
-    switch (codecName) {
-      case GZIP:
-        level = configuration.get("zlib.compress.level");
-        break;
-      case BROTLI:
-        level = configuration.get("compression.brotli.quality");
-        break;
-      case ZSTD:
-        level = configuration.get("parquet.compression.codec.zstd.level");
-        if (level == null) {
-          // keep "io.compression.codec.zstd.level" for backwards compatibility
-          level = configuration.get("io.compression.codec.zstd.level");
-        }
-        break;
-      default:
-        // compression level is not supported; ignore it
-    }
+    String level =
+        switch (codecName) {
+          case GZIP -> configuration.get("zlib.compress.level");
+          case BROTLI -> configuration.get("compression.brotli.quality");
+          case ZSTD -> {
+            String zstdLevel = configuration.get("parquet.compression.codec.zstd.level");
+            if (zstdLevel == null) {
+              // keep "io.compression.codec.zstd.level" for backwards compatibility
+              zstdLevel = configuration.get("io.compression.codec.zstd.level");
+            }
+            yield zstdLevel;
+          }
+          default ->
+              // compression level is not supported; ignore it
+              null;
+        };
     String codecClass = codecName.getHadoopCompressionCodecClassName();
     return level == null ? codecClass : codecClass + ":" + level;
   }

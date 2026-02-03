@@ -83,18 +83,13 @@ class VariantUtil {
 
   static int readLittleEndianUnsigned(ByteBuffer buffer, int offset, int size) {
     int base = buffer.position() + offset;
-    switch (size) {
-      case 4:
-        return buffer.getInt(base);
-      case 3:
-        return (((int) buffer.getShort(base)) & 0xFFFF) | ((buffer.get(base + 2) & 0xFF) << 16);
-      case 2:
-        return ((int) buffer.getShort(base)) & 0xFFFF;
-      case 1:
-        return buffer.get(base) & 0xFF;
-    }
-
-    throw new IllegalArgumentException("Invalid size: " + size);
+    return switch (size) {
+      case 4 -> buffer.getInt(base);
+      case 3 -> (((int) buffer.getShort(base)) & 0xFFFF) | ((buffer.get(base + 2) & 0xFF) << 16);
+      case 2 -> ((int) buffer.getShort(base)) & 0xFFFF;
+      case 1 -> buffer.get(base) & 0xFF;
+      default -> throw new IllegalArgumentException("Invalid size: " + size);
+    };
   }
 
   static int readLittleEndianInt32(ByteBuffer buffer, int offset) {
@@ -187,17 +182,12 @@ class VariantUtil {
 
   static BasicType basicType(int header) {
     int basicType = header & BASIC_TYPE_MASK;
-    switch (basicType) {
-      case BASIC_TYPE_PRIMITIVE:
-        return BasicType.PRIMITIVE;
-      case BASIC_TYPE_SHORT_STRING:
-        return BasicType.SHORT_STRING;
-      case BASIC_TYPE_OBJECT:
-        return BasicType.OBJECT;
-      case BASIC_TYPE_ARRAY:
-        return BasicType.ARRAY;
-    }
-
-    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+    return switch (basicType) {
+      case BASIC_TYPE_PRIMITIVE -> BasicType.PRIMITIVE;
+      case BASIC_TYPE_SHORT_STRING -> BasicType.SHORT_STRING;
+      case BASIC_TYPE_OBJECT -> BasicType.OBJECT;
+      case BASIC_TYPE_ARRAY -> BasicType.ARRAY;
+      default -> throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+    };
   }
 }

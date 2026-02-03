@@ -423,18 +423,18 @@ abstract class BaseSparkAction<ThisT> {
       Map<Integer, PartitionSpec> specs = table.getValue().specs();
       List<String> proj = ImmutableList.of(DataFile.FILE_PATH.name(), DataFile.CONTENT.name());
 
-      switch (content) {
-        case DATA:
-          return CloseableIterator.transform(
-              ManifestFiles.read(manifest, io, specs).select(proj).iterator(),
-              ReadManifest::toFileInfo);
-        case DELETES:
-          return CloseableIterator.transform(
-              ManifestFiles.readDeleteManifest(manifest, io, specs).select(proj).iterator(),
-              ReadManifest::toFileInfo);
-        default:
-          throw new IllegalArgumentException("Unsupported manifest content type:" + content);
-      }
+      return switch (content) {
+        case DATA ->
+            CloseableIterator.transform(
+                ManifestFiles.read(manifest, io, specs).select(proj).iterator(),
+                ReadManifest::toFileInfo);
+        case DELETES ->
+            CloseableIterator.transform(
+                ManifestFiles.readDeleteManifest(manifest, io, specs).select(proj).iterator(),
+                ReadManifest::toFileInfo);
+        default ->
+            throw new IllegalArgumentException("Unsupported manifest content type:" + content);
+      };
     }
 
     static FileInfo toFileInfo(ContentFile<?> file) {

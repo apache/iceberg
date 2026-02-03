@@ -185,20 +185,14 @@ class GenericManifestEntry<F extends ContentFile<F>>
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
-        return status.id();
-      case 1:
-        return snapshotId;
-      case 2:
-        return dataSequenceNumber;
-      case 3:
-        return fileSequenceNumber;
-      case 4:
-        return file;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (i) {
+      case 0 -> status.id();
+      case 1 -> snapshotId;
+      case 2 -> dataSequenceNumber;
+      case 3 -> fileSequenceNumber;
+      case 4 -> file;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 
   @Override

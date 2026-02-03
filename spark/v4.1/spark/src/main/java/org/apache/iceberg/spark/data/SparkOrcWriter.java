@@ -96,39 +96,26 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
     @Override
     public OrcValueWriter<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
-      switch (primitive.getCategory()) {
-        case BOOLEAN:
-          return GenericOrcWriters.booleans();
-        case BYTE:
-          return GenericOrcWriters.bytes();
-        case SHORT:
-          return GenericOrcWriters.shorts();
-        case DATE:
-        case INT:
-          return GenericOrcWriters.ints();
-        case LONG:
-          return GenericOrcWriters.longs();
-        case FLOAT:
-          return GenericOrcWriters.floats(ORCSchemaUtil.fieldId(primitive));
-        case DOUBLE:
-          return GenericOrcWriters.doubles(ORCSchemaUtil.fieldId(primitive));
-        case BINARY:
+      return switch (primitive.getCategory()) {
+        case BOOLEAN -> GenericOrcWriters.booleans();
+        case BYTE -> GenericOrcWriters.bytes();
+        case SHORT -> GenericOrcWriters.shorts();
+        case DATE, INT -> GenericOrcWriters.ints();
+        case LONG -> GenericOrcWriters.longs();
+        case FLOAT -> GenericOrcWriters.floats(ORCSchemaUtil.fieldId(primitive));
+        case DOUBLE -> GenericOrcWriters.doubles(ORCSchemaUtil.fieldId(primitive));
+        case BINARY -> {
           if (Type.TypeID.UUID == iPrimitive.typeId()) {
-            return SparkOrcValueWriters.uuids();
+            yield SparkOrcValueWriters.uuids();
           }
-          return GenericOrcWriters.byteArrays();
-        case STRING:
-        case CHAR:
-        case VARCHAR:
-          return SparkOrcValueWriters.strings();
-        case DECIMAL:
-          return SparkOrcValueWriters.decimal(primitive.getPrecision(), primitive.getScale());
-        case TIMESTAMP_INSTANT:
-        case TIMESTAMP:
-          return SparkOrcValueWriters.timestampTz();
-        default:
-          throw new IllegalArgumentException("Unhandled type " + primitive);
-      }
+          yield GenericOrcWriters.byteArrays();
+        }
+        case STRING, CHAR, VARCHAR -> SparkOrcValueWriters.strings();
+        case DECIMAL ->
+            SparkOrcValueWriters.decimal(primitive.getPrecision(), primitive.getScale());
+        case TIMESTAMP_INSTANT, TIMESTAMP -> SparkOrcValueWriters.timestampTz();
+        default -> throw new IllegalArgumentException("Unhandled type " + primitive);
+      };
     }
   }
 

@@ -230,28 +230,24 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
                 lit -> lit != Literals.aboveMax() && lit != Literals.belowMin()));
 
     if (convertedLiterals.isEmpty()) {
-      switch (op()) {
-        case IN:
-          return Expressions.alwaysFalse();
-        case NOT_IN:
-          return Expressions.alwaysTrue();
-        default:
-          throw new ValidationException("Operation must be IN or NOT_IN");
-      }
+      return switch (op()) {
+        case IN -> Expressions.alwaysFalse();
+        case NOT_IN -> Expressions.alwaysTrue();
+        default -> throw new ValidationException("Operation must be IN or NOT_IN");
+      };
     }
 
     Set<T> literalSet = setOf(convertedLiterals);
     if (literalSet.size() == 1) {
-      switch (op()) {
-        case IN:
-          return new BoundLiteralPredicate<>(
-              Operation.EQ, boundTerm, Iterables.get(convertedLiterals, 0));
-        case NOT_IN:
-          return new BoundLiteralPredicate<>(
-              Operation.NOT_EQ, boundTerm, Iterables.get(convertedLiterals, 0));
-        default:
-          throw new ValidationException("Operation must be IN or NOT_IN");
-      }
+      return switch (op()) {
+        case IN ->
+            new BoundLiteralPredicate<>(
+                Operation.EQ, boundTerm, Iterables.get(convertedLiterals, 0));
+        case NOT_IN ->
+            new BoundLiteralPredicate<>(
+                Operation.NOT_EQ, boundTerm, Iterables.get(convertedLiterals, 0));
+        default -> throw new ValidationException("Operation must be IN or NOT_IN");
+      };
     }
 
     return new BoundSetPredicate<>(op(), boundTerm, literalSet);
@@ -259,38 +255,23 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
 
   @Override
   public String toString() {
-    switch (op()) {
-      case IS_NULL:
-        return "is_null(" + term() + ")";
-      case NOT_NULL:
-        return "not_null(" + term() + ")";
-      case IS_NAN:
-        return "is_nan(" + term() + ")";
-      case NOT_NAN:
-        return "not_nan(" + term() + ")";
-      case LT:
-        return term() + " < " + literal();
-      case LT_EQ:
-        return term() + " <= " + literal();
-      case GT:
-        return term() + " > " + literal();
-      case GT_EQ:
-        return term() + " >= " + literal();
-      case EQ:
-        return term() + " == " + literal();
-      case NOT_EQ:
-        return term() + " != " + literal();
-      case STARTS_WITH:
-        return term() + " startsWith \"" + literal() + "\"";
-      case NOT_STARTS_WITH:
-        return term() + " notStartsWith \"" + literal() + "\"";
-      case IN:
-        return term() + " in (" + COMMA.join(literals()) + ")";
-      case NOT_IN:
-        return term() + " not in (" + COMMA.join(literals()) + ")";
-      default:
-        return "Invalid predicate: operation = " + op();
-    }
+    return switch (op()) {
+      case IS_NULL -> "is_null(" + term() + ")";
+      case NOT_NULL -> "not_null(" + term() + ")";
+      case IS_NAN -> "is_nan(" + term() + ")";
+      case NOT_NAN -> "not_nan(" + term() + ")";
+      case LT -> term() + " < " + literal();
+      case LT_EQ -> term() + " <= " + literal();
+      case GT -> term() + " > " + literal();
+      case GT_EQ -> term() + " >= " + literal();
+      case EQ -> term() + " == " + literal();
+      case NOT_EQ -> term() + " != " + literal();
+      case STARTS_WITH -> term() + " startsWith \"" + literal() + "\"";
+      case NOT_STARTS_WITH -> term() + " notStartsWith \"" + literal() + "\"";
+      case IN -> term() + " in (" + COMMA.join(literals()) + ")";
+      case NOT_IN -> term() + " not in (" + COMMA.join(literals()) + ")";
+      default -> "Invalid predicate: operation = " + op();
+    };
   }
 
   @SuppressWarnings("unchecked")

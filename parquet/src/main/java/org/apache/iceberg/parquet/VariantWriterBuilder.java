@@ -198,33 +198,35 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
     @Override
     public Optional<ParquetValueWriter<?>> visit(DecimalLogicalTypeAnnotation decimal) {
       ParquetValueWriter<VariantValue> writer;
-      switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
-        case FIXED_LEN_BYTE_ARRAY:
-        case BINARY:
+      return switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+        case FIXED_LEN_BYTE_ARRAY, BINARY -> {
           writer =
               ParquetVariantWriters.primitive(
                   ParquetValueWriters.decimalAsFixed(
                       desc, decimal.getPrecision(), decimal.getScale()),
                   PhysicalType.DECIMAL16);
-          return Optional.of(writer);
-        case INT64:
+          yield Optional.of(writer);
+        }
+        case INT64 -> {
           writer =
               ParquetVariantWriters.primitive(
                   ParquetValueWriters.decimalAsLong(
                       desc, decimal.getPrecision(), decimal.getScale()),
                   PhysicalType.DECIMAL8);
-          return Optional.of(writer);
-        case INT32:
+          yield Optional.of(writer);
+        }
+        case INT32 -> {
           writer =
               ParquetVariantWriters.primitive(
                   ParquetValueWriters.decimalAsInteger(
                       desc, decimal.getPrecision(), decimal.getScale()),
                   PhysicalType.DECIMAL4);
-          return Optional.of(writer);
-      }
-
-      throw new IllegalArgumentException(
-          "Invalid primitive type for decimal: " + desc.getPrimitiveType());
+          yield Optional.of(writer);
+        }
+        default ->
+            throw new IllegalArgumentException(
+                "Invalid primitive type for decimal: " + desc.getPrimitiveType());
+      };
     }
 
     @Override
@@ -253,27 +255,32 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
       Preconditions.checkArgument(
           logical.isSigned(), "Invalid logical type for variant, unsigned: %s", logical);
       ParquetValueWriter<?> writer;
-      switch (logical.getBitWidth()) {
-        case 8:
+      return switch (logical.getBitWidth()) {
+        case 8 -> {
           writer =
               ParquetVariantWriters.primitive(
                   ParquetValueWriters.tinyints(desc), PhysicalType.INT8);
-          return Optional.of(writer);
-        case 16:
+          yield Optional.of(writer);
+        }
+        case 16 -> {
           writer =
               ParquetVariantWriters.primitive(ParquetValueWriters.shorts(desc), PhysicalType.INT16);
-          return Optional.of(writer);
-        case 32:
+          yield Optional.of(writer);
+        }
+        case 32 -> {
           writer =
               ParquetVariantWriters.primitive(ParquetValueWriters.ints(desc), PhysicalType.INT32);
-          return Optional.of(writer);
-        case 64:
+          yield Optional.of(writer);
+        }
+        case 64 -> {
           writer =
               ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), PhysicalType.INT64);
-          return Optional.of(writer);
-      }
-
-      throw new IllegalArgumentException("Invalid bit width for int: " + logical.getBitWidth());
+          yield Optional.of(writer);
+        }
+        default ->
+            throw new IllegalArgumentException(
+                "Invalid bit width for int: " + logical.getBitWidth());
+      };
     }
 
     @Override

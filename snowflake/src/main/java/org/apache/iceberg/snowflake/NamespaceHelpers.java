@@ -37,22 +37,21 @@ class NamespaceHelpers {
    * @throws IllegalArgumentException if the namespace is not a supported depth.
    */
   public static SnowflakeIdentifier toSnowflakeIdentifier(Namespace namespace) {
-    switch (namespace.length()) {
-      case NAMESPACE_ROOT_LEVEL:
-        return SnowflakeIdentifier.ofRoot();
-      case NAMESPACE_DB_LEVEL:
-        return SnowflakeIdentifier.ofDatabase(namespace.level(NAMESPACE_DB_LEVEL - 1));
-      case NAMESPACE_SCHEMA_LEVEL:
-        return SnowflakeIdentifier.ofSchema(
-            namespace.level(NAMESPACE_DB_LEVEL - 1), namespace.level(NAMESPACE_SCHEMA_LEVEL - 1));
-      default:
-        throw new IllegalArgumentException(
-            String.format(
-                Locale.ROOT,
-                "Snowflake max namespace level is %d, got namespace '%s'",
-                MAX_NAMESPACE_DEPTH,
-                namespace));
-    }
+    return switch (namespace.length()) {
+      case NAMESPACE_ROOT_LEVEL -> SnowflakeIdentifier.ofRoot();
+      case NAMESPACE_DB_LEVEL ->
+          SnowflakeIdentifier.ofDatabase(namespace.level(NAMESPACE_DB_LEVEL - 1));
+      case NAMESPACE_SCHEMA_LEVEL ->
+          SnowflakeIdentifier.ofSchema(
+              namespace.level(NAMESPACE_DB_LEVEL - 1), namespace.level(NAMESPACE_SCHEMA_LEVEL - 1));
+      default ->
+          throw new IllegalArgumentException(
+              String.format(
+                  Locale.ROOT,
+                  "Snowflake max namespace level is %d, got namespace '%s'",
+                  MAX_NAMESPACE_DEPTH,
+                  namespace));
+    };
   }
 
   /**
@@ -75,17 +74,14 @@ class NamespaceHelpers {
    * Namespace; throws IllegalArgumentException if not an appropriate type.
    */
   public static Namespace toIcebergNamespace(SnowflakeIdentifier identifier) {
-    switch (identifier.type()) {
-      case ROOT:
-        return Namespace.empty();
-      case DATABASE:
-        return Namespace.of(identifier.databaseName());
-      case SCHEMA:
-        return Namespace.of(identifier.databaseName(), identifier.schemaName());
-      default:
-        throw new IllegalArgumentException(
-            String.format("Cannot convert identifier '%s' to Namespace", identifier));
-    }
+    return switch (identifier.type()) {
+      case ROOT -> Namespace.empty();
+      case DATABASE -> Namespace.of(identifier.databaseName());
+      case SCHEMA -> Namespace.of(identifier.databaseName(), identifier.schemaName());
+      default ->
+          throw new IllegalArgumentException(
+              String.format("Cannot convert identifier '%s' to Namespace", identifier));
+    };
   }
 
   /**

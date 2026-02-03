@@ -84,26 +84,15 @@ public class AuthManagers {
       delegate = loadAuthManager(name, newProperties);
     }
 
-    String impl;
-    switch (authType.toLowerCase(Locale.ROOT)) {
-      case AuthProperties.AUTH_TYPE_NONE:
-        impl = AuthProperties.AUTH_MANAGER_IMPL_NONE;
-        break;
-      case AuthProperties.AUTH_TYPE_BASIC:
-        impl = AuthProperties.AUTH_MANAGER_IMPL_BASIC;
-        break;
-      case AuthProperties.AUTH_TYPE_SIGV4:
-        impl = AuthProperties.AUTH_MANAGER_IMPL_SIGV4;
-        break;
-      case AuthProperties.AUTH_TYPE_GOOGLE:
-        impl = AuthProperties.AUTH_MANAGER_IMPL_GOOGLE;
-        break;
-      case AuthProperties.AUTH_TYPE_OAUTH2:
-        impl = AuthProperties.AUTH_MANAGER_IMPL_OAUTH2;
-        break;
-      default:
-        impl = authType;
-    }
+    String impl =
+        switch (authType.toLowerCase(Locale.ROOT)) {
+          case AuthProperties.AUTH_TYPE_NONE -> AuthProperties.AUTH_MANAGER_IMPL_NONE;
+          case AuthProperties.AUTH_TYPE_BASIC -> AuthProperties.AUTH_MANAGER_IMPL_BASIC;
+          case AuthProperties.AUTH_TYPE_SIGV4 -> AuthProperties.AUTH_MANAGER_IMPL_SIGV4;
+          case AuthProperties.AUTH_TYPE_GOOGLE -> AuthProperties.AUTH_MANAGER_IMPL_GOOGLE;
+          case AuthProperties.AUTH_TYPE_OAUTH2 -> AuthProperties.AUTH_MANAGER_IMPL_OAUTH2;
+          default -> authType;
+        };
 
     LOG.info("Loading AuthManager implementation: {}", impl);
     DynConstructors.Ctor<AuthManager> ctor;

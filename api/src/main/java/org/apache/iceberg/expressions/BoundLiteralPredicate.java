@@ -71,26 +71,18 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   @Override
   public boolean test(T value) {
     Comparator<T> cmp = literal.comparator();
-    switch (op()) {
-      case LT:
-        return cmp.compare(value, literal.value()) < 0;
-      case LT_EQ:
-        return cmp.compare(value, literal.value()) <= 0;
-      case GT:
-        return cmp.compare(value, literal.value()) > 0;
-      case GT_EQ:
-        return cmp.compare(value, literal.value()) >= 0;
-      case EQ:
-        return cmp.compare(value, literal.value()) == 0;
-      case NOT_EQ:
-        return cmp.compare(value, literal.value()) != 0;
-      case STARTS_WITH:
-        return String.valueOf(value).startsWith((String) literal.value());
-      case NOT_STARTS_WITH:
-        return !String.valueOf(value).startsWith((String) literal.value());
-      default:
-        throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
-    }
+    return switch (op()) {
+      case LT -> cmp.compare(value, literal.value()) < 0;
+      case LT_EQ -> cmp.compare(value, literal.value()) <= 0;
+      case GT -> cmp.compare(value, literal.value()) > 0;
+      case GT_EQ -> cmp.compare(value, literal.value()) >= 0;
+      case EQ -> cmp.compare(value, literal.value()) == 0;
+      case NOT_EQ -> cmp.compare(value, literal.value()) != 0;
+      case STARTS_WITH -> String.valueOf(value).startsWith((String) literal.value());
+      case NOT_STARTS_WITH -> !String.valueOf(value).startsWith((String) literal.value());
+      default ->
+          throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
+    };
   }
 
   @Override
@@ -142,29 +134,18 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
 
   @Override
   public String toString() {
-    switch (op()) {
-      case LT:
-        return term() + " < " + literal;
-      case LT_EQ:
-        return term() + " <= " + literal;
-      case GT:
-        return term() + " > " + literal;
-      case GT_EQ:
-        return term() + " >= " + literal;
-      case EQ:
-        return term() + " == " + literal;
-      case NOT_EQ:
-        return term() + " != " + literal;
-      case STARTS_WITH:
-        return term() + " startsWith \"" + literal + "\"";
-      case NOT_STARTS_WITH:
-        return term() + " notStartsWith \"" + literal + "\"";
-      case IN:
-        return term() + " in { " + literal + " }";
-      case NOT_IN:
-        return term() + " not in { " + literal + " }";
-      default:
-        return "Invalid literal predicate: operation = " + op();
-    }
+    return switch (op()) {
+      case LT -> term() + " < " + literal;
+      case LT_EQ -> term() + " <= " + literal;
+      case GT -> term() + " > " + literal;
+      case GT_EQ -> term() + " >= " + literal;
+      case EQ -> term() + " == " + literal;
+      case NOT_EQ -> term() + " != " + literal;
+      case STARTS_WITH -> term() + " startsWith \"" + literal + "\"";
+      case NOT_STARTS_WITH -> term() + " notStartsWith \"" + literal + "\"";
+      case IN -> term() + " in { " + literal + " }";
+      case NOT_IN -> term() + " not in { " + literal + " }";
+      default -> "Invalid literal predicate: operation = " + op();
+    };
   }
 }

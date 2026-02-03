@@ -83,11 +83,9 @@ public class StartCommit implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (AvroUtil.positionToId(i, avroSchema)) {
-      case COMMIT_ID:
-        return commitId;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (AvroUtil.positionToId(i, avroSchema)) {
+      case COMMIT_ID -> commitId;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 }

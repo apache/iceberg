@@ -134,19 +134,13 @@ public class Event implements IndexedRecord {
 
   @Override
   public Object get(int i) {
-    switch (AvroUtil.positionToId(i, avroSchema)) {
-      case ID:
-        return id;
-      case TYPE:
-        return type == null ? null : type.id();
-      case TIMESTAMP:
-        return timestamp == null ? null : DateTimeUtil.microsFromTimestamptz(timestamp);
-      case GROUP_ID:
-        return groupId;
-      case PAYLOAD:
-        return payload;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (AvroUtil.positionToId(i, avroSchema)) {
+      case ID -> id;
+      case TYPE -> type == null ? null : type.id();
+      case TIMESTAMP -> timestamp == null ? null : DateTimeUtil.microsFromTimestamptz(timestamp);
+      case GROUP_ID -> groupId;
+      case PAYLOAD -> payload;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 }

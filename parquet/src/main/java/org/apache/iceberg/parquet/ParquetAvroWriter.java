@@ -125,21 +125,20 @@ public class ParquetAvroWriter {
           case DECIMAL:
             DecimalLogicalTypeAnnotation decimal =
                 (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
-            switch (primitive.getPrimitiveTypeName()) {
-              case INT32:
-                return ParquetValueWriters.decimalAsInteger(
-                    desc, decimal.getPrecision(), decimal.getScale());
-              case INT64:
-                return ParquetValueWriters.decimalAsLong(
-                    desc, decimal.getPrecision(), decimal.getScale());
-              case BINARY:
-              case FIXED_LEN_BYTE_ARRAY:
-                return ParquetValueWriters.decimalAsFixed(
-                    desc, decimal.getPrecision(), decimal.getScale());
-              default:
-                throw new UnsupportedOperationException(
-                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-            }
+            return switch (primitive.getPrimitiveTypeName()) {
+              case INT32 ->
+                  ParquetValueWriters.decimalAsInteger(
+                      desc, decimal.getPrecision(), decimal.getScale());
+              case INT64 ->
+                  ParquetValueWriters.decimalAsLong(
+                      desc, decimal.getPrecision(), decimal.getScale());
+              case BINARY, FIXED_LEN_BYTE_ARRAY ->
+                  ParquetValueWriters.decimalAsFixed(
+                      desc, decimal.getPrecision(), decimal.getScale());
+              default ->
+                  throw new UnsupportedOperationException(
+                      "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+            };
           case BSON:
             return ParquetValueWriters.byteBuffers(desc);
           default:
@@ -148,24 +147,16 @@ public class ParquetAvroWriter {
         }
       }
 
-      switch (primitive.getPrimitiveTypeName()) {
-        case FIXED_LEN_BYTE_ARRAY:
-          return new FixedWriter(desc);
-        case BINARY:
-          return ParquetValueWriters.byteBuffers(desc);
-        case BOOLEAN:
-          return ParquetValueWriters.booleans(desc);
-        case INT32:
-          return ParquetValueWriters.ints(desc);
-        case INT64:
-          return ParquetValueWriters.longs(desc);
-        case FLOAT:
-          return ParquetValueWriters.floats(desc);
-        case DOUBLE:
-          return ParquetValueWriters.doubles(desc);
-        default:
-          throw new UnsupportedOperationException("Unsupported type: " + primitive);
-      }
+      return switch (primitive.getPrimitiveTypeName()) {
+        case FIXED_LEN_BYTE_ARRAY -> new FixedWriter(desc);
+        case BINARY -> ParquetValueWriters.byteBuffers(desc);
+        case BOOLEAN -> ParquetValueWriters.booleans(desc);
+        case INT32 -> ParquetValueWriters.ints(desc);
+        case INT64 -> ParquetValueWriters.longs(desc);
+        case FLOAT -> ParquetValueWriters.floats(desc);
+        case DOUBLE -> ParquetValueWriters.doubles(desc);
+        default -> throw new UnsupportedOperationException("Unsupported type: " + primitive);
+      };
     }
   }
 

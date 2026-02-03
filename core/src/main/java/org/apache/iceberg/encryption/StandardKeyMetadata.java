@@ -160,16 +160,12 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
-        return encryptionKey;
-      case 1:
-        return aadPrefix;
-      case 2:
-        return fileLength;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (i) {
+      case 0 -> encryptionKey;
+      case 1 -> aadPrefix;
+      case 2 -> fileLength;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 
   @Override

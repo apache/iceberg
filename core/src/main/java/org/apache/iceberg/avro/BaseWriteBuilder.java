@@ -74,52 +74,31 @@ abstract class BaseWriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
   public ValueWriter<?> primitive(Schema primitive) {
     LogicalType logicalType = primitive.getLogicalType();
     if (logicalType != null) {
-      switch (logicalType.getName()) {
-        case "date":
-          return ValueWriters.ints();
-
-        case "time-micros":
-          return ValueWriters.longs();
-
-        case "timestamp-micros":
-          return ValueWriters.longs();
-
-        case "timestamp-nanos":
-          return ValueWriters.longs();
-
-        case "decimal":
+      return switch (logicalType.getName()) {
+        case "date" -> ValueWriters.ints();
+        case "time-micros" -> ValueWriters.longs();
+        case "timestamp-micros" -> ValueWriters.longs();
+        case "timestamp-nanos" -> ValueWriters.longs();
+        case "decimal" -> {
           LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-          return ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
-
-        case "uuid":
-          return ValueWriters.uuids();
-
-        default:
-          throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
-      }
+          yield ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+        }
+        case "uuid" -> ValueWriters.uuids();
+        default -> throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
+      };
     }
 
-    switch (primitive.getType()) {
-      case NULL:
-        return ValueWriters.nulls();
-      case BOOLEAN:
-        return ValueWriters.booleans();
-      case INT:
-        return ValueWriters.ints();
-      case LONG:
-        return ValueWriters.longs();
-      case FLOAT:
-        return ValueWriters.floats();
-      case DOUBLE:
-        return ValueWriters.doubles();
-      case STRING:
-        return ValueWriters.strings();
-      case FIXED:
-        return fixedWriter(primitive.getFixedSize());
-      case BYTES:
-        return ValueWriters.byteBuffers();
-      default:
-        throw new IllegalArgumentException("Unsupported type: " + primitive);
-    }
+    return switch (primitive.getType()) {
+      case NULL -> ValueWriters.nulls();
+      case BOOLEAN -> ValueWriters.booleans();
+      case INT -> ValueWriters.ints();
+      case LONG -> ValueWriters.longs();
+      case FLOAT -> ValueWriters.floats();
+      case DOUBLE -> ValueWriters.doubles();
+      case STRING -> ValueWriters.strings();
+      case FIXED -> fixedWriter(primitive.getFixedSize());
+      case BYTES -> ValueWriters.byteBuffers();
+      default -> throw new IllegalArgumentException("Unsupported type: " + primitive);
+    };
   }
 }

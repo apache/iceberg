@@ -73,22 +73,15 @@ class ParquetVariantUtil {
       return annotation.accept(PhysicalTypeConverter.INSTANCE).orElse(null);
     }
 
-    switch (primitive.getPrimitiveTypeName()) {
-      case BOOLEAN:
-        return PhysicalType.BOOLEAN_TRUE;
-      case INT32:
-        return PhysicalType.INT32;
-      case INT64:
-        return PhysicalType.INT64;
-      case FLOAT:
-        return PhysicalType.FLOAT;
-      case DOUBLE:
-        return PhysicalType.DOUBLE;
-      case BINARY:
-        return PhysicalType.BINARY;
-      default:
-        return null;
-    }
+    return switch (primitive.getPrimitiveTypeName()) {
+      case BOOLEAN -> PhysicalType.BOOLEAN_TRUE;
+      case INT32 -> PhysicalType.INT32;
+      case INT64 -> PhysicalType.INT64;
+      case FLOAT -> PhysicalType.FLOAT;
+      case DOUBLE -> PhysicalType.DOUBLE;
+      case BINARY -> PhysicalType.BINARY;
+      default -> null;
+    };
   }
 
   /**
@@ -100,17 +93,17 @@ class ParquetVariantUtil {
    * @throws UnsupportedOperationException if the timestamp unit is not MICROS or NANOS
    */
   static PhysicalType convert(TimestampLogicalTypeAnnotation timestamp) {
-    switch (timestamp.getUnit()) {
-      case MICROS:
-        return timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
-      case NANOS:
-        return timestamp.isAdjustedToUTC()
-            ? PhysicalType.TIMESTAMPTZ_NANOS
-            : PhysicalType.TIMESTAMPNTZ_NANOS;
-      default:
-        throw new UnsupportedOperationException(
-            "Invalid unit for shredded timestamp: " + timestamp.getUnit());
-    }
+    return switch (timestamp.getUnit()) {
+      case MICROS ->
+          timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
+      case NANOS ->
+          timestamp.isAdjustedToUTC()
+              ? PhysicalType.TIMESTAMPTZ_NANOS
+              : PhysicalType.TIMESTAMPNTZ_NANOS;
+      default ->
+          throw new UnsupportedOperationException(
+              "Invalid unit for shredded timestamp: " + timestamp.getUnit());
+    };
   }
 
   /**
@@ -141,38 +134,29 @@ class ParquetVariantUtil {
    */
   @SuppressWarnings("unchecked")
   static <T> T convertValue(PhysicalType primitive, int scale, Object value) {
-    switch (primitive) {
-      case BOOLEAN_FALSE:
-      case BOOLEAN_TRUE:
-      case INT32:
-      case INT64:
-      case DATE:
-      case TIMESTAMPTZ:
-      case TIMESTAMPNTZ:
-      case TIMESTAMPTZ_NANOS:
-      case TIMESTAMPNTZ_NANOS:
-      case TIME:
-      case FLOAT:
-      case DOUBLE:
-        return (T) value;
-      case INT8:
-        return (T) (Byte) ((Number) value).byteValue();
-      case INT16:
-        return (T) (Short) ((Number) value).shortValue();
-      case DECIMAL4:
-      case DECIMAL8:
-        return (T) BigDecimal.valueOf(((Number) value).longValue(), scale);
-      case DECIMAL16:
-        return (T) new BigDecimal(new BigInteger(((Binary) value).getBytes()), scale);
-      case BINARY:
-        return (T) ((Binary) value).toByteBuffer();
-      case STRING:
-        return (T) ((Binary) value).toStringUsingUTF8();
-      case UUID:
-        return (T) UUIDUtil.convert(((Binary) value).getBytes());
-      default:
-        throw new IllegalStateException("Invalid bound type: " + primitive);
-    }
+    return switch (primitive) {
+      case BOOLEAN_FALSE,
+              BOOLEAN_TRUE,
+              INT32,
+              INT64,
+              DATE,
+              TIMESTAMPTZ,
+              TIMESTAMPNTZ,
+              TIMESTAMPTZ_NANOS,
+              TIMESTAMPNTZ_NANOS,
+              TIME,
+              FLOAT,
+              DOUBLE ->
+          (T) value;
+      case INT8 -> (T) (Byte) ((Number) value).byteValue();
+      case INT16 -> (T) (Short) ((Number) value).shortValue();
+      case DECIMAL4, DECIMAL8 -> (T) BigDecimal.valueOf(((Number) value).longValue(), scale);
+      case DECIMAL16 -> (T) new BigDecimal(new BigInteger(((Binary) value).getBytes()), scale);
+      case BINARY -> (T) ((Binary) value).toByteBuffer();
+      case STRING -> (T) ((Binary) value).toStringUsingUTF8();
+      case UUID -> (T) UUIDUtil.convert(((Binary) value).getBytes());
+      default -> throw new IllegalStateException("Invalid bound type: " + primitive);
+    };
   }
 
   /**
@@ -271,18 +255,13 @@ class ParquetVariantUtil {
         return Optional.empty();
       }
 
-      switch (ints.getBitWidth()) {
-        case 8:
-          return Optional.of(PhysicalType.INT8);
-        case 16:
-          return Optional.of(PhysicalType.INT16);
-        case 32:
-          return Optional.of(PhysicalType.INT32);
-        case 64:
-          return Optional.of(PhysicalType.INT64);
-        default:
-          return Optional.empty();
-      }
+      return switch (ints.getBitWidth()) {
+        case 8 -> Optional.of(PhysicalType.INT8);
+        case 16 -> Optional.of(PhysicalType.INT16);
+        case 32 -> Optional.of(PhysicalType.INT32);
+        case 64 -> Optional.of(PhysicalType.INT64);
+        default -> Optional.empty();
+      };
     }
 
     @Override
@@ -345,33 +324,33 @@ class ParquetVariantUtil {
     }
 
     private static VariantValue truncateLowerBound(VariantValue value) {
-      switch (value.type()) {
-        case STRING:
-          return Variants.of(
-              PhysicalType.STRING,
-              UnicodeUtil.truncateStringMin((String) value.asPrimitive().get(), 16));
-        case BINARY:
-          return Variants.of(
-              PhysicalType.BINARY,
-              BinaryUtil.truncateBinaryMin((ByteBuffer) value.asPrimitive().get(), 16));
-        default:
-          return value;
-      }
+      return switch (value.type()) {
+        case STRING ->
+            Variants.of(
+                PhysicalType.STRING,
+                UnicodeUtil.truncateStringMin((String) value.asPrimitive().get(), 16));
+        case BINARY ->
+            Variants.of(
+                PhysicalType.BINARY,
+                BinaryUtil.truncateBinaryMin((ByteBuffer) value.asPrimitive().get(), 16));
+        default -> value;
+      };
     }
 
     private static VariantValue truncateUpperBound(VariantValue value) {
-      switch (value.type()) {
-        case STRING:
+      return switch (value.type()) {
+        case STRING -> {
           String truncatedString =
               UnicodeUtil.truncateStringMax((String) value.asPrimitive().get(), 16);
-          return truncatedString != null ? Variants.of(PhysicalType.STRING, truncatedString) : null;
-        case BINARY:
+          yield truncatedString != null ? Variants.of(PhysicalType.STRING, truncatedString) : null;
+        }
+        case BINARY -> {
           ByteBuffer truncatedBuffer =
               BinaryUtil.truncateBinaryMin((ByteBuffer) value.asPrimitive().get(), 16);
-          return truncatedBuffer != null ? Variants.of(PhysicalType.BINARY, truncatedBuffer) : null;
-        default:
-          return value;
-      }
+          yield truncatedBuffer != null ? Variants.of(PhysicalType.BINARY, truncatedBuffer) : null;
+        }
+        default -> value;
+      };
     }
   }
 
@@ -419,77 +398,74 @@ class ParquetVariantUtil {
 
     @Override
     public Type primitive(VariantPrimitive<?> primitive) {
-      switch (primitive.type()) {
-        case NULL:
-          return null;
-        case BOOLEAN_TRUE:
-        case BOOLEAN_FALSE:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.BOOLEAN);
-        case INT8:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8));
-        case INT16:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(16));
-        case INT32:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.INT32);
-        case INT64:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.INT64);
-        case FLOAT:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.FLOAT);
-        case DOUBLE:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.DOUBLE);
-        case DECIMAL4:
+      return switch (primitive.type()) {
+        case NULL -> null;
+        case BOOLEAN_TRUE, BOOLEAN_FALSE ->
+            shreddedPrimitive(PrimitiveType.PrimitiveTypeName.BOOLEAN);
+        case INT8 ->
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8));
+        case INT16 ->
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(16));
+        case INT32 -> shreddedPrimitive(PrimitiveType.PrimitiveTypeName.INT32);
+        case INT64 -> shreddedPrimitive(PrimitiveType.PrimitiveTypeName.INT64);
+        case FLOAT -> shreddedPrimitive(PrimitiveType.PrimitiveTypeName.FLOAT);
+        case DOUBLE -> shreddedPrimitive(PrimitiveType.PrimitiveTypeName.DOUBLE);
+        case DECIMAL4 -> {
           BigDecimal decimal4 = (BigDecimal) primitive.get();
-          return shreddedPrimitive(
+          yield shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.INT32,
               LogicalTypeAnnotation.decimalType(decimal4.scale(), 9));
-        case DECIMAL8:
+        }
+        case DECIMAL8 -> {
           BigDecimal decimal8 = (BigDecimal) primitive.get();
-          return shreddedPrimitive(
+          yield shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.INT64,
               LogicalTypeAnnotation.decimalType(decimal8.scale(), 18));
-        case DECIMAL16:
+        }
+        case DECIMAL16 -> {
           BigDecimal decimal16 = (BigDecimal) primitive.get();
-          return shreddedPrimitive(
+          yield shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.BINARY,
               LogicalTypeAnnotation.decimalType(decimal16.scale(), 38));
-        case DATE:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.dateType());
-        case TIMESTAMPTZ:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT64,
-              LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS));
-        case TIMESTAMPNTZ:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT64,
-              LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.MICROS));
-        case BINARY:
-          return shreddedPrimitive(PrimitiveType.PrimitiveTypeName.BINARY);
-        case STRING:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType());
-        case TIME:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT64,
-              LogicalTypeAnnotation.timeType(false, LogicalTypeAnnotation.TimeUnit.MICROS));
-        case TIMESTAMPTZ_NANOS:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT64,
-              LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
-        case TIMESTAMPNTZ_NANOS:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.INT64,
-              LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.NANOS));
-        case UUID:
-          return shreddedPrimitive(
-              PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY,
-              LogicalTypeAnnotation.uuidType(),
-              16);
-      }
-
-      throw new UnsupportedOperationException("Unsupported shredding type: " + primitive.type());
+        }
+        case DATE ->
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.dateType());
+        case TIMESTAMPTZ ->
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT64,
+                LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS));
+        case TIMESTAMPNTZ ->
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT64,
+                LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.MICROS));
+        case BINARY -> shreddedPrimitive(PrimitiveType.PrimitiveTypeName.BINARY);
+        case STRING ->
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType());
+        case TIME ->
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT64,
+                LogicalTypeAnnotation.timeType(false, LogicalTypeAnnotation.TimeUnit.MICROS));
+        case TIMESTAMPTZ_NANOS ->
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT64,
+                LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+        case TIMESTAMPNTZ_NANOS ->
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT64,
+                LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.NANOS));
+        case UUID ->
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY,
+                LogicalTypeAnnotation.uuidType(),
+                16);
+        default ->
+            throw new UnsupportedOperationException(
+                "Unsupported shredding type: " + primitive.type());
+      };
     }
 
     private static GroupType objectFields(List<GroupType> fields) {

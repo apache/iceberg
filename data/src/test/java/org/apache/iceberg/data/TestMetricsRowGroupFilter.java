@@ -1143,15 +1143,13 @@ public class TestMetricsRowGroupFilter {
   }
 
   private boolean shouldRead(Expression expression, boolean caseSensitive) {
-    switch (format) {
-      case ORC:
-        return shouldReadOrc(expression, caseSensitive);
-      case PARQUET:
-        return shouldReadParquet(expression, caseSensitive, parquetSchema, rowGroupMetadata);
-      default:
-        throw new UnsupportedOperationException(
-            "Row group filter tests not supported for " + format);
-    }
+    return switch (format) {
+      case ORC -> shouldReadOrc(expression, caseSensitive);
+      case PARQUET -> shouldReadParquet(expression, caseSensitive, parquetSchema, rowGroupMetadata);
+      default ->
+          throw new UnsupportedOperationException(
+              "Row group filter tests not supported for " + format);
+    };
   }
 
   private boolean shouldReadOrc(Expression expression, boolean caseSensitive) {

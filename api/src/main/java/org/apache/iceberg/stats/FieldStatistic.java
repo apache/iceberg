@@ -50,26 +50,17 @@ public enum FieldStatistic {
   }
 
   public static FieldStatistic fromOffset(int offset) {
-    switch (offset) {
-      case 0:
-        return VALUE_COUNT;
-      case 1:
-        return NULL_VALUE_COUNT;
-      case 2:
-        return NAN_VALUE_COUNT;
-      case 3:
-        return AVG_VALUE_SIZE;
-      case 4:
-        return MAX_VALUE_SIZE;
-      case 5:
-        return LOWER_BOUND;
-      case 6:
-        return UPPER_BOUND;
-      case 7:
-        return EXACT_BOUNDS;
-      default:
-        throw new IllegalArgumentException("Invalid statistic offset: " + offset);
-    }
+    return switch (offset) {
+      case 0 -> VALUE_COUNT;
+      case 1 -> NULL_VALUE_COUNT;
+      case 2 -> NAN_VALUE_COUNT;
+      case 3 -> AVG_VALUE_SIZE;
+      case 4 -> MAX_VALUE_SIZE;
+      case 5 -> LOWER_BOUND;
+      case 6 -> UPPER_BOUND;
+      case 7 -> EXACT_BOUNDS;
+      default -> throw new IllegalArgumentException("Invalid statistic offset: " + offset);
+    };
   }
 
   public static Types.StructType fieldStatsFor(Type type, int fieldId) {

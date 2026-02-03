@@ -74,34 +74,21 @@ class V1Metadata {
     }
 
     private Object get(int pos) {
-      switch (pos) {
-        case 0:
-          return path();
-        case 1:
-          return length();
-        case 2:
-          return partitionSpecId();
-        case 3:
-          return snapshotId();
-        case 4:
-          return addedFilesCount();
-        case 5:
-          return existingFilesCount();
-        case 6:
-          return deletedFilesCount();
-        case 7:
-          return partitions();
-        case 8:
-          return addedRowsCount();
-        case 9:
-          return existingRowsCount();
-        case 10:
-          return deletedRowsCount();
-        case 11:
-          return keyMetadata();
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-      }
+      return switch (pos) {
+        case 0 -> path();
+        case 1 -> length();
+        case 2 -> partitionSpecId();
+        case 3 -> snapshotId();
+        case 4 -> addedFilesCount();
+        case 5 -> existingFilesCount();
+        case 6 -> deletedFilesCount();
+        case 7 -> partitions();
+        case 8 -> addedRowsCount();
+        case 9 -> existingRowsCount();
+        case 10 -> deletedRowsCount();
+        case 11 -> keyMetadata();
+        default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      };
     }
 
     @Override
@@ -364,39 +351,24 @@ class V1Metadata {
     }
 
     private Object get(int pos) {
-      switch (pos) {
-        case 0:
-          return wrapped.location();
-        case 1:
-          return wrapped.format() != null ? wrapped.format().toString() : null;
-        case 2:
-          return wrapped.partition();
-        case 3:
-          return wrapped.recordCount();
-        case 4:
-          return wrapped.fileSizeInBytes();
-        case 5:
-          return DEFAULT_BLOCK_SIZE;
-        case 6:
-          return wrapped.columnSizes();
-        case 7:
-          return wrapped.valueCounts();
-        case 8:
-          return wrapped.nullValueCounts();
-        case 9:
-          return wrapped.nanValueCounts();
-        case 10:
-          return wrapped.lowerBounds();
-        case 11:
-          return wrapped.upperBounds();
-        case 12:
-          return wrapped.keyMetadata();
-        case 13:
-          return wrapped.splitOffsets();
-        case 14:
-          return wrapped.sortOrderId();
-      }
-      throw new IllegalArgumentException("Unknown field ordinal: " + pos);
+      return switch (pos) {
+        case 0 -> wrapped.location();
+        case 1 -> wrapped.format() != null ? wrapped.format().toString() : null;
+        case 2 -> wrapped.partition();
+        case 3 -> wrapped.recordCount();
+        case 4 -> wrapped.fileSizeInBytes();
+        case 5 -> DEFAULT_BLOCK_SIZE;
+        case 6 -> wrapped.columnSizes();
+        case 7 -> wrapped.valueCounts();
+        case 8 -> wrapped.nullValueCounts();
+        case 9 -> wrapped.nanValueCounts();
+        case 10 -> wrapped.lowerBounds();
+        case 11 -> wrapped.upperBounds();
+        case 12 -> wrapped.keyMetadata();
+        case 13 -> wrapped.splitOffsets();
+        case 14 -> wrapped.sortOrderId();
+        default -> throw new IllegalArgumentException("Unknown field ordinal: " + pos);
+      };
     }
 
     @Override

@@ -58,17 +58,12 @@ public class DmsTransform<R extends ConnectRecord<R>> implements Transformation<
     Map<String, Object> metadata = (Map<String, Object>) metadataObj;
 
     String dmsOp = metadata.get("operation").toString();
-    String op;
-    switch (dmsOp) {
-      case "update":
-        op = CdcConstants.OP_UPDATE;
-        break;
-      case "delete":
-        op = CdcConstants.OP_DELETE;
-        break;
-      default:
-        op = CdcConstants.OP_INSERT;
-    }
+    String op =
+        switch (dmsOp) {
+          case "update" -> CdcConstants.OP_UPDATE;
+          case "delete" -> CdcConstants.OP_DELETE;
+          default -> CdcConstants.OP_INSERT;
+        };
 
     // create the CDC metadata
     Map<String, Object> cdcMetadata = Maps.newHashMap();
