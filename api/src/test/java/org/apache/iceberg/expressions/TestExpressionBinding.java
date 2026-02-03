@@ -65,7 +65,7 @@ public class TestExpressionBinding {
           required(4, "var", Types.VariantType.get()),
           optional(5, "nullable", Types.IntegerType.get()),
           optional(6, "always_null", Types.UnknownType.get()),
-          required(7, "point", Types.GeometryType.crs84()),
+          required(7, "geometry", Types.GeometryType.crs84()),
           required(8, "geography", Types.GeographyType.crs84()));
 
   @Test
@@ -514,37 +514,47 @@ public class TestExpressionBinding {
     assertThat(bound.op()).isEqualTo(expression.negate().op());
   }
 
-  @Test
-  public void testStIntersects() {
-    // Create a bounding box for testing
+  private static BoundingBox testBoundingBox() {
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    BoundingBox bbox = new BoundingBox(min, max);
+    return new BoundingBox(min, max);
+  }
 
-    Expression expr = Expressions.stIntersects("point", bbox);
+  private static Stream<Arguments> spatialPredicateCases() {
+    return Stream.of(Arguments.of("geometry", 7), Arguments.of("geography", 8));
+  }
+
+  @ParameterizedTest
+  @MethodSource("spatialPredicateCases")
+  public void testStIntersectsBinding(String fieldName, int fieldId) {
+    BoundingBox bbox = testBoundingBox();
+
+    Expression expr = Expressions.stIntersects(fieldName, bbox);
     Expression bound = Binder.bind(STRUCT, expr);
 
     TestHelpers.assertAllReferencesBound("ST_Intersects", bound);
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
     assertThat(pred.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
-    assertThat(pred.term().ref().fieldId()).as("Should bind point correctly").isEqualTo(7);
+    assertThat(pred.term().ref().fieldId())
+        .as("Should bind %s correctly", fieldName)
+        .isEqualTo(fieldId);
     assertThat(pred.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
   }
 
-  @Test
-  public void testStDisjoint() {
-    // Create a bounding box for testing
-    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
-    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    BoundingBox bbox = new BoundingBox(min, max);
+  @ParameterizedTest
+  @MethodSource("spatialPredicateCases")
+  public void testStDisjointBinding(String fieldName, int fieldId) {
+    BoundingBox bbox = testBoundingBox();
 
-    Expression expr = Expressions.stDisjoint("geography", bbox);
+    Expression expr = Expressions.stDisjoint(fieldName, bbox);
     Expression bound = Binder.bind(STRUCT, expr);
 
     TestHelpers.assertAllReferencesBound("ST_Disjoint", bound);
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
     assertThat(pred.op()).isEqualTo(Expression.Operation.ST_DISJOINT);
-    assertThat(pred.term().ref().fieldId()).as("Should bind geography correctly").isEqualTo(8);
+    assertThat(pred.term().ref().fieldId())
+        .as("Should bind %s correctly", fieldName)
+        .isEqualTo(fieldId);
     assertThat(pred.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
   }
 }
