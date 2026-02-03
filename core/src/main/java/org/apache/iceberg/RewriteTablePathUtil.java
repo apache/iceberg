@@ -782,7 +782,7 @@ public class RewriteTablePathUtil {
     String normalizedPath = maybeAppendFileSeparator(path);
     if (!normalizedPath.startsWith(toRemove)) {
       throw new IllegalArgumentException(
-          String.format("Path %s does not start with %s", path, toRemove));
+          String.format("Path %s does not start with %s", normalizedPath, toRemove));
     }
     return normalizedPath.equals(toRemove) ? "" : path.substring(toRemove.length());
   }
