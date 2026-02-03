@@ -209,8 +209,7 @@ public class TestHiveSchemaUtil {
   public void testVariantTypeConvertToHiveBinary() {
     // Variant type should convert to Hive binary type.
     Schema variantSchema =
-        new Schema(
-            optional(0, "variant_col", Types.VariantType.get(), "variant column comment"));
+        new Schema(optional(0, "variant_col", Types.VariantType.get(), "variant column comment"));
 
     List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(variantSchema);
 
