@@ -121,17 +121,7 @@ class SchemaUpdate implements UpdateSchema {
     if (parent != null) {
       Types.NestedField parentField = findField(parent);
       Preconditions.checkArgument(parentField != null, "Cannot find parent struct: %s", parent);
-      Type parentType = parentField.type();
-      if (parentType.isNestedType()) {
-        Type.NestedType nested = parentType.asNestedType();
-        if (nested.isMapType()) {
-          // fields are added to the map value type
-          parentField = nested.asMapType().fields().get(1);
-        } else if (nested.isListType()) {
-          // fields are added to the element type
-          parentField = nested.asListType().fields().get(0);
-        }
-      }
+      parentField = getNestedParentField(parentField);
       Preconditions.checkArgument(
           parentField.type().isNestedType() && parentField.type().asNestedType().isStructType(),
           "Cannot add to non-struct column: %s: %s",
@@ -278,19 +268,7 @@ class SchemaUpdate implements UpdateSchema {
                   ? historicalSchema.findField(parentPath)
                   : historicalSchema.caseInsensitiveFindField(parentPath);
 
-          if (parentField == null) {
-            continue;
-          }
-
-          Type parentType = parentField.type();
-          if (parentType.isNestedType()) {
-            Type.NestedType nested = parentType.asNestedType();
-            if (nested.isMapType()) {
-              parentField = nested.asMapType().fields().get(1);
-            } else if (nested.isListType()) {
-              parentField = nested.asListType().fields().get(0);
-            }
-          }
+          parentField = getNestedParentField(parentField);
           parentId = parentField.fieldId();
         } else {
           parentId = TABLE_ROOT_ID;
@@ -301,6 +279,21 @@ class SchemaUpdate implements UpdateSchema {
     }
 
     return null;
+  }
+
+  // Properly pull out the type of the parent field from a map or array
+  private Types.NestedField getNestedParentField(Types.NestedField parentField) {
+    Types.NestedField nestedParentField = parentField;
+    Type parentType = parentField.type();
+    if (parentType.isNestedType()) {
+      Type.NestedType nested = parentType.asNestedType();
+      if (nested.isMapType()) {
+        nestedParentField = nested.asMapType().fields().get(1);
+      } else if (nested.isListType()) {
+        nestedParentField = nested.asListType().fields().get(0);
+      }
+    }
+    return nestedParentField;
   }
 
   @Override
