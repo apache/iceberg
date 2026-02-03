@@ -779,11 +779,12 @@ public class RewriteTablePathUtil {
    */
   public static String relativize(String path, String prefix) {
     String toRemove = maybeAppendFileSeparator(prefix);
-    if (!path.startsWith(toRemove) && !maybeAppendFileSeparator(path).equals(toRemove)) {
+    String normalizedPath = maybeAppendFileSeparator(path);
+    if (!normalizedPath.startsWith(toRemove)) {
       throw new IllegalArgumentException(
           String.format("Path %s does not start with %s", path, toRemove));
     }
-    return path.length() <= toRemove.length() ? "" : path.substring(toRemove.length());
+    return normalizedPath.equals(toRemove) ? "" : path.substring(toRemove.length());
   }
 
   public static String maybeAppendFileSeparator(String path) {
