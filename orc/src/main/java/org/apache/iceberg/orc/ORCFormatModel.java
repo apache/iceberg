@@ -91,7 +91,7 @@ public class ORCFormatModel<D, S, R>
   private static class WriteBuilderWrapper<D, S> implements ModelWriteBuilder<D, S> {
     private final ORC.WriteBuilder internal;
     private final WriterFunction<OrcRowWriter<?>, S, TypeDescription> writerFunction;
-    private S inputSchema;
+    private S engineSchema;
 
     private FileContent content;
 
@@ -110,7 +110,7 @@ public class ORCFormatModel<D, S, R>
 
     @Override
     public ModelWriteBuilder<D, S> engineSchema(S schema) {
-      this.inputSchema = schema;
+      this.engineSchema = schema;
       return this;
     }
 
@@ -169,13 +169,13 @@ public class ORCFormatModel<D, S, R>
           internal.createContextFunc(ORC.WriteBuilder.Context::dataContext);
           internal.createWriterFunc(
               (icebergSchema, typeDescription) ->
-                  writerFunction.write(icebergSchema, typeDescription, inputSchema));
+                  writerFunction.write(icebergSchema, typeDescription, engineSchema));
           break;
         case EQUALITY_DELETES:
           internal.createContextFunc(ORC.WriteBuilder.Context::deleteContext);
           internal.createWriterFunc(
               (icebergSchema, typeDescription) ->
-                  writerFunction.write(icebergSchema, typeDescription, inputSchema));
+                  writerFunction.write(icebergSchema, typeDescription, engineSchema));
           break;
         case POSITION_DELETES:
           internal.createContextFunc(ORC.WriteBuilder.Context::deleteContext);

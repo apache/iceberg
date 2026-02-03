@@ -140,8 +140,7 @@ public final class FormatModelRegistry {
   public static <D, S> FileWriterBuilder<DataWriter<D>, S> dataWriteBuilder(
       FileFormat format, Class<? extends D> type, EncryptedOutputFile outputFile) {
     FormatModel<D, S> model = modelFor(format, type);
-    return FileWriterBuilderImpl.forDataFile(
-        model.writeBuilder(outputFile), outputFile.encryptingOutputFile().location(), format);
+    return FileWriterBuilderImpl.forDataFile(model, outputFile);
   }
 
   /**
@@ -162,8 +161,7 @@ public final class FormatModelRegistry {
   public static <D, S> FileWriterBuilder<EqualityDeleteWriter<D>, S> equalityDeleteWriteBuilder(
       FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
     FormatModel<D, S> model = modelFor(format, type);
-    return FileWriterBuilderImpl.forEqualityDelete(
-        model.writeBuilder(outputFile), outputFile.encryptingOutputFile().location(), format);
+    return FileWriterBuilderImpl.forEqualityDelete(model, outputFile);
   }
 
   /**
@@ -183,8 +181,7 @@ public final class FormatModelRegistry {
       FileFormat format, EncryptedOutputFile outputFile) {
     FormatModel<PositionDelete<D>, ?> model =
         (FormatModel<PositionDelete<D>, ?>) (FormatModel) modelFor(format, PositionDelete.class);
-    return FileWriterBuilderImpl.forPositionDelete(
-        model.writeBuilder(outputFile), outputFile.encryptingOutputFile().location(), format);
+    return FileWriterBuilderImpl.forPositionDelete(model, outputFile);
   }
 
   @VisibleForTesting

@@ -94,7 +94,7 @@ public class ParquetFormatModel<D, S, R>
   private static class WriteBuilderWrapper<D, S> implements ModelWriteBuilder<D, S> {
     private final Parquet.WriteBuilder internal;
     private final WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction;
-    private S inputSchema;
+    private S engineSchema;
     private FileContent content;
 
     private WriteBuilderWrapper(
@@ -112,7 +112,7 @@ public class ParquetFormatModel<D, S, R>
 
     @Override
     public ModelWriteBuilder<D, S> engineSchema(S schema) {
-      this.inputSchema = schema;
+      this.engineSchema = schema;
       return this;
     }
 
@@ -181,13 +181,13 @@ public class ParquetFormatModel<D, S, R>
           internal.createContextFunc(Parquet.WriteBuilder.Context::dataContext);
           internal.createWriterFunc(
               (icebergSchema, messageType) ->
-                  writerFunction.write(icebergSchema, messageType, inputSchema));
+                  writerFunction.write(icebergSchema, messageType, engineSchema));
           break;
         case EQUALITY_DELETES:
           internal.createContextFunc(Parquet.WriteBuilder.Context::deleteContext);
           internal.createWriterFunc(
               (icebergSchema, messageType) ->
-                  writerFunction.write(icebergSchema, messageType, inputSchema));
+                  writerFunction.write(icebergSchema, messageType, engineSchema));
           break;
         case POSITION_DELETES:
           internal.createContextFunc(Parquet.WriteBuilder.Context::deleteContext);

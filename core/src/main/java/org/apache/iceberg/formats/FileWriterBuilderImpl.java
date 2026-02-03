@@ -35,131 +35,51 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S> implements FileWriterBuilder<W, S> {
+abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
+    implements FileWriterBuilder<W, S> {
   private final ModelWriteBuilder<D, S> modelWriteBuilder;
   private final String location;
   private final FileFormat format;
-  private final BuilderFunction<W, D, S> builderMethod;
   private Schema schema = null;
   private PartitionSpec spec = null;
   private StructLike partition = null;
   private EncryptionKeyMetadata keyMetadata = null;
   private SortOrder sortOrder = null;
-  private int[] equalityFieldIds = null;
 
+  /** Creates a builder for {@link DataWriter} instances for writing data files. */
   static <D, S> FileWriterBuilder<DataWriter<D>, S> forDataFile(
-      ModelWriteBuilder<D, S> modelWriteBuilder, String location, FileFormat format) {
-    return new FileWriterBuilderImpl<>(
-        modelWriteBuilder.content(FileContent.DATA),
-        location,
-        format,
-        builder -> {
-          Preconditions.checkState(builder.schema != null, "Invalid schema for data writer: null");
-          Preconditions.checkArgument(
-              builder.spec != null, "Invalid partition spec for data writer: null");
-          Preconditions.checkArgument(
-              builder.spec.isUnpartitioned() || builder.partition != null,
-              "Invalid partition, does not match spec: %s",
-              builder.spec);
-
-          return new DataWriter<>(
-              builder.modelWriteBuilder.build(),
-              builder.format,
-              builder.location,
-              builder.spec,
-              builder.partition,
-              builder.keyMetadata,
-              builder.sortOrder);
-        });
+      FormatModel<D, S> model, EncryptedOutputFile outputFile) {
+    return new DataFileWriterBuilder<>(model, outputFile);
   }
 
+  /**
+   * Creates a builder for {@link EqualityDeleteWriter} instances for writing equality delete files.
+   */
   static <D, S> FileWriterBuilder<EqualityDeleteWriter<D>, S> forEqualityDelete(
-      ModelWriteBuilder<D, S> modelWriteBuilder, String location, FileFormat format) {
-    return new FileWriterBuilderImpl<>(
-        modelWriteBuilder.content(FileContent.EQUALITY_DELETES),
-        location,
-        format,
-        builder -> {
-          Preconditions.checkState(
-              builder.schema != null, "Invalid schema for equality delete writer: null");
-          Preconditions.checkState(
-              builder.equalityFieldIds != null,
-              "Invalid delete field ids for equality delete writer: null");
-          Preconditions.checkArgument(
-              builder.spec != null, "Invalid partition spec for equality delete writer: null");
-          Preconditions.checkArgument(
-              builder.spec.isUnpartitioned() || builder.partition != null,
-              "Invalid partition, does not match spec: %s",
-              builder.spec);
-
-          return new EqualityDeleteWriter<>(
-              builder
-                  .modelWriteBuilder
-                  .schema(builder.schema)
-                  .meta("delete-type", "equality")
-                  .meta(
-                      "delete-field-ids",
-                      IntStream.of(builder.equalityFieldIds)
-                          .mapToObj(Objects::toString)
-                          .collect(Collectors.joining(", ")))
-                  .build(),
-              builder.format,
-              builder.location,
-              builder.spec,
-              builder.partition,
-              builder.keyMetadata,
-              builder.sortOrder,
-              builder.equalityFieldIds);
-        });
+      FormatModel<D, S> model, EncryptedOutputFile outputFile) {
+    return new EqualityDeleteWriterBuilder<>(model, outputFile);
   }
 
-  @SuppressWarnings({"unchecked", "rawtypes"})
+  /**
+   * Creates a builder for {@link PositionDeleteWriter} instances for writing position delete files.
+   */
   static <D, S> FileWriterBuilder<PositionDeleteWriter<D>, S> forPositionDelete(
-      ModelWriteBuilder<PositionDelete<D>, S> modelWriteBuilder,
-      String location,
-      FileFormat format) {
-    return new FileWriterBuilderImpl<>(
-        modelWriteBuilder.content(FileContent.POSITION_DELETES),
-        location,
-        format,
-        builder -> {
-          Preconditions.checkArgument(
-              builder.spec != null, "Invalid partition spec for position delete writer: null");
-          Preconditions.checkArgument(
-              builder.spec.isUnpartitioned() || builder.partition != null,
-              "Invalid partition, does not match spec: %s");
-
-          return new PositionDeleteWriter<>(
-              new PositionDeleteFileAppender<>(
-                  builder.modelWriteBuilder.meta("delete-type", "position").build()),
-              builder.format,
-              builder.location,
-              builder.spec,
-              builder.partition,
-              builder.keyMetadata);
-        });
+      FormatModel<PositionDelete<D>, S> model, EncryptedOutputFile outputFile) {
+    return new PositionDeleteWriterBuilder<>(model, outputFile);
   }
 
-  @FunctionalInterface
-  interface BuilderFunction<B extends FileWriter<D, ?>, D, S> {
-    B apply(FileWriterBuilderImpl<B, D, S> builder) throws IOException;
-  }
-
-  FileWriterBuilderImpl(
-      ModelWriteBuilder<D, S> modelWriteBuilder,
-      String location,
-      FileFormat format,
-      BuilderFunction<W, D, S> builderMethod) {
-    this.modelWriteBuilder = modelWriteBuilder;
-    this.location = location;
-    this.format = format;
-    this.builderMethod = builderMethod;
+  private FileWriterBuilderImpl(
+      FormatModel<D, S> model, EncryptedOutputFile outputFile, FileContent content) {
+    this.modelWriteBuilder = model.writeBuilder(outputFile).content(content);
+    this.location = outputFile.encryptingOutputFile().location();
+    this.format = model.format();
   }
 
   @Override
@@ -237,46 +157,182 @@ class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S> implements FileWri
 
   @Override
   public FileWriterBuilderImpl<W, D, S> equalityFieldIds(int... fieldIds) {
-    this.equalityFieldIds = fieldIds;
-    return this;
+    throw new UnsupportedOperationException(
+        "Equality field ids not supported for this writer type");
   }
 
-  @Override
-  public W build() throws IOException {
-    return builderMethod.apply(this);
+  ModelWriteBuilder<D, S> modelWriteBuilder() {
+    return modelWriteBuilder;
   }
 
-  private static class PositionDeleteFileAppender<T> implements FileAppender<StructLike> {
-    private final FileAppender<PositionDelete<T>> appender;
+  String location() {
+    return location;
+  }
 
-    PositionDeleteFileAppender(FileAppender<PositionDelete<T>> appender) {
-      this.appender = appender;
+  FileFormat format() {
+    return format;
+  }
+
+  Schema schema() {
+    return schema;
+  }
+
+  PartitionSpec spec() {
+    return spec;
+  }
+
+  StructLike partition() {
+    return partition;
+  }
+
+  EncryptionKeyMetadata keyMetadata() {
+    return keyMetadata;
+  }
+
+  SortOrder sortOrder() {
+    return sortOrder;
+  }
+
+  /** Builder for creating {@link DataWriter} instances for writing data files. */
+  private static class DataFileWriterBuilder<D, S>
+      extends FileWriterBuilderImpl<DataWriter<D>, D, S> {
+
+    private DataFileWriterBuilder(FormatModel<D, S> model, EncryptedOutputFile outputFile) {
+      super(model, outputFile, FileContent.DATA);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public void add(StructLike positionDelete) {
-      appender.add((PositionDelete<T>) positionDelete);
+    public DataWriter<D> build() throws IOException {
+      Preconditions.checkState(schema() != null, "Invalid schema for data writer: null");
+      Preconditions.checkArgument(spec() != null, "Invalid partition spec for data writer: null");
+      Preconditions.checkArgument(
+          spec().isUnpartitioned() || partition() != null,
+          "Invalid partition, does not match spec: %s",
+          spec());
+
+      return new DataWriter<>(
+          modelWriteBuilder().build(),
+          format(),
+          location(),
+          spec(),
+          partition(),
+          keyMetadata(),
+          sortOrder());
+    }
+  }
+
+  /**
+   * Builder for creating {@link EqualityDeleteWriter} instances for writing equality delete files.
+   */
+  private static class EqualityDeleteWriterBuilder<D, S>
+      extends FileWriterBuilderImpl<EqualityDeleteWriter<D>, D, S> {
+
+    private int[] equalityFieldIds = null;
+
+    private EqualityDeleteWriterBuilder(FormatModel<D, S> model, EncryptedOutputFile outputFile) {
+      super(model, outputFile, FileContent.EQUALITY_DELETES);
     }
 
     @Override
-    public Metrics metrics() {
-      return appender.metrics();
+    public EqualityDeleteWriterBuilder<D, S> equalityFieldIds(int... fieldIds) {
+      this.equalityFieldIds = fieldIds;
+      return this;
     }
 
     @Override
-    public long length() {
-      return appender.length();
+    public EqualityDeleteWriter<D> build() throws IOException {
+      Preconditions.checkState(schema() != null, "Invalid schema for equality delete writer: null");
+      Preconditions.checkState(
+          equalityFieldIds != null, "Invalid delete field ids for equality delete writer: null");
+      Preconditions.checkArgument(
+          spec() != null, "Invalid partition spec for equality delete writer: null");
+      Preconditions.checkArgument(
+          spec().isUnpartitioned() || partition() != null,
+          "Invalid partition, does not match spec: %s",
+          spec());
+
+      return new EqualityDeleteWriter<>(
+          modelWriteBuilder()
+              .schema(schema())
+              .meta("delete-type", "equality")
+              .meta(
+                  "delete-field-ids",
+                  IntStream.of(equalityFieldIds)
+                      .mapToObj(Objects::toString)
+                      .collect(Collectors.joining(", ")))
+              .build(),
+          format(),
+          location(),
+          spec(),
+          partition(),
+          keyMetadata(),
+          sortOrder(),
+          equalityFieldIds);
+    }
+  }
+
+  /**
+   * Builder for creating {@link PositionDeleteWriter} instances for writing position delete files.
+   */
+  private static class PositionDeleteWriterBuilder<D, S>
+      extends FileWriterBuilderImpl<PositionDeleteWriter<D>, PositionDelete<D>, S> {
+
+    private PositionDeleteWriterBuilder(
+        FormatModel<PositionDelete<D>, S> model, EncryptedOutputFile outputFile) {
+      super(model, outputFile, FileContent.POSITION_DELETES);
     }
 
     @Override
-    public void close() throws IOException {
-      appender.close();
+    public PositionDeleteWriter<D> build() throws IOException {
+      Preconditions.checkArgument(
+          spec() != null, "Invalid partition spec for position delete writer: null");
+      Preconditions.checkArgument(
+          spec().isUnpartitioned() || partition() != null,
+          "Invalid partition, does not match spec: %s",
+          spec());
+
+      return new PositionDeleteWriter<>(
+          new PositionDeleteFileAppender<>(
+              modelWriteBuilder().meta("delete-type", "position").build()),
+          format(),
+          location(),
+          spec(),
+          partition(),
+          keyMetadata());
     }
 
-    @Override
-    public List<Long> splitOffsets() {
-      return appender.splitOffsets();
+    private static class PositionDeleteFileAppender<T> implements FileAppender<StructLike> {
+      private final FileAppender<PositionDelete<T>> appender;
+
+      PositionDeleteFileAppender(FileAppender<PositionDelete<T>> appender) {
+        this.appender = appender;
+      }
+
+      @SuppressWarnings("unchecked")
+      @Override
+      public void add(StructLike positionDelete) {
+        appender.add((PositionDelete<T>) positionDelete);
+      }
+
+      @Override
+      public Metrics metrics() {
+        return appender.metrics();
+      }
+
+      @Override
+      public long length() {
+        return appender.length();
+      }
+
+      @Override
+      public void close() throws IOException {
+        appender.close();
+      }
+
+      @Override
+      public List<Long> splitOffsets() {
+        return appender.splitOffsets();
+      }
     }
   }
 }

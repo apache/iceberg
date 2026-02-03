@@ -64,7 +64,6 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     this.orcConf = orcConf;
   }
 
-  @SuppressWarnings("unchecked")
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
       InputFile inputFile,
       FileFormat format,
@@ -73,20 +72,15 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Expression residual,
       Map<Integer, ?> idToConstant,
       @Nonnull SparkDeleteFilter deleteFilter) {
-    ReadBuilder<ColumnarBatch, ?> readBuilder;
-    if (parquetConf != null) {
-      readBuilder =
-          parquetConf.readerType() == ParquetReaderType.COMET
-              ? FormatModelRegistry.readBuilder(
-                  format, VectorizedSparkParquetReaders.CometColumnarBatch.class, inputFile)
-              : FormatModelRegistry.readBuilder(format, ColumnarBatch.class, inputFile);
+    Class<? extends ColumnarBatch> readType =
+        useComet() ? VectorizedSparkParquetReaders.CometColumnarBatch.class : ColumnarBatch.class;
+    ReadBuilder<ColumnarBatch, ?> readBuilder =
+        FormatModelRegistry.readBuilder(format, readType, inputFile);
 
+    if (parquetConf != null) {
       readBuilder = readBuilder.recordsPerBatch(parquetConf.batchSize());
-    } else {
-      readBuilder = FormatModelRegistry.readBuilder(format, ColumnarBatch.class, inputFile);
-      if (orcConf != null) {
-        readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
-      }
+    } else if (orcConf != null) {
+      readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
     }
 
     CloseableIterable<ColumnarBatch> iterable =
@@ -94,8 +88,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
             .project(deleteFilter.requiredSchema())
             .idToConstant(idToConstant)
             .split(start, length)
-            .caseSensitive(caseSensitive())
             .filter(residual)
+            .caseSensitive(caseSensitive())
             // Spark eagerly consumes the batches. So the underlying memory allocated could be
             // reused without worrying about subsequent reads clobbering over each other. This
             // improves read performance as every batch read doesn't have to pay the cost of
@@ -105,6 +99,10 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
             .build();
 
     return CloseableIterable.transform(iterable, new BatchDeleteFilter(deleteFilter)::filterBatch);
+  }
+
+  private boolean useComet() {
+    return parquetConf != null && parquetConf.readerType() == ParquetReaderType.COMET;
   }
 
   @VisibleForTesting

@@ -94,8 +94,8 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
         writeProperties,
-        calculateSparkType(dataSparkType, dataSchema),
-        calculateSparkType(equalityDeleteSparkType, equalityDeleteRowSchema));
+        useOrConvert(dataSparkType, dataSchema),
+        useOrConvert(equalityDeleteSparkType, equalityDeleteRowSchema));
 
     this.table = table;
     this.format = dataFileFormat;
@@ -132,8 +132,8 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
         writeProperties,
-        calculateSparkType(dataSparkType, dataSchema),
-        calculateSparkType(equalityDeleteSparkType, equalityDeleteRowSchema));
+        useOrConvert(dataSparkType, dataSchema),
+        useOrConvert(equalityDeleteSparkType, equalityDeleteRowSchema));
 
     this.table = table;
     this.format = dataFileFormat;
@@ -347,7 +347,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     }
   }
 
-  private static StructType calculateSparkType(StructType sparkType, Schema schema) {
+  private static StructType useOrConvert(StructType sparkType, Schema schema) {
     if (sparkType != null) {
       return sparkType;
     } else if (schema != null) {

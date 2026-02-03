@@ -79,7 +79,8 @@ public class AvroFormatModel<D, S>
   private static class WriteBuilderWrapper<D, S> implements ModelWriteBuilder<D, S> {
     private final Avro.WriteBuilder internal;
     private final WriterFunction<DatumWriter<D>, S, Schema> writerFunction;
-    private S inputSchema;
+    private org.apache.iceberg.Schema schema;
+    private S engineSchema;
     private FileContent content;
 
     private WriteBuilderWrapper(
@@ -89,14 +90,15 @@ public class AvroFormatModel<D, S>
     }
 
     @Override
-    public ModelWriteBuilder<D, S> schema(org.apache.iceberg.Schema schema) {
-      internal.schema(schema);
+    public ModelWriteBuilder<D, S> schema(org.apache.iceberg.Schema newSchema) {
+      this.schema = newSchema;
+      internal.schema(newSchema);
       return this;
     }
 
     @Override
-    public ModelWriteBuilder<D, S> engineSchema(S schema) {
-      this.inputSchema = schema;
+    public ModelWriteBuilder<D, S> engineSchema(S newSchema) {
+      this.engineSchema = newSchema;
       return this;
     }
 
@@ -158,12 +160,12 @@ public class AvroFormatModel<D, S>
         case DATA:
           internal.createContextFunc(Avro.WriteBuilder.Context::dataContext);
           internal.createWriterFunc(
-              avroSchema -> writerFunction.write(null, avroSchema, inputSchema));
+              avroSchema -> writerFunction.write(schema, avroSchema, engineSchema));
           break;
         case EQUALITY_DELETES:
           internal.createContextFunc(Avro.WriteBuilder.Context::deleteContext);
           internal.createWriterFunc(
-              avroSchema -> writerFunction.write(null, avroSchema, inputSchema));
+              avroSchema -> writerFunction.write(schema, avroSchema, engineSchema));
           break;
         case POSITION_DELETES:
           internal.createContextFunc(Avro.WriteBuilder.Context::deleteContext);
@@ -253,6 +255,8 @@ public class AvroFormatModel<D, S>
 
     @Override
     public CloseableIterable<D> build() {
+      // The file schema is passed directly to the DatumReader by the Avro read path, so null is
+      // passed here
       return internal
           .createResolvingReader(
               icebergSchema -> readerFunction.read(icebergSchema, null, engineSchema, idToConstant))
