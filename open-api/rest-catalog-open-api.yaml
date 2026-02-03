@@ -3424,6 +3424,7 @@ components:
         action:
           type: string
           enum:
+            - update-format-version
             - add-snapshot
             - remove-snapshots
             - set-current-version
@@ -3433,11 +3434,25 @@ components:
       discriminator:
         propertyName: action
         mapping:
+          upgrade-format-version: '#/components/schemas/UpgradeIndexFormatVersionUpdate'
           add-snapshot: '#/components/schemas/AddIndexSnapshotUpdate'
           remove-snapshots: '#/components/schemas/RemoveIndexSnapshotsUpdate'
           set-current-version: '#/components/schemas/SetIndexCurrentVersionUpdate'
           add-version: '#/components/schemas/AddIndexVersionUpdate'
           set-location: '#/components/schemas/SetIndexLocationUpdate'
+
+    UpgradeIndexFormatVersionUpdate:
+      allOf:
+        - $ref: '#/components/schemas/IndexUpdate'
+        - type: object
+          required:
+            - format-version
+          properties:
+            action:
+              type: string
+              const: "upgrade-format-version"
+            format-version:
+              type: integer
 
     AddIndexSnapshotUpdate:
       allOf:

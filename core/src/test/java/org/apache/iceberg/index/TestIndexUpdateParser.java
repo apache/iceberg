@@ -357,4 +357,56 @@ public class TestIndexUpdateParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse missing string: location");
   }
+
+  /** UpgradeFormatVersion */
+  @Test
+  public void testUpgradeFormatVersionFromJson() {
+    String action = IndexUpdateParser.UPGRADE_FORMAT_VERSION;
+    int formatVersion = 2;
+    String json = String.format("{\"action\":\"%s\",\"format-version\":%d}", action, formatVersion);
+
+    IndexUpdate update = IndexUpdateParser.fromJson(json);
+
+    assertThat(update).isInstanceOf(IndexUpdate.UpgradeFormatVersion.class);
+    IndexUpdate.UpgradeFormatVersion upgradeFormatVersion =
+        (IndexUpdate.UpgradeFormatVersion) update;
+    assertThat(upgradeFormatVersion.formatVersion()).isEqualTo(formatVersion);
+  }
+
+  @Test
+  public void testUpgradeFormatVersionToJson() {
+    int formatVersion = 2;
+    String expected =
+        String.format(
+            "{\"action\":\"%s\",\"format-version\":%d}",
+            IndexUpdateParser.UPGRADE_FORMAT_VERSION, formatVersion);
+
+    IndexUpdate update = new IndexUpdate.UpgradeFormatVersion(formatVersion);
+    String actual = IndexUpdateParser.toJson(update);
+
+    assertThat(actual)
+        .as("UpgradeFormatVersion should serialize to the correct JSON value")
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void testUpgradeFormatVersionRoundTrip() {
+    int formatVersion = 3;
+    IndexUpdate original = new IndexUpdate.UpgradeFormatVersion(formatVersion);
+    String json = IndexUpdateParser.toJson(original);
+    IndexUpdate parsed = IndexUpdateParser.fromJson(json);
+
+    assertThat(parsed).isInstanceOf(IndexUpdate.UpgradeFormatVersion.class);
+    assertThat(((IndexUpdate.UpgradeFormatVersion) parsed).formatVersion())
+        .isEqualTo(formatVersion);
+  }
+
+  @Test
+  public void testUpgradeFormatVersionMissingFormatVersion() {
+    String json = "{\"action\":\"upgrade-format-version\"}";
+
+    assertThatThrownBy(() -> IndexUpdateParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot parse missing int: format-version");
+  }
 }

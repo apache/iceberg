@@ -1579,9 +1579,7 @@ public class TestIndexMetadata {
             .build();
 
     IndexMetadata secondUpdate =
-        IndexMetadata.buildFrom(originalIndex)
-            .setCurrentVersion(newVersionTwo)
-            .build();
+        IndexMetadata.buildFrom(originalIndex).setCurrentVersion(newVersionTwo).build();
 
     // Validate secondUpdate state
     assertThat(secondUpdate.versions()).hasSize(2);
@@ -1623,5 +1621,89 @@ public class TestIndexMetadata {
         .containsEntry("second", "update");
     // The current version should be the one from the first update
     assertThat(indexAfterFirstAppliedAgain.currentVersionId()).isEqualTo(2);
+  }
+
+  @Test
+  public void upgradeFormatVersionTracksChanges() {
+    IndexVersion indexVersion =
+        ImmutableIndexVersion.builder()
+            .versionId(1)
+            .timestampMillis(23L)
+            .properties(ImmutableMap.of())
+            .build();
+
+    IndexMetadata indexMetadata =
+        IndexMetadata.builder()
+            .setLocation("custom-location")
+            .setType(IndexType.BTREE)
+            .setIndexColumnIds(INDEX_COLUMN_IDS)
+            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
+            .addVersion(indexVersion)
+            .setCurrentVersionId(1)
+            .build();
+
+    assertThat(indexMetadata.formatVersion()).isEqualTo(IndexMetadata.DEFAULT_INDEX_FORMAT_VERSION);
+
+    // Upgrading to the same version should not generate a change
+    IndexMetadata sameVersion =
+        IndexMetadata.buildFrom(indexMetadata)
+            .upgradeFormatVersion(IndexMetadata.DEFAULT_INDEX_FORMAT_VERSION)
+            .build();
+    assertThat(sameVersion.changes()).isEmpty();
+    assertThat(sameVersion.formatVersion()).isEqualTo(IndexMetadata.DEFAULT_INDEX_FORMAT_VERSION);
+  }
+
+  @Test
+  public void upgradeFormatVersionCannotDowngrade() {
+    IndexVersion indexVersion =
+        ImmutableIndexVersion.builder()
+            .versionId(1)
+            .timestampMillis(23L)
+            .properties(ImmutableMap.of())
+            .build();
+
+    IndexMetadata indexMetadata =
+        IndexMetadata.builder()
+            .setLocation("custom-location")
+            .setType(IndexType.BTREE)
+            .setIndexColumnIds(INDEX_COLUMN_IDS)
+            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
+            .addVersion(indexVersion)
+            .setCurrentVersionId(1)
+            .build();
+
+    assertThatThrownBy(() -> IndexMetadata.buildFrom(indexMetadata).upgradeFormatVersion(0).build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot downgrade");
+  }
+
+  @Test
+  public void upgradeFormatVersionApplyTo() {
+    IndexVersion indexVersion =
+        ImmutableIndexVersion.builder()
+            .versionId(1)
+            .timestampMillis(23L)
+            .properties(ImmutableMap.of())
+            .build();
+
+    IndexMetadata indexMetadata =
+        IndexMetadata.builder()
+            .setLocation("custom-location")
+            .setType(IndexType.BTREE)
+            .setIndexColumnIds(INDEX_COLUMN_IDS)
+            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
+            .addVersion(indexVersion)
+            .setCurrentVersionId(1)
+            .build();
+
+    // Apply the UpgradeFormatVersion update
+    IndexUpdate.UpgradeFormatVersion upgrade = new IndexUpdate.UpgradeFormatVersion(1);
+    IndexMetadata.Builder builder = IndexMetadata.buildFrom(indexMetadata);
+    upgrade.applyTo(builder);
+    IndexMetadata updated = builder.build();
+
+    assertThat(updated.formatVersion()).isEqualTo(1);
+    // Upgrading to same version should not generate a change
+    assertThat(updated.changes()).isEmpty();
   }
 }

@@ -26,6 +26,24 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 public interface IndexUpdate extends Serializable {
   void applyTo(IndexMetadata.Builder indexMetadataBuilder);
 
+  /** Upgrades the format version of the index. */
+  class UpgradeFormatVersion implements IndexUpdate {
+    private final int formatVersion;
+
+    public UpgradeFormatVersion(int formatVersion) {
+      this.formatVersion = formatVersion;
+    }
+
+    public int formatVersion() {
+      return formatVersion;
+    }
+
+    @Override
+    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
+      indexMetadataBuilder.upgradeFormatVersion(formatVersion);
+    }
+  }
+
   /** Assigns a UUID to the index. */
   class AssignUUID implements IndexUpdate {
     private final String uuid;
