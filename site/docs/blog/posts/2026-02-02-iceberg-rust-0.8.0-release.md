@@ -47,7 +47,7 @@ The DataFusion integration received significant improvements:
 
 - **INSERT INTO partitioned tables**: [Native support](https://github.com/apache/iceberg-rust/pull/1827) for inserting data into partitioned Iceberg tables
 - **Partition column projection**: [Implemented project node](https://github.com/apache/iceberg-rust/pull/1602) to efficiently add partition columns during query execution
-- **Partitioning node**: [Added partitioning operator](https://github.com/apache/iceberg-rust/pull/1620) to define output partitioning for better parallelism
+- **Repartitioning operator**: [Added partitioning operator](https://github.com/apache/iceberg-rust/pull/1620) to define output partitioning strategy based on the Iceberg table schema and metadata
 - **Partition-aware sorting**: [New `sort_by_partition` operator](https://github.com/apache/iceberg-rust/pull/1618) to sort input data by partition values
 - **SQLLogicTest integration**: [Added comprehensive testing framework](https://github.com/apache/iceberg-rust/pull/1764) for DataFusion operations
 - **TaskWriter**: [Implemented writer interface](https://github.com/apache/iceberg-rust/pull/1769) for DataFusion execution
