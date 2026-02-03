@@ -45,12 +45,10 @@ This release introduces [support for Iceberg V3 metadata format](https://github.
 
 The DataFusion integration received significant improvements:
 
-- **INSERT INTO partitioned tables**: [Native support](https://github.com/apache/iceberg-rust/pull/1827) for inserting data into partitioned Iceberg tables
-- **Partition column projection**: [Implemented project node](https://github.com/apache/iceberg-rust/pull/1602) to efficiently add partition columns during query execution
-- **Repartitioning operator**: [Added partitioning operator](https://github.com/apache/iceberg-rust/pull/1620) to define output partitioning strategy based on the Iceberg table schema and metadata
+- **INSERT INTO partitioned tables**: [Native support](https://github.com/apache/iceberg-rust/pull/1827) for inserting data into partitioned Iceberg tables, with [partition column projection](https://github.com/apache/iceberg-rust/pull/1602) and [repartitioning operator](https://github.com/apache/iceberg-rust/pull/1620)
 - **Partition-aware sorting**: [New `sort_by_partition` operator](https://github.com/apache/iceberg-rust/pull/1618) to sort input data by partition values
 - **SQLLogicTest integration**: [Added comprehensive testing framework](https://github.com/apache/iceberg-rust/pull/1764) for DataFusion operations
-- **TaskWriter**: [Implemented writer interface](https://github.com/apache/iceberg-rust/pull/1769) for DataFusion execution
+- **Parallel writing**: [Implemented parallel writer interface](https://github.com/apache/iceberg-rust/pull/1769) for DataFusion execution
 
 ### Advanced Delete File Handling
 
