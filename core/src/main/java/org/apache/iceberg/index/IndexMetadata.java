@@ -338,8 +338,7 @@ public interface IndexMetadata extends Serializable {
       }
 
       this.formatVersion = newFormatVersion;
-      // Note: format version upgrades are tracked but not as an IndexUpdate
-      // since they are handled specially during metadata file writes
+      changes.add(new IndexUpdate.UpgradeFormatVersion(newFormatVersion));
       return this;
     }
 
