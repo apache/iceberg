@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -82,8 +85,16 @@ public class TestCopyOnWriteDelete extends TestDelete {
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
 
     sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, DELETE_ISOLATION_LEVEL, "snapshot");
+        "ALTER TABLE %s SET TBLPROPERTIES('%s'='%s', '%s'='%s', '%s'='%s', '%s'='%s')",
+        tableName,
+        DELETE_ISOLATION_LEVEL,
+        "snapshot",
+        COMMIT_MIN_RETRY_WAIT_MS,
+        "10",
+        COMMIT_MAX_RETRY_WAIT_MS,
+        "1000",
+        COMMIT_NUM_RETRIES,
+        "7");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
     createBranchIfNeeded();
