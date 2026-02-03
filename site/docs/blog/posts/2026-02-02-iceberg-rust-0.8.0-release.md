@@ -58,7 +58,6 @@ The DataFusion integration received significant improvements:
 
 - **Shared delete file caching**: [Optimized performance](https://github.com/apache/iceberg-rust/pull/1941) by caching and sharing delete files across multiple readers
 - **Mixed delete types**: [Support for both position and equality deletes](https://github.com/apache/iceberg-rust/pull/1778) on the same FileScanTask
-- **Partial schema deletes**: [Handle equality delete files](https://github.com/apache/iceberg-rust/pull/1782) containing only equality columns
 - **Binary type support**: [Added binary type support](https://github.com/apache/iceberg-rust/pull/1848) in equality delete processing
 - **Performance fixes**: Fixed [stack overflow with large deletes](https://github.com/apache/iceberg-rust/pull/1915) and [scan deadlocks](https://github.com/apache/iceberg-rust/pull/1937)
 - **Row group filtering**: [Improved filtering](https://github.com/apache/iceberg-rust/pull/1779) when FileScanTask contains byte ranges
