@@ -342,6 +342,14 @@ public class RewriteDataFilesSparkAction
     // stop commit service
     commitService.close();
 
+    for (RewriteFileGroup failedGroup : commitService.failures()) {
+      rewriteFailures.add(
+          ImmutableRewriteDataFiles.FileGroupFailureResult.builder()
+              .info(failedGroup.info())
+              .dataFilesCount(failedGroup.inputFileNum())
+              .build());
+    }
+
     int totalCommits = Math.min(plan.totalGroupCount(), maxCommits);
     int failedCommits = totalCommits - commitService.succeededCommits();
     if (failedCommits > 0 && failedCommits <= maxFailedCommits) {

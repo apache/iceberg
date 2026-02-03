@@ -57,6 +57,7 @@ abstract class BaseCommitService<T> implements Closeable {
   private final ConcurrentLinkedQueue<T> completedRewrites;
   private final ConcurrentLinkedQueue<String> inProgressCommits;
   private final ConcurrentLinkedQueue<T> committedRewrites;
+  private final ConcurrentLinkedQueue<T> failedRewrites;
   private final int rewritesPerCommit;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final long timeoutInMS;
@@ -93,6 +94,7 @@ abstract class BaseCommitService<T> implements Closeable {
 
     completedRewrites = Queues.newConcurrentLinkedQueue();
     committedRewrites = Queues.newConcurrentLinkedQueue();
+    failedRewrites = Queues.newConcurrentLinkedQueue();
     inProgressCommits = Queues.newConcurrentLinkedQueue();
   }
 
@@ -157,6 +159,14 @@ abstract class BaseCommitService<T> implements Closeable {
         committerService.isShutdown(),
         "Cannot get results from a service which has not been closed");
     return Lists.newArrayList(committedRewrites.iterator());
+  }
+
+  /** Returns all File groups which failed to commit */
+  public List<T> failures() {
+    Preconditions.checkState(
+        committerService.isShutdown(),
+        "Cannot get failures from a service which has not been closed");
+    return Lists.newArrayList(failedRewrites.iterator());
   }
 
   @Override
@@ -231,6 +241,7 @@ abstract class BaseCommitService<T> implements Closeable {
         succeededCommits++;
       } catch (Exception e) {
         LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
+        failedRewrites.addAll(batch);
       }
       inProgressCommits.remove(inProgressCommitToken);
     }
