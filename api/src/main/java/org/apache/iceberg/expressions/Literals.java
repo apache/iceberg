@@ -616,8 +616,6 @@ class Literals {
 
     // Flag to indicate which comparator to use (serializable)
     private final boolean useSignedComparator;
-    // Transient cached comparator (reconstructed on deserialization)
-    private transient volatile Comparator<UUID> cmp;
 
     UUIDLiteral(UUID value) {
       this(value, false);
@@ -639,11 +637,7 @@ class Literals {
 
     @Override
     public Comparator<UUID> comparator() {
-      if (cmp == null) {
-        cmp = useSignedComparator ? SIGNED_CMP : RFC_CMP;
-      }
-
-      return cmp;
+      return useSignedComparator ? SIGNED_CMP : RFC_CMP;
     }
 
     @Override
