@@ -88,6 +88,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private Object conf;
   private JdbcClientPool connections;
   private Map<String, String> catalogProperties;
+  private boolean uniqueTableLocation;
   private final Function<Map<String, String>, FileIO> ioBuilder;
   private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
   private boolean initializeCatalogTables;
@@ -120,6 +121,11 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
     this.warehouseLocation = LocationUtil.stripTrailingSlash(inputWarehouseLocation);
     this.catalogProperties = ImmutableMap.copyOf(properties);
+    this.uniqueTableLocation =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
 
     if (name != null) {
       this.catalogName = name;
@@ -280,7 +286,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier table) {
-    return SLASH.join(defaultNamespaceLocation(table.namespace()), table.name());
+    String tableLocation = LocationUtil.tableLocation(table, uniqueTableLocation);
+    return SLASH.join(defaultNamespaceLocation(table.namespace()), tableLocation);
   }
 
   @Override
