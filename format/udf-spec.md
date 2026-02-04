@@ -51,16 +51,16 @@ properties, and engine-specific representations.
 ### UDF Metadata
 The UDF metadata file has the following fields:
 
-| Requirement | Field name       | Type                   | Description                                                           |
-|-------------|------------------|------------------------|-----------------------------------------------------------------------|
-| *required*  | `function-uuid`  | `string`               | A UUID that identifies this UDF, generated once at creation.          |
-| *required*  | `format-version` | `int`                  | UDF specification format version (must be `1`).                       |
-| *required*  | `definitions`    | `list<definition>`     | List of function [definition](#definition) entities.                  |
-| *required*  | `definition-log` | `list<definition-log>` | History of [definition version history](#definition-log).             |
-| *optional*  | `location`       | `string`               | The function's base location; used to create metadata file locations. |
-| *optional*  | `properties`     | `map<string,string>`   | A string-to-string map of properties.                                 |
-| *optional*  | `secure`         | `boolean`              | Whether it is a secure function. Default: `false`.                    |
-| *optional*  | `doc`            | `string`               | Documentation string.                                                 |
+| Requirement | Field name       | Type                   | Description                                                               |
+|-------------|------------------|------------------------|---------------------------------------------------------------------------|
+| *required*  | `function-uuid`  | `string`               | A UUID that identifies this UDF, generated once at creation.              |
+| *required*  | `format-version` | `int`                  | UDF specification format version (must be `1`).                           |
+| *required*  | `definitions`    | `list<definition>`     | List of function [definition](#definition) entities.                      |
+| *required*  | `definition-log` | `list<definition-log>` | History of [versions within the function's definitions](#definition-log). |
+| *optional*  | `location`       | `string`               | The function's base location; used to create metadata file locations.     |
+| *optional*  | `properties`     | `map<string,string>`   | A string-to-string map of properties.                                     |
+| *optional*  | `secure`         | `boolean`              | Whether it is a secure function. Default: `false`.                        |
+| *optional*  | `doc`            | `string`               | Documentation string.                                                     |
 
 Notes:
 1. When `secure` is set to `true`, engines should prevent leakage of sensitive information to end users. Each engine
@@ -96,6 +96,8 @@ must produce values of the declared `return-type`.
 
 Notes:
 1. Variadic (vararg) parameters are not supported. Each definition must declare a fixed number of parameters.
+2. Parameterized signatures are not supported (e.g., `<E> array_agg(E)`).
+3. All types, including parameters and return types, are considered nullable.
 
 #### Types
 [iceberg-type-json]: https://iceberg.apache.org/spec/#appendix-c-json-serialization
@@ -113,9 +115,9 @@ following fields required. Any other fields must be ignored.
 
 #### Definition ID
 The `definition-id` is a canonical string derived from the parameter types, formatted as a comma-separated list with no
-spaces. Each type uses the string representation described in [Types](#types):
+spaces. Each type uses the following string representation:
 
-* Primitives: the type name (e.g., `int`)
+* Primitives and semi-structured: the type name (e.g., `int`, `variant`)
 * List: `list<element-type>` (e.g., `list<int>`)
 * Map: `map<key-type,value-type>` (e.g., `map<string,int>`)
 * Struct: `struct<name1:type1,name2:type2,...>` with field names and types (e.g., `struct<id:int,name:string>`)
@@ -127,13 +129,13 @@ Examples of complete definition-id signatures:
 
 ### Definition Version
 
-Each definition can evolve over time by introducing new versions.  
-A `definition version` represents a specific implementation of that definition at a given point in time. A definition version can have multiple SQL representations of different dialects, but only one SQL representation per dialect.
+Each definition can evolve over time by introducing new versions.
+A `definition version` represents a specific implementation of that definition at a given point in time.
 
 | Requirement | Field name        | Type                                                     | Description                                                    |
 |-------------|-------------------|----------------------------------------------------------|----------------------------------------------------------------|
 | *required*  | `version-id`      | `int`                                                    | Monotonically increasing identifier of the definition version. |
-| *required*  | `representations` | `list<representation>`                                   | [Dialect-specific implementations](#representation).           |
+| *required*  | `representations` | `list<representation>`                                   | [UDF implementations](#representation).                        |
 | *optional*  | `deterministic`   | `boolean` (default `false`)                              | Whether the function is deterministic.                         |
 | *optional*  | `on-null-input`   | `string` (`"return-null"` or `"call"`, default `"call"`) | Defines how the UDF behaves when any input parameter is NULL.  |
 | *required*  | `timestamp-ms`    | `long` (unix epoch millis)                               | Creation timestamp of this version.                            |
@@ -155,6 +157,7 @@ Representations further define metadata for each type.
 
 #### SQL Representation
 
+A definition version can have multiple SQL representations of different dialects, but only one SQL representation per dialect.
 The SQL representation stores the function body as a SQL expression, with metadata such as the SQL dialect.
 
 | Requirement | Field name | Type     | Description                                          |
@@ -167,10 +170,10 @@ Notes:
 1. The `sql` must reference parameters using the names declared in the definition's `parameters` field.
 
 ### Definition Log
-| Requirement | Field name            | Type                                                | Description                                                      |
-|-------------|-----------------------|-----------------------------------------------------|------------------------------------------------------------------|
-| *required*  | `timestamp-ms`        | `long` (unix epoch millis)                          | When the definition snapshot was created or updated.             |
-| *required*  | `definition-versions` | `list<struct<definition-id:string,version-id:int>>` | Mapping of each definition to its selected version at this time. |
+| Requirement | Field name            | Type                                                | Description                                                             |
+|-------------|-----------------------|-----------------------------------------------------|-------------------------------------------------------------------------|
+| *required*  | `timestamp-ms`        | `long` (unix epoch millis)                          | Timestamp when the function was updated to use the definition versions. |
+| *required*  | `definition-versions` | `list<struct<definition-id:string,version-id:int>>` | Mapping of each definition to its selected version at this time.        |
 
 ## Function Call Convention and Resolution in Engines
 Selecting the definition of a function to use is delegated to engines, which may apply their own casting rules. However, engines should:
