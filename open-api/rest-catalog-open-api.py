@@ -1005,7 +1005,7 @@ class RemoteSignRequest(BaseModel):
     properties: dict[str, str] | None = None
     body: str | None = Field(
         None,
-        description='Optional body of the request to send to the signing API. This should only be populated for requests which do not have the relevant data in the URI itself (e.g. DeleteObjects requests)',
+        description='Optional body of the request to send to the signing API. This should only be populated for requests where the body of the message contains content which must be validated before a request is signed, such as the S3 DeleteObjects call.',
     )
 
 
