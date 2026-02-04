@@ -885,6 +885,7 @@ paths:
         - Catalog API
       summary: Register a table in the given namespace using given metadata file location
       parameters:
+        - $ref: '#/components/parameters/data-access'
         - $ref: '#/components/parameters/idempotency-key'
       description:
         Register a table using given metadata file location.
