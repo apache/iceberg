@@ -56,7 +56,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
   private static final String[] TASKS = new String[] {"task0", "task1"};
   private long processingTime = 0L;
   private String tableName;
-  private TableMaintenanceCoordinator tableMaintenanceCoordinator;
+  private TriggerManagerCoordinator triggerManagerCoordinator;
   private LockReleasedEvent lockReleasedEvent;
 
   @BeforeEach
@@ -65,9 +65,9 @@ class TestTriggerManagerOperator extends OperatorTestBase {
     Table table = createTable();
     this.tableName = table.name();
     lockReleasedEvent = new LockReleasedEvent(tableName, 1L);
-    this.tableMaintenanceCoordinator = createCoordinator();
+    this.triggerManagerCoordinator = createCoordinator();
     try {
-      tableMaintenanceCoordinator.start();
+      triggerManagerCoordinator.start();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -77,7 +77,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
   void after() throws IOException {
     super.after();
     try {
-      tableMaintenanceCoordinator.close();
+      triggerManagerCoordinator.close();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -457,16 +457,14 @@ class TestTriggerManagerOperator extends OperatorTestBase {
           .isEqualTo(1L);
 
       // manual unlock
-      tableMaintenanceCoordinator.handleReleaseLock(
-          new LockReleasedEvent(tableName, Long.MAX_VALUE));
+      triggerManagerCoordinator.handleReleaseLock(new LockReleasedEvent(tableName, Long.MAX_VALUE));
       // Trigger both of the tasks - tests TRIGGERED
       source.sendRecord(TableChange.builder().commitCount(2).build());
       // Wait until we receive the trigger
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // manual unlock
-      tableMaintenanceCoordinator.handleReleaseLock(
-          new LockReleasedEvent(tableName, Long.MAX_VALUE));
+      triggerManagerCoordinator.handleReleaseLock(new LockReleasedEvent(tableName, Long.MAX_VALUE));
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       assertThat(
@@ -518,7 +516,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // Remove the lock to allow the next trigger
-      tableMaintenanceCoordinator.handleEventFromOperator(0, 0, lockReleasedEvent);
+      triggerManagerCoordinator.handleReleaseLock(lockReleasedEvent);
 
       // The second trigger will be blocked
       source.sendRecord(TableChange.builder().commitCount(2).build());
@@ -643,8 +641,8 @@ class TestTriggerManagerOperator extends OperatorTestBase {
     }
   }
 
-  private static TableMaintenanceCoordinator createCoordinator() {
-    return new TableMaintenanceCoordinator(
+  private static TriggerManagerCoordinator createCoordinator() {
+    return new TriggerManagerCoordinator(
         OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 2));
   }
 

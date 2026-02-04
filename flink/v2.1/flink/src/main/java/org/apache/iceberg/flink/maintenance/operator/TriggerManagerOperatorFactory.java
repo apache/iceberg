@@ -57,7 +57,7 @@ public class TriggerManagerOperatorFactory extends AbstractStreamOperatorFactory
   @Override
   public OperatorCoordinator.Provider getCoordinatorProvider(
       String operatorName, OperatorID operatorID) {
-    return new TableMaintenanceCoordinatorProvider(operatorName, operatorID);
+    return new TriggerManagerCoordinatorProvider(operatorName, operatorID);
   }
 
   @SuppressWarnings("unchecked")

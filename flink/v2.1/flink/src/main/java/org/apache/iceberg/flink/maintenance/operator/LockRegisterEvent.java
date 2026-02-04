@@ -23,8 +23,8 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 
 /**
- * Event sent from TriggerManager operator to TableMaintenanceCoordinator to confirm that the lock
- * has been acquired and the maintenance task is starting.
+ * Event sent from TriggerManager operator to TriggerManagerCoordinator to confirm that the lock has
+ * been acquired and the maintenance task is starting.
  */
 public class LockRegisterEvent implements OperatorEvent {
 

@@ -22,116 +22,56 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
-import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FatalExitExceptionHandler;
 import org.apache.flink.util.FlinkRuntimeException;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Experimental
+/**
+ * Base coordinator for table maintenance operators. Provides common functionality for thread
+ * management, subtask gateway management, and checkpoint handling.
+ */
 @Internal
-public class TableMaintenanceCoordinator implements OperatorCoordinator {
+public abstract class BaseCoordinator implements OperatorCoordinator {
 
-  private static final Logger LOG = LoggerFactory.getLogger(TableMaintenanceCoordinator.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseCoordinator.class);
 
   private final String operatorName;
   private final Context context;
 
   private final ExecutorService coordinatorExecutor;
-  private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
   private boolean started;
-  private final transient SubtaskGateways subtaskGateways;
-  private static final Map<String, Consumer<LockReleasedEvent>> LOCK_RELEASE_CONSUMERS =
+  private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
+  private final SubtaskGateways subtaskGateways;
+  protected static final Map<String, Consumer<LockReleasedEvent>> LOCK_RELEASE_CONSUMERS =
       Maps.newConcurrentMap();
-  private final List<LockReleasedEvent> pendingReleaseEvents = Lists.newArrayList();
+  protected static final List<LockReleasedEvent> PENDING_RELEASE_EVENTS =
+      new CopyOnWriteArrayList<>();
 
-  public TableMaintenanceCoordinator(String operatorName, Context context) {
+  protected BaseCoordinator(String operatorName, Context context) {
     this.operatorName = operatorName;
     this.context = context;
 
     this.coordinatorThreadFactory =
         new CoordinatorExecutorThreadFactory(
-            "TableMaintenanceCoordinator-" + operatorName, context.getUserCodeClassloader());
+            "Coordinator-" + operatorName, context.getUserCodeClassloader());
     this.coordinatorExecutor = Executors.newSingleThreadExecutor(coordinatorThreadFactory);
     this.subtaskGateways = new SubtaskGateways(operatorName, context.currentParallelism());
-    LOG.info("Created TableMaintenanceCoordinator: {}", operatorName);
+    LOG.info("Created coordinator: {}", operatorName);
   }
 
-  @Override
-  public void start() throws Exception {
-    LOG.info("Starting TableMaintenanceCoordinator: {}", operatorName);
-    this.started = true;
-  }
-
-  @Override
-  public void close() throws Exception {
-    coordinatorExecutor.shutdown();
-    this.started = false;
-    LOG.info("Closed TableMaintenanceCoordinator: {}", operatorName);
-    LOCK_RELEASE_CONSUMERS.clear();
-    pendingReleaseEvents.clear();
-  }
-
-  @Override
-  public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) {
-    runInCoordinatorThread(
-        () -> {
-          LOG.debug(
-              "Handling event from subtask {} (#{}) of {}: {}",
-              subtask,
-              attemptNumber,
-              operatorName,
-              event);
-          if (event instanceof LockRegisterEvent) {
-            registerLock((LockRegisterEvent) event);
-          } else if (event instanceof LockReleasedEvent) {
-            handleReleaseLock((LockReleasedEvent) event);
-          } else {
-            throw new IllegalArgumentException(
-                "Invalid operator event type: " + event.getClass().getCanonicalName());
-          }
-        },
-        String.format(
-            Locale.ROOT,
-            "handling operator event %s from subtask %d (#%d)",
-            event.getClass(),
-            subtask,
-            attemptNumber));
-  }
-
-  @SuppressWarnings("FutureReturnValueIgnored")
-  private void registerLock(LockRegisterEvent lockRegisterEvent) {
-    LOCK_RELEASE_CONSUMERS.put(
-        lockRegisterEvent.lockId(),
-        lock -> {
-          LOG.info(
-              "Send release event for lock id {}, timestamp: {} to Operator {}",
-              lock.lockId(),
-              lock.timestamp(),
-              operatorName);
-          this.subtaskGateways.getSubtaskGateway(0).sendEvent(lock);
-        });
-
-    pendingReleaseEvents.forEach(this::handleReleaseLock);
-    pendingReleaseEvents.clear();
-  }
-
-  /** Release the lock and optionally trigger the next pending task. */
   @VisibleForTesting
   void handleReleaseLock(LockReleasedEvent lockReleasedEvent) {
     if (LOCK_RELEASE_CONSUMERS.containsKey(lockReleasedEvent.lockId())) {
@@ -141,7 +81,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
           lockReleasedEvent.lockId(),
           lockReleasedEvent.timestamp());
     } else {
-      pendingReleaseEvents.add(lockReleasedEvent);
+      PENDING_RELEASE_EVENTS.add(lockReleasedEvent);
       LOG.info(
           "No consumer for lock id {}, timestamp: {}",
           lockReleasedEvent.lockId(),
@@ -150,24 +90,22 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
   }
 
   @Override
-  public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture) {
-    // We don’t need to track how many locks are currently held, because when recovering from state,
-    // a `recover lock` will be issued to ensure all tasks finish running and then release all
-    // locks.
-    // The `TriggerManagerOperator` already keeps the `TableChange` state and related information,
-    // so there’s no need to store additional state here.
-    runInCoordinatorThread(
-        () -> {
-          resultFuture.complete(new byte[0]);
-        },
-        String.format(Locale.ROOT, "taking checkpoint %d", checkpointId));
+  public void start() throws Exception {
+    LOG.info("Starting coordinator: {}", operatorName);
+    this.started = true;
+  }
+
+  @Override
+  public void close() throws Exception {
+    coordinatorExecutor.shutdown();
+    this.started = false;
+    LOCK_RELEASE_CONSUMERS.clear();
+    PENDING_RELEASE_EVENTS.clear();
+    LOG.info("Closed coordinator: {}", operatorName);
   }
 
   @Override
   public void notifyCheckpointComplete(long checkpointId) {}
-
-  @Override
-  public void resetToCheckpoint(long checkpointId, byte[] checkpointData) {}
 
   @Override
   public void subtaskReset(int subtask, long checkpointId) {
@@ -214,7 +152,19 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
             attemptNumber));
   }
 
-  private void runInCoordinatorThread(Runnable runnable, String actionString) {
+  protected CoordinatorExecutorThreadFactory coordinatorThreadFactory() {
+    return coordinatorThreadFactory;
+  }
+
+  protected SubtaskGateways subtaskGateways() {
+    return subtaskGateways;
+  }
+
+  protected String operatorName() {
+    return operatorName;
+  }
+
+  protected void runInCoordinatorThread(Runnable runnable, String actionString) {
     ensureStarted();
     coordinatorExecutor.execute(
         () -> {
@@ -222,10 +172,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
             runnable.run();
           } catch (Throwable t) {
             LOG.error(
-                "Uncaught exception in TableMaintenanceCoordinator while {}: {}",
-                actionString,
-                t.getMessage(),
-                t);
+                "Uncaught exception in coordinator while {}: {}", actionString, t.getMessage(), t);
             context.failJob(t);
           }
         });
@@ -242,10 +189,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
               try {
                 return callable.call();
               } catch (Throwable t) {
-                LOG.error(
-                    "Uncaught Exception in table maintenance coordinator: {} executor",
-                    operatorName,
-                    t);
+                LOG.error("Uncaught Exception in coordinator {} executor", operatorName, t);
                 ExceptionUtils.rethrowException(t);
                 return null;
               }
@@ -259,8 +203,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
       try {
         callable.call();
       } catch (Throwable t) {
-        LOG.error(
-            "Uncaught Exception in table maintenance coordinator: {} executor", operatorName, t);
+        LOG.error("Uncaught Exception in coordinator {} executor", operatorName, t);
         throw new FlinkRuntimeException(errorMessage, t);
       }
     }
@@ -271,12 +214,12 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
   }
 
   /** Inner class to manage subtask gateways. */
-  private static class SubtaskGateways {
+  protected static class SubtaskGateways {
     private final String operatorName;
     private final Map<Integer, SubtaskGateway>[] gateways;
 
     @SuppressWarnings("unchecked")
-    private SubtaskGateways(String operatorName, int parallelism) {
+    protected SubtaskGateways(String operatorName, int parallelism) {
       this.operatorName = operatorName;
       gateways = new Map[parallelism];
 
@@ -285,7 +228,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
       }
     }
 
-    private void registerSubtaskGateway(SubtaskGateway gateway) {
+    protected void registerSubtaskGateway(SubtaskGateway gateway) {
       int subtaskIndex = gateway.getSubtask();
       int attemptNumber = gateway.getExecution().getAttemptNumber();
       Preconditions.checkState(
@@ -303,12 +246,12 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
       LOG.debug("Registered gateway for subtask {} attempt {}", subtaskIndex, attemptNumber);
     }
 
-    private void unregisterSubtaskGateway(int subtaskIndex, int attemptNumber) {
+    protected void unregisterSubtaskGateway(int subtaskIndex, int attemptNumber) {
       gateways[subtaskIndex].remove(attemptNumber);
       LOG.debug("Unregistered gateway for subtask {} attempt {}", subtaskIndex, attemptNumber);
     }
 
-    private SubtaskGateway getSubtaskGateway(int subtaskIndex) {
+    protected SubtaskGateway getSubtaskGateway(int subtaskIndex) {
       Preconditions.checkState(
           !gateways[subtaskIndex].isEmpty(),
           "Coordinator subtask %d is not ready yet to receive events",
@@ -316,14 +259,14 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
       return gateways[subtaskIndex].values().iterator().next();
     }
 
-    private void reset(int subtaskIndex) {
+    protected void reset(int subtaskIndex) {
       gateways[subtaskIndex].clear();
     }
   }
 
   /** Custom thread factory for the coordinator executor. */
-  private static class CoordinatorExecutorThreadFactory
-      implements ThreadFactory, Thread.UncaughtExceptionHandler {
+  protected static class CoordinatorExecutorThreadFactory
+      implements java.util.concurrent.ThreadFactory, Thread.UncaughtExceptionHandler {
 
     private final String coordinatorThreadName;
     private final ClassLoader classLoader;
@@ -363,7 +306,7 @@ public class TableMaintenanceCoordinator implements OperatorCoordinator {
   }
 
   @VisibleForTesting
-  Map<String, Consumer<LockReleasedEvent>> lockHeldMap() {
-    return LOCK_RELEASE_CONSUMERS;
+  List<LockReleasedEvent> pendingReleaseEvents() {
+    return PENDING_RELEASE_EVENTS;
   }
 }

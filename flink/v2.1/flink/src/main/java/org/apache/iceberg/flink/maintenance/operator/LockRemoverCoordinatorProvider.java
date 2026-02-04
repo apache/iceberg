@@ -24,18 +24,17 @@ import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
 
 @Internal
-public class TableMaintenanceCoordinatorProvider
-    extends RecreateOnResetOperatorCoordinator.Provider {
+public class LockRemoverCoordinatorProvider extends RecreateOnResetOperatorCoordinator.Provider {
 
   private final String operatorName;
 
-  public TableMaintenanceCoordinatorProvider(String operatorName, OperatorID operatorID) {
+  public LockRemoverCoordinatorProvider(String operatorName, OperatorID operatorID) {
     super(operatorID);
     this.operatorName = operatorName;
   }
 
   @Override
   public OperatorCoordinator getCoordinator(OperatorCoordinator.Context context) {
-    return new TableMaintenanceCoordinator(operatorName, context);
+    return new LockRemoverCoordinator(operatorName, context);
   }
 }

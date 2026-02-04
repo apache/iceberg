@@ -49,14 +49,14 @@ class TestLockRemoverOperation extends OperatorTestBase {
   private static final String OPERATOR_NAME = "TestCoordinator";
   private static final OperatorID TEST_OPERATOR_ID = new OperatorID(1234L, 5678L);
 
-  private TableMaintenanceCoordinator tableMaintenanceCoordinator;
+  private LockRemoverCoordinator lockRemoverCoordinator;
 
   @BeforeEach
   public void before() {
     MetricsReporterFactoryForTests.reset();
-    this.tableMaintenanceCoordinator = createCoordinator();
+    this.lockRemoverCoordinator = createCoordinator();
     try {
-      tableMaintenanceCoordinator.start();
+      lockRemoverCoordinator.start();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -66,7 +66,7 @@ class TestLockRemoverOperation extends OperatorTestBase {
   void after() throws IOException {
     super.after();
     try {
-      tableMaintenanceCoordinator.close();
+      lockRemoverCoordinator.close();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -205,8 +205,8 @@ class TestLockRemoverOperation extends OperatorTestBase {
     return harness;
   }
 
-  private static TableMaintenanceCoordinator createCoordinator() {
-    return new TableMaintenanceCoordinator(
+  private static LockRemoverCoordinator createCoordinator() {
+    return new LockRemoverCoordinator(
         OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1));
   }
 }

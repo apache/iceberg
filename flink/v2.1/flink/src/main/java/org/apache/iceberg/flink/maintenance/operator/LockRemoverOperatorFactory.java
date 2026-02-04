@@ -44,7 +44,7 @@ public class LockRemoverOperatorFactory extends AbstractStreamOperatorFactory<Vo
   @Override
   public OperatorCoordinator.Provider getCoordinatorProvider(
       String operatorName, OperatorID operatorID) {
-    return new TableMaintenanceCoordinatorProvider(operatorName, operatorID);
+    return new LockRemoverCoordinatorProvider(operatorName, operatorID);
   }
 
   @SuppressWarnings("unchecked")
