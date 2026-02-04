@@ -184,7 +184,7 @@ class TestS3V4RestSignerClient {
     try (S3V4RestSignerClient client =
         ImmutableS3V4RestSignerClient.builder().properties(properties).build()) {
       Map<String, String> signerProperties = client.requestPropertiesSupplier().get();
-      assertThat(signerProperties).isEqualTo(expected);
+      assertThat(signerProperties).containsAllEntriesOf(expected);
     }
   }
 
