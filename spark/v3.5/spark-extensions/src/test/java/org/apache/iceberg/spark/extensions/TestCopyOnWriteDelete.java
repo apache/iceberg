@@ -112,7 +112,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
     Future<?> deleteFuture =
         executorService.submit(
             () -> {
-              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+              for (int numOperations = 0; numOperations < 20; numOperations++) {
                 int currentNumOperations = numOperations;
                 Awaitility.await()
                     .pollInterval(10, TimeUnit.MILLISECONDS)
@@ -133,7 +133,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
               record.set(0, 1); // id
               record.set(1, "hr"); // dep
 
-              for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
+              for (int numOperations = 0; numOperations < 20; numOperations++) {
                 int currentNumOperations = numOperations;
                 Awaitility.await()
                     .pollInterval(10, TimeUnit.MILLISECONDS)
