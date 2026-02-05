@@ -20,13 +20,11 @@ package org.apache.iceberg.formats;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -38,7 +36,6 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -292,47 +289,12 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
           spec());
 
       return new PositionDeleteWriter<>(
-          new PositionDeleteFileAppender<>(
-              modelWriteBuilder().meta("delete-type", "position").build()),
+          modelWriteBuilder().meta("delete-type", "position").build(),
           format(),
           location(),
           spec(),
           partition(),
           keyMetadata());
-    }
-
-    private static class PositionDeleteFileAppender<T> implements FileAppender<StructLike> {
-      private final FileAppender<PositionDelete<T>> appender;
-
-      PositionDeleteFileAppender(FileAppender<PositionDelete<T>> appender) {
-        this.appender = appender;
-      }
-
-      @SuppressWarnings("unchecked")
-      @Override
-      public void add(StructLike positionDelete) {
-        appender.add((PositionDelete<T>) positionDelete);
-      }
-
-      @Override
-      public Metrics metrics() {
-        return appender.metrics();
-      }
-
-      @Override
-      public long length() {
-        return appender.length();
-      }
-
-      @Override
-      public void close() throws IOException {
-        appender.close();
-      }
-
-      @Override
-      public List<Long> splitOffsets() {
-        return appender.splitOffsets();
-      }
     }
   }
 }
