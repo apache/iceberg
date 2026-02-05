@@ -108,7 +108,7 @@ public class TestSetStatistics extends TestBase {
   }
 
   @TestTemplate
-  public void testSetStatisticsRetryWithConcurrentModification() {
+  public void setStatisticsRetryWithConcurrentModification() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotId = readMetadata().currentSnapshot().snapshotId();
 
@@ -116,20 +116,19 @@ public class TestSetStatistics extends TestBase {
         new GenericStatisticsFile(
             snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
 
-    TestTables.TestTable currentTable = table;
-
     // Create a TableOperations that simulates concurrent modification
     // On the first commit attempt, another writer modifies the table
-    TestTables.TestTableOperations concurrentOps =
+    TableOperations concurrentOps =
         new TestTables.TestTableOperations("test", tableDir, table.ops().io()) {
-          private int commitCount = 0;
+          private boolean firstAttempt = true;
 
           @Override
           public void commit(TableMetadata base, TableMetadata metadata) {
-            commitCount++;
-            if (commitCount == 1) {
-              currentTable.newFastAppend().appendFile(FILE_B).commit();
+            if (firstAttempt) {
+              firstAttempt = false;
+              table.newFastAppend().appendFile(FILE_B).commit();
             }
+
             super.commit(base, metadata);
           }
         };
@@ -142,7 +141,7 @@ public class TestSetStatistics extends TestBase {
   }
 
   @TestTemplate
-  public void testSetStatisticsRetrySuccess() {
+  public void setStatisticsRetrySuccess() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotId = readMetadata().currentSnapshot().snapshotId();
 

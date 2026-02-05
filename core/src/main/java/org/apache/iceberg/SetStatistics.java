@@ -57,8 +57,7 @@ public class SetStatistics implements UpdateStatistics {
 
   @Override
   public List<StatisticsFile> apply() {
-    TableMetadata current = ops.current();
-    return internalApply(current).statisticsFiles();
+    return internalApply(ops.current()).statisticsFiles();
   }
 
   @Override
