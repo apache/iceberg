@@ -25,7 +25,9 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -96,7 +98,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
     InitialOffsetStore initialOffsetStore =
-        new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
+        new InitialOffsetStore(table, checkpointLocation, fromTimestamp, sparkContext);
     this.initialOffset = initialOffsetStore.initialOffset();
   }
 
@@ -253,9 +255,15 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     private final String initialOffsetLocation;
     private final Long fromTimestamp;
 
-    InitialOffsetStore(Table table, String checkpointLocation, Long fromTimestamp) {
+    InitialOffsetStore(
+        Table table, String checkpointLocation, Long fromTimestamp, JavaSparkContext sparkContext) {
       this.table = table;
-      this.io = table.io();
+      // Use ResolvingFileIO with empty properties to get defaults for the checkpoint location
+      this.io =
+          CatalogUtil.loadFileIO(
+              "org.apache.iceberg.io.ResolvingFileIO",
+              Collections.emptyMap(),
+              sparkContext.hadoopConfiguration());
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
       this.fromTimestamp = fromTimestamp;
     }
