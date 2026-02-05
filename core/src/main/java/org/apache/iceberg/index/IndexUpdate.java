@@ -44,29 +44,11 @@ public interface IndexUpdate extends Serializable {
     }
   }
 
-  /** Assigns a UUID to the index. */
-  class AssignUUID implements IndexUpdate {
-    private final String uuid;
-
-    public AssignUUID(String uuid) {
-      this.uuid = uuid;
-    }
-
-    public String uuid() {
-      return uuid;
-    }
-
-    @Override
-    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-      indexMetadataBuilder.assignUUID(uuid);
-    }
-  }
-
-  /** Adds a new index version to the index metadata. */
-  class AddVersion implements IndexUpdate {
+  /** Sets the current index version in the index metadata. */
+  class SetCurrentVersion implements IndexUpdate {
     private final IndexVersion indexVersion;
 
-    public AddVersion(IndexVersion indexVersion) {
+    public SetCurrentVersion(IndexVersion indexVersion) {
       this.indexVersion = indexVersion;
     }
 
@@ -76,25 +58,7 @@ public interface IndexUpdate extends Serializable {
 
     @Override
     public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-      indexMetadataBuilder.addVersion(indexVersion);
-    }
-  }
-
-  /** Sets the current index version in the index metadata. */
-  class SetCurrentVersion implements IndexUpdate {
-    private final int versionId;
-
-    public SetCurrentVersion(int versionId) {
-      this.versionId = versionId;
-    }
-
-    public int versionId() {
-      return versionId;
-    }
-
-    @Override
-    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-      indexMetadataBuilder.setCurrentVersionId(versionId);
+      indexMetadataBuilder.setCurrentVersion(indexVersion);
     }
   }
 
