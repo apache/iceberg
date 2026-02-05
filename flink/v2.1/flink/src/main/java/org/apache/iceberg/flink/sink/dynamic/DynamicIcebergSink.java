@@ -365,12 +365,10 @@ public class DynamicIcebergSink
 
       uidPrefix = Optional.ofNullable(uidPrefix).orElse("");
 
-      final Configuration flinkConfig;
-      if (readableConfig instanceof Configuration) {
-        flinkConfig = (Configuration) readableConfig;
-      } else {
-        flinkConfig = Configuration.fromMap(readableConfig.toMap());
-      }
+      Configuration flinkConfig =
+          readableConfig instanceof Configuration
+              ? (Configuration) readableConfig
+              : Configuration.fromMap(readableConfig.toMap());
 
       return instantiateSink(writeOptions, flinkConfig);
     }
