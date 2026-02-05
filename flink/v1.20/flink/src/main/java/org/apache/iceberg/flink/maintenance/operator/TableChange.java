@@ -23,8 +23,10 @@ import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.SnapshotFileChanges;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.util.SnapshotUtil;
 
 /** Event describing changes in an Iceberg table */
 @Internal
@@ -54,8 +56,33 @@ public class TableChange {
     this.commitCount = commitCount;
   }
 
-  TableChange(Snapshot snapshot, FileIO io) {
-    this(snapshot.addedDataFiles(io), snapshot.addedDeleteFiles(io));
+  TableChange(Snapshot snapshot, Table table) {
+    SnapshotFileChanges changes =
+        SnapshotFileChanges.builder(snapshot, table.io(), table.specs()).build();
+    
+    changes.addedDataFiles().forEach(
+        dataFile -> {
+          this.dataFileCount++;
+          this.dataFileSizeInBytes += dataFile.fileSizeInBytes();
+        });
+
+    changes.addedDeleteFiles().forEach(
+        deleteFile -> {
+          switch (deleteFile.content()) {
+            case POSITION_DELETES:
+              this.posDeleteFileCount++;
+              this.posDeleteRecordCount += deleteFile.recordCount();
+              break;
+            case EQUALITY_DELETES:
+              this.eqDeleteFileCount++;
+              this.eqDeleteRecordCount += deleteFile.recordCount();
+              break;
+            default:
+              throw new IllegalArgumentException("Unexpected delete file content: " + deleteFile);
+          }
+        });
+
+    this.commitCount = 1;
   }
 
   public TableChange(Iterable<DataFile> dataFiles, Iterable<DeleteFile> deleteFiles) {

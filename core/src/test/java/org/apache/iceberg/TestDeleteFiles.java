@@ -442,7 +442,8 @@ public class TestDeleteFiles extends TestBase {
 
     Snapshot delete2 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
     assertThat(delete2.allManifests(FILE_IO)).isEmpty();
-    assertThat(delete2.removedDataFiles(FILE_IO)).isEmpty();
+    assertThat(org.apache.iceberg.util.SnapshotUtil.removedDataFiles(delete2, FILE_IO, table.specs()))
+        .isEmpty();
   }
 
   @Test

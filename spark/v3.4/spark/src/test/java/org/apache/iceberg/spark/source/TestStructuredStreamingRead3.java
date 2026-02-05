@@ -845,7 +845,8 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     Iterable<Snapshot> it = table.snapshots();
     for (Snapshot snapshot : it) {
       if (snapshot.operation().equals(DataOperations.APPEND)) {
-        Iterable<DataFile> datafiles = snapshot.addedDataFiles(table.io());
+        Iterable<DataFile> datafiles =
+            org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshot);
         for (DataFile datafile : datafiles) {
           rewrite.addFile(datafile);
           rewrite.deleteFile(datafile);

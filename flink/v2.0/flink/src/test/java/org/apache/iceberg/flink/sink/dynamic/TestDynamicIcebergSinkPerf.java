@@ -53,6 +53,7 @@ import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -225,7 +226,7 @@ class TestDynamicIcebergSinkPerf {
       Table table = CATALOG_EXTENSION.catalog().loadTable(identifier);
       for (Snapshot snapshot : table.snapshots()) {
         long records = 0;
-        for (DataFile dataFile : snapshot.addedDataFiles(table.io())) {
+        for (DataFile dataFile : SnapshotUtil.addedDataFiles(table, snapshot)) {
           records += dataFile.recordCount();
         }
 

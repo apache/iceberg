@@ -82,7 +82,9 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(snapshotId));
 
       // Pick modifications from the snapshot
-      for (DataFile addedFile : cherrypickSnapshot.addedDataFiles(io)) {
+      SnapshotFileChanges changes =
+          SnapshotFileChanges.builder(cherrypickSnapshot, io, specsById).build();
+      for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);
       }
 
@@ -112,15 +114,17 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       // check that all deleted files are still in the table
       failMissingDeletePaths();
 
-      // copy adds from the picked snapshot
+      // copy adds and deletes from the picked snapshot
+      SnapshotFileChanges changes =
+          SnapshotFileChanges.builder(cherrypickSnapshot, io, specsById).build();
       this.replacedPartitions = PartitionSet.create(specsById);
-      for (DataFile addedFile : cherrypickSnapshot.addedDataFiles(io)) {
+      for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);
         replacedPartitions.add(addedFile.specId(), addedFile.partition());
       }
 
       // copy deletes from the picked snapshot
-      for (DataFile deletedFile : cherrypickSnapshot.removedDataFiles(io)) {
+      for (DataFile deletedFile : changes.removedDataFiles()) {
         delete(deletedFile);
       }
 

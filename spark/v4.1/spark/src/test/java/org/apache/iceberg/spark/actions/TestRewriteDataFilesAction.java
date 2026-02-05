@@ -2267,7 +2267,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     Map<StructLike, List<DataFile>> filesByPartition =
-        Streams.stream(snapshot.addedDataFiles(table.io()))
+        Streams.stream(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshot))
             .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =

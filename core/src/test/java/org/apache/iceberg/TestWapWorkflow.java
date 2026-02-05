@@ -113,7 +113,8 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(wapSnapshot.snapshotId());
     assertThat(base.snapshots()).hasSize(2);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(2);
@@ -136,7 +137,8 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
     assertThat(base.snapshots()).hasSize(2);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(1);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(3);
@@ -172,7 +174,8 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
     assertThat(base.snapshots()).hasSize(2);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(1);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(1);
@@ -269,7 +272,8 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(wapSnapshot.snapshotId());
     assertThat(base.snapshots()).hasSize(2);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(2);
@@ -315,7 +319,8 @@ public class TestWapWorkflow extends TestBase {
     //   as a result of the cherry-pick operation
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.currentSnapshot().parentId())
         .as("Parent snapshot id should change to latest snapshot before commit")
         .isEqualTo(parentSnapshot.snapshotId());
@@ -334,7 +339,8 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId())
         .isEqualTo(parentSnapshot.snapshotId() + 1 /* one fast-forwarded snapshot */ + 1);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(3);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.currentSnapshot().parentId())
         .as("Parent snapshot id should change to latest snapshot before commit")
         .isEqualTo(parentSnapshot.snapshotId());
@@ -397,7 +403,8 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.snapshots()).hasSize(5);
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(3);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.currentSnapshot().parentId()).isEqualTo(parentSnapshot.snapshotId());
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
@@ -414,7 +421,8 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.snapshots()).hasSize(6);
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(4);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.currentSnapshot().parentId()).isEqualTo(parentSnapshot.snapshotId());
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
@@ -458,7 +466,8 @@ public class TestWapWorkflow extends TestBase {
     //   as a result of the cherry-pick operation
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.currentSnapshot().parentId()).isEqualTo(parentSnapshot.snapshotId());
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
@@ -496,7 +505,8 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(wapPublishedId);
     assertThat(base.snapshots()).hasSize(2);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(2);
@@ -538,7 +548,8 @@ public class TestWapWorkflow extends TestBase {
 
     assertThat(base.snapshots()).hasSize(3);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, base.currentSnapshot()))
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(2);

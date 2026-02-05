@@ -793,8 +793,7 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    snapshotB
-        .addedDataFiles(table.io())
+    org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshotB)
         .forEach(
             i -> {
               expectedDeletes.add(i.location());
@@ -883,7 +882,7 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB, snapshotC, snapshotD)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, i)
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -929,7 +928,7 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, i)
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -946,7 +945,7 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB, snapshotD)
         .forEach(
             i -> {
-              i.addedDataFiles(table.io())
+              org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, i)
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());

@@ -206,7 +206,7 @@ public class MicroBatches {
     public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
       return generate(
           startFileIndex,
-          Iterables.size(snapshot.addedDataFiles(io)),
+          Iterables.size(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(snapshot, io, specsById)),
           targetSizeInBytes,
           scanAllFiles);
     }
