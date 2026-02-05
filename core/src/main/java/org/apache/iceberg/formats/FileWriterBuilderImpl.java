@@ -44,11 +44,13 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
   private final ModelWriteBuilder<D, S> modelWriteBuilder;
   private final String location;
   private final FileFormat format;
+  private final FileContent content;
   private Schema schema = null;
   private PartitionSpec spec = null;
   private StructLike partition = null;
   private EncryptionKeyMetadata keyMetadata = null;
   private SortOrder sortOrder = null;
+  private int[] equalityFieldIds = null;
 
   /** Creates a builder for {@link DataWriter} instances for writing data files. */
   static <D, S> FileWriterBuilder<DataWriter<D>, S> forDataFile(
@@ -77,6 +79,7 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
     this.modelWriteBuilder = model.writeBuilder(outputFile).content(content);
     this.location = outputFile.encryptingOutputFile().location();
     this.format = model.format();
+    this.content = content;
   }
 
   @Override
@@ -154,8 +157,13 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
 
   @Override
   public FileWriterBuilderImpl<W, D, S> equalityFieldIds(int... fieldIds) {
-    throw new UnsupportedOperationException(
-        "Equality field ids not supported for this writer type");
+    if (content != FileContent.EQUALITY_DELETES) {
+      throw new UnsupportedOperationException(
+          "Equality field ids not supported for this writer type");
+    }
+
+    this.equalityFieldIds = fieldIds;
+    return this;
   }
 
   ModelWriteBuilder<D, S> modelWriteBuilder() {
@@ -190,6 +198,23 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
     return sortOrder;
   }
 
+  int[] equalityFieldIds() {
+    return equalityFieldIds;
+  }
+
+  protected void validate() {
+    Preconditions.checkState(
+        content != FileContent.EQUALITY_DELETES || equalityFieldIds != null,
+        "Invalid delete field ids for equality delete writer: null");
+    Preconditions.checkState(
+        content == FileContent.POSITION_DELETES || schema != null, "Invalid schema: null");
+    Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
+    Preconditions.checkArgument(
+        spec.isUnpartitioned() || partition != null,
+        "Invalid partition, does not match spec: %s",
+        spec);
+  }
+
   /** Builder for creating {@link DataWriter} instances for writing data files. */
   private static class DataFileWriterBuilder<D, S>
       extends FileWriterBuilderImpl<DataWriter<D>, D, S> {
@@ -200,12 +225,7 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
 
     @Override
     public DataWriter<D> build() throws IOException {
-      Preconditions.checkState(schema() != null, "Invalid schema for data writer: null");
-      Preconditions.checkArgument(spec() != null, "Invalid partition spec for data writer: null");
-      Preconditions.checkArgument(
-          spec().isUnpartitioned() || partition() != null,
-          "Invalid partition, does not match spec: %s",
-          spec());
+      validate();
 
       return new DataWriter<>(
           modelWriteBuilder().build(),
@@ -224,29 +244,13 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
   private static class EqualityDeleteWriterBuilder<D, S>
       extends FileWriterBuilderImpl<EqualityDeleteWriter<D>, D, S> {
 
-    private int[] equalityFieldIds = null;
-
     private EqualityDeleteWriterBuilder(FormatModel<D, S> model, EncryptedOutputFile outputFile) {
       super(model, outputFile, FileContent.EQUALITY_DELETES);
     }
 
     @Override
-    public EqualityDeleteWriterBuilder<D, S> equalityFieldIds(int... fieldIds) {
-      this.equalityFieldIds = fieldIds;
-      return this;
-    }
-
-    @Override
     public EqualityDeleteWriter<D> build() throws IOException {
-      Preconditions.checkState(schema() != null, "Invalid schema for equality delete writer: null");
-      Preconditions.checkState(
-          equalityFieldIds != null, "Invalid delete field ids for equality delete writer: null");
-      Preconditions.checkArgument(
-          spec() != null, "Invalid partition spec for equality delete writer: null");
-      Preconditions.checkArgument(
-          spec().isUnpartitioned() || partition() != null,
-          "Invalid partition, does not match spec: %s",
-          spec());
+      validate();
 
       return new EqualityDeleteWriter<>(
           modelWriteBuilder()
@@ -254,7 +258,7 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
               .meta("delete-type", "equality")
               .meta(
                   "delete-field-ids",
-                  IntStream.of(equalityFieldIds)
+                  IntStream.of(equalityFieldIds())
                       .mapToObj(Objects::toString)
                       .collect(Collectors.joining(", ")))
               .build(),
@@ -264,7 +268,7 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
           partition(),
           keyMetadata(),
           sortOrder(),
-          equalityFieldIds);
+          equalityFieldIds());
     }
   }
 
@@ -281,12 +285,7 @@ abstract class FileWriterBuilderImpl<W extends FileWriter<D, ?>, D, S>
 
     @Override
     public PositionDeleteWriter<D> build() throws IOException {
-      Preconditions.checkArgument(
-          spec() != null, "Invalid partition spec for position delete writer: null");
-      Preconditions.checkArgument(
-          spec().isUnpartitioned() || partition() != null,
-          "Invalid partition, does not match spec: %s",
-          spec());
+      validate();
 
       return new PositionDeleteWriter<>(
           modelWriteBuilder().meta("delete-type", "position").build(),
