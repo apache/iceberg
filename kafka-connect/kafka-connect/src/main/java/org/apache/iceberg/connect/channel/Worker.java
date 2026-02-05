@@ -105,7 +105,8 @@ class Worker extends Channel {
                             writeResult.deleteFiles())))
             .collect(Collectors.toList());
 
-    Event readyEvent = new Event(config.sourceConsumerGroupId(), new DataComplete(commitId, assignments));
+    Event readyEvent =
+        new Event(config.sourceConsumerGroupId(), new DataComplete(commitId, assignments));
     events.add(readyEvent);
 
     send(events, results.sourceOffsets());
