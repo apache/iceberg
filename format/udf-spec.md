@@ -64,8 +64,8 @@ The UDF metadata file has the following fields:
 
 Notes:
 1. When `secure` is set to `true`, engines should prevent leakage of sensitive information to end users. Each engine
-   may have its own security definition and mechanisms. It is the administrator's responsibility to ensure that secure
-   UDFs are properly configured and protected in their environment.
+   may have its own security definition and mechanisms. It is the administrator's responsibility to ensure that
+   UDFs marked as secure are properly configured and protected in their environment.
 2. Entries in `properties` are treated as hints, not strict rules.
 3. UDF names are not stored in metadata. It's the catalog's responsibility to map UDF names to metadata file locations.
 
