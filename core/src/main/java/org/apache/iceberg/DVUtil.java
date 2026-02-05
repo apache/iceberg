@@ -47,41 +47,46 @@ class DVUtil {
    * Merges duplicate DVs for the same data file and writes the merged DV Puffin files. If there is
    * exactly 1 DV for a given data file then it is return as is
    *
-   * @param dvsByReferencedFile map of data file location to DVs
+   * @param dvsByFile map of data file location to DVs
    * @return a list containing both any newly merged DVs and any DVs that are already valid
    */
-  static List<DeleteFile> mergeAndWriteDVsIfRequired(
-      Map<String, List<DeleteFile>> dvsByReferencedFile,
-      ExecutorService threadpool,
+  static List<DeleteFile> mergeAndWriteDvsIfRequired(
+      Map<String, List<DeleteFile>> dvsByFile,
+      ExecutorService pool,
       LocationProvider locationProvider,
       EncryptionManager encryptionManager,
       FileIO fileIO,
       Map<Integer, PartitionSpec> specs) {
-    List<DeleteFile> finalDVs = Lists.newArrayList();
-    Map<String, List<DeleteFile>> duplicatesByRef = Maps.newLinkedHashMap();
-    for (Map.Entry<String, List<DeleteFile>> dvsForFile : dvsByReferencedFile.entrySet()) {
+    List<DeleteFile> finalDvs = Lists.newArrayList();
+    Map<String, List<DeleteFile>> duplicateDvsByFile = Maps.newLinkedHashMap();
+    for (Map.Entry<String, List<DeleteFile>> dvsForFile : dvsByFile.entrySet()) {
       List<DeleteFile> dvs = dvsForFile.getValue();
       if (!dvs.isEmpty()) {
         if (dvs.size() == 1) {
-          finalDVs.addAll(dvs);
+          finalDvs.addAll(dvs);
         } else {
-          duplicatesByRef.put(dvsForFile.getKey(), dvs);
+          duplicateDvsByFile.put(dvsForFile.getKey(), dvs);
         }
       }
     }
 
-    if (!duplicatesByRef.isEmpty()) {
-      List<DeleteFile> duplicateDVs =
-          duplicatesByRef.values().stream().flatMap(List::stream).collect(Collectors.toList());
+    if (!duplicateDvsByFile.isEmpty()) {
+      List<DeleteFile> duplicateDvs =
+          duplicateDvsByFile.values().stream().flatMap(List::stream).collect(Collectors.toList());
 
       Map<String, PositionDeleteIndex> mergedIndices =
-          readAndMergeDVs(fileIO, encryptionManager, duplicateDVs, specs, threadpool);
-      finalDVs.addAll(
+          readAndMergeDvs(duplicateDvs, pool, fileIO, encryptionManager, specs);
+      finalDvs.addAll(
           writeMergedDVs(
-              mergedIndices, duplicatesByRef, locationProvider, encryptionManager, fileIO, specs));
+              mergedIndices,
+              duplicateDvsByFile,
+              locationProvider,
+              encryptionManager,
+              fileIO,
+              specs));
     }
 
-    return finalDVs;
+    return finalDvs;
   }
 
   /**
@@ -89,54 +94,54 @@ class DVUtil {
    *
    * @param io the FileIO to use for reading DV files
    * @param encryptionManager the EncryptionManager for decrypting DV files
-   * @param duplicateDVs list of dvs to read and merge
+   * @param duplicateDvs list of dvs to read and merge
    * @param specsById map of partition spec ID to partition spec
    * @param pool executor service for reading DVs
-   * @return map of referenced data file location to merged position delete index
+   * @return map of referenced data file location to the merged position delete index
    */
-  private static Map<String, PositionDeleteIndex> readAndMergeDVs(
+  private static Map<String, PositionDeleteIndex> readAndMergeDvs(
+      List<DeleteFile> duplicateDvs,
+      ExecutorService pool,
       FileIO io,
       EncryptionManager encryptionManager,
-      List<DeleteFile> duplicateDVs,
-      Map<Integer, PartitionSpec> specsById,
-      ExecutorService pool) {
+      Map<Integer, PartitionSpec> specsById) {
     // Read all duplicate DVs in parallel
-    PositionDeleteIndex[] duplicateDVPositions = new PositionDeleteIndex[duplicateDVs.size()];
-    Tasks.range(duplicateDVPositions.length)
+    PositionDeleteIndex[] duplicateDvPositions = new PositionDeleteIndex[duplicateDvs.size()];
+    Tasks.range(duplicateDvPositions.length)
         .executeWith(pool)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .run(
             i ->
-                duplicateDVPositions[i] =
-                    Deletes.readDV(duplicateDVs.get(i), io, encryptionManager));
+                duplicateDvPositions[i] =
+                    Deletes.readDV(duplicateDvs.get(i), io, encryptionManager));
 
     // Build a grouping of referenced file to indices of the corresponding duplicate DVs
-    Map<String, List<Integer>> dvIndicesByReferencedFile = Maps.newLinkedHashMap();
-    for (int i = 0; i < duplicateDVs.size(); i++) {
-      dvIndicesByReferencedFile
-          .computeIfAbsent(duplicateDVs.get(i).referencedDataFile(), k -> Lists.newArrayList())
+    Map<String, List<Integer>> dvIndicesByDataFile = Maps.newLinkedHashMap();
+    for (int i = 0; i < duplicateDvs.size(); i++) {
+      dvIndicesByDataFile
+          .computeIfAbsent(duplicateDvs.get(i).referencedDataFile(), k -> Lists.newArrayList())
           .add(i);
     }
 
     // Validate and merge per referenced file, caching comparators by spec ID
     Map<Integer, Comparator<StructLike>> comparatorsBySpecId = Maps.newHashMap();
     Map<String, PositionDeleteIndex> result = Maps.newHashMap();
-    for (Map.Entry<String, List<Integer>> entry : dvIndicesByReferencedFile.entrySet()) {
+    for (Map.Entry<String, List<Integer>> entry : dvIndicesByDataFile.entrySet()) {
       List<Integer> dvIndicesForFile = entry.getValue();
-			int firstDVIndex = dvIndicesForFile.get(0);
-      PositionDeleteIndex mergedIndexForFile = duplicateDVPositions[firstDVIndex];
-      DeleteFile firstDV = duplicateDVs.get(firstDVIndex);
+      int firstDVIndex = dvIndicesForFile.get(0);
+      PositionDeleteIndex mergedIndexForFile = duplicateDvPositions[firstDVIndex];
+      DeleteFile firstDv = duplicateDvs.get(firstDVIndex);
 
       Comparator<StructLike> partitionComparator =
           comparatorsBySpecId.computeIfAbsent(
-              firstDV.specId(), id -> Comparators.forType(specsById.get(id).partitionType()));
+              firstDv.specId(), id -> Comparators.forType(specsById.get(id).partitionType()));
 
       for (int i = 1; i < dvIndicesForFile.size(); i++) {
         int dvIndex = dvIndicesForFile.get(i);
-        DeleteFile dv = duplicateDVs.get(dvIndex);
-        validateDVCanBeMerged(dv, firstDV, partitionComparator);
-        mergedIndexForFile.merge(duplicateDVPositions[dvIndex]);
+        DeleteFile dv = duplicateDvs.get(dvIndex);
+        validateDVCanBeMerged(dv, firstDv, partitionComparator);
+        mergedIndexForFile.merge(duplicateDvPositions[dvIndex]);
       }
 
       result.put(entry.getKey(), mergedIndexForFile);
@@ -169,7 +174,7 @@ class DVUtil {
   // Produces a single Puffin file containing the merged DVs
   private static List<DeleteFile> writeMergedDVs(
       Map<String, PositionDeleteIndex> mergedIndices,
-      Map<String, List<DeleteFile>> dvsByReferencedFile,
+      Map<String, List<DeleteFile>> dvsByFile,
       LocationProvider locationProvider,
       EncryptionManager encryptionManager,
       FileIO fileIO,
@@ -192,8 +197,8 @@ class DVUtil {
       for (Map.Entry<String, PositionDeleteIndex> entry : mergedIndices.entrySet()) {
         String referencedLocation = entry.getKey();
         PositionDeleteIndex mergedPositions = entry.getValue();
-        List<DeleteFile> duplicateDVs = dvsByReferencedFile.get(referencedLocation);
-        DeleteFile firstDV = duplicateDVs.get(0);
+        List<DeleteFile> duplicateDvs = dvsByFile.get(referencedLocation);
+        DeleteFile firstDV = duplicateDvs.get(0);
         dvFileWriter.delete(
             referencedLocation,
             mergedPositions,

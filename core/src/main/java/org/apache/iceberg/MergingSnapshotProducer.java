@@ -1074,7 +1074,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       }
 
       List<DeleteFile> finalDVs =
-          DVUtil.mergeAndWriteDVsIfRequired(
+          DVUtil.mergeAndWriteDvsIfRequired(
               dvsByReferencedFile,
               ThreadPools.getDeleteWorkerPool(),
               ops().locationProvider(),
