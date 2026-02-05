@@ -19,14 +19,18 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.stats.BaseContentStats;
@@ -350,5 +354,71 @@ public class TestManifestReaderStats extends TestBase {
     } else {
       assertThat(dataFile.contentStats()).isNull();
     }
+  }
+
+  @TestTemplate
+  public void readEntriesWhereOnlySomeHaveStats() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(4);
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "id2", Types.StringType.get()),
+            required(3, "id3", Types.DoubleType.get()),
+            required(4, "id4", Types.LongType.get()),
+            required(5, "id5", Types.FloatType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("id2", BUCKETS_NUMBER).build();
+
+    BaseContentStats contentStats =
+        BaseContentStats.builder()
+            .withTableSchema(schema)
+            .withFieldStats(
+                BaseFieldStats.builder()
+                    .fieldId(5)
+                    .type(Types.FloatType.get())
+                    .lowerBound(1.0f)
+                    .upperBound(5.0f)
+                    .build())
+            .withFieldStats(
+                BaseFieldStats.builder()
+                    .fieldId(2)
+                    .type(Types.StringType.get())
+                    .lowerBound("aaa")
+                    .upperBound("zzz")
+                    .build())
+            .build();
+    DataFiles.Builder builder =
+        DataFiles.builder(spec)
+            .withPath(FILE_PATH)
+            .withFileSizeInBytes(10)
+            .withPartitionPath("id2_bucket=0") // easy way to set partition data for now
+            .withRecordCount(3)
+            .withContentStats(contentStats);
+    DataFile dataFile = builder.build();
+
+    ManifestFile manifest = writeManifest(spec, 1000L, dataFile);
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
+      ManifestEntry<DataFile> entry = entries.iterator().next();
+      ContentStats stats = entry.file().contentStats();
+      assertThat(stats).isNotNull();
+      assertThat(stats.fieldStats()).containsAll(contentStats.fieldStats());
+    }
+  }
+
+  private ManifestFile writeManifest(PartitionSpec spec, Long snapshotId, DataFile... files)
+      throws IOException {
+    File manifestFile = temp.resolve("input.m0.avro").toFile();
+    OutputFile outputFile = Files.localOutput(manifestFile);
+
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, spec, outputFile, snapshotId);
+    try (writer) {
+      for (DataFile file : files) {
+        writer.add(file);
+      }
+    }
+
+    return writer.toManifestFile();
   }
 }
