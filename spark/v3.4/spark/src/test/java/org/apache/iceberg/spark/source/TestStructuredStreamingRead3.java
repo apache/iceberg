@@ -50,6 +50,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
@@ -846,7 +847,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     for (Snapshot snapshot : it) {
       if (snapshot.operation().equals(DataOperations.APPEND)) {
         Iterable<DataFile> datafiles =
-            org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshot);
+            SnapshotUtil.addedDataFiles(table, snapshot);
         for (DataFile datafile : datafiles) {
           rewrite.addFile(datafile);
           rewrite.deleteFile(datafile);

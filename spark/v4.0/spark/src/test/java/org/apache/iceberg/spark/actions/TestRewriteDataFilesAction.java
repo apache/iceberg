@@ -103,6 +103,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -2267,7 +2268,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     Map<StructLike, List<DataFile>> filesByPartition =
-        Streams.stream(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshot))
+        Streams.stream(SnapshotUtil.addedDataFiles(table, snapshot))
             .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =

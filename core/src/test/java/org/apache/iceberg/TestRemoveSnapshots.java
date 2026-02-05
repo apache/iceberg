@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
@@ -793,7 +794,7 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshotB)
+    SnapshotUtil.addedDataFiles(table, snapshotB)
         .forEach(
             i -> {
               expectedDeletes.add(i.location());
@@ -882,7 +883,7 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB, snapshotC, snapshotD)
         .forEach(
             i -> {
-              org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, i)
+              SnapshotUtil.addedDataFiles(table, i)
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -928,7 +929,7 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB)
         .forEach(
             i -> {
-              org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, i)
+              SnapshotUtil.addedDataFiles(table, i)
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -945,7 +946,7 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB, snapshotD)
         .forEach(
             i -> {
-              org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, i)
+              SnapshotUtil.addedDataFiles(table, i)
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());

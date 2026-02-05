@@ -54,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.function.VoidFunction2;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -846,8 +847,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     Iterable<Snapshot> it = table.snapshots();
     for (Snapshot snapshot : it) {
       if (snapshot.operation().equals(DataOperations.APPEND)) {
-        Iterable<DataFile> datafiles =
-            org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshot);
+        Iterable<DataFile> datafiles = SnapshotUtil.addedDataFiles(table, snapshot);
         for (DataFile datafile : datafiles) {
           rewrite.addFile(datafile);
           rewrite.deleteFile(datafile);

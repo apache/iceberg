@@ -114,7 +114,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       // check that all deleted files are still in the table
       failMissingDeletePaths();
 
-      // copy adds and deletes from the picked snapshot
+      // copy adds from the picked snapshot
       SnapshotFileChanges changes =
           SnapshotFileChanges.builder(cherrypickSnapshot, io, specsById).build();
       this.replacedPartitions = PartitionSet.create(specsById);

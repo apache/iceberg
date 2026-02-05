@@ -258,25 +258,26 @@ public class TestSnapshotUtil {
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .build();
-    
+
     table.newFastAppend().appendFile(addedFile).commit();
     Snapshot snapshotWithAddedFile = table.currentSnapshot();
-    
+
     // Test the utility method with table
-    Iterable<DataFile> filesFromTableUtil = SnapshotUtil.addedDataFiles(table, snapshotWithAddedFile);
+    Iterable<DataFile> filesFromTableUtil =
+        SnapshotUtil.addedDataFiles(table, snapshotWithAddedFile);
     assertThat(filesFromTableUtil).hasSize(1);
-    
+
     // Test the utility method with explicit parameters
-    Iterable<DataFile> filesFromExplicitParams = 
+    Iterable<DataFile> filesFromExplicitParams =
         SnapshotUtil.addedDataFiles(snapshotWithAddedFile, table.io(), table.specs());
     assertThat(filesFromExplicitParams).hasSize(1);
-    
+
     // Test using SnapshotFileChanges object directly (for caching)
     SnapshotFileChanges changes =
         SnapshotFileChanges.builder(snapshotWithAddedFile, table.io(), table.specs()).build();
     Iterable<DataFile> filesFromChanges = changes.addedDataFiles();
     assertThat(filesFromChanges).hasSize(1);
-    
+
     // Verify the file path matches
     DataFile resultFile = filesFromTableUtil.iterator().next();
     assertThat(resultFile.path().toString()).isEqualTo(addedFile.path().toString());
@@ -290,31 +291,32 @@ public class TestSnapshotUtil {
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .build();
-    
+
     DataFile fileToKeep =
         DataFiles.builder(SPEC)
             .withPath("/path/to/file-to-keep.parquet")
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .build();
-    
+
     // Add both files
     table.newAppend().appendFile(fileToRemove).appendFile(fileToKeep).commit();
-    
+
     // Remove one file
     table.newDelete().deleteFile(fileToRemove).commit();
-    
+
     Snapshot snapshotAfterDelete = table.currentSnapshot();
-    
+
     // Test the utility method with table
-    Iterable<DataFile> filesFromTableUtil = SnapshotUtil.removedDataFiles(table, snapshotAfterDelete);
+    Iterable<DataFile> filesFromTableUtil =
+        SnapshotUtil.removedDataFiles(table, snapshotAfterDelete);
     assertThat(filesFromTableUtil).hasSize(1);
-    
+
     // Test the utility method with explicit parameters
-    Iterable<DataFile> filesFromExplicitParams = 
+    Iterable<DataFile> filesFromExplicitParams =
         SnapshotUtil.removedDataFiles(snapshotAfterDelete, table.io(), table.specs());
     assertThat(filesFromExplicitParams).hasSize(1);
-    
+
     // Test using SnapshotFileChanges object directly (for caching multiple calls)
     SnapshotFileChanges changes =
         SnapshotFileChanges.builder(snapshotAfterDelete, table.io(), table.specs()).build();
@@ -323,7 +325,7 @@ public class TestSnapshotUtil {
     // Calling again should return cached results
     Iterable<DataFile> filesFromChangesSecondCall = changes.removedDataFiles();
     assertThat(filesFromChangesSecondCall).hasSize(1);
-    
+
     // Verify the file path matches
     DataFile resultFile = filesFromTableUtil.iterator().next();
     assertThat(resultFile.path().toString()).isEqualTo(fileToRemove.path().toString());
@@ -337,32 +339,32 @@ public class TestSnapshotUtil {
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .build();
-    
+
     DataFile secondFile =
         DataFiles.builder(SPEC)
             .withPath("/path/to/file2.parquet")
             .withFileSizeInBytes(20)
             .withRecordCount(2)
             .build();
-    
+
     // Add both files, then remove one
     table.newAppend().appendFile(firstFile).appendFile(secondFile).commit();
     table.newDelete().deleteFile(firstFile).commit();
-    
+
     Snapshot snapshotAfterDelete = table.currentSnapshot();
-    
+
     // Create a single SnapshotFileChanges object
     SnapshotFileChanges changes =
         SnapshotFileChanges.builder(snapshotAfterDelete, table.io(), table.specs()).build();
-    
+
     // First call should cache the data file changes
     Iterable<DataFile> firstCallResult = changes.removedDataFiles();
     assertThat(firstCallResult).hasSize(1);
-    
+
     // Second call should return the cached results
     Iterable<DataFile> secondCallResult = changes.removedDataFiles();
     assertThat(secondCallResult).hasSize(1);
-    
+
     // Both calls should return the same reference (cached)
     assertThat(firstCallResult).isSameAs(secondCallResult);
   }

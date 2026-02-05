@@ -123,6 +123,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -2267,7 +2268,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     Map<StructLike, List<DataFile>> filesByPartition =
-        Streams.stream(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshot))
+        Streams.stream(SnapshotUtil.addedDataFiles(table, snapshot))
             .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =

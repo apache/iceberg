@@ -1308,7 +1308,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     // remove the data file from the 'hr' partition to ensure it is not scanned
     DataFile dataFile =
         Iterables.getOnlyElement(
-            org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshot));
+            SnapshotUtil.addedDataFiles(table, snapshot));
     table.io().deleteFile(dataFile.location());
 
     // disable dynamic pruning and rely only on static predicate pushdown

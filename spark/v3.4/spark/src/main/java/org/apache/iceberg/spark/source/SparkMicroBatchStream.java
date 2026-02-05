@@ -500,7 +500,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
     // iterate through addedFiles iterator to find addedFilesCount.
     return addedFilesCount == -1
-        ? Iterables.size(org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshot))
+        ? Iterables.size(SnapshotUtil.addedDataFiles(table, snapshot))
         : addedFilesCount;
   }
 

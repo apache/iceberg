@@ -78,9 +78,7 @@ public class SnapshotFileChanges {
     return new Builder(snapshot, io, specsById);
   }
 
-  /**
-   * Returns all data files added to the table in this snapshot
-   */
+  /** Returns all data files added to the table in this snapshot */
   public Iterable<DataFile> addedDataFiles() {
     if (addedDataFiles == null) {
       cacheDataFileChanges();
@@ -88,9 +86,7 @@ public class SnapshotFileChanges {
     return addedDataFiles;
   }
 
-  /**
-   * Returns all data files removed from the table in this snapshot.
-   */
+  /** Returns all data files removed from the table in this snapshot. */
   public Iterable<DataFile> removedDataFiles() {
     if (removedDataFiles == null) {
       cacheDataFileChanges();
@@ -98,9 +94,7 @@ public class SnapshotFileChanges {
     return removedDataFiles;
   }
 
-  /**
-   * Returns all delete files added to the table in this snapshot.
-   */
+  /** Returns all delete files added to the table in this snapshot. */
   public Iterable<DeleteFile> addedDeleteFiles() {
     if (addedDeleteFiles == null) {
       cacheDeleteFileChanges();
@@ -108,9 +102,7 @@ public class SnapshotFileChanges {
     return addedDeleteFiles;
   }
 
-  /**
-   * Returns all delete files removed from the table in this snapshot.
-   */
+  /** Returns all delete files removed from the table in this snapshot. */
   public Iterable<DeleteFile> removedDeleteFiles() {
     if (removedDeleteFiles == null) {
       cacheDeleteFileChanges();

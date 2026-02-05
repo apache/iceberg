@@ -1306,9 +1306,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     assertThat(dataFilesCount).as("Must have 2 files before UPDATE").isEqualTo("2");
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
-    DataFile dataFile =
-        Iterables.getOnlyElement(
-            org.apache.iceberg.util.SnapshotUtil.addedDataFiles(table, snapshot));
+    DataFile dataFile = Iterables.getOnlyElement(SnapshotUtil.addedDataFiles(table, snapshot));
     table.io().deleteFile(dataFile.location());
 
     // disable dynamic pruning and rely only on static predicate pushdown
