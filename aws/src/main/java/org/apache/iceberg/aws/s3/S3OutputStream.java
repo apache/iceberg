@@ -515,4 +515,14 @@ class S3OutputStream extends PositionOutputStream {
       return digest != null;
     }
   }
+
+  // package private methods to test clearing of stating file list and multipart map
+
+  boolean isStagingFileListCleared() {
+    return stagingFiles.isEmpty();
+  }
+
+  boolean isMultiPartMapCleared() {
+    return multiPartMap.isEmpty();
+  }
 }
