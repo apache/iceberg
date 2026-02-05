@@ -26,7 +26,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotFileChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.util.SnapshotUtil;
 
 /** Event describing changes in an Iceberg table */
 @Internal
@@ -59,28 +58,33 @@ public class TableChange {
   TableChange(Snapshot snapshot, Table table) {
     SnapshotFileChanges changes =
         SnapshotFileChanges.builder(snapshot, table.io(), table.specs()).build();
-    
-    changes.addedDataFiles().forEach(
-        dataFile -> {
-          this.dataFileCount++;
-          this.dataFileSizeInBytes += dataFile.fileSizeInBytes();
-        });
 
-    changes.addedDeleteFiles().forEach(
-        deleteFile -> {
-          switch (deleteFile.content()) {
-            case POSITION_DELETES:
-              this.posDeleteFileCount++;
-              this.posDeleteRecordCount += deleteFile.recordCount();
-              break;
-            case EQUALITY_DELETES:
-              this.eqDeleteFileCount++;
-              this.eqDeleteRecordCount += deleteFile.recordCount();
-              break;
-            default:
-              throw new IllegalArgumentException("Unexpected delete file content: " + deleteFile);
-          }
-        });
+    changes
+        .addedDataFiles()
+        .forEach(
+            dataFile -> {
+              this.dataFileCount++;
+              this.dataFileSizeInBytes += dataFile.fileSizeInBytes();
+            });
+
+    changes
+        .addedDeleteFiles()
+        .forEach(
+            deleteFile -> {
+              switch (deleteFile.content()) {
+                case POSITION_DELETES:
+                  this.posDeleteFileCount++;
+                  this.posDeleteRecordCount += deleteFile.recordCount();
+                  break;
+                case EQUALITY_DELETES:
+                  this.eqDeleteFileCount++;
+                  this.eqDeleteRecordCount += deleteFile.recordCount();
+                  break;
+                default:
+                  throw new IllegalArgumentException(
+                      "Unexpected delete file content: " + deleteFile);
+              }
+            });
 
     this.commitCount = 1;
   }
