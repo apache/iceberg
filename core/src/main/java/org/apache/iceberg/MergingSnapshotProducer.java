@@ -1067,26 +1067,28 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     if (cachedNewDeleteManifests.isEmpty()) {
-      Map<String, List<DeleteFile>> duplicateDVs = Maps.newHashMap();
-      List<DeleteFile> validDVs = Lists.newArrayList();
       for (Map.Entry<String, List<DeleteFile>> entry : dvsByReferencedFile.entrySet()) {
         if (entry.getValue().size() > 1) {
-          duplicateDVs.put(entry.getKey(), entry.getValue());
-        } else {
-          validDVs.addAll(entry.getValue());
+          LOG.warn(
+              "Attempted to commit {} duplicate DVs for data file {} in table {}. "
+                  + "Merging duplicates, and original DVs will be orphaned.",
+              entry.getValue().size(),
+              entry.getKey(),
+              tableName);
         }
       }
 
-      List<DeleteFile> mergedDVs =
-          duplicateDVs.isEmpty()
-              ? ImmutableList.of()
-              : DVUtil.mergeDVsAndWrite(
-                  ops(), duplicateDVs, tableName, ThreadPools.getDeleteWorkerPool());
+      List<DeleteFile> finalDVs =
+          DVUtil.mergeAndWriteDVsIfRequired(
+              dvsByReferencedFile,
+              ThreadPools.getDeleteWorkerPool(),
+              ops().locationProvider(),
+              ops().encryption(),
+              ops().io(),
+              ops().current().specsById());
       // Prevent commiting duplicate V2 deletes by deduping them
       Map<Integer, List<DeleteFile>> newDeleteFilesBySpec =
-          Streams.stream(
-                  Iterables.concat(
-                      mergedDVs, validDVs, DeleteFileSet.of(positionAndEqualityDeletes)))
+          Streams.stream(Iterables.concat(finalDVs, DeleteFileSet.of(positionAndEqualityDeletes)))
               .map(file -> Delegates.pendingDeleteFile(file, file.dataSequenceNumber()))
               .collect(Collectors.groupingBy(ContentFile::specId));
       newDeleteFilesBySpec.forEach(
