@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 
@@ -274,13 +275,12 @@ public interface IndexMetadata extends Serializable {
 
   /** Builder for IndexMetadata. */
   class Builder {
-    private static final int LAST_ADDED = -1;
     private final List<IndexVersion> versions;
     private final List<IndexHistoryEntry> history;
     private final List<IndexSnapshot> snapshots;
     private final List<IndexUpdate> changes;
     private int formatVersion = DEFAULT_INDEX_FORMAT_VERSION;
-    private int currentVersionId;
+    private int currentVersionId = 0;
     private String location;
     private String uuid;
     private String metadataLocation;
@@ -289,24 +289,25 @@ public interface IndexMetadata extends Serializable {
     private List<Integer> optimizedColumnIds;
 
     // internal change tracking
-    private Integer lastAddedVersionId = null;
-    private Integer lastSeenExistingVersionId = null;
+    private final Map<Integer, IndexVersion> newVersionsByUserVersionId = Maps.newHashMap();
+    private final List<IndexVersion> newVersions = Lists.newArrayList();
+    private final Map<Long, IndexSnapshot> newSnapshotsByTableSnapshotId = Maps.newHashMap();
     private IndexHistoryEntry historyEntry = null;
 
     // indexes
     private final Map<Integer, IndexVersion> versionsById;
-    private final Map<Long, IndexSnapshot> snapshotsById;
+    private final Map<Long, IndexSnapshot> snapshotsByTableSnapshotId;
 
     private Builder() {
       this.versions = Lists.newArrayList();
       this.versionsById = Maps.newHashMap();
       this.history = Lists.newArrayList();
       this.snapshots = Lists.newArrayList();
-      this.snapshotsById = Maps.newHashMap();
+      this.snapshotsByTableSnapshotId = Maps.newHashMap();
       this.changes = Lists.newArrayList();
       this.indexColumnIds = ImmutableList.of();
       this.optimizedColumnIds = ImmutableList.of();
-      this.uuid = null;
+      this.uuid = UUID.randomUUID().toString();
     }
 
     private Builder(IndexMetadata base) {
@@ -314,7 +315,7 @@ public interface IndexMetadata extends Serializable {
       this.versionsById = Maps.newHashMap(base.versionsById());
       this.history = Lists.newArrayList(base.history());
       this.snapshots = Lists.newArrayList(base.snapshots());
-      this.snapshotsById = Maps.newHashMap(base.snapshotsById());
+      this.snapshotsByTableSnapshotId = Maps.newHashMap(base.snapshotsByTableSnapshotId());
       this.changes = Lists.newArrayList();
       this.formatVersion = base.formatVersion();
       this.currentVersionId = base.currentVersionId();
@@ -352,22 +353,6 @@ public interface IndexMetadata extends Serializable {
       return this;
     }
 
-    public Builder setMetadataLocation(String newMetadataLocation) {
-      this.metadataLocation = newMetadataLocation;
-      return this;
-    }
-
-    public Builder assignUUID(String newUuid) {
-      Preconditions.checkArgument(newUuid != null, "Cannot set uuid to null");
-
-      if (!newUuid.equals(uuid)) {
-        this.uuid = newUuid;
-        changes.add(new IndexUpdate.AssignUUID(newUuid));
-      }
-
-      return this;
-    }
-
     public Builder setType(IndexType newType) {
       Preconditions.checkArgument(null != newType, "Invalid index type: null");
       this.type = newType;
@@ -387,155 +372,98 @@ public interface IndexMetadata extends Serializable {
       return this;
     }
 
-    public Builder setCurrentVersionId(int newVersionId) {
-      if (newVersionId == LAST_ADDED) {
-        Preconditions.checkState(
-            lastAddedVersionId != null || lastSeenExistingVersionId != null,
-            "Cannot set last version id: no current version id has been set");
-        return setCurrentVersionId(
-            null != lastAddedVersionId ? lastAddedVersionId : lastSeenExistingVersionId);
-      }
-
-      if (currentVersionId == newVersionId) {
-        return this;
-      }
-
-      IndexVersion version = versionsById.get(newVersionId);
-      Preconditions.checkArgument(
-          version != null, "Cannot set current version to unknown version: %s", newVersionId);
-
-      this.currentVersionId = newVersionId;
-
-      if (lastAddedVersionId != null && lastAddedVersionId == newVersionId) {
-        changes.add(new IndexUpdate.SetCurrentVersion(LAST_ADDED));
-      } else {
-        changes.add(new IndexUpdate.SetCurrentVersion(newVersionId));
-      }
-
-      // Use the timestamp from the index version if it was added in current set of changes.
-      // Otherwise, use the current system time. This handles cases where the index version
-      // was set as current in the past and is being re-activated.
-      boolean versionAddedInThisChange =
-          changes(IndexUpdate.AddVersion.class)
-              .anyMatch(added -> added.indexVersion().versionId() == newVersionId);
-
-      this.historyEntry =
-          ImmutableIndexHistoryEntry.builder()
-              .timestampMillis(
-                  versionAddedInThisChange ? version.timestampMillis() : System.currentTimeMillis())
-              .versionId(version.versionId())
-              .build();
-
-      return this;
-    }
-
     public Builder setCurrentVersion(IndexVersion version) {
-      return setCurrentVersionId(addVersionInternal(version));
-    }
+      Preconditions.checkArgument(version != null, "Invalid index version: null");
+      IndexVersion newVersion = findSameVersion(version);
+      IndexHistoryEntry entry;
+      if (newVersion == null) {
+        Preconditions.checkArgument(
+            !newVersionsByUserVersionId.containsKey(version.versionId()),
+            "Invalid index version id. Version %s already added to the index with different properties: %s.",
+            version.versionId(),
+            newVersionsByUserVersionId.get(version.versionId()));
 
-    public Builder addVersion(IndexVersion version) {
-      addVersionInternal(version);
-      return this;
-    }
-
-    private int addVersionInternal(IndexVersion newVersion) {
-      int newVersionId = reuseOrCreateNewVersionId(newVersion);
-      IndexVersion version = newVersion;
-      if (newVersionId != version.versionId()) {
-        version = ImmutableIndexVersion.builder().from(version).versionId(newVersionId).build();
-      }
-
-      if (versionsById.containsKey(newVersionId)) {
-        boolean addedInBuilder =
-            changes(IndexUpdate.AddVersion.class)
-                .anyMatch(added -> added.indexVersion().versionId() == newVersionId);
-        this.lastAddedVersionId = addedInBuilder ? newVersionId : null;
-        this.lastSeenExistingVersionId = newVersionId;
-        return newVersionId;
-      }
-
-      versions.add(version);
-      versionsById.put(version.versionId(), version);
-
-      changes.add(new IndexUpdate.AddVersion(version));
-
-      this.lastAddedVersionId = newVersionId;
-
-      return newVersionId;
-    }
-
-    private int reuseOrCreateNewVersionId(IndexVersion indexVersion) {
-      // if the index version already exists, use its id; otherwise use the highest id + 1
-      int newVersionId = indexVersion.versionId();
-      for (IndexVersion version : versions) {
-        if (sameIndexVersion(version, indexVersion)) {
-          return version.versionId();
-        } else if (version.versionId() >= newVersionId) {
-          newVersionId = version.versionId() + 1;
+        int newVersionId = findNewVersionId();
+        if (newVersionId != version.versionId()) {
+          // We need to generate a new version id
+          newVersion =
+              ImmutableIndexVersion.builder().from(version).versionId(findNewVersionId()).build();
+        } else {
+          newVersion = version;
         }
+
+        newVersionsByUserVersionId.put(version.versionId(), newVersion);
+        newVersions.add(newVersion);
+        entry =
+            ImmutableIndexHistoryEntry.builder()
+                .versionId(newVersion.versionId())
+                .timestampMillis(newVersion.timestampMillis())
+                .build();
+      } else {
+        entry =
+            ImmutableIndexHistoryEntry.builder()
+                .versionId(newVersion.versionId())
+                .timestampMillis(System.currentTimeMillis())
+                .build();
       }
 
-      return newVersionId;
-    }
+      if (currentVersionId != newVersion.versionId()) {
+        this.currentVersionId = newVersion.versionId();
+        this.historyEntry = entry;
+      }
 
-    /**
-     * Checks whether the given view versions would behave the same while ignoring the view version
-     * id, the creation timestamp, and the operation.
-     *
-     * @param one the view version to compare
-     * @param two the view version to compare
-     * @return true if the given view versions would behave the same
-     */
-    private boolean sameIndexVersion(IndexVersion one, IndexVersion two) {
-      return Objects.equals(one.properties(), two.properties());
+      changes.add(new IndexUpdate.SetCurrentVersion(version));
+      return this;
     }
 
     public Builder addSnapshot(IndexSnapshot snapshot) {
       Preconditions.checkArgument(
-          !snapshotsById.containsKey(snapshot.indexSnapshotId()),
-          "Cannot add snapshot with duplicate id: %s",
-          snapshot.indexSnapshotId());
+          !snapshotsByTableSnapshotId.containsKey(snapshot.tableSnapshotId())
+              && !newSnapshotsByTableSnapshotId.containsKey(snapshot.tableSnapshotId()),
+          "Invalid table snapshot id. Snapshot for table snapshot %s already added to the index.",
+          snapshot.tableSnapshotId());
+      Preconditions.checkArgument(
+          versionsById.containsKey(snapshot.versionId())
+              || newVersionsByUserVersionId.containsKey(snapshot.versionId()),
+          "Invalid index version id. Cannot add snapshot with unknown version id: %s",
+          snapshot.versionId());
 
       IndexSnapshot newSnapshot = snapshot;
-      if (snapshot.versionId() == LAST_ADDED) {
-        Preconditions.checkState(
-            lastAddedVersionId != null,
-            "Cannot add snapshot with last added version id: no version has been added");
+      IndexVersion newVersion = newVersionsByUserVersionId.get(snapshot.versionId());
+      if (newVersion != null && newVersion.versionId() != snapshot.versionId()) {
         newSnapshot =
-            ImmutableIndexSnapshot.builder().from(snapshot).versionId(lastAddedVersionId).build();
+            ImmutableIndexSnapshot.builder()
+                .from(snapshot)
+                .versionId(newVersion.versionId())
+                .build();
       }
 
-      snapshots.add(newSnapshot);
-      snapshotsById.put(snapshot.indexSnapshotId(), newSnapshot);
-      if (lastAddedVersionId == null || snapshot.versionId() != lastAddedVersionId) {
-        changes.add(new IndexUpdate.AddSnapshot(snapshot));
-      } else {
-        changes.add(
-            new IndexUpdate.AddSnapshot(
-                ImmutableIndexSnapshot.builder().from(snapshot).versionId(LAST_ADDED).build()));
-      }
+      newSnapshotsByTableSnapshotId.put(newSnapshot.tableSnapshotId(), newSnapshot);
 
+      changes.add(new IndexUpdate.AddSnapshot(snapshot));
       return this;
     }
 
     public Builder removeSnapshots(Set<Long> indexSnapshotIdsToRemove) {
       Preconditions.checkArgument(
           indexSnapshotIdsToRemove != null && !indexSnapshotIdsToRemove.isEmpty(),
-          "Cannot remove snapshots: snapshot IDs to remove cannot be null or empty");
+          "Invalid snapshot id set to remove: %s",
+          snapshots);
 
-      List<IndexSnapshot> snapshotsToRemove = Lists.newArrayList();
-      for (Long snapshotId : indexSnapshotIdsToRemove) {
-        IndexSnapshot snapshot = snapshotsById.get(snapshotId);
-        if (snapshot != null) {
-          snapshotsToRemove.add(snapshot);
-          snapshotsById.remove(snapshotId);
-        }
-      }
+      Set<Long> existingSnapshotsIdsToRemove = Sets.newHashSet(indexSnapshotIdsToRemove);
+      existingSnapshotsIdsToRemove.retainAll(
+          snapshotsByTableSnapshotId.values().stream()
+              .map(IndexSnapshot::indexSnapshotId)
+              .collect(Collectors.toSet()));
 
-      snapshots.removeAll(snapshotsToRemove);
-
-      if (!snapshotsToRemove.isEmpty()) {
-        changes.add(new IndexUpdate.RemoveSnapshots(indexSnapshotIdsToRemove));
+      if (!existingSnapshotsIdsToRemove.isEmpty()) {
+        snapshotsByTableSnapshotId
+            .entrySet()
+            .removeIf(
+                entry -> existingSnapshotsIdsToRemove.contains(entry.getValue().indexSnapshotId()));
+        snapshots.removeIf(
+            snapshot -> existingSnapshotsIdsToRemove.contains(snapshot.indexSnapshotId()));
+        changes.add(new IndexUpdate.RemoveSnapshots(existingSnapshotsIdsToRemove));
       }
 
       return this;
@@ -543,7 +471,8 @@ public interface IndexMetadata extends Serializable {
 
     public IndexMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
-      Preconditions.checkArgument(!versions.isEmpty(), "Invalid index: no versions were added");
+      Preconditions.checkArgument(
+          !versions.isEmpty() || !newVersions.isEmpty(), "Invalid index: no versions were added");
       Preconditions.checkArgument(null != type, "Invalid index type: null");
       Preconditions.checkArgument(!indexColumnIds.isEmpty(), "Index column IDs cannot be empty");
       Preconditions.checkArgument(
@@ -555,6 +484,10 @@ public interface IndexMetadata extends Serializable {
       Preconditions.checkArgument(
           metadataLocation == null || changes.isEmpty(),
           "Cannot create index metadata with a metadata location and changes");
+
+      versions.addAll(newVersions);
+      newVersions.forEach(version -> versionsById.put(version.versionId(), version));
+      snapshots.addAll(newSnapshotsByTableSnapshotId.values());
 
       if (null != historyEntry) {
         history.add(historyEntry);
@@ -578,7 +511,7 @@ public interface IndexMetadata extends Serializable {
       int numVersions =
           ImmutableSet.builder()
               .addAll(
-                  changes(IndexUpdate.AddVersion.class)
+                  changes(IndexUpdate.SetCurrentVersion.class)
                       .map(v -> v.indexVersion().versionId())
                       .collect(Collectors.toSet()))
               .add(currentVersionId)
@@ -612,6 +545,49 @@ public interface IndexMetadata extends Serializable {
           snapshots,
           changes,
           metadataLocation);
+    }
+
+    /**
+     * Checks whether the given view versions would behave the same while ignoring the view version
+     * id, the creation timestamp, and the operation.
+     *
+     * @param one the view version to compare
+     * @param two the view version to compare
+     * @return true if the given view versions would behave the same
+     */
+    private boolean sameIndexVersion(IndexVersion one, IndexVersion two) {
+      return Objects.equals(one.properties(), two.properties())
+          || (one.properties() == null && two.properties().isEmpty())
+          || (two.properties() == null && one.properties().isEmpty());
+    }
+
+    private IndexVersion findSameVersion(IndexVersion indexVersion) {
+      return versions.stream()
+          .filter(version -> sameIndexVersion(version, indexVersion))
+          .findAny()
+          .orElseGet(
+              () ->
+                  newVersionsByUserVersionId.values().stream()
+                      .filter(version -> sameIndexVersion(version, indexVersion))
+                      .findAny()
+                      .orElse(null));
+    }
+
+    private int findNewVersionId() {
+      int newVersionId = 1;
+      for (IndexVersion v : versions) {
+        if (v.versionId() >= newVersionId) {
+          newVersionId = v.versionId() + 1;
+        }
+      }
+
+      for (IndexVersion v : newVersionsByUserVersionId.values()) {
+        if (v.versionId() >= newVersionId) {
+          newVersionId = v.versionId() + 1;
+        }
+      }
+
+      return newVersionId;
     }
 
     @VisibleForTesting

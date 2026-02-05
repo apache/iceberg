@@ -478,12 +478,23 @@ class IndexUpdate(BaseModel):
     """
 
     action: Literal[
+        'update-format-version',
         'add-snapshot',
         'remove-snapshots',
         'set-current-version',
-        'add-version',
         'set-location',
     ] = Field(..., description='The type of update')
+
+
+class UpgradeIndexFormatVersionUpdate(IndexUpdate):
+    action: Literal[
+        'update-format-version',
+        'add-snapshot',
+        'remove-snapshots',
+        'set-current-version',
+        'set-location',
+    ] = Field('upgrade-format-version', const=True, description='The type of update')
+    format_version: int = Field(..., alias='format-version')
 
 
 class AddIndexSnapshotUpdate(IndexUpdate):
@@ -495,10 +506,6 @@ class RemoveIndexSnapshotsUpdate(IndexUpdate):
 
 
 class SetIndexCurrentVersionUpdate(IndexUpdate):
-    version_id: int = Field(..., alias='version-id')
-
-
-class AddIndexVersionUpdate(IndexUpdate):
     version: IndexVersion
 
 
@@ -587,10 +594,10 @@ class CommitIndexRequest(BaseModel):
     )
     updates: (
         list[
-            AddIndexSnapshotUpdate
+            UpgradeIndexFormatVersionUpdate
+            | AddIndexSnapshotUpdate
             | RemoveIndexSnapshotsUpdate
             | SetIndexCurrentVersionUpdate
-            | AddIndexVersionUpdate
             | SetIndexLocationUpdate
         ]
         | None

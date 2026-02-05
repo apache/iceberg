@@ -3428,7 +3428,6 @@ components:
             - add-snapshot
             - remove-snapshots
             - set-current-version
-            - add-version
             - set-location
           description: The type of update
       discriminator:
@@ -3438,7 +3437,6 @@ components:
           add-snapshot: '#/components/schemas/AddIndexSnapshotUpdate'
           remove-snapshots: '#/components/schemas/RemoveIndexSnapshotsUpdate'
           set-current-version: '#/components/schemas/SetIndexCurrentVersionUpdate'
-          add-version: '#/components/schemas/AddIndexVersionUpdate'
           set-location: '#/components/schemas/SetIndexLocationUpdate'
 
     UpgradeIndexFormatVersionUpdate:
@@ -3478,16 +3476,6 @@ components:
                 format: int64
 
     SetIndexCurrentVersionUpdate:
-      allOf:
-        - $ref: '#/components/schemas/IndexUpdate'
-        - type: object
-          required:
-            - version-id
-          properties:
-            version-id:
-              type: integer
-
-    AddIndexVersionUpdate:
       allOf:
         - $ref: '#/components/schemas/IndexUpdate'
         - type: object

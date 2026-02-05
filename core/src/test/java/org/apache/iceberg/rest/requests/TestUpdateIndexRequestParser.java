@@ -23,12 +23,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.index.ImmutableIndexVersion;
 import org.apache.iceberg.index.IndexRequirement;
 import org.apache.iceberg.index.IndexUpdate;
+import org.apache.iceberg.index.IndexVersion;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
 
 public class TestUpdateIndexRequestParser {
+
+  private static final IndexVersion TEST_INDEX_VERSION =
+      ImmutableIndexVersion.builder().versionId(23).timestampMillis(12345L).build();
 
   @Test
   public void nullAndEmptyCheck() {
@@ -138,17 +143,17 @@ public class TestUpdateIndexRequestParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse index update. Missing field: action");
 
-    String missingAssignUuid =
+    String missingVersion =
         """
         {
           "identifier": {"namespace": ["ns1"], "name": "index1"},
           "requirements": [],
-          "updates": [{"action": "assign-uuid"}]
+          "updates": [{"action": "set-current-version"}]
         }"""
             .replaceAll("\\s+", "");
-    assertThatThrownBy(() -> UpdateIndexRequestParser.fromJson(missingAssignUuid))
+    assertThatThrownBy(() -> UpdateIndexRequestParser.fromJson(missingVersion))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: uuid");
+        .hasMessage("Cannot parse missing field: version");
   }
 
   @Test
@@ -160,8 +165,7 @@ public class TestUpdateIndexRequestParser {
             ImmutableList.of(
                 new IndexRequirement.AssertIndexUUID(uuid),
                 new IndexRequirement.AssertIndexDoesNotExist()),
-            ImmutableList.of(
-                new IndexUpdate.AssignUUID(uuid), new IndexUpdate.SetCurrentVersion(23)));
+            ImmutableList.of(new IndexUpdate.SetCurrentVersion(TEST_INDEX_VERSION)));
 
     String expectedJson =
         """
@@ -181,12 +185,11 @@ public class TestUpdateIndexRequestParser {
           ],
           "updates": [
             {
-              "action": "assign-uuid",
-              "uuid": "2cc52516-5e73-41f2-b139-545d41a4e151"
-            },
-            {
               "action": "set-current-version",
-              "version-id": 23
+              "version": {
+                "version-id":23,
+                "timestamp-ms":12345
+              }
             }
           ]
         }"""
@@ -209,8 +212,7 @@ public class TestUpdateIndexRequestParser {
             ImmutableList.of(
                 new IndexRequirement.AssertIndexUUID(uuid),
                 new IndexRequirement.AssertIndexDoesNotExist()),
-            ImmutableList.of(
-                new IndexUpdate.AssignUUID(uuid), new IndexUpdate.SetCurrentVersion(23)));
+            ImmutableList.of(new IndexUpdate.SetCurrentVersion(TEST_INDEX_VERSION)));
 
     String expectedJson =
         """
@@ -226,12 +228,11 @@ public class TestUpdateIndexRequestParser {
           ],
           "updates": [
             {
-              "action": "assign-uuid",
-              "uuid": "2cc52516-5e73-41f2-b139-545d41a4e151"
-            },
-            {
               "action": "set-current-version",
-              "version-id": 23
+              "version": {
+                "version-id":23,
+                "timestamp-ms":12345
+              }
             }
           ]
         }"""

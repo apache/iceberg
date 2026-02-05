@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -32,25 +31,19 @@ import org.junit.jupiter.api.Test;
 
 public class TestIndexMetadata {
 
-  private static final List<Integer> INDEX_COLUMN_IDS = ImmutableList.of(1);
-  private static final List<Integer> OPTIMIZED_COLUMN_IDS = ImmutableList.of(1);
-
   private IndexVersion newIndexVersion(int id) {
     return newIndexVersion(id, System.currentTimeMillis());
   }
 
   private IndexVersion newIndexVersion(int id, long timestampMillis) {
+    return ImmutableIndexVersion.builder().versionId(id).timestampMillis(timestampMillis).build();
+  }
+
+  private IndexVersion newIndexVersion(
+      int id, long timestampMillis, Map<String, String> properties) {
     return ImmutableIndexVersion.builder()
         .versionId(id)
         .timestampMillis(timestampMillis)
-        .properties(ImmutableMap.of())
-        .build();
-  }
-
-  private IndexVersion newIndexVersion(int id, Map<String, String> properties) {
-    return ImmutableIndexVersion.builder()
-        .versionId(id)
-        .timestampMillis(System.currentTimeMillis())
         .properties(properties)
         .build();
   }
@@ -119,15 +112,6 @@ public class TestIndexMetadata {
     assertThatThrownBy(() -> IndexMetadata.builder().setLocation("location").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid index: no versions were added");
-
-    assertThatThrownBy(
-            () -> IndexMetadata.builder().setLocation("location").setCurrentVersionId(1).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot set current version to unknown version: 1");
-
-    assertThatThrownBy(() -> IndexMetadata.builder().assignUUID(null).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot set uuid to null");
   }
 
   @Test
@@ -138,15 +122,9 @@ public class TestIndexMetadata {
                     .upgradeFormatVersion(23)
                     .setLocation("location")
                     .setType(IndexType.BTREE)
-                    .setIndexColumnIds(INDEX_COLUMN_IDS)
-                    .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-                    .addVersion(
-                        ImmutableIndexVersion.builder()
-                            .versionId(1)
-                            .timestampMillis(23L)
-                            .properties(ImmutableMap.of())
-                            .build())
-                    .setCurrentVersionId(1)
+                    .setIndexColumnIds(ImmutableList.of(1))
+                    .setOptimizedColumnIds(ImmutableList.of(1))
+                    .setCurrentVersion(newIndexVersion(1))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported format version: 23");
@@ -156,7 +134,10 @@ public class TestIndexMetadata {
                 IndexMetadata.builder()
                     .upgradeFormatVersion(0)
                     .setLocation("location")
-                    .setCurrentVersionId(1)
+                    .setType(IndexType.BTREE)
+                    .setIndexColumnIds(ImmutableList.of(1))
+                    .setOptimizedColumnIds(ImmutableList.of(1))
+                    .setCurrentVersion(newIndexVersion(1))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot downgrade v1 index to v0");
@@ -165,52 +146,30 @@ public class TestIndexMetadata {
   @Test
   public void emptyIndexVersion() {
     assertThatThrownBy(
-            () -> IndexMetadata.builder().setLocation("location").setCurrentVersionId(1).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot set current version to unknown version: 1");
-  }
-
-  @Test
-  public void invalidCurrentVersionId() {
-    assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
                     .setLocation("location")
                     .setType(IndexType.BTREE)
-                    .setIndexColumnIds(INDEX_COLUMN_IDS)
-                    .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-                    .addVersion(
-                        ImmutableIndexVersion.builder()
-                            .versionId(1)
-                            .timestampMillis(23L)
-                            .properties(ImmutableMap.of())
-                            .build())
-                    .setCurrentVersionId(23)
+                    .setIndexColumnIds(ImmutableList.of(1))
+                    .setOptimizedColumnIds(ImmutableList.of(1))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot set current version to unknown version: 23");
+        .hasMessage("Invalid index: no versions were added");
   }
 
   @Test
   public void invalidVersionHistorySizeToKeep() {
-    // Each version must have different properties to avoid deduplication
-    Map<String, String> props1 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "0", "v", "1");
-    Map<String, String> props2 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "0", "v", "2");
-    Map<String, String> props3 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "0", "v", "3");
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
+                    .upgradeFormatVersion(1)
                     .setLocation("location")
                     .setType(IndexType.BTREE)
-                    .setIndexColumnIds(INDEX_COLUMN_IDS)
-                    .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-                    .addVersion(newIndexVersion(1, props1))
-                    .addVersion(newIndexVersion(2, props2))
-                    .addVersion(newIndexVersion(3, props3))
-                    .setCurrentVersionId(3)
+                    .setIndexColumnIds(ImmutableList.of(1))
+                    .setOptimizedColumnIds(ImmutableList.of(1))
+                    .setCurrentVersion(
+                        newIndexVersion(
+                            1, 1000L, ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "0")))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("version.history.num-entries must be positive but was 0");
@@ -219,26 +178,26 @@ public class TestIndexMetadata {
   @Test
   public void indexVersionHistoryNormalization() {
     // Each version must have different properties to avoid deduplication
-    Map<String, String> properties1 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "1");
-    Map<String, String> properties2 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "2");
-    Map<String, String> properties3 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "3");
-    IndexVersion indexVersionOne = newIndexVersion(1, properties1);
-    IndexVersion indexVersionTwo = newIndexVersion(2, properties2);
-    IndexVersion indexVersionThree = newIndexVersion(3, properties3);
+    IndexVersion indexVersionOne =
+        newIndexVersion(
+            1, 1000L, ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "1"));
+    IndexVersion indexVersionTwo =
+        newIndexVersion(
+            2, 2000L, ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "2"));
+    IndexVersion indexVersionThree =
+        newIndexVersion(
+            3, 3000L, ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "3"));
 
     IndexMetadata originalIndexMetadata =
         IndexMetadata.builder()
+            .upgradeFormatVersion(1)
             .setLocation("location")
             .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersionOne)
-            .addVersion(indexVersionTwo)
-            .addVersion(indexVersionThree)
-            .setCurrentVersionId(3)
+            .setIndexColumnIds(ImmutableList.of(1))
+            .setOptimizedColumnIds(ImmutableList.of(1))
+            .setCurrentVersion(indexVersionOne)
+            .setCurrentVersion(indexVersionTwo)
+            .setCurrentVersion(indexVersionThree)
             .build();
 
     // the first build will not expire versions that were added in the builder
@@ -250,10 +209,9 @@ public class TestIndexMetadata {
     assertThat(indexMetadata.versions()).hasSize(2);
     assertThat(indexMetadata.history()).hasSize(1);
 
-    // make sure that metadata changes reflect the current state after the history was adjusted,
-    // meaning that the first index version shouldn't be included
+    // make sure that metadata changes reflect the current state after the history was adjusted
     List<IndexUpdate> changes = originalIndexMetadata.changes();
-    assertThat(changes).hasSize(5);
+    assertThat(changes).hasSize(4);
     assertThat(changes)
         .element(0)
         .isInstanceOf(IndexUpdate.SetLocation.class)
@@ -263,64 +221,59 @@ public class TestIndexMetadata {
 
     assertThat(changes)
         .element(1)
-        .isInstanceOf(IndexUpdate.AddVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
-        .extracting(IndexUpdate.AddVersion::indexVersion)
+        .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
+        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
         .isEqualTo(indexVersionOne);
 
     assertThat(changes)
         .element(2)
-        .isInstanceOf(IndexUpdate.AddVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
-        .extracting(IndexUpdate.AddVersion::indexVersion)
+        .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
+        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
         .isEqualTo(indexVersionTwo);
 
     assertThat(changes)
         .element(3)
-        .isInstanceOf(IndexUpdate.AddVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
-        .extracting(IndexUpdate.AddVersion::indexVersion)
-        .isEqualTo(indexVersionThree);
-
-    assertThat(changes)
-        .element(4)
         .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
-        .extracting(IndexUpdate.SetCurrentVersion::versionId)
-        .isEqualTo(-1);
+        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
+        .isEqualTo(indexVersionThree);
   }
 
   @Test
   public void indexVersionHistoryIsCorrectlyRetained() {
     // Each version must have different properties to avoid deduplication
-    Map<String, String> properties1 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "1");
-    Map<String, String> properties2 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "2");
-    Map<String, String> properties3 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "3");
-    IndexVersion indexVersionOne = newIndexVersion(1, properties1);
-    IndexVersion indexVersionTwo = newIndexVersion(2, properties2);
-    IndexVersion indexVersionThree = newIndexVersion(3, properties3);
+    IndexVersion indexVersionOne =
+        newIndexVersion(
+            1, 1000L, ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "1"));
+    IndexVersion indexVersionTwo =
+        newIndexVersion(
+            2, 2000L, ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "2"));
+    IndexVersion indexVersionThree =
+        newIndexVersion(
+            3, 3000L, ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "3"));
 
     IndexMetadata originalIndexMetadata =
         IndexMetadata.builder()
+            .upgradeFormatVersion(1)
             .setLocation("location")
             .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersionOne)
-            .addVersion(indexVersionTwo)
-            .addVersion(indexVersionThree)
-            .setCurrentVersionId(3)
+            .setIndexColumnIds(ImmutableList.of(1))
+            .setOptimizedColumnIds(ImmutableList.of(1))
+            .setCurrentVersion(indexVersionOne)
             .build();
+    originalIndexMetadata =
+        IndexMetadata.buildFrom(originalIndexMetadata).setCurrentVersion(indexVersionTwo).build();
+    originalIndexMetadata =
+        IndexMetadata.buildFrom(originalIndexMetadata).setCurrentVersion(indexVersionThree).build();
 
     assertThat(originalIndexMetadata.versions())
-        .hasSize(3)
-        .containsExactlyInAnyOrder(indexVersionOne, indexVersionTwo, indexVersionThree);
+        .hasSize(2)
+        .containsExactlyInAnyOrder(indexVersionTwo, indexVersionThree);
     assertThat(originalIndexMetadata.history())
-        .hasSize(1)
-        .first()
+        .hasSize(2)
+        .last()
         .extracting(IndexHistoryEntry::versionId)
         .isEqualTo(3);
 
@@ -331,90 +284,75 @@ public class TestIndexMetadata {
         // there is no requirement about the order of versions
         .containsExactlyInAnyOrder(indexVersionThree, indexVersionTwo);
     assertThat(indexMetadata.history())
-        .hasSize(1)
-        .first()
+        .hasSize(2)
+        .last()
         .extracting(IndexHistoryEntry::versionId)
         .isEqualTo(3);
 
-    IndexMetadata updated = IndexMetadata.buildFrom(indexMetadata).setCurrentVersionId(2).build();
+    IndexMetadata updated =
+        IndexMetadata.buildFrom(indexMetadata).setCurrentVersion(indexVersionTwo).build();
     assertThat(updated.versions())
         .hasSize(2)
         .containsExactlyInAnyOrder(indexVersionTwo, indexVersionThree);
     assertThat(updated.history())
-        .hasSize(2)
-        .element(0)
+        .hasSize(3)
+        .element(1)
         .extracting(IndexHistoryEntry::versionId)
         .isEqualTo(3);
-    assertThat(updated.history()).element(1).extracting(IndexHistoryEntry::versionId).isEqualTo(2);
+    assertThat(updated.history()).last().extracting(IndexHistoryEntry::versionId).isEqualTo(2);
 
-    IndexMetadata index = IndexMetadata.buildFrom(updated).setCurrentVersionId(3).build();
+    IndexMetadata index =
+        IndexMetadata.buildFrom(updated).setCurrentVersion(indexVersionThree).build();
     assertThat(index.versions())
         .hasSize(2)
         .containsExactlyInAnyOrder(indexVersionTwo, indexVersionThree);
     assertThat(index.history())
-        .hasSize(3)
-        .element(0)
+        .hasSize(4)
+        .element(1)
         .extracting(IndexHistoryEntry::versionId)
         .isEqualTo(3);
-    assertThat(index.history()).element(1).extracting(IndexHistoryEntry::versionId).isEqualTo(2);
-    assertThat(index.history()).element(2).extracting(IndexHistoryEntry::versionId).isEqualTo(3);
-
-    // indexVersionId 1 has been removed from versions, so this should fail
-    assertThatThrownBy(() -> IndexMetadata.buildFrom(index).setCurrentVersionId(1).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot set current version to unknown version: 1");
+    assertThat(index.history()).element(2).extracting(IndexHistoryEntry::versionId).isEqualTo(2);
+    assertThat(index.history()).last().extracting(IndexHistoryEntry::versionId).isEqualTo(3);
   }
 
   @Test
   public void versionHistoryEntryMaintainCorrectTimeline() {
     // Each version must have different properties to avoid deduplication
-    Map<String, String> props1 = ImmutableMap.of("v", "1");
-    Map<String, String> props2 = ImmutableMap.of("v", "2");
-    Map<String, String> props3 = ImmutableMap.of("v", "3");
-    IndexVersion indexVersionOne =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(1000)
-            .properties(props1)
-            .build();
-    IndexVersion indexVersionTwo =
-        ImmutableIndexVersion.builder()
-            .versionId(2)
-            .timestampMillis(2000)
-            .properties(props2)
-            .build();
-    IndexVersion indexVersionThree =
-        ImmutableIndexVersion.builder()
-            .versionId(3)
-            .timestampMillis(3000)
-            .properties(props3)
-            .build();
+    IndexVersion indexVersionOne = newIndexVersion(1, 1000, ImmutableMap.of("v", "1"));
+    IndexVersion indexVersionTwo = newIndexVersion(2, 2000, ImmutableMap.of("v", "2"));
+    IndexVersion indexVersionThree = newIndexVersion(3, 3000, ImmutableMap.of("v", "3"));
 
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
+            .upgradeFormatVersion(1)
             .setLocation("location")
             .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersionOne)
-            .addVersion(indexVersionTwo)
-            .setCurrentVersionId(1)
+            .setIndexColumnIds(ImmutableList.of(1))
+            .setOptimizedColumnIds(ImmutableList.of(1))
+            .setCurrentVersion(indexVersionOne)
             .build();
+
+    indexMetadata =
+        IndexMetadata.buildFrom(indexMetadata).setCurrentVersion(indexVersionTwo).build();
 
     // setting an existing index version as the new current should update the timestamp in the
     // history
-    IndexMetadata updated = IndexMetadata.buildFrom(indexMetadata).setCurrentVersionId(2).build();
+    IndexMetadata updated =
+        IndexMetadata.buildFrom(indexMetadata).setCurrentVersion(indexVersionOne).build();
 
     List<IndexHistoryEntry> history = updated.history();
     assertThat(history)
-        .hasSize(2)
+        .hasSize(3)
         .element(0)
         .isEqualTo(ImmutableIndexHistoryEntry.builder().versionId(1).timestampMillis(1000).build());
     assertThat(history)
         .element(1)
+        .isEqualTo(ImmutableIndexHistoryEntry.builder().versionId(2).timestampMillis(2000).build());
+    assertThat(history)
+        .element(2)
         .satisfies(
             v -> {
-              assertThat(v.versionId()).isEqualTo(2);
+              assertThat(v.versionId()).isEqualTo(1);
               assertThat(v.timestampMillis())
                   .isGreaterThan(3000)
                   .isLessThanOrEqualTo(System.currentTimeMillis());
@@ -422,27 +360,25 @@ public class TestIndexMetadata {
 
     // adding a new index version and setting it as current should use the index version's timestamp
     // in the history (which has been set to a fixed value for testing)
-    updated =
-        IndexMetadata.buildFrom(updated)
-            .addVersion(indexVersionThree)
-            .setCurrentVersionId(3)
-            .build();
+    updated = IndexMetadata.buildFrom(updated).setCurrentVersion(indexVersionThree).build();
     List<IndexHistoryEntry> historyTwo = updated.history();
     assertThat(historyTwo)
-        .hasSize(3)
-        .containsAll(history)
-        .element(2)
-        .isEqualTo(ImmutableIndexHistoryEntry.builder().versionId(3).timestampMillis(3000).build());
+        .hasSize(4)
+        .last()
+        .satisfies(
+            v -> {
+              assertThat(v.versionId()).isEqualTo(3);
+              assertThat(v.timestampMillis()).isEqualTo(3000);
+            });
 
     // setting an older index version as the new current (aka doing a rollback) should update the
     // timestamp in the history
     IndexMetadata reactiveOldIndexVersion =
-        IndexMetadata.buildFrom(updated).setCurrentVersionId(1).build();
+        IndexMetadata.buildFrom(updated).setCurrentVersion(indexVersionOne).build();
     List<IndexHistoryEntry> historyThree = reactiveOldIndexVersion.history();
     assertThat(historyThree)
-        .hasSize(4)
-        .containsAll(historyTwo)
-        .element(3)
+        .hasSize(5)
+        .last()
         .satisfies(
             v -> {
               assertThat(v.versionId()).isEqualTo(1);
@@ -453,74 +389,22 @@ public class TestIndexMetadata {
   }
 
   @Test
-  public void versionsAddedInCurrentBuildAreRetained() {
-    Map<String, String> propertiesV1 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "1");
-    Map<String, String> propertiesV2 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "2");
-    Map<String, String> propertiesV3 =
-        ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "2", "v", "3");
-    IndexVersion v1 = newIndexVersion(1, propertiesV1);
-    IndexVersion v2 = newIndexVersion(2, propertiesV2);
-    IndexVersion v3 = newIndexVersion(3, propertiesV3);
-
-    IndexMetadata metadata =
-        IndexMetadata.builder()
-            .setLocation("location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(v1)
-            .setCurrentVersionId(v1.versionId())
-            .build();
-    assertThat(metadata.versions()).containsOnly(v1);
-
-    // make sure all currently added versions are retained
-    IndexMetadata updated = IndexMetadata.buildFrom(metadata).addVersion(v2).addVersion(v3).build();
-    assertThat(updated.versions()).containsExactlyInAnyOrder(v1, v2, v3);
-
-    // rebuild the metadata to expire older versions
-    updated = IndexMetadata.buildFrom(updated).build();
-    assertThat(updated.versions()).containsExactlyInAnyOrder(v1, v3);
-  }
-
-  @Test
   public void indexMetadataAndMetadataChanges() {
     // Each version must have different properties to avoid deduplication
-    Map<String, String> props1 = ImmutableMap.of("v", "1");
-    Map<String, String> props2 = ImmutableMap.of("v", "2");
-    Map<String, String> props3 = ImmutableMap.of("v", "3");
-    IndexVersion indexVersionOne =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(System.currentTimeMillis())
-            .properties(props1)
-            .build();
-    IndexVersion indexVersionTwo =
-        ImmutableIndexVersion.builder()
-            .versionId(2)
-            .timestampMillis(System.currentTimeMillis())
-            .properties(props2)
-            .build();
-    IndexVersion indexVersionThree =
-        ImmutableIndexVersion.builder()
-            .versionId(3)
-            .timestampMillis(System.currentTimeMillis())
-            .properties(props3)
-            .build();
+    IndexVersion indexVersionOne = newIndexVersion(1, 1000L, ImmutableMap.of("key1", "prop1"));
+    IndexVersion indexVersionTwo = newIndexVersion(2, 2000L, ImmutableMap.of("key2", "prop2"));
+    IndexVersion indexVersionThree = newIndexVersion(3, 3000L, ImmutableMap.of("key3", "prop3"));
 
-    String uuid = "fa6506c3-7681-40c8-86dc-e36561f83385";
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
-            .assignUUID(uuid)
+            .upgradeFormatVersion(1)
             .setLocation("custom-location")
             .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersionOne)
-            .addVersion(indexVersionTwo)
-            .addVersion(indexVersionThree)
-            .setCurrentVersionId(3)
+            .setIndexColumnIds(ImmutableList.of(1, 2))
+            .setOptimizedColumnIds(ImmutableList.of(1))
+            .setCurrentVersion(indexVersionOne)
+            .setCurrentVersion(indexVersionTwo)
+            .setCurrentVersion(indexVersionThree)
             .build();
 
     assertThat(indexMetadata.versions())
@@ -530,164 +414,60 @@ public class TestIndexMetadata {
     assertThat(indexMetadata.currentVersionId()).isEqualTo(3);
     assertThat(indexMetadata.currentVersion()).isEqualTo(indexVersionThree);
     assertThat(indexMetadata.formatVersion()).isEqualTo(IndexMetadata.DEFAULT_INDEX_FORMAT_VERSION);
-    assertThat(indexMetadata.location()).isEqualTo("custom-location");
     assertThat(indexMetadata.type()).isEqualTo(IndexType.BTREE);
-    assertThat(indexMetadata.indexColumnIds()).isEqualTo(INDEX_COLUMN_IDS);
-    assertThat(indexMetadata.optimizedColumnIds()).isEqualTo(OPTIMIZED_COLUMN_IDS);
+    assertThat(indexMetadata.indexColumnIds()).isEqualTo(ImmutableList.of(1, 2));
+    assertThat(indexMetadata.optimizedColumnIds()).isEqualTo(ImmutableList.of(1));
+    assertThat(indexMetadata.location()).isEqualTo("custom-location");
 
     List<IndexUpdate> changes = indexMetadata.changes();
-    assertThat(changes).hasSize(6);
-    assertThat(changes)
-        .element(0)
-        .isInstanceOf(IndexUpdate.AssignUUID.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AssignUUID.class))
-        .extracting(IndexUpdate.AssignUUID::uuid)
-        .isEqualTo(uuid);
+    assertThat(changes).hasSize(4);
 
     assertThat(changes)
-        .element(1)
+        .element(0)
         .isInstanceOf(IndexUpdate.SetLocation.class)
         .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetLocation.class))
         .extracting(IndexUpdate.SetLocation::location)
         .isEqualTo("custom-location");
 
     assertThat(changes)
-        .element(2)
-        .isInstanceOf(IndexUpdate.AddVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
-        .extracting(IndexUpdate.AddVersion::indexVersion)
+        .element(1)
+        .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
+        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
         .isEqualTo(indexVersionOne);
 
     assertThat(changes)
-        .element(3)
-        .isInstanceOf(IndexUpdate.AddVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
-        .extracting(IndexUpdate.AddVersion::indexVersion)
+        .element(2)
+        .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
+        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
         .isEqualTo(indexVersionTwo);
 
     assertThat(changes)
-        .element(4)
-        .isInstanceOf(IndexUpdate.AddVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
-        .extracting(IndexUpdate.AddVersion::indexVersion)
-        .isEqualTo(indexVersionThree);
-
-    assertThat(changes)
-        .element(5)
+        .element(3)
         .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
-        .extracting(IndexUpdate.SetCurrentVersion::versionId)
-        .isEqualTo(-1);
-  }
-
-  @Test
-  public void uuidAssignment() {
-    String uuid = "fa6506c3-7681-40c8-86dc-e36561f83385";
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .assignUUID(uuid)
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(
-                ImmutableIndexVersion.builder()
-                    .versionId(1)
-                    .timestampMillis(23L)
-                    .properties(ImmutableMap.of())
-                    .build())
-            .setCurrentVersionId(1)
-            .build();
-
-    assertThat(indexMetadata.uuid()).isEqualTo(uuid);
-
-    // uuid should be carried over
-    IndexMetadata updated = IndexMetadata.buildFrom(indexMetadata).build();
-    assertThat(updated.uuid()).isEqualTo(uuid);
-    assertThat(updated.changes()).isEmpty();
-
-    // assigning the same uuid shouldn't fail and shouldn't cause any changes
-    updated = IndexMetadata.buildFrom(indexMetadata).assignUUID(uuid).build();
-    assertThat(updated.uuid()).isEqualTo(uuid);
-    assertThat(updated.changes()).isEmpty();
-
-    // assigning a new uuid shouldn't fail and generate the correct change
-    String newUuid = UUID.randomUUID().toString();
-    updated = IndexMetadata.buildFrom(indexMetadata).assignUUID(newUuid).build();
-    assertThat(updated.uuid()).isEqualTo(newUuid);
-    assertThat(updated.changes())
-        .hasSize(1)
-        .element(0)
-        .isInstanceOf(IndexUpdate.AssignUUID.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AssignUUID.class))
-        .extracting(IndexUpdate.AssignUUID::uuid)
-        .isEqualTo(newUuid);
-  }
-
-  @Test
-  public void indexMetadataWithMetadataLocation() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    assertThatThrownBy(
-            () ->
-                IndexMetadata.builder()
-                    .setLocation("custom-location")
-                    .setMetadataLocation("metadata-location")
-                    .setType(IndexType.BTREE)
-                    .setIndexColumnIds(INDEX_COLUMN_IDS)
-                    .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-                    .addVersion(indexVersion)
-                    .setCurrentVersionId(1)
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot create index metadata with a metadata location and changes");
-
-    // setting metadata location without changes is ok
-    IndexMetadata indexMetadata =
-        IndexMetadata.buildFrom(
-                IndexMetadata.builder()
-                    .setLocation("custom-location")
-                    .setType(IndexType.BTREE)
-                    .setIndexColumnIds(INDEX_COLUMN_IDS)
-                    .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-                    .addVersion(indexVersion)
-                    .setCurrentVersionId(1)
-                    .build())
-            .setMetadataLocation("metadata-location")
-            .build();
-    assertThat(indexMetadata.metadataFileLocation()).isEqualTo("metadata-location");
+        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
+        .isEqualTo(indexVersionThree);
   }
 
   @Test
   public void indexVersionIDReassignment() {
-    // all index versions have the same ID
-    IndexVersion indexVersionOne = newIndexVersion(1);
-    IndexVersion indexVersionTwo =
-        ImmutableIndexVersion.builder()
-            .from(indexVersionOne)
-            .properties(ImmutableMap.of("key", "value1"))
-            .build();
-    IndexVersion indexVersionThree =
-        ImmutableIndexVersion.builder()
-            .from(indexVersionOne)
-            .properties(ImmutableMap.of("key", "value2"))
-            .build();
+    // all index versions have the same ID but different properties so they won't be deduplicated
+    IndexVersion indexVersionOne = newIndexVersion(1000, 1000L, ImmutableMap.of("v", "1"));
+    IndexVersion indexVersionTwo = newIndexVersion(1001, 2000L, ImmutableMap.of("v", "2"));
+    IndexVersion indexVersionThree = newIndexVersion(1002, 3000L, ImmutableMap.of("v", "3"));
 
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
+            .upgradeFormatVersion(1)
             .setLocation("custom-location")
             .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersionOne)
-            .addVersion(indexVersionTwo)
-            .addVersion(indexVersionThree)
-            .setCurrentVersionId(3)
+            .setIndexColumnIds(ImmutableList.of(1))
+            .setOptimizedColumnIds(ImmutableList.of(1))
+            .setCurrentVersion(indexVersionOne)
+            .setCurrentVersion(indexVersionTwo)
+            .setCurrentVersion(indexVersionThree)
             .build();
 
     assertThat(indexMetadata.currentVersion())
@@ -697,7 +477,7 @@ public class TestIndexMetadata {
     assertThat(indexMetadata.versions())
         .hasSize(3)
         .containsExactly(
-            indexVersionOne,
+            ImmutableIndexVersion.builder().from(indexVersionOne).versionId(1).build(),
             ImmutableIndexVersion.builder().from(indexVersionTwo).versionId(2).build(),
             ImmutableIndexVersion.builder().from(indexVersionThree).versionId(3).build());
   }
@@ -706,37 +486,41 @@ public class TestIndexMetadata {
   public void indexVersionDeduplication() {
     // all index versions have the same ID
     // additionally, there are duplicate index versions that only differ in their creation timestamp
-    IndexVersion indexVersionOne = newIndexVersion(1);
-    IndexVersion indexVersionTwo =
-        ImmutableIndexVersion.builder()
-            .from(indexVersionOne)
-            .properties(ImmutableMap.of("key", "value1"))
-            .build();
-    IndexVersion indexVersionThree =
-        ImmutableIndexVersion.builder()
-            .from(indexVersionOne)
-            .properties(ImmutableMap.of("key", "value2"))
-            .build();
+    IndexVersion indexVersionOne = newIndexVersion(1, 1000L);
+    IndexVersion indexVersionTwo = newIndexVersion(2, 2000L, ImmutableMap.of("key", "value"));
+    IndexVersion indexVersionThree = newIndexVersion(3, 3000L, ImmutableMap.of("key2", "value2"));
     IndexVersion indexVersionOneUpdated =
-        ImmutableIndexVersion.builder().from(indexVersionOne).timestampMillis(1000).build();
+        ImmutableIndexVersion.builder()
+            .from(indexVersionOne)
+            .versionId(4)
+            .timestampMillis(4000)
+            .build();
     IndexVersion indexVersionTwoUpdated =
-        ImmutableIndexVersion.builder().from(indexVersionTwo).timestampMillis(100).build();
+        ImmutableIndexVersion.builder()
+            .from(indexVersionTwo)
+            .versionId(5)
+            .timestampMillis(5000)
+            .build();
     IndexVersion indexVersionThreeUpdated =
-        ImmutableIndexVersion.builder().from(indexVersionThree).timestampMillis(10).build();
+        ImmutableIndexVersion.builder()
+            .from(indexVersionThree)
+            .versionId(6)
+            .timestampMillis(6000)
+            .build();
 
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
+            .upgradeFormatVersion(1)
             .setLocation("custom-location")
             .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersionOne)
-            .addVersion(indexVersionTwo)
-            .addVersion(indexVersionThree)
-            .addVersion(indexVersionOneUpdated)
-            .addVersion(indexVersionTwoUpdated)
-            .addVersion(indexVersionThreeUpdated)
-            .setCurrentVersionId(3)
+            .setIndexColumnIds(ImmutableList.of(1))
+            .setOptimizedColumnIds(ImmutableList.of(1))
+            .setCurrentVersion(indexVersionOne)
+            .setCurrentVersion(indexVersionTwo)
+            .setCurrentVersion(indexVersionThree)
+            .setCurrentVersion(indexVersionOneUpdated)
+            .setCurrentVersion(indexVersionTwoUpdated)
+            .setCurrentVersion(indexVersionThreeUpdated)
             .build();
 
     assertThat(indexMetadata.currentVersion())
@@ -752,958 +536,202 @@ public class TestIndexMetadata {
   }
 
   @Test
-  public void addSnapshot() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshot =
+  public void snapshotsById() {
+    IndexVersion version = newIndexVersion(1, 1000L);
+    IndexSnapshot snapshot1 =
         ImmutableIndexSnapshot.builder()
             .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
+            .indexSnapshotId(200L)
+            .versionId(1)
+            .build();
+    IndexSnapshot snapshot2 =
+        ImmutableIndexSnapshot.builder()
+            .tableSnapshotId(101L)
+            .indexSnapshotId(201L)
             .versionId(1)
             .build();
 
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
+            .upgradeFormatVersion(1)
             .setLocation("custom-location")
             .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshot)
+            .setIndexColumnIds(ImmutableList.of(1))
+            .setOptimizedColumnIds(ImmutableList.of(1))
+            .setCurrentVersion(version)
+            .addSnapshot(snapshot1)
+            .addSnapshot(snapshot2)
             .build();
 
-    assertThat(indexMetadata.snapshots()).hasSize(1).containsExactly(snapshot);
-    assertThat(indexMetadata.snapshot(1L)).isEqualTo(snapshot);
-    assertThat(indexMetadata.snapshotForTableSnapshot(100L)).isEqualTo(snapshot);
+    assertThat(indexMetadata.snapshots()).hasSize(2).containsExactly(snapshot1, snapshot2);
+    assertThat(indexMetadata.snapshot(200L)).isEqualTo(snapshot1);
+    assertThat(indexMetadata.snapshot(201L)).isEqualTo(snapshot2);
+    assertThat(indexMetadata.snapshotForTableSnapshot(100L)).isEqualTo(snapshot1);
+    assertThat(indexMetadata.snapshotForTableSnapshot(101L)).isEqualTo(snapshot2);
   }
 
   @Test
-  public void addSnapshotAndConcurrentAddVersion() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshotOne =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshotOne)
-            .build();
-
-    IndexMetadata updateMetadata =
-        IndexMetadata.buildFrom(indexMetadata)
-            .addVersion(
-                ImmutableIndexVersion.builder()
-                    .versionId(2)
-                    .timestampMillis(45L)
-                    .properties(ImmutableMap.of("one", "two"))
-                    .build())
-            .setCurrentVersionId(2)
-            .build();
-
-    IndexSnapshot snapshotTwo =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(200L)
-            .indexSnapshotId(2L)
-            .versionId(2)
-            .build();
-
-    List<IndexUpdate> addSnapshotAndAddVersionUpdate =
-        IndexMetadata.buildFrom(indexMetadata)
-            .addVersion(
-                ImmutableIndexVersion.builder()
-                    .versionId(2)
-                    .timestampMillis(45L)
-                    .properties(ImmutableMap.of("three", "four"))
-                    .build())
-            .setCurrentVersionId(2)
-            .addSnapshot(snapshotTwo)
-            .build()
-            .changes();
-
-    IndexMetadata.Builder metadataBuilder = IndexMetadata.buildFrom(updateMetadata);
-    addSnapshotAndAddVersionUpdate.forEach(update -> update.applyTo(metadataBuilder));
-    IndexMetadata finalMetadata = metadataBuilder.build();
-
-    IndexSnapshot expectedSnapshot =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(200L)
-            .indexSnapshotId(2L)
-            .versionId(3)
-            .build();
-
-    assertThat(finalMetadata.snapshots()).hasSize(2).containsExactly(snapshotOne, expectedSnapshot);
-    assertThat(finalMetadata.snapshot(1L)).isEqualTo(snapshotOne);
-    assertThat(finalMetadata.snapshotForTableSnapshot(100L)).isEqualTo(snapshotOne);
-    assertThat(finalMetadata.snapshot(2L)).isEqualTo(expectedSnapshot);
-    assertThat(finalMetadata.snapshotForTableSnapshot(200L)).isEqualTo(expectedSnapshot);
-  }
-
-  @Test
-  public void addDuplicateSnapshot() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
+  public void addSnapshotWithUnknownVersionId() {
+    IndexVersion version = newIndexVersion(1, 1000L);
     IndexSnapshot snapshot =
         ImmutableIndexSnapshot.builder()
             .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
+            .indexSnapshotId(200L)
+            .versionId(999) // unknown version id
             .build();
 
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
+                    .upgradeFormatVersion(1)
                     .setLocation("custom-location")
                     .setType(IndexType.BTREE)
-                    .setIndexColumnIds(INDEX_COLUMN_IDS)
-                    .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-                    .addVersion(indexVersion)
-                    .setCurrentVersionId(1)
-                    .addSnapshot(snapshot)
+                    .setIndexColumnIds(ImmutableList.of(1))
+                    .setOptimizedColumnIds(ImmutableList.of(1))
+                    .setCurrentVersion(version)
                     .addSnapshot(snapshot)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot add snapshot with duplicate id: 1");
+        .hasMessage("Invalid index version id. Cannot add snapshot with unknown version id: 999");
   }
 
   @Test
-  public void missingIndexType() {
+  public void addDuplicateSnapshotForTableSnapshot() {
+    IndexVersion version = newIndexVersion(1, 1000L);
+    IndexSnapshot snapshot1 =
+        ImmutableIndexSnapshot.builder()
+            .tableSnapshotId(100L)
+            .indexSnapshotId(200L)
+            .versionId(1)
+            .build();
+    IndexSnapshot snapshot2 =
+        ImmutableIndexSnapshot.builder()
+            .tableSnapshotId(100L) // same table snapshot id
+            .indexSnapshotId(201L)
+            .versionId(1)
+            .build();
+
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
+                    .upgradeFormatVersion(1)
+                    .setLocation("custom-location")
+                    .setType(IndexType.BTREE)
+                    .setIndexColumnIds(ImmutableList.of(1))
+                    .setOptimizedColumnIds(ImmutableList.of(1))
+                    .setCurrentVersion(version)
+                    .addSnapshot(snapshot1)
+                    .addSnapshot(snapshot2)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid table snapshot id. Snapshot for table snapshot 100 already added to the index.");
+  }
+
+  @Test
+  public void removeSnapshots() {
+    IndexVersion version = newIndexVersion(1, 1000L);
+    IndexSnapshot snapshot1 =
+        ImmutableIndexSnapshot.builder()
+            .tableSnapshotId(100L)
+            .indexSnapshotId(200L)
+            .versionId(1)
+            .build();
+    IndexSnapshot snapshot2 =
+        ImmutableIndexSnapshot.builder()
+            .tableSnapshotId(101L)
+            .indexSnapshotId(201L)
+            .versionId(1)
+            .build();
+
+    IndexMetadata indexMetadata =
+        IndexMetadata.builder()
+            .upgradeFormatVersion(1)
+            .setLocation("custom-location")
+            .setType(IndexType.BTREE)
+            .setIndexColumnIds(ImmutableList.of(1))
+            .setOptimizedColumnIds(ImmutableList.of(1))
+            .setCurrentVersion(version)
+            .addSnapshot(snapshot1)
+            .addSnapshot(snapshot2)
+            .build();
+
+    assertThat(indexMetadata.snapshots()).hasSize(2);
+
+    IndexMetadata updated =
+        IndexMetadata.buildFrom(indexMetadata).removeSnapshots(ImmutableSet.of(200L)).build();
+    assertThat(updated.snapshots()).hasSize(1).containsExactly(snapshot2);
+  }
+
+  @Test
+  public void removeNonExistentSnapshots() {
+    IndexVersion version = newIndexVersion(1, 1000L);
+    IndexSnapshot snapshot =
+        ImmutableIndexSnapshot.builder()
+            .tableSnapshotId(100L)
+            .indexSnapshotId(200L)
+            .versionId(1)
+            .build();
+
+    IndexMetadata indexMetadata =
+        IndexMetadata.builder()
+            .upgradeFormatVersion(1)
+            .setLocation("custom-location")
+            .setType(IndexType.BTREE)
+            .setIndexColumnIds(ImmutableList.of(1))
+            .setOptimizedColumnIds(ImmutableList.of(1))
+            .setCurrentVersion(version)
+            .addSnapshot(snapshot)
+            .build();
+
+    indexMetadata =
+        IndexMetadata.buildFrom(indexMetadata).removeSnapshots(ImmutableSet.of(999L)).build();
+
+    assertThat(indexMetadata.snapshots()).hasSize(1).containsExactly(snapshot);
+  }
+
+  @Test
+  public void indexTypeIsRequired() {
+    assertThatThrownBy(
+            () ->
+                IndexMetadata.builder()
+                    .upgradeFormatVersion(1)
                     .setLocation("location")
-                    .setIndexColumnIds(INDEX_COLUMN_IDS)
-                    .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-                    .addVersion(
-                        ImmutableIndexVersion.builder()
-                            .versionId(1)
-                            .timestampMillis(23L)
-                            .properties(ImmutableMap.of())
-                            .build())
-                    .setCurrentVersionId(1)
+                    .setIndexColumnIds(ImmutableList.of(1))
+                    .setOptimizedColumnIds(ImmutableList.of(1))
+                    .setCurrentVersion(newIndexVersion(1))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid index type: null");
   }
 
   @Test
-  public void missingIndexColumnIds() {
+  public void indexColumnIdsAreRequired() {
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
+                    .upgradeFormatVersion(1)
                     .setLocation("location")
                     .setType(IndexType.BTREE)
-                    .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-                    .addVersion(
-                        ImmutableIndexVersion.builder()
-                            .versionId(1)
-                            .timestampMillis(23L)
-                            .properties(ImmutableMap.of())
-                            .build())
-                    .setCurrentVersionId(1)
+                    .setOptimizedColumnIds(ImmutableList.of(1))
+                    .setCurrentVersion(newIndexVersion(1))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Index column IDs cannot be empty");
   }
 
   @Test
-  public void missingOptimizedColumnIds() {
+  public void optimizedColumnIdsAreRequired() {
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
+                    .upgradeFormatVersion(1)
                     .setLocation("location")
                     .setType(IndexType.BTREE)
-                    .setIndexColumnIds(INDEX_COLUMN_IDS)
-                    .addVersion(
-                        ImmutableIndexVersion.builder()
-                            .versionId(1)
-                            .timestampMillis(23L)
-                            .properties(ImmutableMap.of())
-                            .build())
-                    .setCurrentVersionId(1)
+                    .setIndexColumnIds(ImmutableList.of(1))
+                    .setCurrentVersion(newIndexVersion(1))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Optimized column IDs cannot be empty");
-  }
-
-  @Test
-  public void updateIndexVersionProperties() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of("key1", "value1", "key2", "value2"))
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .build();
-
-    assertThat(indexMetadata.currentVersion().properties())
-        .containsEntry("key1", "value1")
-        .containsEntry("key2", "value2");
-
-    // Add a new version with updated properties
-    IndexVersion newVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(2)
-            .timestampMillis(100L)
-            .properties(ImmutableMap.of("key1", "updated1", "key3", "value3"))
-            .build();
-
-    IndexMetadata updated =
-        IndexMetadata.buildFrom(indexMetadata)
-            .addVersion(newVersion)
-            .setCurrentVersionId(2)
-            .build();
-
-    assertThat(updated.currentVersion().properties())
-        .containsEntry("key1", "updated1")
-        .containsEntry("key3", "value3")
-        .doesNotContainKey("key2");
-
-    assertThat(updated.versions()).hasSize(2);
-    assertThat(updated.history()).hasSize(2);
-  }
-
-  @Test
-  public void addMultipleSnapshots() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshot1 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshot2 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(200L)
-            .indexSnapshotId(2L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshot3 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(300L)
-            .indexSnapshotId(3L)
-            .versionId(1)
-            .properties(ImmutableMap.of("prop1", "val1"))
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshot1)
-            .addSnapshot(snapshot2)
-            .addSnapshot(snapshot3)
-            .build();
-
-    assertThat(indexMetadata.snapshots())
-        .hasSize(3)
-        .containsExactly(snapshot1, snapshot2, snapshot3);
-
-    // Verify lookup by index snapshot ID
-    assertThat(indexMetadata.snapshot(1L)).isEqualTo(snapshot1);
-    assertThat(indexMetadata.snapshot(2L)).isEqualTo(snapshot2);
-    assertThat(indexMetadata.snapshot(3L)).isEqualTo(snapshot3);
-    assertThat(indexMetadata.snapshot(999L)).isNull();
-
-    // Verify lookup by table snapshot ID
-    assertThat(indexMetadata.snapshotForTableSnapshot(100L)).isEqualTo(snapshot1);
-    assertThat(indexMetadata.snapshotForTableSnapshot(200L)).isEqualTo(snapshot2);
-    assertThat(indexMetadata.snapshotForTableSnapshot(300L)).isEqualTo(snapshot3);
-    assertThat(indexMetadata.snapshotForTableSnapshot(999L)).isNull();
-
-    // Verify snapshot properties
-    assertThat(indexMetadata.snapshot(3L).properties()).containsEntry("prop1", "val1");
-  }
-
-  @Test
-  public void addSnapshotToExistingMetadata() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshot1 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshot1)
-            .build();
-
-    assertThat(indexMetadata.snapshots()).hasSize(1);
-
-    IndexSnapshot snapshot2 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(200L)
-            .indexSnapshotId(2L)
-            .versionId(1)
-            .build();
-
-    IndexMetadata updated = IndexMetadata.buildFrom(indexMetadata).addSnapshot(snapshot2).build();
-
-    assertThat(updated.snapshots()).hasSize(2).containsExactly(snapshot1, snapshot2);
-
-    // Verify the change was recorded
-    assertThat(updated.changes())
-        .hasSize(1)
-        .first()
-        .isInstanceOf(IndexUpdate.AddSnapshot.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddSnapshot.class))
-        .extracting(IndexUpdate.AddSnapshot::indexSnapshot)
-        .isEqualTo(snapshot2);
-  }
-
-  @Test
-  public void snapshotWithDifferentVersionIds() {
-    IndexVersion version1 =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of("v", "1"))
-            .build();
-
-    IndexVersion version2 =
-        ImmutableIndexVersion.builder()
-            .versionId(2)
-            .timestampMillis(100L)
-            .properties(ImmutableMap.of("v", "2"))
-            .build();
-
-    IndexSnapshot snapshotV1 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshotV2 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(200L)
-            .indexSnapshotId(2L)
-            .versionId(2)
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(version1)
-            .addVersion(version2)
-            .setCurrentVersionId(2)
-            .addSnapshot(snapshotV1)
-            .addSnapshot(snapshotV2)
-            .build();
-
-    assertThat(indexMetadata.snapshot(1L).versionId()).isEqualTo(1);
-    assertThat(indexMetadata.snapshot(2L).versionId()).isEqualTo(2);
-  }
-
-  @Test
-  public void indexTypes() {
-    for (IndexType type : IndexType.values()) {
-      IndexMetadata indexMetadata =
-          IndexMetadata.builder()
-              .setLocation("location")
-              .setType(type)
-              .setIndexColumnIds(INDEX_COLUMN_IDS)
-              .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-              .addVersion(
-                  ImmutableIndexVersion.builder()
-                      .versionId(1)
-                      .timestampMillis(23L)
-                      .properties(ImmutableMap.of())
-                      .build())
-              .setCurrentVersionId(1)
-              .build();
-
-      assertThat(indexMetadata.type()).isEqualTo(type);
-    }
-  }
-
-  @Test
-  public void removeSnapshotById() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshot1 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshot2 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(200L)
-            .indexSnapshotId(2L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshot3 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(300L)
-            .indexSnapshotId(3L)
-            .versionId(1)
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshot1)
-            .addSnapshot(snapshot2)
-            .addSnapshot(snapshot3)
-            .build();
-
-    assertThat(indexMetadata.snapshots()).hasSize(3);
-
-    // Remove a single snapshot
-    IndexMetadata updated =
-        IndexMetadata.buildFrom(indexMetadata).removeSnapshots(ImmutableSet.of(2L)).build();
-
-    assertThat(updated.snapshots()).hasSize(2).containsExactlyInAnyOrder(snapshot1, snapshot3);
-    assertThat(updated.snapshot(1L)).isEqualTo(snapshot1);
-    assertThat(updated.snapshot(2L)).isNull();
-    assertThat(updated.snapshot(3L)).isEqualTo(snapshot3);
-
-    // Verify the change was recorded
-    assertThat(updated.changes())
-        .hasSize(1)
-        .first()
-        .isInstanceOf(IndexUpdate.RemoveSnapshots.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.RemoveSnapshots.class))
-        .extracting(IndexUpdate.RemoveSnapshots::indexSnapshotIds)
-        .isEqualTo(ImmutableSet.of(2L));
-  }
-
-  @Test
-  public void removeMultipleSnapshots() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshot1 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshot2 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(200L)
-            .indexSnapshotId(2L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshot3 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(300L)
-            .indexSnapshotId(3L)
-            .versionId(1)
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshot1)
-            .addSnapshot(snapshot2)
-            .addSnapshot(snapshot3)
-            .build();
-
-    assertThat(indexMetadata.snapshots()).hasSize(3);
-
-    // Remove multiple snapshots at once
-    IndexMetadata updated =
-        IndexMetadata.buildFrom(indexMetadata).removeSnapshots(ImmutableSet.of(1L, 3L)).build();
-
-    assertThat(updated.snapshots()).hasSize(1).containsExactly(snapshot2);
-    assertThat(updated.snapshot(1L)).isNull();
-    assertThat(updated.snapshot(2L)).isEqualTo(snapshot2);
-    assertThat(updated.snapshot(3L)).isNull();
-  }
-
-  @Test
-  public void removeAllSnapshots() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshot1 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshot2 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(200L)
-            .indexSnapshotId(2L)
-            .versionId(1)
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshot1)
-            .addSnapshot(snapshot2)
-            .build();
-
-    assertThat(indexMetadata.snapshots()).hasSize(2);
-
-    // Remove all snapshots
-    IndexMetadata updated =
-        IndexMetadata.buildFrom(indexMetadata).removeSnapshots(ImmutableSet.of(1L, 2L)).build();
-
-    assertThat(updated.snapshots()).isEmpty();
-    assertThat(updated.snapshot(1L)).isNull();
-    assertThat(updated.snapshot(2L)).isNull();
-  }
-
-  @Test
-  public void removeNonExistentSnapshot() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshot1 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshot1)
-            .build();
-
-    assertThat(indexMetadata.snapshots()).hasSize(1);
-
-    // Removing a non-existent snapshot should not cause an error
-    // but also should not add a change since nothing was removed
-    IndexMetadata updated =
-        IndexMetadata.buildFrom(indexMetadata).removeSnapshots(ImmutableSet.of(999L)).build();
-
-    assertThat(updated.snapshots()).hasSize(1).containsExactly(snapshot1);
-    assertThat(updated.changes()).isEmpty();
-  }
-
-  @Test
-  public void removeSnapshotsWithNullOrEmptySet() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshot1 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshot1)
-            .build();
-
-    // Null should throw an exception
-    assertThatThrownBy(() -> IndexMetadata.buildFrom(indexMetadata).removeSnapshots(null).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot remove snapshots");
-
-    // Empty set should throw an exception
-    assertThatThrownBy(
-            () -> IndexMetadata.buildFrom(indexMetadata).removeSnapshots(ImmutableSet.of()).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot remove snapshots");
-  }
-
-  @Test
-  public void removeSnapshotsMixedExistentAndNonExistent() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshot1 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshot2 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(200L)
-            .indexSnapshotId(2L)
-            .versionId(1)
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshot1)
-            .addSnapshot(snapshot2)
-            .build();
-
-    assertThat(indexMetadata.snapshots()).hasSize(2);
-
-    // Remove a mix of existent and non-existent snapshots
-    IndexMetadata updated =
-        IndexMetadata.buildFrom(indexMetadata).removeSnapshots(ImmutableSet.of(1L, 999L)).build();
-
-    // Only snapshot1 should be removed, snapshot2 remains
-    assertThat(updated.snapshots()).hasSize(1).containsExactly(snapshot2);
-    assertThat(updated.snapshot(1L)).isNull();
-    assertThat(updated.snapshot(2L)).isEqualTo(snapshot2);
-
-    // The change should include both IDs that were requested for removal
-    assertThat(updated.changes())
-        .hasSize(1)
-        .first()
-        .isInstanceOf(IndexUpdate.RemoveSnapshots.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.RemoveSnapshots.class))
-        .extracting(IndexUpdate.RemoveSnapshots::indexSnapshotIds)
-        .isEqualTo(ImmutableSet.of(1L, 999L));
-  }
-
-  @Test
-  public void removeSnapshotsAndAddSnapshot() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexSnapshot snapshot1 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(100L)
-            .indexSnapshotId(1L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshot2 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(200L)
-            .indexSnapshotId(2L)
-            .versionId(1)
-            .build();
-
-    IndexSnapshot snapshot3 =
-        ImmutableIndexSnapshot.builder()
-            .tableSnapshotId(300L)
-            .indexSnapshotId(3L)
-            .versionId(1)
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .addSnapshot(snapshot1)
-            .addSnapshot(snapshot2)
-            .build();
-
-    // Remove a snapshot and add a new one in the same update
-    IndexMetadata updated =
-        IndexMetadata.buildFrom(indexMetadata)
-            .removeSnapshots(ImmutableSet.of(1L))
-            .addSnapshot(snapshot3)
-            .build();
-
-    assertThat(updated.snapshots()).hasSize(2).containsExactlyInAnyOrder(snapshot2, snapshot3);
-    assertThat(updated.snapshot(1L)).isNull();
-    assertThat(updated.snapshot(2L)).isEqualTo(snapshot2);
-    assertThat(updated.snapshot(3L)).isEqualTo(snapshot3);
-
-    // Verify both changes were recorded
-    assertThat(updated.changes()).hasSize(2);
-    assertThat(updated.changes().get(0)).isInstanceOf(IndexUpdate.RemoveSnapshots.class);
-    assertThat(updated.changes().get(1)).isInstanceOf(IndexUpdate.AddSnapshot.class);
-  }
-
-  @Test
-  public void versionConcurrency() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexMetadata originalIndex =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .build();
-
-    // Add version with new properties based on the originalIndex, call the result a newIndex
-    IndexVersion newVersionOne =
-        ImmutableIndexVersion.builder()
-            .versionId(2)
-            .timestampMillis(100L)
-            .properties(ImmutableMap.of("first", "update"))
-            .build();
-
-    IndexMetadata newIndex =
-        IndexMetadata.buildFrom(originalIndex).setCurrentVersion(newVersionOne).build();
-
-    List<IndexUpdate> firstUpdateChanges = newIndex.changes();
-
-    // Add version with another set of new properties based on the originalIndex
-    IndexVersion newVersionTwo =
-        ImmutableIndexVersion.builder()
-            .versionId(2)
-            .timestampMillis(200L)
-            .properties(ImmutableMap.of("second", "update"))
-            .build();
-
-    IndexMetadata secondUpdate =
-        IndexMetadata.buildFrom(originalIndex).setCurrentVersion(newVersionTwo).build();
-
-    // Validate secondUpdate state
-    assertThat(secondUpdate.versions()).hasSize(2);
-    assertThat(secondUpdate.version(1)).isNotNull();
-    assertThat(secondUpdate.version(2)).isNotNull();
-    assertThat(secondUpdate.version(2).properties()).containsEntry("second", "update");
-    assertThat(secondUpdate.currentVersionId()).isEqualTo(2);
-
-    List<IndexUpdate> secondUpdateChanges = secondUpdate.changes();
-
-    // Apply the changes from the second update to the newIndex
-    IndexMetadata.Builder builderAfterSecond = IndexMetadata.buildFrom(newIndex);
-    secondUpdateChanges.forEach(update -> update.applyTo(builderAfterSecond));
-    IndexMetadata indexAfterSecondApplied = builderAfterSecond.build();
-
-    // Verify that the final index has both new versions added
-    assertThat(indexAfterSecondApplied.versions()).hasSize(3);
-    assertThat(indexAfterSecondApplied.version(1)).isNotNull();
-    assertThat(indexAfterSecondApplied.version(2)).isNotNull();
-    assertThat(indexAfterSecondApplied.version(3)).isNotNull();
-    assertThat(indexAfterSecondApplied.version(2).properties()).containsEntry("first", "update");
-    assertThat(indexAfterSecondApplied.version(3).properties()).containsEntry("second", "update");
-    assertThat(indexAfterSecondApplied.currentVersionId()).isEqualTo(3);
-
-    // Apply the changes from the first update to the index resulting from the second update
-    IndexMetadata.Builder builderAfterThird = IndexMetadata.buildFrom(indexAfterSecondApplied);
-    firstUpdateChanges.forEach(update -> update.applyTo(builderAfterThird));
-    IndexMetadata indexAfterFirstAppliedAgain = builderAfterThird.build();
-
-    // Verify that the final index has both new versions added, and the current one is the first
-    // version added
-    assertThat(indexAfterFirstAppliedAgain.versions()).hasSize(3);
-    assertThat(indexAfterFirstAppliedAgain.version(1)).isNotNull();
-    assertThat(indexAfterFirstAppliedAgain.version(2)).isNotNull();
-    assertThat(indexAfterFirstAppliedAgain.version(3)).isNotNull();
-    assertThat(indexAfterFirstAppliedAgain.version(2).properties())
-        .containsEntry("first", "update");
-    assertThat(indexAfterFirstAppliedAgain.version(3).properties())
-        .containsEntry("second", "update");
-    // The current version should be the one from the first update
-    assertThat(indexAfterFirstAppliedAgain.currentVersionId()).isEqualTo(2);
-  }
-
-  @Test
-  public void upgradeFormatVersionTracksChanges() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .build();
-
-    assertThat(indexMetadata.formatVersion()).isEqualTo(IndexMetadata.DEFAULT_INDEX_FORMAT_VERSION);
-
-    // Upgrading to the same version should not generate a change
-    IndexMetadata sameVersion =
-        IndexMetadata.buildFrom(indexMetadata)
-            .upgradeFormatVersion(IndexMetadata.DEFAULT_INDEX_FORMAT_VERSION)
-            .build();
-    assertThat(sameVersion.changes()).isEmpty();
-    assertThat(sameVersion.formatVersion()).isEqualTo(IndexMetadata.DEFAULT_INDEX_FORMAT_VERSION);
-  }
-
-  @Test
-  public void upgradeFormatVersionCannotDowngrade() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .build();
-
-    assertThatThrownBy(() -> IndexMetadata.buildFrom(indexMetadata).upgradeFormatVersion(0).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot downgrade");
-  }
-
-  @Test
-  public void upgradeFormatVersionApplyTo() {
-    IndexVersion indexVersion =
-        ImmutableIndexVersion.builder()
-            .versionId(1)
-            .timestampMillis(23L)
-            .properties(ImmutableMap.of())
-            .build();
-
-    IndexMetadata indexMetadata =
-        IndexMetadata.builder()
-            .setLocation("custom-location")
-            .setType(IndexType.BTREE)
-            .setIndexColumnIds(INDEX_COLUMN_IDS)
-            .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(indexVersion)
-            .setCurrentVersionId(1)
-            .build();
-
-    // Apply the UpgradeFormatVersion update
-    IndexUpdate.UpgradeFormatVersion upgrade = new IndexUpdate.UpgradeFormatVersion(1);
-    IndexMetadata.Builder builder = IndexMetadata.buildFrom(indexMetadata);
-    upgrade.applyTo(builder);
-    IndexMetadata updated = builder.build();
-
-    assertThat(updated.formatVersion()).isEqualTo(1);
-    // Upgrading to same version should not generate a change
-    assertThat(updated.changes()).isEmpty();
   }
 }

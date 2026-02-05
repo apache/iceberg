@@ -51,8 +51,7 @@ public class TestLoadIndexResponseParser {
         .setType(IndexType.BTREE)
         .setIndexColumnIds(INDEX_COLUMN_IDS)
         .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-        .addVersion(version)
-        .setCurrentVersionId(1)
+        .setCurrentVersion(version)
         .build();
   }
 
@@ -196,13 +195,11 @@ public class TestLoadIndexResponseParser {
 
     IndexMetadata metadata =
         IndexMetadata.builder()
-            .assignUUID("fa6506c3-7681-40c8-86dc-e36561f83385")
             .setLocation(TEST_LOCATION)
             .setType(IndexType.BTREE)
             .setIndexColumnIds(INDEX_COLUMN_IDS)
             .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .addVersion(version)
-            .setCurrentVersionId(1)
+            .setCurrentVersion(version)
             .build();
 
     LoadIndexResponse response =
@@ -213,11 +210,12 @@ public class TestLoadIndexResponseParser {
             .build();
 
     String expectedJson =
-        """
+        String.format(
+            """
         {
           "metadata-location": "s3://bucket/test/metadata/v1.metadata.json",
           "metadata": {
-            "index-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
+            "index-uuid": "%s",
             "format-version": 1,
             "index-type": "btree",
             "index-column-ids": [1, 2],
@@ -243,14 +241,15 @@ public class TestLoadIndexResponseParser {
           }
         }
         """
-            .replaceAll("\\s+", "");
+                .replaceAll("\\s+", ""),
+            metadata.uuid());
 
     String actualJson = LoadIndexResponseParser.toJson(response);
     assertThat(actualJson).isEqualTo(expectedJson);
 
     // Also verify round-trip
     LoadIndexResponse parsed = LoadIndexResponseParser.fromJson(actualJson);
-    assertThat(parsed.metadata().uuid()).isEqualTo("fa6506c3-7681-40c8-86dc-e36561f83385");
+    assertThat(parsed.metadata().uuid()).isEqualTo(metadata.uuid());
     assertThat(parsed.metadataLocation()).isEqualTo(TEST_METADATA_LOCATION);
     assertThat(parsed.config()).containsEntry("key1", "value1");
   }

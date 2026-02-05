@@ -36,9 +36,9 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchIndexException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.LocationUtil;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1270,7 +1270,6 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
   }
 
-  @Disabled
   @Test
   public void concurrentAddVersion() {
     TableIdentifier tableIdentifier = TableIdentifier.of("ns", "table");
@@ -1297,10 +1296,10 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should exist").isTrue();
 
     AddIndexVersion updatePropsOne =
-        index.addVersion().withProperty("key1", "value1").withProperty("source", "update-one");
+        index.addVersion().withProperty("key1", "value1").withProperty("source1", "update-one");
 
     AddIndexVersion updatePropsTwo =
-        index.addVersion().withProperty("key2", "value2").withProperty("source", "update-two");
+        index.addVersion().withProperty("key2", "value2").withProperty("source2", "update-two");
 
     // simulate a concurrent update of the index properties
     IndexOperations indexOps = ((BaseIndex) index).operations();
@@ -1317,10 +1316,13 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
       Index updatedIndex = catalog().loadIndex(indexIdentifier);
       Map<String, String> properties = updatedIndex.currentVersion().properties();
-      assertThat(properties).containsEntry("key1", "value1");
-      assertThat(properties).containsEntry("key2", "value2");
-      // the second update should have overwritten the source property
-      assertThat(properties).containsEntry("source", "update-two");
+      assertThat(properties).isEqualTo(ImmutableMap.of("key2", "value2", "source2", "update-two"));
+      assertThat(updatedIndex.versions()).hasSize(3);
+      assertThat(updatedIndex.version(2))
+          .isNotNull()
+          .extracting("properties")
+          .isEqualTo(ImmutableMap.of("key1", "value1", "source1", "update-one"));
+
     } else {
       assertThatThrownBy(() -> indexOps.commit(current, secondUpdate))
           .isInstanceOf(CommitFailedException.class)
@@ -1328,9 +1330,8 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
       Index updatedIndex = catalog().loadIndex(indexIdentifier);
       Map<String, String> properties = updatedIndex.currentVersion().properties();
-      assertThat(properties).containsEntry("key1", "value1");
-      assertThat(properties).containsEntry("source", "update-one");
-      assertThat(properties).doesNotContainKey("key2");
+      assertThat(properties).isEqualTo(ImmutableMap.of("key1", "value1", "source1", "update-one"));
+      assertThat(updatedIndex.versions()).hasSize(2);
     }
 
     assertThat(catalog().dropIndex(indexIdentifier)).isTrue();
