@@ -42,17 +42,9 @@ import org.slf4j.LoggerFactory;
  * A registry that manages file-format-specific readers and writers through a unified object model
  * factory interface.
  *
- * <p>This registry provides access to {@link ReadBuilder}s for data consumption and various writer
- * builders:
- *
- * <ul>
- *   <li>{@link WriteBuilder} for basic file writing,
- *   <li>{@link DataWriteBuilder} for data files,
- *   <li>{@link EqualityDeleteWriteBuilder} for equality deletes,
- *   <li>{@link PositionDeleteWriteBuilder} for position deletes.
- * </ul>
- *
- * The appropriate builder is selected based on {@link FileFormat} and object model name.
+ * <p>This registry provides access to {@link ReadBuilder}s for data consumption and {@link
+ * FileWriterBuilder}s for writing various types of Iceberg content files. The appropriate builder
+ * is selected based on {@link FileFormat} and object model name.
  *
  * <p>{@link FormatModel} objects are registered through {@link #register(FormatModel)} and used for
  * creating readers and writers. Read builders are returned directly from the factory. Write
@@ -60,6 +52,8 @@ import org.slf4j.LoggerFactory;
  * requested builder type.
  */
 public final class FormatModelRegistry {
+  private FormatModelRegistry() {}
+
   private static final Logger LOG = LoggerFactory.getLogger(FormatModelRegistry.class);
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER = ImmutableList.of();
@@ -119,8 +113,8 @@ public final class FormatModelRegistry {
    */
   public static <D, S> ReadBuilder<D, S> readBuilder(
       FileFormat format, Class<? extends D> type, InputFile inputFile) {
-    FormatModel<D, S> factory = factoryFor(format, type);
-    return factory.readBuilder(inputFile);
+    FormatModel<D, S> model = modelFor(format, type);
+    return model.readBuilder(inputFile);
   }
 
   /**
@@ -138,11 +132,10 @@ public final class FormatModelRegistry {
    * @param <S> the type of the input schema for the writer
    * @return a configured data write builder for creating a {@link DataWriter}
    */
-  public static <D, S> DataWriteBuilder<D, S> dataWriteBuilder(
+  public static <D, S> FileWriterBuilder<DataWriter<D>, S> dataWriteBuilder(
       FileFormat format, Class<? extends D> type, EncryptedOutputFile outputFile) {
-    FormatModel<D, S> factory = factoryFor(format, type);
-    return CommonWriteBuilderImpl.forDataFile(
-        factory.writeBuilder(outputFile), outputFile.encryptingOutputFile().location(), format);
+    FormatModel<D, S> model = modelFor(format, type);
+    return FileWriterBuilderImpl.forDataFile(model, outputFile);
   }
 
   /**
@@ -160,11 +153,10 @@ public final class FormatModelRegistry {
    * @param <S> the type of the input schema for the writer
    * @return a configured delete write builder for creating an {@link EqualityDeleteWriter}
    */
-  public static <D, S> EqualityDeleteWriteBuilder<D, S> equalityDeleteWriteBuilder(
+  public static <D, S> FileWriterBuilder<EqualityDeleteWriter<D>, S> equalityDeleteWriteBuilder(
       FileFormat format, Class<D> type, EncryptedOutputFile outputFile) {
-    FormatModel<D, S> factory = factoryFor(format, type);
-    return CommonWriteBuilderImpl.forEqualityDelete(
-        factory.writeBuilder(outputFile), outputFile.encryptingOutputFile().location(), format);
+    FormatModel<D, S> model = modelFor(format, type);
+    return FileWriterBuilderImpl.forEqualityDelete(model, outputFile);
   }
 
   /**
@@ -179,12 +171,12 @@ public final class FormatModelRegistry {
    * @param outputFile destination for the written data
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
-  @SuppressWarnings("rawtypes")
-  public static PositionDeleteWriteBuilder positionDeleteWriteBuilder(
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public static <D> FileWriterBuilder<PositionDeleteWriter<D>, ?> positionDeleteWriteBuilder(
       FileFormat format, EncryptedOutputFile outputFile) {
-    FormatModel<PositionDelete, ?> factory = factoryFor(format, PositionDelete.class);
-    return CommonWriteBuilderImpl.forPositionDelete(
-        factory.writeBuilder(outputFile), outputFile.encryptingOutputFile().location(), format);
+    FormatModel<PositionDelete<D>, ?> model =
+        (FormatModel<PositionDelete<D>, ?>) (FormatModel) modelFor(format, PositionDelete.class);
+    return FileWriterBuilderImpl.forPositionDelete(model, outputFile);
   }
 
   @VisibleForTesting
@@ -193,7 +185,7 @@ public final class FormatModelRegistry {
   }
 
   @SuppressWarnings("unchecked")
-  private static <D, S> FormatModel<D, S> factoryFor(FileFormat format, Class<? extends D> type) {
+  private static <D, S> FormatModel<D, S> modelFor(FileFormat format, Class<? extends D> type) {
     FormatModel<D, S> model = (FormatModel<D, S>) MODELS.get(Pair.of(format, type));
     Preconditions.checkArgument(
         model != null, "Format model is not registered for format %s and type %s", format, type);
@@ -209,10 +201,10 @@ public final class FormatModelRegistry {
       } catch (NoSuchMethodException e) {
         // failing to register a factory is normal and does not require a stack trace
         LOG.info(
-            "Skip registration of {}. Likely the jar is not in the classpath", classToRegister);
+            "Unable to call register for ({}). Check for missing jars on the classpath: {}",
+            classToRegister,
+            e.getMessage());
       }
     }
   }
-
-  private FormatModelRegistry() {}
 }

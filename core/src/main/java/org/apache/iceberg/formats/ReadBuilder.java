@@ -46,11 +46,22 @@ public interface ReadBuilder<D, S> {
    */
   ReadBuilder<D, S> split(long start, long length);
 
-  /** Set the projection schema. */
+  /** Set the projection schema. This must be set before the reader is instantiated. */
   ReadBuilder<D, S> project(Schema schema);
 
-  /** Sets the expected output schema. If not provided derived from the {@link #project(Schema)}. */
-  ReadBuilder<D, S> outputSchema(S schema);
+  /**
+   * Sets the engine's representation of the projected schema.
+   *
+   * <p>When provided, this schema should be consistent with the requested Iceberg projection, while
+   * allowing representation differences. Examples include:
+   *
+   * <ul>
+   *   <li>using a {@code long} to represent an Iceberg {@code int} column,
+   *   <li>requesting a shredded representation for a variant type, or
+   *   <li>selecting specific concrete classes for Iceberg structs.
+   * </ul>
+   */
+  ReadBuilder<D, S> engineProjection(S schema);
 
   /**
    * Configures whether filtering should be case-sensitive. If the reader supports filtering, it
