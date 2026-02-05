@@ -389,7 +389,7 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getString(CONTROL_GROUP_ID_PREFIX_PROP);
   }
 
-  public String connectGroupId() {
+  public String sourceConsumerGroupId() {
     String result = getString("consumer.override.group.id");
     if (result != null) {
       return result;
