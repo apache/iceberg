@@ -28,9 +28,9 @@ import org.apache.iceberg.Schema;
  * reading and writing data in various file formats.
  *
  * @param <D> output type used for reading data, and input type for writing data and deletes
- * @param <S> the type of the schema for the input/output data
- * @param <W> the writer type produced by the writer function
- * @param <R> the reader type produced by the reader function
+ * @param <S> the engine-specific schema type describing the input/output data
+ * @param <W> the file format specific writer type produced by the writer function
+ * @param <R> the file format specific reader type produced by the reader function
  * @param <F> the file schema type used by the underlying file format
  */
 public abstract class BaseFormatModel<D, S, W, R, F> implements FormatModel<D, S> {
@@ -90,8 +90,8 @@ public abstract class BaseFormatModel<D, S, W, R, F> implements FormatModel<D, S
   /**
    * A functional interface for creating writers that can write data in a specific format.
    *
-   * @param <W> the writer type to be created
-   * @param <S> the type of the schema for the input data
+   * @param <W> the file format specific writer type to be created
+   * @param <S> the engine-specific schema type describing the input data
    * @param <F> the file schema type used by the underlying file format
    */
   @FunctionalInterface
@@ -101,7 +101,7 @@ public abstract class BaseFormatModel<D, S, W, R, F> implements FormatModel<D, S
      *
      * @param icebergSchema the Iceberg schema defining the table structure
      * @param fileSchema the file format specific target schema for the output files
-     * @param engineSchema the engine specific schema for the input data
+     * @param engineSchema the engine-specific schema for the input data (optional)
      * @return a writer configured for the given schemas
      */
     W write(Schema icebergSchema, F fileSchema, S engineSchema);
@@ -110,8 +110,8 @@ public abstract class BaseFormatModel<D, S, W, R, F> implements FormatModel<D, S
   /**
    * A functional interface for creating readers that can read data from a specific format.
    *
-   * @param <R> the reader type to be created
-   * @param <S> the type of the schema for the output data
+   * @param <R> the file format specific reader type to be created
+   * @param <S> the engine-specific schema type describing the output data
    * @param <F> the file schema type used by the underlying file format
    */
   @FunctionalInterface
@@ -120,8 +120,9 @@ public abstract class BaseFormatModel<D, S, W, R, F> implements FormatModel<D, S
      * Creates a reader for the given schemas.
      *
      * @param icebergSchema the Iceberg schema defining the table structure
-     * @param fileSchema the file format specific source schema for the input files
-     * @param engineSchema the engine specific schema for the output data
+     * @param fileSchema the schema that the file was written with, although it can be <code>null
+     *     </code> in the case of Avro files because it is passed in later
+     * @param engineSchema the engine-specific schema for the output data (optional)
      * @param idToConstant a map of field IDs to constant values for partition columns and other
      *     fields not stored in data files
      * @return a reader configured for the given schemas

@@ -50,7 +50,7 @@ import org.apache.iceberg.util.ArrayUtil;
  * content-specific metadata and behaviors.
  *
  * @param <W> the concrete writer type the builder produces
- * @param <S> the type of the schema for the input data
+ * @param <S> the type of the engine schema for the input data
  */
 public interface FileWriterBuilder<W extends FileWriter<?, ?>, S> {
 
@@ -128,12 +128,13 @@ public interface FileWriterBuilder<W extends FileWriter<?, ?>, S> {
   FileWriterBuilder<W, S> schema(Schema schema);
 
   /**
-   * Sets the engine's representation accepted by the writer.
+   * Sets the engine-specific schema that describes records accepted by the writer.
    *
    * <p>Some data types require additional type information from the engine schema that cannot be
-   * fully expressed by the Iceberg schema or the data itself. For example, a variant type may use a
-   * shredded representation that relies on engine-specific metadata to map back to the Iceberg
-   * schema.
+   * fully expressed by the Iceberg schema or the data itself. For example, an engine's tinyint or
+   * smallint types are mapped to Iceberg's integer type, but the writer may need the original type
+   * for proper serialization. Similarly, a variant type may use a shredded representation that
+   * relies on engine-specific metadata to map back to the Iceberg schema.
    *
    * <p>The engine schema must be aligned with the Iceberg schema, but may include representation
    * details that Iceberg considers equivalent.
