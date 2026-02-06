@@ -59,14 +59,22 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   private final CharSequenceSet referencedDataFiles;
   private DeleteFile deleteFile = null;
 
+  /**
+   * Creates a new position delete writer.
+   *
+   * @deprecated since 1.11.0, will be updated in 1.12.0 to accept {@code
+   *     FileAppender<PositionDelete<T>>} instead of {@code FileAppender<? extends StructLike>}.
+   */
+  @Deprecated
+  @SuppressWarnings("unchecked")
   public PositionDeleteWriter(
-      FileAppender<PositionDelete<T>> appender,
+      FileAppender<? extends StructLike> appender,
       FileFormat format,
       String location,
       PartitionSpec spec,
       StructLike partition,
       EncryptionKeyMetadata keyMetadata) {
-    this.appender = appender;
+    this.appender = (FileAppender<PositionDelete<T>>) appender;
     this.format = format;
     this.location = location;
     this.spec = spec;

@@ -174,8 +174,9 @@ public final class FormatModelRegistry {
   @SuppressWarnings({"unchecked", "rawtypes"})
   public static <D> FileWriterBuilder<PositionDeleteWriter<D>, ?> positionDeleteWriteBuilder(
       FileFormat format, EncryptedOutputFile outputFile) {
-    FormatModel<PositionDelete<D>, ?> model =
-        (FormatModel<PositionDelete<D>, ?>) (FormatModel) modelFor(format, PositionDelete.class);
+    Class<PositionDelete<D>> deleteClass =
+        (Class<PositionDelete<D>>) (Class<?>) PositionDelete.class;
+    FormatModel<PositionDelete<D>, ?> model = FormatModelRegistry.modelFor(format, deleteClass);
     return FileWriterBuilderImpl.forPositionDelete(model, outputFile);
   }
 
