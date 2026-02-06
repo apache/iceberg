@@ -148,7 +148,7 @@ public class TestUpdateIndexRequestParser {
         {
           "identifier": {"namespace": ["ns1"], "name": "index1"},
           "requirements": [],
-          "updates": [{"action": "set-current-version"}]
+          "updates": [{"action": "add-version"}]
         }"""
             .replaceAll("\\s+", "");
     assertThatThrownBy(() -> UpdateIndexRequestParser.fromJson(missingVersion))
@@ -165,7 +165,9 @@ public class TestUpdateIndexRequestParser {
             ImmutableList.of(
                 new IndexRequirement.AssertIndexUUID(uuid),
                 new IndexRequirement.AssertIndexDoesNotExist()),
-            ImmutableList.of(new IndexUpdate.SetCurrentVersion(TEST_INDEX_VERSION)));
+            ImmutableList.of(
+                new IndexUpdate.AddVersion(TEST_INDEX_VERSION),
+                new IndexUpdate.SetCurrentVersion(TEST_INDEX_VERSION.versionId())));
 
     String expectedJson =
         """
@@ -185,11 +187,15 @@ public class TestUpdateIndexRequestParser {
           ],
           "updates": [
             {
-              "action": "set-current-version",
+              "action": "add-version",
               "version": {
                 "version-id":23,
                 "timestamp-ms":12345
               }
+            },
+            {
+              "action": "set-current-version",
+              "version-id":23
             }
           ]
         }"""
@@ -212,7 +218,9 @@ public class TestUpdateIndexRequestParser {
             ImmutableList.of(
                 new IndexRequirement.AssertIndexUUID(uuid),
                 new IndexRequirement.AssertIndexDoesNotExist()),
-            ImmutableList.of(new IndexUpdate.SetCurrentVersion(TEST_INDEX_VERSION)));
+            ImmutableList.of(
+                new IndexUpdate.AddVersion(TEST_INDEX_VERSION),
+                new IndexUpdate.SetCurrentVersion(TEST_INDEX_VERSION.versionId())));
 
     String expectedJson =
         """
@@ -228,11 +236,15 @@ public class TestUpdateIndexRequestParser {
           ],
           "updates": [
             {
-              "action": "set-current-version",
+              "action": "add-version",
               "version": {
                 "version-id":23,
                 "timestamp-ms":12345
               }
+            },
+            {
+              "action": "set-current-version",
+              "version-id":23
             }
           ]
         }"""

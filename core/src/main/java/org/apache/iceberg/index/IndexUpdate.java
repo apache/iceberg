@@ -44,11 +44,11 @@ public interface IndexUpdate extends Serializable {
     }
   }
 
-  /** Sets the current index version in the index metadata. */
-  class SetCurrentVersion implements IndexUpdate {
+  /** Adds a new index version to the index metadata. */
+  class AddVersion implements IndexUpdate {
     private final IndexVersion indexVersion;
 
-    public SetCurrentVersion(IndexVersion indexVersion) {
+    public AddVersion(IndexVersion indexVersion) {
       this.indexVersion = indexVersion;
     }
 
@@ -58,7 +58,25 @@ public interface IndexUpdate extends Serializable {
 
     @Override
     public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
-      indexMetadataBuilder.setCurrentVersion(indexVersion);
+      indexMetadataBuilder.addVersion(indexVersion);
+    }
+  }
+
+  /** Sets the current index version ID in the index metadata. */
+  class SetCurrentVersion implements IndexUpdate {
+    private final int versionId;
+
+    public SetCurrentVersion(int versionId) {
+      this.versionId = versionId;
+    }
+
+    public int versionId() {
+      return versionId;
+    }
+
+    @Override
+    public void applyTo(IndexMetadata.Builder indexMetadataBuilder) {
+      indexMetadataBuilder.setCurrentVersion(versionId);
     }
   }
 

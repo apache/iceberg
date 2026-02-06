@@ -372,11 +372,10 @@ public interface IndexMetadata extends Serializable {
       return this;
     }
 
-    public Builder setCurrentVersion(IndexVersion version) {
+    public Builder addVersion(IndexVersion version) {
       Preconditions.checkArgument(version != null, "Invalid index version: null");
-      IndexVersion newVersion = findSameVersion(version);
-      IndexHistoryEntry entry;
-      if (newVersion == null) {
+      IndexVersion existingVersion = findSameVersion(version);
+      if (existingVersion == null) {
         Preconditions.checkArgument(
             !newVersionsByUserVersionId.containsKey(version.versionId()),
             "Invalid index version id. Version %s already added to the index with different properties: %s.",
@@ -384,35 +383,49 @@ public interface IndexMetadata extends Serializable {
             newVersionsByUserVersionId.get(version.versionId()));
 
         int newVersionId = findNewVersionId();
+        IndexVersion newVersion;
         if (newVersionId != version.versionId()) {
           // We need to generate a new version id
           newVersion =
-              ImmutableIndexVersion.builder().from(version).versionId(findNewVersionId()).build();
+              ImmutableIndexVersion.builder().from(version).versionId(newVersionId).build();
         } else {
           newVersion = version;
         }
 
         newVersionsByUserVersionId.put(version.versionId(), newVersion);
         newVersions.add(newVersion);
-        entry =
-            ImmutableIndexHistoryEntry.builder()
-                .versionId(newVersion.versionId())
-                .timestampMillis(newVersion.timestampMillis())
-                .build();
-      } else {
-        entry =
-            ImmutableIndexHistoryEntry.builder()
-                .versionId(newVersion.versionId())
-                .timestampMillis(System.currentTimeMillis())
-                .build();
+      } else if (existingVersion.versionId() != version.versionId()) {
+        // A version with identical properties already exists under a different ID; map the
+        // requested ID to the existing version to avoid duplication.
+        newVersionsByUserVersionId.put(version.versionId(), existingVersion);
       }
+
+      changes.add(new IndexUpdate.AddVersion(version));
+      return this;
+    }
+
+    public Builder setCurrentVersion(int versionId) {
+      IndexVersion newVersion = newVersionsByUserVersionId.get(versionId);
+      if (newVersion == null) {
+        newVersion = versionsById.get(versionId);
+      }
+
+      Preconditions.checkArgument(
+          newVersion != null, "Cannot set current version to unknown version: %s", versionId);
 
       if (currentVersionId != newVersion.versionId()) {
         this.currentVersionId = newVersion.versionId();
-        this.historyEntry = entry;
+        this.historyEntry =
+            ImmutableIndexHistoryEntry.builder()
+                .versionId(newVersion.versionId())
+                .timestampMillis(
+                    versionsById.containsKey(newVersion.versionId())
+                        ? System.currentTimeMillis()
+                        : newVersion.timestampMillis())
+                .build();
       }
 
-      changes.add(new IndexUpdate.SetCurrentVersion(version));
+      changes.add(new IndexUpdate.SetCurrentVersion(versionId));
       return this;
     }
 
@@ -511,7 +524,7 @@ public interface IndexMetadata extends Serializable {
       int numVersions =
           ImmutableSet.builder()
               .addAll(
-                  changes(IndexUpdate.SetCurrentVersion.class)
+                  changes(IndexUpdate.AddVersion.class)
                       .map(v -> v.indexVersion().versionId())
                       .collect(Collectors.toSet()))
               .add(currentVersionId)

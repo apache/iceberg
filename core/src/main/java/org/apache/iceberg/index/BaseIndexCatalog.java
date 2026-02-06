@@ -435,7 +435,8 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
               .setIndexColumnIds(indexColumnIds)
               .setOptimizedColumnIds(optimizedColumnIds)
               .setLocation(null != location ? location : defaultIndexLocation(identifier))
-              .setCurrentVersion(indexVersion);
+              .addVersion(indexVersion)
+              .setCurrentVersion(indexVersion.versionId());
 
       IndexSnapshot indexSnapshot = indexSnapshot(1);
       if (indexSnapshot != null) {
@@ -472,8 +473,9 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
                 .max(Integer::compareTo)
                 .orElseGet(metadata::currentVersionId);
 
-        builder = builder.setCurrentVersion(indexVersion(maxVersionId + 1));
-        currentVersionId = maxVersionId + 1;
+        IndexVersion indexVersion = indexVersion(maxVersionId + 1);
+        builder = builder.addVersion(indexVersion).setCurrentVersion(indexVersion.versionId());
+        currentVersionId = indexVersion.versionId();
       }
 
       IndexSnapshot snapshot = indexSnapshot(currentVersionId);
