@@ -1,0 +1,204 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: 'com.palantir.baseline-config'
+
+allprojects {
+  apply plugin: 'com.palantir.baseline-idea'
+}
+
+subprojects {
+  if (it.name == 'iceberg-bom') {
+    // the BOM does not build anything, the below plugins are not necessary (and can fail)
+    return
+  }
+
+  // Currently, if any subproject applies the blanket Baseline plugin, it forces the Baseline plugin
+  // to be applied to ALL projects. And we are not prepared to address all of the build errors that
+  // occur as a result at this time. Furthermore, baseline-format will not work out of the box for
+  // us - see below.
+
+  // Thus we concede to applying all of the Baseline plugins individually on all the projects we are
+  // ready to enforce linting on.
+  apply plugin: 'org.inferred.processors'
+  if (!project.hasProperty('quick')) {
+    apply plugin: 'com.palantir.baseline-checkstyle'
+    apply plugin: 'com.palantir.baseline-error-prone'
+  }
+  apply plugin: 'com.palantir.baseline-class-uniqueness'
+  // What 'com.palantir.baseline-reproducibility' used to do, except the check for the
+  // `sourceCompatibility` Java compile option, which conflicts with the `release` compile option.
+  tasks.withType(AbstractArchiveTask.class).configureEach(t -> {
+    t.setPreserveFileTimestamps(false);
+    t.setReproducibleFileOrder(true);
+    t.setDuplicatesStrategy(DuplicatesStrategy.WARN);
+  });
+  apply plugin: 'com.palantir.baseline-exact-dependencies'
+  apply plugin: 'com.diffplug.spotless'
+
+  String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+  pluginManager.withPlugin('com.diffplug.spotless') {
+    spotless {
+      java {
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/testFixtures/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
+        // 1.23.0 has an issue in formatting comments https://github.com/google/google-java-format/issues/1155
+        // so we stick to 1.22.0 to produce consistent result for JDK 17/21
+        googleJavaFormat("1.22.0")
+        removeUnusedImports()
+        licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
+      }
+
+      if (project.name.startsWith("iceberg-spark")) {
+        String scalafmtConfigFile = null
+        // Configure different scalafmt rules for specific Scala version
+        if (scalaVersion?.startsWith("2.12")) {
+          scalafmtConfigFile = "$rootDir/.baseline/scala/.scala212fmt.conf"
+        } else if (scalaVersion?.startsWith("2.13")) {
+          scalafmtConfigFile = "$rootDir/.baseline/scala/.scala213fmt.conf"
+        }
+
+        if (scalafmtConfigFile != null) {
+          scala {
+            target 'src/**/*.scala'
+            scalafmt("3.9.7").configFile(scalafmtConfigFile)
+            licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt", "package"
+          }
+        }
+      }
+    }
+  }
+
+  pluginManager.withPlugin('com.palantir.baseline-error-prone') {
+    tasks.withType(JavaCompile).configureEach {
+      options.errorprone.errorproneArgs.addAll (
+          // error-prone is slow, don't run on tests/generated-src/generated
+          '-XepExcludedPaths:.*/(test|integration|generated-src|generated)/.*',
+          '-Xep:AnnotateFormatMethod:ERROR',
+          '-Xep:BadComparable:ERROR',
+          '-Xep:BadInstanceof:ERROR',
+          '-Xep:CatchFail:ERROR',
+          '-Xep:ClassCanBeStatic:ERROR',
+          '-Xep:ClassNewInstance:ERROR',
+          '-Xep:CollectionUndefinedEquality:ERROR',
+          // specific to Palantir - Uses name `log` but we use name `LOG`
+          '-Xep:ConsistentLoggerName:OFF',
+          '-Xep:DangerousJavaDeserialization:ERROR',
+          '-Xep:DangerousThreadPoolExecutorUsage:OFF',
+          '-Xep:DefaultCharset:ERROR',
+          '-Xep:DefaultLocale:ERROR',
+          // subclasses are not equal
+          '-Xep:EqualsGetClass:OFF',
+          '-Xep:EqualsUnsafeCast:ERROR',
+          '-Xep:EqualsUsingHashCode:ERROR',
+          '-Xep:ExtendsObject:ERROR',
+          '-Xep:FallThrough:ERROR',
+          // specific to Palantir
+          '-Xep:FinalClass:OFF',
+          '-Xep:Finalize:ERROR',
+          '-Xep:FormatStringAnnotation:ERROR',
+          '-Xep:GetClassOnEnum:ERROR',
+          '-Xep:HidingField:ERROR',
+          '-Xep:ImmutableSetForContains:ERROR',
+          '-Xep:ImmutablesReferenceEquality:ERROR',
+          '-Xep:InconsistentCapitalization:ERROR',
+          '-Xep:InconsistentHashCode:ERROR',
+          '-Xep:IntLongMath:ERROR',
+          '-Xep:JdkObsolete:ERROR',
+          // prefer method references over lambdas
+          '-Xep:LambdaMethodReference:ERROR',
+          // enforce logging conventions
+          '-Xep:LoggerEnclosingClass:ERROR',
+          // patterns that are allowed
+          '-Xep:MissingCasesInEnumSwitch:OFF',
+          // Enforce missing override
+          '-Xep:MissingOverride:ERROR',
+          '-Xep:MissingSummary:ERROR',
+          '-Xep:ModifiedButNotUsed:ERROR',
+          '-Xep:MutablePublicArray:ERROR',
+          '-Xep:NarrowCalculation:ERROR',
+          '-Xep:NarrowingCompoundAssignment:ERROR',
+          '-Xep:NullOptional:ERROR',
+          '-Xep:NullableOptional:ERROR',
+          '-Xep:NullablePrimitive:ERROR',
+          '-Xep:ObjectEqualsForPrimitives:ERROR',
+          // Enforce hashCode over hash
+          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
+          '-Xep:OrphanedFormatString:ERROR',
+          '-Xep:Overrides:ERROR',
+          // Triggers false-positives whenever relocated @VisibleForTesting is used
+          '-Xep:PreferCommonAnnotations:OFF',
+          // specific to Palantir
+          '-Xep:PreferSafeLoggableExceptions:OFF',
+          '-Xep:PreferSafeLogger:OFF',
+          // specific to Palantir
+          '-Xep:PreferSafeLoggingPreconditions:OFF',
+          '-Xep:PreferStaticLoggers:ERROR',
+          // specific to Palantir
+          '-Xep:RawTypes:OFF',
+          // specific to Palantir
+          '-Xep:Slf4jLogsafeArgs:OFF',
+          '-Xep:Slf4jThrowable:ERROR',
+          // Added because it errors out compile, but we need to figure out if we want it
+          '-Xep:StrictUnusedVariable:OFF',
+          // Enforce safe string splitting
+          '-Xep:StringSplitter:ERROR',
+          '-Xep:TypeParameterShadowing:OFF',
+          '-Xep:TypeParameterUnusedInFormals:OFF',
+          '-Xep:UnicodeEscape:ERROR',
+          // Palantir's UnnecessarilyQualified may throw during analysis
+          '-Xep:UnnecessarilyQualified:OFF',
+          '-Xep:UnnecessaryLambdaArgumentParentheses:ERROR',
+          '-Xep:UnnecessaryLongToIntConversion:ERROR',
+          '-Xep:UnnecessaryMethodReference:ERROR',
+          '-Xep:UnusedMethod:ERROR',
+          '-Xep:UnusedTypeParameter:ERROR',
+          '-Xep:UnusedVariable:ERROR',
+          '-Xep:UseEnumSwitch:ERROR',
+      )
+    }
+  }
+
+  pluginManager.withPlugin('com.github.alisiikh.scalastyle') {
+    scalastyle {
+      config = file("${rootDir}/project/scalastyle_config.xml")
+      inputEncoding = 'UTF-8'
+      outputEncoding = 'UTF-8'
+      failOnWarning = false
+      verbose = false
+      quiet = false
+    }
+  }
+
+  pluginManager.withPlugin('scala') {
+    tasks.withType(ScalaCompile).configureEach { scalaCompile ->
+      if (scalaVersion?.startsWith("2.12")) {
+        scalaCompile.scalaCompileOptions.additionalParameters = [
+                // Scala 2.12 does not support treating unused imports as errors individually,
+                // so we only enable warnings for unused imports when using Scala 2.12.
+                "-Ywarn-unused:imports",
+        ]
+      } else if (scalaVersion?.startsWith("2.13")) {
+        scalaCompile.scalaCompileOptions.additionalParameters = [
+                "-Wconf:cat=unused:error",
+                "-Wunused:imports"
+        ]
+      }
+    }
+  }
+}

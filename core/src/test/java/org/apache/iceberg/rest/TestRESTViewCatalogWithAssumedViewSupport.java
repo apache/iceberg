@@ -1,0 +1,139 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.rest;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Consumer;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.catalog.SessionCatalog;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.handler.gzip.GzipHandler;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
+import org.junit.jupiter.api.BeforeEach;
+
+public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatalog {
+
+  @BeforeEach
+  public void createCatalog() throws Exception {
+    File warehouse = temp.toFile();
+
+    this.backendCatalog = new InMemoryCatalog();
+    this.backendCatalog.initialize(
+        "in-memory",
+        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
+
+    RESTCatalogAdapter adaptor =
+        new RESTCatalogAdapter(backendCatalog) {
+
+          @Override
+          public <T extends RESTResponse> T handleRequest(
+              Route route,
+              Map<String, String> vars,
+              HTTPRequest httpRequest,
+              Class<T> responseType,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (Route.CONFIG == route) {
+              // simulate a legacy server that doesn't send back supported endpoints
+              return castResponse(responseType, ConfigResponse.builder().build());
+            }
+
+            return super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
+          }
+        };
+
+    ServletContextHandler servletContext =
+        new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
+    servletContext.setContextPath("/");
+    servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
+    servletContext.setHandler(new GzipHandler());
+
+    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
+    httpServer.setHandler(servletContext);
+    httpServer.start();
+
+    SessionCatalog.SessionContext context =
+        new SessionCatalog.SessionContext(
+            UUID.randomUUID().toString(),
+            "user",
+            ImmutableMap.of("credential", "user:12345"),
+            ImmutableMap.of());
+
+    this.restCatalog =
+        new RESTCatalog(
+            context,
+            (config) -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
+    restCatalog.initialize(
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            httpServer.getURI().toString(),
+            "credential",
+            "catalog:12345",
+            // assume that the server supports view endpoints
+            RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED,
+            "true",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key1",
+            "catalog-default-key1",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key2",
+            "catalog-default-key2",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key3",
+            "catalog-default-key3",
+            CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3",
+            "catalog-override-key3",
+            CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4",
+            "catalog-override-key4"));
+  }
+
+  @Override
+  public void registerView() {
+    // Older client doesn't support the newer endpoint.
+    assertThatThrownBy(super::registerView)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Server does not support endpoint: POST /v1/{prefix}/namespaces/{namespace}/register-view");
+  }
+
+  @Override
+  public void registerExistingView() {
+    // Older client doesn't support the newer endpoint.
+    assertThatThrownBy(super::registerExistingView)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Server does not support endpoint: POST /v1/{prefix}/namespaces/{namespace}/register-view");
+  }
+
+  @Override
+  public void registerViewThatAlreadyExistsAsTable() {
+    // Older client doesn't support the newer endpoint.
+    assertThatThrownBy(super::registerViewThatAlreadyExistsAsTable)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Server does not support endpoint: POST /v1/{prefix}/namespaces/{namespace}/register-view");
+  }
+}

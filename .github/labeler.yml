@@ -1,0 +1,184 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+# Pull Request Labeler Github Action Configuration: https://github.com/marketplace/actions/labeler
+
+INFRA:
+  - changed-files:
+    - any-glob-to-any-file: [
+      '.asf.yaml',
+      '.gitattributes',
+      '.gitignore',
+      'baseline.gradle',
+      'deploy.gradle',
+      '.baseline/**/*',
+      '.github/**/*',
+      'dev/**/*'
+    ]
+
+BUILD:
+  - changed-files:
+    - any-glob-to-any-file: [
+      '**/*gradle*'
+    ]
+
+DOCS:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'docs/**/*',
+      'site/**/*',
+      '**/*CHANGELOG.md',
+      '**/*README.md',
+      '**/*CONTRIBUTING.md'
+    ]
+
+SPECIFICATION:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'format/*'
+    ]
+
+EXAMPLES:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'examples/**/*'
+    ]
+
+COMMON:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'common/**/*'
+    ]
+
+API:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'api/**/*'
+    ]
+
+CORE:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'core/**/*'
+    ]
+
+PARQUET:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'parquet/**/*'
+    ]
+
+ARROW:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'arrow/**/*'
+    ]
+
+ORC:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'orc/**/*'
+    ]
+
+HIVE:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'hive-metastore/**/*',
+    ]
+
+DATA:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'data/**/*'
+    ]
+
+SPARK:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'spark/**/*'
+    ]
+
+FLINK:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'flink/**/*'
+    ]
+
+MR:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'mr/**/*'
+    ]
+
+AWS:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'aws/**/*',
+      'aws-bundle/**/*'
+    ]
+
+NESSIE:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'nessie/**/*'
+    ]
+
+ALIYUN:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'aliyun/**/*'
+    ]
+
+GCP:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'gcp/**/*',
+      'gcp-bundle/**/*',
+      'bigquery/**/*'
+    ]
+
+DELL:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'dell/**/*'
+    ]
+
+SNOWFLAKE:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'snowflake/**/*'
+    ]
+
+OPENAPI:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'open-api/**/*'
+    ]
+
+AZURE:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'azure/**/*',
+      'azure-bundle/**/*'
+    ]
+
+KAFKACONNECT:
+  - changed-files:
+    - any-glob-to-any-file: [
+      'kafka-connect/**/*'
+    ]

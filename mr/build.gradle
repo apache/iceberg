@@ -1,0 +1,82 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+project(':iceberg-mr') {
+  configurations {
+    testImplementation {
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+    }
+  }
+  test {
+    useJUnitPlatform()
+  }
+
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+    api project(':iceberg-data')
+    implementation project(':iceberg-hive-metastore')
+    implementation project(':iceberg-orc')
+    implementation project(':iceberg-parquet')
+
+    compileOnly(libs.hadoop3.client) {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    implementation libs.caffeine
+    implementation libs.parquet.column
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
+      exclude group: 'org.apache.hadoop'
+      exclude group: 'commons-lang'
+      // These artifacts are shaded and included in the orc-core fat jar
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.hive', module: 'hive-storage-api'
+    }
+
+    testImplementation(libs.calcite.core) {
+      exclude group: 'org.apache.calcite.avatica', module: 'avatica'
+    }
+    testImplementation(libs.calcite.druid) {
+      exclude group: 'org.apache.calcite.avatica', module: 'avatica'
+    }
+
+    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+
+    testImplementation libs.avro.avro
+    testImplementation libs.kryo.shaded
+    testImplementation platform(libs.jackson.bom)
+    testImplementation libs.jackson.annotations
+    testImplementation(libs.hive2.service) {
+      exclude group: 'org.apache.hive', module: 'hive-exec'
+    }
+    testImplementation libs.tez08.dag
+    testImplementation libs.tez08.mapreduce
+  }
+
+  test {
+    // testJoinTables / testScanTable
+    maxHeapSize '2500m'
+  }
+}
+

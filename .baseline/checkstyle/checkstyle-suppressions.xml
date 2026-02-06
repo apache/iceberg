@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+    "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+<!--
+    Licensed to the Apache Software Foundation (ASF) under one or more
+    contributor license agreements.  See the NOTICE file distributed with
+    this work for additional information regarding copyright ownership.
+    The ASF licenses this file to You under the Apache License, Version 2.0
+    (the "License"); you may not use this file except in compliance with
+    the License.  You may obtain a copy of the License at
+
+         https://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+
+<!-- IMPORTANT ECLIPSE NOTE: If you change this file, you must restart Eclipse
+ for your changes to take effect in its Checkstyle integration. -->
+<suppressions>
+    <!-- Suppress test classes -->
+    <suppress files="[/\\]src[/\\].*([Tt]est|integration)[/\\](java|groovy)[/\\]" checks="Javadoc*" />
+    <suppress files="[/\\]src[/\\].*([Tt]est|integration)[/\\](java|groovy)[/\\]" checks="VariableDeclarationUsageDistance" />
+    <suppress files="[/\\]src[/\\].*([Tt]est|integration)[/\\](java|groovy)[/\\]" checks="VisibilityModifier" />
+    <suppress files="[/\\]src[/\\].*([Tt]est|integration)[/\\](java|groovy)[/\\]" checks="AvoidStaticImport" />
+    <suppress files="[/\\]src[/\\].*([Tt]est|integration)[/\\](java|groovy)[/\\]" id="BanSystemOut" />
+    <suppress files="[/\\]src[/\\].*([Tt]est|integration)[/\\](java|groovy)[/\\]" id="BanSystemErr" />
+    <suppress files="[/\\]src[/\\].*([Tt]est|integration)[/\\](java|groovy)[/\\]" id="BanGuavaTesting" />
+
+    <!-- Suppress test resources -->
+    <suppress files="[/\\]src[/\\](test|integration)[/\\]resources.*" checks="." />
+
+    <!-- JavadocStyle enforces existence of package-info.java package-level Javadoc; we consider this a bug. -->
+    <suppress files="package-info.java" checks="JavadocStyle" />
+
+    <!-- non-code classes -->
+    <suppress files="\.(bdr|eot|gif|gzip|jar|json|otf|png|svg|ttf|woff|zip)$" checks="FileTabCharacter" />
+    <suppress files="\.(bdr|eot|gif|gzip|jar|json|otf|png|svg|ttf|woff|zip)$" checks="NewlineAtEndOfFile" />
+
+    <!-- Generated code should not be subjected to checkstyle. -->
+    <suppress files="[/\\].*[/\\]generated.*[/\\]" checks="." />
+
+    <suppress files="org.apache.iceberg.hive.ScriptRunner.java" checks="RegexpHeader"/>
+
+    <!-- Referencing guava classes should be allowed in classes within bundled-guava module -->
+    <suppress files="org.apache.iceberg.GuavaClasses" id="BanUnrelocatedGuavaClasses"/>
+
+    <!-- Allow using Flink's shaded Curator dependency -->
+    <suppress files="org.apache.iceberg.flink.maintenance.api.ZkLockFactory" id="BanShadedClasses"/>
+    <suppress files="org.apache.iceberg.flink.maintenance.api.TestZkLockFactory" id="BanShadedClasses"/>
+
+    <!-- Suppress checks for CometColumnReader -->
+    <suppress files="org.apache.iceberg.spark.data.vectorized.CometColumnReader" checks="IllegalImport"/>
+    <!-- Suppress checks for CometDeletedColumnVector -->
+    <suppress files="org.apache.iceberg.spark.data.vectorized.CometDeletedColumnVector" checks="IllegalImport"/>
+
+    <!-- Suppress TestClassNamingConvention for main source files -->
+    <suppress files=".*[/\\]src[/\\]main[/\\].*" id="TestClassNamingConvention" />
+</suppressions>

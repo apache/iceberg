@@ -1,0 +1,77 @@
+*.swp
+.DS_Store
+.cache
+tmp/
+
+# intellij files
+.idea
+.idea_modules/
+*.ipr
+*.iws
+*.iml
+out
+
+# gradle build
+.gradle
+.out/
+build
+dependencies.lock
+**/dependencies.lock
+gradle/
+gradle/wrapper/gradle-wrapper.jar
+
+# rat library install location
+lib/
+
+# web site build
+docs/site/
+site/site/
+site/docs/docs/
+site/docs/.asf.yaml
+site/docs/javadoc/
+site/.venv/
+
+# benchmark output
+spark/v3.4/spark/benchmark/*
+spark/v3.4/spark-extensions/benchmark/*
+spark/v3.5/spark/benchmark/*
+spark/v3.5/spark-extensions/benchmark/*
+spark/v4.0/spark/benchmark/*
+spark/v4.0/spark-extensions/benchmark/*
+spark/v4.1/spark/benchmark/*
+spark/v4.1/spark-extensions/benchmark/*
+*/benchmark/*
+
+__pycache__/
+*.py[cod]
+.eggs/
+.tox/
+env/
+venv/
+*.egg-info/
+test-reports
+build/
+dist/
+sdist/
+.coverage
+coverage.xml
+.pytest_cache/
+
+# vscode/eclipse files
+.classpath
+.project
+.settings
+bin/
+
+# Hive/metastore files
+metastore_db/
+
+# Spark/metastore files
+spark-warehouse/
+derby.log
+
+# jenv
+.java-version
+
+# sdkman
+.sdkmanrc

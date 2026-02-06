@@ -1,0 +1,483 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg;
+
+import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SerializableMap;
+import org.apache.iceberg.util.SerializableSupplier;
+
+/**
+ * A read-only serializable table that can be sent to other nodes in a cluster.
+ *
+ * <p>An instance of this class represents an immutable serializable copy of a table state and will
+ * not reflect any subsequent changed made to the original table.
+ *
+ * <p>While this class captures the metadata file location that can be used to load the complete
+ * table metadata, it directly persists the current schema, spec, sort order, table properties to
+ * avoid reading the metadata file from other nodes for frequently needed metadata.
+ *
+ * <p>The implementation assumes the passed instances of {@link FileIO}, {@link EncryptionManager},
+ * {@link LocationProvider} are serializable. If you are serializing the table using a custom
+ * serialization framework like Kryo, those instances of {@link FileIO}, {@link EncryptionManager},
+ * {@link LocationProvider} must be supported by that particular serialization framework.
+ *
+ * <p><em>Note:</em> loading the complete metadata from a large number of nodes can overwhelm the
+ * storage.
+ */
+public class SerializableTable implements Table, HasTableOperations, Serializable {
+  private static final int UNKNOWN_FORMAT_VERSION = -1;
+
+  private final String name;
+  private final String location;
+  private final String metadataFileLocation;
+  private final Map<String, String> properties;
+  private final String schemaAsJson;
+  private final int defaultSpecId;
+  private final Map<Integer, String> specAsJsonMap;
+  private final String sortOrderAsJson;
+  private final FileIO io;
+  private final EncryptionManager encryption;
+  private final Map<String, SnapshotRef> refs;
+  private final UUID uuid;
+  private final int formatVersion;
+  private final Try<LocationProvider> locationProviderTry;
+
+  private transient volatile Table lazyTable = null;
+  private transient volatile Schema lazySchema = null;
+  private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
+  private transient volatile SortOrder lazySortOrder = null;
+
+  protected SerializableTable(Table table) {
+    this.name = table.name();
+    this.location = table.location();
+    this.metadataFileLocation = metadataFileLocation(table);
+    this.properties = SerializableMap.copyOf(table.properties());
+    this.schemaAsJson = SchemaParser.toJson(table.schema());
+    this.defaultSpecId = table.spec().specId();
+    this.specAsJsonMap = Maps.newHashMap();
+    Map<Integer, PartitionSpec> specs = table.specs();
+    specs.forEach((specId, spec) -> specAsJsonMap.put(specId, PartitionSpecParser.toJson(spec)));
+    this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
+    this.io = fileIO(table);
+    this.encryption = table.encryption();
+    this.locationProviderTry = Try.of(table::locationProvider);
+    this.refs = SerializableMap.copyOf(table.refs());
+    this.uuid = table.uuid();
+    this.formatVersion = formatVersion(table);
+  }
+
+  /**
+   * Creates a read-only serializable table that can be sent to other nodes in a cluster.
+   *
+   * @param table the original table to copy the state from
+   * @return a read-only serializable table reflecting the current state of the original table
+   */
+  public static Table copyOf(Table table) {
+    if (table instanceof BaseMetadataTable) {
+      return new SerializableMetadataTable((BaseMetadataTable) table);
+    } else {
+      return new SerializableTable(table);
+    }
+  }
+
+  public String metadataFileLocation() {
+    if (metadataFileLocation == null) {
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not have a metadata file location");
+    }
+    return metadataFileLocation;
+  }
+
+  private String metadataFileLocation(Table table) {
+    if (table instanceof HasTableOperations) {
+      TableOperations ops = ((HasTableOperations) table).operations();
+      return ops.current().metadataFileLocation();
+    } else if (table instanceof BaseMetadataTable) {
+      return ((BaseMetadataTable) table).table().operations().current().metadataFileLocation();
+    } else {
+      return null;
+    }
+  }
+
+  private FileIO fileIO(Table table) {
+    if (table.io() instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) table.io()).serializeConfWith(SerializableConfSupplier::new);
+    }
+
+    return table.io();
+  }
+
+  private Table lazyTable() {
+    if (lazyTable == null) {
+      synchronized (this) {
+        if (lazyTable == null) {
+          if (metadataFileLocation == null) {
+            throw new UnsupportedOperationException(
+                "Cannot load metadata: metadata file location is null");
+          }
+
+          TableOperations ops =
+              new StaticTableOperations(metadataFileLocation, io, locationProvider());
+          this.lazyTable = newTable(ops, name);
+        }
+      }
+    }
+
+    return lazyTable;
+  }
+
+  protected Table newTable(TableOperations ops, String tableName) {
+    return new BaseTable(ops, tableName);
+  }
+
+  @Override
+  public String name() {
+    return name;
+  }
+
+  @Override
+  public String location() {
+    return location;
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return properties;
+  }
+
+  public int formatVersion() {
+    if (formatVersion == UNKNOWN_FORMAT_VERSION) {
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not have a format version");
+    }
+    return formatVersion;
+  }
+
+  private int formatVersion(Table table) {
+    try {
+      return TableUtil.formatVersion(table);
+    } catch (IllegalArgumentException e) {
+      return UNKNOWN_FORMAT_VERSION;
+    }
+  }
+
+  @Override
+  public Schema schema() {
+    if (lazySchema == null) {
+      synchronized (this) {
+        if (lazySchema == null && lazyTable == null) {
+          // prefer parsing JSON as opposed to loading the metadata
+          this.lazySchema = SchemaParser.fromJson(schemaAsJson);
+        } else if (lazySchema == null) {
+          this.lazySchema = lazyTable.schema();
+        }
+      }
+    }
+
+    return lazySchema;
+  }
+
+  @Override
+  public Map<Integer, Schema> schemas() {
+    return lazyTable().schemas();
+  }
+
+  @Override
+  public PartitionSpec spec() {
+    return specs().get(defaultSpecId);
+  }
+
+  @Override
+  public Map<Integer, PartitionSpec> specs() {
+    if (lazySpecs == null) {
+      synchronized (this) {
+        if (lazySpecs == null && lazyTable == null) {
+          // prefer parsing JSON as opposed to loading the metadata
+          Map<Integer, PartitionSpec> specs = Maps.newHashMapWithExpectedSize(specAsJsonMap.size());
+          specAsJsonMap.forEach(
+              (specId, specAsJson) -> {
+                specs.put(specId, PartitionSpecParser.fromJson(schema(), specAsJson));
+              });
+          this.lazySpecs = specs;
+        } else if (lazySpecs == null) {
+          this.lazySpecs = lazyTable.specs();
+        }
+      }
+    }
+
+    return lazySpecs;
+  }
+
+  @Override
+  public SortOrder sortOrder() {
+    if (lazySortOrder == null) {
+      synchronized (this) {
+        if (lazySortOrder == null && lazyTable == null) {
+          // prefer parsing JSON as opposed to loading the metadata
+          this.lazySortOrder = SortOrderParser.fromJson(schema(), sortOrderAsJson);
+        } else if (lazySortOrder == null) {
+          this.lazySortOrder = lazyTable.sortOrder();
+        }
+      }
+    }
+
+    return lazySortOrder;
+  }
+
+  @Override
+  public Map<Integer, SortOrder> sortOrders() {
+    return lazyTable().sortOrders();
+  }
+
+  @Override
+  public FileIO io() {
+    return io;
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    return encryption;
+  }
+
+  @Override
+  public LocationProvider locationProvider() {
+    return this.locationProviderTry.getOrThrow();
+  }
+
+  @Override
+  public List<StatisticsFile> statisticsFiles() {
+    return lazyTable().statisticsFiles();
+  }
+
+  @Override
+  public List<PartitionStatisticsFile> partitionStatisticsFiles() {
+    return lazyTable().partitionStatisticsFiles();
+  }
+
+  @Override
+  public Map<String, SnapshotRef> refs() {
+    return refs;
+  }
+
+  @Override
+  public UUID uuid() {
+    return uuid;
+  }
+
+  @Override
+  public void refresh() {
+    throw new UnsupportedOperationException(errorMsg("refresh"));
+  }
+
+  @Override
+  public TableScan newScan() {
+    return lazyTable().newScan();
+  }
+
+  @Override
+  public IncrementalAppendScan newIncrementalAppendScan() {
+    return lazyTable().newIncrementalAppendScan();
+  }
+
+  @Override
+  public IncrementalChangelogScan newIncrementalChangelogScan() {
+    return lazyTable().newIncrementalChangelogScan();
+  }
+
+  @Override
+  public BatchScan newBatchScan() {
+    return lazyTable().newBatchScan();
+  }
+
+  @Override
+  public Snapshot currentSnapshot() {
+    return lazyTable().currentSnapshot();
+  }
+
+  @Override
+  public Snapshot snapshot(long snapshotId) {
+    return lazyTable().snapshot(snapshotId);
+  }
+
+  @Override
+  public Iterable<Snapshot> snapshots() {
+    return lazyTable().snapshots();
+  }
+
+  @Override
+  public List<HistoryEntry> history() {
+    return lazyTable().history();
+  }
+
+  @Override
+  public UpdateSchema updateSchema() {
+    throw new UnsupportedOperationException(errorMsg("updateSchema"));
+  }
+
+  @Override
+  public UpdatePartitionSpec updateSpec() {
+    throw new UnsupportedOperationException(errorMsg("updateSpec"));
+  }
+
+  @Override
+  public UpdateProperties updateProperties() {
+    throw new UnsupportedOperationException(errorMsg("updateProperties"));
+  }
+
+  @Override
+  public ReplaceSortOrder replaceSortOrder() {
+    throw new UnsupportedOperationException(errorMsg("replaceSortOrder"));
+  }
+
+  @Override
+  public UpdateLocation updateLocation() {
+    throw new UnsupportedOperationException(errorMsg("updateLocation"));
+  }
+
+  @Override
+  public AppendFiles newAppend() {
+    throw new UnsupportedOperationException(errorMsg("newAppend"));
+  }
+
+  @Override
+  public RewriteFiles newRewrite() {
+    throw new UnsupportedOperationException(errorMsg("newRewrite"));
+  }
+
+  @Override
+  public RewriteManifests rewriteManifests() {
+    throw new UnsupportedOperationException(errorMsg("rewriteManifests"));
+  }
+
+  @Override
+  public OverwriteFiles newOverwrite() {
+    throw new UnsupportedOperationException(errorMsg("newOverwrite"));
+  }
+
+  @Override
+  public RowDelta newRowDelta() {
+    throw new UnsupportedOperationException(errorMsg("newRowDelta"));
+  }
+
+  @Override
+  public ReplacePartitions newReplacePartitions() {
+    throw new UnsupportedOperationException(errorMsg("newReplacePartitions"));
+  }
+
+  @Override
+  public DeleteFiles newDelete() {
+    throw new UnsupportedOperationException(errorMsg("newDelete"));
+  }
+
+  @Override
+  public UpdateStatistics updateStatistics() {
+    throw new UnsupportedOperationException(errorMsg("updateStatistics"));
+  }
+
+  @Override
+  public UpdatePartitionStatistics updatePartitionStatistics() {
+    throw new UnsupportedOperationException(errorMsg("updatePartitionStatistics"));
+  }
+
+  @Override
+  public ExpireSnapshots expireSnapshots() {
+    throw new UnsupportedOperationException(errorMsg("expireSnapshots"));
+  }
+
+  @Override
+  public ManageSnapshots manageSnapshots() {
+    throw new UnsupportedOperationException(errorMsg("manageSnapshots"));
+  }
+
+  @Override
+  public Transaction newTransaction() {
+    throw new UnsupportedOperationException(errorMsg("newTransaction"));
+  }
+
+  @Override
+  public StaticTableOperations operations() {
+    return (StaticTableOperations) ((BaseTable) lazyTable()).operations();
+  }
+
+  private String errorMsg(String operation) {
+    return String.format("Operation %s is not supported after the table is serialized", operation);
+  }
+
+  public static class SerializableMetadataTable extends SerializableTable {
+    private final MetadataTableType type;
+    private final String baseTableName;
+
+    protected SerializableMetadataTable(BaseMetadataTable metadataTable) {
+      super(metadataTable);
+      this.type = metadataTable.metadataTableType();
+      this.baseTableName = metadataTable.table().name();
+    }
+
+    @Override
+    protected Table newTable(TableOperations ops, String tableName) {
+      return MetadataTableUtils.createMetadataTableInstance(ops, baseTableName, tableName, type);
+    }
+
+    @Override
+    public StaticTableOperations operations() {
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not support operations()");
+    }
+
+    public MetadataTableType type() {
+      return type;
+    }
+  }
+
+  // captures the current state of a Hadoop configuration in a serializable manner
+  private static class SerializableConfSupplier implements SerializableSupplier<Configuration> {
+
+    private final Map<String, String> confAsMap;
+    private transient volatile Configuration conf = null;
+
+    SerializableConfSupplier(Configuration conf) {
+      this.confAsMap = Maps.newHashMapWithExpectedSize(conf.size());
+      conf.forEach(entry -> confAsMap.put(entry.getKey(), entry.getValue()));
+    }
+
+    @Override
+    public Configuration get() {
+      if (conf == null) {
+        synchronized (this) {
+          if (conf == null) {
+            Configuration newConf = new Configuration(false);
+            confAsMap.forEach(newConf::set);
+            this.conf = newConf;
+          }
+        }
+      }
+
+      return conf;
+    }
+  }
+}

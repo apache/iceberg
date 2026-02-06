@@ -1,0 +1,42 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+install:
+	uv venv --python 3.12 --allow-existing  # Match --target-python-version in the `generate` target
+	uv pip install -r requirements.txt
+
+validate-spec:
+	uv run openapi-spec-validator --errors all rest-catalog-open-api.yaml
+	uv run openapi-spec-validator --errors all ../aws/src/main/resources/s3-signer-open-api.yaml
+
+lint-spec:
+	uv run yamllint --strict rest-catalog-open-api.yaml
+	uv run yamllint --strict ../aws/src/main/resources/s3-signer-open-api.yaml
+
+lint: validate-spec lint-spec
+
+generate:
+	uv run datamodel-codegen \
+			--enum-field-as-literal all \
+	        --target-python-version 3.12 \
+	        --use-schema-description \
+	        --field-constraints \
+	        --input rest-catalog-open-api.yaml \
+	        --disable-timestamp \
+	        --custom-file-header-path header.txt \
+	        --input-file-type openapi \
+	        --output rest-catalog-open-api.py

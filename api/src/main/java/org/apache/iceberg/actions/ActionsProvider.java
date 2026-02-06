@@ -1,0 +1,97 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.actions;
+
+import org.apache.iceberg.Table;
+
+/** An API that should be implemented by query engine integrations for providing actions. */
+public interface ActionsProvider {
+
+  /** Instantiates an action to snapshot an existing table as a new Iceberg table. */
+  default SnapshotTable snapshotTable(String sourceTableIdent) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement snapshotTable");
+  }
+
+  /** Instantiates an action to migrate an existing table to Iceberg. */
+  default MigrateTable migrateTable(String tableIdent) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement migrateTable");
+  }
+
+  /** Instantiates an action to delete orphan files. */
+  default DeleteOrphanFiles deleteOrphanFiles(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement deleteOrphanFiles");
+  }
+
+  /** Instantiates an action to rewrite manifests. */
+  default RewriteManifests rewriteManifests(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rewriteManifests");
+  }
+
+  /** Instantiates an action to rewrite data files. */
+  default RewriteDataFiles rewriteDataFiles(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rewriteDataFiles");
+  }
+
+  /** Instantiates an action to expire snapshots. */
+  default ExpireSnapshots expireSnapshots(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement expireSnapshots");
+  }
+
+  /** Instantiates an action to delete all the files reachable from given metadata location. */
+  default DeleteReachableFiles deleteReachableFiles(String metadataLocation) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement deleteReachableFiles");
+  }
+
+  /** Instantiates an action to rewrite position delete files */
+  default RewritePositionDeleteFiles rewritePositionDeletes(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rewritePositionDeletes");
+  }
+
+  /** Instantiates an action to compute table stats. */
+  default ComputeTableStats computeTableStats(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement computeTableStats");
+  }
+
+  /** Instantiates an action to compute partition stats. */
+  default ComputePartitionStats computePartitionStats(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement computePartitionStats");
+  }
+
+  /** Instantiates an action to rewrite all absolute paths in table metadata. */
+  default RewriteTablePath rewriteTablePath(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rewriteTablePath");
+  }
+
+  /** Instantiates an action to remove dangling delete files from current snapshot. */
+  default RemoveDanglingDeleteFiles removeDanglingDeleteFiles(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement removeDanglingDeleteFiles");
+  }
+}
