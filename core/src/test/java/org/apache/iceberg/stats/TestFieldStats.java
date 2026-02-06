@@ -29,8 +29,17 @@ import static org.apache.iceberg.stats.FieldStatistic.VALUE_COUNT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.stream.Stream;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestFieldStats {
 
@@ -210,5 +219,34 @@ public class TestFieldStats {
     assertThatThrownBy(() -> assertThat(fieldStats.get(AVG_VALUE_SIZE.offset(), Long.class)))
         .isInstanceOf(ClassCastException.class)
         .hasMessage("Cannot cast java.lang.Integer to java.lang.Long");
+  }
+
+  private static Stream<Arguments> binaryTypes() {
+    return Stream.of(
+        Arguments.of(Types.BinaryType.get()), Arguments.of(Types.FixedType.ofLength(3)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("binaryTypes")
+  public void statsForBinaryTypes(Type binaryType) throws IOException, ClassNotFoundException {
+    BaseFieldStats<ByteBuffer> statsWithByteBuffer =
+        BaseFieldStats.<ByteBuffer>builder()
+            .type(binaryType)
+            .lowerBound(ByteBuffer.wrap("AAA".getBytes(StandardCharsets.UTF_8)))
+            .upperBound(ByteBuffer.wrap("ZZZ".getBytes(StandardCharsets.UTF_8)))
+            .build();
+    assertThat(TestHelpers.roundTripSerialize(statsWithByteBuffer)).isEqualTo(statsWithByteBuffer);
+
+    BaseFieldStats<byte[]> statsWithByteArray =
+        BaseFieldStats.<byte[]>builder()
+            .type(binaryType)
+            .lowerBound("AAA".getBytes(StandardCharsets.UTF_8))
+            .upperBound("ZZZ".getBytes(StandardCharsets.UTF_8))
+            .build();
+    assertThat(TestHelpers.roundTripSerialize(statsWithByteArray)).isEqualTo(statsWithByteArray);
+
+    assertThat(statsWithByteArray)
+        .as("both field stats should produce the same upper/lower bound values")
+        .isEqualTo(statsWithByteBuffer);
   }
 }

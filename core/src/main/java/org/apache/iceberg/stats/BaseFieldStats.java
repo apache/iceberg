@@ -20,10 +20,12 @@ package org.apache.iceberg.stats;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.ByteBuffers;
 
 public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   private final int fieldId;
@@ -93,6 +95,19 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   @Override
   public Integer maxValueSize() {
     return maxValueSize;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T serializableBound(T bound) {
+    if (bound instanceof CharBuffer) {
+      // CharBuffer is not serializable, use String instead
+      return (T) bound.toString();
+    } else if (bound instanceof ByteBuffer) {
+      // ByteBuffer is not serializable, use byte[] instead
+      return (T) ByteBuffers.toByteArray((ByteBuffer) bound);
+    }
+
+    return bound;
   }
 
   @SuppressWarnings("unchecked")
@@ -218,8 +233,8 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         .avgValueSize(value.avgValueSize())
         .maxValueSize(value.maxValueSize())
         // use original lower/upper bound value
-        .lowerBound(value.lowerBound)
-        .upperBound(value.upperBound)
+        .lowerBound(value.lowerBound())
+        .upperBound(value.upperBound())
         .hasExactBounds(value.hasExactBounds());
   }
 
@@ -268,12 +283,12 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     }
 
     public Builder<T> lowerBound(T newLowerBound) {
-      this.lowerBound = newLowerBound;
+      this.lowerBound = serializableBound(newLowerBound);
       return this;
     }
 
     public Builder<T> upperBound(T newUpperBound) {
-      this.upperBound = newUpperBound;
+      this.upperBound = serializableBound(newUpperBound);
       return this;
     }
 

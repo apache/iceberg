@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +39,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
 
 public class MetricsUtil {
 
@@ -539,12 +537,12 @@ public class MetricsUtil {
                     BaseFieldStats.builder()
                         .fieldId(id)
                         .type(type)
-                        .lowerBound(fromByteBufferToStats(type, entry.getValue()))
+                        .lowerBound(Conversions.fromByteBuffer(type, entry.getValue()))
                         .build(),
                     (oldVal, newVal) ->
                         BaseFieldStats.buildFrom(oldVal)
                             .type(type)
-                            .lowerBound(fromByteBufferToStats(type, entry.getValue()))
+                            .lowerBound(Conversions.fromByteBuffer(type, entry.getValue()))
                             .build());
               });
     }
@@ -562,12 +560,12 @@ public class MetricsUtil {
                     BaseFieldStats.builder()
                         .fieldId(id)
                         .type(type)
-                        .upperBound(fromByteBufferToStats(type, entry.getValue()))
+                        .upperBound(Conversions.fromByteBuffer(type, entry.getValue()))
                         .build(),
                     (oldVal, newVal) ->
                         BaseFieldStats.buildFrom(oldVal)
                             .type(type)
-                            .upperBound(fromByteBufferToStats(type, entry.getValue()))
+                            .upperBound(Conversions.fromByteBuffer(type, entry.getValue()))
                             .build());
               });
     }
@@ -575,19 +573,5 @@ public class MetricsUtil {
     map.values().forEach(builder::withFieldStats);
 
     return builder.build();
-  }
-
-  @SuppressWarnings("unchecked")
-  private static <T> T fromByteBufferToStats(Type type, ByteBuffer buffer) {
-    Object result = Conversions.fromByteBuffer(type, buffer);
-    if (Types.StringType.get().equals(type)) {
-      // CharBuffer is not serializable, use String instead
-      return (T) result.toString();
-    } else if (type.typeId().javaClass().equals(ByteBuffer.class)) {
-      // ByteBuffer is not serializable, use byte[] instead
-      return (T) ByteBuffers.toByteArray(buffer);
-    }
-
-    return (T) result;
   }
 }
