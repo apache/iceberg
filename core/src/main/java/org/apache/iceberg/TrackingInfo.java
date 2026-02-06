@@ -27,23 +27,6 @@ import org.apache.iceberg.types.Types;
  * accessing the fields for the entry and provides an isolated structure that can be modified.
  */
 interface TrackingInfo {
-  /** Status of an entry in a tracked file */
-  enum Status {
-    EXISTING(0),
-    ADDED(1),
-    DELETED(2);
-
-    private final int id;
-
-    Status(int id) {
-      this.id = id;
-    }
-
-    public int id() {
-      return id;
-    }
-  }
-
   Types.NestedField STATUS =
       Types.NestedField.required(
           0, "status", Types.IntegerType.get(), "Entry status: 0=existing, 1=added, 2=deleted");
@@ -82,7 +65,7 @@ interface TrackingInfo {
    *   <li>2: DELETED - file removed
    * </ul>
    */
-  Status status();
+  ManifestEntryStatus status();
 
   /** Returns the snapshot ID where the file was added or deleted. */
   Long snapshotId();
