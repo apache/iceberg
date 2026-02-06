@@ -814,34 +814,19 @@ public class ExpressionUtil {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(UnboundPredicate<T> pred) {
-      UnboundTerm<T> term = pred.term();
-
       switch (pred.op()) {
-        case IS_NULL:
-        case NOT_NULL:
-        case IS_NAN:
-        case NOT_NAN:
-          // Unary predicates don't have literals to transform
-          return pred;
-
         case LT:
         case LT_EQ:
         case GT:
         case GT_EQ:
         case EQ:
         case NOT_EQ:
-          Literal<T> lit = pred.literal();
-          if (lit.value() instanceof UUID) {
+          if (pred.literal().value() instanceof UUID) {
             foundUUIDBoundsPredicate = true;
-            Literals.UUIDLiteral uuidLit = (Literals.UUIDLiteral) lit;
-            return new UnboundPredicate<>(pred.op(), term, (T) uuidLit.withSignedComparator());
+            Literals.UUIDLiteral uuidLit = (Literals.UUIDLiteral) pred.literal();
+            return new UnboundPredicate<>(
+                pred.op(), pred.term(), (T) uuidLit.withSignedComparator());
           }
-
-          return pred;
-
-        case STARTS_WITH:
-        case NOT_STARTS_WITH:
-          // These operations don't apply to UUIDs, no transformation needed
           return pred;
 
         case IN:
@@ -851,15 +836,10 @@ public class ExpressionUtil {
             foundUUIDBoundsPredicate = true;
             List<T> transformedValues =
                 literals.stream()
-                    .map(
-                        l -> {
-                          Literals.UUIDLiteral uuidLit = (Literals.UUIDLiteral) l;
-                          return (T) uuidLit.withSignedComparator();
-                        })
+                    .map(l -> (T) ((Literals.UUIDLiteral) l).withSignedComparator())
                     .collect(Collectors.toList());
-            return new UnboundPredicate<>(pred.op(), term, transformedValues);
+            return new UnboundPredicate<>(pred.op(), pred.term(), transformedValues);
           }
-
           return pred;
 
         default:
