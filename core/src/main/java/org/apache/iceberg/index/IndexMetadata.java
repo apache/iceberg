@@ -35,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 
@@ -463,22 +462,14 @@ public interface IndexMetadata extends Serializable {
           "Invalid snapshot id set to remove: %s",
           snapshots);
 
-      Set<Long> existingSnapshotsIdsToRemove = Sets.newHashSet(indexSnapshotIdsToRemove);
-      existingSnapshotsIdsToRemove.retainAll(
-          snapshotsByTableSnapshotId.values().stream()
-              .map(IndexSnapshot::indexSnapshotId)
-              .collect(Collectors.toSet()));
-
-      if (!existingSnapshotsIdsToRemove.isEmpty()) {
-        snapshotsByTableSnapshotId
-            .entrySet()
-            .removeIf(
-                entry -> existingSnapshotsIdsToRemove.contains(entry.getValue().indexSnapshotId()));
-        snapshots.removeIf(
-            snapshot -> existingSnapshotsIdsToRemove.contains(snapshot.indexSnapshotId()));
-        changes.add(new IndexUpdate.RemoveSnapshots(existingSnapshotsIdsToRemove));
+      snapshots.removeIf(snapshot -> indexSnapshotIdsToRemove.contains(snapshot.indexSnapshotId()));
+      // Rebuild snapshotsByTableSnapshotId from the remaining snapshots
+      snapshotsByTableSnapshotId.clear();
+      for (IndexSnapshot snapshot : snapshots) {
+        snapshotsByTableSnapshotId.put(snapshot.tableSnapshotId(), snapshot);
       }
 
+      changes.add(new IndexUpdate.RemoveSnapshots(indexSnapshotIdsToRemove));
       return this;
     }
 
