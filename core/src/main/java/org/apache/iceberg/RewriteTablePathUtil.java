@@ -746,10 +746,20 @@ public class RewriteTablePathUtil {
     return combinePaths(targetPrefix, relativize(path, sourcePrefix));
   }
 
-  /** Combine a base and relative path. */
+  /**
+   * Combine a base path and a relative path.
+   *
+   * <p>If the relative path is empty, returns the absolute path unchanged. Otherwise, ensures a
+   * separator between the base and relative path.
+   *
+   * @param absolutePath the base path
+   * @param relativePath the relative path to append (may be empty)
+   * @return the combined path, or absolutePath unchanged if relativePath is empty
+   */
   public static String combinePaths(String absolutePath, String relativePath) {
-    String base = maybeAppendFileSeparator(absolutePath);
-    return relativePath.isEmpty() ? base : base + relativePath;
+    return relativePath.isEmpty()
+        ? absolutePath
+        : maybeAppendFileSeparator(absolutePath) + relativePath;
   }
 
   /** Returns the file name of a path. */

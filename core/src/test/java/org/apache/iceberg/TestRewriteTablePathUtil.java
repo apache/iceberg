@@ -121,15 +121,15 @@ public class TestRewriteTablePathUtil {
     // Trailing separator on path
     assertThat(RewriteTablePathUtil.newPath("/src/data/", "/src", "/tgt")).isEqualTo("/tgt/data/");
 
-    // Both path and prefix with trailing separator
-    assertThat(RewriteTablePathUtil.newPath("/src/", "/src/", "/tgt")).isEqualTo("/tgt/");
+    // Both path and prefix with trailing separator - result preserves target format
+    assertThat(RewriteTablePathUtil.newPath("/src/", "/src/", "/tgt")).isEqualTo("/tgt");
   }
 
   @Test
   public void testNewPathEqualsPrefix() {
     // Issue #15172: path equals prefix (e.g., write.data.path = table location)
-    // Result has trailing separator since directories are represented with trailing separators
-    assertThat(RewriteTablePathUtil.newPath("/src", "/src", "/tgt")).isEqualTo("/tgt/");
+    // Result preserves the target prefix format (no trailing separator added)
+    assertThat(RewriteTablePathUtil.newPath("/src", "/src", "/tgt")).isEqualTo("/tgt");
 
     // S3 paths - storage migration scenario
     assertThat(
@@ -137,23 +137,23 @@ public class TestRewriteTablePathUtil {
                 "s3://bucket/warehouse/db/table",
                 "s3://bucket/warehouse/db/table",
                 "s3://bucket-dr/warehouse/db/table"))
-        .isEqualTo("s3://bucket-dr/warehouse/db/table/");
+        .isEqualTo("s3://bucket-dr/warehouse/db/table");
   }
 
   @Test
   public void testNewPathTrailingSeparatorCombinations() {
     // All combinations of trailing separators should work consistently
-    // Path equals prefix - all should map to target with trailing separator
-    assertThat(RewriteTablePathUtil.newPath("/src", "/src", "/tgt")).isEqualTo("/tgt/");
-    assertThat(RewriteTablePathUtil.newPath("/src/", "/src", "/tgt")).isEqualTo("/tgt/");
-    assertThat(RewriteTablePathUtil.newPath("/src", "/src/", "/tgt")).isEqualTo("/tgt/");
-    assertThat(RewriteTablePathUtil.newPath("/src/", "/src/", "/tgt")).isEqualTo("/tgt/");
+    // Path equals prefix - result preserves target format
+    assertThat(RewriteTablePathUtil.newPath("/src", "/src", "/tgt")).isEqualTo("/tgt");
+    assertThat(RewriteTablePathUtil.newPath("/src/", "/src", "/tgt")).isEqualTo("/tgt");
+    assertThat(RewriteTablePathUtil.newPath("/src", "/src/", "/tgt")).isEqualTo("/tgt");
+    assertThat(RewriteTablePathUtil.newPath("/src/", "/src/", "/tgt")).isEqualTo("/tgt");
 
     // Path under prefix - all should preserve relative structure
     assertThat(RewriteTablePathUtil.newPath("/src/data", "/src", "/tgt")).isEqualTo("/tgt/data");
     assertThat(RewriteTablePathUtil.newPath("/src/data", "/src/", "/tgt")).isEqualTo("/tgt/data");
 
-    // Target with trailing separator
+    // Target with trailing separator - preserved when path equals prefix
     assertThat(RewriteTablePathUtil.newPath("/src", "/src", "/tgt/")).isEqualTo("/tgt/");
     assertThat(RewriteTablePathUtil.newPath("/src/data", "/src", "/tgt/")).isEqualTo("/tgt/data");
   }
@@ -177,7 +177,7 @@ public class TestRewriteTablePathUtil {
     assertThat(RewriteTablePathUtil.newPath("/table/data/file.parquet", "/table", "/table/backup"))
         .isEqualTo("/table/backup/data/file.parquet");
     assertThat(RewriteTablePathUtil.newPath("/table", "/table", "/table/backup"))
-        .isEqualTo("/table/backup/");
+        .isEqualTo("/table/backup");
 
     // Restore: rewriting from subdirectory to parent
     assertThat(
@@ -185,7 +185,7 @@ public class TestRewriteTablePathUtil {
                 "/table/backup/data/file.parquet", "/table/backup", "/table"))
         .isEqualTo("/table/data/file.parquet");
     assertThat(RewriteTablePathUtil.newPath("/table/backup", "/table/backup", "/table"))
-        .isEqualTo("/table/");
+        .isEqualTo("/table");
   }
 
   @Test
@@ -193,29 +193,40 @@ public class TestRewriteTablePathUtil {
     // Rename /tableX to /table (target is substring of source name)
     assertThat(RewriteTablePathUtil.newPath("/tableX/data/file.parquet", "/tableX", "/table"))
         .isEqualTo("/table/data/file.parquet");
-    assertThat(RewriteTablePathUtil.newPath("/tableX", "/tableX", "/table")).isEqualTo("/table/");
+    assertThat(RewriteTablePathUtil.newPath("/tableX", "/tableX", "/table")).isEqualTo("/table");
     assertThat(RewriteTablePathUtil.newPath("/tableX/metadata/v1.json", "/tableX", "/table"))
         .isEqualTo("/table/metadata/v1.json");
 
     // Rename /table to /tableX (source is substring of target name)
     assertThat(RewriteTablePathUtil.newPath("/table/data/file.parquet", "/table", "/tableX"))
         .isEqualTo("/tableX/data/file.parquet");
-    assertThat(RewriteTablePathUtil.newPath("/table", "/table", "/tableX")).isEqualTo("/tableX/");
+    assertThat(RewriteTablePathUtil.newPath("/table", "/table", "/tableX")).isEqualTo("/tableX");
   }
 
   @Test
   public void testCombinePaths() {
-    // Normal case
+    // Normal case: adds separator between base and relative path
     assertThat(RewriteTablePathUtil.combinePaths("/base", "relative/path"))
         .isEqualTo("/base/relative/path");
 
-    // Base already has trailing separator
+    // Base already has trailing separator - no double separator
     assertThat(RewriteTablePathUtil.combinePaths("/base/", "relative/path"))
         .isEqualTo("/base/relative/path");
 
-    // Empty relative path (optimization added for issue #15172)
-    assertThat(RewriteTablePathUtil.combinePaths("/base", "")).isEqualTo("/base/");
+    // Empty relative path - returns absolutePath unchanged (no trailing separator added)
+    // This preserves the original path format when combining with empty relative
+    assertThat(RewriteTablePathUtil.combinePaths("/base", "")).isEqualTo("/base");
     assertThat(RewriteTablePathUtil.combinePaths("/base/", "")).isEqualTo("/base/");
+
+    // S3 paths
+    assertThat(RewriteTablePathUtil.combinePaths("s3://bucket/prefix", "data/file.parquet"))
+        .isEqualTo("s3://bucket/prefix/data/file.parquet");
+    assertThat(RewriteTablePathUtil.combinePaths("s3://bucket/prefix", ""))
+        .isEqualTo("s3://bucket/prefix");
+
+    // Single-level relative path
+    assertThat(RewriteTablePathUtil.combinePaths("/base", "file.parquet"))
+        .isEqualTo("/base/file.parquet");
   }
 
   @Test
