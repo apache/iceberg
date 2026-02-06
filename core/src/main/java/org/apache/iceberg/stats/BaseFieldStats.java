@@ -222,7 +222,7 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     return new Builder<>();
   }
 
-  public static <X> Builder<X> buildFrom(BaseFieldStats<X> value) {
+  public static <X> Builder<X> buildFrom(FieldStats<X> value) {
     Preconditions.checkArgument(null != value, "Invalid column stats: null");
     return BaseFieldStats.<X>builder()
         .type(value.type())
@@ -232,7 +232,6 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
         .nanValueCount(value.nanValueCount())
         .avgValueSize(value.avgValueSize())
         .maxValueSize(value.maxValueSize())
-        // use original lower/upper bound value
         .lowerBound(value.lowerBound())
         .upperBound(value.upperBound())
         .hasExactBounds(value.hasExactBounds());

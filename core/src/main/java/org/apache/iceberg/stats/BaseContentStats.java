@@ -121,7 +121,7 @@ public class BaseContentStats implements ContentStats, Serializable {
   @Override
   public <T> void set(int pos, T value) {
     if (value instanceof GenericRecord record) {
-      BaseFieldStats<?> stat = (BaseFieldStats<?>) fieldStats.get(pos);
+      FieldStats<?> stat = fieldStats.get(pos);
       BaseFieldStats.Builder builder = BaseFieldStats.buildFrom(stat);
       Type type = stat.type();
       if (null != record.getField(FieldStatistic.VALUE_COUNT.fieldName())) {
