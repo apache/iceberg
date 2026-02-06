@@ -55,12 +55,13 @@ class IndexVersionAdd implements AddIndexVersion {
     this.base = ops.refresh();
 
     return IndexMetadata.buildFrom(base)
-        .setCurrentVersion(
+        .addVersion(
             ImmutableIndexVersion.builder()
                 .timestampMillis(System.currentTimeMillis())
                 .versionId(base.currentVersionId())
                 .properties(properties)
                 .build())
+        .setCurrentVersion(base.currentVersionId())
         .build();
   }
 

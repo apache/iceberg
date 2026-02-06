@@ -51,7 +51,8 @@ public class TestLoadIndexResponseParser {
         .setType(IndexType.BTREE)
         .setIndexColumnIds(INDEX_COLUMN_IDS)
         .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-        .setCurrentVersion(version)
+        .addVersion(version)
+        .setCurrentVersion(version.versionId())
         .build();
   }
 
@@ -199,7 +200,8 @@ public class TestLoadIndexResponseParser {
             .setType(IndexType.BTREE)
             .setIndexColumnIds(INDEX_COLUMN_IDS)
             .setOptimizedColumnIds(OPTIMIZED_COLUMN_IDS)
-            .setCurrentVersion(version)
+            .addVersion(version)
+            .setCurrentVersion(version.versionId())
             .build();
 
     LoadIndexResponse response =

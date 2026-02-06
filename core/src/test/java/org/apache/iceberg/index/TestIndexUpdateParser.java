@@ -145,49 +145,48 @@ public class TestIndexUpdateParser {
     assertThat(((IndexUpdate.RemoveSnapshots) parsed).indexSnapshotIds()).containsExactly(42L);
   }
 
-  /** SetIndexCurrentVersion */
+  /** AddIndexVersion */
   @Test
-  public void testSetIndexCurrentVersionFromJson() {
-    String action = IndexUpdateParser.SET_CURRENT_VERSION;
+  public void testAddIndexVersionFromJson() {
+    String action = IndexUpdateParser.ADD_VERSION;
     String versionJson = IndexVersionParser.toJson(INDEX_VERSION);
     String json = String.format("{\"action\":\"%s\",\"version\":%s}", action, versionJson);
 
     IndexUpdate update = IndexUpdateParser.fromJson(json);
 
-    assertThat(update).isInstanceOf(IndexUpdate.SetCurrentVersion.class);
-    IndexUpdate.SetCurrentVersion setCurrentVersion = (IndexUpdate.SetCurrentVersion) update;
-    assertThat(setCurrentVersion.indexVersion().versionId()).isEqualTo(INDEX_VERSION.versionId());
+    assertThat(update).isInstanceOf(IndexUpdate.AddVersion.class);
+    IndexUpdate.AddVersion addVersion = (IndexUpdate.AddVersion) update;
+    assertThat(addVersion.indexVersion().versionId()).isEqualTo(INDEX_VERSION.versionId());
   }
 
   @Test
-  public void testSetIndexCurrentVersionToJson() {
+  public void testAddIndexVersionToJson() {
     String versionJson = IndexVersionParser.toJson(INDEX_VERSION);
     String expected =
         String.format(
-            "{\"action\":\"%s\",\"version\":%s}",
-            IndexUpdateParser.SET_CURRENT_VERSION, versionJson);
+            "{\"action\":\"%s\",\"version\":%s}", IndexUpdateParser.ADD_VERSION, versionJson);
 
-    IndexUpdate update = new IndexUpdate.SetCurrentVersion(INDEX_VERSION);
+    IndexUpdate update = new IndexUpdate.AddVersion(INDEX_VERSION);
     String actual = IndexUpdateParser.toJson(update);
 
     assertThat(actual)
-        .as("SetIndexCurrentVersion should serialize to the correct JSON value")
+        .as("AddIndexVersion should serialize to the correct JSON value")
         .isEqualTo(expected);
   }
 
   @Test
-  public void testSetIndexCurrentVersionRoundTrip() {
-    IndexUpdate original = new IndexUpdate.SetCurrentVersion(INDEX_VERSION);
+  public void testAddIndexVersionRoundTrip() {
+    IndexUpdate original = new IndexUpdate.AddVersion(INDEX_VERSION);
     String json = IndexUpdateParser.toJson(original);
     IndexUpdate parsed = IndexUpdateParser.fromJson(json);
 
-    assertThat(parsed).isInstanceOf(IndexUpdate.SetCurrentVersion.class);
-    assertThat(((IndexUpdate.SetCurrentVersion) parsed).indexVersion().versionId())
+    assertThat(parsed).isInstanceOf(IndexUpdate.AddVersion.class);
+    assertThat(((IndexUpdate.AddVersion) parsed).indexVersion().versionId())
         .isEqualTo(INDEX_VERSION.versionId());
   }
 
   @Test
-  public void testSetIndexCurrentVersionWithoutProperties() {
+  public void testAddIndexVersionWithoutProperties() {
     IndexVersion versionWithoutProps =
         ImmutableIndexVersion.builder()
             .versionId(2)
@@ -195,15 +194,52 @@ public class TestIndexUpdateParser {
             .properties(ImmutableMap.of())
             .build();
 
-    IndexUpdate original = new IndexUpdate.SetCurrentVersion(versionWithoutProps);
+    IndexUpdate original = new IndexUpdate.AddVersion(versionWithoutProps);
+    String json = IndexUpdateParser.toJson(original);
+    IndexUpdate parsed = IndexUpdateParser.fromJson(json);
+
+    assertThat(parsed).isInstanceOf(IndexUpdate.AddVersion.class);
+    IndexUpdate.AddVersion parsedUpdate = (IndexUpdate.AddVersion) parsed;
+    assertThat(parsedUpdate.indexVersion().versionId()).isEqualTo(2);
+    assertThat(parsedUpdate.indexVersion().timestampMillis()).isEqualTo(67890L);
+    assertThat(parsedUpdate.indexVersion().properties()).isEmpty();
+  }
+
+  /** SetCurrentVersionId */
+  @Test
+  public void testSetCurrentVersionIdFromJson() {
+    String action = IndexUpdateParser.SET_CURRENT_VERSION;
+    String json = String.format("{\"action\":\"%s\",\"version-id\":5}", action);
+
+    IndexUpdate update = IndexUpdateParser.fromJson(json);
+
+    assertThat(update).isInstanceOf(IndexUpdate.SetCurrentVersion.class);
+    IndexUpdate.SetCurrentVersion setCurrentVersionId = (IndexUpdate.SetCurrentVersion) update;
+    assertThat(setCurrentVersionId.versionId()).isEqualTo(5);
+  }
+
+  @Test
+  public void testSetCurrentVersionIdToJson() {
+    String expected =
+        String.format(
+            "{\"action\":\"%s\",\"version-id\":5}", IndexUpdateParser.SET_CURRENT_VERSION);
+
+    IndexUpdate update = new IndexUpdate.SetCurrentVersion(5);
+    String actual = IndexUpdateParser.toJson(update);
+
+    assertThat(actual)
+        .as("SetCurrentVersionId should serialize to the correct JSON value")
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void testSetCurrentVersionIdRoundTrip() {
+    IndexUpdate original = new IndexUpdate.SetCurrentVersion(7);
     String json = IndexUpdateParser.toJson(original);
     IndexUpdate parsed = IndexUpdateParser.fromJson(json);
 
     assertThat(parsed).isInstanceOf(IndexUpdate.SetCurrentVersion.class);
-    IndexUpdate.SetCurrentVersion parsedUpdate = (IndexUpdate.SetCurrentVersion) parsed;
-    assertThat(parsedUpdate.indexVersion().versionId()).isEqualTo(2);
-    assertThat(parsedUpdate.indexVersion().timestampMillis()).isEqualTo(67890L);
-    assertThat(parsedUpdate.indexVersion().properties()).isEmpty();
+    assertThat(((IndexUpdate.SetCurrentVersion) parsed).versionId()).isEqualTo(7);
   }
 
   /** SetIndexLocation */
@@ -294,7 +330,7 @@ public class TestIndexUpdateParser {
 
     assertThatThrownBy(() -> IndexUpdateParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot parse missing field: version");
+        .hasMessageContaining("Cannot parse missing int: version-id");
   }
 
   @Test

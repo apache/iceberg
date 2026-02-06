@@ -449,27 +449,14 @@ class IndexRequirement(BaseModel):
     A requirement that must be met for an index commit to succeed
     """
 
-    type: Literal['assert-index-uuid', 'assert-current-version-id'] = Field(
+    type: Literal['assert-index-uuid'] = Field(
         ..., description='The type of requirement'
     )
     uuid: UUID | None = Field(None, description='Required for assert-index-uuid')
-    current_version_id: int | None = Field(
-        None,
-        alias='current-version-id',
-        description='Required for assert-current-version-id',
-    )
 
 
 class AssertIndexUUID(IndexRequirement):
     uuid: UUID = Field(..., description='Required for assert-index-uuid')
-
-
-class AssertIndexCurrentVersionId(IndexRequirement):
-    current_version_id: int = Field(
-        ...,
-        alias='current-version-id',
-        description='Required for assert-current-version-id',
-    )
 
 
 class IndexUpdate(BaseModel):
@@ -481,6 +468,7 @@ class IndexUpdate(BaseModel):
         'update-format-version',
         'add-snapshot',
         'remove-snapshots',
+        'add-version',
         'set-current-version',
         'set-location',
     ] = Field(..., description='The type of update')
@@ -491,6 +479,7 @@ class UpgradeIndexFormatVersionUpdate(IndexUpdate):
         'update-format-version',
         'add-snapshot',
         'remove-snapshots',
+        'add-version',
         'set-current-version',
         'set-location',
     ] = Field('upgrade-format-version', const=True, description='The type of update')
@@ -505,8 +494,19 @@ class RemoveIndexSnapshotsUpdate(IndexUpdate):
     snapshot_ids: list[int] = Field(..., alias='snapshot-ids')
 
 
-class SetIndexCurrentVersionUpdate(IndexUpdate):
+class AddIndexVersionUpdate(IndexUpdate):
     version: IndexVersion
+
+
+class SetCurrentIndexVersionUpdate(IndexUpdate):
+    action: Literal['set-current-index-version'] = Field(
+        'set-current-index-version', const=True
+    )
+    version_id: int = Field(
+        ...,
+        alias='version-id',
+        description='The index version id to set as current, or -1 to set last added index version id',
+    )
 
 
 class SetIndexLocationUpdate(IndexUpdate):
@@ -589,7 +589,7 @@ class CommitIndexRequest(BaseModel):
     Request to commit updates to an index
     """
 
-    requirements: list[AssertIndexUUID | AssertIndexCurrentVersionId] | None = Field(
+    requirements: list[AssertIndexUUID] | None = Field(
         None, description='Requirements that must be met before applying updates'
     )
     updates: (
@@ -597,7 +597,8 @@ class CommitIndexRequest(BaseModel):
             UpgradeIndexFormatVersionUpdate
             | AddIndexSnapshotUpdate
             | RemoveIndexSnapshotsUpdate
-            | SetIndexCurrentVersionUpdate
+            | AddIndexVersionUpdate
+            | SetCurrentIndexVersionUpdate
             | SetIndexLocationUpdate
         ]
         | None

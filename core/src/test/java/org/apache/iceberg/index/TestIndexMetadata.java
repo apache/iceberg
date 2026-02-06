@@ -116,6 +116,7 @@ public class TestIndexMetadata {
 
   @Test
   public void unsupportedFormatVersion() {
+    IndexVersion version = newIndexVersion(1);
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
@@ -124,7 +125,8 @@ public class TestIndexMetadata {
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
                     .setOptimizedColumnIds(ImmutableList.of(1))
-                    .setCurrentVersion(newIndexVersion(1))
+                    .addVersion(version)
+                    .setCurrentVersion(version.versionId())
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported format version: 23");
@@ -137,7 +139,8 @@ public class TestIndexMetadata {
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
                     .setOptimizedColumnIds(ImmutableList.of(1))
-                    .setCurrentVersion(newIndexVersion(1))
+                    .addVersion(version)
+                    .setCurrentVersion(version.versionId())
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot downgrade v1 index to v0");
@@ -159,6 +162,8 @@ public class TestIndexMetadata {
 
   @Test
   public void invalidVersionHistorySizeToKeep() {
+    IndexVersion version =
+        newIndexVersion(1, 1000L, ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "0"));
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
@@ -167,9 +172,8 @@ public class TestIndexMetadata {
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
                     .setOptimizedColumnIds(ImmutableList.of(1))
-                    .setCurrentVersion(
-                        newIndexVersion(
-                            1, 1000L, ImmutableMap.of(IndexProperties.VERSION_HISTORY_SIZE, "0")))
+                    .addVersion(version)
+                    .setCurrentVersion(version.versionId())
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("version.history.num-entries must be positive but was 0");
@@ -195,9 +199,12 @@ public class TestIndexMetadata {
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
             .setOptimizedColumnIds(ImmutableList.of(1))
-            .setCurrentVersion(indexVersionOne)
-            .setCurrentVersion(indexVersionTwo)
-            .setCurrentVersion(indexVersionThree)
+            .addVersion(indexVersionOne)
+            .setCurrentVersion(indexVersionOne.versionId())
+            .addVersion(indexVersionTwo)
+            .setCurrentVersion(indexVersionTwo.versionId())
+            .addVersion(indexVersionThree)
+            .setCurrentVersion(indexVersionThree.versionId())
             .build();
 
     // the first build will not expire versions that were added in the builder
@@ -211,7 +218,7 @@ public class TestIndexMetadata {
 
     // make sure that metadata changes reflect the current state after the history was adjusted
     List<IndexUpdate> changes = originalIndexMetadata.changes();
-    assertThat(changes).hasSize(4);
+    assertThat(changes).hasSize(7);
     assertThat(changes)
         .element(0)
         .isInstanceOf(IndexUpdate.SetLocation.class)
@@ -221,24 +228,45 @@ public class TestIndexMetadata {
 
     assertThat(changes)
         .element(1)
-        .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
-        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
         .isEqualTo(indexVersionOne);
 
     assertThat(changes)
         .element(2)
         .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
-        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
-        .isEqualTo(indexVersionTwo);
+        .extracting(IndexUpdate.SetCurrentVersion::versionId)
+        .isEqualTo(indexVersionOne.versionId());
 
     assertThat(changes)
         .element(3)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
+        .isEqualTo(indexVersionTwo);
+
+    assertThat(changes)
+        .element(4)
         .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
-        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
+        .extracting(IndexUpdate.SetCurrentVersion::versionId)
+        .isEqualTo(indexVersionTwo.versionId());
+
+    assertThat(changes)
+        .element(5)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
         .isEqualTo(indexVersionThree);
+
+    assertThat(changes)
+        .element(6)
+        .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
+        .extracting(IndexUpdate.SetCurrentVersion::versionId)
+        .isEqualTo(indexVersionThree.versionId());
   }
 
   @Test
@@ -261,12 +289,19 @@ public class TestIndexMetadata {
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
             .setOptimizedColumnIds(ImmutableList.of(1))
-            .setCurrentVersion(indexVersionOne)
+            .addVersion(indexVersionOne)
+            .setCurrentVersion(indexVersionOne.versionId())
             .build();
     originalIndexMetadata =
-        IndexMetadata.buildFrom(originalIndexMetadata).setCurrentVersion(indexVersionTwo).build();
+        IndexMetadata.buildFrom(originalIndexMetadata)
+            .addVersion(indexVersionTwo)
+            .setCurrentVersion(indexVersionTwo.versionId())
+            .build();
     originalIndexMetadata =
-        IndexMetadata.buildFrom(originalIndexMetadata).setCurrentVersion(indexVersionThree).build();
+        IndexMetadata.buildFrom(originalIndexMetadata)
+            .addVersion(indexVersionThree)
+            .setCurrentVersion(indexVersionThree.versionId())
+            .build();
 
     assertThat(originalIndexMetadata.versions())
         .hasSize(2)
@@ -290,7 +325,9 @@ public class TestIndexMetadata {
         .isEqualTo(3);
 
     IndexMetadata updated =
-        IndexMetadata.buildFrom(indexMetadata).setCurrentVersion(indexVersionTwo).build();
+        IndexMetadata.buildFrom(indexMetadata)
+            .setCurrentVersion(indexVersionTwo.versionId())
+            .build();
     assertThat(updated.versions())
         .hasSize(2)
         .containsExactlyInAnyOrder(indexVersionTwo, indexVersionThree);
@@ -302,7 +339,7 @@ public class TestIndexMetadata {
     assertThat(updated.history()).last().extracting(IndexHistoryEntry::versionId).isEqualTo(2);
 
     IndexMetadata index =
-        IndexMetadata.buildFrom(updated).setCurrentVersion(indexVersionThree).build();
+        IndexMetadata.buildFrom(updated).setCurrentVersion(indexVersionThree.versionId()).build();
     assertThat(index.versions())
         .hasSize(2)
         .containsExactlyInAnyOrder(indexVersionTwo, indexVersionThree);
@@ -329,16 +366,22 @@ public class TestIndexMetadata {
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
             .setOptimizedColumnIds(ImmutableList.of(1))
-            .setCurrentVersion(indexVersionOne)
+            .addVersion(indexVersionOne)
+            .setCurrentVersion(indexVersionOne.versionId())
             .build();
 
     indexMetadata =
-        IndexMetadata.buildFrom(indexMetadata).setCurrentVersion(indexVersionTwo).build();
+        IndexMetadata.buildFrom(indexMetadata)
+            .addVersion(indexVersionTwo)
+            .setCurrentVersion(indexVersionTwo.versionId())
+            .build();
 
     // setting an existing index version as the new current should update the timestamp in the
     // history
     IndexMetadata updated =
-        IndexMetadata.buildFrom(indexMetadata).setCurrentVersion(indexVersionOne).build();
+        IndexMetadata.buildFrom(indexMetadata)
+            .setCurrentVersion(indexVersionOne.versionId())
+            .build();
 
     List<IndexHistoryEntry> history = updated.history();
     assertThat(history)
@@ -360,21 +403,21 @@ public class TestIndexMetadata {
 
     // adding a new index version and setting it as current should use the index version's timestamp
     // in the history (which has been set to a fixed value for testing)
-    updated = IndexMetadata.buildFrom(updated).setCurrentVersion(indexVersionThree).build();
+    updated =
+        IndexMetadata.buildFrom(updated)
+            .addVersion(indexVersionThree)
+            .setCurrentVersion(indexVersionThree.versionId())
+            .build();
     List<IndexHistoryEntry> historyTwo = updated.history();
     assertThat(historyTwo)
         .hasSize(4)
         .last()
-        .satisfies(
-            v -> {
-              assertThat(v.versionId()).isEqualTo(3);
-              assertThat(v.timestampMillis()).isEqualTo(3000);
-            });
+        .isEqualTo(ImmutableIndexHistoryEntry.builder().versionId(3).timestampMillis(3000).build());
 
     // setting an older index version as the new current (aka doing a rollback) should update the
     // timestamp in the history
     IndexMetadata reactiveOldIndexVersion =
-        IndexMetadata.buildFrom(updated).setCurrentVersion(indexVersionOne).build();
+        IndexMetadata.buildFrom(updated).setCurrentVersion(indexVersionOne.versionId()).build();
     List<IndexHistoryEntry> historyThree = reactiveOldIndexVersion.history();
     assertThat(historyThree)
         .hasSize(5)
@@ -402,9 +445,12 @@ public class TestIndexMetadata {
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1, 2))
             .setOptimizedColumnIds(ImmutableList.of(1))
-            .setCurrentVersion(indexVersionOne)
-            .setCurrentVersion(indexVersionTwo)
-            .setCurrentVersion(indexVersionThree)
+            .addVersion(indexVersionOne)
+            .setCurrentVersion(indexVersionOne.versionId())
+            .addVersion(indexVersionTwo)
+            .setCurrentVersion(indexVersionTwo.versionId())
+            .addVersion(indexVersionThree)
+            .setCurrentVersion(indexVersionThree.versionId())
             .build();
 
     assertThat(indexMetadata.versions())
@@ -420,7 +466,7 @@ public class TestIndexMetadata {
     assertThat(indexMetadata.location()).isEqualTo("custom-location");
 
     List<IndexUpdate> changes = indexMetadata.changes();
-    assertThat(changes).hasSize(4);
+    assertThat(changes).hasSize(7);
 
     assertThat(changes)
         .element(0)
@@ -431,24 +477,45 @@ public class TestIndexMetadata {
 
     assertThat(changes)
         .element(1)
-        .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
-        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
-        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
         .isEqualTo(indexVersionOne);
 
     assertThat(changes)
         .element(2)
         .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
-        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
-        .isEqualTo(indexVersionTwo);
+        .extracting(IndexUpdate.SetCurrentVersion::versionId)
+        .isEqualTo(indexVersionOne.versionId());
 
     assertThat(changes)
         .element(3)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
+        .isEqualTo(indexVersionTwo);
+
+    assertThat(changes)
+        .element(4)
         .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
         .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
-        .extracting(IndexUpdate.SetCurrentVersion::indexVersion)
+        .extracting(IndexUpdate.SetCurrentVersion::versionId)
+        .isEqualTo(indexVersionTwo.versionId());
+
+    assertThat(changes)
+        .element(5)
+        .isInstanceOf(IndexUpdate.AddVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.AddVersion.class))
+        .extracting(IndexUpdate.AddVersion::indexVersion)
         .isEqualTo(indexVersionThree);
+
+    assertThat(changes)
+        .element(6)
+        .isInstanceOf(IndexUpdate.SetCurrentVersion.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(IndexUpdate.SetCurrentVersion.class))
+        .extracting(IndexUpdate.SetCurrentVersion::versionId)
+        .isEqualTo(indexVersionThree.versionId());
   }
 
   @Test
@@ -465,9 +532,12 @@ public class TestIndexMetadata {
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
             .setOptimizedColumnIds(ImmutableList.of(1))
-            .setCurrentVersion(indexVersionOne)
-            .setCurrentVersion(indexVersionTwo)
-            .setCurrentVersion(indexVersionThree)
+            .addVersion(indexVersionOne)
+            .setCurrentVersion(indexVersionOne.versionId())
+            .addVersion(indexVersionTwo)
+            .setCurrentVersion(indexVersionTwo.versionId())
+            .addVersion(indexVersionThree)
+            .setCurrentVersion(indexVersionThree.versionId())
             .build();
 
     assertThat(indexMetadata.currentVersion())
@@ -515,12 +585,18 @@ public class TestIndexMetadata {
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
             .setOptimizedColumnIds(ImmutableList.of(1))
-            .setCurrentVersion(indexVersionOne)
-            .setCurrentVersion(indexVersionTwo)
-            .setCurrentVersion(indexVersionThree)
-            .setCurrentVersion(indexVersionOneUpdated)
-            .setCurrentVersion(indexVersionTwoUpdated)
-            .setCurrentVersion(indexVersionThreeUpdated)
+            .addVersion(indexVersionOne)
+            .setCurrentVersion(indexVersionOne.versionId())
+            .addVersion(indexVersionTwo)
+            .setCurrentVersion(indexVersionTwo.versionId())
+            .addVersion(indexVersionThree)
+            .setCurrentVersion(indexVersionThree.versionId())
+            .addVersion(indexVersionOneUpdated)
+            .setCurrentVersion(indexVersionOneUpdated.versionId())
+            .addVersion(indexVersionTwoUpdated)
+            .setCurrentVersion(indexVersionTwoUpdated.versionId())
+            .addVersion(indexVersionThreeUpdated)
+            .setCurrentVersion(indexVersionThreeUpdated.versionId())
             .build();
 
     assertThat(indexMetadata.currentVersion())
@@ -558,7 +634,8 @@ public class TestIndexMetadata {
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
             .setOptimizedColumnIds(ImmutableList.of(1))
-            .setCurrentVersion(version)
+            .addVersion(version)
+            .setCurrentVersion(version.versionId())
             .addSnapshot(snapshot1)
             .addSnapshot(snapshot2)
             .build();
@@ -588,7 +665,8 @@ public class TestIndexMetadata {
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
                     .setOptimizedColumnIds(ImmutableList.of(1))
-                    .setCurrentVersion(version)
+                    .addVersion(version)
+                    .setCurrentVersion(version.versionId())
                     .addSnapshot(snapshot)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -619,7 +697,8 @@ public class TestIndexMetadata {
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
                     .setOptimizedColumnIds(ImmutableList.of(1))
-                    .setCurrentVersion(version)
+                    .addVersion(version)
+                    .setCurrentVersion(version.versionId())
                     .addSnapshot(snapshot1)
                     .addSnapshot(snapshot2)
                     .build())
@@ -651,7 +730,8 @@ public class TestIndexMetadata {
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
             .setOptimizedColumnIds(ImmutableList.of(1))
-            .setCurrentVersion(version)
+            .addVersion(version)
+            .setCurrentVersion(version.versionId())
             .addSnapshot(snapshot1)
             .addSnapshot(snapshot2)
             .build();
@@ -680,7 +760,8 @@ public class TestIndexMetadata {
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
             .setOptimizedColumnIds(ImmutableList.of(1))
-            .setCurrentVersion(version)
+            .addVersion(version)
+            .setCurrentVersion(version.versionId())
             .addSnapshot(snapshot)
             .build();
 
@@ -692,6 +773,7 @@ public class TestIndexMetadata {
 
   @Test
   public void indexTypeIsRequired() {
+    IndexVersion version = newIndexVersion(1);
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
@@ -699,7 +781,8 @@ public class TestIndexMetadata {
                     .setLocation("location")
                     .setIndexColumnIds(ImmutableList.of(1))
                     .setOptimizedColumnIds(ImmutableList.of(1))
-                    .setCurrentVersion(newIndexVersion(1))
+                    .addVersion(version)
+                    .setCurrentVersion(version.versionId())
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid index type: null");
@@ -707,6 +790,7 @@ public class TestIndexMetadata {
 
   @Test
   public void indexColumnIdsAreRequired() {
+    IndexVersion version = newIndexVersion(1);
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
@@ -714,7 +798,8 @@ public class TestIndexMetadata {
                     .setLocation("location")
                     .setType(IndexType.BTREE)
                     .setOptimizedColumnIds(ImmutableList.of(1))
-                    .setCurrentVersion(newIndexVersion(1))
+                    .addVersion(version)
+                    .setCurrentVersion(version.versionId())
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Index column IDs cannot be empty");
@@ -722,6 +807,7 @@ public class TestIndexMetadata {
 
   @Test
   public void optimizedColumnIdsAreRequired() {
+    IndexVersion version = newIndexVersion(1);
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
@@ -729,7 +815,8 @@ public class TestIndexMetadata {
                     .setLocation("location")
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
-                    .setCurrentVersion(newIndexVersion(1))
+                    .addVersion(version)
+                    .setCurrentVersion(version.versionId())
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Optimized column IDs cannot be empty");

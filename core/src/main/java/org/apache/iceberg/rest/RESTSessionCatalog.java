@@ -2257,7 +2257,7 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
                 .timestampMillis(System.currentTimeMillis())
                 .properties(properties)
                 .build();
-        builder = builder.setCurrentVersion(newVersion);
+        builder = builder.addVersion(newVersion).setCurrentVersion(newVersion.versionId());
         currentVersionId = newVersion.versionId();
       }
 

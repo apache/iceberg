@@ -39,8 +39,8 @@ public class IndexUpdateParser {
   static final String UPGRADE_FORMAT_VERSION = "upgrade-format-version";
   static final String ADD_SNAPSHOT = "add-snapshot";
   static final String REMOVE_SNAPSHOTS = "remove-snapshots";
-  static final String SET_CURRENT_VERSION = "set-current-version";
   static final String ADD_VERSION = "add-version";
+  static final String SET_CURRENT_VERSION = "set-current-version";
   static final String SET_LOCATION = "set-location";
 
   // UpgradeFormatVersion
@@ -55,6 +55,9 @@ public class IndexUpdateParser {
   // AddIndexVersion
   private static final String VERSION = "version";
 
+  // SetCurrentVersion
+  private static final String VERSION_ID = "version-id";
+
   // SetLocation
   private static final String LOCATION = "location";
 
@@ -63,6 +66,7 @@ public class IndexUpdateParser {
           .put(IndexUpdate.UpgradeFormatVersion.class, UPGRADE_FORMAT_VERSION)
           .put(IndexUpdate.AddSnapshot.class, ADD_SNAPSHOT)
           .put(IndexUpdate.RemoveSnapshots.class, REMOVE_SNAPSHOTS)
+          .put(IndexUpdate.AddVersion.class, ADD_VERSION)
           .put(IndexUpdate.SetCurrentVersion.class, SET_CURRENT_VERSION)
           .put(IndexUpdate.SetLocation.class, SET_LOCATION)
           .buildOrThrow();
@@ -96,8 +100,11 @@ public class IndexUpdateParser {
       case REMOVE_SNAPSHOTS:
         writeRemoveIndexSnapshots((IndexUpdate.RemoveSnapshots) indexUpdate, generator);
         break;
+      case ADD_VERSION:
+        writeAddIndexVersion((IndexUpdate.AddVersion) indexUpdate, generator);
+        break;
       case SET_CURRENT_VERSION:
-        writeSetIndexCurrentVersion((IndexUpdate.SetCurrentVersion) indexUpdate, generator);
+        writeSetCurrentVersionId((IndexUpdate.SetCurrentVersion) indexUpdate, generator);
         break;
       case SET_LOCATION:
         writeSetLocation((IndexUpdate.SetLocation) indexUpdate, generator);
@@ -138,8 +145,10 @@ public class IndexUpdateParser {
         return readAddIndexSnapshot(jsonNode);
       case REMOVE_SNAPSHOTS:
         return readRemoveIndexSnapshots(jsonNode);
+      case ADD_VERSION:
+        return readAddIndexVersion(jsonNode);
       case SET_CURRENT_VERSION:
-        return readSetIndexCurrentVersion(jsonNode);
+        return readSetCurrentVersionId(jsonNode);
       case SET_LOCATION:
         return readSetLocation(jsonNode);
       default:
@@ -164,10 +173,15 @@ public class IndexUpdateParser {
     JsonUtil.writeLongArray(SNAPSHOT_IDS, update.indexSnapshotIds(), gen);
   }
 
-  private static void writeSetIndexCurrentVersion(
-      IndexUpdate.SetCurrentVersion update, JsonGenerator gen) throws IOException {
+  private static void writeAddIndexVersion(IndexUpdate.AddVersion update, JsonGenerator gen)
+      throws IOException {
     gen.writeFieldName(VERSION);
     IndexVersionParser.toJson(update.indexVersion(), gen);
+  }
+
+  private static void writeSetCurrentVersionId(
+      IndexUpdate.SetCurrentVersion update, JsonGenerator gen) throws IOException {
+    gen.writeNumberField(VERSION_ID, update.versionId());
   }
 
   private static void writeSetLocation(IndexUpdate.SetLocation update, JsonGenerator gen)
@@ -190,10 +204,15 @@ public class IndexUpdateParser {
     return new IndexUpdate.RemoveSnapshots(snapshotIds);
   }
 
-  private static IndexUpdate readSetIndexCurrentVersion(JsonNode node) {
+  private static IndexUpdate readAddIndexVersion(JsonNode node) {
     JsonNode versionNode = JsonUtil.get(VERSION, node);
     IndexVersion version = IndexVersionParser.fromJson(versionNode);
-    return new IndexUpdate.SetCurrentVersion(version);
+    return new IndexUpdate.AddVersion(version);
+  }
+
+  private static IndexUpdate readSetCurrentVersionId(JsonNode node) {
+    int versionId = JsonUtil.getInt(VERSION_ID, node);
+    return new IndexUpdate.SetCurrentVersion(versionId);
   }
 
   private static IndexUpdate readSetLocation(JsonNode node) {

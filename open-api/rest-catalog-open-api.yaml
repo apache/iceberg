@@ -3379,20 +3379,15 @@ components:
           type: string
           enum:
             - assert-index-uuid
-            - assert-current-version-id
           description: The type of requirement
         uuid:
           type: string
           format: uuid
           description: Required for assert-index-uuid
-        current-version-id:
-          type: integer
-          description: Required for assert-current-version-id
       discriminator:
         propertyName: type
         mapping:
           assert-index-uuid: '#/components/schemas/AssertIndexUUID'
-          assert-current-version-id: '#/components/schemas/AssertIndexCurrentVersionId'
 
     AssertIndexUUID:
       allOf:
@@ -3404,16 +3399,6 @@ components:
             uuid:
               type: string
               format: uuid
-
-    AssertIndexCurrentVersionId:
-      allOf:
-        - $ref: '#/components/schemas/IndexRequirement'
-        - type: object
-          required:
-            - current-version-id
-          properties:
-            current-version-id:
-              type: integer
 
     IndexUpdate:
       type: object
@@ -3427,6 +3412,7 @@ components:
             - update-format-version
             - add-snapshot
             - remove-snapshots
+            - add-version
             - set-current-version
             - set-location
           description: The type of update
@@ -3436,7 +3422,8 @@ components:
           upgrade-format-version: '#/components/schemas/UpgradeIndexFormatVersionUpdate'
           add-snapshot: '#/components/schemas/AddIndexSnapshotUpdate'
           remove-snapshots: '#/components/schemas/RemoveIndexSnapshotsUpdate'
-          set-current-version: '#/components/schemas/SetIndexCurrentVersionUpdate'
+          add-version: '#/components/schemas/AddIndexVersionUpdate'
+          set-current-version-id: '#/components/schemas/SetCurrentIndexVersionUpdate'
           set-location: '#/components/schemas/SetIndexLocationUpdate'
 
     UpgradeIndexFormatVersionUpdate:
@@ -3475,7 +3462,7 @@ components:
                 type: integer
                 format: int64
 
-    SetIndexCurrentVersionUpdate:
+    AddIndexVersionUpdate:
       allOf:
         - $ref: '#/components/schemas/IndexUpdate'
         - type: object
@@ -3484,6 +3471,19 @@ components:
           properties:
             version:
               $ref: '#/components/schemas/IndexVersion'
+
+    SetCurrentIndexVersionUpdate:
+      allOf:
+        - $ref: '#/components/schemas/IndexUpdate'
+      required:
+        - version-id
+      properties:
+        action:
+          type: string
+          const: "set-current-index-version"
+        version-id:
+          type: integer
+          description: The index version id to set as current, or -1 to set last added index version id
 
     SetIndexLocationUpdate:
       allOf:
