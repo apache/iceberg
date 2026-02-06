@@ -33,20 +33,14 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.IntegerType;
-import org.apache.iceberg.types.Types.LongType;
-import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionMap;
@@ -66,180 +60,6 @@ public class PartitionStatsHandler {
   private PartitionStatsHandler() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(PartitionStatsHandler.class);
-
-  // schema of the partition stats file as per spec
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#EMPTY_PARTITION_FIELD}
-   */
-  @Deprecated public static final int PARTITION_FIELD_ID = 1;
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#EMPTY_PARTITION_FIELD}
-   */
-  @Deprecated public static final String PARTITION_FIELD_NAME = "partition";
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#SPEC_ID}
-   */
-  @Deprecated
-  public static final NestedField SPEC_ID = NestedField.required(2, "spec_id", IntegerType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#DATA_RECORD_COUNT}
-   */
-  @Deprecated
-  public static final NestedField DATA_RECORD_COUNT =
-      NestedField.required(3, "data_record_count", LongType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#DATA_FILE_COUNT}
-   */
-  @Deprecated
-  public static final NestedField DATA_FILE_COUNT =
-      NestedField.required(4, "data_file_count", IntegerType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link
-   *     PartitionStatistics#TOTAL_DATA_FILE_SIZE_IN_BYTES}
-   */
-  @Deprecated
-  public static final NestedField TOTAL_DATA_FILE_SIZE_IN_BYTES =
-      NestedField.required(5, "total_data_file_size_in_bytes", LongType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link
-   *     PartitionStatistics#POSITION_DELETE_RECORD_COUNT}
-   */
-  @Deprecated
-  public static final NestedField POSITION_DELETE_RECORD_COUNT =
-      NestedField.optional(6, "position_delete_record_count", LongType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link
-   *     PartitionStatistics#POSITION_DELETE_FILE_COUNT}
-   */
-  @Deprecated
-  public static final NestedField POSITION_DELETE_FILE_COUNT =
-      NestedField.optional(7, "position_delete_file_count", IntegerType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link
-   *     PartitionStatistics#EQUALITY_DELETE_RECORD_COUNT}
-   */
-  @Deprecated
-  public static final NestedField EQUALITY_DELETE_RECORD_COUNT =
-      NestedField.optional(8, "equality_delete_record_count", LongType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link
-   *     PartitionStatistics#EQUALITY_DELETE_FILE_COUNT}
-   */
-  @Deprecated
-  public static final NestedField EQUALITY_DELETE_FILE_COUNT =
-      NestedField.optional(9, "equality_delete_file_count", IntegerType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#TOTAL_RECORD_COUNT}
-   */
-  @Deprecated
-  public static final NestedField TOTAL_RECORD_COUNT =
-      NestedField.optional(10, "total_record_count", LongType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#LAST_UPDATED_AT}
-   */
-  @Deprecated
-  public static final NestedField LAST_UPDATED_AT =
-      NestedField.optional(11, "last_updated_at", LongType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#LAST_UPDATED_SNAPSHOT_ID}
-   */
-  @Deprecated
-  public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
-      NestedField.optional(12, "last_updated_snapshot_id", LongType.get());
-
-  /**
-   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#DV_COUNT}
-   */
-  @Deprecated
-  public static final NestedField DV_COUNT =
-      NestedField.required("dv_count")
-          .withId(13)
-          .ofType(Types.IntegerType.get())
-          .withInitialDefault(Literal.of(0))
-          .withWriteDefault(Literal.of(0))
-          .build();
-
-  /**
-   * Generates the partition stats file schema for a given format version based on a combined
-   * partition type which considers all specs in a table.
-   *
-   * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
-   *     Partitioning#partitionType(Table)}.
-   * @return a schema that corresponds to the provided unified partition type.
-   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#schema(StructType, int)}
-   *     instead.
-   */
-  @Deprecated
-  public static Schema schema(StructType unifiedPartitionType, int formatVersion) {
-    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
-    Preconditions.checkState(
-        formatVersion > 0 && formatVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION,
-        "Invalid format version: %d",
-        formatVersion);
-
-    if (formatVersion <= 2) {
-      return v2Schema(unifiedPartitionType);
-    }
-
-    return v3Schema(unifiedPartitionType);
-  }
-
-  private static Schema v2Schema(StructType unifiedPartitionType) {
-    return new Schema(
-        NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
-        SPEC_ID,
-        DATA_RECORD_COUNT,
-        DATA_FILE_COUNT,
-        TOTAL_DATA_FILE_SIZE_IN_BYTES,
-        POSITION_DELETE_RECORD_COUNT,
-        POSITION_DELETE_FILE_COUNT,
-        EQUALITY_DELETE_RECORD_COUNT,
-        EQUALITY_DELETE_FILE_COUNT,
-        TOTAL_RECORD_COUNT,
-        LAST_UPDATED_AT,
-        LAST_UPDATED_SNAPSHOT_ID);
-  }
-
-  private static Schema v3Schema(StructType unifiedPartitionType) {
-    return new Schema(
-        NestedField.required(PARTITION_FIELD_ID, PARTITION_FIELD_NAME, unifiedPartitionType),
-        SPEC_ID,
-        DATA_RECORD_COUNT,
-        DATA_FILE_COUNT,
-        TOTAL_DATA_FILE_SIZE_IN_BYTES,
-        NestedField.required(
-            POSITION_DELETE_RECORD_COUNT.fieldId(),
-            POSITION_DELETE_RECORD_COUNT.name(),
-            LongType.get()),
-        NestedField.required(
-            POSITION_DELETE_FILE_COUNT.fieldId(),
-            POSITION_DELETE_FILE_COUNT.name(),
-            IntegerType.get()),
-        NestedField.required(
-            EQUALITY_DELETE_RECORD_COUNT.fieldId(),
-            EQUALITY_DELETE_RECORD_COUNT.name(),
-            LongType.get()),
-        NestedField.required(
-            EQUALITY_DELETE_FILE_COUNT.fieldId(),
-            EQUALITY_DELETE_FILE_COUNT.name(),
-            IntegerType.get()),
-        TOTAL_RECORD_COUNT,
-        LAST_UPDATED_AT,
-        LAST_UPDATED_SNAPSHOT_ID,
-        DV_COUNT);
-  }
 
   /**
    * Computes the stats incrementally after the snapshot that has partition stats file till the
@@ -343,28 +163,6 @@ public class PartitionStatsHandler {
         .build();
   }
 
-  /**
-   * Reads partition statistics from the specified {@link InputFile} using given schema.
-   *
-   * @param schema The {@link Schema} of the partition statistics file.
-   * @param inputFile An {@link InputFile} pointing to the partition stats file.
-   * @deprecated will be removed in 1.12.0, use {@link PartitionStatisticsScan} instead
-   */
-  @Deprecated
-  public static CloseableIterable<PartitionStats> readPartitionStatsFile(
-      Schema schema, InputFile inputFile) {
-    Preconditions.checkArgument(schema != null, "Invalid schema: null");
-    Preconditions.checkArgument(inputFile != null, "Invalid input file: null");
-
-    FileFormat fileFormat = FileFormat.fromFileName(inputFile.location());
-    Preconditions.checkArgument(
-        fileFormat != null, "Unable to determine format of file: %s", inputFile.location());
-
-    CloseableIterable<StructLike> records =
-        InternalData.read(fileFormat, inputFile).project(schema).build();
-    return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
-  }
-
   private static OutputFile newPartitionStatsFile(
       Table table, FileFormat fileFormat, long snapshotId) {
     Preconditions.checkArgument(
@@ -380,19 +178,6 @@ public class PartitionStatsHandler {
                     fileFormat.addExtension(
                         String.format(
                             Locale.ROOT, "partition-stats-%d-%s", snapshotId, UUID.randomUUID()))));
-  }
-
-  private static PartitionStats recordToPartitionStats(StructLike record) {
-    int pos = 0;
-    PartitionStats stats =
-        new PartitionStats(
-            record.get(pos++, StructLike.class), // partition
-            record.get(pos++, Integer.class)); // spec id
-    for (; pos < record.size(); pos++) {
-      stats.set(pos, record.get(pos, Object.class));
-    }
-
-    return stats;
   }
 
   private static Collection<PartitionStatistics> computeAndMergeStatsIncremental(
@@ -679,7 +464,8 @@ public class PartitionStatsHandler {
    * @param targetStats partition statistics to be updated.
    * @param inputStats the partition statistics used as input.
    */
-  private static void appendStats(PartitionStatistics targetStats, PartitionStatistics inputStats) {
+  @VisibleForTesting
+  static void appendStats(PartitionStatistics targetStats, PartitionStatistics inputStats) {
     Preconditions.checkArgument(targetStats.specId() != null, "Invalid spec ID: null");
     Preconditions.checkArgument(
         targetStats.specId().equals(inputStats.specId()), "Spec IDs must match");

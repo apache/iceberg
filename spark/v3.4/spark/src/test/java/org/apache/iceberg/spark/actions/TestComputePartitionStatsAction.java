@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.PartitionStatistics;
 import org.apache.iceberg.PartitionStatisticsFile;
-import org.apache.iceberg.PartitionStatsHandler;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -207,7 +206,7 @@ public class TestComputePartitionStatsAction extends CatalogTestBase {
     assertThat(table.partitionStatisticsFiles()).containsExactly(statisticsFile);
 
     Types.StructType partitionType = Partitioning.partitionType(table);
-    Schema dataSchema = PartitionStatsHandler.schema(partitionType, 2);
+    Schema dataSchema = PartitionStatistics.schema(partitionType, 2);
     // should contain stats for only partitions of snapshot1 (no entry for partition bar, A)
     validatePartitionStats(
         table,
