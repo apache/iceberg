@@ -639,9 +639,10 @@ public class TestHelpers {
     private final Map<Integer, Long> nanValueCounts;
     private final Map<Integer, ByteBuffer> lowerBounds;
     private final Map<Integer, ByteBuffer> upperBounds;
+    private final Long maxFieldId;
 
     public TestDataFile(String path, StructLike partition, long recordCount) {
-      this(path, partition, recordCount, null, null, null, null, null);
+      this(path, partition, recordCount, null, null, null, null, null, null);
     }
 
     public TestDataFile(
@@ -661,6 +662,28 @@ public class TestHelpers {
       this.nanValueCounts = nanValueCounts;
       this.lowerBounds = lowerBounds;
       this.upperBounds = upperBounds;
+      this.maxFieldId = null;
+    }
+
+    public TestDataFile(
+        String path,
+        StructLike partition,
+        long recordCount,
+        Map<Integer, Long> valueCounts,
+        Map<Integer, Long> nullValueCounts,
+        Map<Integer, Long> nanValueCounts,
+        Map<Integer, ByteBuffer> lowerBounds,
+        Map<Integer, ByteBuffer> upperBounds,
+        Long maxFieldId) {
+      this.path = path;
+      this.partition = partition;
+      this.recordCount = recordCount;
+      this.valueCounts = valueCounts;
+      this.nullValueCounts = nullValueCounts;
+      this.nanValueCounts = nanValueCounts;
+      this.lowerBounds = lowerBounds;
+      this.upperBounds = upperBounds;
+      this.maxFieldId = maxFieldId;
     }
 
     @Override
@@ -726,6 +749,11 @@ public class TestHelpers {
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
       return upperBounds;
+    }
+
+    @Override
+    public Long maxFieldId() {
+      return maxFieldId;
     }
 
     @Override
