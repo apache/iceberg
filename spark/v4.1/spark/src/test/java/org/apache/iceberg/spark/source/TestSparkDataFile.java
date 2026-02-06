@@ -29,7 +29,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -43,6 +42,7 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
@@ -51,12 +51,12 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkDataFile;
 import org.apache.iceberg.spark.SparkDeleteFile;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -78,6 +78,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+// TODO: run this with different format versions
 public class TestSparkDataFile {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
@@ -149,21 +150,34 @@ public class TestSparkDataFile {
   @Test
   public void testValueConversion() throws IOException {
     Table table =
-        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+        TABLES.create(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "4"),
+            tableLocation);
     checkSparkContentFiles(table);
   }
 
   @Test
   public void testValueConversionPartitionedTable() throws IOException {
-    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+    Table table =
+        TABLES.create(
+            SCHEMA, SPEC, ImmutableMap.of(TableProperties.FORMAT_VERSION, "4"), tableLocation);
     checkSparkContentFiles(table);
   }
 
   @Test
   public void testValueConversionWithEmptyStats() throws IOException {
-    Map<String, String> props = Maps.newHashMap();
-    props.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
-    Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            SPEC,
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION,
+                "4",
+                TableProperties.DEFAULT_WRITE_METRICS_MODE,
+                "none"),
+            tableLocation);
     checkSparkContentFiles(table);
   }
 
@@ -225,6 +239,7 @@ public class TestSparkDataFile {
 
     rowDelta.commit();
 
+    // FIXME: why do data files not carry content stats when read through spark?
     Dataset<Row> dataFileDF = spark.read().format("iceberg").load(tableLocation + "#data_files");
     List<Row> sparkDataFiles = shuffleColumns(dataFileDF).collectAsList();
     assertThat(sparkDataFiles).hasSameSizeAs(dataFiles);
@@ -304,6 +319,11 @@ public class TestSparkDataFile {
     assertThat(actual.keyMetadata()).isEqualTo(expected.keyMetadata());
     assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
     assertThat(actual.sortOrderId()).isEqualTo(expected.sortOrderId());
+
+    // TODO: remove this check once FIXMEs in SparkContentFile for DeleteFiles are fixed
+    if (actual instanceof DataFile) {
+      assertThat(actual.contentStats()).isEqualTo(expected.contentStats());
+    }
   }
 
   private void checkStructLike(StructLike expected, StructLike actual) {
@@ -315,27 +335,45 @@ public class TestSparkDataFile {
 
   private DeleteFile createPositionDeleteFile(Table table, DataFile dataFile) {
     PartitionSpec spec = table.specs().get(dataFile.specId());
-    return FileMetadata.deleteFileBuilder(spec)
-        .ofPositionDeletes()
-        .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".parquet")
-        .withFileSizeInBytes(dataFile.fileSizeInBytes() / 4)
-        .withPartition(dataFile.partition())
-        .withRecordCount(2)
-        .withMetrics(
-            new Metrics(
-                2L,
-                null, // no column sizes
-                null, // no value counts
-                null, // no null counts
-                null, // no NaN counts
-                ImmutableMap.of(
-                    MetadataColumns.DELETE_FILE_PATH.fieldId(),
-                    Conversions.toByteBuffer(Types.StringType.get(), dataFile.location())),
-                ImmutableMap.of(
-                    MetadataColumns.DELETE_FILE_PATH.fieldId(),
-                    Conversions.toByteBuffer(Types.StringType.get(), dataFile.location()))))
-        .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(35))
-        .build();
+    Metrics metrics =
+        new Metrics(
+            2L,
+            null, // no column sizes
+            null, // no value counts
+            null, // no null counts
+            null, // no NaN counts
+            ImmutableMap.of(
+                MetadataColumns.DELETE_FILE_PATH.fieldId(),
+                Conversions.toByteBuffer(Types.StringType.get(), dataFile.location())),
+            ImmutableMap.of(
+                MetadataColumns.DELETE_FILE_PATH.fieldId(),
+                Conversions.toByteBuffer(Types.StringType.get(), dataFile.location())),
+            ImmutableMap.of(
+                MetadataColumns.DELETE_FILE_PATH.fieldId(),
+                MetadataColumns.DELETE_FILE_PATH.type()));
+    FileMetadata.Builder builder =
+        FileMetadata.deleteFileBuilder(spec)
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".parquet")
+            .withFileSizeInBytes(dataFile.fileSizeInBytes() / 4)
+            .withPartition(dataFile.partition())
+            .withRecordCount(2)
+            .withMetrics(metrics)
+            .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(35));
+
+    if (TableUtil.formatVersion(table) >= 3) {
+      builder
+          .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".puffin")
+          .withContentSizeInBytes(dataFile.fileSizeInBytes() / 4)
+          .withContentOffset(4)
+          .withReferencedDataFile("/path/to/data-" + UUID.randomUUID() + ".parquet");
+    }
+
+    if (TableUtil.formatVersion(table) >= 4) {
+      builder.withContentStats(MetricsUtil.fromMetrics(table.schema(), metrics));
+    }
+
+    return builder.build();
   }
 
   private DeleteFile createEqualityDeleteFile(Table table) {
