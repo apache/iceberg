@@ -128,7 +128,7 @@ abstract class BaseParquetReaders<T> {
     @Override
     public ParquetValueReader<?> struct(
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
-      // the expected struct is ignored because nested fields are never found when the
+      // the expected struct is ignored because nested fields are never found when the ID is missing
       List<ParquetValueReader<?>> newFields =
           Lists.newArrayListWithExpectedSize(fieldReaders.size());
       List<Type> fields = struct.getFields();
