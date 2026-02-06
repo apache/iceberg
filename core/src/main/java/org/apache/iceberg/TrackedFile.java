@@ -104,8 +104,7 @@ interface TrackedFile {
           143,
           "referenced_file",
           Types.StringType.get(),
-          "Location of data file that a DV references if content_type is POSITION_DELETES. "
-              + "Location of affiliated data manifest if content_type is DELETE_MANIFEST, or null if unaffiliated");
+          "Location of referenced data file or affiliated manifest");
   Types.NestedField MANIFEST_STATS =
       Types.NestedField.optional(
           150,
@@ -117,8 +116,7 @@ interface TrackedFile {
           151,
           "manifest_dv",
           Types.BinaryType.get(),
-          "Serialized deletion vector marking deleted entry positions in the referenced manifest. "
-              + "Optional for DATA_MANIFEST and DELETE_MANIFEST, must be null for other content types");
+          "Serialized deletion vector for manifest entries");
 
   /**
    * Returns the path of the manifest which this file is referenced in or null if it was not read
@@ -172,7 +170,7 @@ interface TrackedFile {
    *
    * <p>Must be defined if location is defined.
    */
-  Long fileSizeInBytes();
+  long fileSizeInBytes();
 
   /**
    * Returns the content stats for this entry.
@@ -250,13 +248,6 @@ interface TrackedFile {
    * @return a copy of this tracked file, with content stats for only the requested columns
    */
   TrackedFile copyWithStats(Set<Integer> requestedColumnIds);
-
-  /**
-   * Returns the ordinal position in the manifest.
-   *
-   * <p>Used for applying manifest deletion vectors.
-   */
-  Long pos();
 
   /**
    * Converts this tracked file to a DataFile.
