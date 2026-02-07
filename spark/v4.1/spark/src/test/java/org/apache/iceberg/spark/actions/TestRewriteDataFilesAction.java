@@ -1392,8 +1392,8 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     // Commit 1: 4/4 + Commit 2 failed 0/4 + Commit 3: 2/2 == 6 out of 10 total groups committed
     assertThat(result.rewriteResults()).as("Should have 6 fileGroups").hasSize(6);
-    assertThat(result.rewriteFailures()).hasSize(4);
-    assertThat(result.failedDataFilesCount()).isEqualTo(8);
+    assertThat(result.rewriteFailures()).as("Should have 4 failed fileGroups").hasSize(4);
+    assertThat(result.failedDataFilesCount()).as("Should have 8 failed data files").isEqualTo(8);
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
     table.refresh();
