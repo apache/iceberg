@@ -44,12 +44,10 @@ import org.slf4j.LoggerFactory;
  *
  * <p>This registry provides access to {@link ReadBuilder}s for data consumption and {@link
  * FileWriterBuilder}s for writing various types of Iceberg content files. The appropriate builder
- * is selected based on {@link FileFormat} and object model name.
+ * is selected based on {@link FileFormat} and object model class.
  *
  * <p>{@link FormatModel} objects are registered through {@link #register(FormatModel)} and used for
- * creating readers and writers. Read builders are returned directly from the factory. Write
- * builders may be wrapped in specialized content file writer implementations depending on the
- * requested builder type.
+ * creating readers and writers.
  */
 public final class FormatModelRegistry {
   private FormatModelRegistry() {}
@@ -171,7 +169,7 @@ public final class FormatModelRegistry {
    * @param outputFile destination for the written data
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
-  @SuppressWarnings({"unchecked", "rawtypes"})
+  @SuppressWarnings("unchecked")
   public static <D> FileWriterBuilder<PositionDeleteWriter<D>, ?> positionDeleteWriteBuilder(
       FileFormat format, EncryptedOutputFile outputFile) {
     Class<PositionDelete<D>> deleteClass =
