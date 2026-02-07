@@ -1,0 +1,217 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.data;
+
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.List;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestBase;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.formats.FileWriterBuilder;
+import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestGenericFormatModels {
+  @Parameters(name = "fileFormat = {0}")
+  protected static List<Object> parameters() {
+    return List.of(FileFormat.AVRO);
+  }
+
+  private static final List<Record> TEST_RECORDS =
+      ImmutableList.of(
+          GenericRecord.create(TestBase.SCHEMA).copy("id", 1, "data", "hello"),
+          GenericRecord.create(TestBase.SCHEMA).copy("id", 2, "data", "world"));
+
+  @Parameter(index = 0)
+  private FileFormat fileFormat;
+
+  @TempDir protected Path temp;
+
+  private InMemoryFileIO fileIO;
+  private EncryptedOutputFile encryptedFile;
+
+  @BeforeEach
+  public void before() {
+    this.fileIO = new InMemoryFileIO();
+    OutputFile outputFile = fileIO.newOutputFile("test-file." + fileFormat.name().toLowerCase());
+    this.encryptedFile = EncryptedFiles.encryptedOutput(outputFile, EncryptionKeyMetadata.EMPTY);
+  }
+
+  @AfterEach
+  public void after() throws IOException {
+    fileIO.deleteFile(encryptedFile.encryptingOutputFile());
+    this.encryptedFile = null;
+    if (fileIO != null) {
+      fileIO.close();
+    }
+  }
+
+  @TestTemplate
+  public void testDataWriter() throws IOException {
+    FileWriterBuilder<DataWriter<Record>, Schema> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile);
+
+    DataFile dataFile;
+    DataWriter<Record> writer =
+        writerBuilder.schema(TestBase.SCHEMA).spec(PartitionSpec.unpartitioned()).build();
+    try (writer) {
+      for (Record record : TEST_RECORDS) {
+        writer.write(record);
+      }
+    }
+
+    dataFile = writer.toDataFile();
+
+    assertThat(dataFile).isNotNull();
+    assertThat(dataFile.recordCount()).isEqualTo(2);
+    assertThat(dataFile.format()).isEqualTo(fileFormat);
+
+    // Verify the file content by reading it back
+    InputFile inputFile = fileIO.newInputFile(encryptedFile.encryptingOutputFile().location());
+    List<Record> readRecords;
+    try (CloseableIterable<Record> reader =
+        FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
+            .project(TestBase.SCHEMA)
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertThat(readRecords).hasSize(2);
+    DataTestHelpers.assertEquals(
+        TestBase.SCHEMA.asStruct(), TEST_RECORDS.get(0), readRecords.get(0));
+    DataTestHelpers.assertEquals(
+        TestBase.SCHEMA.asStruct(), TEST_RECORDS.get(1), readRecords.get(1));
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteWriter() throws IOException {
+    FileWriterBuilder<EqualityDeleteWriter<Record>, Schema> writerBuilder =
+        FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, Record.class, encryptedFile);
+
+    DeleteFile deleteFile;
+    EqualityDeleteWriter<Record> writer =
+        writerBuilder
+            .schema(TestBase.SCHEMA)
+            .spec(PartitionSpec.unpartitioned())
+            .equalityFieldIds(3)
+            .build();
+    try (writer) {
+      for (Record record : TEST_RECORDS) {
+        writer.write(record);
+      }
+    }
+
+    deleteFile = writer.toDeleteFile();
+
+    assertThat(deleteFile).isNotNull();
+    assertThat(deleteFile.recordCount()).isEqualTo(2);
+    assertThat(deleteFile.format()).isEqualTo(fileFormat);
+    assertThat(deleteFile.equalityFieldIds()).containsExactly(3);
+
+    // Verify the file content by reading it back
+    InputFile inputFile = fileIO.newInputFile(encryptedFile.encryptingOutputFile().location());
+    List<Record> readRecords;
+    try (CloseableIterable<Record> reader =
+        FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
+            .project(TestBase.SCHEMA)
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertThat(readRecords).hasSize(2);
+    DataTestHelpers.assertEquals(
+        TestBase.SCHEMA.asStruct(), TEST_RECORDS.get(0), readRecords.get(0));
+    DataTestHelpers.assertEquals(
+        TestBase.SCHEMA.asStruct(), TEST_RECORDS.get(1), readRecords.get(1));
+  }
+
+  @TestTemplate
+  public void testPositionDeleteWriter() throws IOException {
+    Schema positionDeleteSchema = new Schema(DELETE_FILE_PATH, DELETE_FILE_POS);
+
+    FileWriterBuilder<PositionDeleteWriter<Record>, ?> writerBuilder =
+        FormatModelRegistry.positionDeleteWriteBuilder(fileFormat, encryptedFile);
+
+    PositionDelete<Record> delete1 = PositionDelete.create();
+    delete1.set("data-file-1.parquet", 0L, null);
+
+    PositionDelete<Record> delete2 = PositionDelete.create();
+    delete2.set("data-file-1.parquet", 1L, null);
+
+    List<PositionDelete<Record>> positionDeletes = ImmutableList.of(delete1, delete2);
+
+    DeleteFile deleteFile;
+    PositionDeleteWriter<Record> writer = writerBuilder.spec(PartitionSpec.unpartitioned()).build();
+    try (writer) {
+      for (PositionDelete<Record> delete : positionDeletes) {
+        writer.write(delete);
+      }
+    }
+
+    deleteFile = writer.toDeleteFile();
+
+    assertThat(deleteFile).isNotNull();
+    assertThat(deleteFile.recordCount()).isEqualTo(2);
+    assertThat(deleteFile.format()).isEqualTo(fileFormat);
+
+    // Verify the file content by reading it back
+    InputFile inputFile = fileIO.newInputFile(encryptedFile.encryptingOutputFile().location());
+    List<Record> readRecords;
+    try (CloseableIterable<Record> reader =
+        FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
+            .project(positionDeleteSchema)
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertThat(readRecords).hasSize(2);
+    assertThat(readRecords.get(0).getField("file_path")).isEqualTo("data-file-1.parquet");
+    assertThat(readRecords.get(0).getField("pos")).isEqualTo(0L);
+    assertThat(readRecords.get(1).getField("file_path")).isEqualTo("data-file-1.parquet");
+    assertThat(readRecords.get(1).getField("pos")).isEqualTo(1L);
+  }
+}
