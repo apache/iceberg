@@ -83,21 +83,21 @@ class TestParquetFileMerger {
   }
 
   @Test
-  public void testCanMergeThrowsForEmptyList() {
+  void canMergeThrowsForEmptyList() {
     assertThatThrownBy(() -> ParquetFileMerger.canMergeAndGetSchema(Collections.emptyList()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("inputFiles cannot be null or empty");
   }
 
   @Test
-  public void testCanMergeThrowsForNullInput() {
+  void canMergeThrowsForNullInput() {
     assertThatThrownBy(() -> ParquetFileMerger.canMergeAndGetSchema(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("inputFiles cannot be null or empty");
   }
 
   @Test
-  public void testCanMergeReturnsNullForNonParquetFile() throws IOException {
+  void canMergeReturnsNullForNonParquetFile() throws IOException {
     // Create a non-Parquet file (just a text file)
     File textFile = createTempFile(temp);
     textFile.getParentFile().mkdirs(); // Ensure directory exists
@@ -112,7 +112,7 @@ class TestParquetFileMerger {
   }
 
   @Test
-  public void testCanMergeReturnsNullForDifferentSchemas() throws IOException {
+  void canMergeReturnsNullForDifferentSchemas() throws IOException {
     // Create first Parquet file with schema1
     Schema icebergSchema1 = SCHEMA;
 
@@ -140,7 +140,7 @@ class TestParquetFileMerger {
   }
 
   @Test
-  public void testCanMergeReturnsTrueForIdenticalSchemas() throws IOException {
+  void canMergeReturnsTrueForIdenticalSchemas() throws IOException {
     // Create two Parquet files with the same schema and some data
     File parquetFile1 = createTempFile(temp);
     writeRecordsToFile(parquetFile1, Arrays.asList(createRecord(1, "a")));
@@ -159,7 +159,7 @@ class TestParquetFileMerger {
 
   /** Test that validation catches files with null values in physical row lineage columns. */
   @Test
-  public void testCanMergeReturnsNullForPhysicalRowLineageWithNulls() throws IOException {
+  void canMergeReturnsNullForPhysicalRowLineageWithNulls() throws IOException {
     Schema schemaWithLineage =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -194,7 +194,7 @@ class TestParquetFileMerger {
 
   /** Test schema validation edge case: same field name but different types. */
   @Test
-  public void testCanMergeReturnsNullForSameFieldNameDifferentType() throws IOException {
+  void canMergeReturnsNullForSameFieldNameDifferentType() throws IOException {
     // Create first file with 'data' as StringType
     Schema schema1 =
         new Schema(
@@ -227,7 +227,7 @@ class TestParquetFileMerger {
    * row group level, not schema level).
    */
   @Test
-  public void testCanMergeReturnsTrueForDifferentCompressionCodecs() throws IOException {
+  void canMergeReturnsTrueForDifferentCompressionCodecs() throws IOException {
     // Create file 1 with SNAPPY compression
     File file1 = createTempFile(temp);
     createParquetFileWithData(
@@ -257,7 +257,7 @@ class TestParquetFileMerger {
 
   /** Test error handling for corrupted Parquet files. */
   @Test
-  public void testCanMergeReturnsNullForCorruptedParquetFile() throws IOException {
+  void canMergeReturnsNullForCorruptedParquetFile() throws IOException {
     // Create a valid Parquet file
     File validFile = createTempFile(temp);
     writeRecordsToFile(validFile, Arrays.asList(createRecord(1, "a")));
@@ -278,7 +278,7 @@ class TestParquetFileMerger {
 
   /** Test error handling for non-existent file paths. */
   @Test
-  public void testCanMergeReturnsNullForNonExistentFile() throws IOException {
+  void canMergeReturnsNullForNonExistentFile() throws IOException {
     // Create a valid file
     File validFile = createTempFile(temp);
     writeRecordsToFile(validFile, Arrays.asList(createRecord(1, "a")));
@@ -301,7 +301,7 @@ class TestParquetFileMerger {
    * _last_updated_sequence_number columns.
    */
   @Test
-  public void testMergeFilesSynthesizesRowLineageColumns() throws IOException {
+  void mergeFilesSynthesizesRowLineageColumns() throws IOException {
     // Create two files with test data
     File file1 = createTempFile(temp);
     writeRecordsToFile(
@@ -365,7 +365,7 @@ class TestParquetFileMerger {
 
   /** Test row lineage synthesis works correctly across multiple row groups. */
   @Test
-  public void testMergeFilesWithMultipleRowGroups() throws IOException {
+  void mergeFilesWithMultipleRowGroups() throws IOException {
     // Create file with multiple row groups by setting small row group size
     File file1 = createTempFile(temp);
     OutputFile output1 = Files.localOutput(file1);
@@ -399,7 +399,7 @@ class TestParquetFileMerger {
 
   /** Test that each file's dataSequenceNumber is correctly applied to its rows. */
   @Test
-  public void testMergeFilesWithDifferentDataSequenceNumbers() throws IOException {
+  void mergeFilesWithDifferentDataSequenceNumbers() throws IOException {
     // Create three files
     File file1 = createTempFile(temp);
     writeRecordsToFile(file1, Arrays.asList(createRecord(1, "a"), createRecord(2, "b")));
@@ -446,7 +446,7 @@ class TestParquetFileMerger {
 
   /** Test that merging without firstRowIds/dataSequenceNumbers works (no row lineage columns). */
   @Test
-  public void testMergeFilesWithoutRowLineage() throws IOException {
+  void mergeFilesWithoutRowLineage() throws IOException {
     File file1 = createTempFile(temp);
     writeRecordsToFile(file1, Arrays.asList(createRecord(1, "a"), createRecord(2, "b")));
 
@@ -493,7 +493,7 @@ class TestParquetFileMerger {
 
   /** Test that files already having physical row lineage columns are preserved via binary copy. */
   @Test
-  public void testMergeFilesWithPhysicalRowLineageColumns() throws IOException {
+  void mergeFilesWithPhysicalRowLineageColumns() throws IOException {
     // Create schema with row lineage columns
     Schema schemaWithLineage =
         new Schema(
@@ -553,7 +553,7 @@ class TestParquetFileMerger {
 
   /** Test that verifies exact row ID and sequence number values in merged output. */
   @Test
-  public void testMergeFilesVerifiesExactRowIdValues() throws IOException {
+  void mergeFilesVerifiesExactRowIdValues() throws IOException {
     // Create file 1 with 3 records, firstRowId=100, dataSequenceNumber=5
     File file1 = createTempFile(temp);
     writeRecordsToFile(
@@ -626,7 +626,7 @@ class TestParquetFileMerger {
    * file path and DataFile metadata.
    */
   @Test
-  public void testMergeFilesWithPartitionedTable() throws IOException {
+  void mergeFilesWithPartitionedTable() throws IOException {
 
     // Create schema with partition column
     Schema fullSchema =

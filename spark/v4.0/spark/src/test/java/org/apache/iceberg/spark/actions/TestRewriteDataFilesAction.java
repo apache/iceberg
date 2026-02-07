@@ -2818,7 +2818,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   /**
-   * Test that ParquetFileMerger can generate physical _row_id columns when merging files with
+   * Test that both rewrite approaches can generate physical _row_id columns when merging files with
    * virtual row IDs (metadata only).
    */
   @TestTemplate
@@ -2861,8 +2861,8 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   /**
-   * Test that ParquetFileMerger preserves existing physical _row_id columns via binary copy when
-   * merging files that already have physical row IDs.
+   * Test that both rewrite approaches preserve existing physical _row_id columns when merging files
+   * that already have physical row IDs.
    */
   @TestTemplate
   public void testParquetFileMergerPreservesPhysicalRowIds() throws IOException {
@@ -2925,7 +2925,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
   }
 
-  /** Test that row lineage preservation works correctly with partitioned tables. */
+  /** Test that both rewrite approaches preserve row lineage correctly with partitioned tables. */
   @TestTemplate
   public void testRowLineageWithPartitionedTable() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
