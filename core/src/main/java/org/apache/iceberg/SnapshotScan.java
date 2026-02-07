@@ -55,10 +55,12 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
 
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotScan.class);
 
+  private final Snapshot currentSnapshot; // pinned at scan creation time
   private ScanMetrics scanMetrics;
 
   protected SnapshotScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
+    this.currentSnapshot = table.currentSnapshot();
   }
 
   protected Long snapshotId() {
@@ -85,8 +87,8 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
     // requires latest schema
     if (!useSnapshotSchema()
         || snapshotId() == null
-        || table().currentSnapshot() == null
-        || snapshotId().equals(table().currentSnapshot().snapshotId())) {
+        || currentSnapshot == null
+        || snapshotId().equals(currentSnapshot.snapshotId())) {
       return specs;
     }
 
@@ -181,7 +183,7 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
   }
 
   public Snapshot snapshot() {
-    return snapshotId() != null ? table().snapshot(snapshotId()) : table().currentSnapshot();
+    return snapshotId() != null ? table().snapshot(snapshotId()) : currentSnapshot;
   }
 
   @Override

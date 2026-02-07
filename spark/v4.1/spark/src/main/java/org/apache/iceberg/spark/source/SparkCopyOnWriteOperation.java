@@ -24,6 +24,7 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPD
 import java.util.List;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -42,6 +43,7 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
 
   private final SparkSession spark;
   private final Table table;
+  private final Snapshot snapshot;
   private final String branch;
   private final Command command;
   private final IsolationLevel isolationLevel;
@@ -54,11 +56,13 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
   SparkCopyOnWriteOperation(
       SparkSession spark,
       Table table,
+      Snapshot snapshot,
       String branch,
       RowLevelOperationInfo info,
       IsolationLevel isolationLevel) {
     this.spark = spark;
     this.table = table;
+    this.snapshot = snapshot;
     this.branch = branch;
     this.command = info.command();
     this.isolationLevel = isolationLevel;
@@ -73,7 +77,7 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
     if (lazyScanBuilder == null) {
       lazyScanBuilder =
-          new SparkScanBuilder(spark, table, branch, options) {
+          new SparkScanBuilder(spark, table, table.schema(), snapshot, branch, options) {
             @Override
             public Scan build() {
               Scan scan = super.buildCopyOnWriteScan();
@@ -98,18 +102,18 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
 
   @Override
   public NamedReference[] requiredMetadataAttributes() {
-    List<NamedReference> metadataAttributes = Lists.newArrayList();
-    metadataAttributes.add(Expressions.column(MetadataColumns.FILE_PATH.name()));
+    List<NamedReference> metaAttrs = Lists.newArrayList();
+    metaAttrs.add(Expressions.column(MetadataColumns.FILE_PATH.name()));
+
     if (command == DELETE || command == UPDATE) {
-      metadataAttributes.add(Expressions.column(MetadataColumns.ROW_POSITION.name()));
+      metaAttrs.add(Expressions.column(MetadataColumns.ROW_POSITION.name()));
     }
 
     if (TableUtil.supportsRowLineage(table)) {
-      metadataAttributes.add(Expressions.column(MetadataColumns.ROW_ID.name()));
-      metadataAttributes.add(
-          Expressions.column(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()));
+      metaAttrs.add(Expressions.column(MetadataColumns.ROW_ID.name()));
+      metaAttrs.add(Expressions.column(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()));
     }
 
-    return metadataAttributes.toArray(NamedReference[]::new);
+    return metaAttrs.toArray(NamedReference[]::new);
   }
 }

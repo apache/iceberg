@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -60,16 +61,12 @@ public class TestSparkStagedScan extends CatalogTestBase {
 
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
-      String setID = UUID.randomUUID().toString();
-      taskSetManager.stageTasks(table, setID, ImmutableList.copyOf(fileScanTasks));
+      String groupId = UUID.randomUUID().toString();
+      taskSetManager.stageTasks(table, groupId, ImmutableList.copyOf(fileScanTasks));
+      SparkTableCache.get().add(groupId, table);
 
-      // load the staged file set
-      Dataset<Row> scanDF =
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
-              .load(tableName);
+      // load the staged file set via the rewrite catalog
+      Dataset<Row> scanDF = spark.read().format("iceberg").load(groupId);
 
       // write the records back essentially duplicating data
       scanDF.writeTo(tableName).append();
@@ -96,18 +93,18 @@ public class TestSparkStagedScan extends CatalogTestBase {
 
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
-      String setID = UUID.randomUUID().toString();
+      String groupId = UUID.randomUUID().toString();
       List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
-      taskSetManager.stageTasks(table, setID, tasks);
+      taskSetManager.stageTasks(table, groupId, tasks);
+      SparkTableCache.get().add(groupId, table);
 
       // load the staged file set and make sure each file is in a separate split
       Dataset<Row> scanDF =
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .option(SparkReadOptions.SPLIT_SIZE, tasks.get(0).file().fileSizeInBytes())
-              .load(tableName);
+              .load(groupId);
       assertThat(scanDF.javaRDD().getNumPartitions())
           .as("Num partitions should match")
           .isEqualTo(2);
@@ -117,9 +114,8 @@ public class TestSparkStagedScan extends CatalogTestBase {
           spark
               .read()
               .format("iceberg")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, setID)
               .option(SparkReadOptions.SPLIT_SIZE, Long.MAX_VALUE)
-              .load(tableName);
+              .load(groupId);
       assertThat(scanDF.javaRDD().getNumPartitions())
           .as("Num partitions should match")
           .isEqualTo(1);

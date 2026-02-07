@@ -46,7 +46,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.deletes.DeleteGranularity;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -86,20 +85,13 @@ public class SparkWriteConf {
 
   private final SparkSession spark;
   private final Table table;
-  private final String branch;
   private final RuntimeConfig sessionConf;
   private final Map<String, String> writeOptions;
   private final SparkConfParser confParser;
 
   public SparkWriteConf(SparkSession spark, Table table, Map<String, String> writeOptions) {
-    this(spark, table, null, writeOptions);
-  }
-
-  public SparkWriteConf(
-      SparkSession spark, Table table, String branch, Map<String, String> writeOptions) {
     this.spark = spark;
     this.table = table;
-    this.branch = branch;
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
@@ -265,13 +257,6 @@ public class SparkWriteConf {
         PropertyUtil.propertiesWithPrefix(writeOptions, SnapshotSummary.EXTRA_METADATA_PREFIX));
 
     return extraSnapshotMetadata;
-  }
-
-  public String rewrittenFileSetId() {
-    return confParser
-        .stringConf()
-        .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID)
-        .parseOptional();
   }
 
   public SparkWriteRequirements writeRequirements() {
@@ -452,9 +437,10 @@ public class SparkWriteConf {
   }
 
   public IsolationLevel isolationLevel() {
-    String isolationLevelName =
-        confParser.stringConf().option(SparkWriteOptions.ISOLATION_LEVEL).parseOptional();
-    return isolationLevelName != null ? IsolationLevel.fromName(isolationLevelName) : null;
+    return confParser
+        .enumConf(IsolationLevel::fromName)
+        .option(SparkWriteOptions.ISOLATION_LEVEL)
+        .parseOptional();
   }
 
   public boolean caseSensitive() {
@@ -463,32 +449,6 @@ public class SparkWriteConf {
         .sessionConf(SQLConf.CASE_SENSITIVE().key())
         .defaultValue(SQLConf.CASE_SENSITIVE().defaultValueString())
         .parse();
-  }
-
-  public String branch() {
-    if (wapEnabled()) {
-      String wapId = wapId();
-      String wapBranch =
-          confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
-
-      ValidationException.check(
-          wapId == null || wapBranch == null,
-          "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]",
-          wapId,
-          wapBranch);
-
-      if (wapBranch != null) {
-        ValidationException.check(
-            branch == null,
-            "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
-            branch,
-            wapBranch);
-
-        return wapBranch;
-      }
-    }
-
-    return branch;
   }
 
   public Map<String, String> writeProperties() {

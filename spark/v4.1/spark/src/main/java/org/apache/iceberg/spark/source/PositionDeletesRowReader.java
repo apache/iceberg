@@ -34,7 +34,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.util.ContentFileUtil;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.PartitionReader;
@@ -50,8 +49,8 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
     this(
         partition.table(),
         partition.taskGroup(),
-        SnapshotUtil.schemaFor(partition.table(), partition.branch()),
-        partition.expectedSchema(),
+        partition.schema(),
+        partition.projection(),
         partition.isCaseSensitive(),
         partition.cacheDeleteFilesOnExecutors());
   }

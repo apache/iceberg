@@ -33,6 +33,7 @@ import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -60,10 +61,10 @@ public class TestMetaColumnProjectionWithStageScan extends ExtensionsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  private <T extends ScanTask> void stageTask(
-      Table tab, String fileSetID, CloseableIterable<T> tasks) {
+  private <T extends ScanTask> void stageTasks(
+      Table table, String groupId, CloseableIterable<T> tasks) {
     ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
-    taskSetManager.stageTasks(tab, fileSetID, Lists.newArrayList(tasks));
+    taskSetManager.stageTasks(table, groupId, Lists.newArrayList(tasks));
   }
 
   @TestTemplate
@@ -88,32 +89,31 @@ public class TestMetaColumnProjectionWithStageScan extends ExtensionsTestBase {
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     table.refresh();
-    String tableLocation = table.location();
 
+    // Test reading without metadata column projection
     try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
-      String fileSetID = UUID.randomUUID().toString();
-      stageTask(table, fileSetID, tasks);
-      Dataset<Row> scanDF2 =
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.FILE_OPEN_COST, "0")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-              .load(tableLocation);
+      String groupId = UUID.randomUUID().toString();
+      stageTasks(table, groupId, tasks);
+      SparkTableCache.get().add(groupId, table);
 
-      assertThat(scanDF2.columns()).hasSize(2);
+      Dataset<Row> scanDF =
+          spark.read().format("iceberg").option(SparkReadOptions.FILE_OPEN_COST, "0").load(groupId);
+
+      assertThat(scanDF.columns()).hasSize(2);
     }
 
+    // Test reading with metadata column (_pos) projection
     try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
-      String fileSetID = UUID.randomUUID().toString();
-      stageTask(table, fileSetID, tasks);
+      String groupId = UUID.randomUUID().toString();
+      stageTasks(table, groupId, tasks);
+      SparkTableCache.get().add(groupId, table);
+
       Dataset<Row> scanDF =
           spark
               .read()
               .format("iceberg")
               .option(SparkReadOptions.FILE_OPEN_COST, "0")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-              .load(tableLocation)
+              .load(groupId)
               .select("*", "_pos");
 
       List<Row> rows = scanDF.collectAsList();

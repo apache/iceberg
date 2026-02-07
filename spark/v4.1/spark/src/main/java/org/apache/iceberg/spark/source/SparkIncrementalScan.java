@@ -33,33 +33,31 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Statistics;
 
-class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
+class SparkIncrementalScan extends SparkRuntimeFilterableScan {
 
-  private final Snapshot snapshot;
-  private final String branch;
+  private final long startSnapshotId;
+  private final Long endSnapshotId;
 
-  SparkBatchQueryScan(
+  SparkIncrementalScan(
       SparkSession spark,
       Table table,
-      Schema schema,
-      Snapshot snapshot,
-      String branch,
+      long startSnapshotId,
+      Long endSnapshotId,
       Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, schema, scan, readConf, projection, filters, scanReportSupplier);
-    this.snapshot = snapshot;
-    this.branch = branch;
-  }
-
-  Long snapshotId() {
-    return snapshot != null ? snapshot.snapshotId() : null;
+    super(spark, table, table.schema(), scan, readConf, projection, filters, scanReportSupplier);
+    this.startSnapshotId = startSnapshotId;
+    this.endSnapshotId = endSnapshotId;
   }
 
   @Override
   public Statistics estimateStatistics() {
+    // use the current snapshot for statistics estimation for incremental scans
+    // since we're scanning a range rather than a single snapshot
+    Snapshot snapshot = table().currentSnapshot();
     return estimateStatistics(snapshot);
   }
 
@@ -73,10 +71,11 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
       return false;
     }
 
-    SparkBatchQueryScan that = (SparkBatchQueryScan) o;
+    SparkIncrementalScan that = (SparkIncrementalScan) o;
     return table().name().equals(that.table().name())
         && Objects.equals(table().uuid(), that.table().uuid())
-        && Objects.equals(snapshot, that.snapshot)
+        && startSnapshotId == that.endSnapshotId
+        && Objects.equals(endSnapshotId, that.endSnapshotId)
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
         && filtersDesc().equals(that.filtersDesc())
         && runtimeFiltersDesc().equals(that.runtimeFiltersDesc());
@@ -87,7 +86,8 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
     return Objects.hash(
         table().name(),
         table().uuid(),
-        snapshot,
+        startSnapshotId,
+        endSnapshotId,
         readSchema(),
         filtersDesc(),
         runtimeFiltersDesc());
@@ -96,14 +96,12 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
   @Override
   public String description() {
     return String.format(
-        "IcebergScan(table=%s, schemaId=%s, snapshotId=%s, branch=%s, filters=%s, runtimeFilters=%s, groupedBy=%s, caseSensitive=%s)",
+        "IcebergIncrementalScan(table=%s, startSnapshotId=%s, endSnapshotId=%s, filters=%s, runtimeFilters=%s, groupedBy=%s)",
         table(),
-        schema().schemaId(),
-        snapshotId(),
-        branch,
+        startSnapshotId,
+        endSnapshotId,
         filtersDesc(),
         runtimeFiltersDesc(),
-        groupingKeyDesc(),
-        caseSensitive());
+        groupingKeyDesc());
   }
 }

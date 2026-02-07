@@ -70,13 +70,13 @@ public class SparkPositionDeletesRewrite implements Write {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final String fileSetId;
   private final String queryId;
   private final FileFormat format;
   private final long targetFileSize;
   private final DeleteGranularity deleteGranularity;
   private final Schema writeSchema;
   private final StructType dsSchema;
-  private final String fileSetId;
   private final int specId;
   private final StructLike partition;
   private final Map<String, String> writeProperties;
@@ -86,6 +86,7 @@ public class SparkPositionDeletesRewrite implements Write {
    *
    * @param spark Spark session
    * @param table instance of {@link PositionDeletesTable}
+   * @param fileSetId file set ID
    * @param writeConf Spark write config
    * @param writeInfo Spark write info
    * @param writeSchema Iceberg output schema
@@ -96,6 +97,7 @@ public class SparkPositionDeletesRewrite implements Write {
   SparkPositionDeletesRewrite(
       SparkSession spark,
       Table table,
+      String fileSetId,
       SparkWriteConf writeConf,
       LogicalWriteInfo writeInfo,
       Schema writeSchema,
@@ -104,13 +106,13 @@ public class SparkPositionDeletesRewrite implements Write {
       StructLike partition) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.fileSetId = fileSetId;
     this.queryId = writeInfo.queryId();
     this.format = writeConf.deleteFileFormat();
     this.targetFileSize = writeConf.targetDeleteFileSize();
     this.deleteGranularity = writeConf.deleteGranularity();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
-    this.fileSetId = writeConf.rewrittenFileSetId();
     this.specId = specId;
     this.partition = partition;
     this.writeProperties = writeConf.writeProperties();

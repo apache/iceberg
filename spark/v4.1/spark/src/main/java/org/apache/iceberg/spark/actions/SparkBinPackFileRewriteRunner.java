@@ -45,7 +45,6 @@ class SparkBinPackFileRewriteRunner extends SparkDataFileRewriteRunner {
         spark()
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
             .option(SparkReadOptions.SPLIT_SIZE, group.inputSplitSize())
             .option(SparkReadOptions.FILE_OPEN_COST, "0")
             .load(groupId);
@@ -54,7 +53,6 @@ class SparkBinPackFileRewriteRunner extends SparkDataFileRewriteRunner {
     scanDF
         .write()
         .format("iceberg")
-        .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
         .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, group.maxOutputFileSize())
         .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode(group).modeName())
         .option(SparkWriteOptions.OUTPUT_SPEC_ID, group.outputSpecId())
