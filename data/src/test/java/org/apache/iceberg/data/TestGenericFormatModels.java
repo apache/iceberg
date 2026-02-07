@@ -55,7 +55,7 @@ public class TestGenericFormatModels {
       RandomGenericData.generate(TestBase.SCHEMA, 10, 1L);
 
   private static final FileFormat[] FILE_FORMATS =
-      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET};
+      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
 
   @TempDir protected Path temp;
 
