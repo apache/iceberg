@@ -41,6 +41,7 @@ import java.util.Random;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -56,6 +57,7 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsProperties;
@@ -77,6 +79,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.rest.RESTCatalog;
+import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTRequest;
+import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -964,6 +972,76 @@ public class TestS3FileIO {
     assertThatThrownBy(() -> actualConfiguration.credentialsProvider().resolveIdentity())
         .isInstanceOf(SdkClientException.class)
         .hasMessageContaining("Unable to load credentials from any of the providers");
+  }
+
+  @Test
+  public void testRESTCatalogWithS3FileIO() throws IOException {
+    Map<String, String> conf = Maps.newHashMap();
+    conf.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://bucket/warehouse");
+    conf.put(CatalogProperties.FILE_IO_IMPL, S3FileIO.class.getName());
+    conf.put(AwsProperties.CLIENT_FACTORY, StaticClientFactory.class.getName());
+
+    // Create RESTCatalog with a mockable REST client builder
+    RESTCatalog restCatalog =
+        new RESTCatalog(
+            (config) -> {
+              // Create a mock RESTClient that returns a valid ConfigResponse
+              return new RESTClient() {
+
+                @Override
+                public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+
+                }
+
+                @Override
+                public <T extends RESTResponse> T delete(String path, Class<T> responseType, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+                  return null;
+                }
+
+                @Override
+                public <T extends RESTResponse> T get(String path, Map<String, String> queryParams, Class<T> responseType, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+                  if (path.equals("v1/config")) {
+                    return responseType.cast(
+                            ConfigResponse.builder()
+                                    .withDefault(CatalogProperties.WAREHOUSE_LOCATION, "s3://bucket/warehouse")
+                                    .build());
+                  }
+                  return null;
+                }
+
+                @Override
+                public <T extends RESTResponse> T post(String path, RESTRequest body, Class<T> responseType, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+                  return null;
+                }
+
+                @Override
+                public <T extends RESTResponse> T postForm(String path, Map<String, String> formData, Class<T> responseType, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+                  return null;
+                }
+
+                @Override
+                public RESTClient withAuthSession(
+                    org.apache.iceberg.rest.auth.AuthSession session) {
+                  return this;
+                }
+
+                @Override
+                public void close() {}
+              };
+            });
+
+    try {
+      restCatalog.initialize("test_rest_catalog", conf);
+
+      // Verify that the catalog is initialized with S3FileIO configuration
+      assertThat(restCatalog.name()).isEqualTo("test_rest_catalog");
+      assertThat(restCatalog.properties()).containsEntry(CatalogProperties.WAREHOUSE_LOCATION,
+          "s3://bucket/warehouse");
+      assertThat(restCatalog.properties()).containsEntry(CatalogProperties.FILE_IO_IMPL,
+          S3FileIO.class.getName());
+    } finally {
+      restCatalog.close();
+    }
   }
 
   private void createRandomObjects(String prefix, int count) {
