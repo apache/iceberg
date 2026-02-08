@@ -722,7 +722,7 @@ License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.grpc  Name: grpc-netty-shaded  Version: 1.71.0
+Group: io.grpc  Name: grpc-netty-shaded  Version: 1.76.2
 Project URL (from POM): https://github.com/grpc/grpc-java
 License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
@@ -1185,7 +1185,7 @@ License (from POM): MIT-0 - https://spdx.org/licenses/MIT-0.html
 
 --------------------------------------------------------------------------------
 
-Group: org.roaringbitmap  Name: RoaringBitmap  Version: 1.3.0
+Group: org.roaringbitmap  Name: RoaringBitmap  Version: 1.6.0
 Project URL (from POM): https://github.com/RoaringBitmap/RoaringBitmap
 License (from POM): Apache 2 - http://www.apache.org/licenses/LICENSE-2.0.txt
 

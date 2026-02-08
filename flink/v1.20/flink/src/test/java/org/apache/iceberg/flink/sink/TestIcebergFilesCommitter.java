@@ -63,6 +63,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -95,11 +96,11 @@ public class TestIcebergFilesCommitter extends TestBase {
   @Parameters(name = "formatVersion = {0}, fileFormat = {1}, branch = {2}")
   protected static List<Object> parameters() {
     return Arrays.asList(
-        new Object[] {1, FileFormat.AVRO, "main"},
+        new Object[] {1, FileFormat.AVRO, SnapshotRef.MAIN_BRANCH},
         new Object[] {2, FileFormat.AVRO, "test-branch"},
-        new Object[] {1, FileFormat.PARQUET, "main"},
+        new Object[] {1, FileFormat.PARQUET, SnapshotRef.MAIN_BRANCH},
         new Object[] {2, FileFormat.PARQUET, "test-branch"},
-        new Object[] {1, FileFormat.ORC, "main"},
+        new Object[] {1, FileFormat.ORC, SnapshotRef.MAIN_BRANCH},
         new Object[] {2, FileFormat.ORC, "test-branch"});
   }
 

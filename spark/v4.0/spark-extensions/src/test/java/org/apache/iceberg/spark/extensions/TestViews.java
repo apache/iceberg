@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Locale;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -108,7 +107,12 @@ public class TestViews extends ExtensionsTestBase {
             .putAll(SparkCatalogConfig.SPARK_SESSION_WITH_VIEWS.properties())
             .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
             .build()
-      }
+      },
+      {
+        SparkCatalogConfig.SPARK_WITH_HIVE_VIEWS.catalogName(),
+        SparkCatalogConfig.SPARK_WITH_HIVE_VIEWS.implementation(),
+        SparkCatalogConfig.SPARK_WITH_HIVE_VIEWS.properties()
+      },
     };
   }
 
@@ -1350,6 +1354,10 @@ public class TestViews extends ExtensionsTestBase {
   @TestTemplate
   public void createViewWithSubqueryExpressionInFilterThatIsRewritten()
       throws NoSuchTableException {
+    assumeThat(catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE))
+        .as(
+            "Executing subquery expression with Hive fails due to an exception when instantiating the FileInputFormat")
+        .isNotEqualTo("hive");
     insertRows(5);
     String viewName = viewName("viewWithSubqueryExpression");
     String sql =
@@ -1376,6 +1384,10 @@ public class TestViews extends ExtensionsTestBase {
 
   @TestTemplate
   public void createViewWithSubqueryExpressionInQueryThatIsRewritten() throws NoSuchTableException {
+    assumeThat(catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE))
+        .as(
+            "Executing subquery expression with Hive fails due to an exception when instantiating the FileInputFormat")
+        .isNotEqualTo("hive");
     insertRows(3);
     String viewName = viewName("viewWithSubqueryExpression");
     String sql =
@@ -1533,25 +1545,26 @@ public class TestViews extends ExtensionsTestBase {
     insertRows(6);
     String sql = String.format("SELECT * from %s", tableName);
     String v1 = viewName("v1");
-    String prefixV2 = viewName("prefixV2");
-    String prefixV3 = viewName("prefixV3");
-    String globalViewForListing = viewName("globalViewForListing");
-    String tempViewForListing = viewName("tempViewForListing");
+    String prefixV2 = viewName("prefix_v2");
+    String prefixV3 = viewName("prefix_v3");
+    String globalViewForListing = viewName("global_view_for_listing");
+    String tempViewForListing = viewName("temp_view_for_listing");
     sql("CREATE VIEW %s AS %s", v1, sql);
     sql("CREATE VIEW %s AS %s", prefixV2, sql);
     sql("CREATE VIEW %s AS %s", prefixV3, sql);
     sql("CREATE GLOBAL TEMPORARY VIEW %s AS %s", globalViewForListing, sql);
     sql("CREATE TEMPORARY VIEW %s AS %s", tempViewForListing, sql);
 
-    // spark stores temp views case-insensitive by default
-    Object[] tempView = row("", tempViewForListing.toLowerCase(Locale.ROOT), true);
+    Object[] globalView = row("global_temp", globalViewForListing, true);
+    Object[] tempView = row("", tempViewForListing, true);
     Object[] v1Row = row(NAMESPACE.toString(), v1, false);
     Object[] v2Row = row(NAMESPACE.toString(), prefixV2, false);
     Object[] v3Row = row(NAMESPACE.toString(), prefixV3, false);
     assertThat(sql("SHOW VIEWS")).contains(v2Row, v3Row, v1Row, tempView);
 
-    if (!"rest".equals(catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE))) {
-      // REST catalog requires a namespace
+    String catalogType = catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE);
+    if (!"rest".equals(catalogType) && !"hive".equals(catalogType)) {
+      // REST & Hive catalog require a namespace
       assertThat(sql("SHOW VIEWS IN %s", catalogName))
           .contains(tempView)
           .doesNotContain(v1Row, v2Row, v3Row);
@@ -1566,7 +1579,7 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThat(sql("SHOW VIEWS LIKE 'non-existing'")).isEmpty();
 
-    if (!catalogName.equals(SPARK_CATALOG)) {
+    if (catalogName.equals(SparkCatalogConfig.SPARK_WITH_VIEWS.catalogName())) {
       sql("CREATE NAMESPACE IF NOT EXISTS spark_catalog.%s", NAMESPACE);
       assertThat(sql("SHOW VIEWS IN spark_catalog.%s", NAMESPACE))
           .contains(tempView)
@@ -1574,9 +1587,7 @@ public class TestViews extends ExtensionsTestBase {
     }
 
     assertThat(sql("SHOW VIEWS IN global_temp"))
-        .contains(
-            // spark stores temp views case-insensitive by default
-            row("global_temp", globalViewForListing.toLowerCase(Locale.ROOT), true), tempView)
+        .contains(globalView, tempView)
         .doesNotContain(v1Row, v2Row, v3Row);
 
     sql("USE spark_catalog");
@@ -1589,8 +1600,8 @@ public class TestViews extends ExtensionsTestBase {
   public void showViewsWithCurrentNamespace() {
     String namespaceOne = "show_views_ns1";
     String namespaceTwo = "show_views_ns2";
-    String viewOne = viewName("viewOne");
-    String viewTwo = viewName("viewTwo");
+    String viewOne = viewName("view_one");
+    String viewTwo = viewName("view_two");
     sql("CREATE NAMESPACE IF NOT EXISTS %s", namespaceOne);
     sql("CREATE NAMESPACE IF NOT EXISTS %s", namespaceTwo);
 
@@ -1606,14 +1617,14 @@ public class TestViews extends ExtensionsTestBase {
         .doesNotContain(v2);
     sql("USE %s", namespaceOne);
     assertThat(sql("SHOW VIEWS")).contains(v1).doesNotContain(v2);
-    assertThat(sql("SHOW VIEWS LIKE 'viewOne*'")).contains(v1).doesNotContain(v2);
+    assertThat(sql("SHOW VIEWS LIKE 'view_one*'")).contains(v1).doesNotContain(v2);
 
     assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, namespaceTwo))
         .contains(v2)
         .doesNotContain(v1);
     sql("USE %s", namespaceTwo);
     assertThat(sql("SHOW VIEWS")).contains(v2).doesNotContain(v1);
-    assertThat(sql("SHOW VIEWS LIKE 'viewTwo*'")).contains(v2).doesNotContain(v1);
+    assertThat(sql("SHOW VIEWS LIKE 'view_two*'")).contains(v2).doesNotContain(v1);
   }
 
   @TestTemplate

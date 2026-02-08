@@ -244,7 +244,7 @@ public class TestRowLineageAssignment {
     long branchSnapshot = table.snapshot("branch").snapshotId();
 
     // fast-forward main to the branch
-    table.manageSnapshots().fastForwardBranch("main", "branch").commit();
+    table.manageSnapshots().fastForwardBranch(SnapshotRef.MAIN_BRANCH, "branch").commit();
     // branch data manifests: [added(FILE_C)], [added(FILE_B)], [added(FILE_A)]
 
     assertThat(table.operations().current().nextRowId())
@@ -252,7 +252,7 @@ public class TestRowLineageAssignment {
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(branchSnapshot);
 
     // validate that the branches have the same first_row_id assignments
-    for (String branch : List.of("main", "branch")) {
+    for (String branch : List.of(SnapshotRef.MAIN_BRANCH, "branch")) {
       checkManifestListAssignment(
           table.io().newInputFile(table.snapshot(branch).manifestListLocation()),
           startingNextRowId + FILE_B.recordCount(),

@@ -27,6 +27,7 @@ import com.azure.security.keyvault.keys.KeyClientBuilder;
 import com.azure.security.keyvault.keys.models.KeyType;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterAll;
@@ -34,6 +35,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @EnabledIfEnvironmentVariables({
   @EnabledIfEnvironmentVariable(named = "AZURE_KEYVAULT_URL", matches = ".*")
@@ -41,21 +44,21 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 public class TestAzureKeyManagementClient {
   private static final String ICEBERG_TEST_KEY_NAME = "iceberg-test-key";
 
-  private static KeyClient keyClient;
+  private static final String KEY_VAULT_URI = System.getenv("AZURE_KEYVAULT_URL");
 
   private static KeyManagementClient azureKeyManagementClient;
+  private static KeyClient keyClient;
 
   @BeforeAll
   public static void beforeClass() {
-    String keyVaultUri = System.getenv("AZURE_KEYVAULT_URL");
     keyClient =
         new KeyClientBuilder()
-            .vaultUrl(keyVaultUri)
+            .vaultUrl(KEY_VAULT_URI)
             .credential(new DefaultAzureCredentialBuilder().build())
             .buildClient();
     keyClient.createKey(ICEBERG_TEST_KEY_NAME, KeyType.RSA);
     azureKeyManagementClient = new AzureKeyManagementClient();
-    azureKeyManagementClient.initialize(ImmutableMap.of(AZURE_KEYVAULT_URL, keyVaultUri));
+    azureKeyManagementClient.initialize(ImmutableMap.of(AZURE_KEYVAULT_URL, KEY_VAULT_URI));
   }
 
   @AfterAll
@@ -80,5 +83,23 @@ public class TestAzureKeyManagementClient {
   @Test
   public void keyGenerationNotSupported() {
     assertThat(azureKeyManagementClient.supportsKeyGeneration()).isFalse();
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(
+      TestHelpers.RoundTripSerializer<AzureKeyManagementClient> roundTripSerializer)
+      throws Exception {
+    try (AzureKeyManagementClient keyManagementClient = new AzureKeyManagementClient()) {
+      keyManagementClient.initialize(ImmutableMap.of(AZURE_KEYVAULT_URL, KEY_VAULT_URI));
+
+      AzureKeyManagementClient result = roundTripSerializer.apply(keyManagementClient);
+
+      ByteBuffer key = ByteBuffer.wrap("super-secret-table-master-key".getBytes());
+      ByteBuffer encryptedKey = result.wrapKey(key, ICEBERG_TEST_KEY_NAME);
+
+      assertThat(keyManagementClient.unwrapKey(encryptedKey, ICEBERG_TEST_KEY_NAME)).isEqualTo(key);
+      assertThat(result.unwrapKey(encryptedKey, ICEBERG_TEST_KEY_NAME)).isEqualTo(key);
+    }
   }
 }
