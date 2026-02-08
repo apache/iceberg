@@ -2109,6 +2109,69 @@ public class TestViews extends ExtensionsTestBase {
     assertThat(location).isEqualTo(customMetadataLocation);
   }
 
+  @TestTemplate
+  public void createViewWithSchemaCompensation() throws NoSuchTableException {
+    insertRows(5);
+    String viewName = viewName("compensationView");
+
+    // Create view with COMPENSATION schema mode
+    sql(
+        "CREATE VIEW %s WITH SCHEMA COMPENSATION AS SELECT id FROM %s",
+        viewName, tableName);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(5)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3), row(4), row(5));
+
+    // Verify the schema mode is stored as a property
+    View icebergView =
+        viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(icebergView.properties())
+        .containsEntry("spark.view-schema-mode", "Compensation");
+  }
+
+  @TestTemplate
+  public void createViewWithSchemaBinding() throws NoSuchTableException {
+    insertRows(5);
+    String viewName = viewName("bindingView");
+
+    // Create view with BINDING schema mode
+    sql(
+        "CREATE VIEW %s WITH SCHEMA BINDING AS SELECT id FROM %s",
+        viewName, tableName);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(5)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3), row(4), row(5));
+
+    // Verify the schema mode is stored as a property
+    View icebergView =
+        viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(icebergView.properties())
+        .containsEntry("spark.view-schema-mode", "Binding");
+  }
+
+  @TestTemplate
+  public void createViewWithSchemaEvolution() throws NoSuchTableException {
+    insertRows(5);
+    String viewName = viewName("evolutionView");
+
+    // Create view with TYPE EVOLUTION schema mode
+    sql(
+        "CREATE VIEW %s WITH SCHEMA TYPE EVOLUTION AS SELECT id FROM %s",
+        viewName, tableName);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(5)
+        .containsExactlyInAnyOrder(row(1), row(2), row(3), row(4), row(5));
+
+    // Verify the schema mode is stored as a property
+    View icebergView =
+        viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    String schemaMode = icebergView.properties().get("spark.view-schema-mode");
+    assertThat(schemaMode).isIn("TypeEvolution", "Evolution");
+  }
+
   private void insertRows(int numRows) throws NoSuchTableException {
     List<SimpleRecord> records = Lists.newArrayListWithCapacity(numRows);
     for (int i = 1; i <= numRows; i++) {

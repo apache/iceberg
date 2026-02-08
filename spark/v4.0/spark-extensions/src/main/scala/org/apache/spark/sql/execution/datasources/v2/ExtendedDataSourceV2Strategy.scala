@@ -154,6 +154,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           properties,
           allowExisting,
           replace,
+          viewSchemaMode,
           _,
           _) =>
       CreateV2ViewExec(
@@ -167,7 +168,8 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         comment = comment,
         properties = properties,
         allowExisting = allowExisting,
-        replace = replace) :: Nil
+        replace = replace,
+        viewSchemaMode = viewSchemaMode) :: Nil
 
     case DescribeRelation(ResolvedV2View(catalog, ident), _, isExtended, output) =>
       DescribeV2ViewExec(output, catalog.loadView(ident), isExtended) :: Nil
