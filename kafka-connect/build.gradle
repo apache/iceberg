@@ -76,7 +76,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
         force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.5.0'
         force 'com.fasterxml.woodstox:woodstox-core:6.7.0'
         force 'commons-beanutils:commons-beanutils:1.11.0'
-        force 'io.grpc:grpc-netty-shaded:1.78.0'
+        force 'io.grpc:grpc-netty-shaded:1.79.0'
       }
     }
   }
