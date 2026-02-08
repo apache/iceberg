@@ -300,6 +300,7 @@ abstract class BaseDistributedDataScan
     }
 
     return builder
+        .schemasById(schemas())
         .specsById(specs())
         .filterData(filter())
         .caseSensitive(isCaseSensitive())

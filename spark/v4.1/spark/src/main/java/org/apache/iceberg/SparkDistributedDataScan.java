@@ -166,6 +166,7 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
     scanMetrics().skippedDeleteFiles().increment(skippedFilesCount);
 
     return DeleteFileIndex.builderFor(deleteFiles)
+        .schemasById(schemas())
         .specsById(table().specs())
         .caseSensitive(isCaseSensitive())
         .scanMetrics(scanMetrics())

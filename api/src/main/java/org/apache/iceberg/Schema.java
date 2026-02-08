@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -628,5 +629,24 @@ public class Schema implements Serializable {
               "Invalid schema for v%s:\n- %s",
               formatVersion, Joiner.on("\n- ").join(problems.values())));
     }
+  }
+
+  public static Map<Integer, NestedField> indexFields(Collection<Schema> schemas) {
+    if (schemas.size() == 1) {
+      Schema schema = Iterables.getOnlyElement(schemas);
+      return schema.lazyIdToField();
+    }
+
+    Map<Integer, NestedField> fields = Maps.newHashMap();
+    Set<Integer> seenSchemaIds = Sets.newHashSet();
+
+    for (Schema schema : schemas) {
+      if (!seenSchemaIds.contains(schema.schemaId())) {
+        fields.putAll(schema.lazyIdToField());
+        seenSchemaIds.add(schema.schemaId());
+      }
+    }
+
+    return fields;
   }
 }
