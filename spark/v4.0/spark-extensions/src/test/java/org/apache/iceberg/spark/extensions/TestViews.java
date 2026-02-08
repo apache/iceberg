@@ -2114,20 +2114,14 @@ public class TestViews extends ExtensionsTestBase {
     insertRows(5);
     String viewName = viewName("compensationView");
 
-    // Create view with COMPENSATION schema mode
-    sql(
-        "CREATE VIEW %s WITH SCHEMA COMPENSATION AS SELECT id FROM %s",
-        viewName, tableName);
+    sql("CREATE VIEW %s WITH SCHEMA COMPENSATION AS SELECT id FROM %s", viewName, tableName);
 
     assertThat(sql("SELECT * FROM %s", viewName))
         .hasSize(5)
         .containsExactlyInAnyOrder(row(1), row(2), row(3), row(4), row(5));
 
-    // Verify the schema mode is stored as a property
-    View icebergView =
-        viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
-    assertThat(icebergView.properties())
-        .containsEntry("spark.view-schema-mode", "Compensation");
+    View icebergView = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(icebergView.properties()).containsEntry("spark.view-schema-mode", "Compensation");
   }
 
   @TestTemplate
@@ -2135,20 +2129,14 @@ public class TestViews extends ExtensionsTestBase {
     insertRows(5);
     String viewName = viewName("bindingView");
 
-    // Create view with BINDING schema mode
-    sql(
-        "CREATE VIEW %s WITH SCHEMA BINDING AS SELECT id FROM %s",
-        viewName, tableName);
+    sql("CREATE VIEW %s WITH SCHEMA BINDING AS SELECT id FROM %s", viewName, tableName);
 
     assertThat(sql("SELECT * FROM %s", viewName))
         .hasSize(5)
         .containsExactlyInAnyOrder(row(1), row(2), row(3), row(4), row(5));
 
-    // Verify the schema mode is stored as a property
-    View icebergView =
-        viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
-    assertThat(icebergView.properties())
-        .containsEntry("spark.view-schema-mode", "Binding");
+    View icebergView = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(icebergView.properties()).containsEntry("spark.view-schema-mode", "Binding");
   }
 
   @TestTemplate
@@ -2156,18 +2144,13 @@ public class TestViews extends ExtensionsTestBase {
     insertRows(5);
     String viewName = viewName("evolutionView");
 
-    // Create view with TYPE EVOLUTION schema mode
-    sql(
-        "CREATE VIEW %s WITH SCHEMA TYPE EVOLUTION AS SELECT id FROM %s",
-        viewName, tableName);
+    sql("CREATE VIEW %s WITH SCHEMA TYPE EVOLUTION AS SELECT id FROM %s", viewName, tableName);
 
     assertThat(sql("SELECT * FROM %s", viewName))
         .hasSize(5)
         .containsExactlyInAnyOrder(row(1), row(2), row(3), row(4), row(5));
 
-    // Verify the schema mode is stored as a property
-    View icebergView =
-        viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
+    View icebergView = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName));
     String schemaMode = icebergView.properties().get("spark.view-schema-mode");
     assertThat(schemaMode).isIn("TypeEvolution", "Evolution");
   }
