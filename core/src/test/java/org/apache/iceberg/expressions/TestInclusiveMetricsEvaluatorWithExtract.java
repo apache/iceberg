@@ -64,51 +64,46 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.FieldSource;
 
 public class TestInclusiveMetricsEvaluatorWithExtract {
-  private static final Schema SCHEMA =
+  protected static final Schema SCHEMA =
       new Schema(
           required(1, "id", IntegerType.get()),
           required(2, "variant", Types.VariantType.get()),
           optional(3, "all_nulls", Types.VariantType.get()));
 
-  private static final int INT_MIN_VALUE = 30;
-  private static final int INT_MAX_VALUE = 79;
+  protected static final int INT_MIN_VALUE = 30;
+  protected static final int INT_MAX_VALUE = 79;
 
-  private static final DataFile FILE =
-      new TestDataFile(
-          "file.avro",
-          Row.of(),
-          50,
-          // any value counts, including nulls
-          ImmutableMap.<Integer, Long>builder().put(1, 50L).put(2, 50L).put(3, 50L).buildOrThrow(),
-          // null value counts
-          ImmutableMap.<Integer, Long>builder()
-              .put(1, 0L)
-              .put(2, 0L)
-              .put(3, 50L) // all_nulls
-              .buildOrThrow(),
-          // nan value counts
-          null,
-          // lower bounds
-          ImmutableMap.of(
-              2,
-              VariantTestUtil.variantBuffer(
-                  Map.of(
-                      "$['event_id']",
-                      Variants.of(INT_MIN_VALUE),
-                      "$['str']",
-                      Variants.of("abc")))),
-          // upper bounds
-          ImmutableMap.of(
-              2,
-              VariantTestUtil.variantBuffer(
-                  Map.of(
-                      "$['event_id']",
-                      Variants.of(INT_MAX_VALUE),
-                      "$['str']",
-                      Variants.of("abe")))));
+  protected DataFile file() {
+    return new TestDataFile(
+        "file.avro",
+        Row.of(),
+        50,
+        // any value counts, including nulls
+        ImmutableMap.<Integer, Long>builder().put(1, 50L).put(2, 50L).put(3, 50L).buildOrThrow(),
+        // null value counts
+        ImmutableMap.<Integer, Long>builder()
+            .put(1, 0L)
+            .put(2, 0L)
+            .put(3, 50L) // all_nulls
+            .buildOrThrow(),
+        // nan value counts
+        null,
+        // lower bounds
+        ImmutableMap.of(
+            2,
+            VariantTestUtil.variantBuffer(
+                Map.of(
+                    "$['event_id']", Variants.of(INT_MIN_VALUE), "$['str']", Variants.of("abc")))),
+        // upper bounds
+        ImmutableMap.of(
+            2,
+            VariantTestUtil.variantBuffer(
+                Map.of(
+                    "$['event_id']", Variants.of(INT_MAX_VALUE), "$['str']", Variants.of("abe")))));
+  }
 
   private boolean shouldRead(Expression expr) {
-    return shouldRead(expr, FILE);
+    return shouldRead(expr, file());
   }
 
   private boolean shouldRead(Expression expr, DataFile file) {
@@ -116,7 +111,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
   }
 
   private boolean shouldReadCaseInsensitive(Expression expr) {
-    return shouldRead(expr, FILE, false);
+    return shouldRead(expr, file(), false);
   }
 
   private boolean shouldRead(Expression expr, DataFile file, boolean caseSensitive) {

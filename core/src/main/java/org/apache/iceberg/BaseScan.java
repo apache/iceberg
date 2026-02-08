@@ -59,7 +59,8 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
           "nan_value_counts",
           "lower_bounds",
           "upper_bounds",
-          "column_sizes");
+          "column_sizes",
+          "content_stats");
 
   protected static final List<String> SCAN_WITH_STATS_COLUMNS =
       ImmutableList.<String>builder().addAll(SCAN_COLUMNS).addAll(STATS_COLUMNS).build();

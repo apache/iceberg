@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.concurrent.ThreadLocalRandom;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -149,8 +150,8 @@ public class TestStatsUtil {
     Schema expectedStatsSchema =
         new Schema(
             optional(
-                146,
-                "content_stats",
+                DataFile.CONTENT_STATS.fieldId(),
+                DataFile.CONTENT_STATS.name(),
                 Types.StructType.of(
                     optional(
                         10000, "0", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10001)),
@@ -189,8 +190,8 @@ public class TestStatsUtil {
     Schema expectedStatsSchema =
         new Schema(
             optional(
-                146,
-                "content_stats",
+                DataFile.CONTENT_STATS.fieldId(),
+                DataFile.CONTENT_STATS.name(),
                 Types.StructType.of(
                     optional(
                         10000, "0", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10001)),

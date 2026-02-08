@@ -20,6 +20,7 @@ package org.apache.iceberg.types;
 
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
@@ -49,7 +50,8 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
   public Set<Integer> field(Types.NestedField field, Set<Integer> fieldResult) {
     if ((includeStructIds && field.type().isStructType())
         || field.type().isPrimitiveType()
-        || field.type().isVariantType()) {
+        || field.type().isVariantType()
+        || DataFile.CONTENT_STATS.fieldId() == field.fieldId()) {
       fieldIds.add(field.fieldId());
     }
     return fieldIds;

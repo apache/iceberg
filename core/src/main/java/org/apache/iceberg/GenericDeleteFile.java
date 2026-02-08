@@ -24,6 +24,7 @@ import java.util.Set;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
 
 class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
@@ -45,6 +46,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
       PartitionData partition,
       long fileSizeInBytes,
       Metrics metrics,
+      ContentStats stats,
       int[] equalityFieldIds,
       Integer sortOrderId,
       List<Long> splitOffsets,
@@ -73,7 +75,8 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         null /* delete files do not use first-row-id */,
         referencedDataFile,
         contentOffset,
-        contentSizeInBytes);
+        contentSizeInBytes,
+        stats);
   }
 
   /**
