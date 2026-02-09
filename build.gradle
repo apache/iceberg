@@ -617,9 +617,23 @@ project(':iceberg-delta-lake') {
   test {
     useJUnitPlatform()
   }
-  configurations {
-    integrationImplementation.extendsFrom testImplementation
-    integrationRuntime.extendsFrom testRuntimeOnly
+
+  // The newest version of delta-core uses Spark 3.5.*. Define integration source set and config
+  // before dependencies so integrationImplementation exists when dependencies are applied.
+  if (sparkVersions.contains("3.5")) {
+    sourceSets {
+      integration {
+        java.srcDir "$projectDir/src/integration/java"
+        resources.srcDir "$projectDir/src/integration/resources"
+        compileClasspath += main.output + test.output
+        runtimeClasspath += main.output + test.output
+      }
+    }
+
+    configurations {
+      integrationImplementation.extendsFrom testImplementation
+      integrationRuntime.extendsFrom testRuntimeOnly
+    }
   }
 
   dependencies {
@@ -670,15 +684,6 @@ project(':iceberg-delta-lake') {
   // The newest version of delta-core uses Spark 3.5.*. The integration test should only be built
   // if iceberg-spark-3.5 is available
   if (sparkVersions.contains("3.5")) {
-    sourceSets {
-      integration {
-        java.srcDir "$projectDir/src/integration/java"
-        resources.srcDir "$projectDir/src/integration/resources"
-        compileClasspath += main.output + test.output
-        runtimeClasspath += main.output + test.output
-      }
-    }
-
     task integrationTest(type: Test) {
       useJUnitPlatform()
       testClassesDirs = sourceSets.integration.output.classesDirs
