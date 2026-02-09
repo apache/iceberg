@@ -244,8 +244,8 @@ public class TestSnapshotManager extends TestBase {
 
     Snapshot snapshot = table.snapshot(branch1SnapshotRef.snapshotId());
     assertThat(snapshot.parentId()).isNull();
-    SnapshotFileChanges changes =
-        SnapshotFileChanges.builder(snapshot, table.io(), table.specs()).build();
+    SnapshotChanges changes =
+        SnapshotChanges.builder(snapshot, table.io(), table.specs()).build();
     assertThat(changes.addedDataFiles()).isEmpty();
     assertThat(changes.removedDataFiles()).isEmpty();
     assertThat(changes.addedDeleteFiles()).isEmpty();

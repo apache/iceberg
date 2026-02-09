@@ -357,7 +357,7 @@ public class TestFlinkTableSinkExtended extends SqlBase {
       // only keep the snapshots with added data files
       snapshots =
           snapshots.stream()
-              .filter(snapshot -> SnapshotUtil.addedDataFiles(table, snapshot).iterator().hasNext())
+              .filter(snapshot -> SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator().hasNext())
               .collect(Collectors.toList());
 
       // Sometimes we will have more checkpoints than the bounded source if we pass the
@@ -372,7 +372,7 @@ public class TestFlinkTableSinkExtended extends SqlBase {
 
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
-            Lists.newArrayList(SnapshotUtil.addedDataFiles(table, snapshot).iterator());
+            Lists.newArrayList(SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator());
         // range partition results in each partition only assigned to one writer task
         // maybe less than 26 partitions as BoundedSource doesn't always precisely
         // control the checkpoint boundary.

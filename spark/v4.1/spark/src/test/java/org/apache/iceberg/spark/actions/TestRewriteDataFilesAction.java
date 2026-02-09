@@ -2268,7 +2268,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     Map<StructLike, List<DataFile>> filesByPartition =
-        Streams.stream(SnapshotUtil.addedDataFiles(table, snapshot))
+        Streams.stream(SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()))
             .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =

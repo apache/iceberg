@@ -40,7 +40,7 @@ import org.apache.iceberg.util.Tasks;
  * query multiple file change types for the same snapshot. By default, manifests are read
  * sequentially. Use {@link Builder#executeWith(ExecutorService)} to enable parallel reading.
  */
-public class SnapshotFileChanges {
+public class SnapshotChanges {
   private final Snapshot snapshot;
   private final FileIO io;
   private final Map<Integer, PartitionSpec> specsById;
@@ -51,7 +51,7 @@ public class SnapshotFileChanges {
   private List<DeleteFile> addedDeleteFiles = null;
   private List<DeleteFile> removedDeleteFiles = null;
 
-  private SnapshotFileChanges(
+  private SnapshotChanges(
       Snapshot snapshot,
       FileIO io,
       Map<Integer, PartitionSpec> specsById,
@@ -66,7 +66,7 @@ public class SnapshotFileChanges {
   }
 
   /**
-   * Create a builder for SnapshotFileChanges.
+   * Create a builder for SnapshotChanges.
    *
    * @param snapshot the snapshot to detect file changes for
    * @param io a {@link FileIO} instance used for reading files from storage
@@ -257,12 +257,12 @@ public class SnapshotFileChanges {
     }
 
     /**
-     * Build the SnapshotFileChanges instance.
+     * Build the SnapshotChanges instance.
      *
-     * @return a new SnapshotFileChanges instance
+     * @return a new SnapshotChanges instance
      */
-    public SnapshotFileChanges build() {
-      return new SnapshotFileChanges(snapshot, io, specsById, executorService);
+    public SnapshotChanges build() {
+      return new SnapshotChanges(snapshot, io, specsById, executorService);
     }
   }
 }

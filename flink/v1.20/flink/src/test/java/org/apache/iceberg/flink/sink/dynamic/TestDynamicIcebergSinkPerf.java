@@ -226,7 +226,7 @@ class TestDynamicIcebergSinkPerf {
       Table table = CATALOG_EXTENSION.catalog().loadTable(identifier);
       for (Snapshot snapshot : table.snapshots()) {
         long records = 0;
-        for (DataFile dataFile : SnapshotUtil.addedDataFiles(table, snapshot)) {
+        for (DataFile dataFile : SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs())) {
           records += dataFile.recordCount();
         }
 

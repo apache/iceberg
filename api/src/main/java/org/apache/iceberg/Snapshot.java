@@ -113,8 +113,8 @@ public interface Snapshot extends Serializable {
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all data files added to the table in this snapshot.
    * @deprecated will be removed in 2.0.0; use
-   *     org.apache.iceberg.SnapshotFileChanges#builder(Snapshot, FileIO, Map) or
-   *     org.apache.iceberg.util.SnapshotUtil#addedDataFiles(Table, Snapshot) instead
+   *     org.apache.iceberg.SnapshotChanges#builder(Snapshot, FileIO, Map) or
+   *     org.apache.iceberg.util.SnapshotUtil#addedDataFiles(Snapshot, FileIO, Map) instead
    */
   @Deprecated
   Iterable<DataFile> addedDataFiles(FileIO io);
@@ -129,8 +129,8 @@ public interface Snapshot extends Serializable {
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all data files removed from the table in this snapshot.
    * @deprecated will be removed in 2.0.0; use
-   *     org.apache.iceberg.SnapshotFileChanges#builder(Snapshot, FileIO, Map) or
-   *     org.apache.iceberg.util.SnapshotUtil#removedDataFiles(Table, Snapshot) instead
+   *     org.apache.iceberg.SnapshotChanges#builder(Snapshot, FileIO, Map) or
+   *     org.apache.iceberg.util.SnapshotUtil#removedDataFiles(Snapshot, FileIO, Map) instead
    */
   @Deprecated
   Iterable<DataFile> removedDataFiles(FileIO io);
@@ -144,8 +144,8 @@ public interface Snapshot extends Serializable {
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all delete files added to the table in this snapshot
    * @deprecated will be removed in 2.0.0; use
-   *     org.apache.iceberg.SnapshotFileChanges#builder(Snapshot, FileIO, Map) or
-   *     org.apache.iceberg.util.SnapshotUtil#addedDeleteFiles(Table, Snapshot) instead
+   *     org.apache.iceberg.SnapshotChanges#builder(Snapshot, FileIO, Map) or
+   *     org.apache.iceberg.util.SnapshotUtil#addedDeleteFiles(Snapshot, FileIO, Map) instead
    */
   @Deprecated
   default Iterable<DeleteFile> addedDeleteFiles(FileIO io) {
@@ -162,8 +162,8 @@ public interface Snapshot extends Serializable {
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all delete files removed from the table in this snapshot
    * @deprecated will be removed in 2.0.0; use
-   *     org.apache.iceberg.SnapshotFileChanges#builder(Snapshot, FileIO, Map) or
-   *     org.apache.iceberg.util.SnapshotUtil#removedDeleteFiles(Table, Snapshot) instead
+   *     org.apache.iceberg.SnapshotChanges#builder(Snapshot, FileIO, Map) or
+   *     org.apache.iceberg.util.SnapshotUtil#removedDeleteFiles(Snapshot, FileIO, Map) instead
    */
   @Deprecated
   default Iterable<DeleteFile> removedDeleteFiles(FileIO io) {

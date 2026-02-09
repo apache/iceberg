@@ -30,7 +30,7 @@ import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotFileChanges;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -544,19 +544,6 @@ public class SnapshotUtil {
   /**
    * Return all data files added to the table in the given snapshot.
    *
-   * @param table the table that owns the snapshot
-   * @param snapshot the snapshot to detect changes for
-   * @return all data files added to the table in this snapshot
-   */
-  public static Iterable<DataFile> addedDataFiles(Table table, Snapshot snapshot) {
-    return SnapshotFileChanges.builder(snapshot, table.io(), table.specs())
-        .build()
-        .addedDataFiles();
-  }
-
-  /**
-   * Return all data files added to the table in the given snapshot.
-   *
    * @param snapshot the snapshot to detect changes for
    * @param io a {@link FileIO} instance used for reading files from storage
    * @param specsById a map of partition spec IDs to partition specs
@@ -564,20 +551,7 @@ public class SnapshotUtil {
    */
   public static Iterable<DataFile> addedDataFiles(
       Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
-    return SnapshotFileChanges.builder(snapshot, io, specsById).build().addedDataFiles();
-  }
-
-  /**
-   * Return all data files removed from the table in the given snapshot.
-   *
-   * @param table the table that owns the snapshot
-   * @param snapshot the snapshot to detect changes for
-   * @return all data files removed from the table in this snapshot
-   */
-  public static Iterable<DataFile> removedDataFiles(Table table, Snapshot snapshot) {
-    return SnapshotFileChanges.builder(snapshot, table.io(), table.specs())
-        .build()
-        .removedDataFiles();
+    return SnapshotChanges.builder(snapshot, io, specsById).build().addedDataFiles();
   }
 
   /**
@@ -590,20 +564,7 @@ public class SnapshotUtil {
    */
   public static Iterable<DataFile> removedDataFiles(
       Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
-    return SnapshotFileChanges.builder(snapshot, io, specsById).build().removedDataFiles();
-  }
-
-  /**
-   * Return all delete files added to the table in the given snapshot.
-   *
-   * @param table the table that owns the snapshot
-   * @param snapshot the snapshot to detect changes for
-   * @return all delete files added to the table in this snapshot
-   */
-  public static Iterable<DeleteFile> addedDeleteFiles(Table table, Snapshot snapshot) {
-    return SnapshotFileChanges.builder(snapshot, table.io(), table.specs())
-        .build()
-        .addedDeleteFiles();
+    return SnapshotChanges.builder(snapshot, io, specsById).build().removedDataFiles();
   }
 
   /**
@@ -616,20 +577,7 @@ public class SnapshotUtil {
    */
   public static Iterable<DeleteFile> addedDeleteFiles(
       Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
-    return SnapshotFileChanges.builder(snapshot, io, specsById).build().addedDeleteFiles();
-  }
-
-  /**
-   * Return all delete files removed from the table in the given snapshot.
-   *
-   * @param table the table that owns the snapshot
-   * @param snapshot the snapshot to detect changes for
-   * @return all delete files removed from the table in this snapshot
-   */
-  public static Iterable<DeleteFile> removedDeleteFiles(Table table, Snapshot snapshot) {
-    return SnapshotFileChanges.builder(snapshot, table.io(), table.specs())
-        .build()
-        .removedDeleteFiles();
+    return SnapshotChanges.builder(snapshot, io, specsById).build().addedDeleteFiles();
   }
 
   /**
@@ -642,6 +590,6 @@ public class SnapshotUtil {
    */
   public static Iterable<DeleteFile> removedDeleteFiles(
       Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
-    return SnapshotFileChanges.builder(snapshot, io, specsById).build().removedDeleteFiles();
+    return SnapshotChanges.builder(snapshot, io, specsById).build().removedDeleteFiles();
   }
 }

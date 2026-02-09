@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotFileChanges;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -110,8 +110,8 @@ public class TestBranchDDL extends ExtensionsTestBase {
 
               Snapshot snapshot = table.snapshot(ref.snapshotId());
               assertThat(snapshot.parentId()).isNull();
-              SnapshotFileChanges changes =
-                  SnapshotFileChanges.builder(snapshot, table.io(), table.specs()).build();
+              SnapshotChanges changes =
+                  SnapshotChanges.builder(snapshot, table.io(), table.specs()).build();
               assertThat(changes.addedDataFiles()).isEmpty();
               assertThat(changes.removedDataFiles()).isEmpty();
               assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
@@ -373,8 +373,8 @@ public class TestBranchDDL extends ExtensionsTestBase {
 
               Snapshot snapshot = table.snapshot(ref.snapshotId());
               assertThat(snapshot.parentId()).isNull();
-              SnapshotFileChanges changes =
-                  SnapshotFileChanges.builder(snapshot, table.io(), table.specs()).build();
+              SnapshotChanges changes =
+                  SnapshotChanges.builder(snapshot, table.io(), table.specs()).build();
               assertThat(changes.addedDataFiles()).isEmpty();
               assertThat(changes.removedDataFiles()).isEmpty();
               assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();

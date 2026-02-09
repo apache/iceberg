@@ -228,7 +228,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .flatMap(
             snapshot ->
                 StreamSupport.stream(
-                    SnapshotUtil.addedDataFiles(table, snapshot).spliterator(), false))
+                    SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).spliterator(), false))
         .map(DataFile::location)
         .collect(Collectors.toSet());
   }
