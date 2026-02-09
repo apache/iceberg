@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -73,7 +74,7 @@ public interface TrackedFile {
       Types.NestedField.optional(
           146,
           "content_stats",
-          Types.StructType.of(), // TODO: Define ContentStats structure per V4 proposal
+          Types.StructType.of(), // schema is derived from table schema at read/write time
           "Content statistics for this entry");
   Types.NestedField KEY_METADATA =
       Types.NestedField.optional(
@@ -174,12 +175,8 @@ public interface TrackedFile {
    */
   Long fileSizeInBytes();
 
-  /**
-   * Returns the content stats for this entry.
-   *
-   * <p>TODO: Define ContentStats structure per V4 proposal.
-   */
-  Object contentStats();
+  /** Returns the content stats for this entry. */
+  ContentStats contentStats();
 
   /**
    * Returns the manifest stats for this entry.

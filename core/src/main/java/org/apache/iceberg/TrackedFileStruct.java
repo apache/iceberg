@@ -29,6 +29,11 @@ import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.ContentStats;
+import org.apache.iceberg.stats.FieldStats;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
@@ -65,8 +70,8 @@ class TrackedFileStruct extends SupportsIndexProjection
   // Manifest DV (for manifest entries - marks deleted entries without rewriting)
   private byte[] manifestDV = null;
 
-  // Content stats placeholder (TODO: implement ContentStats)
-  private Object contentStats = null;
+  // Content stats for this entry
+  private ContentStats contentStats = null;
 
   // Base type for writing manifests (excludes read-only metadata columns)
   static final Types.StructType WRITE_TYPE =
@@ -169,8 +174,8 @@ class TrackedFileStruct extends SupportsIndexProjection
     if (requestedColumnIds != null) {
       this.manifestStats =
           toCopy.manifestStats != null ? new ManifestStatsStruct(toCopy.manifestStats) : null;
-      // TODO: When ContentStats structure is implemented, filter stats to only requestedColumnIds
-      this.contentStats = toCopy.contentStats;
+      // Filter content stats to only requested columns
+      this.contentStats = filterContentStats(toCopy.contentStats, requestedColumnIds);
     }
   }
 
@@ -294,8 +299,12 @@ class TrackedFileStruct extends SupportsIndexProjection
   }
 
   @Override
-  public Object contentStats() {
+  public ContentStats contentStats() {
     return contentStats;
+  }
+
+  public void setContentStats(ContentStats stats) {
+    this.contentStats = stats;
   }
 
   @Override
@@ -493,6 +502,91 @@ class TrackedFileStruct extends SupportsIndexProjection
     return new TrackedDeleteFile(this, spec);
   }
 
+  /** Filters content stats to only include stats for the requested column IDs. */
+  private static ContentStats filterContentStats(
+      ContentStats stats, Set<Integer> requestedColumnIds) {
+    if (stats == null || requestedColumnIds == null) {
+      return stats;
+    }
+    return BaseContentStats.buildFrom(stats, requestedColumnIds).build();
+  }
+
+  /** Extracts value counts from ContentStats into a Map. */
+  private static Map<Integer, Long> extractValueCounts(ContentStats stats) {
+    if (stats == null) {
+      return null;
+    }
+    Map<Integer, Long> result = Maps.newHashMap();
+    for (FieldStats<?> fieldStats : stats.fieldStats()) {
+      if (fieldStats != null && fieldStats.valueCount() != null) {
+        result.put(fieldStats.fieldId(), fieldStats.valueCount());
+      }
+    }
+    return result.isEmpty() ? null : result;
+  }
+
+  /** Extracts null value counts from ContentStats into a Map. */
+  private static Map<Integer, Long> extractNullValueCounts(ContentStats stats) {
+    if (stats == null) {
+      return null;
+    }
+    Map<Integer, Long> result = Maps.newHashMap();
+    for (FieldStats<?> fieldStats : stats.fieldStats()) {
+      if (fieldStats != null && fieldStats.nullValueCount() != null) {
+        result.put(fieldStats.fieldId(), fieldStats.nullValueCount());
+      }
+    }
+    return result.isEmpty() ? null : result;
+  }
+
+  /** Extracts NaN value counts from ContentStats into a Map. */
+  private static Map<Integer, Long> extractNanValueCounts(ContentStats stats) {
+    if (stats == null) {
+      return null;
+    }
+    Map<Integer, Long> result = Maps.newHashMap();
+    for (FieldStats<?> fieldStats : stats.fieldStats()) {
+      if (fieldStats != null && fieldStats.nanValueCount() != null) {
+        result.put(fieldStats.fieldId(), fieldStats.nanValueCount());
+      }
+    }
+    return result.isEmpty() ? null : result;
+  }
+
+  /** Extracts lower bounds from ContentStats into a Map. */
+  private static Map<Integer, ByteBuffer> extractLowerBounds(ContentStats stats) {
+    if (stats == null) {
+      return null;
+    }
+    Map<Integer, ByteBuffer> result = Maps.newHashMap();
+    for (FieldStats<?> fieldStats : stats.fieldStats()) {
+      if (fieldStats != null && fieldStats.lowerBound() != null && fieldStats.type() != null) {
+        ByteBuffer buffer = Conversions.toByteBuffer(fieldStats.type(), fieldStats.lowerBound());
+        if (buffer != null) {
+          result.put(fieldStats.fieldId(), buffer);
+        }
+      }
+    }
+    return result.isEmpty() ? null : result;
+  }
+
+  /** Extracts upper bounds from ContentStats into a Map. */
+  private static Map<Integer, ByteBuffer> extractUpperBounds(ContentStats stats) {
+    if (stats == null) {
+      return null;
+    }
+    Map<Integer, ByteBuffer> result = Maps.newHashMap();
+    for (FieldStats<?> fieldStats : stats.fieldStats()) {
+      if (fieldStats != null && fieldStats.upperBound() != null && fieldStats.type() != null) {
+        ByteBuffer buffer = Conversions.toByteBuffer(fieldStats.type(), fieldStats.upperBound());
+        if (buffer != null) {
+          result.put(fieldStats.fieldId(), buffer);
+        }
+      }
+    }
+    return result.isEmpty() ? null : result;
+  }
+
   /** Wrapper that presents a TrackedFile as a DataFile. */
   private static class TrackedDataFile implements DataFile {
     private final TrackedFile trackedFile;
@@ -559,38 +653,33 @@ class TrackedFileStruct extends SupportsIndexProjection
 
     @Override
     public Map<Integer, Long> columnSizes() {
-      // TODO: Adapt from new column stats structure
+      // Column sizes are not tracked in V4 content stats
       return null;
     }
 
     @Override
     public Map<Integer, Long> valueCounts() {
-      // TODO: Adapt from new column stats structure
-      return null;
+      return extractValueCounts(trackedFile.contentStats());
     }
 
     @Override
     public Map<Integer, Long> nullValueCounts() {
-      // TODO: Adapt from new column stats structure
-      return null;
+      return extractNullValueCounts(trackedFile.contentStats());
     }
 
     @Override
     public Map<Integer, Long> nanValueCounts() {
-      // TODO: Adapt from new column stats structure
-      return null;
+      return extractNanValueCounts(trackedFile.contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
-      // TODO: Adapt from new column stats structure
-      return null;
+      return extractLowerBounds(trackedFile.contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
-      // TODO: Adapt from new column stats structure
-      return null;
+      return extractUpperBounds(trackedFile.contentStats());
     }
 
     @Override
@@ -712,34 +801,33 @@ class TrackedFileStruct extends SupportsIndexProjection
 
     @Override
     public Map<Integer, Long> columnSizes() {
-      // TODO: Adapt from new column stats structure
+      // Column sizes are not tracked in V4 content stats
       return null;
     }
 
     @Override
     public Map<Integer, Long> valueCounts() {
-      return null;
+      return extractValueCounts(trackedFile.contentStats());
     }
 
     @Override
     public Map<Integer, Long> nullValueCounts() {
-      return null;
+      return extractNullValueCounts(trackedFile.contentStats());
     }
 
     @Override
     public Map<Integer, Long> nanValueCounts() {
-      // TODO: Adapt from new column stats structure
-      return null;
+      return extractNanValueCounts(trackedFile.contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
-      return null;
+      return extractLowerBounds(trackedFile.contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
-      return null;
+      return extractUpperBounds(trackedFile.contentStats());
     }
 
     @Override
