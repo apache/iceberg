@@ -25,23 +25,37 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Map;
+import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.Catalog;
+import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.Collector;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.sink.dynamic.DynamicRecord;
+import org.apache.iceberg.flink.sink.dynamic.DynamicTableRecordGenerator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -70,16 +84,25 @@ public class TestIcebergConnector extends TestBase {
         new Object[] {
           "testhadoop",
           ImmutableMap.of(
-              "connector", "iceberg",
-              "catalog-type", "hadoop"),
+              "connector",
+              "iceberg",
+              "catalog-type",
+              "hadoop",
+              "catalog-database",
+              "test_database"),
           true
         },
         new Object[] {
           "testhadoop",
           ImmutableMap.of(
-              "connector", "iceberg",
-              "catalog-type", "hadoop",
-              "catalog-table", "not_existing_table"),
+              "connector",
+              "iceberg",
+              "catalog-type",
+              "hadoop",
+              "catalog-database",
+              "test_database",
+              "catalog-table",
+              "not_existing_table"),
           true
         },
         new Object[] {
@@ -326,6 +349,96 @@ public class TestIcebergConnector extends TestBase {
           Files.createTempDirectory(temporaryDirectory, "junit").toFile().getAbsolutePath());
     } catch (IOException e) {
       throw new UncheckedIOException(e);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateDynamicIcebergSink() throws DatabaseAlreadyExistException {
+    Map<String, String> tableProps = createTableProps();
+    tableProps.put("use-dynamic-iceberg-sink", "true");
+    tableProps.put(
+        "dynamic-record-generator-impl", SimpleRowDataTableRecordGenerator.class.getName());
+    tableProps.put("table.props.key1", "val1");
+
+    FlinkCatalogFactory factory = new FlinkCatalogFactory();
+    FlinkCatalog flinkCatalog =
+        (FlinkCatalog) factory.createCatalog(catalogName, tableProps, new Configuration());
+    flinkCatalog.createDatabase(
+        databaseName(), new CatalogDatabaseImpl(Maps.newHashMap(), null), true);
+
+    // Create table with dynamic sink enabled
+    sql(
+        "CREATE TABLE %s (id BIGINT, data STRING, database_name STRING, table_name STRING) WITH %s",
+        TABLE_NAME + "_dynamic", toWithClause(tableProps));
+
+    // Insert data with database and table information
+    sql(
+        "INSERT INTO %s VALUES (1, 'AAA', '%s', '%s'), (2, 'BBB', '%s', '%s'), (3, 'CCC', '%s', '%s')",
+        TABLE_NAME + "_dynamic",
+        databaseName(),
+        tableName(),
+        databaseName(),
+        tableName(),
+        databaseName(),
+        tableName());
+
+    // Verify the catalog was created and table exists
+    ObjectPath objectPath = new ObjectPath(databaseName(), tableName());
+    assertThat(flinkCatalog.tableExists(objectPath)).isTrue();
+    Table table =
+        flinkCatalog
+            .getCatalogLoader()
+            .loadCatalog()
+            .loadTable(TableIdentifier.of(databaseName(), tableName()));
+    assertThat(table.properties()).containsEntry("key1", "val1");
+  }
+
+  public static class SimpleRowDataTableRecordGenerator extends DynamicTableRecordGenerator {
+
+    private int databaseFieldIndex = -1;
+    private int tableFieldIndex = -1;
+
+    public SimpleRowDataTableRecordGenerator(RowType rowType) {
+      super(rowType);
+    }
+
+    @Override
+    public void open(OpenContext openContext) throws Exception {
+      String[] fieldNames = rowType().getFieldNames().toArray(new String[0]);
+
+      for (int i = 0; i < fieldNames.length; i++) {
+        if ("database_name".equals(fieldNames[i])) {
+          databaseFieldIndex = i;
+        } else if ("table_name".equals(fieldNames[i])) {
+          tableFieldIndex = i;
+        }
+      }
+    }
+
+    @Override
+    public void generate(RowData inputRecord, Collector<DynamicRecord> out) throws Exception {
+      // Extract database and table names using the discovered field indexes
+      String databaseName = inputRecord.getString(databaseFieldIndex).toString();
+      String tableName = inputRecord.getString(tableFieldIndex).toString();
+
+      // Create schema for the actual data fields (excluding metadata fields)
+      Schema schema =
+          new Schema(
+              Types.NestedField.required(0, "id", Types.LongType.get()),
+              Types.NestedField.required(1, "data", Types.StringType.get()));
+
+      TableIdentifier tableIdentifier = TableIdentifier.of(databaseName, tableName);
+
+      DynamicRecord dynamicRecord =
+          new DynamicRecord(
+              tableIdentifier,
+              "main",
+              schema,
+              inputRecord,
+              PartitionSpec.unpartitioned(),
+              DistributionMode.NONE,
+              1);
+      out.collect(dynamicRecord);
     }
   }
 }
