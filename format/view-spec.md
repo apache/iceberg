@@ -199,27 +199,30 @@ The property "refresh-state" is set on the [snapshot summary](https://iceberg.ap
 Consumers should only read from the storage table if the materialized view is "fresh" and therefore adequately represents the logical query definition of the view.
 Different systems define freshness differently based on time-based and logical factors.
 
-Consumers are allowed to apply time-based freshness policies such as allowing a certain staleness window.
+**Time-based freshness (consumer-defined):**
 
-Producers define the logical freshness policy and provide the necessary information to verify the logical equivalence of the precomputed data with the query definition.
-Different producers may define different logical freshness policies, based on how much of the dependency graph must be current. Some require the entire query tree to be fully up to date, while others only require direct children or leaf nodes.
+Consumers may apply time-based freshness policies, such as allowing a certain staleness window based on `refresh-start-timestamp-ms`.
+When evaluating freshness, consumers:
+- Must first evaluate their own time-based freshness policy.
+- May additionally compare the `source-states` list against the states loaded from the catalog to verify the producers logical freshness policy.
+- May parse the view definition to implement a more sophisticated policy.
+- When a materialized view is considered stale, can fail, refresh inline, or treat the materialized view as a logical view.
+- Must not read from the storage table when the materialized view doesn't meet freshness criteria.
+
+**Logical freshness (producer-defined):**
+
+Producers define the logical freshness policy and provide the necessary information in the [refresh state](#refresh-state) to verify the logical equivalence of the precomputed data with the query definition.
+Different producers may define different logical freshness policies, based on how much of the dependency graph must be current.
+Some require the entire query tree to be fully up to date, while others only require direct children or leaf nodes.
+When writing the refresh state, producers:
+- Must provide a sufficient list of source states so that consumers can determine freshness according to the producer's policy.
+- May leave the source states list empty if the source state cannot be determined for all objects (for example, for non-Iceberg tables).
+- Must store the entry with the oldest snapshot-id or version-id when the same source object appears multiple times in the dependency graph (for example, in diamond patterns).
 
 #### Refresh state
 
-The refresh state record can be used by the consumers to verify the logical equivalence of the precomputed data with the query definition according to the producers policy.
-It captures the dependencies in the materialized view's dependency graph. 
-These dependencies include source Iceberg tables, views, and nested materialized views. 
-
-**Producer responsibilities:**
-- The producer of the storage table must provide a sufficient list of source states so that consumers can determine freshness according to the producer's interpretation.
-- The source states list may be empty if the source state cannot be determined for all objects (for example, for non-Iceberg tables).
-- When the same source object appears multiple times in the dependency graph (for example, in diamond patterns), the producer must store the entry with the oldest snapshot-id or version-id for that object.
-
-**Consumer evaluation:**
-- The consumer will first evaluate its own time-based freshness policy.
-- The consumer may additionally compare the `source-states` list against the states loaded from the catalog.
-- The consumer may parse the view definition to implement a more sophisticated policy.
-- When a materialized view is considered stale, the consumer can fail, refresh inline, or treat the materialized view as a logical view. The consumer must not consume from the storage table when the materialized view doesn't meet freshness criteria.
+The refresh state record captures the dependencies in the materialized view's dependency graph.
+These dependencies include source Iceberg tables, views, and nested materialized views.
 
 The refresh state has the following fields:
 
@@ -231,13 +234,15 @@ The refresh state has the following fields:
 
 #### Source state
 
-Materialized views can reference source objects of different types, such as Iceberg tables, view, and materialized views. Source state records have a common field `type` that determines the form, which can be one of the following:
+Source state records capture the state of objects referenced by a materialized view.
+Each record has a `type` field that determines its form:
 
-* `table`: An Iceberg table
-* `view`: An Iceberg view
+| Type    | Description |
+|---------|-------------|
+| `table` | An Iceberg table, including storage tables of nested materialized views |
+| `view`  | An Iceberg view, including nested materialized views |
 
-Nested materialized views have two entries for the view and the storage table objects.
-The metadata fields for each type are defined below:
+Nested materialized views are represented by two source state entries: one for the view itself and one for its storage table.
 
 #### Source table state
 
