@@ -240,6 +240,16 @@ public interface Table {
   }
 
   /**
+   * Create a new {@link ColumnUpdate column update API} to add column updates to data files.
+   *
+   * @return a new {@link ColumnUpdate}
+   */
+  default ColumnUpdate newColumnUpdate() {
+    throw new UnsupportedOperationException(
+        "Column update is not supported by " + getClass().getName());
+  }
+
+  /**
    * Create a new {@link RewriteFiles rewrite API} to replace files in this table and commit.
    *
    * @return a new {@link RewriteFiles}

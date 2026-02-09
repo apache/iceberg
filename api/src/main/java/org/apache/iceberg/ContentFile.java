@@ -168,6 +168,28 @@ public interface ContentFile<F> {
   }
 
   /**
+   * Returns the list of column update details associated with this file, or null if there are no
+   * column updates.
+   *
+   * <p>Column updates represent modifications to specific columns within the data file, such as
+   * updates applied via separate column update files. Each entry in the list contains the field IDs
+   * that were updated and the path to the corresponding column update file.
+   *
+   * @return a list of {@link ColumnUpdateDetails} describing the column updates, or null if none
+   */
+  default List<ColumnUpdateDetails> columnUpdateDetails() {
+    return null;
+  }
+
+  interface ColumnUpdateDetails {
+    /** Returns the field IDs updated by the column update. */
+    List<Integer> fieldIds();
+
+    /** Returns the file path of the column update file. */
+    String filePath();
+  }
+
+  /**
    * Returns the starting row ID to assign to new rows in the data file (with _row_id set to null).
    */
   default Long firstRowId() {

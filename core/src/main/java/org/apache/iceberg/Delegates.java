@@ -278,6 +278,11 @@ class Delegates {
     }
 
     @Override
+    public List<ColumnUpdateDetails> columnUpdateDetails() {
+      return wrapped.columnUpdateDetails();
+    }
+
+    @Override
     public F copy() {
       throw new IllegalArgumentException("Cannot copy wrapped DataFile");
     }
