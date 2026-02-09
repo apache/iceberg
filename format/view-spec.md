@@ -242,7 +242,7 @@ Each record has a `type` field that determines its form:
 | `table` | An Iceberg table, including storage tables of nested materialized views |
 | `view`  | An Iceberg view, including nested materialized views |
 
-Nested materialized views are represented by two source state entries: one for the view itself and one for its storage table.
+Source materialized views are represented by two source state entries: one for the view itself and one for its storage table.
 
 #### Source table state
 
