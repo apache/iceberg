@@ -273,6 +273,12 @@ A source view record captures the state of a source view at the time of the last
 | _required_  | `uuid`         | The uuid of the source view |
 | _required_  | `version-id`   | Version-id of when the last refresh operation was performed |
 
+#### Storage table configuration
+
+Materialized view storage tables support all standard Iceberg table configurations such as partitioning, sort order, and compression.
+These configurations are stored as part of the storage table metadata, just as they are for regular Iceberg tables.
+Query engines are responsible for providing the appropriate materialized view syntax options and storing the corresponding Iceberg table metadata.
+
 ## Appendix A: An Example
 
 The JSON metadata file format is described using an example below.
