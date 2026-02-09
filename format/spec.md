@@ -709,7 +709,7 @@ When calculating upper and lower bounds for `geometry` and `geography`, null or 
 
 #### Content Stats
 
-Content stats have been introduced with v4 and hold stats in a `struct<struct<...>>` where each nested struct holds the stats for an individual field of a table. The different field stats types are defined in the next section.
+Iceberg v4 introduces content stats which represent stats in a `struct<struct<...>>` where each nested struct holds the stats for an individual field of a table. The different field stats types are defined in the next section.
 
 ##### Field Stats Types
 
@@ -724,11 +724,12 @@ The struct that holds individual stats for a particular field of a table consist
 | max_value_count  | `long`              | 5                                   | false    | The max value count for variable-length types (string/binary)                                                                                                                  |
 | lower_bound      | type of table field | 6                                   | false    | Lower bound in the column serialized as the type of the column itself. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2]    |
 | upper_bound      | type of table field | 7                                   | false    | Upper bound in the column serialized as the type of the column itself. Each value must be greater than or equal to all non-null, non-NaN values in the column for the file [2] |
-| exact_bounds     | `boolean`           | 8                                   | false    | Whether the `upper_bound` / `lower_bound` is exact or not                                                                                                                      |
+| exact_bounds     | `boolean`           | 8                                   | false    | Whether the `upper_bound` / `lower_bound` is exact or not. Defaults to true. Types such as string/binary can't have exact bounds. Additionally, if a DV or an equality delete matches a given data file, then `exact_bounds` must be treated as `false` |
 
 #### ID Assignment for Stats fields
 
 ID assignment follows a deterministic transform that maps from the **table ID space** to the **metadata ID space**. For a given field ID from the **table ID space** each nested stats struct gets an ID assigned from the **metadata ID space**.
+Offsets defined in the [field stats types section](#field-stats-types) are then applied to the stats ID of the enclosing stats struct to calculate IDs for each individual field stats type.
 The calculation is: `stats_space_field_id_start_for_data_fields + (num_supported_stats_per_column * table_field_id`)
 
 If the table field ID is a [reserved field ID](#reserved-field-ids) then a slightly adjusted calculation is used: `stats_space_field_id_start_for_metadata_fields + (num_supported_stats_per_column * (num_reserved_field_ids - (Integer.MAX_VALUE - metadata_field_id))`)
