@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
@@ -631,6 +632,7 @@ public class Schema implements Serializable {
     }
   }
 
+  // indexes all fields from schemas, preferring field definitions from higher schema IDs
   public static Map<Integer, NestedField> indexFields(Collection<Schema> schemas) {
     if (schemas.size() == 1) {
       Schema schema = Iterables.getOnlyElement(schemas);
@@ -640,7 +642,7 @@ public class Schema implements Serializable {
     Map<Integer, NestedField> fields = Maps.newHashMap();
     Set<Integer> seenSchemaIds = Sets.newHashSet();
 
-    for (Schema schema : schemas) {
+    for (Schema schema : sortByIdAsc(schemas)) {
       if (!seenSchemaIds.contains(schema.schemaId())) {
         fields.putAll(schema.lazyIdToField());
         seenSchemaIds.add(schema.schemaId());
@@ -648,5 +650,11 @@ public class Schema implements Serializable {
     }
 
     return fields;
+  }
+
+  private static List<Schema> sortByIdAsc(Collection<Schema> schemas) {
+    return schemas.stream()
+        .sorted(Comparator.comparingInt(Schema::schemaId))
+        .collect(Collectors.toList());
   }
 }

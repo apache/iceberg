@@ -566,8 +566,8 @@ class DeleteFileIndex {
       } else {
         int specId = spec.specId();
         StructLike partition = file.partition();
-        Supplier<EqualityDeletes> defaultSupplier = () -> new EqualityDeletes(fieldLookup);
-        deletes = deletesByPartition.computeIfAbsent(specId, partition, defaultSupplier);
+        Supplier<EqualityDeletes> initEqDeletes = () -> new EqualityDeletes(fieldLookup);
+        deletes = deletesByPartition.computeIfAbsent(specId, partition, initEqDeletes);
       }
 
       deletes.add(file);
