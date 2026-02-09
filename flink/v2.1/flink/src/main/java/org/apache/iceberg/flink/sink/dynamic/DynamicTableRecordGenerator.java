@@ -23,7 +23,7 @@ import org.apache.flink.table.types.logical.RowType;
 
 /**
  * Abstract base class for SQL-based dynamic record generators. Users will extend this class to
- * create a DynamicRecord<RowData>
+ * create a DynamicRecord from RowData.
  */
 public abstract class DynamicTableRecordGenerator implements DynamicRecordGenerator<RowData> {
 
