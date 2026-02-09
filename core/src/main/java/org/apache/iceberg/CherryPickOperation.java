@@ -82,8 +82,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(snapshotId));
 
       // Pick modifications from the snapshot
-      SnapshotChanges changes =
-          SnapshotChanges.builder(cherrypickSnapshot, io, specsById).build();
+      SnapshotChanges changes = SnapshotChanges.builder(cherrypickSnapshot, io, specsById).build();
       for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);
       }
@@ -115,8 +114,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       failMissingDeletePaths();
 
       // copy adds from the picked snapshot
-      SnapshotChanges changes =
-          SnapshotChanges.builder(cherrypickSnapshot, io, specsById).build();
+      SnapshotChanges changes = SnapshotChanges.builder(cherrypickSnapshot, io, specsById).build();
       this.replacedPartitions = PartitionSet.create(specsById);
       for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);

@@ -36,7 +36,8 @@ public class TestSnapshot extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     // collect data files from deserialization
-    Iterable<DataFile> filesToAdd = SnapshotUtil.addedDataFiles(table.currentSnapshot(), table.io(), table.specs());
+    Iterable<DataFile> filesToAdd =
+        SnapshotUtil.addedDataFiles(table.currentSnapshot(), table.io(), table.specs());
 
     table.newDelete().deleteFile(FILE_A).deleteFile(FILE_B).commit();
 
@@ -177,7 +178,8 @@ public class TestSnapshot extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> addedDataFiles = SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs());
+    Iterable<DataFile> addedDataFiles =
+        SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs());
 
     assertThat(snapshot.sequenceNumber())
         .as("Sequence number mismatch in Snapshot")
@@ -223,7 +225,8 @@ public class TestSnapshot extends TestBase {
     table.newDelete().deleteFile(fileToRemove).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> removedDataFiles = SnapshotUtil.removedDataFiles(snapshot, table.io(), table.specs());
+    Iterable<DataFile> removedDataFiles =
+        SnapshotUtil.removedDataFiles(snapshot, table.io(), table.specs());
     assertThat(removedDataFiles).as("Must have 1 removed data file").hasSize(1);
 
     DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
@@ -255,7 +258,8 @@ public class TestSnapshot extends TestBase {
     table.newRowDelta().addDeletes(deleteFileToAdd).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DeleteFile> addedDeleteFiles = SnapshotUtil.addedDeleteFiles(snapshot, table.io(), table.specs());
+    Iterable<DeleteFile> addedDeleteFiles =
+        SnapshotUtil.addedDeleteFiles(snapshot, table.io(), table.specs());
     assertThat(addedDeleteFiles).as("Must have 1 added delete file").hasSize(1);
 
     DeleteFile addedDeleteFile = Iterables.getOnlyElement(addedDeleteFiles);
