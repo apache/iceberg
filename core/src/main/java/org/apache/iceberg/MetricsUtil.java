@@ -20,11 +20,13 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -487,91 +489,65 @@ public class MetricsUtil {
 
     BaseContentStats.Builder builder = BaseContentStats.builder().withTableSchema(schema);
     Map<Integer, BaseFieldStats<?>> map = Maps.newHashMap();
-
-    if (null != metrics.valueCounts()) {
-      metrics
-          .valueCounts()
-          .forEach(
-              (id, value) ->
-                  map.merge(
-                      id,
-                      BaseFieldStats.builder().fieldId(id).valueCount(value).build(),
-                      (oldVal, newVal) ->
-                          BaseFieldStats.buildFrom(oldVal).valueCount(value).build()));
-    }
-
-    if (null != metrics.nullValueCounts()) {
-      metrics
-          .nullValueCounts()
-          .forEach(
-              (id, value) ->
-                  map.merge(
-                      id,
-                      BaseFieldStats.builder().fieldId(id).nullValueCount(value).build(),
-                      (oldVal, newVal) ->
-                          BaseFieldStats.buildFrom(oldVal).nullValueCount(value).build()));
-    }
-
-    if (null != metrics.nanValueCounts()) {
-      metrics
-          .nanValueCounts()
-          .forEach(
-              (id, value) ->
-                  map.merge(
-                      id,
-                      BaseFieldStats.builder().fieldId(id).nanValueCount(value).build(),
-                      (oldVal, newVal) ->
-                          BaseFieldStats.buildFrom(oldVal).nanValueCount(value).build()));
-    }
-
-    // only convert lower bound if original type is known
-    if (null != metrics.lowerBounds() && null != metrics.originalTypes()) {
-      metrics.lowerBounds().entrySet().stream()
-          .filter(entry -> null != metrics.originalTypes().get(entry.getKey()))
-          .forEach(
-              entry -> {
-                Integer id = entry.getKey();
-                Type type = metrics.originalTypes().get(id);
-                map.merge(
-                    id,
-                    BaseFieldStats.builder()
-                        .fieldId(id)
-                        .type(type)
-                        .lowerBound(Conversions.fromByteBuffer(type, entry.getValue()))
-                        .build(),
-                    (oldVal, newVal) ->
-                        BaseFieldStats.buildFrom(oldVal)
-                            .type(type)
-                            .lowerBound(Conversions.fromByteBuffer(type, entry.getValue()))
-                            .build());
-              });
-    }
-
-    // only convert upper bound if original type is known
-    if (null != metrics.upperBounds() && null != metrics.originalTypes()) {
-      metrics.upperBounds().entrySet().stream()
-          .filter(entry -> null != metrics.originalTypes().get(entry.getKey()))
-          .forEach(
-              entry -> {
-                Integer id = entry.getKey();
-                Type type = metrics.originalTypes().get(id);
-                map.merge(
-                    id,
-                    BaseFieldStats.builder()
-                        .fieldId(id)
-                        .type(type)
-                        .upperBound(Conversions.fromByteBuffer(type, entry.getValue()))
-                        .build(),
-                    (oldVal, newVal) ->
-                        BaseFieldStats.buildFrom(oldVal)
-                            .type(type)
-                            .upperBound(Conversions.fromByteBuffer(type, entry.getValue()))
-                            .build());
-              });
-    }
+    mergeCountMetric(map, metrics.valueCounts(), BaseFieldStats.Builder::valueCount);
+    mergeCountMetric(map, metrics.nullValueCounts(), BaseFieldStats.Builder::nullValueCount);
+    mergeCountMetric(map, metrics.nanValueCounts(), BaseFieldStats.Builder::nanValueCount);
+    mergeBoundMetric(
+        map, metrics.lowerBounds(), metrics.originalTypes(), BaseFieldStats.Builder::lowerBound);
+    mergeBoundMetric(
+        map, metrics.upperBounds(), metrics.originalTypes(), BaseFieldStats.Builder::upperBound);
 
     map.values().forEach(builder::withFieldStats);
 
     return builder.build();
+  }
+
+  @SuppressWarnings("unchecked")
+  private static void mergeCountMetric(
+      Map<Integer, BaseFieldStats<?>> fieldStatsById,
+      Map<Integer, Long> counts,
+      BiFunction<BaseFieldStats.Builder<Object>, Long, BaseFieldStats.Builder<Object>> setter) {
+    if (counts == null) {
+      return;
+    }
+
+    counts.forEach(
+        (id, value) ->
+            fieldStatsById.merge(
+                id,
+                setter.apply(BaseFieldStats.builder().fieldId(id), value).build(),
+                (oldVal, newVal) ->
+                    setter
+                        .apply(BaseFieldStats.buildFrom((BaseFieldStats<Object>) oldVal), value)
+                        .build()));
+  }
+
+  @SuppressWarnings("unchecked")
+  private static void mergeBoundMetric(
+      Map<Integer, BaseFieldStats<?>> fieldStatsById,
+      Map<Integer, ByteBuffer> bounds,
+      Map<Integer, Type> originalTypes,
+      BiFunction<BaseFieldStats.Builder<Object>, Object, BaseFieldStats.Builder<Object>> setter) {
+    if (bounds == null || originalTypes == null) {
+      return;
+    }
+
+    bounds.entrySet().stream()
+        .filter(entry -> originalTypes.get(entry.getKey()) != null)
+        .forEach(
+            entry -> {
+              Integer id = entry.getKey();
+              Type type = originalTypes.get(id);
+              Object boundValue = Conversions.fromByteBuffer(type, entry.getValue());
+              fieldStatsById.merge(
+                  id,
+                  setter.apply(BaseFieldStats.builder().fieldId(id).type(type), boundValue).build(),
+                  (oldVal, newVal) ->
+                      setter
+                          .apply(
+                              BaseFieldStats.buildFrom((BaseFieldStats<Object>) oldVal).type(type),
+                              boundValue)
+                          .build());
+            });
   }
 }
