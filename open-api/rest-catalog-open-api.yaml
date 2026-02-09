@@ -27,7 +27,7 @@ info:
   version: 0.0.1
   description:
     Defines the specification for the first version of the REST Catalog API.
-    Implementations should ideally support both Iceberg table specs v1 and v2, with priority given to v2.
+    Implementations should ideally support all Iceberg table spec versions.
 servers:
   - url: "{scheme}://{host}/{basePath}"
     description: Server URL when the port can be inferred from the scheme
