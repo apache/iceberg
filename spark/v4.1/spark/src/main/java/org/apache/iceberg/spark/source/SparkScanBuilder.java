@@ -693,8 +693,7 @@ public class SparkScanBuilder
     Schema expectedSchema = schemaWithMetadataColumns();
 
     BatchScan scan =
-        table
-            .newBatchScan()
+        newBatchScan()
             .useSnapshot(snapshot.snapshotId())
             .ignoreResiduals()
             .caseSensitive(caseSensitive)
