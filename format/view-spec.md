@@ -76,13 +76,11 @@ The view version metadata file has the following fields:
 | _required_  | `versions`           | A list of known [versions](#versions) of the view [1] |
 | _required_  | `version-log`        | A list of [version log](#version-log) entries with the timestamp and `version-id` for every change to `current-version-id` |
 | _optional_  | `properties`         | A string to string map of view properties [2] |
-| _optional_  | `max-staleness-ms`   | The maximum time interval in milliseconds during which changed source table snapshots are considered fresh enough [3] |
 
 Notes:
 
 1. The number of versions to retain is controlled by the view property: `version.history.num-entries`.
 2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
-3. The `max-staleness-ms` field only applies to materialized views and must be set to `null` for common views. This field defines the staleness window during which the storage table is considered fresh if the stored data represents the result set that would have been retrieved if the underlying view query was executed at some point within that window. When `max-staleness-ms` is `null` for a materialized view, the data in the `storage-table` is always considered fresh.
 
 #### Versions
 
@@ -198,15 +196,19 @@ The property "refresh-state" is set on the [snapshot summary](https://iceberg.ap
 
 #### Freshness
 
-A materialized view's precomputed data becomes stale as the tables and views referenced in its query definition change over time. Freshness determines whether the precomputed data accurately represents the logical query definition at the current state of its dependencies.
+Consumers should only read from the storage table if the materialized view is "fresh" and therefore adequately represents the logical query definition of the view.
+Different systems define freshness differently based on time-based and logical factors.
 
-Different systems define freshness differently, based on how much of the dependency graph must be current. Some require the entire query tree to be fully up to date, while others only require direct children or allow bounded staleness at leaf nodes. As a result, "fresh" can mean strict end-to-end consistency, acceptable lag, or policy/version compliance.
+Consumers are allowed to apply time-based freshness policies such as allowing a certain staleness window.
 
-A materialized view is considered fresh when its precomputed data meets the freshness criteria defined by the consumer's evaluation policy. When these criteria are not met, the materialized view is considered stale.
+Producers define the logical freshness policy and provide the necessary information to verify the logical equivalence of the precomputed data with the query definition.
+Different producers may define different logical freshness policies, based on how much of the dependency graph must be current. Some require the entire query tree to be fully up to date, while others only require direct children or leaf nodes.
 
 #### Refresh state
 
-The refresh state record captures the unique dependencies in the materialized view's dependency graph. These dependencies include source Iceberg tables, views, and nested materialized views that allow a consumer to determine the freshness of the materialized view.
+The refresh state record can be used by the consumers to verify the logical equivalence of the precomputed data with the query definition according to the producers policy.
+It captures the dependencies in the materialized view's dependency graph. 
+These dependencies include source Iceberg tables, views, and nested materialized views. 
 
 **Producer responsibilities:**
 - The producer of the storage table must provide a sufficient list of source states so that consumers can determine freshness according to the producer's interpretation.
@@ -214,8 +216,8 @@ The refresh state record captures the unique dependencies in the materialized vi
 - When the same source object appears multiple times in the dependency graph (for example, in diamond patterns), the producer must store the entry with the oldest snapshot-id or version-id for that object.
 
 **Consumer evaluation:**
-- The consumer must at least perform a coarse-grained evaluation based on `refresh-start-timestamp-ms` and `max-staleness-ms`. A materialized view is fresh if `refresh-start-timestamp-ms` is within the window `[now - max-staleness-ms, now]`.
-- The consumer may additionally compare the `source-states` list against the states loaded from the catalog. If this evaluation determines the materialized view is fresh, it overrides the coarse-grained evaluation result.
+- The consumer will first evaluate its own time-based freshness policy.
+- The consumer may additionally compare the `source-states` list against the states loaded from the catalog.
 - The consumer may parse the view definition to implement a more sophisticated policy.
 - When a materialized view is considered stale, the consumer can fail, refresh inline, or treat the materialized view as a logical view. The consumer must not consume from the storage table when the materialized view doesn't meet freshness criteria.
 
@@ -233,8 +235,8 @@ Materialized views can reference source objects of different types, such as Iceb
 
 * `table`: An Iceberg table
 * `view`: An Iceberg view
-* `materialized-view`: An Iceberg materialized view
 
+Nested materialized views have two entries for the view and the storage table objects.
 The metadata fields for each type are defined below:
 
 #### Source table state
@@ -265,21 +267,6 @@ A source view record captures the state of a source view at the time of the last
 | _optional_  | `catalog`      | An optional name of the catalog. If set to `null` the catalog is the same as the materialized views' |
 | _required_  | `uuid`         | The uuid of the source view |
 | _required_  | `version-id`   | Version-id of when the last refresh operation was performed |
-
-#### Source materialized view state
-
-A source materialized view record captures the state of a source materialized view at the time of the last refresh operation.
-
-| Requirement | Field name     | Description |
-|-------------|----------------|-------------|
-| _required_  | `type`         | A string that must be set to `materialized-view` |
-| _required_  | `name`         | A string specifying the name of the source materialized view |
-| _required_  | `namespace`    | A list of strings for namespace levels |
-| _optional_  | `catalog`      | An optional name of the catalog. If set to `null` the catalog is the same as the materialized views' |
-| _required_  | `view-uuid`    | The uuid of the source materialized view |
-| _required_  | `view-version-id` | Version-id of the source materialized view when the last refresh operation was performed |
-| _required_  | `storage-table-uuid` | The uuid of the storage table of the source materialized view |
-| _required_  | `storage-table-snapshot-id` | Snapshot-id of the storage table when the last refresh operation was performed |
 
 ## Appendix A: An Example
 
