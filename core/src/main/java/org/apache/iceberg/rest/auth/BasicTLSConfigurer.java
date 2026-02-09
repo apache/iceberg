@@ -20,6 +20,8 @@ package org.apache.iceberg.rest.auth;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -32,6 +34,8 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 /** A TLS configurer that supports custom keystore and truststore configuration. */
 public class BasicTLSConfigurer implements TLSConfigurer {
@@ -61,7 +65,7 @@ public class BasicTLSConfigurer implements TLSConfigurer {
       SSLContext context = SSLContext.getInstance(DEFAULT_SSL_PROTOCOL);
 
       KeyManager[] keyManagers = null;
-      if (keystorePath != null) {
+      if (!Strings.isNullOrEmpty(keystorePath)) {
         char[] keystorePasswordChars =
             keystorePassword != null ? keystorePassword.toCharArray() : null;
         KeyStore keyStore = loadKeyStore(keystorePath, keystorePasswordChars, keystoreType);
@@ -72,7 +76,7 @@ public class BasicTLSConfigurer implements TLSConfigurer {
       }
 
       TrustManager[] trustManagers = null;
-      if (truststorePath != null) {
+      if (!Strings.isNullOrEmpty(truststorePath)) {
         char[] truststorePasswordChars =
             truststorePassword != null ? truststorePassword.toCharArray() : null;
         KeyStore trustStore = loadKeyStore(truststorePath, truststorePasswordChars, truststoreType);
@@ -82,9 +86,12 @@ public class BasicTLSConfigurer implements TLSConfigurer {
         trustManagers = trustManagerFactory.getTrustManagers();
       }
 
-      context.init(keyManagers, trustManagers, null);
-
-      this.sslContext = context;
+      if (keyManagers == null && trustManagers == null) {
+        this.sslContext = SSLContext.getDefault();
+      } else {
+        context.init(keyManagers, trustManagers, null);
+        this.sslContext = context;
+      }
     } catch (NoSuchAlgorithmException
         | KeyManagementException
         | KeyStoreException
@@ -95,14 +102,24 @@ public class BasicTLSConfigurer implements TLSConfigurer {
 
   @Override
   public SSLContext sslContext() {
-    try {
-      return sslContext != null ? sslContext : SSLContext.getDefault();
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("Failed to get SSL context", e);
-    }
+    Preconditions.checkState(sslContext != null, "TLSConfigurer must be initialized before use");
+    return sslContext;
+  }
+
+  @Override
+  public String[] supportedProtocols() {
+    return null;
+  }
+
+  @Override
+  public String[] supportedCipherSuites() {
+    return null;
   }
 
   private KeyStore loadKeyStore(String path, char[] password, String type) {
+    if (!Files.exists(Paths.get(path))) {
+      throw new IllegalStateException(String.format("Keystore file does not exist: %s", path));
+    }
     try (FileInputStream fis = new FileInputStream(path)) {
       KeyStore keyStore = KeyStore.getInstance(type);
       keyStore.load(fis, password);
