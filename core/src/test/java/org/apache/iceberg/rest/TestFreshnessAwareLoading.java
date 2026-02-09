@@ -170,6 +170,43 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
   }
 
   @Test
+  public void differentETagForDifferentSnapshotMode() {
+    Map<String, String> responseHeaders = Maps.newHashMap();
+    RESTCatalogAdapter adapter = adapterCapturingResponseHeaders(responseHeaders);
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), config -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+            RESTCatalogProperties.SnapshotMode.REFS.name()));
+
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+
+    assertThat(responseHeaders).containsKey(HttpHeaders.ETAG);
+    String eTagForCreateTable = responseHeaders.get(HttpHeaders.ETAG);
+    responseHeaders.clear();
+
+    catalog.loadTable(TABLE);
+
+    assertThat(responseHeaders).containsKey(HttpHeaders.ETAG);
+    assertThat(eTagForCreateTable).isNotEqualTo(responseHeaders.get(HttpHeaders.ETAG));
+
+    // Verify that table load used the refs query parameter
+    verify(adapter, times(1))
+        .execute(
+            matches(
+                HTTPRequest.HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(),
+                Map.of("snapshots", "refs")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
   public void notModifiedResponse() {
     // Capture the response headers from createTable to get an ETag.
     Map<String, String> responseHeaders = Maps.newHashMap();
@@ -747,8 +784,8 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     assertThat(table.operations()).isInstanceOf(CustomTableOps.class);
   }
 
-  private RESTCatalog catalogWithResponseHeaders(Map<String, String> respHeaders) {
-    RESTCatalogAdapter adapter =
+  private RESTCatalogAdapter adapterCapturingResponseHeaders(Map<String, String> respHeaders) {
+    return Mockito.spy(
         new RESTCatalogAdapter(backendCatalog) {
           @Override
           public <T extends RESTResponse> T execute(
@@ -756,11 +793,18 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
               Class<T> responseType,
               Consumer<ErrorResponse> errorHandler,
               Consumer<Map<String, String>> responseHeaders) {
-            return super.execute(request, responseType, errorHandler, respHeaders::putAll);
+            Consumer<Map<String, String>> compositeConsumer =
+                headers -> {
+                  responseHeaders.accept(headers);
+                  respHeaders.putAll(headers);
+                };
+            return super.execute(request, responseType, errorHandler, compositeConsumer);
           }
-        };
+        });
+  }
 
-    return catalog(adapter);
+  private RESTCatalog catalogWithResponseHeaders(Map<String, String> respHeaders) {
+    return catalog(adapterCapturingResponseHeaders(respHeaders));
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
