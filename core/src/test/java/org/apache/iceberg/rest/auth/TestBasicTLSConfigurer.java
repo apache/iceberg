@@ -78,7 +78,7 @@ public class TestBasicTLSConfigurer {
 
     assertThatThrownBy(() -> configurer.initialize(properties))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Failed to load keystore from path");
+        .hasMessageContaining("Keystore file does not exist");
   }
 
   /** Creates a temporary keystore file for testing purposes. */
