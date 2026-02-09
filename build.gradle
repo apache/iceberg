@@ -249,7 +249,7 @@ subprojects {
       } else {
         events "failed"
       }
-      exceptionFormat "full"
+      exceptionFormat = "full"
     }
 
     systemProperty 'project.version', project.version
