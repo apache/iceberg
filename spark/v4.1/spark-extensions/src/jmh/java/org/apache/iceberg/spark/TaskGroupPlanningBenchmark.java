@@ -39,11 +39,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -107,7 +107,7 @@ public class TaskGroupPlanningBenchmark {
   @Benchmark
   @Threads(1)
   public void planTaskGroups(Blackhole blackhole) {
-    SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+    SparkReadConf readConf = new SparkReadConf(spark, table);
     List<ScanTaskGroup<FileScanTask>> taskGroups =
         TableScanUtil.planTaskGroups(
             fileTasks,
@@ -137,7 +137,7 @@ public class TaskGroupPlanningBenchmark {
   @Benchmark
   @Threads(1)
   public void planTaskGroupsWithGrouping(Blackhole blackhole) {
-    SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+    SparkReadConf readConf = new SparkReadConf(spark, table);
 
     List<ScanTaskGroup<FileScanTask>> taskGroups =
         TableScanUtil.planTaskGroups(
