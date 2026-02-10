@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source.split;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -30,6 +31,7 @@ import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.util.InstantiationUtil;
 import org.apache.iceberg.BaseCombinedScanTask;
+import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskParser;
@@ -46,6 +48,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
       ThreadLocal.withInitial(() -> new DataOutputSerializer(1024));
 
   private final CombinedScanTask task;
+  private final List<ChangelogScanTask> changelogTasks;
 
   private int fileOffset;
   private long recordOffset;
@@ -55,7 +58,16 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
   @Nullable private transient byte[] serializedBytesCache;
 
   private IcebergSourceSplit(CombinedScanTask task, int fileOffset, long recordOffset) {
+    this(task, Collections.emptyList(), fileOffset, recordOffset);
+  }
+
+  private IcebergSourceSplit(
+      CombinedScanTask task,
+      List<ChangelogScanTask> changelogTasks,
+      int fileOffset,
+      long recordOffset) {
     this.task = task;
+    this.changelogTasks = changelogTasks;
     this.fileOffset = fileOffset;
     this.recordOffset = recordOffset;
   }
@@ -69,8 +81,51 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     return new IcebergSourceSplit(combinedScanTask, fileOffset, recordOffset);
   }
 
+  /**
+   * Create an IcebergSourceSplit from a list of ChangelogScanTask for CDC streaming.
+   *
+   * @param changelogTasks list of changelog scan tasks
+   * @return a new IcebergSourceSplit
+   */
+  public static IcebergSourceSplit fromChangelogScanTasks(List<ChangelogScanTask> changelogTasks) {
+    return fromChangelogScanTasks(changelogTasks, 0, 0L);
+  }
+
+  /**
+   * Create an IcebergSourceSplit from a list of ChangelogScanTask for CDC streaming with position.
+   *
+   * @param changelogTasks list of changelog scan tasks
+   * @param taskOffset the task offset to resume from
+   * @param recordOffset the record offset within the task
+   * @return a new IcebergSourceSplit
+   */
+  public static IcebergSourceSplit fromChangelogScanTasks(
+      List<ChangelogScanTask> changelogTasks, int taskOffset, long recordOffset) {
+    // Create an empty CombinedScanTask as placeholder
+    CombinedScanTask emptyTask = new BaseCombinedScanTask(Collections.emptyList());
+    return new IcebergSourceSplit(emptyTask, changelogTasks, taskOffset, recordOffset);
+  }
+
   public CombinedScanTask task() {
     return task;
+  }
+
+  /**
+   * Get the changelog scan tasks if this split is for CDC streaming.
+   *
+   * @return list of changelog scan tasks, or empty list if this is not a CDC split
+   */
+  public List<ChangelogScanTask> changelogTasks() {
+    return changelogTasks;
+  }
+
+  /**
+   * Check if this split is for CDC (changelog) streaming.
+   *
+   * @return true if this split contains changelog tasks
+   */
+  public boolean isChangelogSplit() {
+    return !changelogTasks.isEmpty();
   }
 
   public int fileOffset() {

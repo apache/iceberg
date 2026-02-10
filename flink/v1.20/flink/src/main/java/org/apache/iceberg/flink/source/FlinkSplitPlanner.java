@@ -23,14 +23,18 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
+import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.Scan;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.source.split.ChangelogScanSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
@@ -79,6 +83,71 @@ public class FlinkSplitPlanner {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to process task iterable: ", e);
     }
+  }
+
+  /**
+   * Plan changelog scan splits for CDC streaming reads.
+   *
+   * @param table the Iceberg table
+   * @param context the scan context
+   * @param workerPool the executor service for planning
+   * @return list of ChangelogScanSplit
+   */
+  public static List<ChangelogScanSplit> planChangelogScanSplits(
+      Table table, ScanContext context, ExecutorService workerPool) {
+    try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> taskGroups =
+        planChangelogTasks(table, context, workerPool)) {
+      return Lists.newArrayList(
+          CloseableIterable.transform(
+              taskGroups,
+              taskGroup -> new ChangelogScanSplit(Lists.newArrayList(taskGroup.tasks()))));
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to process changelog task iterable: ", e);
+    }
+  }
+
+  /**
+   * Plan changelog scan tasks.
+   *
+   * @param table the Iceberg table
+   * @param context the scan context
+   * @param workerPool the executor service for planning
+   * @return closeable iterable of ScanTaskGroup containing ChangelogScanTask
+   */
+  public static CloseableIterable<ScanTaskGroup<ChangelogScanTask>> planChangelogTasks(
+      Table table, ScanContext context, ExecutorService workerPool) {
+    IncrementalChangelogScan scan = table.newIncrementalChangelogScan();
+    scan = refineChangelogScan(scan, context, workerPool);
+
+    if (context.startTag() != null) {
+      Preconditions.checkArgument(
+          table.snapshot(context.startTag()) != null,
+          "Cannot find snapshot with tag %s",
+          context.startTag());
+      scan = scan.fromSnapshotExclusive(table.snapshot(context.startTag()).snapshotId());
+    }
+
+    if (context.startSnapshotId() != null) {
+      Preconditions.checkArgument(
+          context.startTag() == null, "START_SNAPSHOT_ID and START_TAG cannot both be set");
+      scan = scan.fromSnapshotExclusive(context.startSnapshotId());
+    }
+
+    if (context.endTag() != null) {
+      Preconditions.checkArgument(
+          table.snapshot(context.endTag()) != null,
+          "Cannot find snapshot with tag %s",
+          context.endTag());
+      scan = scan.toSnapshot(table.snapshot(context.endTag()).snapshotId());
+    }
+
+    if (context.endSnapshotId() != null) {
+      Preconditions.checkArgument(
+          context.endTag() == null, "END_SNAPSHOT_ID and END_TAG cannot both be set");
+      scan = scan.toSnapshot(context.endSnapshotId());
+    }
+
+    return scan.planTasks();
   }
 
   static CloseableIterable<CombinedScanTask> planTasks(
@@ -140,11 +209,17 @@ public class FlinkSplitPlanner {
   @VisibleForTesting
   enum ScanMode {
     BATCH,
-    INCREMENTAL_APPEND_SCAN
+    INCREMENTAL_APPEND_SCAN,
+    INCREMENTAL_CHANGELOG_SCAN
   }
 
   @VisibleForTesting
   static ScanMode checkScanMode(ScanContext context) {
+    // Check if changelog mode is enabled
+    if (context.isChangelogScan()) {
+      return ScanMode.INCREMENTAL_CHANGELOG_SCAN;
+    }
+
     if (context.startSnapshotId() != null
         || context.endSnapshotId() != null
         || context.startTag() != null
@@ -160,6 +235,40 @@ public class FlinkSplitPlanner {
       T scan, ScanContext context, ExecutorService workerPool) {
     T refinedScan =
         scan.caseSensitive(context.caseSensitive()).project(context.project()).planWith(workerPool);
+
+    if (context.includeColumnStats()) {
+      refinedScan = refinedScan.includeColumnStats();
+    }
+
+    if (context.includeStatsForColumns() != null) {
+      refinedScan = refinedScan.includeColumnStats(context.includeStatsForColumns());
+    }
+
+    refinedScan = refinedScan.option(TableProperties.SPLIT_SIZE, context.splitSize().toString());
+
+    refinedScan =
+        refinedScan.option(TableProperties.SPLIT_LOOKBACK, context.splitLookback().toString());
+
+    refinedScan =
+        refinedScan.option(
+            TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
+
+    if (context.filters() != null) {
+      for (Expression filter : context.filters()) {
+        refinedScan = refinedScan.filter(filter);
+      }
+    }
+
+    return refinedScan;
+  }
+
+  /** Refine changelog scan with common configs */
+  private static IncrementalChangelogScan refineChangelogScan(
+      IncrementalChangelogScan scan, ScanContext context, ExecutorService workerPool) {
+    IncrementalChangelogScan refinedScan =
+        scan.caseSensitive(context.caseSensitive())
+            .project(context.project())
+            .planWith(workerPool);
 
     if (context.includeColumnStats()) {
       refinedScan = refinedScan.includeColumnStats();

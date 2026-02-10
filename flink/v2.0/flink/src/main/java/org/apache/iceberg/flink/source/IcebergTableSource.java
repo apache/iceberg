@@ -27,6 +27,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.connector.ChangelogMode;
@@ -41,11 +42,11 @@ import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.factories.FactoryUtil;
-import org.apache.flink.table.legacy.api.TableSchema;
-import org.apache.flink.table.types.DataType;
+import org.apache.flink.types.RowKind;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
+import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
@@ -112,7 +113,7 @@ public class IcebergTableSource
   }
 
   @Override
-  public void applyProjection(int[][] projectFields, DataType producedDataType) {
+  public void applyProjection(int[][] projectFields) {
     this.projectedFields = new int[projectFields.length];
     for (int i = 0; i < projectFields.length; i++) {
       Preconditions.checkArgument(
@@ -199,7 +200,25 @@ public class IcebergTableSource
 
   @Override
   public ChangelogMode getChangelogMode() {
+    // Check if streaming read mode is CHANGELOG
+    StreamingReadMode readMode = getStreamingReadMode();
+    if (readMode == StreamingReadMode.CHANGELOG) {
+      return ChangelogMode.newBuilder()
+          .addContainedKind(RowKind.INSERT)
+          .addContainedKind(RowKind.UPDATE_BEFORE)
+          .addContainedKind(RowKind.UPDATE_AFTER)
+          .addContainedKind(RowKind.DELETE)
+          .build();
+    }
     return ChangelogMode.insertOnly();
+  }
+
+  private StreamingReadMode getStreamingReadMode() {
+    String readModeStr = properties.get(FlinkReadOptions.STREAMING_READ_MODE);
+    if (readModeStr != null) {
+      return StreamingReadMode.valueOf(readModeStr.toUpperCase());
+    }
+    return readableConfig.get(FlinkReadOptions.STREAMING_READ_MODE_OPTION);
   }
 
   @Override

@@ -25,13 +25,17 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.iceberg.ChangelogScanTask;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.ScanContext;
+import org.apache.iceberg.flink.source.StreamingReadMode;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -128,17 +132,33 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
       IcebergEnumeratorPosition newPosition =
           IcebergEnumeratorPosition.of(
               toSnapshotInclusive.snapshotId(), toSnapshotInclusive.timestampMillis());
-      ScanContext incrementalScan =
-          scanContext.copyWithAppendsBetween(
-              lastPosition.snapshotId(), toSnapshotInclusive.snapshotId());
-      List<IcebergSourceSplit> splits =
-          FlinkSplitPlanner.planIcebergSourceSplits(table, incrementalScan, workerPool);
-      LOG.info(
-          "Discovered {} splits from incremental scan: "
-              + "from snapshot (exclusive) is {}, to snapshot (inclusive) is {}",
-          splits.size(),
-          lastPosition,
-          newPosition);
+
+      List<IcebergSourceSplit> splits;
+      if (scanContext.isChangelogScan()) {
+        // CDC mode: use changelog scan
+        ScanContext changelogScan =
+            scanContext.copyWithChangelogScan(
+                lastPosition.snapshotId(), toSnapshotInclusive.snapshotId());
+        splits = planChangelogSplits(changelogScan);
+        LOG.info(
+            "Discovered {} splits from changelog scan: "
+                + "from snapshot (exclusive) is {}, to snapshot (inclusive) is {}",
+            splits.size(),
+            lastPosition,
+            newPosition);
+      } else {
+        // Normal append-only mode
+        ScanContext incrementalScan =
+            scanContext.copyWithAppendsBetween(
+                lastPosition.snapshotId(), toSnapshotInclusive.snapshotId());
+        splits = FlinkSplitPlanner.planIcebergSourceSplits(table, incrementalScan, workerPool);
+        LOG.info(
+            "Discovered {} splits from incremental scan: "
+                + "from snapshot (exclusive) is {}, to snapshot (inclusive) is {}",
+            splits.size(),
+            lastPosition,
+            newPosition);
+      }
       return new ContinuousEnumerationResult(splits, lastPosition, newPosition);
     }
   }
@@ -208,6 +228,24 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     }
 
     return new ContinuousEnumerationResult(splits, null, toPosition);
+  }
+
+  /**
+   * Plan changelog scan splits for CDC mode. Converts ChangelogScanTask groups to
+   * IcebergSourceSplit.
+   */
+  private List<IcebergSourceSplit> planChangelogSplits(ScanContext changelogContext) {
+    try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> taskGroups =
+        FlinkSplitPlanner.planChangelogTasks(table, changelogContext, workerPool)) {
+      List<IcebergSourceSplit> splits = Lists.newArrayList();
+      for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
+        // Convert ChangelogScanTask to IcebergSourceSplit by wrapping in a combined scan task
+        splits.add(IcebergSourceSplit.fromChangelogScanTasks(Lists.newArrayList(taskGroup.tasks())));
+      }
+      return splits;
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to plan changelog splits", e);
+    }
   }
 
   /**

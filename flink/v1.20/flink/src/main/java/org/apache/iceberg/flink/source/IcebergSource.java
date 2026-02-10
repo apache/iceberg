@@ -64,6 +64,7 @@ import org.apache.iceberg.flink.source.enumerator.ContinuousSplitPlannerImpl;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
+import org.apache.iceberg.flink.source.reader.ChangelogRowDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ColumnStatsWatermarkExtractor;
 import org.apache.iceberg.flink.source.reader.ConverterReaderFunction;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
@@ -561,6 +562,23 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     /**
+     * Set the streaming read mode.
+     *
+     * <p>APPEND_ONLY: Traditional append-only streaming mode (default). Only reads INSERT
+     * operations.
+     *
+     * <p>CHANGELOG: CDC streaming mode. Reads all changelog operations including INSERT,
+     * UPDATE_BEFORE, UPDATE_AFTER, and DELETE.
+     *
+     * @param readMode the streaming read mode
+     * @return this builder
+     */
+    public Builder<T> streamingReadMode(StreamingReadMode readMode) {
+      readOptions.put(FlinkReadOptions.STREAMING_READ_MODE, readMode.name());
+      return this;
+    }
+
+    /**
      * @deprecated will be removed in 2.0.0; use {@link #setAll} instead.
      */
     @Deprecated
@@ -675,17 +693,32 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         return (ReaderFunction<T>) rowDataReaderFunction;
       } else {
         if (converter == null) {
-          return (ReaderFunction<T>)
-              new RowDataReaderFunction(
-                  flinkConfig,
-                  table.schema(),
-                  context.project(),
-                  context.nameMapping(),
-                  context.caseSensitive(),
-                  table.io(),
-                  table.encryption(),
-                  context.filters(),
-                  context.limit());
+          // Use ChangelogRowDataReaderFunction for CDC mode to handle both normal and changelog splits
+          if (context.isChangelogScan()) {
+            return (ReaderFunction<T>)
+                new ChangelogRowDataReaderFunction(
+                    flinkConfig,
+                    table.schema(),
+                    context.project(),
+                    context.nameMapping(),
+                    context.caseSensitive(),
+                    table.io(),
+                    table.encryption(),
+                    context.filters(),
+                    context.limit());
+          } else {
+            return (ReaderFunction<T>)
+                new RowDataReaderFunction(
+                    flinkConfig,
+                    table.schema(),
+                    context.project(),
+                    context.nameMapping(),
+                    context.caseSensitive(),
+                    table.io(),
+                    table.encryption(),
+                    context.filters(),
+                    context.limit());
+          }
         } else {
           return new ConverterReaderFunction<>(
               converter,
