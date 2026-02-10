@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source.split;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Locale;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.source.SourceSplit;
 import org.apache.iceberg.ChangelogOperation;
@@ -101,6 +102,6 @@ public class ChangelogScanSplit implements SourceSplit, Serializable {
         deletes++;
       }
     }
-    return String.format("inserts=%d, deletes=%d", inserts, deletes);
+    return String.format(Locale.ROOT, "inserts=%d, deletes=%d", inserts, deletes);
   }
 }

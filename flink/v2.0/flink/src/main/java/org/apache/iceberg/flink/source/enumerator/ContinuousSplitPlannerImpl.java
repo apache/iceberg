@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source.enumerator;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -244,7 +245,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
       }
       return splits;
     } catch (IOException e) {
-      throw new RuntimeException("Failed to plan changelog splits", e);
+      throw new UncheckedIOException("Failed to plan changelog splits", e);
     }
   }
 

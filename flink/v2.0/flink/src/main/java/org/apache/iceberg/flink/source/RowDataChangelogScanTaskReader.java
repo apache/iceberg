@@ -18,14 +18,17 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.ChangelogOperation;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -35,8 +38,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -55,6 +59,7 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
@@ -117,16 +122,13 @@ public class RowDataChangelogScanTaskReader
       long commitSnapshotId) {
 
     List<DeleteFile> deleteFiles = getDeleteFiles(task);
-    InputFilesDecryptor inputFilesDecryptor =
-        new InputFilesDecryptor(task, deleteFiles, io, encryption);
+    Map<String, InputFile> inputFiles = decryptInputFiles(task, deleteFiles);
 
     Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
     ChangelogDeleteFilter deletes =
-        new ChangelogDeleteFilter(
-            task, deleteFiles, tableSchema, projectedSchema, inputFilesDecryptor);
+        new ChangelogDeleteFilter(task, deleteFiles, tableSchema, projectedSchema, inputFiles);
     CloseableIterable<RowData> iterable =
-        deletes.filter(
-            newIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor));
+        deletes.filter(newIterable(task, deletes.requiredSchema(), idToConstant, inputFiles));
 
     // Project the RowData to remove the extra meta columns
     if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
@@ -143,6 +145,26 @@ public class RowDataChangelogScanTaskReader
     iterable = CloseableIterable.transform(iterable, row -> withRowKind(row, rowKind));
 
     return iterable.iterator();
+  }
+
+  private Map<String, InputFile> decryptInputFiles(
+      ContentScanTask<DataFile> task, List<DeleteFile> deleteFiles) {
+    // Collect all files that need to be decrypted
+    Stream<ContentFile<?>> allFiles = Stream.concat(Stream.of(task.file()), deleteFiles.stream());
+
+    Stream<EncryptedInputFile> encryptedFiles =
+        allFiles.map(
+            file ->
+                EncryptedFiles.encryptedInput(
+                    io.newInputFile(file.location()), file.keyMetadata()));
+
+    // Decrypt with batch call to avoid multiple RPCs to key server
+    @SuppressWarnings("StreamToIterable")
+    Iterable<InputFile> decryptedFiles = encryption.decrypt(encryptedFiles::iterator);
+
+    Map<String, InputFile> inputFileMap = Maps.newHashMap();
+    decryptedFiles.forEach(f -> inputFileMap.putIfAbsent(f.location(), f));
+    return Collections.unmodifiableMap(inputFileMap);
   }
 
   private List<DeleteFile> getDeleteFiles(ContentScanTask<DataFile> task) {
@@ -178,19 +200,19 @@ public class RowDataChangelogScanTaskReader
       ContentScanTask<DataFile> task,
       Schema schema,
       Map<Integer, ?> idToConstant,
-      InputFilesDecryptor inputFilesDecryptor) {
+      Map<String, InputFile> inputFiles) {
     CloseableIterable<RowData> iter;
     switch (task.file().format()) {
       case PARQUET:
-        iter = newParquetIterable(task, schema, idToConstant, inputFilesDecryptor);
+        iter = newParquetIterable(task, schema, idToConstant, inputFiles);
         break;
 
       case AVRO:
-        iter = newAvroIterable(task, schema, idToConstant, inputFilesDecryptor);
+        iter = newAvroIterable(task, schema, idToConstant, inputFiles);
         break;
 
       case ORC:
-        iter = newOrcIterable(task, schema, idToConstant, inputFilesDecryptor);
+        iter = newOrcIterable(task, schema, idToConstant, inputFiles);
         break;
 
       default:
@@ -208,9 +230,9 @@ public class RowDataChangelogScanTaskReader
       ContentScanTask<DataFile> task,
       Schema schema,
       Map<Integer, ?> idToConstant,
-      InputFilesDecryptor inputFilesDecryptor) {
+      Map<String, InputFile> inputFiles) {
     Avro.ReadBuilder builder =
-        Avro.read(inputFilesDecryptor.getInputFile(task))
+        Avro.read(inputFiles.get(task.file().location()))
             .reuseContainers()
             .project(schema)
             .split(task.start(), task.length())
@@ -227,9 +249,9 @@ public class RowDataChangelogScanTaskReader
       ContentScanTask<DataFile> task,
       Schema schema,
       Map<Integer, ?> idToConstant,
-      InputFilesDecryptor inputFilesDecryptor) {
+      Map<String, InputFile> inputFiles) {
     Parquet.ReadBuilder builder =
-        Parquet.read(inputFilesDecryptor.getInputFile(task))
+        Parquet.read(inputFiles.get(task.file().location()))
             .split(task.start(), task.length())
             .project(schema)
             .createReaderFunc(
@@ -249,13 +271,13 @@ public class RowDataChangelogScanTaskReader
       ContentScanTask<DataFile> task,
       Schema schema,
       Map<Integer, ?> idToConstant,
-      InputFilesDecryptor inputFilesDecryptor) {
+      Map<String, InputFile> inputFiles) {
     Schema readSchemaWithoutConstantAndMetadataFields =
         TypeUtil.selectNot(
             schema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
 
     ORC.ReadBuilder builder =
-        ORC.read(inputFilesDecryptor.getInputFile(task))
+        ORC.read(inputFiles.get(task.file().location()))
             .project(readSchemaWithoutConstantAndMetadataFields)
             .split(task.start(), task.length())
             .createReaderFunc(
@@ -273,18 +295,18 @@ public class RowDataChangelogScanTaskReader
   private static class ChangelogDeleteFilter extends DeleteFilter<RowData> {
     private final RowType requiredRowType;
     private final RowDataWrapper asStructLike;
-    private final InputFilesDecryptor inputFilesDecryptor;
+    private final Map<String, InputFile> inputFiles;
 
     ChangelogDeleteFilter(
         ContentScanTask<DataFile> task,
         List<DeleteFile> deleteFiles,
         Schema tableSchema,
         Schema requestedSchema,
-        InputFilesDecryptor inputFilesDecryptor) {
+        Map<String, InputFile> inputFiles) {
       super(task.file().location(), deleteFiles, tableSchema, requestedSchema);
       this.requiredRowType = FlinkSchemaUtil.convert(requiredSchema());
       this.asStructLike = new RowDataWrapper(requiredRowType, requiredSchema().asStruct());
-      this.inputFilesDecryptor = inputFilesDecryptor;
+      this.inputFiles = inputFiles;
     }
 
     public RowType requiredRowType() {
@@ -298,7 +320,7 @@ public class RowDataChangelogScanTaskReader
 
     @Override
     protected InputFile getInputFile(String location) {
-      return inputFilesDecryptor.getInputFile(location);
+      return inputFiles.get(location);
     }
   }
 }

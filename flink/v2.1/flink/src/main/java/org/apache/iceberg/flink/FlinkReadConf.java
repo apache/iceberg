@@ -25,6 +25,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.source.StreamingReadMode;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 
 public class FlinkReadConf {
@@ -208,6 +209,15 @@ public class FlinkReadConf {
         .option(FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT)
         .flinkConfig(FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT_OPTION)
         .defaultValue(FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT_OPTION.defaultValue())
+        .parse();
+  }
+
+  public StreamingReadMode streamingReadMode() {
+    return confParser
+        .enumConfParser(StreamingReadMode.class)
+        .option(FlinkReadOptions.STREAMING_READ_MODE)
+        .flinkConfig(FlinkReadOptions.STREAMING_READ_MODE_OPTION)
+        .defaultValue(FlinkReadOptions.STREAMING_READ_MODE_OPTION.defaultValue())
         .parse();
   }
 }

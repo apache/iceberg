@@ -18,28 +18,32 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.NoSuchElementException;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
+import org.apache.flink.connector.base.source.reader.SourceReaderOptions;
+import org.apache.flink.connector.file.src.util.Pool;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.source.ChangelogDataIterator;
-import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.RowDataChangelogScanTaskReader;
-import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * Reader function that supports both normal data reading and CDC (changelog) reading. This function
- * detects whether a split contains changelog tasks and uses the appropriate reader.
+ * Reader function that supports both normal data reading and CDC (changelog) reading. For normal
+ * splits, it delegates to the standard RowDataReaderFunction. For changelog splits, it reads
+ * ChangelogScanTasks with appropriate RowKind setting.
  */
-public class ChangelogRowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
+public class ChangelogRowDataReaderFunction implements ReaderFunction<RowData> {
   private final Schema tableSchema;
   private final Schema readSchema;
   private final String nameMapping;
@@ -47,9 +51,10 @@ public class ChangelogRowDataReaderFunction extends DataIteratorReaderFunction<R
   private final FileIO io;
   private final EncryptionManager encryption;
   private final List<Expression> filters;
-  private final long limit;
+  private final ReadableConfig config;
 
-  private transient RecordLimiter recordLimiter = null;
+  // Delegate for normal (non-changelog) splits
+  private final RowDataReaderFunction normalReaderFunction;
 
   public ChangelogRowDataReaderFunction(
       ReadableConfig config,
@@ -82,11 +87,7 @@ public class ChangelogRowDataReaderFunction extends DataIteratorReaderFunction<R
       EncryptionManager encryption,
       List<Expression> filters,
       long limit) {
-    super(
-        new ArrayPoolDataIteratorBatcher<>(
-            config,
-            new RowDataRecordFactory(
-                FlinkSchemaUtil.convert(readSchema(tableSchema, projectedSchema)))));
+    this.config = config;
     this.tableSchema = tableSchema;
     this.readSchema = readSchema(tableSchema, projectedSchema);
     this.nameMapping = nameMapping;
@@ -94,48 +95,42 @@ public class ChangelogRowDataReaderFunction extends DataIteratorReaderFunction<R
     this.io = io;
     this.encryption = encryption;
     this.filters = filters;
-    this.limit = limit;
+    this.normalReaderFunction =
+        new RowDataReaderFunction(
+            config,
+            tableSchema,
+            projectedSchema,
+            nameMapping,
+            caseSensitive,
+            io,
+            encryption,
+            filters,
+            limit);
   }
 
   @Override
   public CloseableIterator<RecordsWithSplitIds<RecordAndPosition<RowData>>> apply(
       IcebergSourceSplit split) {
     if (split.isChangelogSplit()) {
-      // Use changelog data iterator for CDC splits
-      ChangelogDataIterator<RowData> changelogIterator = createChangelogDataIterator(split);
-
-      // Seek to the saved position if needed
-      if (split.fileOffset() > 0 || split.recordOffset() > 0) {
-        changelogIterator.seek(split.fileOffset(), split.recordOffset());
-      }
-
-      return wrapIterator(changelogIterator, split);
+      return createChangelogIterator(split);
     } else {
-      // Use normal data iterator for regular splits
-      return super.apply(split);
+      return normalReaderFunction.apply(split);
     }
   }
 
-  @Override
-  public DataIterator<RowData> createDataIterator(IcebergSourceSplit split) {
-    return new LimitableDataIterator<>(
-        new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive, filters),
-        split.task(),
-        io,
-        encryption,
-        lazyLimiter());
-  }
-
-  private ChangelogDataIterator<RowData> createChangelogDataIterator(IcebergSourceSplit split) {
+  private CloseableIterator<RecordsWithSplitIds<RecordAndPosition<RowData>>>
+      createChangelogIterator(IcebergSourceSplit split) {
     RowDataChangelogScanTaskReader taskReader =
         new RowDataChangelogScanTaskReader(
             tableSchema, readSchema, nameMapping, caseSensitive, filters, io, encryption);
-    return new ChangelogDataIterator<>(taskReader, split.changelogTasks());
-  }
+    ChangelogDataIterator<RowData> changelogIterator =
+        new ChangelogDataIterator<>(taskReader, split.changelogTasks());
 
-  private CloseableIterator<RecordsWithSplitIds<RecordAndPosition<RowData>>> wrapIterator(
-      ChangelogDataIterator<RowData> changelogIterator, IcebergSourceSplit split) {
-    return new ChangelogBatchingIterator(changelogIterator, split, batcher(), lazyLimiter());
+    if (split.fileOffset() > 0 || split.recordOffset() > 0) {
+      changelogIterator.seek(split.fileOffset(), split.recordOffset());
+    }
+
+    return new ChangelogBatchIterator(split.splitId(), changelogIterator, config);
   }
 
   private static Schema readSchema(Schema tableSchema, Schema projectedSchema) {
@@ -143,97 +138,79 @@ public class ChangelogRowDataReaderFunction extends DataIteratorReaderFunction<R
     return projectedSchema == null ? tableSchema : projectedSchema;
   }
 
-  /** Lazily create RecordLimiter to avoid the need to make it serializable */
-  private RecordLimiter lazyLimiter() {
-    if (recordLimiter == null) {
-      this.recordLimiter = RecordLimiter.create(limit);
-    }
-
-    return recordLimiter;
-  }
-
   /**
-   * Iterator that wraps ChangelogDataIterator and batches records for the Flink source framework.
+   * Batch iterator that wraps ChangelogDataIterator and produces ArrayBatchRecords for the Flink
+   * source framework.
    */
-  private static class ChangelogBatchingIterator
+  private class ChangelogBatchIterator
       implements CloseableIterator<RecordsWithSplitIds<RecordAndPosition<RowData>>> {
 
-    private final ChangelogDataIterator<RowData> changelogIterator;
-    private final IcebergSourceSplit split;
-    private final DataIteratorBatcher<RowData> batcher;
-    private final RecordLimiter limiter;
-    private CloseableIterator<RecordsWithSplitIds<RecordAndPosition<RowData>>> currentBatch;
-    private boolean finished;
+    private final String splitId;
+    private final ChangelogDataIterator<RowData> inputIterator;
+    private final RecordFactory<RowData> recordFactory;
+    private final int batchSize;
+    private final Pool<RowData[]> pool;
 
-    ChangelogBatchingIterator(
-        ChangelogDataIterator<RowData> changelogIterator,
-        IcebergSourceSplit split,
-        DataIteratorBatcher<RowData> batcher,
-        RecordLimiter limiter) {
-      this.changelogIterator = changelogIterator;
-      this.split = split;
-      this.batcher = batcher;
-      this.limiter = limiter;
-      this.finished = false;
+    ChangelogBatchIterator(
+        String splitId, ChangelogDataIterator<RowData> inputIterator, ReadableConfig config) {
+      this.splitId = splitId;
+      this.inputIterator = inputIterator;
+      this.recordFactory = new RowDataRecordFactory(FlinkSchemaUtil.convert(readSchema));
+      this.batchSize = config.get(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT);
+      int handoverQueueSize = config.get(SourceReaderOptions.ELEMENT_QUEUE_CAPACITY);
+      this.pool = createPool(handoverQueueSize, batchSize);
+    }
+
+    private Pool<RowData[]> createPool(int numBatches, int batchCapacity) {
+      Pool<RowData[]> batchPool = new Pool<>(numBatches);
+      for (int i = 0; i < numBatches; i++) {
+        batchPool.add(recordFactory.createBatch(batchCapacity));
+      }
+      return batchPool;
     }
 
     @Override
     public boolean hasNext() {
-      if (finished) {
-        return false;
-      }
-
-      if (currentBatch != null && currentBatch.hasNext()) {
-        return true;
-      }
-
-      // Create a new batch from changelog records
-      if (changelogIterator.hasNext() && !limiter.reachedLimit()) {
-        currentBatch = batcher.batch(split.splitId(), createLimitedIterator());
-        return currentBatch.hasNext();
-      }
-
-      finished = true;
-      return false;
-    }
-
-    private CloseableIterator<RowData> createLimitedIterator() {
-      return new CloseableIterator<RowData>() {
-        @Override
-        public boolean hasNext() {
-          return changelogIterator.hasNext() && !limiter.reachedLimit();
-        }
-
-        @Override
-        public RowData next() {
-          limiter.increment();
-          return changelogIterator.next();
-        }
-
-        @Override
-        public void close() {
-          // Don't close the underlying iterator here
-        }
-      };
+      return inputIterator.hasNext();
     }
 
     @Override
     public RecordsWithSplitIds<RecordAndPosition<RowData>> next() {
-      if (!hasNext()) {
-        throw new java.util.NoSuchElementException();
+      if (!inputIterator.hasNext()) {
+        throw new NoSuchElementException();
       }
 
-      // Update split position
-      split.updatePosition(changelogIterator.taskOffset(), changelogIterator.recordOffset());
+      RowData[] batch = getCachedEntry();
+      int recordCount = 0;
+      while (inputIterator.hasNext() && recordCount < batchSize) {
+        RowData nextRecord = inputIterator.next();
+        recordFactory.clone(nextRecord, batch, recordCount);
+        recordCount++;
+        if (!inputIterator.currentTaskHasNext()) {
+          break;
+        }
+      }
 
-      return currentBatch.next();
+      return ArrayBatchRecords.forRecords(
+          splitId,
+          pool.recycler(),
+          batch,
+          recordCount,
+          inputIterator.taskOffset(),
+          inputIterator.recordOffset() - recordCount);
     }
 
     @Override
-    public void close() throws java.io.IOException {
-      changelogIterator.close();
-      if (currentBatch != null) {
-        currentBatch.close();
+    public void close() throws IOException {
+      inputIterator.close();
+    }
+
+    private RowData[] getCachedEntry() {
+      try {
+        return pool.pollEntry();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException("Interrupted while waiting for array pool entry", e);
       }
     }
   }
