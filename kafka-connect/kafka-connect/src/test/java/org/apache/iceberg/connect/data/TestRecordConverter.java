@@ -74,7 +74,10 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
+import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.PhysicalType;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -151,6 +154,9 @@ public class TestRecordConverter {
       new org.apache.iceberg.Schema(
           NestedField.required(
               100, "stma", MapType.ofRequired(101, 102, StringType.get(), ID_SCHEMA.asStruct())));
+
+  private static final org.apache.iceberg.Schema VARIANT_SCHEMA =
+      new org.apache.iceberg.Schema(NestedField.required(1, "v", VariantType.get()));
 
   private static final Schema CONNECT_SCHEMA =
       SchemaBuilder.struct()
@@ -879,6 +885,98 @@ public class TestRecordConverter {
 
     assertThat(updateMap.get("st.ii").type()).isInstanceOf(LongType.class);
     assertThat(updateMap.get("st.ff").type()).isInstanceOf(DoubleType.class);
+  }
+
+  @Test
+  public void testConvertVariantFromPrimitiveString() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(VARIANT_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Record record = converter.convert(ImmutableMap.of("v", "hello"));
+    Variant variant = (Variant) record.getField("v");
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata()).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.STRING);
+    assertThat(variant.value().asPrimitive().get()).isEqualTo("hello");
+  }
+
+  @Test
+  public void testConvertVariantFromPrimitiveNumber() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(VARIANT_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Record record = converter.convert(ImmutableMap.of("v", 123));
+    Variant variant = (Variant) record.getField("v");
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata()).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.INT32);
+    assertThat(variant.value().asPrimitive().get()).isEqualTo(123);
+  }
+
+  @Test
+  public void testConvertVariantFromList() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(VARIANT_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Record record = converter.convert(ImmutableMap.of("v", ImmutableList.of("hello", 1)));
+    Variant variant = (Variant) record.getField("v");
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata()).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(variant.value().asArray().numElements()).isEqualTo(2);
+    assertThat(variant.value().asArray().get(0).type()).isEqualTo(PhysicalType.STRING);
+    assertThat(variant.value().asArray().get(0).asPrimitive().get()).isEqualTo("hello");
+    assertThat(variant.value().asArray().get(1).type()).isEqualTo(PhysicalType.INT32);
+    assertThat(variant.value().asArray().get(1).asPrimitive().get()).isEqualTo(1);
+  }
+
+  @Test
+  public void testConvertVariantFromMap() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(VARIANT_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Record record = converter.convert(ImmutableMap.of("v", ImmutableMap.of("hello", 1)));
+    Variant variant = (Variant) record.getField("v");
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata()).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(1);
+    assertThat(variant.metadata().get(0)).isEqualTo("hello");
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.value().asObject().numFields()).isEqualTo(1);
+    assertThat(variant.value().asObject().get("hello").type()).isEqualTo(PhysicalType.INT32);
+    assertThat(variant.value().asObject().get("hello").asPrimitive().get()).isEqualTo(1);
+  }
+
+  @Test
+  public void testConvertVariantFromMapNested() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(VARIANT_SCHEMA);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Record record = converter.convert(ImmutableMap.of("v", ImmutableMap.of("hello", ImmutableMap.of("world", 1))));
+    Variant variant = (Variant) record.getField("v");
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.metadata()).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(2);
+    assertThat(variant.metadata().get(0)).isEqualTo("hello");
+    assertThat(variant.value().asObject().numFields()).isEqualTo(1);
+    assertThat(variant.value().asObject().get("hello").type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.value().asObject().get("hello").asObject().numFields()).isEqualTo(1);
+    assertThat(variant.value().asObject().get("hello").asObject().get("world").type()).isEqualTo(PhysicalType.INT32);
+    assertThat(variant.value().asObject().get("hello").asObject().get("world").asPrimitive().get()).isEqualTo(1);
   }
 
   public static Map<String, Object> createMapData() {
