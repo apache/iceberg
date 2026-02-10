@@ -203,7 +203,11 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
       // only keep the snapshots with added data files
       snapshots =
           snapshots.stream()
-              .filter(snapshot -> SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator().hasNext())
+              .filter(
+                  snapshot ->
+                      SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs())
+                          .iterator()
+                          .hasNext())
               .collect(Collectors.toList());
 
       // Source rate limit per checkpoint cycle may not be super precise.
@@ -218,7 +222,8 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
 
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
-            Lists.newArrayList(SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator());
+            Lists.newArrayList(
+                SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator());
         assertThat(addedDataFiles)
             .hasSizeLessThanOrEqualTo(maxAddedDataFilesPerCheckpoint(parallelism));
       }
