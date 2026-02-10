@@ -24,7 +24,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.ChangelogScanTask;

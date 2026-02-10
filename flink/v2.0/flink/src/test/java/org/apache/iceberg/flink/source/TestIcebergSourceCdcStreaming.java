@@ -34,9 +34,7 @@ import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.data.GenericAppenderHelper;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -106,10 +104,7 @@ public class TestIcebergSourceCdcStreaming {
   public void testAppendOnlyModeDefault() {
     // Test that default streaming mode is APPEND_ONLY
     ScanContext context =
-        ScanContext.builder()
-            .streaming(true)
-            .monitorInterval(Duration.ofMillis(10L))
-            .build();
+        ScanContext.builder().streaming(true).monitorInterval(Duration.ofMillis(10L)).build();
 
     assertThat(context.streamingReadMode()).isEqualTo(StreamingReadMode.APPEND_ONLY);
     assertThat(context.isChangelogScan()).isFalse();

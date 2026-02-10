@@ -266,9 +266,7 @@ public class FlinkSplitPlanner {
   private static IncrementalChangelogScan refineChangelogScan(
       IncrementalChangelogScan scan, ScanContext context, ExecutorService workerPool) {
     IncrementalChangelogScan refinedScan =
-        scan.caseSensitive(context.caseSensitive())
-            .project(context.project())
-            .planWith(workerPool);
+        scan.caseSensitive(context.caseSensitive()).project(context.project()).planWith(workerPool);
 
     if (context.includeColumnStats()) {
       refinedScan = refinedScan.includeColumnStats();

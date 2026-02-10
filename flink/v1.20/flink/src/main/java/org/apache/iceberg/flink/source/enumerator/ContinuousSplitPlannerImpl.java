@@ -32,7 +32,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.ScanContext;
-import org.apache.iceberg.flink.source.StreamingReadMode;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterable;
@@ -240,7 +239,8 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
       List<IcebergSourceSplit> splits = Lists.newArrayList();
       for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
         // Convert ChangelogScanTask to IcebergSourceSplit by wrapping in a combined scan task
-        splits.add(IcebergSourceSplit.fromChangelogScanTasks(Lists.newArrayList(taskGroup.tasks())));
+        splits.add(
+            IcebergSourceSplit.fromChangelogScanTasks(Lists.newArrayList(taskGroup.tasks())));
       }
       return splits;
     } catch (IOException e) {

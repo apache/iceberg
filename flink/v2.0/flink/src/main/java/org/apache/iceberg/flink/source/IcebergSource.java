@@ -693,7 +693,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         return (ReaderFunction<T>) rowDataReaderFunction;
       } else {
         if (converter == null) {
-          // Use ChangelogRowDataReaderFunction for CDC mode to handle both normal and changelog splits
+          // Use ChangelogRowDataReaderFunction for CDC mode to handle both normal and changelog
+          // splits
           if (context.isChangelogScan()) {
             return (ReaderFunction<T>)
                 new ChangelogRowDataReaderFunction(

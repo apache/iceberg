@@ -150,8 +150,7 @@ public class RowDataChangelogScanTaskReader
   private Map<String, InputFile> decryptInputFiles(
       ContentScanTask<DataFile> task, List<DeleteFile> deleteFiles) {
     // Collect all files that need to be decrypted
-    Stream<ContentFile<?>> allFiles =
-        Stream.concat(Stream.of(task.file()), deleteFiles.stream());
+    Stream<ContentFile<?>> allFiles = Stream.concat(Stream.of(task.file()), deleteFiles.stream());
 
     Stream<EncryptedInputFile> encryptedFiles =
         allFiles.map(
