@@ -196,28 +196,28 @@ The property "refresh-state" is set on the [snapshot summary](https://iceberg.ap
 
 #### Freshness
 
-Consumers should only read from the storage table if the materialized view is "fresh" and therefore adequately represents the logical query definition of the view.
-Different systems define freshness differently based on time-based and logical factors.
+A materialized view is "fresh" when the storage table adequately represents the logical query definition of the view.
+Since different systems define freshness differently, it is left to the consumer to evaluate freshness based on its own policy.
 
-**Time-based freshness (consumer-defined):**
+**Consumer behavior:**
 
-Consumers may apply time-based freshness policies, such as allowing a certain staleness window based on `refresh-start-timestamp-ms`.
 When evaluating freshness, consumers:
-- Must first evaluate their own time-based freshness policy.
-- May additionally compare the `source-states` list against the states loaded from the catalog to verify the producers logical freshness policy.
-- May parse the view definition to implement a more sophisticated policy.
+- May apply time-based freshness policies, such as allowing a staleness window based on `refresh-start-timestamp-ms`.
+- May compare the `source-states` list against the states loaded from the catalog to verify the producer's freshness interpretation.
+- May parse the view definition to implement more sophisticated policies.
 - When a materialized view is considered stale, can fail, refresh inline, or treat the materialized view as a logical view.
-- Must not read from the storage table when the materialized view doesn't meet freshness criteria.
+- Should not consume the storage table when the materialized view doesn't meet freshness criteria.
 
-**Logical freshness (producer-defined):**
+**Producer behavior:**
 
-Producers define the logical freshness policy and provide the necessary information in the [refresh state](#refresh-state) to verify the logical equivalence of the precomputed data with the query definition.
-Different producers may define different logical freshness policies, based on how much of the dependency graph must be current.
+Producers should provide the necessary information in the [refresh state](#refresh-state) such that consumers can verify the logical equivalence of the precomputed data with the query definition.
+Different producers may have different freshness interpretations, based on how much of the dependency graph must be current.
 Some require the entire query tree to be fully up to date, while others only require direct children or leaf nodes.
+
 When writing the refresh state, producers:
-- Must provide a sufficient list of source states so that consumers can determine freshness according to the producer's policy.
+- Should provide a sufficient list of source states such that consumers can determine freshness according to the producer's interpretation.
 - May leave the source states list empty if the source state cannot be determined for all objects (for example, for non-Iceberg tables).
-- Must store the entry with the oldest snapshot-id or version-id when the same source object appears multiple times in the dependency graph (for example, in diamond patterns).
+- Must store the entry with the oldest snapshot-id or version-id when the same source object is reachable through multiple paths in the dependency graph (diamond dependency pattern).
 
 #### Refresh state
 
