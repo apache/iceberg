@@ -1756,12 +1756,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   public void testMetadataTableScansOnBranch() throws IOException {
     table.newFastAppend().appendFile(FILE_A).commit();
     table.manageSnapshots().createBranch("testBranch").commit();
-
     table.newFastAppend().appendFile(FILE_B).commit();
 
     Table entriesTable = new ManifestEntriesTable(table);
     assertThat(
-            rowsCount(
+            rowCount(
                 entriesTable
                     .newScan()
                     .useRef("testBranch")
@@ -1769,31 +1768,31 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                     .filter(Expressions.lessThan("data_file.partition.data_bucket", 0))))
         .as("ManifestEntriesTable on branch should have no entry satisfying the filter")
         .isEqualTo(0);
-    assertThat(rowsCount(entriesTable.newScan()))
+    assertThat(rowCount(entriesTable.newScan()))
         .as("ManifestEntriesTable on main should have 2 entries")
         .isEqualTo(2);
 
     Table dataFilesTable = new DataFilesTable(table);
-    assertThat(rowsCount(dataFilesTable.newScan().useRef("testBranch")))
+    assertThat(rowCount(dataFilesTable.newScan().useRef("testBranch")))
         .as("DataFilesTable on branch should have 1 file")
         .isEqualTo(1);
-    assertThat(rowsCount(dataFilesTable.newScan()))
+    assertThat(rowCount(dataFilesTable.newScan()))
         .as("DataFilesTable on main should have 2 files")
         .isEqualTo(2);
 
     Table manifestsTable = new ManifestsTable(table);
-    assertThat(rowsCount(manifestsTable.newScan().useRef("testBranch")))
+    assertThat(rowCount(manifestsTable.newScan().useRef("testBranch")))
         .as("ManifestsTable on branch should have 1 manifest")
         .isEqualTo(1);
-    assertThat(rowsCount(manifestsTable.newScan()))
+    assertThat(rowCount(manifestsTable.newScan()))
         .as("ManifestsTable on main should have 2 manifests")
         .isEqualTo(2);
 
     Table filesTable = new FilesTable(table);
-    assertThat(rowsCount(filesTable.newScan().useRef("testBranch")))
+    assertThat(rowCount(filesTable.newScan().useRef("testBranch")))
         .as("FilesTable on branch should have 1 file")
         .isEqualTo(1);
-    assertThat(rowsCount(filesTable.newScan()))
+    assertThat(rowCount(filesTable.newScan()))
         .as("FilesTable on main should have 2 files")
         .isEqualTo(2);
   }
@@ -1805,20 +1804,19 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     table.newFastAppend().appendFile(FILE_A).commit();
     table.newRowDelta().addDeletes(fileADeletes()).commit();
     table.manageSnapshots().createBranch("testBranch").commit();
-
     table.newFastAppend().appendFile(FILE_B).commit();
     table.newRowDelta().addDeletes(fileBDeletes()).commit();
 
     Table deleteFilesTable = new DeleteFilesTable(table);
-    assertThat(rowsCount(deleteFilesTable.newScan().useRef("testBranch")))
+    assertThat(rowCount(deleteFilesTable.newScan().useRef("testBranch")))
         .as("DeleteFilesTable on branch should have 1 delete file")
         .isEqualTo(1);
-    assertThat(rowsCount(deleteFilesTable.newScan()))
+    assertThat(rowCount(deleteFilesTable.newScan()))
         .as("DeleteFilesTable on main should have 2 delete files")
         .isEqualTo(2);
   }
 
-  private int rowsCount(TableScan scan) throws IOException {
+  private int rowCount(TableScan scan) throws IOException {
     int count = 0;
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       for (FileScanTask task : tasks) {
