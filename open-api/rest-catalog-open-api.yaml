@@ -1993,12 +1993,8 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
-        Specific properties and handling for `vended-credentials` is documented
-        in the `LoadTableResult` schema section of this spec document.
-
-
-        The protocol and specification for `remote-signing` is documented in
-        the `LoadTableResult` schema section of this spec document.
+        Specific properties and handling for `vended-credentials` and `remote-signing`
+        is documented in the `LoadTableResult` schema section of this spec document.
 
       required: false
       schema:
