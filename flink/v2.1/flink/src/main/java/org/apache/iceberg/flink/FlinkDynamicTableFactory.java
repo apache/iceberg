@@ -61,6 +61,11 @@ public class FlinkDynamicTableFactory
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
     ResolvedCatalogTable resolvedCatalogTable = context.getCatalogTable();
     Map<String, String> tableProps = resolvedCatalogTable.getOptions();
+    ResolvedSchema resolvedSchema =
+        ResolvedSchema.of(
+            resolvedCatalogTable.getResolvedSchema().getColumns().stream()
+                .filter(Column::isPhysical)
+                .collect(Collectors.toList()));
 
     TableLoader tableLoader;
     if (catalog != null) {
@@ -75,10 +80,7 @@ public class FlinkDynamicTableFactory
     }
 
     return new IcebergTableSource(
-        tableLoader,
-        resolvedCatalogTable.getResolvedSchema(),
-        tableProps,
-        context.getConfiguration());
+        tableLoader, resolvedSchema, tableProps, context.getConfiguration());
   }
 
   @Override
@@ -86,11 +88,6 @@ public class FlinkDynamicTableFactory
     ObjectIdentifier objectIdentifier = context.getObjectIdentifier();
     ResolvedCatalogTable resolvedCatalogTable = context.getCatalogTable();
     Map<String, String> writeProps = resolvedCatalogTable.getOptions();
-    ResolvedSchema resolvedSchema =
-        ResolvedSchema.of(
-            resolvedCatalogTable.getResolvedSchema().getColumns().stream()
-                .filter(Column::isPhysical)
-                .collect(Collectors.toList()));
 
     Configuration flinkConf = new Configuration();
     writeProps.forEach(flinkConf::setString);
@@ -113,7 +110,10 @@ public class FlinkDynamicTableFactory
       }
 
       return new IcebergTableSink(
-          tableLoader, resolvedSchema, context.getConfiguration(), writeProps);
+          tableLoader,
+          resolvedCatalogTable.getResolvedSchema(),
+          context.getConfiguration(),
+          writeProps);
     }
   }
 
