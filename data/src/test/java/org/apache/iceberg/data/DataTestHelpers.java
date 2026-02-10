@@ -31,6 +31,14 @@ import org.apache.iceberg.variants.VariantTestUtil;
 public class DataTestHelpers {
   private DataTestHelpers() {}
 
+  public static void assertEquals(
+      Types.StructType struct, List<Record> expected, List<Record> actual) {
+    assertThat(actual).hasSize(expected.size());
+    for (int i = 0; i < expected.size(); i += 1) {
+      assertEquals(struct, expected.get(i), actual.get(i), null, -1);
+    }
+  }
+
   public static void assertEquals(Types.StructType struct, Record expected, Record actual) {
     assertEquals(struct, expected, actual, null, -1);
   }

@@ -170,12 +170,10 @@ public final class FormatModelRegistry {
    * @param outputFile destination for the written data
    * @return a configured delete write builder for creating a {@link PositionDeleteWriter}
    */
-  @SuppressWarnings("unchecked")
   public static <D> FileWriterBuilder<PositionDeleteWriter<D>, ?> positionDeleteWriteBuilder(
       FileFormat format, EncryptedOutputFile outputFile) {
-    Class<PositionDelete<D>> deleteClass =
-        (Class<PositionDelete<D>>) (Class<?>) PositionDelete.class;
-    FormatModel<PositionDelete<D>, ?> model = FormatModelRegistry.modelFor(format, deleteClass);
+    FormatModel<PositionDelete<D>, ?> model =
+        FormatModelRegistry.modelFor(format, PositionDelete.deleteClass());
     return FileWriterBuilderImpl.forPositionDelete(model, outputFile);
   }
 

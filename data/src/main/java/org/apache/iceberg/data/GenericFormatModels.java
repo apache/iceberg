@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.data;
 
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.avro.PlannedDataReader;
@@ -29,12 +28,12 @@ public class GenericFormatModels {
     FormatModelRegistry.register(
         AvroFormatModel.create(
             Record.class,
-            Schema.class,
+            Void.class,
             (icebergSchema, fileSchema, engineSchema) -> DataWriter.create(fileSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 PlannedDataReader.create(icebergSchema, idToConstant)));
 
-    FormatModelRegistry.register(AvroFormatModel.forDelete());
+    FormatModelRegistry.register(AvroFormatModel.forPositionDeletes());
   }
 
   private GenericFormatModels() {}

@@ -35,15 +35,16 @@ import org.apache.iceberg.formats.ModelWriteBuilder;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class AvroFormatModel<D, S>
     extends BaseFormatModel<D, S, DatumWriter<D>, DatumReader<D>, Schema> {
 
-  @SuppressWarnings("rawtypes")
-  public static AvroFormatModel<PositionDelete, Object> forDelete() {
-    return new AvroFormatModel<>(PositionDelete.class, null, null, null);
+  public static <D> AvroFormatModel<PositionDelete<D>, Object> forPositionDeletes() {
+    return new AvroFormatModel<>(PositionDelete.deleteClass(), null, null, null);
   }
 
   public static <D, S> AvroFormatModel<D, S> create(
@@ -156,7 +157,7 @@ public class AvroFormatModel<D, S>
     }
 
     @Override
-    public org.apache.iceberg.io.FileAppender<D> build() throws IOException {
+    public FileAppender<D> build() throws IOException {
       switch (content) {
         case DATA:
           internal.createContextFunc(Avro.WriteBuilder.Context::dataContext);
@@ -169,6 +170,15 @@ public class AvroFormatModel<D, S>
               avroSchema -> writerFunction.write(schema, avroSchema, engineSchema));
           break;
         case POSITION_DELETES:
+          Preconditions.checkState(
+              schema == null,
+              "Invalid schema: %s. Position deletes with schema are not supported by the API.",
+              schema);
+          Preconditions.checkState(
+              engineSchema == null,
+              "Invalid engineSchema: %s. Position deletes with schema are not supported by the API.",
+              engineSchema);
+
           internal.createContextFunc(Avro.WriteBuilder.Context::deleteContext);
           internal.createWriterFunc(unused -> new Avro.PositionDatumWriter());
           internal.schema(DeleteSchemaUtil.pathPosSchema());
