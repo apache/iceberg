@@ -52,13 +52,8 @@ class SparkLocalScan implements LocalScan {
   }
 
   @Override
-  public String description() {
+  public String toString() {
     String filtersDesc = Spark3Util.describe(filterExpressions);
     return String.format("IcebergLocalScan(table=%s, filters=%s)", table, filtersDesc);
-  }
-
-  @Override
-  public String toString() {
-    return description();
   }
 }
