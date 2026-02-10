@@ -43,7 +43,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.openjdk.jmh.annotations.Benchmark;
