@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.StructLikeSet;
@@ -253,7 +254,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   protected String groupingKeyDesc() {
     return groupingKeyType().fields().stream()
-        .map(org.apache.iceberg.types.Types.NestedField::name)
+        .map(NestedField::name)
         .collect(Collectors.joining(", "));
   }
 }
