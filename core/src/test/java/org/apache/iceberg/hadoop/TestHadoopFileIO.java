@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.apache.iceberg.hadoop.HadoopFileIO.BULK_DELETE_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -25,6 +26,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -33,11 +35,14 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -47,6 +52,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHadoopFileIO {
   private final Random random = new Random(1);
@@ -58,14 +64,32 @@ public class TestHadoopFileIO {
 
   @BeforeEach
   public void before() throws Exception {
-    Configuration conf = new Configuration();
-    fs = FileSystem.getLocal(conf);
+    resetBinding(false);
+  }
 
-    hadoopFileIO = new HadoopFileIO(conf);
+  /**
+   * Resets fs and hadoopFileIO fields to a configuration built from the supplied settings. The two
+   * settings are not orthogonal; if bulk delete is enabled then deleteFiles() hands off to the FS
+   * and its bulk delete operation, while single file delete may still go through trash.
+   *
+   * @param bulkDelete use bulk delete
+   * @throws UncheckedIOException on failures to create a new FS.
+   */
+  private void resetBinding(boolean bulkDelete) {
+    Configuration conf = new Configuration();
+    conf.setBoolean(BULK_DELETE_ENABLED, bulkDelete);
+    try {
+      FileSystem.closeAllForUGI(UserGroupInformation.getCurrentUser());
+      fs = FileSystem.getLocal(conf);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    hadoopFileIO = new HadoopFileIO(fs.getConf());
   }
 
   @Test
-  public void testListPrefix() {
+  public void testListPrefixAndDeleteFiles() {
+    resetBinding(true);
     Path parent = new Path(tempDir.toURI());
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
@@ -82,8 +106,16 @@ public class TestHadoopFileIO {
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertThat(Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count())
+    final String parentString = parent.toUri().toString();
+    final List<FileInfo> files =
+        Streams.stream(hadoopFileIO.listPrefix(parentString)).collect(Collectors.toList());
+    assertThat(files.size())
+        .describedAs("Files found under %s", parentString)
         .isEqualTo(totalFiles);
+
+    // Delete the files.
+    final Iterator<String> locations = files.stream().map(FileInfo::location).iterator();
+    hadoopFileIO.deleteFiles(() -> locations);
   }
 
   @Test
@@ -96,6 +128,9 @@ public class TestHadoopFileIO {
     assertThat(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isTrue();
     fs.delete(randomFilePath, false);
     assertThat(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isFalse();
+    assertThatThrownBy(
+            () -> hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).getLength())
+        .isInstanceOf(NotFoundException.class);
   }
 
   @Test
@@ -136,13 +171,28 @@ public class TestHadoopFileIO {
         file -> assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
   }
 
-  @Test
-  public void testDeleteFilesErrorHandling() {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testDeleteFilesErrorHandling(boolean bulkDelete) {
+    resetBinding(bulkDelete);
+    hadoopFileIO = new HadoopFileIO(fs.getConf());
+    assertThat(hadoopFileIO.bulkDeleteAvailable())
+        .describedAs("Bulk Delete API use")
+        .isEqualTo(bulkDelete);
+    Path parent = new Path(tempDir.toURI());
+
     List<String> filesCreated =
         random.ints(2).mapToObj(x -> "fakefsnotreal://file-" + x).collect(Collectors.toList());
+    // one file in the local FS which doesn't actually exist but whose scheme is valid
+    // this MUST NOT be recorded as a failure
+    filesCreated.add(new Path(parent, "file-not-exist").toUri().toString());
     assertThatThrownBy(() -> hadoopFileIO.deleteFiles(filesCreated))
+        .describedAs("Exception raised by deleteFiles()")
         .isInstanceOf(BulkDeletionFailureException.class)
-        .hasMessage("Failed to delete 2 files");
+        .hasMessage("Failed to delete 2 files")
+        .matches(
+            (e) -> ((BulkDeletionFailureException) e).numberFailedObjects() == 2,
+            "Wrong number of failures");
   }
 
   @ParameterizedTest
@@ -234,5 +284,40 @@ public class TestHadoopFileIO {
               }
             });
     return paths;
+  }
+
+  /**
+   * Create a file at a path, overwriting any existing file.
+   *
+   * @param path path of file.
+   */
+  private void touch(Path path) {
+    try {
+      fs.create(path, true).close();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  /**
+   * Assert a path exists.
+   *
+   * @param path URI to file/dir.
+   */
+  private void assertPathExists(String path) {
+    assertThat(hadoopFileIO.newInputFile(path).exists())
+        .describedAs("File %s must exist", path)
+        .isTrue();
+  }
+
+  /**
+   * Assert a path does not exist.
+   *
+   * @param path URI to file/dir.
+   */
+  private void assertPathDoesNotExist(String path) {
+    assertThat(hadoopFileIO.newInputFile(path).exists())
+        .describedAs("File %s must exist", path)
+        .isFalse();
   }
 }
