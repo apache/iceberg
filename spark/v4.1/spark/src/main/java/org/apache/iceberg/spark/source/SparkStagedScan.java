@@ -86,13 +86,11 @@ class SparkStagedScan extends SparkScan {
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(), taskSetId, readSchema(), splitSize, splitSize, openFileCost);
+        table().name(), taskSetId, readSchema(), splitSize, splitLookback, openFileCost);
   }
 
   @Override
-  public String toString() {
-    return String.format(
-        "IcebergStagedScan(table=%s, type=%s, taskSetID=%s, caseSensitive=%s)",
-        table(), expectedSchema().asStruct(), taskSetId, caseSensitive());
+  public String description() {
+    return String.format("IcebergStagedScan(table=%s, taskSetID=%s)", table(), taskSetId);
   }
 }
