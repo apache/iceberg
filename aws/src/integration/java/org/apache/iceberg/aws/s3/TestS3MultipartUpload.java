@@ -36,6 +36,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /** Long-running tests to ensure multipart upload logic is resilient */
@@ -141,25 +143,27 @@ public class TestS3MultipartUpload {
     }
   }
 
-  @Test
-  public void testMultipartUploadWithChunkedEncodingDisabled() throws IOException {
-    // Create a new S3FileIO with chunked encoding disabled
-    S3FileIO ioWithoutChunkedEncoding = new S3FileIO(() -> s3);
-    ioWithoutChunkedEncoding.initialize(
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testMultipartUploadWithChunkedEncoding(boolean chunkedEncodingEnabled)
+      throws IOException {
+    // Create a new S3FileIO with specified chunked encoding setting
+    S3FileIO testIo = new S3FileIO(() -> s3);
+    testIo.initialize(
         ImmutableMap.of(
             S3FileIOProperties.MULTIPART_SIZE,
             Integer.toString(S3FileIOProperties.MULTIPART_SIZE_MIN),
             S3FileIOProperties.CHECKSUM_ENABLED,
             "true",
             S3FileIOProperties.CHUNKED_ENCODING_ENABLED,
-            "false"));
+            Boolean.toString(chunkedEncodingEnabled)));
 
-    String testObjectUri = objectUri + "-no-chunked-encoding";
+    String testObjectUri =
+        objectUri + (chunkedEncodingEnabled ? "-chunked-enabled" : "-chunked-disabled");
     int parts = 10;
 
-    // Write data with chunked encoding disabled
-    try (PositionOutputStream outputStream =
-        ioWithoutChunkedEncoding.newOutputFile(testObjectUri).create()) {
+    // Write data with specified chunked encoding setting
+    try (PositionOutputStream outputStream = testIo.newOutputFile(testObjectUri).create()) {
       for (int i = 0; i < parts; i++) {
         for (long j = 0; j < S3FileIOProperties.MULTIPART_SIZE_MIN; j++) {
           outputStream.write(random.nextInt());
@@ -168,7 +172,7 @@ public class TestS3MultipartUpload {
     }
 
     // Verify the file was uploaded successfully
-    assertThat(ioWithoutChunkedEncoding.newInputFile(testObjectUri).getLength())
+    assertThat(testIo.newInputFile(testObjectUri).getLength())
         .isEqualTo(parts * (long) S3FileIOProperties.MULTIPART_SIZE_MIN);
   }
 
