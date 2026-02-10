@@ -488,7 +488,7 @@ public class MetricsUtil {
     }
 
     BaseContentStats.Builder builder = BaseContentStats.builder().withTableSchema(schema);
-    Map<Integer, BaseFieldStats<?>> map = Maps.newHashMap();
+    Map<Integer, BaseFieldStats.Builder<Object>> map = Maps.newHashMap();
     mergeCountMetric(map, metrics.valueCounts(), BaseFieldStats.Builder::valueCount);
     mergeCountMetric(map, metrics.nullValueCounts(), BaseFieldStats.Builder::nullValueCount);
     mergeCountMetric(map, metrics.nanValueCounts(), BaseFieldStats.Builder::nanValueCount);
@@ -497,14 +497,13 @@ public class MetricsUtil {
     mergeBoundMetric(
         map, metrics.upperBounds(), metrics.originalTypes(), BaseFieldStats.Builder::upperBound);
 
-    map.values().forEach(builder::withFieldStats);
+    map.values().forEach(fieldStats -> builder.withFieldStats(fieldStats.build()));
 
     return builder.build();
   }
 
-  @SuppressWarnings("unchecked")
   private static void mergeCountMetric(
-      Map<Integer, BaseFieldStats<?>> fieldStatsById,
+      Map<Integer, BaseFieldStats.Builder<Object>> fieldStatsById,
       Map<Integer, Long> counts,
       BiFunction<BaseFieldStats.Builder<Object>, Long, BaseFieldStats.Builder<Object>> setter) {
     if (counts == null) {
@@ -515,16 +514,12 @@ public class MetricsUtil {
         (id, value) ->
             fieldStatsById.merge(
                 id,
-                setter.apply(BaseFieldStats.builder().fieldId(id), value).build(),
-                (oldVal, newVal) ->
-                    setter
-                        .apply(BaseFieldStats.buildFrom((BaseFieldStats<Object>) oldVal), value)
-                        .build()));
+                setter.apply(BaseFieldStats.builder().fieldId(id), value),
+                (oldVal, newVal) -> setter.apply(oldVal, value)));
   }
 
-  @SuppressWarnings("unchecked")
   private static void mergeBoundMetric(
-      Map<Integer, BaseFieldStats<?>> fieldStatsById,
+      Map<Integer, BaseFieldStats.Builder<Object>> fieldStatsById,
       Map<Integer, ByteBuffer> bounds,
       Map<Integer, Type> originalTypes,
       BiFunction<BaseFieldStats.Builder<Object>, Object, BaseFieldStats.Builder<Object>> setter) {
@@ -541,13 +536,8 @@ public class MetricsUtil {
               Object boundValue = Conversions.fromByteBuffer(type, entry.getValue());
               fieldStatsById.merge(
                   id,
-                  setter.apply(BaseFieldStats.builder().fieldId(id).type(type), boundValue).build(),
-                  (oldVal, newVal) ->
-                      setter
-                          .apply(
-                              BaseFieldStats.buildFrom((BaseFieldStats<Object>) oldVal).type(type),
-                              boundValue)
-                          .build());
+                  setter.apply(BaseFieldStats.builder().fieldId(id).type(type), boundValue),
+                  (oldVal, newVal) -> setter.apply(oldVal.type(type), boundValue));
             });
   }
 }
