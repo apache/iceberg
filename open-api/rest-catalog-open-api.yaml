@@ -556,7 +556,7 @@ paths:
       tags:
         - Catalog API
       summary: Create a table in the given namespace
-      description: 
+      description:
         Create a table or start a create transaction, like atomic CTAS.
 
 
