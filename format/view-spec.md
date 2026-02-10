@@ -206,7 +206,7 @@ When evaluating freshness, consumers:
 - May compare the `source-states` list against the states loaded from the catalog to verify the producer's freshness interpretation.
 - May parse the view definition to implement more sophisticated policies.
 - When a materialized view is considered stale, can fail, refresh inline, or treat the materialized view as a logical view.
-- Should not consume the storage table when the materialized view doesn't meet freshness criteria.
+- Should not consume the storage table as it is when the materialized view doesn't meet the freshness criteria.
 
 **Producer behavior:**
 
