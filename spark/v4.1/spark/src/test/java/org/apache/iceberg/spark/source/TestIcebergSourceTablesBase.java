@@ -1760,6 +1760,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
+            .set("total_position_delete_file_size_in_bytes", 0L)
             .set("equality_delete_record_count", 2L) // should be incremented now
             .set("equality_delete_file_count", 2) // should be incremented now
             .set(
