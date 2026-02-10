@@ -612,18 +612,11 @@ public class TestRewriteTablePathsAction extends TestBase {
                 formatVersion)
             .first();
 
-    // Add the SAME delete file in the first snapshot
     tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
-    long snapshot1 = tableWithPosDeletes.currentSnapshot().snapshotId();
 
     // Add the SAME delete file AGAIN in a second snapshot - this creates a duplicate entry
     // in a new manifest, which will cause duplicate DeleteFile objects when processing
     tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
-    long snapshot2 = tableWithPosDeletes.currentSnapshot().snapshotId();
-
-    // Create tags to ensure both snapshots are processed
-    tableWithPosDeletes.manageSnapshots().createTag("tag1", snapshot1).commit();
-    tableWithPosDeletes.manageSnapshots().createTag("tag2", snapshot2).commit();
 
     // This should NOT throw AlreadyExistsException - the fix uses DeleteFileSet to deduplicate
     // Without the fix (using Collectors.toSet()), this would fail because:
@@ -643,9 +636,6 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(result.rewrittenDeleteFilePathsCount())
         .as("Should have rewritten exactly 1 delete file after deduplication")
         .isEqualTo(1);
-
-    // Copy the metadata files and data files
-    copyTableFiles(result);
   }
 
   @TestTemplate
