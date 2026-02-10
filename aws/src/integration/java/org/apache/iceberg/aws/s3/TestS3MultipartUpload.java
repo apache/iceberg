@@ -141,6 +141,37 @@ public class TestS3MultipartUpload {
     }
   }
 
+  @Test
+  public void testMultipartUploadWithChunkedEncodingDisabled() throws IOException {
+    // Create a new S3FileIO with chunked encoding disabled
+    S3FileIO ioWithoutChunkedEncoding = new S3FileIO(() -> s3);
+    ioWithoutChunkedEncoding.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.MULTIPART_SIZE,
+            Integer.toString(S3FileIOProperties.MULTIPART_SIZE_MIN),
+            S3FileIOProperties.CHECKSUM_ENABLED,
+            "true",
+            S3FileIOProperties.CHUNKED_ENCODING_ENABLED,
+            "false"));
+
+    String testObjectUri = objectUri + "-no-chunked-encoding";
+    int parts = 10;
+
+    // Write data with chunked encoding disabled
+    try (PositionOutputStream outputStream =
+        ioWithoutChunkedEncoding.newOutputFile(testObjectUri).create()) {
+      for (int i = 0; i < parts; i++) {
+        for (long j = 0; j < S3FileIOProperties.MULTIPART_SIZE_MIN; j++) {
+          outputStream.write(random.nextInt());
+        }
+      }
+    }
+
+    // Verify the file was uploaded successfully
+    assertThat(ioWithoutChunkedEncoding.newInputFile(testObjectUri).getLength())
+        .isEqualTo(parts * (long) S3FileIOProperties.MULTIPART_SIZE_MIN);
+  }
+
   private void writeInts(String fileUri, int parts, Supplier<Integer> writer) {
     writeInts(fileUri, parts, S3FileIOProperties.MULTIPART_SIZE_MIN, writer);
   }
