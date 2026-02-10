@@ -126,7 +126,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   }
 
   @Override
-  public String toString() {
+  public String description() {
     return String.format(
         Locale.ROOT,
         "IcebergChangelogScan(table=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s)",

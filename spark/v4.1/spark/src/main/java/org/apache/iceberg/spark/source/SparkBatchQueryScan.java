@@ -280,7 +280,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   }
 
   @Override
-  public String toString() {
+  public String description() {
     return String.format(
         "IcebergScan(table=%s, branch=%s, filters=%s, runtimeFilters=%s, groupedBy=%s)",
         table(), branch(), filtersDesc(), runtimeFiltersDesc(), groupingKeyDesc());

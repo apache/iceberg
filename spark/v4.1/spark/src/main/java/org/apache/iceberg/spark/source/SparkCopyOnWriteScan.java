@@ -174,7 +174,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   }
 
   @Override
-  public String toString() {
+  public String description() {
     return String.format(
         "IcebergCopyOnWriteScan(table=%s, filters=%s, groupedBy=%s)",
         table(), filtersDesc(), groupingKeyDesc());

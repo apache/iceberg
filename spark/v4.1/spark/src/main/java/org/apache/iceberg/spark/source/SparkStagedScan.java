@@ -90,7 +90,7 @@ class SparkStagedScan extends SparkScan {
   }
 
   @Override
-  public String toString() {
+  public String description() {
     return String.format("IcebergStagedScan(table=%s, taskSetID=%s)", table(), taskSetId);
   }
 }
