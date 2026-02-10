@@ -76,8 +76,8 @@ import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.util.UUIDUtil;
-import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.Variant;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -964,7 +964,9 @@ public class TestRecordConverter {
     when(table.schema()).thenReturn(VARIANT_SCHEMA);
     RecordConverter converter = new RecordConverter(table, config);
 
-    Record record = converter.convert(ImmutableMap.of("v", ImmutableMap.of("hello", ImmutableMap.of("world", 1))));
+    Record record =
+        converter.convert(
+            ImmutableMap.of("v", ImmutableMap.of("hello", ImmutableMap.of("world", 1))));
     Variant variant = (Variant) record.getField("v");
 
     assertThat(variant).isNotNull();
@@ -975,8 +977,10 @@ public class TestRecordConverter {
     assertThat(variant.value().asObject().numFields()).isEqualTo(1);
     assertThat(variant.value().asObject().get("hello").type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(variant.value().asObject().get("hello").asObject().numFields()).isEqualTo(1);
-    assertThat(variant.value().asObject().get("hello").asObject().get("world").type()).isEqualTo(PhysicalType.INT32);
-    assertThat(variant.value().asObject().get("hello").asObject().get("world").asPrimitive().get()).isEqualTo(1);
+    assertThat(variant.value().asObject().get("hello").asObject().get("world").type())
+        .isEqualTo(PhysicalType.INT32);
+    assertThat(variant.value().asObject().get("hello").asObject().get("world").asPrimitive().get())
+        .isEqualTo(1);
   }
 
   public static Map<String, Object> createMapData() {
