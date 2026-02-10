@@ -298,14 +298,14 @@ public class S3FileIOProperties implements Serializable {
   /**
    * Enables or disables chunked encoding for S3 requests.
    *
-   * <p>This feature is enabled by default.
+   * <p>This feature is disabled by default.
    *
    * <p>For more details see:
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/s3/S3Configuration.html#chunkedEncodingEnabled()
    */
   public static final String CHUNKED_ENCODING_ENABLED = "s3.chunked-encoding-enabled";
 
-  public static final boolean CHUNKED_ENCODING_ENABLED_DEFAULT = true;
+  public static final boolean CHUNKED_ENCODING_ENABLED_DEFAULT = false;
 
   /** Configure the batch size used when deleting multiple files from a given S3 bucket */
   public static final String DELETE_BATCH_SIZE = "s3.delete.batch-size";
