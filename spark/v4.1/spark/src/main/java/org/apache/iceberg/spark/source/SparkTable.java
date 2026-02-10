@@ -400,7 +400,7 @@ public class SparkTable
             .deleteFromRowFilter(deleteExpr);
 
     if (SparkTableUtil.wapEnabled(table())) {
-      branch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
+      branch = SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
     }
 
     if (branch != null) {
