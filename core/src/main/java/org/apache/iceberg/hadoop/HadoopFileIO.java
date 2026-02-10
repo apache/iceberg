@@ -52,14 +52,15 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
   private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
-  public static final String DELETE_TRASH_SCHEMAS = "iceberg.hadoop.delete-trash-schemas";
-  private static final String[] DEFAULT_TRASH_SCHEMAS = {"hdfs", "viewfs"};
+  public static final String DELETE_TRASH_SCHEMES = "iceberg.hadoop.delete-trash-schemes";
+  private static final String[] DEFAULT_TRASH_SCHEMES = {"hdfs", "viewfs"};
   private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
   private static volatile ExecutorService executorService;
 
   private volatile SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
+  private String[] trashSchemes;
 
   /**
    * Constructor used for dynamic FileIO loading.
@@ -108,7 +109,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     try {
       deletePath(fs, toDelete, false);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to delete file: %s: %s", path, e.toString());
+      throw new RuntimeIOException(e, "Failed to delete file: %s", path);
     }
   }
 
@@ -216,16 +217,22 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   /**
-   * Is a path in a schema of a filesystem where the hadoop trash policy should be used to move to
-   * it to trash?
+   * Should trash be used to delete a file at this path.
    *
    * @param toDelete path to delete
-   * @return true if the path is in the list of schemas for which the
+   * @return true if the path is to be moved to trash rather than deleted.
    */
   @VisibleForTesting
-  boolean isTrashSchema(Path toDelete) {
+  boolean useTrashForPath(Path toDelete) {
+    if (trashSchemes == null) {
+      // load the trash schemes from the config.
+      // there's a nominal race condition as two threads could do this simultaneously,
+      // but the entry they read is the same so it doesn't matter who writes
+      // the array last.
+      trashSchemes = getConf().getTrimmedStrings(DELETE_TRASH_SCHEMES, DEFAULT_TRASH_SCHEMES);
+    }
     final String scheme = toDelete.toUri().getScheme();
-    for (String s : getConf().getTrimmedStrings(DELETE_TRASH_SCHEMAS, DEFAULT_TRASH_SCHEMAS)) {
+    for (String s : trashSchemes) {
       if (s.equalsIgnoreCase(scheme)) {
         return true;
       }
@@ -236,7 +243,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   /**
    * Delete a path.
    *
-   * <p>If the filesystem is in the trash schemas, it will attempt to move it to trash. If there is
+   * <p>If the filesystem supports trash, it will attempt to move it to trash. If there is
    * any failure to move to trash then the fallback is to delete the path. As a result: when this
    * operation returns there will not be a file/dir at the target path.
    *
@@ -246,7 +253,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
    * @throws IOException on a delete failure.
    */
   private void deletePath(FileSystem fs, Path toDelete, boolean recursive) throws IOException {
-    if (isTrashSchema(toDelete)) {
+    if (useTrashForPath(toDelete)) {
       try {
         // use moveToAppropriateTrash() which not only resolves through mounted filesystems like
         // viewfs,

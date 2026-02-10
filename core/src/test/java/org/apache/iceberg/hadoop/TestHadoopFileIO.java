@@ -19,7 +19,7 @@
 package org.apache.iceberg.hadoop;
 
 import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.FS_TRASH_INTERVAL_KEY;
-import static org.apache.iceberg.hadoop.HadoopFileIO.DELETE_TRASH_SCHEMAS;
+import static org.apache.iceberg.hadoop.HadoopFileIO.DELETE_TRASH_SCHEMES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -93,7 +93,7 @@ public class TestHadoopFileIO {
     trashEnabled = useTrash;
     if (useTrash) {
       conf.set(FS_TRASH_INTERVAL_KEY, "60");
-      conf.set(DELETE_TRASH_SCHEMAS, " file , hdfs, viewfs");
+      conf.set(DELETE_TRASH_SCHEMES, " file , hdfs, viewfs");
     }
     try {
       FileSystem.closeAllForUGI(UserGroupInformation.getCurrentUser());
@@ -218,13 +218,13 @@ public class TestHadoopFileIO {
   @Test
   public void testDefaultTrashSchemas() {
     // hdfs is a default trash schema; viewfs is, file isn't
-    assertThat(hadoopFileIO.isTrashSchema(new Path("hdfs:///")))
+    assertThat(hadoopFileIO.useTrashForPath(new Path("hdfs:///")))
         .describedAs("hdfs schema")
         .isTrue();
-    assertThat(hadoopFileIO.isTrashSchema(new Path("viewfs:///")))
+    assertThat(hadoopFileIO.useTrashForPath(new Path("viewfs:///")))
         .describedAs("viewfs schema")
         .isTrue();
-    assertThat(hadoopFileIO.isTrashSchema(new Path("file:///")))
+    assertThat(hadoopFileIO.useTrashForPath(new Path("file:///")))
         .describedAs("file schema")
         .isFalse();
   }
@@ -233,16 +233,16 @@ public class TestHadoopFileIO {
   public void testRemoveTrashSchemas() {
     // set the schema list to "" and verify that the default values are gone
     final Configuration conf = new Configuration(false);
-    conf.set(DELETE_TRASH_SCHEMAS, "");
+    conf.set(DELETE_TRASH_SCHEMES, "");
     hadoopFileIO = new HadoopFileIO(conf);
-    assertThat(hadoopFileIO.isTrashSchema(new Path("hdfs:///"))).isFalse();
+    assertThat(hadoopFileIO.useTrashForPath(new Path("hdfs:///"))).isFalse();
   }
 
   @Test
   public void testDeleteFilesWithTrashEnabled() {
     resetBinding(true);
     hadoopFileIO = new HadoopFileIO(fs.getConf());
-    assertThat(hadoopFileIO.isTrashSchema(new Path("file:///"))).isTrue();
+    assertThat(hadoopFileIO.useTrashForPath(new Path("file:///"))).isTrue();
 
     Path parent = new Path(tempDir.toURI());
     List<Path> filesCreated = createRandomFiles(parent, 10);
@@ -280,7 +280,7 @@ public class TestHadoopFileIO {
 
     // now create the file IO with the same conf.
     hadoopFileIO = new HadoopFileIO(conf);
-    assertThat(hadoopFileIO.isTrashSchema(new Path("file:///"))).isTrue();
+    assertThat(hadoopFileIO.useTrashForPath(new Path("file:///"))).isTrue();
 
     Path parent = new Path(tempDir.toURI());
     Path path = new Path(parent, "child");

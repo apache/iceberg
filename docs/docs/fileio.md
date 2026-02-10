@@ -51,4 +51,4 @@ Configuration options for these filesystems are generally through properties set
 
 | Property                            | Default        | Description                                                                  |
 |-------------------------------------|----------------|------------------------------------------------------------------------------|
-| iceberg.hadoop.delete-trash-schemas | "hdfs, viewfs" | Filesystem schemas where the trash feature is to be used when deleting files |
+| iceberg.hadoop.delete-trash-schemes | "hdfs, viewfs" | Filesystem schemes where the trash feature is to be used when deleting files |
