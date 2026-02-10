@@ -585,6 +585,6 @@ public class TestS3FileIOProperties {
 
     assertThat(s3FileIOProperties.isChunkedEncodingEnabled())
         .as("chunked encoding should be enabled when explicitly set to true")
-        .isFalse();
+        .isTrue();
   }
 }
