@@ -62,6 +62,10 @@ public class S3SignerServlet extends RemoteSignerServlet {
 
   @Override
   protected void validateSignRequest(RemoteSignRequest request) {
+    Preconditions.checkArgument(
+        request.provider() == null || "s3".equalsIgnoreCase(request.provider()),
+        "Unsupported provider: %s",
+        request.provider());
     if (HttpMethod.POST.name().equalsIgnoreCase(request.method())
         && request.uri().getQuery().contains("delete")) {
       String body = request.body();

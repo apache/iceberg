@@ -1252,12 +1252,11 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/{prefix}/namespaces/{namespace}/tables/{table}/sign/{provider}:
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/sign:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
-      - $ref: '#/components/parameters/provider'
 
     post:
       tags:
@@ -1984,15 +1983,6 @@ components:
       schema:
         type: string
       example: "sales"
-
-    provider:
-      name: provider
-      in: path
-      description: The target object storage provider for which to sign the request (e.g. `s3`).
-      required: true
-      schema:
-        type: string
-      example: "s3"
 
     data-access:
       name: X-Iceberg-Access-Delegation
@@ -4749,6 +4739,10 @@ components:
           description: Optional body of the request to send to the signing API. This should only be populated
             for requests where the body of the message contains content which must be validated before a request is
             signed, such as the S3 DeleteObjects call.
+        provider:
+          type: string
+          description: The storage provider for which the request is to be signed. Optional; if absent, AWS S3 should be
+            assumed. Provider names are case-insensitive.
 
     RemoteSignResult:
       description: The result of a remote request signing operation.

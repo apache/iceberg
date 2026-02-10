@@ -37,6 +37,7 @@ public class RemoteSignRequestParser {
   private static final String HEADERS = "headers";
   private static final String PROPERTIES = "properties";
   private static final String BODY = "body";
+  private static final String PROVIDER = "provider";
 
   private RemoteSignRequestParser() {}
 
@@ -64,6 +65,10 @@ public class RemoteSignRequestParser {
 
     if (request.body() != null && !request.body().isEmpty()) {
       gen.writeStringField(BODY, request.body());
+    }
+
+    if (request.provider() != null) {
+      gen.writeStringField(PROVIDER, request.provider());
     }
 
     gen.writeEndObject();
@@ -96,6 +101,10 @@ public class RemoteSignRequestParser {
 
     if (json.has(BODY)) {
       builder.body(JsonUtil.getString(BODY, json));
+    }
+
+    if (json.has(PROVIDER)) {
+      builder.provider(JsonUtil.getString(PROVIDER, json));
     }
 
     return builder.build();

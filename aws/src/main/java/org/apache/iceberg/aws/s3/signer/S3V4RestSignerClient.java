@@ -69,6 +69,8 @@ public abstract class S3V4RestSignerClient
 
   private static final Logger LOG = LoggerFactory.getLogger(S3V4RestSignerClient.class);
 
+  public static final String S3_PROVIDER = "s3";
+
   /**
    * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
    *     RESTCatalogProperties#SIGNER_URI} instead.
@@ -310,6 +312,7 @@ public abstract class S3V4RestSignerClient
             .headers(request.headers())
             .properties(requestPropertiesSupplier().get())
             .body(bodyAsString(request))
+            .provider(S3_PROVIDER)
             .build();
 
     Key cacheKey = Key.from(remoteSigningRequest);

@@ -43,6 +43,9 @@ public interface RemoteSignRequest extends RESTRequest {
     return null;
   }
 
+  @Nullable
+  String provider();
+
   @Override
   default void validate() {}
 }

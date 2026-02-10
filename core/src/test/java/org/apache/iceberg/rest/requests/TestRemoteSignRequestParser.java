@@ -232,4 +232,46 @@ public class TestRemoteSignRequestParser {
                 + "  \"body\" : \"some-body\"\n"
                 + "}");
   }
+
+  @Test
+  public void roundTripWithProvider() {
+    RemoteSignRequest request =
+        ImmutableRemoteSignRequest.builder()
+            .uri(URI.create("http://localhost:49208/iceberg-signer-test"))
+            .method("PUT")
+            .region("us-west-2")
+            .headers(
+                ImmutableMap.of(
+                    "amz-sdk-request",
+                    Arrays.asList("attempt=1", "max=4"),
+                    "Content-Length",
+                    Collections.singletonList("191"),
+                    "Content-Type",
+                    Collections.singletonList("application/json"),
+                    "User-Agent",
+                    Arrays.asList("aws-sdk-java/2.20.18", "Linux/5.4.0-126")))
+            .properties(ImmutableMap.of("k1", "v1"))
+            .provider("s3")
+            .build();
+
+    String json = RemoteSignRequestParser.toJson(request, true);
+    assertThat(RemoteSignRequestParser.fromJson(json)).isEqualTo(request);
+    assertThat(json)
+        .isEqualTo(
+            "{\n"
+                + "  \"region\" : \"us-west-2\",\n"
+                + "  \"method\" : \"PUT\",\n"
+                + "  \"uri\" : \"http://localhost:49208/iceberg-signer-test\",\n"
+                + "  \"headers\" : {\n"
+                + "    \"amz-sdk-request\" : [ \"attempt=1\", \"max=4\" ],\n"
+                + "    \"Content-Length\" : [ \"191\" ],\n"
+                + "    \"Content-Type\" : [ \"application/json\" ],\n"
+                + "    \"User-Agent\" : [ \"aws-sdk-java/2.20.18\", \"Linux/5.4.0-126\" ]\n"
+                + "  },\n"
+                + "  \"properties\" : {\n"
+                + "    \"k1\" : \"v1\"\n"
+                + "  },\n"
+                + "  \"provider\" : \"s3\"\n"
+                + "}");
+  }
 }
