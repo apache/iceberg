@@ -156,7 +156,7 @@ public class ParquetWithFlinkSchemaVisitor<T> {
         // annotation.
         Preconditions.checkArgument(
             sType instanceof VariantType,
-            "Invalid variant: Spark type %s is not a variant type",
+            "Invalid variant: Flink type %s is not a variant type",
             sType);
         VariantType variant = (VariantType) sType;
 
