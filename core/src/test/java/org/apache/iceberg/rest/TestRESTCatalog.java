@@ -46,12 +46,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -65,6 +67,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManageSnapshots;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -3750,14 +3753,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     // Create branches from the main branch
     String[] branchNames = new String[numBranches];
+    ManageSnapshots manageSnapshots = table.manageSnapshots();
     for (int i = 0; i < numBranches; i++) {
       branchNames[i] = "branch-" + i;
-      table.manageSnapshots().createBranch(branchNames[i]).commit();
+      manageSnapshots = manageSnapshots.createBranch(branchNames[i]);
     }
+    manageSnapshots.commit();
 
-    AtomicInteger barrier = new AtomicInteger(0);
-    AtomicInteger successCount = new AtomicInteger(0);
-    AtomicInteger commitFailedCount = new AtomicInteger(0);
+    CyclicBarrier startBarrier = new CyclicBarrier(numBranches);
+    CyclicBarrier endBarrier = new CyclicBarrier(numBranches);
+    AtomicIntegerArray successPerRound = new AtomicIntegerArray(numRounds);
+    AtomicIntegerArray failuresPerRound = new AtomicIntegerArray(numRounds);
     AtomicInteger validationFailureCount = new AtomicInteger(0);
 
     ExecutorService executor =
@@ -3773,8 +3779,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               String branchName = branchNames[branchIdx];
 
               for (int round = 0; round < numRounds; round++) {
-                int currentRound = round;
-
                 // Load table
                 Table localTable = catalog.loadTable(tableIdent);
 
@@ -3787,26 +3791,35 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                         .withRecordCount(3)
                         .build();
 
-                // Wait for all threads to be ready to commit
-                barrier.incrementAndGet();
-                Awaitility.await()
-                    .atMost(10, TimeUnit.SECONDS)
-                    .until(() -> barrier.get() >= (currentRound + 1) * numBranches);
-
                 try {
+                  // Wait for all threads to be ready to commit
+                  startBarrier.await();
+
                   // All threads commit simultaneously
                   localTable.newFastAppend().appendFile(newFile).toBranch(branchName).commit();
-                  successCount.incrementAndGet();
+                  successPerRound.incrementAndGet(round);
                 } catch (CommitFailedException e) {
                   // Expected for conflicts - this is the correct behavior with the fix
-                  commitFailedCount.incrementAndGet();
+                  failuresPerRound.incrementAndGet(round);
                 } catch (ValidationException e) {
                   // This indicates the fix is not working
                   validationFailureCount.incrementAndGet();
                   throw e;
+                } catch (Exception e) {
+                  // Handle barrier exceptions
+                  throw new RuntimeException(e);
+                }
+
+                try {
+                  // Ensure all threads complete this round before starting the next
+                  endBarrier.await();
+                } catch (Exception e) {
+                  throw new RuntimeException(e);
                 }
               }
             });
+
+    executor.shutdown();
 
     int totalAttempts = numBranches * numRounds;
 
@@ -3817,18 +3830,28 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 + "not ValidationException")
         .isEqualTo(0);
 
-    // Verify at least one commit succeeded per round
-    assertThat(successCount.get())
-        .as("At least one commit should succeed per round")
-        .isGreaterThanOrEqualTo(numRounds);
-
-    // Verify some conflicts happened (proves concurrent contention occurred)
-    assertThat(commitFailedCount.get())
-        .as("Some commits should fail with CommitFailedException due to conflicts")
-        .isGreaterThan(0);
+    // Verify per-round exactly one success and (numBranches - 1) failures per round
+    for (int round = 0; round < numRounds; round++) {
+      assertThat(successPerRound.get(round))
+          .as("Exactly one commit should succeed in round " + round)
+          .isEqualTo(1);
+      assertThat(failuresPerRound.get(round))
+          .as("Exactly (numBranches - 1) commits should fail in round " + round)
+          .isEqualTo(numBranches - 1);
+    }
 
     // Verify no attempts were lost
-    assertThat(successCount.get() + commitFailedCount.get())
+    int totalSuccesses = 0;
+    int totalFailures = 0;
+    for (int round = 0; round < numRounds; round++) {
+      totalSuccesses += successPerRound.get(round);
+      totalFailures += failuresPerRound.get(round);
+    }
+
+    assertThat(totalSuccesses)
+        .as("Total successes should equal number of rounds")
+        .isEqualTo(numRounds);
+    assertThat(totalSuccesses + totalFailures)
         .as("All commit attempts should either succeed or fail with CommitFailedException")
         .isEqualTo(totalAttempts);
   }
