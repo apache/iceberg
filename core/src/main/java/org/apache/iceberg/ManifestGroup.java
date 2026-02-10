@@ -89,6 +89,11 @@ class ManifestGroup {
     this.scanMetrics = ScanMetrics.noop();
   }
 
+  ManifestGroup schemasById(Map<Integer, Schema> newSchemasById) {
+    deleteIndexBuilder.schemasById(newSchemasById);
+    return this;
+  }
+
   ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
     this.specsById = newSpecsById;
     deleteIndexBuilder.specsById(newSpecsById);

@@ -74,7 +74,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
   private final Table table;
-  private final String branch;
   private final boolean caseSensitive;
   private final String expectedSchema;
   private final Broadcast<Table> tableBroadcast;
@@ -98,7 +97,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
       Schema expectedSchema,
       String checkpointLocation) {
     this.table = table;
-    this.branch = readConf.branch();
     this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = SchemaParser.toJson(expectedSchema);
     this.localityPreferred = readConf.localityEnabled();
@@ -168,7 +166,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
               EMPTY_GROUPING_KEY_TYPE,
               combinedScanTasks.get(index),
               tableBroadcast,
-              branch,
               expectedSchema,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
