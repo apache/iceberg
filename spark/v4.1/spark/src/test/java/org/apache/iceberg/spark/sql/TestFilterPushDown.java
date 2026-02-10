@@ -676,7 +676,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
     assertThat(planAsString)
         .as("Pushed filters must match")
-        .contains("[filters=" + icebergFilters + ",");
+        .contains("filters=" + icebergFilters + ",");
   }
 
   private Timestamp timestamp(String timestampAsString) {

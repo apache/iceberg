@@ -250,4 +250,10 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
     return keys;
   }
+
+  protected String groupingKeyDesc() {
+    return groupingKeyType().fields().stream()
+        .map(org.apache.iceberg.types.Types.NestedField::name)
+        .collect(Collectors.joining(", "));
+  }
 }
