@@ -255,7 +255,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     // field lookup for serializable tables that assumes fetching historic schemas is expensive
     private static class FieldLookup implements Function<Integer, Types.NestedField> {
       private final Table table;
-
       private volatile Map<Integer, Types.NestedField> historicSchemaFields;
 
       private FieldLookup(Table table) {
@@ -276,7 +275,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
             }
           }
         }
-
         return historicSchemaFields;
       }
 

@@ -632,7 +632,14 @@ public class Schema implements Serializable {
     }
   }
 
-  // indexes all fields from schemas, preferring field definitions from higher schema IDs
+  /**
+   * Indexes all fields from schemas.
+   *
+   * <p>This method favors field definitions from higher schema IDs to handle type promotions.
+   *
+   * @param schemas the collection of schemas to index
+   * @return a map of field IDs to fields
+   */
   public static Map<Integer, NestedField> indexFields(Collection<Schema> schemas) {
     if (schemas.size() == 1) {
       Schema schema = Iterables.getOnlyElement(schemas);
@@ -640,21 +647,17 @@ public class Schema implements Serializable {
     }
 
     Map<Integer, NestedField> fields = Maps.newHashMap();
-    Set<Integer> seenSchemaIds = Sets.newHashSet();
 
-    for (Schema schema : sortByIdAsc(schemas)) {
-      if (!seenSchemaIds.contains(schema.schemaId())) {
-        fields.putAll(schema.lazyIdToField());
-        seenSchemaIds.add(schema.schemaId());
-      }
+    for (Schema schema : sortAndDeduplicate(schemas)) {
+      fields.putAll(schema.lazyIdToField());
     }
 
     return fields;
   }
 
-  private static List<Schema> sortByIdAsc(Collection<Schema> schemas) {
-    return schemas.stream()
-        .sorted(Comparator.comparingInt(Schema::schemaId))
-        .collect(Collectors.toList());
+  private static Set<Schema> sortAndDeduplicate(Collection<Schema> schemas) {
+    Set<Schema> sortedSchemas = Sets.newTreeSet(Comparator.comparingInt(Schema::schemaId));
+    sortedSchemas.addAll(schemas);
+    return sortedSchemas;
   }
 }
