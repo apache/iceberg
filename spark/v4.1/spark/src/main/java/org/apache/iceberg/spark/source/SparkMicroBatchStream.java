@@ -98,8 +98,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     InitialOffsetStore initialOffsetStore =
         new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
     this.initialOffset = initialOffsetStore.initialOffset();
-
-    this.planner = new SyncSparkMicroBatchPlanner(table, readConf, null);
   }
 
   @Override
@@ -136,6 +134,11 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
 
     StreamingOffset endOffset = (StreamingOffset) end;
     StreamingOffset startOffset = (StreamingOffset) start;
+
+    // Initialize planner if not already done (for resume scenarios)
+    if (planner == null) {
+      initializePlanner(startOffset, endOffset);
+    }
 
     List<FileScanTask> fileScanTasks = planner.planFiles(startOffset, endOffset);
 
@@ -187,7 +190,14 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
 
   @Override
   public void stop() {
-    planner.stop();
+    if (planner != null) {
+      planner.stop();
+    }
+  }
+
+  private void initializePlanner(StreamingOffset startOffset, StreamingOffset endOffset) {
+    this.planner =
+        new SyncSparkMicroBatchPlanner(table, readConf, lastOffsetForTriggerAvailableNow);
   }
 
   @Override
@@ -197,6 +207,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         startOffset instanceof StreamingOffset,
         "Invalid start offset: %s is not a StreamingOffset",
         startOffset);
+
+    // Initialize planner if not already done
+    if (planner == null) {
+      initializePlanner((StreamingOffset) startOffset, null);
+    }
+
     return planner.latestOffset((StreamingOffset) startOffset, limit);
   }
 
@@ -223,8 +239,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     lastOffsetForTriggerAvailableNow =
         (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
     LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow.json());
-    this.planner =
-        new SyncSparkMicroBatchPlanner(table, readConf, lastOffsetForTriggerAvailableNow);
+
+    // Reset planner so it gets recreated with the cap on next call
+    if (planner != null) {
+      planner.stop();
+      planner = null;
+    }
   }
 
   private static class InitialOffsetStore {
