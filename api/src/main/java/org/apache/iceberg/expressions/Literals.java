@@ -30,6 +30,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -586,6 +587,32 @@ class Literals {
           // do not change decimal scale
           BigDecimal decimal = new BigDecimal(value().toString());
           return (Literal<T>) new DecimalLiteral(decimal);
+
+        case FIXED:
+          try {
+            ByteBuffer b =
+                ByteBuffer.wrap(
+                    BaseEncoding.base16().decode(value().toString().toUpperCase(Locale.ROOT)));
+            Types.FixedType fixed = (Types.FixedType) type;
+            if (b.remaining() == fixed.length()) {
+              return (Literal<T>) new FixedLiteral(b);
+            }
+            return null;
+          } catch (IllegalArgumentException e) {
+            // Invalid hex string
+            return null;
+          }
+
+        case BINARY:
+          try {
+            return (Literal<T>)
+                new BinaryLiteral(
+                    ByteBuffer.wrap(
+                        BaseEncoding.base16().decode(value().toString().toUpperCase(Locale.ROOT))));
+          } catch (IllegalArgumentException e) {
+            // Invalid hex string
+            return null;
+          }
 
         default:
           return null;
