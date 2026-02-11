@@ -475,9 +475,7 @@ class RecordConverter {
   }
 
   protected Variant convertVariantValue(Object value) {
-    if (value instanceof Variant) {
-      return (Variant) value;
-    } else if (value instanceof ByteBuffer) {
+    if (value instanceof ByteBuffer) {
       return Variant.from((ByteBuffer) value);
     }
 
@@ -495,7 +493,7 @@ class RecordConverter {
    */
   private static List<String> collectFieldNames(Object value) {
     if (value == null) {
-      return Lists.newArrayList();
+      return List.of();
     }
     if (value instanceof Map) {
       Map<?, ?> map = (Map<?, ?>) value;
@@ -513,7 +511,7 @@ class RecordConverter {
       }
       return names;
     }
-    return Lists.newArrayList();
+    return List.of();
   }
 
   /**
