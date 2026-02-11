@@ -61,7 +61,7 @@ immutables-value = "2.12.1"
 jackson-annotations = "2.21"
 jackson-bom = "2.21.0"
 jackson214 = { strictly = "2.14.2"}
-jackson215 = { strictly = "2.15.2"}
+jackson215 = { strictly = "2.15.2"} # see rich version usage explanation above
 jakarta-el-api = "3.0.3"
 jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
