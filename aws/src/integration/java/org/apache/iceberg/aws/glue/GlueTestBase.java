@@ -65,6 +65,7 @@ public class GlueTestBase {
   // iceberg
   static GlueCatalog glueCatalog;
   static GlueCatalog glueCatalogWithSkipNameValidation;
+  static GlueCatalog glueCatalogWithUniqueLocation;
 
   static Schema schema =
       new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
@@ -105,6 +106,16 @@ public class GlueTestBase {
         GLUE,
         null,
         ImmutableMap.of());
+
+    glueCatalogWithUniqueLocation = new GlueCatalog();
+    glueCatalogWithUniqueLocation.initialize(
+        CATALOG_NAME,
+        TEST_BUCKET_PATH,
+        awsProperties,
+        s3FileIOProperties,
+        GLUE,
+        null,
+        true /* uniqTableLocation */);
   }
 
   @AfterAll
