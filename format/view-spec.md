@@ -58,6 +58,8 @@ Refresh metadata contains information about the "source tables", "source views",
 * **Schema** -- Names and types of fields in a view.
 * **Version** -- The state of a view at some point in time.
 * **Storage table** -- Iceberg table that stores the precomputed data of a materialized view.
+* **Refresh state** -- A record stored in the storage table's snapshot summary that captures the state of source tables and views at the time of the last refresh operation.
+* **Dependency graph** -- The graph of all source tables, views, and materialized views that a materialized view depends on, including nested dependencies.
 * **Source table** -- A table reference that occurs in the query definition of a materialized view.
 * **Source view** -- A view reference that occurs in the query definition of a materialized view.
 * **Source materialized view** -- A materialized view reference that occurs in the query definition of a materialized view.
@@ -211,18 +213,18 @@ When evaluating freshness, consumers:
 **Producer behavior:**
 
 Producers should provide the necessary information in the [refresh state](#refresh-state) such that consumers can verify the logical equivalence of the precomputed data with the query definition.
-Different producers may have different freshness interpretations, based on how much of the dependency graph must be current.
-Some require the entire query tree to be fully up to date, while others only require direct children or leaf nodes.
+Different producers may have different freshness interpretations, based on how much of the refresh state's dependency graph should be evaluated.
+Some producers expect the entire dependency graph to be evaluated and therefore include nested MV dependencies. Other producers may only expect dependencies in the MV's SQL to be evaluated and therefore do not include dependencies within nested MVs.
 
 When writing the refresh state, producers:
 - Should provide a sufficient list of source states such that consumers can determine freshness according to the producer's interpretation.
 - May leave the source states list empty if the source state cannot be determined for all objects (for example, for non-Iceberg tables).
-- Must store the entry with the oldest snapshot-id or version-id when the same source object is reachable through multiple paths in the dependency graph (diamond dependency pattern).
+- If a stored object is reachable through multiple paths in the dependency graph (diamond dependency pattern), the entry with the oldest snapshot-id or version-id must be stored.
 
 #### Refresh state
 
 The refresh state record captures the dependencies in the materialized view's dependency graph.
-These dependencies include source Iceberg tables, views, and nested materialized views.
+These dependencies include source Iceberg tables, views, and materialized views.
 
 The refresh state has the following fields:
 
@@ -234,13 +236,13 @@ The refresh state has the following fields:
 
 #### Source state
 
-Source state records capture the state of objects referenced by a materialized view.
+Source state records capture the state of objects referenced by a materialized view including objects referenced by nested materialized views.
 Each record has a `type` field that determines its form:
 
 | Type    | Description |
 |---------|-------------|
-| `table` | An Iceberg table, including storage tables of nested materialized views |
-| `view`  | An Iceberg view, including nested materialized views |
+| `table` | An Iceberg table, including storage tables of source materialized views |
+| `view`  | An Iceberg view, including source materialized views |
 
 Source materialized views are represented by two source state entries: one for the view itself and one for its storage table.
 
