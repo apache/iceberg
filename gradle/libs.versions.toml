@@ -60,9 +60,6 @@ hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.1"
 jackson-annotations = "2.21"
 jackson-bom = "2.21.0"
-jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
-jackson212 = { strictly = "2.12.3"}
-jackson213 = { strictly = "2.13.4"}
 jackson214 = { strictly = "2.14.2"}
 jackson215 = { strictly = "2.15.2"}
 jakarta-el-api = "3.0.3"
@@ -156,9 +153,6 @@ jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jac
 jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson-bom" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson-bom" }
 jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-annotations" }
-jackson211-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson211" }
-jackson212-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson212" }
-jackson213-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref =  "jackson213" }
 jackson214-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref =  "jackson214" }
 jackson215-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson215" }
 jaxb-api = { module = "javax.xml.bind:jaxb-api", version.ref = "jaxb-api" }
