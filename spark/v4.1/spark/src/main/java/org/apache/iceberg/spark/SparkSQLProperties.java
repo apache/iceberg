@@ -109,4 +109,9 @@ public class SparkSQLProperties {
 
   // Prefix for custom snapshot properties
   public static final String SNAPSHOT_PROPERTY_PREFIX = "spark.sql.iceberg.snapshot-property.";
+
+  // Controls whether to enable async micro batch planning for session
+  public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
+      "spark.sql.iceberg.async-micro-batch-planning-enabled";
+  public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
 }
