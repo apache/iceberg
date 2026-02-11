@@ -762,10 +762,10 @@ class ListNamespacesResponse(BaseModel):
     namespaces: list[Namespace] | None = Field(None, unique_items=True)
 
 
-class LoadFunctionResponse(BaseModel):
+class LoadFunctionResult(BaseModel):
     spec: dict[str, Any] = Field(
         ...,
-        description='The function spec JSON. The schema of this document is defined by the Iceberg function spec version negotiated between the client and the server.\n',
+        description="The function's full spec document, returned inline as JSON.\n\nThe structure of this JSON document is defined by the Iceberg function spec version negotiated between the client and the server.\n",
     )
 
 
