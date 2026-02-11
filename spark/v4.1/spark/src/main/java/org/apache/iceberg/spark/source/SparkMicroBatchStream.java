@@ -114,9 +114,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     Snapshot latestSnapshot = table.currentSnapshot();
 
     return new StreamingOffset(
-        latestSnapshot.snapshotId(),
-        SyncSparkMicroBatchPlanner.addedFilesCount(table, latestSnapshot),
-        false);
+        latestSnapshot.snapshotId(), MicroBatchUtils.addedFilesCount(table, latestSnapshot), false);
   }
 
   @Override
@@ -269,8 +267,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
       }
 
       table.refresh();
-      StreamingOffset offset =
-          SyncSparkMicroBatchPlanner.determineStartingOffset(table, fromTimestamp);
+      StreamingOffset offset = MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
       writeOffset(offset, outputFile);

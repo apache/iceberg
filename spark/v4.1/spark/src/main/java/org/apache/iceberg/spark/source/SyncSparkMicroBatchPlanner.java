@@ -27,17 +27,14 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.MicroBatches.MicroBatch;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.connector.read.streaming.CompositeReadLimit;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
@@ -71,7 +68,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset =
         StreamingOffset.START_OFFSET.equals(startOffset)
-            ? determineStartingOffset(table, fromTimestamp)
+            ? MicroBatchUtils.determineStartingOffset(table, fromTimestamp)
             : startOffset;
 
     StreamingOffset currentOffset = null;
@@ -105,7 +102,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
       if (currentOffset.snapshotId() == endOffset.snapshotId()) {
         endFileIndex = endOffset.position();
       } else {
-        endFileIndex = addedFilesCount(table, currentSnapshot);
+        endFileIndex = MicroBatchUtils.addedFilesCount(table, currentSnapshot);
       }
 
       MicroBatch latestMicroBatch =
@@ -140,7 +137,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     StreamingOffset startingOffset = startOffset;
 
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = determineStartingOffset(table, fromTimestamp);
+      startingOffset = MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
     }
 
     Snapshot curSnapshot = table.snapshot(startingOffset.snapshotId());
@@ -236,43 +233,6 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
 
   @Override
   public void stop() {}
-
-  static StreamingOffset determineStartingOffset(Table table, long fromTimestamp) {
-    if (table.currentSnapshot() == null) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    if (fromTimestamp == Long.MIN_VALUE) {
-      // match existing behavior and start from the oldest snapshot
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
-    }
-
-    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    try {
-      Snapshot snapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
-      if (snapshot != null) {
-        return new StreamingOffset(snapshot.snapshotId(), 0, false);
-      } else {
-        return StreamingOffset.START_OFFSET;
-      }
-    } catch (IllegalStateException e) {
-      // could not determine the first snapshot after the timestamp. use the oldest ancestor instead
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
-    }
-  }
-
-  static long addedFilesCount(Table table, Snapshot snapshot) {
-    long addedFilesCount =
-        PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
-    // iterate through addedFiles iterator to find addedFilesCount.
-    return addedFilesCount == -1
-        ? Iterables.size(snapshot.addedDataFiles(table.io()))
-        : addedFilesCount;
-  }
 
   private boolean shouldProcess(Snapshot snapshot) {
     String op = snapshot.operation();
