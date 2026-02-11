@@ -666,7 +666,11 @@ paths:
       tags:
         - Catalog API
       summary: Load a function from the catalog
-      description: Load a function spec for the given namespace and function name
+      description: >
+        Load a function from the catalog.
+
+
+        The response contains the function's full spec document in the `spec` field.
       operationId: loadFunction
       responses:
         200:
@@ -4249,7 +4253,7 @@ components:
           items:
             $ref: '#/components/schemas/Namespace'
 
-    LoadFunctionResponse:
+    LoadFunctionResult:
       type: object
       required:
         - spec
@@ -4257,8 +4261,11 @@ components:
         spec:
           type: object
           description: >
-            The function spec JSON. The schema of this document is defined by the Iceberg function
-            spec version negotiated between the client and the server.
+            The function's full spec document, returned inline as JSON.
+
+
+            The structure of this JSON document is defined by the Iceberg function spec version
+            negotiated between the client and the server.
           additionalProperties: true
 
     UpdateNamespacePropertiesResponse:
@@ -5039,7 +5046,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/LoadFunctionResponse'
+            $ref: '#/components/schemas/LoadFunctionResult'
 
     LoadViewResponse:
       description: View metadata result when loading a view
