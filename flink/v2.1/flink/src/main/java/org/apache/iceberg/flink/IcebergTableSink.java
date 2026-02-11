@@ -45,6 +45,7 @@ import org.apache.iceberg.flink.sink.dynamic.DynamicTableRecordGenerator;
 import org.apache.iceberg.flink.sink.dynamic.TableCreator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
   private final TableLoader tableLoader;
@@ -245,7 +246,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
   private TableCreator createTableCreator() {
     final Map<String, String> tableProperties =
-        org.apache.iceberg.util.PropertyUtil.propertiesWithPrefix(writeProps, "table.props.");
+        PropertyUtil.propertiesWithPrefix(writeProps, "table.props.");
     final String location = writeProps.get("location");
 
     return (catalog, identifier, schema, spec) ->

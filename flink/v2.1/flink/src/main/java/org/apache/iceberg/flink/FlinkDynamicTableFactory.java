@@ -157,6 +157,7 @@ public class FlinkDynamicTableFactory
           createCatalogLoader(writeProps, flinkConf.get(FlinkCreateTableOptions.CATALOG_NAME));
       catalogLoader = flinkCatalog.getCatalogLoader();
     }
+
     ResolvedCatalogTable resolvedCatalogTable = context.getCatalogTable();
 
     return new IcebergTableSink(
