@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MicroBatches;
@@ -30,36 +29,26 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.spark.sql.connector.read.streaming.CompositeReadLimit;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
-import org.apache.spark.sql.connector.read.streaming.ReadMaxFiles;
-import org.apache.spark.sql.connector.read.streaming.ReadMaxRows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
+class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
   private static final Logger LOG = LoggerFactory.getLogger(SyncSparkMicroBatchPlanner.class);
 
-  private final Table table;
   private final boolean caseSensitive;
-  private final boolean skipDelete;
-  private final boolean skipOverwrite;
   private final long fromTimestamp;
   private final StreamingOffset lastOffsetForTriggerAvailableNow;
 
   SyncSparkMicroBatchPlanner(
       Table table, SparkReadConf readConf, StreamingOffset lastOffsetForTriggerAvailableNow) {
-    this.table = table;
-    this.caseSensitive = readConf.caseSensitive();
-    this.skipDelete = readConf.streamingSkipDeleteSnapshots();
-    this.skipOverwrite = readConf.streamingSkipOverwriteSnapshots();
-    this.fromTimestamp = readConf.streamFromTimestamp();
+    super(table, readConf);
+    this.caseSensitive = readConf().caseSensitive();
+    this.fromTimestamp = readConf().streamFromTimestamp();
     this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
   }
 
@@ -68,7 +57,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset =
         StreamingOffset.START_OFFSET.equals(startOffset)
-            ? MicroBatchUtils.determineStartingOffset(table, fromTimestamp)
+            ? MicroBatchUtils.determineStartingOffset(table(), fromTimestamp)
             : startOffset;
 
     StreamingOffset currentOffset = null;
@@ -79,7 +68,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
       if (currentOffset == null) {
         currentOffset = batchStartOffset;
       } else {
-        Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, currentOffset.snapshotId());
+        Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table(), currentOffset.snapshotId());
         // it may happen that we need to read this snapshot partially in case it's equal to
         // endOffset.
         if (currentOffset.snapshotId() != endOffset.snapshotId()) {
@@ -89,26 +78,26 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
         }
       }
 
-      Snapshot snapshot = table.snapshot(currentOffset.snapshotId());
+      Snapshot snapshot = table().snapshot(currentOffset.snapshotId());
 
       validateCurrentSnapshotExists(snapshot, currentOffset);
 
       if (!shouldProcess(snapshot)) {
-        LOG.debug("Skipping snapshot: {} of table {}", currentOffset.snapshotId(), table.name());
+        LOG.debug("Skipping snapshot: {} of table {}", currentOffset.snapshotId(), table().name());
         continue;
       }
 
-      Snapshot currentSnapshot = table.snapshot(currentOffset.snapshotId());
+      Snapshot currentSnapshot = table().snapshot(currentOffset.snapshotId());
       if (currentOffset.snapshotId() == endOffset.snapshotId()) {
         endFileIndex = endOffset.position();
       } else {
-        endFileIndex = MicroBatchUtils.addedFilesCount(table, currentSnapshot);
+        endFileIndex = MicroBatchUtils.addedFilesCount(table(), currentSnapshot);
       }
 
       MicroBatch latestMicroBatch =
-          MicroBatches.from(currentSnapshot, table.io())
+          MicroBatches.from(currentSnapshot, table().io())
               .caseSensitive(caseSensitive)
-              .specsById(table.specs())
+              .specsById(table().specs())
               .generate(
                   currentOffset.position(),
                   endFileIndex,
@@ -124,12 +113,12 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public StreamingOffset latestOffset(StreamingOffset startOffset, ReadLimit limit) {
-    table.refresh();
-    if (table.currentSnapshot() == null) {
+    table().refresh();
+    if (table().currentSnapshot() == null) {
       return StreamingOffset.START_OFFSET;
     }
 
-    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
+    if (table().currentSnapshot().timestampMillis() < fromTimestamp) {
       return StreamingOffset.START_OFFSET;
     }
 
@@ -137,17 +126,17 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     StreamingOffset startingOffset = startOffset;
 
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
+      startingOffset = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp);
     }
 
-    Snapshot curSnapshot = table.snapshot(startingOffset.snapshotId());
+    Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
     validateCurrentSnapshotExists(curSnapshot, startingOffset);
 
     // Use the pre-computed snapshotId when Trigger.AvailableNow is enabled.
     long latestSnapshotId =
         lastOffsetForTriggerAvailableNow != null
             ? lastOffsetForTriggerAvailableNow.snapshotId()
-            : table.currentSnapshot().snapshotId();
+            : table().currentSnapshot().snapshotId();
 
     int startPosOfSnapOffset = (int) startingOffset.position();
 
@@ -158,20 +147,25 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     long curRecordCount = 0;
     int curPos = 0;
 
+    // Extract limits once to avoid repeated calls in tight loop
+    UnpackedLimits unpackedLimits = new UnpackedLimits(limit);
+    long maxFiles = unpackedLimits.getMaxFiles();
+    long maxRows = unpackedLimits.getMaxRows();
+
     // Note : we produce nextOffset with pos as non-inclusive
     while (shouldContinueReading) {
       // generate manifest index for the curSnapshot
       List<Pair<ManifestFile, Integer>> indexedManifests =
           MicroBatches.skippedManifestIndexesFromSnapshot(
-              table.io(), curSnapshot, startPosOfSnapOffset, scanAllFiles);
+              table().io(), curSnapshot, startPosOfSnapOffset, scanAllFiles);
       // this is under assumption we will be able to add at-least 1 file in the new offset
       for (int idx = 0; idx < indexedManifests.size() && shouldContinueReading; idx++) {
         // be rest assured curPos >= startFileIndex
         curPos = indexedManifests.get(idx).second();
         try (CloseableIterable<FileScanTask> taskIterable =
                 MicroBatches.openManifestFile(
-                    table.io(),
-                    table.specs(),
+                    table().io(),
+                    table().specs(),
                     caseSensitive,
                     curSnapshot,
                     indexedManifests.get(idx).first(),
@@ -180,7 +174,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (curPos >= startPosOfSnapOffset) {
-              if ((curFilesAdded + 1) > getMaxFiles(limit)) {
+              if ((curFilesAdded + 1) > maxFiles) {
                 // On including the file it might happen that we might exceed, the configured
                 // soft limit on the number of records, since this is a soft limit its acceptable.
                 shouldContinueReading = false;
@@ -190,7 +184,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
               curFilesAdded += 1;
               curRecordCount += task.file().recordCount();
 
-              if (curRecordCount >= getMaxRows(limit)) {
+              if (curRecordCount >= maxRows) {
                 // we included the file, so increment the number of files
                 // read in the current snapshot.
                 ++curPos;
@@ -234,56 +228,6 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
   @Override
   public void stop() {}
 
-  private boolean shouldProcess(Snapshot snapshot) {
-    String op = snapshot.operation();
-    switch (op) {
-      case DataOperations.APPEND:
-        return true;
-      case DataOperations.REPLACE:
-        return false;
-      case DataOperations.DELETE:
-        Preconditions.checkState(
-            skipDelete,
-            "Cannot process delete snapshot: %s, to ignore deletes, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
-        return false;
-      case DataOperations.OVERWRITE:
-        Preconditions.checkState(
-            skipOverwrite,
-            "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
-        return false;
-      default:
-        throw new IllegalStateException(
-            String.format(
-                "Cannot process unknown snapshot operation: %s (snapshot id %s)",
-                op.toLowerCase(Locale.ROOT), snapshot.snapshotId()));
-    }
-  }
-
-  /**
-   * Get the next snapshot skiping over rewrite and delete snapshots.
-   *
-   * @param curSnapshot the current snapshot
-   * @return the next valid snapshot (not a rewrite or delete snapshot), returns null if all
-   *     remaining snapshots should be skipped.
-   */
-  private Snapshot nextValidSnapshot(Snapshot curSnapshot) {
-    Snapshot nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
-    // skip over rewrite and delete snapshots
-    while (!shouldProcess(nextSnapshot)) {
-      LOG.debug("Skipping snapshot: {} of table {}", nextSnapshot.snapshotId(), table.name());
-      // if the currentSnapShot was also the mostRecentSnapshot then break
-      if (nextSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
-        return null;
-      }
-      nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
-    }
-    return nextSnapshot;
-  }
-
   private void validateCurrentSnapshotExists(Snapshot snapshot, StreamingOffset currentOffset) {
     if (snapshot == null) {
       throw new IllegalStateException(
@@ -292,46 +236,5 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
               "Cannot load current offset at snapshot %d, the snapshot was expired or removed",
               currentOffset.snapshotId()));
     }
-  }
-
-  private static int getMaxFiles(ReadLimit readLimit) {
-    if (readLimit instanceof ReadMaxFiles) {
-      return ((ReadMaxFiles) readLimit).maxFiles();
-    }
-
-    if (readLimit instanceof CompositeReadLimit) {
-      // We do not expect a CompositeReadLimit to contain a nested CompositeReadLimit.
-      // In fact, it should only be a composite of two or more of ReadMinRows, ReadMaxRows and
-      // ReadMaxFiles, with no more than one of each.
-      ReadLimit[] limits = ((CompositeReadLimit) readLimit).getReadLimits();
-      for (ReadLimit limit : limits) {
-        if (limit instanceof ReadMaxFiles) {
-          return ((ReadMaxFiles) limit).maxFiles();
-        }
-      }
-    }
-
-    // there is no ReadMaxFiles, so return the default
-    return Integer.MAX_VALUE;
-  }
-
-  private static int getMaxRows(ReadLimit readLimit) {
-    if (readLimit instanceof ReadMaxRows) {
-      long maxRows = ((ReadMaxRows) readLimit).maxRows();
-      return Math.toIntExact(maxRows);
-    }
-
-    if (readLimit instanceof CompositeReadLimit) {
-      ReadLimit[] limits = ((CompositeReadLimit) readLimit).getReadLimits();
-      for (ReadLimit limit : limits) {
-        if (limit instanceof ReadMaxRows) {
-          long maxRows = ((ReadMaxRows) limit).maxRows();
-          return Math.toIntExact(maxRows);
-        }
-      }
-    }
-
-    // there is no ReadMaxRows, so return the default
-    return Integer.MAX_VALUE;
   }
 }
