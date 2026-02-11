@@ -601,6 +601,52 @@ public class TypeUtil {
     int get(int oldId);
   }
 
+  /**
+   * Creates a function that reassigns specified field IDs.
+   *
+   * <p>This is useful for merging schemas where some field IDs in one schema might conflict with
+   * IDs already in use by another schema. The function will reassign the provided IDs to new unused
+   * IDs, while preserving other IDs.
+   *
+   * @param conflictingIds the set of conflicting field IDs that should be reassigned
+   * @param usedIds the set of field IDs that are already in use and cannot be reused
+   * @return a function that maps old IDs to new IDs while resolving conflicts
+   */
+  public static GetID reassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> usedIds) {
+    return new ReassignConflictingIds(conflictingIds, usedIds);
+  }
+
+  private static class ReassignConflictingIds implements GetID {
+    private final Set<Integer> conflictingIds;
+    private final Set<Integer> usedIds;
+    private final AtomicInteger nextId;
+
+    private ReassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> usedIds) {
+      this.conflictingIds = conflictingIds;
+      this.usedIds = usedIds;
+      this.nextId = new AtomicInteger(usedIds.size()); // assume sequential assignment
+    }
+
+    @Override
+    public int get(int oldId) {
+      if (conflictingIds.contains(oldId)) {
+        return nextAvailableId();
+      } else {
+        return oldId;
+      }
+    }
+
+    private int nextAvailableId() {
+      int candidateId = nextId.incrementAndGet();
+
+      while (usedIds.contains(candidateId)) {
+        candidateId = nextId.incrementAndGet();
+      }
+
+      return candidateId;
+    }
+  }
+
   public static class SchemaVisitor<T> {
     public void beforeField(Types.NestedField field) {}
 
