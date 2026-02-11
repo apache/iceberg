@@ -590,12 +590,12 @@ class Literals {
 
         case FIXED:
           try {
-            ByteBuffer b =
+            ByteBuffer buffer =
                 ByteBuffer.wrap(
                     BaseEncoding.base16().decode(value().toString().toUpperCase(Locale.ROOT)));
             Types.FixedType fixed = (Types.FixedType) type;
-            if (b.remaining() == fixed.length()) {
-              return (Literal<T>) new FixedLiteral(b);
+            if (buffer.remaining() == fixed.length()) {
+              return (Literal<T>) new FixedLiteral(buffer);
             }
             return null;
           } catch (IllegalArgumentException e) {
