@@ -752,9 +752,7 @@ public class SparkScanBuilder
   }
 
   private BatchScan newBatchScan() {
-    if (readConf.distributedPlanningDisallowed()) {
-      return table.newBatchScan();
-    } else if (readConf.distributedPlanningEnabled()) {
+    if (readConf.distributedPlanningEnabled()) {
       return new SparkDistributedDataScan(spark, table, readConf);
     } else {
       return table.newBatchScan();

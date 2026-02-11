@@ -296,11 +296,6 @@ public class SparkReadConf {
     return Math.max(defaultParallelism, numShufflePartitions);
   }
 
-  public boolean distributedPlanningDisallowed() {
-    return table instanceof SupportsDistributedScanPlanning distributed
-        && !distributed.allowDistributedPlanning();
-  }
-
   public boolean distributedPlanningEnabled() {
     return table instanceof SupportsDistributedScanPlanning distributed
         && distributed.allowDistributedPlanning()
