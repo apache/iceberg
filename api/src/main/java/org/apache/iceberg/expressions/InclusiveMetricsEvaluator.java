@@ -85,7 +85,7 @@ public class InclusiveMetricsEvaluator {
    */
   public boolean eval(ContentFile<?> file) {
     // TODO: detect the case where a column is missing from the file using file's max field id.
-    boolean result = new MetricsEvalVisitor().eval(file, false);
+    boolean result = new MetricsEvalVisitor().eval(file, expr, false);
 
     // If the RFC-compliant evaluation says rows might match, or there's no signed UUID expression,
     // return the result.
@@ -94,14 +94,14 @@ public class InclusiveMetricsEvaluator {
     }
 
     // Always try with signed UUID comparator as a fallback. There is no reliable way to detect
-    // which comparator was used when the file's column metrics were written.
-    return new MetricsEvalVisitor().eval(file, true);
+    // whether signed or unsigned comparator was used when the UUID column stats were written.
+    return new MetricsEvalVisitor().eval(file, signedUuidExpr, true);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
   private static final boolean ROWS_CANNOT_MATCH = false;
 
-  private class MetricsEvalVisitor extends ExpressionVisitors.BoundVisitor<Boolean> {
+  private static class MetricsEvalVisitor extends ExpressionVisitors.BoundVisitor<Boolean> {
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullCounts = null;
     private Map<Integer, Long> nanCounts = null;
@@ -112,7 +112,7 @@ public class InclusiveMetricsEvaluator {
     // when binding converts literals to a Set<T> of raw values.
     private boolean useSignedUuidComparator = false;
 
-    private boolean eval(ContentFile<?> file, boolean signedUuidMode) {
+    private boolean eval(ContentFile<?> file, Expression expression, boolean signedUuidMode) {
       if (file.recordCount() == 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -131,7 +131,7 @@ public class InclusiveMetricsEvaluator {
       this.upperBounds = file.upperBounds();
       this.useSignedUuidComparator = signedUuidMode;
 
-      return ExpressionVisitors.visitEvaluator(signedUuidMode ? signedUuidExpr : expr, this);
+      return ExpressionVisitors.visitEvaluator(expression, this);
     }
 
     @Override

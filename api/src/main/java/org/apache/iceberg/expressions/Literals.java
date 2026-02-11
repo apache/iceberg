@@ -609,8 +609,11 @@ class Literals {
   }
 
   static class UUIDLiteral extends BaseLiteral<UUID> {
-    private static final Comparator<UUID> RFC_CMP =
+    // unsigned byte-wise comparator per RFC 4122/9562 specification
+    private static final Comparator<UUID> UNSIGNED_CMP =
         Comparators.<UUID>nullsFirst().thenComparing(Comparators.uuids());
+    // signed comparator for backward compatibility with files written before the introduction of
+    // RFC-compliant comparison
     private static final Comparator<UUID> SIGNED_CMP =
         Comparators.<UUID>nullsFirst().thenComparing(Comparators.signedUUIDs());
 
@@ -637,7 +640,7 @@ class Literals {
 
     @Override
     public Comparator<UUID> comparator() {
-      return useSignedComparator ? SIGNED_CMP : RFC_CMP;
+      return useSignedComparator ? SIGNED_CMP : UNSIGNED_CMP;
     }
 
     @Override

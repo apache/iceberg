@@ -90,7 +90,7 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     // Try again with signed UUID comparator. There is no quick way to detect
-    // which comparator was used when the file's column metrics were written.
+    // whether signed or unsigned comparator was used when the UUID column stats were written.
     // The signedUuidExpr has literals with signed comparators for lt/gt/eq predicates.
     // For IN predicates, signed comparator is used via Comparators#comparatorFor.
     return new MetricsEvalVisitor().eval(fileSchema, rowGroup, true);

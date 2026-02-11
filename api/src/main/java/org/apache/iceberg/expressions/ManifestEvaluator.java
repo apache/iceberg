@@ -86,7 +86,7 @@ public class ManifestEvaluator {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean eval(ManifestFile manifest) {
-    boolean result = new ManifestEvalVisitor().eval(manifest, false);
+    boolean result = new ManifestEvalVisitor().eval(manifest, expr, false);
 
     // If the RFC-compliant evaluation says rows might match, or there's no signed UUID expression,
     // return the result.
@@ -95,28 +95,28 @@ public class ManifestEvaluator {
     }
 
     // Always try with signed UUID comparator as a fallback. There is no reliable way to detect
-    // which comparator was used when the manifest's partition field summaries were written.
-    return new ManifestEvalVisitor().eval(manifest, true);
+    // whether signed or unsigned comparator was used when the UUID column stats were written.
+    return new ManifestEvalVisitor().eval(manifest, signedUuidExpr, true);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
   private static final boolean ROWS_CANNOT_MATCH = false;
 
-  private class ManifestEvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private static class ManifestEvalVisitor extends BoundExpressionVisitor<Boolean> {
     private List<PartitionFieldSummary> stats = null;
     // Flag to use signed UUID comparator for backward compatibility.
     // This is needed for the IN predicate because the comparator information is lost
     // when binding converts literals to a Set<T> of raw values.
     private boolean useSignedUuidComparator = false;
 
-    private boolean eval(ManifestFile manifest, boolean signedUuidMode) {
+    private boolean eval(ManifestFile manifest, Expression expression, boolean signedUuidMode) {
       this.stats = manifest.partitions();
       this.useSignedUuidComparator = signedUuidMode;
       if (stats == null) {
         return ROWS_MIGHT_MATCH;
       }
 
-      return ExpressionVisitors.visitEvaluator(signedUuidMode ? signedUuidExpr : expr, this);
+      return ExpressionVisitors.visitEvaluator(expression, this);
     }
 
     @Override
