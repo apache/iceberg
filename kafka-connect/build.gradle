@@ -192,8 +192,10 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   }
 
   processResources {
-    filter {
-      it.replace('__VERSION__', project.version.toString())
+    filesMatching('manifest.json') {
+      filter {
+        it.replace('__VERSION__', project.version.toString())
+      }
     }
   }
 
