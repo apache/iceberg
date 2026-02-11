@@ -25,7 +25,7 @@ categories:
  - limitations under the License.
  -->
 
-The Apache Iceberg community is pleased to announce the 0.11.0 release of Apache [Iceberg Python](https://github.com/apache/iceberg-python). This release includes over [380 pull requests](https://github.com/apache/iceberg-python/compare/pyiceberg-0.10.0...pyiceberg-0.11.0) from 50+ contributors.
+The Apache Iceberg community is pleased to announce the 0.11.0 release of Apache [Iceberg Python](https://github.com/apache/iceberg-python). This release includes over [380 pull requests](https://github.com/apache/iceberg-python/compare/pyiceberg-0.10.0...pyiceberg-0.11.0) from 50+ contributors, including 28 first-time contributors.
 
 These notes cover the highlights. For the full list, see the [changelog](https://github.com/apache/iceberg-python/releases/tag/pyiceberg-0.11.0).
 
@@ -33,27 +33,20 @@ These notes cover the highlights. For the full list, see the [changelog](https:/
 
 ## Release Highlights
 
-### Supported Endpoints in ConfigResponse
+### Reads and Writes
 
-REST catalogs can now [declare which endpoints they support](https://github.com/apache/iceberg-python/pull/2848) via the `ConfigResponse`. The client checks operations against that set, falling back to defaults for older servers that don't return the field. If you call something the server doesn't support, you get a clear error instead of a cryptic failure.
-
-### REST Scan Planning
-
-Table scans can now be [planned server-side](https://github.com/apache/iceberg-python/pull/2864) by REST catalogs. This release adds synchronous planning where the client sends a scan request and the server returns file scan tasks to be read. Async planning (submit, poll, cancel) is planned for a future release.
+- [DeleteFileIndex](https://github.com/apache/iceberg-python/pull/2918) for faster delete file lookups
+- [Generator-based writes](https://github.com/apache/iceberg-python/pull/2671) to reduce memory pressure
+- [Relaxed `field-id` constraint](https://github.com/apache/iceberg-python/pull/2662) on `add_files`
+- [Connection reuse](https://github.com/apache/iceberg-python/pull/2543) for remote S3 signing
+- [Multi-process safe ExecutorFactory](https://github.com/apache/iceberg-python/pull/2546)
+- [Fixed O(N²) manifest cache growth](https://github.com/apache/iceberg-python/pull/2951)
 
 ### Snapshot Management
 
 - [Roll back to a specific snapshot ID](https://github.com/apache/iceberg-python/pull/2878)
 - [Roll back to a point in time](https://github.com/apache/iceberg-python/pull/2879)
 - [Set the current snapshot directly](https://github.com/apache/iceberg-python/pull/2871)
-
-### ORC Read Support
-
-[Full ORC read support](https://github.com/apache/iceberg-python/pull/2432) was added to the PyArrow I/O layer.
-
-### Sort Order Evolution
-
-[Sort order can now be updated](https://github.com/apache/iceberg-python/pull/2552) on existing tables without recreating them.
 
 ### Catalog Improvements
 
@@ -64,14 +57,21 @@ Table scans can now be [planned server-side](https://github.com/apache/iceberg-p
 - [AWS profile support](https://github.com/apache/iceberg-python/pull/2948) for Glue and fsspec S3 FileIO
 - [`anon` property](https://github.com/apache/iceberg-python/pull/2661) for fsspec ADLS FileIO and [S3 `addressing_style`](https://github.com/apache/iceberg-python/pull/2517) support
 
-### Reads and Writes
+### ORC Read Support
 
-- [DeleteFileIndex](https://github.com/apache/iceberg-python/pull/2918) for faster delete file lookups
-- [Generator-based writes](https://github.com/apache/iceberg-python/pull/2671) to reduce memory pressure
-- [Relaxed `field-id` constraint](https://github.com/apache/iceberg-python/pull/2662) on `add_files`
-- [Connection reuse](https://github.com/apache/iceberg-python/pull/2543) for remote S3 signing
-- [Multi-process safe ExecutorFactory](https://github.com/apache/iceberg-python/pull/2546)
-- [Fixed O(N²) manifest cache growth](https://github.com/apache/iceberg-python/pull/2951)
+[Full ORC read support](https://github.com/apache/iceberg-python/pull/2432) was added to the PyArrow I/O layer.
+
+### Sort Order Evolution
+
+[Sort order can now be updated](https://github.com/apache/iceberg-python/pull/2552) on existing tables without recreating them.
+
+### Supported Endpoints in ConfigResponse
+
+REST catalogs can now [declare which endpoints they support](https://github.com/apache/iceberg-python/pull/2848) via the `ConfigResponse`. The client checks operations against that set, falling back to defaults for older servers that don't return the field. If you call something the server doesn't support, you get a clear error instead of a cryptic failure.
+
+### REST Scan Planning
+
+Table scans can now be [planned server-side](https://github.com/apache/iceberg-python/pull/2864) by REST catalogs. This release adds synchronous planning where the client sends a scan request and the server returns file scan tasks to be read. Async planning (submit, poll, cancel) is planned for a future release.
 
 ## Breaking Changes
 
