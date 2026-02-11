@@ -62,9 +62,6 @@ public class SparkReadOptions {
   // Overrides the table's read.parquet.vectorization.batch-size
   public static final String VECTORIZATION_BATCH_SIZE = "batch-size";
 
-  // Set ID that is used to fetch scan tasks
-  public static final String SCAN_TASK_SET_ID = "scan-task-set-id";
-
   // skip snapshots of type delete while reading stream out of iceberg table
   public static final String STREAMING_SKIP_DELETE_SNAPSHOTS = "streaming-skip-delete-snapshots";
   public static final boolean STREAMING_SKIP_DELETE_SNAPSHOTS_DEFAULT = false;
