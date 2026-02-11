@@ -236,8 +236,10 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   @Override
   public void prepareForTriggerAvailableNow() {
     LOG.info("The streaming query reports to use Trigger.AvailableNow");
+
     lastOffsetForTriggerAvailableNow =
         (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
+
     LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow.json());
 
     // Reset planner so it gets recreated with the cap on next call
