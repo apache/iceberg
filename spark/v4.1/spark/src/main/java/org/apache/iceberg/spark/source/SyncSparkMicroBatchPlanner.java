@@ -126,7 +126,7 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
 
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public StreamingOffset latestOffset(StreamingOffset start, ReadLimit limit) {
+  public StreamingOffset latestOffset(StreamingOffset startOffset, ReadLimit limit) {
     table.refresh();
     if (table.currentSnapshot() == null) {
       return StreamingOffset.START_OFFSET;
@@ -137,9 +137,9 @@ class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     }
 
     // end offset can expand to multiple snapshots
-    StreamingOffset startingOffset = start;
+    StreamingOffset startingOffset = startOffset;
 
-    if (start.equals(StreamingOffset.START_OFFSET)) {
+    if (startOffset.equals(StreamingOffset.START_OFFSET)) {
       startingOffset = determineStartingOffset(table, fromTimestamp);
     }
 

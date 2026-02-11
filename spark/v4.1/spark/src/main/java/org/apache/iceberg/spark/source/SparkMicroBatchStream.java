@@ -192,6 +192,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
 
   @Override
   public Offset latestOffset(Offset startOffset, ReadLimit limit) {
+    // calculate end offset get snapshotId from the startOffset
     Preconditions.checkArgument(
         startOffset instanceof StreamingOffset,
         "Invalid start offset: %s is not a StreamingOffset",

@@ -23,9 +23,9 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 
 interface SparkMicroBatchPlanner {
-  List<FileScanTask> planFiles(StreamingOffset start, StreamingOffset end);
+  List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset);
 
-  StreamingOffset latestOffset(StreamingOffset start, ReadLimit limit);
+  StreamingOffset latestOffset(StreamingOffset startOffset, ReadLimit limit);
 
   void stop();
 }
