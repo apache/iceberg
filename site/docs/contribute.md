@@ -66,6 +66,7 @@ The Iceberg community welcomes contributions that are created or assisted by AI 
 * Use AI for acceleration, then verify. Treat AI output as a draft for code, tests, or docs; run linters/tests and review the logic yourself.
 * Be transparent about AI usage and uncertainties. Disclose if AI was used (e.g., draft, refactoring, test scaffolding) and call out any areas of uncertainty or assumptions, especially regarding complex logic, concurrency, or internal APIs, so reviewers can focus on them.
 * **Respect ASF policy**. Ensure generated content does not introduce incompatible licenses or undisclosed third-party code; review the [ASF Generative Tooling Guidance](https://www.apache.org/legal/generative-tooling.html) and licensing rules when in doubt.
+* If you are filing any form of security report, please be extra thorough before reporting it, as these can be time consuming to examine, maybe replicate and then either accept and address or dismiss as "not valid".
 
 ## Apache Iceberg Improvement Proposals
 
