@@ -177,7 +177,8 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     Map<String, String> options =
         ImmutableMap.of(SparkWriteOptions.DELETE_GRANULARITY, DeleteGranularity.FILE.toString());
 
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+    SparkWriteConf writeConf =
+        new SparkWriteConf(spark, table, new CaseInsensitiveStringMap(options));
 
     DeleteGranularity value = writeConf.deleteGranularity();
     assertThat(value).isEqualTo(DeleteGranularity.FILE);
@@ -227,8 +228,9 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   public void testSparkWriteConfDistributionModeWithWriteOption() {
     Table table = validationCatalog.loadTable(tableIdent);
 
-    CaseInsensitiveStringMap writeOptions = CaseInsensitiveStringMap.empty();
-    writeOptions.put(SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName());
+    CaseInsensitiveStringMap writeOptions =
+        new CaseInsensitiveStringMap(
+            ImmutableMap.of(SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()));
 
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
     checkMode(DistributionMode.NONE, writeConf);
@@ -289,8 +291,10 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
 
-          CaseInsensitiveStringMap writeOptions = CaseInsensitiveStringMap.empty();
-          writeOptions.put(SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName());
+          CaseInsensitiveStringMap writeOptions =
+              new CaseInsensitiveStringMap(
+                  ImmutableMap.of(
+                      SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()));
 
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
           // write options overwrite the session config
@@ -305,8 +309,10 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
 
-          CaseInsensitiveStringMap writeOptions = CaseInsensitiveStringMap.empty();
-          writeOptions.put(SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName());
+          CaseInsensitiveStringMap writeOptions =
+              new CaseInsensitiveStringMap(
+                  ImmutableMap.of(
+                      SparkWriteOptions.DISTRIBUTION_MODE, DistributionMode.NONE.modeName()));
 
           table
               .updateProperties()
@@ -415,8 +421,9 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
         ImmutableMap.of("spark.sql.iceberg.snapshot-property.test-key", "session-value"),
         () -> {
           Table table = validationCatalog.loadTable(tableIdent);
-          CaseInsensitiveStringMap writeOptions = CaseInsensitiveStringMap.empty();
-          writeOptions.put("snapshot-property.test-key", "write-option-value");
+          CaseInsensitiveStringMap writeOptions =
+              new CaseInsensitiveStringMap(
+                  ImmutableMap.of("snapshot-property.test-key", "write-option-value"));
           SparkWriteConf writeConf = new SparkWriteConf(spark, table, writeOptions);
 
           Map<String, String> metadata = writeConf.extraSnapshotMetadata();
