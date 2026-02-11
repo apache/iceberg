@@ -151,7 +151,7 @@ The PyIceberg project welcomes contributions. We use GitHub [issues](https://git
 The easiest way to get started is to:
 
 1. Try PyIceberg with your workloads and report any issues you encounter
-2. Review the [contributor guide](https://github.com/apache/iceberg-python/blob/main/CONTRIBUTING.md)
+2. Review the [contributor guide](https://py.iceberg.apache.org/contributing/#getting-started)
 3. Look for [good first issues](https://github.com/apache/iceberg-python/contribute)
 
 For more information, visit the [PyIceberg repository](https://github.com/apache/iceberg-python) or the [documentation](https://py.iceberg.apache.org/).
