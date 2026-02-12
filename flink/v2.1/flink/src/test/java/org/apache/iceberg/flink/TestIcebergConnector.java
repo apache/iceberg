@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.configuration.CoreOptions;
@@ -355,10 +356,11 @@ public class TestIcebergConnector extends TestBase {
   @TestTemplate
   public void testCreateDynamicIcebergSink() throws DatabaseAlreadyExistException {
     Map<String, String> tableProps = createTableProps();
-    tableProps.put("use-dynamic-iceberg-sink", "true");
-    tableProps.put(
+    Map<String, String> dynamicTableProps = new HashMap<>(tableProps);
+    dynamicTableProps.put("use-dynamic-iceberg-sink", "true");
+    dynamicTableProps.put(
         "dynamic-record-generator-impl", SimpleRowDataTableRecordGenerator.class.getName());
-    tableProps.put("table.props.key1", "val1");
+    dynamicTableProps.put("table.props.key1", "val1");
 
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     FlinkCatalog flinkCatalog =
@@ -369,7 +371,7 @@ public class TestIcebergConnector extends TestBase {
     // Create table with dynamic sink enabled
     sql(
         "CREATE TABLE %s (id BIGINT, data STRING, database_name STRING, table_name STRING) WITH %s",
-        TABLE_NAME + "_dynamic", toWithClause(tableProps));
+        TABLE_NAME + "_dynamic", toWithClause(dynamicTableProps));
 
     // Insert data with database and table information
     sql(
@@ -382,7 +384,7 @@ public class TestIcebergConnector extends TestBase {
         databaseName(),
         tableName());
 
-    // Verify the catalog was created and table exists
+    // Verify the table and data exists
     ObjectPath objectPath = new ObjectPath(databaseName(), tableName());
     assertThat(flinkCatalog.tableExists(objectPath)).isTrue();
     Table table =
@@ -391,6 +393,37 @@ public class TestIcebergConnector extends TestBase {
             .loadCatalog()
             .loadTable(TableIdentifier.of(databaseName(), tableName()));
     assertThat(table.properties()).containsEntry("key1", "val1");
+
+    tableProps.put("catalog-database", databaseName());
+    sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", tableName(), toWithClause(tableProps));
+    assertThat(sql("SELECT * FROM %s", tableName()))
+        .containsExactlyInAnyOrder(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC"));
+  }
+
+  @TestTemplate
+  public void testMissingDynamicRecordGeneratorImpl() throws DatabaseAlreadyExistException {
+    Map<String, String> tableProps = createTableProps();
+    tableProps.put("use-dynamic-iceberg-sink", "true");
+
+    FlinkCatalogFactory factory = new FlinkCatalogFactory();
+    FlinkCatalog flinkCatalog =
+        (FlinkCatalog) factory.createCatalog(catalogName, tableProps, new Configuration());
+    flinkCatalog.createDatabase(
+        databaseName(), new CatalogDatabaseImpl(Maps.newHashMap(), null), true);
+
+    sql(
+        "CREATE TABLE %s (id BIGINT, data STRING, database_name STRING, table_name STRING) WITH %s",
+        TABLE_NAME + "_dynamic", toWithClause(tableProps));
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "INSERT INTO %s VALUES (1, 'AAA', '%s', '%s')",
+                    TABLE_NAME + "_dynamic", databaseName(), tableName()))
+        .cause()
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage(
+            "dynamic-record-generator-impl must be specified when use-dynamic-iceberg-sink is true");
   }
 
   public static class SimpleRowDataTableRecordGenerator extends DynamicTableRecordGenerator {
