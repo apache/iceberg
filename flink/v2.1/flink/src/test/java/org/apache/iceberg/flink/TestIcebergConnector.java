@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.configuration.CoreOptions;
@@ -356,7 +355,7 @@ public class TestIcebergConnector extends TestBase {
   @TestTemplate
   public void testCreateDynamicIcebergSink() throws DatabaseAlreadyExistException {
     Map<String, String> tableProps = createTableProps();
-    Map<String, String> dynamicTableProps = new HashMap<>(tableProps);
+    Map<String, String> dynamicTableProps = Maps.newHashMap(tableProps);
     dynamicTableProps.put("use-dynamic-iceberg-sink", "true");
     dynamicTableProps.put(
         "dynamic-record-generator-impl", SimpleRowDataTableRecordGenerator.class.getName());
