@@ -734,7 +734,7 @@ class CreateNamespaceResponse(BaseModel):
     namespace_uuid: str | None = Field(
         None,
         alias='namespace-uuid',
-        description='Optional UUID representing the unique identifier for the namespace.',
+        description='Optional UUID representing the unique identifier for the namespace. This is tied to the actual entity, not the name, which can be reused.',
     )
     properties: dict[str, str] | None = Field(
         {},
@@ -748,7 +748,7 @@ class GetNamespaceResponse(BaseModel):
     namespace_uuid: str | None = Field(
         None,
         alias='namespace-uuid',
-        description='Optional UUID representing the unique identifier for the namespace.',
+        description='Optional UUID representing the unique identifier for the namespace. This is tied to the actual entity, not the name, which can be reused.',
     )
     properties: dict[str, str] | None = Field(
         {},
