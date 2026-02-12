@@ -378,4 +378,12 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
+
+  public String parquetVectorizedReaderFactory() {
+    return confParser
+        .stringConf()
+        .sessionConf(SparkSQLProperties.PARQUET_VECTORIZED_READER_FACTORY)
+        .defaultValue(SparkSQLProperties.COMET_VECTORIZED_READER_FACTORY_CLASS)
+        .parseOptional();
+  }
 }

@@ -137,10 +137,18 @@ class SparkBatch implements Batch {
   }
 
   private ParquetBatchReadConf parquetBatchReadConf(ParquetReaderType readerType) {
-    return ImmutableParquetBatchReadConf.builder()
-        .batchSize(readConf.parquetBatchSize())
-        .readerType(readerType)
-        .build();
+    String factoryClassName = readConf.parquetVectorizedReaderFactory();
+
+    ImmutableParquetBatchReadConf.Builder builder =
+        ImmutableParquetBatchReadConf.builder()
+            .batchSize(readConf.parquetBatchSize())
+            .readerType(readerType);
+
+    if (factoryClassName != null) {
+      builder.factoryClassName(factoryClassName);
+    }
+
+    return builder.build();
   }
 
   private OrcBatchReadConf orcBatchReadConf() {

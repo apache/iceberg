@@ -127,6 +127,7 @@ import org.slf4j.LoggerFactory;
 
 public class Parquet {
   private static final Logger LOG = LoggerFactory.getLogger(Parquet.class);
+  private static final String VECTORIZED_READER_FACTORY = "read.parquet.vectorized-reader.factory";
 
   private Parquet() {}
 
@@ -1378,6 +1379,22 @@ public class Parquet {
       return this;
     }
 
+    /**
+     * Sets the vectorized reader factory class to use for reading Parquet files.
+     *
+     * @param factoryClassName fully qualified class name of the VectorizedParquetReaderFactory
+     *     implementation, or null to use the default reader
+     * @return this builder for method chaining
+     */
+    public ReadBuilder vectorizedReaderFactory(String factoryClassName) {
+      if (factoryClassName != null) {
+        this.properties.put(VECTORIZED_READER_FACTORY, factoryClassName);
+      } else {
+        this.properties.remove(VECTORIZED_READER_FACTORY);
+      }
+      return this;
+    }
+
     public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
       this.fileEncryptionKey = encryptionKey;
       return this;
@@ -1389,7 +1406,7 @@ public class Parquet {
     }
 
     @Override
-    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
+    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity", "MethodLength"})
     public <D> CloseableIterable<D> build() {
       FileDecryptionProperties fileDecryptionProperties = null;
       if (fileEncryptionKey != null) {
@@ -1442,6 +1459,29 @@ public class Parquet {
         }
 
         if (batchedReaderFunc != null) {
+          // Try to load custom vectorized reader factory from properties
+          String factoryName = properties.get(VECTORIZED_READER_FACTORY);
+
+          if (factoryName != null) {
+            LOG.info("Loading custom vectorized reader factory: {}", factoryName);
+            VectorizedParquetReaderFactory factory = loadReaderFactory(factoryName);
+            if (factory != null) {
+              return factory.createReader(
+                  VectorizedParquetReaderFactory.ReaderParams.builder(
+                          file, schema, options, batchedReaderFunc)
+                      .nameMapping(mapping)
+                      .filter(filter)
+                      .reuseContainers(reuseContainers)
+                      .caseSensitive(caseSensitive)
+                      .maxRecordsPerBatch(maxRecordsPerBatch)
+                      .properties(properties)
+                      .split(start, length)
+                      .encryption(fileEncryptionKey, fileAADPrefix)
+                      .build());
+            }
+          }
+
+          // Fall back to default VectorizedParquetReader
           return new VectorizedParquetReader<>(
               file,
               schema,
@@ -1534,6 +1574,21 @@ public class Parquet {
       }
 
       return new ParquetIterable<>(builder);
+    }
+  }
+
+  private static VectorizedParquetReaderFactory loadReaderFactory(String className) {
+    try {
+      Class<?> factoryClass = Class.forName(className);
+      if (VectorizedParquetReaderFactory.class.isAssignableFrom(factoryClass)) {
+        return (VectorizedParquetReaderFactory) factoryClass.getDeclaredConstructor().newInstance();
+      } else {
+        LOG.warn("Class {} does not implement VectorizedParquetReaderFactory interface", className);
+        return null;
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to instantiate vectorized reader factory: {}", className, e);
+      return null;
     }
   }
 
