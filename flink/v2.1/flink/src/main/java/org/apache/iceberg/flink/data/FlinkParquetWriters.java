@@ -623,7 +623,8 @@ public class FlinkParquetWriters {
     public void write(int repetitionLevel, Variant variant) {
       Preconditions.checkArgument(
           variant instanceof BinaryVariant,
-          "Expected BinaryVariant but got: " + variant.getClass().getSimpleName());
+          "Expected BinaryVariant but got: %s",
+          variant.getClass().getSimpleName());
 
       BinaryVariant binaryVariant = (BinaryVariant) variant;
       VariantMetadata metadata =
