@@ -4737,8 +4737,12 @@ components:
             signed, such as the S3 DeleteObjects call.
         provider:
           type: string
-          description: The storage provider for which the request is to be signed. Optional; if absent, AWS S3 should be
-            assumed. Provider names are case-insensitive.
+          enum:
+            - s3
+            - gcs
+            - adls
+          default: s3
+          description: The storage provider for which the request is to be signed.
 
     RemoteSignResult:
       description: The result of a remote request signing operation.

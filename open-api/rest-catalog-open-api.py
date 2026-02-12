@@ -1007,9 +1007,8 @@ class RemoteSignRequest(BaseModel):
         None,
         description='Optional body of the request to send to the signing API. This should only be populated for requests where the body of the message contains content which must be validated before a request is signed, such as the S3 DeleteObjects call.',
     )
-    provider: str | None = Field(
-        None,
-        description='The storage provider for which the request is to be signed. Optional; if absent, AWS S3 should be assumed. Provider names are case-insensitive.',
+    provider: Literal['s3', 'gcs', 'adls'] | None = Field(
+        's3', description='The storage provider for which the request is to be signed.'
     )
 
 
