@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -48,10 +49,15 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.gcp.bigquery.util.RetryDetector;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
@@ -156,14 +162,14 @@ public class TestBigQueryTableOperations {
 
     org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
 
-    when(client.update(any(), any())).thenReturn(tableWithEtag);
+    when(client.update(any(), any(), any())).thenReturn(tableWithEtag);
     loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
 
     ArgumentCaptor<TableReference> tableReferenceArgumentCaptor =
         ArgumentCaptor.forClass(TableReference.class);
     ArgumentCaptor<Table> tableArgumentCaptor = ArgumentCaptor.forClass(Table.class);
     verify(client, times(1))
-        .update(tableReferenceArgumentCaptor.capture(), tableArgumentCaptor.capture());
+        .update(tableReferenceArgumentCaptor.capture(), tableArgumentCaptor.capture(), any());
     assertThat(tableReferenceArgumentCaptor.getValue()).isEqualTo(TABLE_REFERENCE);
     assertThat(tableArgumentCaptor.getValue().getEtag()).isEqualTo("etag");
   }
@@ -176,7 +182,7 @@ public class TestBigQueryTableOperations {
 
     org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
 
-    when(client.update(any(), any()))
+    when(client.update(any(), any(), any()))
         .thenThrow(new CommitFailedException("error message etag mismatch"));
     assertThatThrownBy(
             () -> loadedTable.updateSchema().addColumn("n", Types.IntegerType.get()).commit())
@@ -194,7 +200,7 @@ public class TestBigQueryTableOperations {
     org.apache.iceberg.Table loadedTable = catalog.loadTable(IDENTIFIER);
 
     // Simulate concurrent modification detected via ETag mismatch
-    when(client.update(any(), any()))
+    when(client.update(any(), any(), any()))
         .thenThrow(new CommitFailedException("Cannot commit: Etag mismatch"));
 
     assertThatThrownBy(
@@ -213,7 +219,7 @@ public class TestBigQueryTableOperations {
         new TableReference().setProjectId(GCP_PROJECT).setDatasetId(NS).setTableId(TABLE);
     ArgumentCaptor<Table> createdTableCaptor = ArgumentCaptor.forClass(Table.class);
 
-    when(client.create(createdTableCaptor.capture())).thenReturn(testTable);
+    when(client.create(createdTableCaptor.capture(), any())).thenReturn(testTable);
     when(client.load(new DatasetReference().setProjectId(GCP_PROJECT).setDatasetId(NS)))
         .thenReturn(
             new Dataset()
@@ -287,5 +293,44 @@ public class TestBigQueryTableOperations {
     }
 
     return Optional.empty();
+  }
+
+  private TableMetadata createTestMetadata() {
+    return TableMetadata.newTableMetadata(
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        SortOrder.unsorted(),
+        tempFolder.getPath() + "/test-table",
+        ImmutableMap.of());
+  }
+
+  @Test
+  public void testKnownExceptionWithoutRetryDoesNotCallCheckCommitStatus() {
+    when(client.load(TABLE_REFERENCE)).thenThrow(new NoSuchTableException("Table not found"));
+    when(client.create(any(), any())).thenThrow(new CommitFailedException("Commit rejected"));
+
+    tableOps.refresh();
+
+    assertThatThrownBy(() -> tableOps.commit(null, createTestMetadata()))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Commit rejected");
+
+    verify(client, times(1)).create(any(Table.class), any(RetryDetector.class));
+    verify(client, times(1)).load(TABLE_REFERENCE);
+  }
+
+  @Test
+  public void testRuntimeIOExceptionTriggersCommitStatusCheck() {
+    when(client.load(TABLE_REFERENCE)).thenThrow(new NoSuchTableException("Table not found"));
+
+    when(client.create(any(), any())).thenThrow(new RuntimeIOException("Network error"));
+
+    tableOps.refresh();
+
+    assertThatThrownBy(() -> tableOps.commit(null, createTestMetadata()))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Network error");
+
+    verify(client, atLeast(2)).load(TABLE_REFERENCE);
   }
 }
