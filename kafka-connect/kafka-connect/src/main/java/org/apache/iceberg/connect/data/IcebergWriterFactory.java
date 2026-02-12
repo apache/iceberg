@@ -87,7 +87,9 @@ class IcebergWriterFactory {
       structType = type.asStructType();
     } else {
       structType =
-          SchemaUtils.toIcebergType(sample.valueSchema(), config, formatVersion).asStructType();
+          SchemaUtils.toIcebergType(
+                  sample.valueSchema(), config, SchemaUtils.includeDefaults(formatVersion))
+              .asStructType();
     }
 
     org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(structType.fields());

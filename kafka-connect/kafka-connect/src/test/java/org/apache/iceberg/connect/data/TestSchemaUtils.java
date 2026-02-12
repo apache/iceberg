@@ -222,40 +222,68 @@ public class TestSchemaUtils {
 
     int formatVersion = 2; // Use format version 2 for basic type conversion tests
 
-    assertThat(SchemaUtils.toIcebergType(Schema.BOOLEAN_SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.BOOLEAN_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(BooleanType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.BYTES_SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.BYTES_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(BinaryType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.INT8_SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.INT8_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(IntegerType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.INT16_SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.INT16_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(IntegerType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.INT32_SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.INT32_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(IntegerType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.INT64_SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.INT64_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(LongType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.FLOAT32_SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.FLOAT32_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(FloatType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.FLOAT64_SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.FLOAT64_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(DoubleType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.STRING_SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.STRING_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(StringType.class);
-    assertThat(SchemaUtils.toIcebergType(Date.SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Date.SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(DateType.class);
-    assertThat(SchemaUtils.toIcebergType(Time.SCHEMA, config, formatVersion))
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Time.SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
         .isInstanceOf(TimeType.class);
 
-    Type timestampType = SchemaUtils.toIcebergType(Timestamp.SCHEMA, config, formatVersion);
+    Type timestampType =
+        SchemaUtils.toIcebergType(
+            Timestamp.SCHEMA, config, SchemaUtils.includeDefaults(formatVersion));
     assertThat(timestampType).isInstanceOf(TimestampType.class);
     assertThat(((TimestampType) timestampType).shouldAdjustToUTC()).isTrue();
 
-    Type decimalType = SchemaUtils.toIcebergType(Decimal.schema(4), config, formatVersion);
+    Type decimalType =
+        SchemaUtils.toIcebergType(
+            Decimal.schema(4), config, SchemaUtils.includeDefaults(formatVersion));
     assertThat(decimalType).isInstanceOf(DecimalType.class);
     assertThat(((DecimalType) decimalType).scale()).isEqualTo(4);
 
     Type listType =
         SchemaUtils.toIcebergType(
-            SchemaBuilder.array(Schema.STRING_SCHEMA).build(), config, formatVersion);
+            SchemaBuilder.array(Schema.STRING_SCHEMA).build(),
+            config,
+            SchemaUtils.includeDefaults(formatVersion));
     assertThat(listType).isInstanceOf(ListType.class);
     assertThat(listType.asListType().elementType()).isInstanceOf(StringType.class);
     assertThat(listType.asListType().isElementOptional()).isEqualTo(forceOptional);
@@ -264,7 +292,7 @@ public class TestSchemaUtils {
         SchemaUtils.toIcebergType(
             SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA).build(),
             config,
-            formatVersion);
+            SchemaUtils.includeDefaults(formatVersion));
     assertThat(mapType).isInstanceOf(MapType.class);
     assertThat(mapType.asMapType().keyType()).isInstanceOf(StringType.class);
     assertThat(mapType.asMapType().valueType()).isInstanceOf(StringType.class);
@@ -272,7 +300,9 @@ public class TestSchemaUtils {
 
     Type structType =
         SchemaUtils.toIcebergType(
-            SchemaBuilder.struct().field("i", Schema.INT32_SCHEMA).build(), config, formatVersion);
+            SchemaBuilder.struct().field("i", Schema.INT32_SCHEMA).build(),
+            config,
+            SchemaUtils.includeDefaults(formatVersion));
     assertThat(structType).isInstanceOf(StructType.class);
     assertThat(structType.asStructType().fieldType("i")).isInstanceOf(IntegerType.class);
     assertThat(structType.asStructType().field("i").isOptional()).isEqualTo(forceOptional);
@@ -472,7 +502,8 @@ public class TestSchemaUtils {
             .build();
 
     // Test with format version 3 - should extract defaults
-    Type icebergType = SchemaUtils.toIcebergType(kafkaSchema, config, 3);
+    Type icebergType =
+        SchemaUtils.toIcebergType(kafkaSchema, config, SchemaUtils.includeDefaults(3));
     assertThat(icebergType).isInstanceOf(StructType.class);
 
     StructType structType = (StructType) icebergType;
@@ -517,7 +548,8 @@ public class TestSchemaUtils {
             .build();
 
     // Test with format version 2 - should NOT extract defaults
-    Type icebergType = SchemaUtils.toIcebergType(kafkaSchema, config, 2);
+    Type icebergType =
+        SchemaUtils.toIcebergType(kafkaSchema, config, SchemaUtils.includeDefaults(2));
     assertThat(icebergType).isInstanceOf(StructType.class);
 
     StructType structType = (StructType) icebergType;
@@ -545,17 +577,17 @@ public class TestSchemaUtils {
             .build();
 
     // Format version 1 - no defaults
-    Type v1Type = SchemaUtils.toIcebergType(kafkaSchema, config, 1);
+    Type v1Type = SchemaUtils.toIcebergType(kafkaSchema, config, SchemaUtils.includeDefaults(1));
     assertThat(v1Type.asStructType().field("name").initialDefault()).isNull();
     assertThat(v1Type.asStructType().field("name").writeDefault()).isNull();
 
     // Format version 2 - no defaults
-    Type v2Type = SchemaUtils.toIcebergType(kafkaSchema, config, 2);
+    Type v2Type = SchemaUtils.toIcebergType(kafkaSchema, config, SchemaUtils.includeDefaults(2));
     assertThat(v2Type.asStructType().field("name").initialDefault()).isNull();
     assertThat(v2Type.asStructType().field("name").writeDefault()).isNull();
 
     // Format version 3 - with defaults
-    Type v3Type = SchemaUtils.toIcebergType(kafkaSchema, config, 3);
+    Type v3Type = SchemaUtils.toIcebergType(kafkaSchema, config, SchemaUtils.includeDefaults(3));
     assertThat(v3Type.asStructType().field("name").initialDefault()).isEqualTo("test");
     assertThat(v3Type.asStructType().field("name").writeDefault()).isEqualTo("test");
   }
@@ -572,12 +604,14 @@ public class TestSchemaUtils {
             .build();
 
     // When table is v3, defaults should be included regardless of config
-    Type typeFromV3Table = SchemaUtils.toIcebergType(kafkaSchemaWithDefaults, config, 3);
+    Type typeFromV3Table =
+        SchemaUtils.toIcebergType(kafkaSchemaWithDefaults, config, SchemaUtils.includeDefaults(3));
     assertThat(typeFromV3Table.asStructType().field("newColumn").initialDefault())
         .isEqualTo("default_value");
 
     // When table is v2, defaults should NOT be included
-    Type typeFromV2Table = SchemaUtils.toIcebergType(kafkaSchemaWithDefaults, config, 2);
+    Type typeFromV2Table =
+        SchemaUtils.toIcebergType(kafkaSchemaWithDefaults, config, SchemaUtils.includeDefaults(2));
     assertThat(typeFromV2Table.asStructType().field("newColumn").initialDefault()).isNull();
   }
 }

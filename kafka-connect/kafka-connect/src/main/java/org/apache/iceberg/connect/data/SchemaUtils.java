@@ -74,6 +74,8 @@ class SchemaUtils {
 
   private static final Pattern TRANSFORM_REGEX = Pattern.compile("(\\w+)\\((.+)\\)");
 
+  private static final int DEFAULT_VALUE_MIN_FORMAT_VERSION = 3;
+
   static PrimitiveType needsDataTypeUpdate(Type currentIcebergType, Schema valueSchema) {
     if (currentIcebergType.typeId() == TypeID.FLOAT && valueSchema.type() == Schema.Type.FLOAT64) {
       return DoubleType.get();
@@ -214,13 +216,12 @@ class SchemaUtils {
     return Pair.of(parts.get(0).trim(), Integer.parseInt(parts.get(1).trim()));
   }
 
-  static Type toIcebergType(Schema valueSchema, IcebergSinkConfig config, int formatVersion) {
-    return new SchemaGenerator(config, formatVersion).toIcebergType(valueSchema);
+  static Type toIcebergType(Schema valueSchema, IcebergSinkConfig config, boolean includeDefaults) {
+    return new SchemaGenerator(config, includeDefaults).toIcebergType(valueSchema);
   }
 
   static Type inferIcebergType(Object value, IcebergSinkConfig config) {
-    return new SchemaGenerator(config, IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION)
-        .inferIcebergType(value);
+    return new SchemaGenerator(config, true).inferIcebergType(value);
   }
 
   /**
@@ -404,11 +405,11 @@ class SchemaUtils {
 
     private int fieldId = 1;
     private final IcebergSinkConfig config;
-    private final int formatVersion;
+    private final boolean includeDefaults;
 
-    SchemaGenerator(IcebergSinkConfig config, int formatVersion) {
+    SchemaGenerator(IcebergSinkConfig config, boolean includeDefaults) {
       this.config = config;
-      this.formatVersion = formatVersion;
+      this.includeDefaults = includeDefaults;
     }
 
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -470,9 +471,7 @@ class SchemaUtils {
                                 .ofType(fieldType)
                                 .withName(field.name());
 
-                        // Apply default only if the table format version is greater or equal to the
-                        // minimum format version needed to support default which is 3
-                        if (formatVersion >= IcebergSinkConfig.DEFAULT_VALUE_MIN_FORMAT_VERSION) {
+                        if (includeDefaults) {
                           // Extract default value from Kafka Connect schema if present
                           Object defaultValue = field.schema().defaultValue();
                           if (defaultValue != null) {
@@ -551,6 +550,10 @@ class SchemaUtils {
     private int nextId() {
       return fieldId++;
     }
+  }
+
+  public static boolean includeDefaults(int formatVersion) {
+    return formatVersion >= DEFAULT_VALUE_MIN_FORMAT_VERSION;
   }
 
   private SchemaUtils() {}
