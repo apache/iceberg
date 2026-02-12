@@ -212,9 +212,9 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
 
   @Override
   public void handleOperatorEvent(OperatorEvent event) {
-    if (event instanceof LockReleasedEvent) {
+    if (event instanceof LockReleaseEvent) {
       LOG.info("Received lock released event: {}", event);
-      handleLockReleaseResult((LockReleasedEvent) event);
+      handleLockReleaseResult((LockReleaseEvent) event);
     } else {
       throw new IllegalArgumentException(
           "Invalid operator event type: " + event.getClass().getCanonicalName());
@@ -252,7 +252,7 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
   }
 
   @VisibleForTesting
-  void handleLockReleaseResult(LockReleasedEvent event) {
+  void handleLockReleaseResult(LockReleaseEvent event) {
     if (lockTime == null) {
       return;
     }

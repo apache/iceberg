@@ -49,8 +49,8 @@ public class LockRemoverCoordinator extends BaseCoordinator {
               attemptNumber,
               operatorName(),
               event);
-          if (event instanceof LockReleasedEvent) {
-            handleReleaseLock((LockReleasedEvent) event);
+          if (event instanceof LockReleaseEvent) {
+            handleReleaseLock((LockReleaseEvent) event);
           } else {
             throw new IllegalArgumentException(
                 "Invalid operator event type: " + event.getClass().getCanonicalName());

@@ -109,7 +109,7 @@ public class LockRemoverOperator extends AbstractStreamOperator<Void>
   @Override
   public void processWatermark(Watermark mark) throws Exception {
     operatorEventGateway.sendEventToCoordinator(
-        new LockReleasedEvent(tableName, mark.getTimestamp()));
+        new LockReleaseEvent(tableName, mark.getTimestamp()));
     super.processWatermark(mark);
   }
 }

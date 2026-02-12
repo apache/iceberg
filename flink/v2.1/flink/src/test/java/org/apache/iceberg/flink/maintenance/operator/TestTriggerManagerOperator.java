@@ -57,14 +57,14 @@ class TestTriggerManagerOperator extends OperatorTestBase {
   private long processingTime = 0L;
   private String tableName;
   private TriggerManagerCoordinator triggerManagerCoordinator;
-  private LockReleasedEvent lockReleasedEvent;
+  private LockReleaseEvent lockReleaseEvent;
 
   @BeforeEach
   void before() {
     super.before();
     Table table = createTable();
     this.tableName = table.name();
-    lockReleasedEvent = new LockReleasedEvent(tableName, 1L);
+    lockReleaseEvent = new LockReleaseEvent(tableName, 1L);
     this.triggerManagerCoordinator = createCoordinator();
     try {
       triggerManagerCoordinator.start();
@@ -290,7 +290,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).hasSize(1);
 
       // Remove the lock to allow the next trigger
-      operator.handleLockReleaseResult(new LockReleasedEvent(tableName, newTime));
+      operator.handleLockReleaseResult(new LockReleaseEvent(tableName, newTime));
 
       // Send a new event
       testHarness.setProcessingTime(newTime + 1);
@@ -342,7 +342,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       testHarness.processElement(TableChange.builder().commitCount(1).build(), EVENT_TIME_2);
 
       // Remove the lock to allow the next trigger
-      newOperator.handleOperatorEvent(lockReleasedEvent);
+      newOperator.handleOperatorEvent(lockReleaseEvent);
       testHarness.setProcessingTime(EVENT_TIME_2);
 
       // At this point the output contains the recovery trigger and the real trigger
@@ -398,7 +398,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       long currentTime = testHarness.getProcessingTime();
 
       // Remove the lock, and still no trigger
-      operator.handleOperatorEvent(lockReleasedEvent);
+      operator.handleOperatorEvent(lockReleaseEvent);
       assertThat(testHarness.extractOutputValues()).hasSize(1);
 
       // Check that the trigger fired after the delay
@@ -457,14 +457,14 @@ class TestTriggerManagerOperator extends OperatorTestBase {
           .isEqualTo(1L);
 
       // manual unlock
-      triggerManagerCoordinator.handleReleaseLock(new LockReleasedEvent(tableName, Long.MAX_VALUE));
+      triggerManagerCoordinator.handleReleaseLock(new LockReleaseEvent(tableName, Long.MAX_VALUE));
       // Trigger both of the tasks - tests TRIGGERED
       source.sendRecord(TableChange.builder().commitCount(2).build());
       // Wait until we receive the trigger
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // manual unlock
-      triggerManagerCoordinator.handleReleaseLock(new LockReleasedEvent(tableName, Long.MAX_VALUE));
+      triggerManagerCoordinator.handleReleaseLock(new LockReleaseEvent(tableName, Long.MAX_VALUE));
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       assertThat(
@@ -516,7 +516,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // Remove the lock to allow the next trigger
-      triggerManagerCoordinator.handleReleaseLock(lockReleasedEvent);
+      triggerManagerCoordinator.handleReleaseLock(lockReleaseEvent);
 
       // The second trigger will be blocked
       source.sendRecord(TableChange.builder().commitCount(2).build());
@@ -617,7 +617,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
     assertThat(testHarness.extractOutputValues()).hasSize(expectedSize);
     if (removeLock) {
       // Remove the lock to allow the next trigger
-      operator.handleLockReleaseResult(new LockReleasedEvent(tableName, processingTime));
+      operator.handleLockReleaseResult(new LockReleaseEvent(tableName, processingTime));
     }
   }
 

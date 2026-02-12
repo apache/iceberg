@@ -55,9 +55,9 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   private boolean started;
   private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
   private final SubtaskGateways subtaskGateways;
-  protected static final Map<String, Consumer<LockReleasedEvent>> LOCK_RELEASE_CONSUMERS =
+  protected static final Map<String, Consumer<LockReleaseEvent>> LOCK_RELEASE_CONSUMERS =
       Maps.newConcurrentMap();
-  protected static final List<LockReleasedEvent> PENDING_RELEASE_EVENTS =
+  protected static final List<LockReleaseEvent> PENDING_RELEASE_EVENTS =
       new CopyOnWriteArrayList<>();
 
   protected BaseCoordinator(String operatorName, Context context) {
@@ -73,19 +73,19 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   }
 
   @VisibleForTesting
-  void handleReleaseLock(LockReleasedEvent lockReleasedEvent) {
-    if (LOCK_RELEASE_CONSUMERS.containsKey(lockReleasedEvent.lockId())) {
-      LOCK_RELEASE_CONSUMERS.get(lockReleasedEvent.lockId()).accept(lockReleasedEvent);
+  void handleReleaseLock(LockReleaseEvent lockReleaseEvent) {
+    if (LOCK_RELEASE_CONSUMERS.containsKey(lockReleaseEvent.lockId())) {
+      LOCK_RELEASE_CONSUMERS.get(lockReleaseEvent.lockId()).accept(lockReleaseEvent);
       LOG.info(
           "Send release event for lock id {}, timestamp: {}",
-          lockReleasedEvent.lockId(),
-          lockReleasedEvent.timestamp());
+          lockReleaseEvent.lockId(),
+          lockReleaseEvent.timestamp());
     } else {
-      PENDING_RELEASE_EVENTS.add(lockReleasedEvent);
+      PENDING_RELEASE_EVENTS.add(lockReleaseEvent);
       LOG.info(
           "No consumer for lock id {}, timestamp: {}",
-          lockReleasedEvent.lockId(),
-          lockReleasedEvent.timestamp());
+          lockReleaseEvent.lockId(),
+          lockReleaseEvent.timestamp());
     }
   }
 
@@ -306,7 +306,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   }
 
   @VisibleForTesting
-  List<LockReleasedEvent> pendingReleaseEvents() {
+  List<LockReleaseEvent> pendingReleaseEvents() {
     return PENDING_RELEASE_EVENTS;
   }
 }

@@ -25,12 +25,12 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * Event sent from TriggerManagerOperatorCoordinator to TriggerManager operator to notify that a
  * lock has been released (watermark arrived).
  */
-public class LockReleasedEvent implements OperatorEvent {
+public class LockReleaseEvent implements OperatorEvent {
 
   private final String lockId;
   private final long timestamp;
 
-  public LockReleasedEvent(String lockId, long timestamp) {
+  public LockReleaseEvent(String lockId, long timestamp) {
     this.lockId = lockId;
     this.timestamp = timestamp;
   }
