@@ -28,6 +28,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.List;
@@ -36,6 +37,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Parameter;
@@ -44,10 +46,12 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -154,6 +158,7 @@ public class TestSparkDataWrite {
           assertThat(file.splitOffsets()).as("Split offsets not present").isNotNull();
         }
         assertThat(file.recordCount()).as("Should have reported record count as 1").isEqualTo(1);
+        assertThat(file.sortOrderId()).isEqualTo(SortOrder.unsorted().orderId());
         // TODO: append more metric info
         if (format.equals(FileFormat.PARQUET)) {
           assertThat(file.columnSizes()).as("Column sizes metric not present").isNotNull();
@@ -553,6 +558,48 @@ public class TestSparkDataWrite {
     List<SimpleRecord> expected2 =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(1, "a"));
     assertThat(actual2).hasSameSizeAs(expected2).isEqualTo(expected2);
+  }
+
+  @TestTemplate
+  public void testWriteDataFilesInTableSortOrder() throws IOException {
+    File parent = temp.resolve(format.toString()).toFile();
+    File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).asc("id").build();
+    Table table = tables.create(SCHEMA, spec, sortOrder, ImmutableMap.of(), location.toString());
+
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(10);
+    for (int i = 0; i < 10; i++) {
+      expected.add(new SimpleRecord(i, "a"));
+    }
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    createBranch(table);
+    table.refresh();
+
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
+
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
+
+    try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
+      assertThat(fileScanTasks)
+          .extracting(task -> task.file().sortOrderId())
+          .as("All DataFiles are written with the table sort order id")
+          .containsOnly(table.sortOrder().orderId());
+    }
   }
 
   public void partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType option) {
