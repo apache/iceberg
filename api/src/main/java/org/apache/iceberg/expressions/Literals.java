@@ -48,6 +48,7 @@ class Literals {
   private Literals() {}
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final BaseEncoding BASE16_ENCODING = BaseEncoding.base16();
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   /**
@@ -592,7 +593,7 @@ class Literals {
           try {
             ByteBuffer buffer =
                 ByteBuffer.wrap(
-                    BaseEncoding.base16().decode(value().toString().toUpperCase(Locale.ROOT)));
+                    BASE16_ENCODING.decode(value().toString().toUpperCase(Locale.ROOT)));
             Types.FixedType fixed = (Types.FixedType) type;
             if (buffer.remaining() == fixed.length()) {
               return (Literal<T>) new FixedLiteral(buffer);
@@ -608,7 +609,7 @@ class Literals {
             return (Literal<T>)
                 new BinaryLiteral(
                     ByteBuffer.wrap(
-                        BaseEncoding.base16().decode(value().toString().toUpperCase(Locale.ROOT))));
+                        BASE16_ENCODING.decode(value().toString().toUpperCase(Locale.ROOT))));
           } catch (IllegalArgumentException e) {
             // Invalid hex string
             return null;
@@ -697,7 +698,7 @@ class Literals {
     @Override
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
-      return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+      return "X'" + BASE16_ENCODING.encode(bytes) + "'";
     }
   }
 
@@ -743,7 +744,7 @@ class Literals {
     @Override
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
-      return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+      return "X'" + BASE16_ENCODING.encode(bytes) + "'";
     }
   }
 }
