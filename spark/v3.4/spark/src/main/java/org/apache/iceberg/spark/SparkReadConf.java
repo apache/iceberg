@@ -95,7 +95,12 @@ public class SparkReadConf {
   }
 
   public Long asOfTimestamp() {
-    return confParser.longConf().option(SparkReadOptions.AS_OF_TIMESTAMP).parseOptional();
+    SparkConfParser.LongConfParser longParser =
+        confParser.longConf().option(SparkReadOptions.AS_OF_TIMESTAMP);
+    if (snapshotId() == null && branch == null && tag() == null) {
+      longParser.sessionConf(SparkSQLProperties.AS_OF_TIMESTAMP);
+    }
+    return longParser.parseOptional();
   }
 
   public Long startSnapshotId() {
