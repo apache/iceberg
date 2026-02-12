@@ -569,6 +569,13 @@ paths:
         the client sends all create and subsequent changes to the table commit route. Changes from the table
         create operation include changes like AddSchemaUpdate and SetCurrentSchemaUpdate that set the initial
         table state.
+
+
+        When `stage-create` is true, the response `LoadTableResult` may include a `staging-session` field
+        containing an opaque session identifier. Clients should pass this identifier back on subsequent
+        `loadTable` or `loadCredentials` requests (via the `stagingSession` query parameter) to refresh
+        credentials for the staged table. Staged tables are not visible via `listTables` and are only
+        accessible to clients that know the staging session identifier.
       operationId: createTable
       parameters:
         - $ref: '#/components/parameters/data-access'
@@ -944,7 +951,7 @@ paths:
         - Catalog API
       summary: Load a table from the catalog
       operationId: loadTable
-      description:
+      description: >
         Load a table from the catalog.
 
 
@@ -960,8 +967,19 @@ paths:
         table. The configuration key "token" is used to pass an access token to be used as a bearer token
         for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+
+
+        An optional `stagingSession` query parameter can be provided to load a staged table. When used
+        with the `X-Iceberg-Access-Delegation: vended-credentials` header, the response includes fresh
+        credentials for the staged table. See the `stagingSession` parameter definition for
+        detailed behavior.
+
+
+        When `stagingSession` is provided, the `If-None-Match` header is ignored because staged
+        tables do not have a previously committed ETag to compare against.
       parameters:
         - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/staging-session'
         - name: If-None-Match
           in: header
           description:
@@ -998,7 +1016,9 @@ paths:
           $ref: '#/components/responses/ForbiddenResponse'
         404:
           description:
-            Not Found - NoSuchTableException, table to load does not exist
+            Not Found - NoSuchTableException, table to load does not exist.
+            Also returned when a `stagingSession` parameter is provided but does not match
+            any staged or committed table for the given table name.
           content:
             application/json:
               schema:
@@ -1225,7 +1245,17 @@ paths:
           schema:
             type: string
           description: The plan ID that has been used for server-side scan planning
-      description: Load vended credentials for a table from the catalog.
+        - $ref: '#/components/parameters/staging-session'
+      description: >
+        Load vended credentials for a table from the catalog.
+
+
+        An optional `stagingSession` query parameter can be provided to refresh credentials for
+        a staged table. See the `stagingSession` parameter definition for detailed behavior.
+
+
+        The `planId` and `stagingSession` parameters are mutually exclusive. If both are provided,
+        the server must return a 400 Bad Request error.
       responses:
         200:
           $ref: '#/components/responses/LoadCredentialsResponse'
@@ -1236,8 +1266,10 @@ paths:
         403:
           $ref: '#/components/responses/ForbiddenResponse'
         404:
-          description:
-            Not Found - NoSuchTableException, table to load credentials for does not exist
+          description: >
+            Not Found - NoSuchTableException, table to load credentials for does not exist.
+            Also returned when a `stagingSession` parameter is provided but does not match
+            any staged or committed table for the given table name.
           content:
             application/json:
               schema:
@@ -1938,6 +1970,31 @@ components:
       in: path
       description: ID used to track a planning request
       required: true
+      schema:
+        type: string
+
+    staging-session:
+      name: stagingSession
+      in: query
+      description: >
+        Opaque session identifier returned from a staged table creation. When provided, the server
+        uses this identifier to look up the staging session associated with the table name in the
+        request.
+
+
+        If the session matches a staged or committed table, the server returns the response for that staged or committed table.
+        If the session does not match any staged or committed table, the server returns a 404 error.
+
+
+        If this parameter is omitted, the server performs the standard committed table lookup by name.
+
+
+        This parameter is mutually exclusive with `planId`. If both are provided on the credentials
+        endpoint, the server must return a 400 Bad Request error.
+
+
+        This parameter follows the same pattern as `planId` for scan planning credential refresh.
+      required: false
       schema:
         type: string
 
@@ -3472,6 +3529,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+        staging-session:
+          type: string
+          description:
+            Opaque session identifier for credential refresh on staged tables. Only present when the
+            table was created with `stage-create` set to true. Clients must pass this value back to
+            the server on subsequent credential refresh requests via the `stagingSession` query
+            parameter on the `loadTable` or `loadCredentials` endpoints.
+
+            This identifier is not a secret, but staged tables are only accessible to clients that
+            know the session identifier. Server implementations may enforce additional constraints,
+            such as restricting credential refresh to the user that created the staged table.
 
     ScanTasks:
       type: object
