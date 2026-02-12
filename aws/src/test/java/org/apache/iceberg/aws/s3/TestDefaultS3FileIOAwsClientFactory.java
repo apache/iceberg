@@ -18,8 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -43,7 +42,7 @@ class TestDefaultS3FileIOAwsClientFactory {
             "client.metrics-publisher", NoArgPublisher.class.getName(),
             "client.region", "us-east-1"));
     try (final var s3 = factory.s3()) {
-      assertNotNull(NoArgPublisher.INSTANCE.get());
+      assertThat(NoArgPublisher.INSTANCE.get()).isNotNull();
     } finally {
       NoArgPublisher.INSTANCE.remove();
     }
@@ -63,7 +62,7 @@ class TestDefaultS3FileIOAwsClientFactory {
             "client.region",
             "us-east-1"));
     try (final var s3 = factory.s3()) {
-      assertEquals("ok", MapArgPublisher.INSTANCE.get().args.get("test"));
+      assertThat(MapArgPublisher.INSTANCE.get().args.get("test")).isEqualTo("ok");
     } finally {
       NoArgPublisher.INSTANCE.remove();
     }
@@ -84,7 +83,7 @@ class TestDefaultS3FileIOAwsClientFactory {
             "client.region",
             "us-east-1"));
     try (final var s3 = factory.s3Async()) {
-      assertNotNull(NoArgPublisher.INSTANCE.get());
+      assertThat(NoArgPublisher.INSTANCE.get()).isNotNull();
     } finally {
       NoArgPublisher.INSTANCE.remove();
     }
@@ -102,7 +101,7 @@ class TestDefaultS3FileIOAwsClientFactory {
             "client.metrics-publisher.test", "ok",
             "client.region", "us-east-1"));
     try (final var s3 = factory.s3Async()) {
-      assertEquals("ok", MapArgPublisher.INSTANCE.get().args.get("test"));
+      assertThat(MapArgPublisher.INSTANCE.get().args.get("test")).isEqualTo("ok");
     } finally {
       NoArgPublisher.INSTANCE.remove();
     }
