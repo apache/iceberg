@@ -107,10 +107,66 @@ public class SparkValueWriters {
     @Override
     @SuppressWarnings("ByteBufferBackingArray")
     public void write(UTF8String s, Encoder encoder) throws IOException {
-      // TODO: direct conversion from string to byte buffer
-      UUID uuid = UUID.fromString(s.toString());
+      ByteBuffer buffer = BUFFER.get();
+      byte[] bytes = s.getBytes();
+      // Fast-path canonical UUIDs to avoid UTF-8 decode + UUID parsing.
+      if (!writeCanonicalUuid(bytes, buffer)) {
+        UUID uuid = UUID.fromString(s.toString());
+        UUIDUtil.convertToByteBuffer(uuid, buffer);
+      }
       // calling array() is safe because the buffer is always allocated by the thread-local
-      encoder.writeFixed(UUIDUtil.convertToByteBuffer(uuid, BUFFER.get()).array());
+      encoder.writeFixed(buffer.array());
+    }
+
+    private static boolean writeCanonicalUuid(byte[] bytes, ByteBuffer buffer) {
+      // Canonical UUID textual form: 36 chars with hyphens at 8, 13, 18, 23.
+      if (bytes.length != 36
+          || bytes[8] != '-'
+          || bytes[13] != '-'
+          || bytes[18] != '-'
+          || bytes[23] != '-') {
+        return false;
+      }
+
+      // Parse 8-4-4-4-12 hex into 128-bit UUID.
+      long part1 = parseHex(bytes, 0, 8);
+      long part2 = parseHex(bytes, 9, 4);
+      long part3 = parseHex(bytes, 14, 4);
+      long part4 = parseHex(bytes, 19, 4);
+      long part5 = parseHex(bytes, 24, 12);
+
+      if (part1 < 0 || part2 < 0 || part3 < 0 || part4 < 0 || part5 < 0) {
+        return false;
+      }
+
+      long mostSigBits = (part1 << 32) | (part2 << 16) | part3;
+      long leastSigBits = (part4 << 48) | part5;
+      buffer.putLong(0, mostSigBits);
+      buffer.putLong(8, leastSigBits);
+      return true;
+    }
+
+    private static long parseHex(byte[] bytes, int offset, int length) {
+      long value = 0;
+      for (int i = 0; i < length; i += 1) {
+        int hex = hexValue(bytes[offset + i]);
+        if (hex < 0) {
+          return -1;
+        }
+        value = (value << 4) | hex;
+      }
+      return value;
+    }
+
+    private static int hexValue(byte b) {
+      if (b >= '0' && b <= '9') {
+        return b - '0';
+      } else if (b >= 'a' && b <= 'f') {
+        return 10 + (b - 'a');
+      } else if (b >= 'A' && b <= 'F') {
+        return 10 + (b - 'A');
+      }
+      return -1;
     }
   }
 
