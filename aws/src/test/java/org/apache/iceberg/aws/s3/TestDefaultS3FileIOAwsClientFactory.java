@@ -41,7 +41,7 @@ class TestDefaultS3FileIOAwsClientFactory {
             "client.credentials-provider", TestCredentialProvider.class.getName(),
             "client.metrics-publisher", NoArgPublisher.class.getName(),
             "client.region", "us-east-1"));
-    try (final var s3 = factory.s3()) {
+    try (var s3 = factory.s3()) {
       assertThat(NoArgPublisher.INSTANCE.get()).isNotNull();
     } finally {
       NoArgPublisher.INSTANCE.remove();
@@ -61,7 +61,7 @@ class TestDefaultS3FileIOAwsClientFactory {
             "ok",
             "client.region",
             "us-east-1"));
-    try (final var s3 = factory.s3()) {
+    try (var s3 = factory.s3()) {
       assertThat(MapArgPublisher.INSTANCE.get().args.get("test")).isEqualTo("ok");
     } finally {
       NoArgPublisher.INSTANCE.remove();
@@ -82,7 +82,7 @@ class TestDefaultS3FileIOAwsClientFactory {
             NoArgPublisher.class.getName(),
             "client.region",
             "us-east-1"));
-    try (final var s3 = factory.s3Async()) {
+    try (var s3 = factory.s3Async()) {
       assertThat(NoArgPublisher.INSTANCE.get()).isNotNull();
     } finally {
       NoArgPublisher.INSTANCE.remove();
@@ -100,7 +100,7 @@ class TestDefaultS3FileIOAwsClientFactory {
             "client.metrics-publisher", MapArgPublisher.class.getName(),
             "client.metrics-publisher.test", "ok",
             "client.region", "us-east-1"));
-    try (final var s3 = factory.s3Async()) {
+    try (var s3 = factory.s3Async()) {
       assertThat(MapArgPublisher.INSTANCE.get().args.get("test")).isEqualTo("ok");
     } finally {
       NoArgPublisher.INSTANCE.remove();
