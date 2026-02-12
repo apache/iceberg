@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -28,6 +29,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.VariantType;
 import org.apache.flink.types.variant.BinaryVariant;
+import org.apache.flink.types.variant.VariantTypeException;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
@@ -101,9 +103,10 @@ public class TestFlinkVariants {
     BinaryVariant flinkVariant =
         new BinaryVariant(valueBuffer.array(), VariantTestUtil.emptyMetadata().array());
 
-    assertThat(flinkVariant).isNotNull();
-    assertThat(flinkVariant.getValue()).isNotNull();
-    assertThat(flinkVariant.getMetadata()).isNotNull();
+    assertThatThrownBy(flinkVariant::toJson)
+        .as("Unsupported variant type in Flink")
+        .isInstanceOf(VariantTypeException.class)
+        .hasMessageContaining("UNKNOWN_PRIMITIVE_TYPE_IN_VARIANT");
   }
 
   @Test
