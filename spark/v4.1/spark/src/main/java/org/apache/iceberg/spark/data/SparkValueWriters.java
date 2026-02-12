@@ -158,13 +158,13 @@ public class SparkValueWriters {
       return value;
     }
 
-    private static int hexValue(byte b) {
-      if (b >= '0' && b <= '9') {
-        return b - '0';
-      } else if (b >= 'a' && b <= 'f') {
-        return 10 + (b - 'a');
-      } else if (b >= 'A' && b <= 'F') {
-        return 10 + (b - 'A');
+    private static int hexValue(byte hexByte) {
+      if (hexByte >= '0' && hexByte <= '9') {
+        return hexByte - '0';
+      } else if (hexByte >= 'a' && hexByte <= 'f') {
+        return 10 + (hexByte - 'a');
+      } else if (hexByte >= 'A' && hexByte <= 'F') {
+        return 10 + (hexByte - 'A');
       }
       return -1;
     }
