@@ -22,8 +22,8 @@ import org.apache.spark.sql.catalyst.analysis.AnalysisContext
 import org.apache.spark.sql.catalyst.plans.logical.AnalysisOnlyCommand
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
-// Align Iceberg's CreateIcebergView with Spark’s CreateViewCommand by extending AnalysisOnlyCommand.
-// The command’s children are analyzed then hidden, so the optimizer/planner won’t traverse the view body.
+// Align Iceberg's CreateIcebergView with Spark's CreateViewCommand by extending AnalysisOnlyCommand.
+// The command's children are analyzed then hidden, so the optimizer/planner won't traverse the view body.
 case class CreateIcebergView(
     child: LogicalPlan,
     queryText: String,
@@ -35,6 +35,7 @@ case class CreateIcebergView(
     properties: Map[String, String],
     allowExisting: Boolean,
     replace: Boolean,
+    viewSchemaMode: Option[String] = None,
     rewritten: Boolean = false,
     isAnalyzed: Boolean = false)
     extends AnalysisOnlyCommand {

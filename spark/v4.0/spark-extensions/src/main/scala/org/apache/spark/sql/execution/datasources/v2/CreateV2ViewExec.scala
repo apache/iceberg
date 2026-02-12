@@ -19,6 +19,7 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.spark.SupportsReplaceView
+import org.apache.iceberg.spark.source.SparkView
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException
@@ -40,7 +41,8 @@ case class CreateV2ViewExec(
     comment: Option[String],
     properties: Map[String, String],
     allowExisting: Boolean,
-    replace: Boolean)
+    replace: Boolean,
+    viewSchemaMode: Option[String] = None)
     extends LeafV2CommandExec {
 
   override lazy val output: Seq[Attribute] = Nil
@@ -54,6 +56,7 @@ case class CreateV2ViewExec(
     val engineVersion = "Spark " + org.apache.spark.SPARK_VERSION
     val newProperties = properties ++
       comment.map(ViewCatalog.PROP_COMMENT -> _) ++
+      viewSchemaMode.map(SparkView.VIEW_SCHEMA_MODE -> _) ++
       Map(
         ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
         ViewCatalog.PROP_ENGINE_VERSION -> engineVersion)
