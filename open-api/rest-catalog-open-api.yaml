@@ -983,6 +983,7 @@ paths:
           schema:
             type: string
             enum: [ all, refs ]
+        - $ref: '#/components/parameters/referenced-by'
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
@@ -1225,6 +1226,7 @@ paths:
           schema:
             type: string
           description: The plan ID that has been used for server-side scan planning
+        - $ref: '#/components/parameters/referenced-by'
       description: Load vended credentials for a table from the catalog.
       responses:
         200:
@@ -1589,6 +1591,8 @@ paths:
         view. The configuration key "token" is used to pass an access token to be used as a bearer token
         for view requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+      parameters:
+        - $ref: '#/components/parameters/referenced-by'
       responses:
         200:
           $ref: '#/components/responses/LoadViewResponse'
@@ -2004,6 +2008,31 @@ components:
         different metadata content but represent the same version of table metadata.  For example,
         the `snapshots` query parameter may result in different metadata representations depending
         on whether `refs` or `all` is provided, therefore should have distinct ETags.
+      required: false
+      schema:
+        type: string
+
+    referenced-by:
+      name: referenced-by
+      in: query
+      description:
+        A comma-separated list of fully qualified view names (namespace and view name) representing the view
+        reference chain when an entity (table or view) is loaded via a view. The list should be ordered with the outermost view
+        first, followed by any intermediate views it references, down to the view that directly references the entity.
+        For a simple case where a view directly references the entity, the list contains a single view identifier.
+        For nested views (a view referencing another view which references the entity), the list contains multiple
+        view identifiers representing the complete dependency chain.
+
+        The view identifier is a composite string of the format {namespace}{separator}{viewName}.
+        The namespace-separator (defined in /config) acts as the delimiter.
+        When parsing, the last occurrence of this separator identifies the boundary between the namespace and the view name.
+        Multipart namespaces must follow the encoding rules of the parent parameter in the list namespaces endpoint.
+
+        Multiple view identifiers are separated by commas. Servers should split the parameter value on comma characters
+        to parse individual view identifiers. If view names contain commas, they must be url-encoded as %2C.
+
+        Example with multiple views (where prod%1Fanalytics is a nested namespace which has a quarterly_view which references to monthly_view
+        which then references the entity being loaded) - prod%1Fanalytics%1Fquarterly_view,prod%1Fanalytics%1Fmonthly_view
       required: false
       schema:
         type: string
