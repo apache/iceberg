@@ -731,6 +731,11 @@ class IcebergErrorResponse(BaseModel):
 
 class CreateNamespaceResponse(BaseModel):
     namespace: Namespace
+    namespace_uuid: str | None = Field(
+        None,
+        alias='namespace-uuid',
+        description='Optional UUID representing the unique identifier for the namespace.',
+    )
     properties: dict[str, str] | None = Field(
         {},
         description='Properties stored on the namespace, if supported by the server.',
@@ -740,6 +745,11 @@ class CreateNamespaceResponse(BaseModel):
 
 class GetNamespaceResponse(BaseModel):
     namespace: Namespace
+    namespace_uuid: str | None = Field(
+        None,
+        alias='namespace-uuid',
+        description='Optional UUID representing the unique identifier for the namespace.',
+    )
     properties: dict[str, str] | None = Field(
         {},
         description='Properties stored on the namespace, if supported by the server. If the server does not support namespace properties, it should return null for this field. If namespace properties are supported, but none are set, it should return an empty object.',

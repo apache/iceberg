@@ -4102,6 +4102,9 @@ components:
       properties:
         namespace:
           $ref: '#/components/schemas/Namespace'
+        namespace-uuid:
+          type: string
+          description: "Optional UUID representing the unique identifier for the namespace."
         properties:
           type: object
           additionalProperties:
@@ -4118,6 +4121,9 @@ components:
       properties:
         namespace:
           $ref: '#/components/schemas/Namespace'
+        namespace-uuid:
+          type: string
+          description: "Optional UUID representing the unique identifier for the namespace."
         properties:
           type: object
           description:
