@@ -74,7 +74,6 @@ services:
       - CATALOG_WAREHOUSE=s3://warehouse/
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
       - CATALOG_S3_ENDPOINT=http://rustfs:9000
-      - CATALOG_S3_PATH__STYLE__ACCESS=true
   rustfs:
     image: rustfs/rustfs:latest
     container_name: rustfs
@@ -85,8 +84,11 @@ services:
       - RUSTFS_ADDRESS=0.0.0.0:9000
       - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
       - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_SERVER_DOMAINS=rustfs:9001
     networks:
       iceberg_net:
+        aliases:
+          - warehouse.rustfs
     ports:
       - 9001:9001
       - 9000:9000
@@ -111,7 +113,6 @@ services:
       "
 networks:
   iceberg_net:
-
 ```
 
 !!! note
@@ -122,9 +123,6 @@ networks:
 
     # replace minio address with rustfs address
     spark.sql.catalog.demo.s3.endpoint     http://rustfs:9000
-
-    # add new configuration to disable virtual host mode for rustfs
-    spark.sql.catalog.demo.s3.path-style-access true
 
     ```
 
