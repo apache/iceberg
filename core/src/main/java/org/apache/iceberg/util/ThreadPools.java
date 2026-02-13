@@ -32,8 +32,11 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ThreadPools {
+  private static final Logger LOG = LoggerFactory.getLogger(ThreadPools.class);
 
   private ThreadPools() {}
 
@@ -215,6 +218,7 @@ public class ThreadPools {
         shutdownHook.setName("DelayedShutdownHook-iceberg");
       } catch (SecurityException e) {
         // OK if we can't set the name in this environment.
+        LOG.warn("Cannot set thread name for the shutdown hook", e);
       }
 
       Runtime.getRuntime().addShutdownHook(shutdownHook);
