@@ -379,11 +379,14 @@ project(':iceberg-core') {
     compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: "org.eclipse.jetty"
     }
 
     testImplementation libs.jetty.servlet
     testImplementation libs.jakarta.servlet
     testImplementation libs.jetty.server
+    testImplementation libs.jetty.compression.server
+    testImplementation libs.jetty.compression.gzip
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.sqlite.jdbc
@@ -1089,6 +1092,8 @@ project(':iceberg-open-api') {
 
     testFixturesImplementation libs.jetty.servlet
     testFixturesImplementation libs.jetty.server
+    testFixturesImplementation libs.jetty.compression.server
+    testFixturesImplementation libs.jetty.compression.gzip
     testFixturesImplementation libs.sqlite.jdbc
 
     testFixturesCompileOnly libs.apiguardian

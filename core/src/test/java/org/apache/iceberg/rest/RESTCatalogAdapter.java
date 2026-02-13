@@ -325,7 +325,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
           String eTag = ETagProvider.of(response.metadataLocation());
 
-          if (ifNoneMatchHeader.isPresent() && eTag.equals(ifNoneMatchHeader.get().value())) {
+          if (ifNoneMatchHeader.isPresent()
+              && eTag.equals(stripETagSuffix(ifNoneMatchHeader.get().value()))) {
             return null;
           }
 
@@ -737,5 +738,19 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         queryParams
             .getOrDefault("snapshots", RESTCatalogProperties.SNAPSHOT_LOADING_MODE_DEFAULT)
             .toUpperCase(Locale.US));
+  }
+
+  /**
+   * Strips the compression suffix from an ETag value.
+   *
+   * <p>Jetty 12 appends "--gzip" to ETags when compression is enabled. This method removes such
+   * suffixes to allow proper ETag comparison.
+   */
+  static String stripETagSuffix(String eTag) {
+    if (eTag == null) {
+      return null;
+    }
+    int suffixIndex = eTag.indexOf("--");
+    return suffixIndex > 0 ? eTag.substring(0, suffixIndex) : eTag;
   }
 }

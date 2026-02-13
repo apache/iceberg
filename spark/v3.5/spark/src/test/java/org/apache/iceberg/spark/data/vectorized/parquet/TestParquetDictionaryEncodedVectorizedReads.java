@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Types;
@@ -64,6 +65,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     spark =
         SparkSession.builder()
             .master("local[2]")
+            .config(TestBase.DISABLE_UI_CONFIGS)
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
             .getOrCreate();
   }

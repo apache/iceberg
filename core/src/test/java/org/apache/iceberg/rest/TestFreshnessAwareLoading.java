@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import static org.apache.iceberg.TestBase.FILE_A;
 import static org.apache.iceberg.TestBase.SCHEMA;
+import static org.apache.iceberg.rest.RESTCatalogAdapter.stripETagSuffix;
 import static org.apache.iceberg.rest.RESTTableCache.SessionIdTableId;
 import static org.apache.iceberg.rest.RESTTableCache.TableWithETag;
 import static org.apache.iceberg.rest.RequestMatcher.matches;
@@ -184,7 +185,12 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
               assertThat(originalRequest.headers().contains(HttpHeaders.IF_NONE_MATCH));
               assertThat(
-                      originalRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH).get().value())
+                      stripETagSuffix(
+                          originalRequest
+                              .headers()
+                              .firstEntry(HttpHeaders.IF_NONE_MATCH)
+                              .get()
+                              .value()))
                   .isEqualTo(eTag);
 
               assertThat(

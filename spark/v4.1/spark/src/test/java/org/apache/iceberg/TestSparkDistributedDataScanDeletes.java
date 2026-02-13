@@ -71,6 +71,7 @@ public class TestSparkDistributedDataScanDeletes
     TestSparkDistributedDataScanDeletes.spark =
         SparkSession.builder()
             .master("local[2]")
+            .config(org.apache.iceberg.spark.TestBase.DISABLE_UI_CONFIGS)
             .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
             .config(SQLConf.SHUFFLE_PARTITIONS().key(), "4")
             .getOrCreate();
