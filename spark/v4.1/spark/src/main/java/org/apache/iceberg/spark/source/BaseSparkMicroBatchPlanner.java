@@ -81,8 +81,7 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
   }
 
   /**
-   * Get the next snapshot skiping over rewrite and delete snapshots. For Async handles nulls, sync
-   * will never have nulls
+   * Get the next snapshot skipping over rewrite and delete snapshots.
    *
    * @param curSnapshot the current snapshot
    * @return the next valid snapshot (not a rewrite or delete snapshot), returns null if all
@@ -109,6 +108,7 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     while (!shouldProcess(nextSnapshot)) {
       LOG.debug("Skipping snapshot: {}", nextSnapshot);
       // if the currentSnapShot was also the mostRecentSnapshot then break
+      // avoids snapshotAfter throwing exception since there are no more snapshots to process
       if (nextSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
         return null;
       }

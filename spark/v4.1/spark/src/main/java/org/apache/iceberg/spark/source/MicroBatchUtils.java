@@ -35,7 +35,7 @@ class MicroBatchUtils {
     }
 
     if (fromTimestamp == Long.MIN_VALUE) {
-      // match existing behavior and start from the oldest snapshot
+      // start from the oldest snapshot, since default value is MIN_VALUE and avoids looping to find first snapshot
       return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
     }
 
@@ -59,8 +59,6 @@ class MicroBatchUtils {
   static long addedFilesCount(Table table, Snapshot snapshot) {
     long addedFilesCount =
         PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1);
-    // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
-    // iterate through addedFiles iterator to find addedFilesCount.
     return addedFilesCount == -1
         ? Iterables.size(snapshot.addedDataFiles(table.io()))
         : addedFilesCount;

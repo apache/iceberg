@@ -23,9 +23,25 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 
 interface SparkMicroBatchPlanner {
+  /**
+   * Return the {@link FileScanTask}s for data added between the start and end offsets.
+   *
+   * @param startOffset the offset to start planning from
+   * @param endOffset the offset to plan up to
+   * @return file scan tasks for data in the offset range
+   */
   List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset);
 
+  /**
+   * Return the latest offset the stream can advance to from {@code startOffset}, respecting the
+   * given {@link ReadLimit}.
+   *
+   * @param startOffset the current offset of the stream
+   * @param limit the read limit bounding how far ahead to advance
+   * @return the latest available offset, or {@code null} if no new data is available
+   */
   StreamingOffset latestOffset(StreamingOffset startOffset, ReadLimit limit);
 
+  /** Stop the planner and release any resources. */
   void stop();
 }
