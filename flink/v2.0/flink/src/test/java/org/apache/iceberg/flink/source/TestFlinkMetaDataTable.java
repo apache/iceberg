@@ -419,6 +419,43 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
       assertThat(actualPartitionsWithProjection.get(i).getField(0)).isEqualTo(1);
     }
 
+    // check partitions table schema
+    List<Row> actualPartitions =
+        sql("SELECT * FROM %s$partitions ORDER BY `partition`.`data`", TABLE_NAME);
+    assertThat(actualPartitions).hasSize(2);
+
+    Row partitionA = actualPartitions.get(0);
+    assertThat(partitionA.getField("partition")).isEqualTo(Row.of("a"));
+    assertThat(partitionA.getField("spec_id")).isEqualTo(0);
+    assertThat(partitionA.getField("record_count")).isEqualTo(2L);
+    assertThat(partitionA.getField("file_count")).isEqualTo(1);
+    assertThat((Long) partitionA.getField("total_data_file_size_in_bytes")).isGreaterThan(0L);
+    assertThat(partitionA.getField("position_delete_record_count")).isEqualTo(0L);
+    assertThat(partitionA.getField("position_delete_file_count")).isEqualTo(0);
+    assertThat(partitionA.getField("total_position_delete_file_size_in_bytes")).isEqualTo(0L);
+    assertThat(partitionA.getField("equality_delete_record_count")).isEqualTo(1L);
+    assertThat(partitionA.getField("equality_delete_file_count")).isEqualTo(1);
+    assertThat((Long) partitionA.getField("total_equality_delete_file_size_in_bytes"))
+        .isGreaterThan(0L);
+    assertThat(partitionA.getField("last_updated_at")).isNotNull();
+    assertThat(partitionA.getField("last_updated_snapshot_id")).isNotNull();
+
+    Row partitionB = actualPartitions.get(1);
+    assertThat(partitionB.getField("partition")).isEqualTo(Row.of("b"));
+    assertThat(partitionB.getField("spec_id")).isEqualTo(0);
+    assertThat(partitionB.getField("record_count")).isEqualTo(2L);
+    assertThat(partitionB.getField("file_count")).isEqualTo(1);
+    assertThat((Long) partitionB.getField("total_data_file_size_in_bytes")).isGreaterThan(0L);
+    assertThat(partitionB.getField("position_delete_record_count")).isEqualTo(0L);
+    assertThat(partitionB.getField("position_delete_file_count")).isEqualTo(0);
+    assertThat(partitionB.getField("total_position_delete_file_size_in_bytes")).isEqualTo(0L);
+    assertThat(partitionB.getField("equality_delete_record_count")).isEqualTo(1L);
+    assertThat(partitionB.getField("equality_delete_file_count")).isEqualTo(1);
+    assertThat((Long) partitionB.getField("total_equality_delete_file_size_in_bytes"))
+        .isGreaterThan(0L);
+    assertThat(partitionB.getField("last_updated_at")).isNotNull();
+    assertThat(partitionB.getField("last_updated_snapshot_id")).isNotNull();
+
     // Check files table
     List<GenericData.Record> expectedFiles =
         Stream.concat(expectedDataFiles.stream(), expectedDeleteFiles.stream())
@@ -590,6 +627,95 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
     assertThat(actualFiles).hasSize(2);
     TestHelpers.assertEquals(filesTableSchema, expectedFiles, actualFiles);
+  }
+
+  @TestTemplate
+  public void testPartitionsTable() {
+    assumeThat(isPartition).isTrue();
+
+    // 2 inserts for partition 'a' and 'b' in @BeforeEach, 2 records each
+    // Check partitions table
+    List<Row> partitions =
+        sql("SELECT * FROM %s$partitions ORDER BY `partition`.`data`", TABLE_NAME);
+    assertThat(partitions).hasSize(2);
+
+    // Verify partition 'a'
+    Row partitionA = partitions.get(0);
+    assertThat(partitionA.getField("partition")).isEqualTo(Row.of("a"));
+    assertThat(partitionA.getField("spec_id")).isEqualTo(0);
+    assertThat(partitionA.getField("record_count")).isEqualTo(2L);
+    assertThat(partitionA.getField("file_count")).isEqualTo(1);
+    assertThat((Long) partitionA.getField("total_data_file_size_in_bytes")).isGreaterThan(0L);
+    assertThat(partitionA.getField("position_delete_record_count")).isEqualTo(0L);
+    assertThat(partitionA.getField("position_delete_file_count")).isEqualTo(0);
+    assertThat(partitionA.getField("total_position_delete_file_size_in_bytes")).isEqualTo(0L);
+    assertThat(partitionA.getField("equality_delete_record_count")).isEqualTo(0L);
+    assertThat(partitionA.getField("equality_delete_file_count")).isEqualTo(0);
+    assertThat(partitionA.getField("total_equality_delete_file_size_in_bytes")).isEqualTo(0L);
+    assertThat(partitionA.getField("last_updated_at")).isNotNull();
+    assertThat(partitionA.getField("last_updated_snapshot_id")).isNotNull();
+
+    // Verify partition 'b'
+    Row partitionB = partitions.get(1);
+    assertThat(partitionB.getField("partition")).isEqualTo(Row.of("b"));
+    assertThat(partitionB.getField("spec_id")).isEqualTo(0);
+    assertThat(partitionB.getField("record_count")).isEqualTo(2L);
+    assertThat(partitionB.getField("file_count")).isEqualTo(1);
+    assertThat((Long) partitionB.getField("total_data_file_size_in_bytes")).isGreaterThan(0L);
+    assertThat(partitionB.getField("position_delete_record_count")).isEqualTo(0L);
+    assertThat(partitionB.getField("position_delete_file_count")).isEqualTo(0);
+    assertThat(partitionB.getField("total_position_delete_file_size_in_bytes")).isEqualTo(0L);
+    assertThat(partitionB.getField("equality_delete_record_count")).isEqualTo(0L);
+    assertThat(partitionB.getField("equality_delete_file_count")).isEqualTo(0);
+    assertThat(partitionB.getField("total_equality_delete_file_size_in_bytes")).isEqualTo(0L);
+    assertThat(partitionB.getField("last_updated_at")).isNotNull();
+    assertThat(partitionB.getField("last_updated_snapshot_id")).isNotNull();
+
+    long partitionASnapshotId = (Long) partitionA.getField("last_updated_snapshot_id");
+    long partitionBSnapshotId = (Long) partitionB.getField("last_updated_snapshot_id");
+
+    // partitions 'a' and 'b' were inserted in separate commits
+    assertThat(partitionASnapshotId).isNotEqualTo(partitionBSnapshotId);
+
+    // Test filtering by partition
+    List<Row> filteredPartitions =
+        sql("SELECT * FROM %s$partitions WHERE `partition`.`data` = 'a'", TABLE_NAME);
+    assertThat(filteredPartitions).hasSize(1);
+    assertThat(filteredPartitions.get(0).getField("partition")).isEqualTo(Row.of("a"));
+
+    // Test projection
+    List<Row> projectedPartitions =
+        sql(
+            "SELECT record_count, file_count FROM %s$partitions ORDER BY `partition`.`data`",
+            TABLE_NAME);
+    assertThat(projectedPartitions).hasSize(2);
+    assertThat(projectedPartitions.get(0).getField("record_count")).isEqualTo(2L);
+    assertThat(projectedPartitions.get(0).getField("file_count")).isEqualTo(1);
+    assertThat(projectedPartitions.get(1).getField("record_count")).isEqualTo(2L);
+    assertThat(projectedPartitions.get(1).getField("file_count")).isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void testPartitionsTableForUnpartitionedTable() {
+    assumeThat(isPartition).isFalse();
+
+    // For unpartitioned tables, there should be one row representing the whole table
+    List<Row> partitions = sql("SELECT * FROM %s$partitions", TABLE_NAME);
+    assertThat(partitions).hasSize(1);
+
+    Row partition = partitions.get(0);
+    // Unpartitioned table should have record count = 4 (3 from first insert + 1 from second insert)
+    assertThat(partition.getField("record_count")).isEqualTo(4L);
+    assertThat(partition.getField("file_count")).isEqualTo(2);
+    assertThat((Long) partition.getField("total_data_file_size_in_bytes")).isGreaterThan(0L);
+    assertThat(partition.getField("position_delete_record_count")).isEqualTo(0L);
+    assertThat(partition.getField("position_delete_file_count")).isEqualTo(0);
+    assertThat(partition.getField("total_position_delete_file_size_in_bytes")).isEqualTo(0L);
+    assertThat(partition.getField("equality_delete_record_count")).isEqualTo(0L);
+    assertThat(partition.getField("equality_delete_file_count")).isEqualTo(0);
+    assertThat(partition.getField("total_equality_delete_file_size_in_bytes")).isEqualTo(0L);
+    assertThat(partition.getField("last_updated_at")).isNotNull();
+    assertThat(partition.getField("last_updated_snapshot_id")).isNotNull();
   }
 
   @TestTemplate
