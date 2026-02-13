@@ -51,6 +51,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
+import org.apache.iceberg.spark.actions.BloomFilterIndexUtil;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -73,6 +74,10 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   private final Long asOfTimestamp;
   private final String tag;
   private final List<Expression> runtimeFilterExpressions;
+  // lazily initialized; used to avoid repeatedly walking filter expressions
+  private transient String bloomFilterColumn;
+  private transient Object bloomFilterLiteral;
+  private transient boolean bloomFilterDetectionAttempted;
 
   SparkBatchQueryScan(
       SparkSession spark,
@@ -99,6 +104,32 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   @Override
   protected Class<PartitionScanTask> taskJavaClass() {
     return PartitionScanTask.class;
+  }
+
+  /**
+   * Override task planning to optionally apply Bloom-filter-based file pruning based on a simple
+   * equality predicate.
+   *
+   * <p>This uses Bloom-filter blobs stored in Puffin statistics files (see {@link
+   * org.apache.iceberg.spark.actions.BuildBloomFilterIndexSparkAction}) to prune data files before
+   * split planning. If the index is missing, stale, or the filters are unsupported, this method
+   * falls back to the default behavior in {@link SparkPartitioningAwareScan}.
+   */
+  @Override
+  protected synchronized List<PartitionScanTask> tasks() {
+    detectBloomFilterPredicateIfNeeded();
+
+    if (bloomFilterColumn == null || bloomFilterLiteral == null) {
+      return super.tasks();
+    }
+
+    Snapshot snapshot = null;
+    if (scan() != null) {
+      snapshot = SnapshotUtil.latestSnapshot(table(), branch());
+    }
+
+    return BloomFilterIndexUtil.pruneTasksWithBloomIndex(
+        table(), snapshot, super::tasks, bloomFilterColumn, bloomFilterLiteral);
   }
 
   @Override
@@ -210,6 +241,72 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     }
 
     return runtimeFilterExpr;
+  }
+
+  /**
+   * Detect a simple equality predicate that can take advantage of a Bloom index.
+   *
+   * <p>For this proof-of-concept we support only predicates of the form {@code col = literal} on a
+   * top-level column. Nested fields, non-equality predicates, and complex expressions are ignored.
+   */
+  private void detectBloomFilterPredicateIfNeeded() {
+    if (bloomFilterDetectionAttempted) {
+      return;
+    }
+
+    this.bloomFilterDetectionAttempted = true;
+
+    Schema snapshotSchema = SnapshotUtil.schemaFor(table(), branch());
+
+    for (Expression expr : filterExpressions()) {
+      if (expr.op() != Expression.Operation.EQ) {
+        continue;
+      }
+
+      try {
+        Expression bound = Binder.bind(snapshotSchema.asStruct(), expr, caseSensitive());
+        if (!(bound instanceof org.apache.iceberg.expressions.BoundPredicate)) {
+          continue;
+        }
+
+        org.apache.iceberg.expressions.BoundPredicate<?> predicate =
+            (org.apache.iceberg.expressions.BoundPredicate<?>) bound;
+
+        if (!(predicate.term() instanceof org.apache.iceberg.expressions.BoundReference)) {
+          continue;
+        }
+
+        org.apache.iceberg.expressions.BoundReference<?> ref =
+            (org.apache.iceberg.expressions.BoundReference<?>) predicate.term();
+        int fieldId = ref.fieldId();
+        String colName = snapshotSchema.findColumnName(fieldId);
+        if (colName == null) {
+          continue;
+        }
+
+        if (!predicate.isLiteralPredicate()) {
+          continue;
+        }
+
+        Object literal = predicate.asLiteralPredicate().literal().value();
+        if (literal == null) {
+          continue;
+        }
+
+        this.bloomFilterColumn = colName;
+        this.bloomFilterLiteral = literal;
+
+        LOG.info(
+            "Detected Bloom-index-eligible predicate {} = {} for table {}",
+            colName,
+            literal,
+            table().name());
+        return;
+
+      } catch (Exception e) {
+        LOG.debug("Failed to bind expression {} for Bloom index detection", expr, e);
+      }
+    }
   }
 
   @Override
