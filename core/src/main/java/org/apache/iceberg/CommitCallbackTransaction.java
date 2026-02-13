@@ -42,6 +42,11 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public UpdateSchema updateSchema(String branch) {
+    return wrapped.updateSchema(branch);
+  }
+
+  @Override
   public UpdatePartitionSpec updateSpec() {
     return wrapped.updateSpec();
   }

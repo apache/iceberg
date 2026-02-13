@@ -34,6 +34,7 @@ public class SnapshotRefParser {
   private static final String MIN_SNAPSHOTS_TO_KEEP = "min-snapshots-to-keep";
   private static final String MAX_SNAPSHOT_AGE_MS = "max-snapshot-age-ms";
   private static final String MAX_REF_AGE_MS = "max-ref-age-ms";
+  private static final String SCHEMA_ID = "schema-id";
 
   public static String toJson(SnapshotRef ref) {
     return toJson(ref, false);
@@ -56,6 +57,7 @@ public class SnapshotRefParser {
         ref.maxSnapshotAgeMs() != null, MAX_SNAPSHOT_AGE_MS, ref.maxSnapshotAgeMs(), generator);
     JsonUtil.writeLongFieldIf(
         ref.maxRefAgeMs() != null, MAX_REF_AGE_MS, ref.maxRefAgeMs(), generator);
+    JsonUtil.writeIntegerFieldIf(ref.schemaId() != null, SCHEMA_ID, ref.schemaId(), generator);
     generator.writeEndObject();
   }
 
@@ -73,10 +75,12 @@ public class SnapshotRefParser {
     Integer minSnapshotsToKeep = JsonUtil.getIntOrNull(MIN_SNAPSHOTS_TO_KEEP, node);
     Long maxSnapshotAgeMs = JsonUtil.getLongOrNull(MAX_SNAPSHOT_AGE_MS, node);
     Long maxRefAgeMs = JsonUtil.getLongOrNull(MAX_REF_AGE_MS, node);
+    Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);
     return SnapshotRef.builderFor(snapshotId, type)
         .minSnapshotsToKeep(minSnapshotsToKeep)
         .maxSnapshotAgeMs(maxSnapshotAgeMs)
         .maxRefAgeMs(maxRefAgeMs)
+        .schemaId(schemaId)
         .build();
   }
 }

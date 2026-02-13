@@ -162,6 +162,11 @@ public class BaseTable
   }
 
   @Override
+  public UpdateSchema updateSchema(String branch) {
+    return new SchemaUpdate(ops, branch);
+  }
+
+  @Override
   public UpdatePartitionSpec updateSpec() {
     return new BaseUpdatePartitionSpec(ops);
   }
