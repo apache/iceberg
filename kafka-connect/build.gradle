@@ -192,8 +192,10 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   }
 
   processResources {
-    filter {
-      it.replace('__VERSION__', project.version.toString())
+    filesMatching('manifest.json') {
+      filter {
+        it.replace('__VERSION__', project.version.toString())
+      }
     }
   }
 
@@ -207,6 +209,10 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
         into('doc/') {
           from "$projectDir/main/LICENSE"
           from "$projectDir/main/NOTICE"
+          from "$projectDir/main/README.md"
+        }
+        into('etc/') {
+          from "$projectDir/main/etc"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"
@@ -230,10 +236,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     }
   }
 
-  // there are no Maven artifacts so disable publishing tasks...
-  project.afterEvaluate {
-    project.tasks.matching { it.group == 'publishing' }.each {it.enabled = false}
-  }
 
   tasks.jar.enabled = false
 
@@ -249,6 +251,17 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   check.dependsOn integrationTest
 
   assemble.dependsOn distZip, hiveDistZip
+
+  // Configure publishing for the distribution zip
+  afterEvaluate {
+    publishing {
+      publications {
+        apache(MavenPublication) {
+          artifact distZip
+        }
+      }
+    }
+  }
 }
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {
