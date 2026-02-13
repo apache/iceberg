@@ -174,6 +174,7 @@ public class ThreadPools {
    * int)}.
    */
   public static void shutdownStartedThreadPools() {
+    long startTime = System.nanoTime();
     ExecutorService item;
     Queue<ExecutorService> invoked = new ArrayDeque<>();
     while ((item = THREAD_POOLS_TO_SHUTDOWN.poll()) != null) {
@@ -181,10 +182,14 @@ public class ThreadPools {
       invoked.add(item);
     }
     while ((item = invoked.poll()) != null) {
-      try {
-        item.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-      } catch (InterruptedException ignored) {
-        // We're shutting down anyway, so just ignore.
+      long timeElapsed = System.nanoTime() - startTime;
+      long remainingTime = SHUTDOWN_TIMEOUT_SECONDS * 1_000_000_000L - timeElapsed;
+      if (remainingTime > 0) {
+        try {
+          item.awaitTermination(remainingTime, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException ignored) {
+          // We're shutting down anyway, so just ignore.
+        }
       }
     }
   }
