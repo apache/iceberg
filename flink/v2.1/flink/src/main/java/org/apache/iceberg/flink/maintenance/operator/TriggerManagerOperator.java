@@ -84,6 +84,7 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
   private final String tableName;
   private transient Long lockTime;
   private transient boolean shouldRestoreTasks = false;
+  private transient boolean lockRegistered = false;
 
   public TriggerManagerOperator(
       StreamOperatorParameters<Trigger> parameters,
@@ -183,7 +184,6 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
       // register the recover lock
       this.lockTime = current;
       this.shouldRestoreTasks = true;
-      output.collect(new StreamRecord<>(Trigger.recovery(current), current));
       if (nextEvaluationTime == null) {
         schedule(getProcessingTimeService(), current + minFireDelayMs);
       } else {
@@ -215,6 +215,9 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
     if (event instanceof LockReleaseEvent) {
       LOG.info("Received lock released event: {}", event);
       handleLockReleaseResult((LockReleaseEvent) event);
+    } else if (event instanceof LockRegisterAckEvent) {
+      LOG.info("Received lock register ack event: {}", event);
+      handleLockRegisterAck((LockRegisterAckEvent) event);
     } else {
       throw new IllegalArgumentException(
           "Invalid operator event type: " + event.getClass().getCanonicalName());
@@ -251,6 +254,22 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
     this.lockTime = null;
   }
 
+  void handleLockRegisterAck(LockRegisterAckEvent event) {
+    this.lockRegistered = true;
+    LOG.info(
+        "Lock registration acknowledged for lockId: {}, timestamp: {}",
+        event.lockId(),
+        event.timestamp());
+
+    // Send recovery trigger after ACK is received if this is a restore scenario
+    if (shouldRestoreTasks) {
+      long current = getProcessingTimeService().getCurrentProcessingTime();
+      this.lockTime = current;
+      output.collect(new StreamRecord<>(Trigger.recovery(current), current));
+      LOG.info("Sent recovery trigger after ACK for lockTime: {}", current);
+    }
+  }
+
   @VisibleForTesting
   void handleLockReleaseResult(LockReleaseEvent event) {
     if (lockTime == null) {
@@ -265,6 +284,13 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
 
   private void checkAndFire(ProcessingTimeService timerService) {
     long current = timerService.getCurrentProcessingTime();
+    // Wait for lock registration ACK before proceeding
+    if (!lockRegistered) {
+      LOG.info("Waiting for lock registration ACK at {}", current);
+      schedule(timerService, current + lockCheckDelayMs);
+      return;
+    }
+
     if (shouldRestoreTasks) {
       if (lockTime != null) {
         // Recovered tasks in progress. Skip trigger check
