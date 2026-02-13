@@ -35,7 +35,8 @@ class MicroBatchUtils {
     }
 
     if (fromTimestamp == Long.MIN_VALUE) {
-      // start from the oldest snapshot, since default value is MIN_VALUE and avoids looping to find first snapshot
+      // start from the oldest snapshot, since default value is MIN_VALUE
+      // avoids looping to find first snapshot
       return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
     }
 

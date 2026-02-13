@@ -88,22 +88,8 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
    *     remaining snapshots should be skipped.
    */
   protected Snapshot nextValidSnapshot(Snapshot curSnapshot) {
-    Snapshot nextSnapshot;
-    // if there were no valid snapshots, check for an initialOffset again
-    if (curSnapshot == null) {
-      StreamingOffset startingOffset =
-          MicroBatchUtils.determineStartingOffset(table, readConf.streamFromTimestamp());
-      LOG.debug("determineStartingOffset picked startingOffset: {}", startingOffset);
-      if (StreamingOffset.START_OFFSET.equals(startingOffset)) {
-        return null;
-      }
-      nextSnapshot = table.snapshot(startingOffset.snapshotId());
-    } else {
-      if (curSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
-        return null;
-      }
-      nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
-    }
+    Snapshot nextSnapshot = SnapshotUtil.snapshotAfter(table, curSnapshot.snapshotId());
+
     // skip over rewrite and delete snapshots
     while (!shouldProcess(nextSnapshot)) {
       LOG.debug("Skipping snapshot: {}", nextSnapshot);
