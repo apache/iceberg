@@ -64,7 +64,7 @@ public class ThreadPools {
 
   private static final int SHUTDOWN_TIMEOUT_SECONDS = 120;
 
-  private static Thread shutDownHook = null;
+  private static Thread shutdownHook;
 
   static {
     initShutdownHook();
@@ -173,7 +173,7 @@ public class ThreadPools {
    * Force manual shutdown of the thread pools created via the {@link #newExitingWorkerPool(String,
    * int)}.
    */
-  public static void shutDownStartedThreadPools() {
+  public static void shutdownStartedThreadPools() {
     ExecutorService item;
     Queue<ExecutorService> invoked = new ArrayDeque<>();
     while ((item = THREAD_POOLS_TO_SHUTDOWN.poll()) != null) {
@@ -190,32 +190,29 @@ public class ThreadPools {
   }
 
   /**
-   * Initialise a shutdown hook to stop the thread pools created via the {@link
+   * Initialize a shutdown hook to stop the thread pools created via the {@link
    * #newExitingWorkerPool(String, int)}.
-   *
-   * <p>NOTE: it is normally started automatically, and does not need to be invoked manually, unless
-   * it has been stopped via the {@link #removeShutdownHook()}
    */
   @SuppressWarnings("ShutdownHook")
-  public static void initShutdownHook() {
-    if (shutDownHook == null) {
-      shutDownHook =
+  private static void initShutdownHook() {
+    if (shutdownHook == null) {
+      shutdownHook =
           Executors.defaultThreadFactory()
               .newThread(
                   new Runnable() {
                     @Override
                     public void run() {
-                      shutDownStartedThreadPools();
+                      shutdownStartedThreadPools();
                     }
                   });
 
       try {
-        shutDownHook.setName("DelayedShutdownHook-iceberg");
+        shutdownHook.setName("DelayedShutdownHook-iceberg");
       } catch (SecurityException e) {
         // OK if we can't set the name in this environment.
       }
 
-      Runtime.getRuntime().addShutdownHook(shutDownHook);
+      Runtime.getRuntime().addShutdownHook(shutdownHook);
     }
   }
 
@@ -223,14 +220,14 @@ public class ThreadPools {
    * Stop the shutdown hook for the thread pools created via the {@link
    * #newExitingWorkerPool(String, int)}.
    *
-   * <p>Thread pools can still be stopped manually via the {@link #shutDownStartedThreadPools()}
-   * method, or the automatic shutdown resumed via the {@link #initShutdownHook()} method.
+   * <p>Thread pools can still be stopped manually via the {@link #shutdownStartedThreadPools()}
+   * method.
    */
   @SuppressWarnings("ShutdownHook")
   public static void removeShutdownHook() {
-    if (shutDownHook != null) {
-      Runtime.getRuntime().removeShutdownHook(shutDownHook);
-      shutDownHook = null;
+    if (shutdownHook != null) {
+      Runtime.getRuntime().removeShutdownHook(shutdownHook);
+      shutdownHook = null;
     }
   }
 
