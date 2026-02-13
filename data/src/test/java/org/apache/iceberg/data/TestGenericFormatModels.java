@@ -80,7 +80,7 @@ public class TestGenericFormatModels {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  public void testDataWriter(FileFormat fileFormat) throws IOException {
+  public void testDataWriterRoundTrip(FileFormat fileFormat) throws IOException {
     FileWriterBuilder<DataWriter<Record>, Schema> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile);
 
@@ -105,8 +105,9 @@ public class TestGenericFormatModels {
     try (CloseableIterable<Record> reader =
         FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
             .project(TestBase.SCHEMA)
+            .reuseContainers()
             .build()) {
-      readRecords = ImmutableList.copyOf(reader);
+      readRecords = ImmutableList.copyOf(CloseableIterable.transform(reader, Record::copy));
     }
 
     DataTestHelpers.assertEquals(TestBase.SCHEMA.asStruct(), TEST_RECORDS, readRecords);
@@ -114,7 +115,7 @@ public class TestGenericFormatModels {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  public void testEqualityDeleteWriter(FileFormat fileFormat) throws IOException {
+  public void testEqualityDeleteWriterRoundTrip(FileFormat fileFormat) throws IOException {
     FileWriterBuilder<EqualityDeleteWriter<Record>, Schema> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, Record.class, encryptedFile);
 
@@ -153,7 +154,7 @@ public class TestGenericFormatModels {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  public void testPositionDeleteWriter(FileFormat fileFormat) throws IOException {
+  public void testPositionDeleteWriterRoundTrip(FileFormat fileFormat) throws IOException {
     Schema positionDeleteSchema = new Schema(DELETE_FILE_PATH, DELETE_FILE_POS);
 
     FileWriterBuilder<PositionDeleteWriter<Record>, ?> writerBuilder =

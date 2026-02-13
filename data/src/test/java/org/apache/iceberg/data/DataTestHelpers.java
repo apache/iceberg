@@ -35,7 +35,7 @@ public class DataTestHelpers {
       Types.StructType struct, List<Record> expected, List<Record> actual) {
     assertThat(actual).hasSize(expected.size());
     for (int i = 0; i < expected.size(); i += 1) {
-      assertEquals(struct, expected.get(i), actual.get(i), null, -1);
+      assertEquals(struct, expected.get(i), actual.get(i));
     }
   }
 

@@ -43,8 +43,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 public class AvroFormatModel<D, S>
     extends BaseFormatModel<D, S, DatumWriter<D>, DatumReader<D>, Schema> {
 
-  public static <D> AvroFormatModel<PositionDelete<D>, Object> forPositionDeletes() {
-    return new AvroFormatModel<>(PositionDelete.deleteClass(), null, null, null);
+  public static <D> AvroFormatModel<PositionDelete<D>, Void> forPositionDeletes() {
+    return new AvroFormatModel<>(PositionDelete.deleteClass(), Void.class, null, null);
   }
 
   public static <D, S> AvroFormatModel<D, S> create(
