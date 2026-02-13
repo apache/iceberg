@@ -59,6 +59,7 @@ public abstract class ExtensionsTestBase extends CatalogTestBase {
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .config(
                 SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), String.valueOf(RANDOM.nextBoolean()))
+            .config(TestBase.DISABLE_UI)
             .enableHiveSupport()
             .getOrCreate();
 
