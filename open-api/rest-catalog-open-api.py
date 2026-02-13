@@ -1167,6 +1167,7 @@ class Expression(BaseModel):
     __root__: (
         TrueExpression
         | FalseExpression
+        | bool
         | AndOrExpression
         | NotExpression
         | SetExpression
