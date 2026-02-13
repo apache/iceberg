@@ -22,6 +22,7 @@ import java.io.ObjectStreamException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -33,6 +34,7 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
@@ -87,6 +89,8 @@ class Literals {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
     } else if (value instanceof Variant) {
       return (Literal<T>) new Literals.VariantLiteral((Variant) value);
+    } else if (value instanceof BoundingBox) {
+      return (Literal<T>) new Literals.BoundingBoxLiteral((BoundingBox) value);
     }
 
     throw new IllegalArgumentException(
@@ -745,6 +749,73 @@ class Literals {
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
       return "X'" + BASE16_ENCODING.encode(bytes) + "'";
+    }
+  }
+
+  static class BoundingBoxLiteral implements Literal<ByteBuffer> {
+    private static final Comparator<ByteBuffer> CMP =
+        Comparators.<ByteBuffer>nullsFirst().thenComparing(Comparators.unsignedBytes());
+
+    private final ByteBuffer value;
+
+    BoundingBoxLiteral(BoundingBox value) {
+      this.value = value.toByteBuffer();
+    }
+
+    BoundingBoxLiteral(ByteBuffer value) {
+      Preconditions.checkNotNull(value, "Bounding box buffer cannot be null");
+      this.value = value.slice().order(ByteOrder.LITTLE_ENDIAN);
+    }
+
+    @Override
+    public ByteBuffer value() {
+      return value;
+    }
+
+    @Override
+    public ByteBuffer toByteBuffer() {
+      return value;
+    }
+
+    @Override
+    public <T> Literal<T> to(Type type) {
+      if (type.typeId() != Type.TypeID.GEOMETRY && type.typeId() != Type.TypeID.GEOGRAPHY) {
+        return null;
+      }
+
+      return (Literal<T>) this;
+    }
+
+    @Override
+    public Comparator<ByteBuffer> comparator() {
+      return CMP;
+    }
+
+    Object writeReplace() throws ObjectStreamException {
+      return new SerializationProxies.BoundingBoxLiteralProxy(value());
+    }
+
+    @Override
+    public String toString() {
+      return BoundingBox.fromByteBuffer(value()).toString();
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+      if (!(other instanceof BoundingBoxLiteral)) {
+        return false;
+      }
+
+      BoundingBoxLiteral that = (BoundingBoxLiteral) other;
+      return comparator().compare(value(), that.value()) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hashCode(value());
     }
   }
 }

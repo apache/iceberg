@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -33,9 +34,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -48,6 +52,9 @@ import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestExpressionUtil {
   private static final Schema SCHEMA =
@@ -62,7 +69,9 @@ public class TestExpressionUtil {
           Types.NestedField.optional(8, "data", Types.StringType.get()),
           Types.NestedField.optional(9, "measurement", Types.DoubleType.get()),
           Types.NestedField.optional(10, "test", Types.IntegerType.get()),
-          Types.NestedField.required(11, "var", Types.VariantType.get()));
+          Types.NestedField.required(11, "var", Types.VariantType.get()),
+          Types.NestedField.required(12, "geometry", Types.GeometryType.crs84()),
+          Types.NestedField.required(13, "geography", Types.GeographyType.crs84()));
 
   private static final Types.StructType STRUCT = SCHEMA.asStruct();
 
@@ -1332,6 +1341,92 @@ public class TestExpressionUtil {
         VariantTestUtil.createArray(
             VariantTestUtil.createString("iceberg"), nestedObject, nestedArray);
     return (VariantArray) VariantValue.from(metadata, variantBB);
+  }
+
+  private static Stream<Arguments> geospatialPredicateParameters() {
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox bbox = new BoundingBox(min, max);
+
+    GeospatialBound minXYZ = GeospatialBound.createXYZ(1.0, 2.0, 3.0);
+    GeospatialBound maxXYZ = GeospatialBound.createXYZ(3.0, 4.0, 5.0);
+    BoundingBox bboxXYZ = new BoundingBox(minXYZ, maxXYZ);
+
+    GeospatialBound minXYM = GeospatialBound.createXYM(1.0, 2.0, 3.0);
+    GeospatialBound maxXYM = GeospatialBound.createXYM(3.0, 4.0, 5.0);
+    BoundingBox bboxXYM = new BoundingBox(minXYM, maxXYM);
+
+    GeospatialBound minXYZM = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
+    GeospatialBound maxXYZM = GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0);
+    BoundingBox bboxXYZM = new BoundingBox(minXYZM, maxXYZM);
+
+    return Stream.of(
+        Arguments.of(
+            Expressions.stIntersects("geometry", bbox),
+            "st_intersects(geometry, (boundingbox-xy))",
+            "(boundingbox-xy)"),
+        Arguments.of(
+            Expressions.stIntersects("geography", bbox),
+            "st_intersects(geography, (boundingbox-xy))",
+            "(boundingbox-xy)"),
+        Arguments.of(
+            Expressions.stDisjoint("geometry", bbox),
+            "st_disjoint(geometry, (boundingbox-xy))",
+            "(boundingbox-xy)"),
+        Arguments.of(
+            Expressions.stDisjoint("geography", bbox),
+            "st_disjoint(geography, (boundingbox-xy))",
+            "(boundingbox-xy)"),
+        Arguments.of(
+            Expressions.stIntersects("geometry", bboxXYZ),
+            "st_intersects(geometry, (boundingbox-xyz))",
+            "(boundingbox-xyz)"),
+        Arguments.of(
+            Expressions.stIntersects("geometry", bboxXYM),
+            "st_intersects(geometry, (boundingbox-xym))",
+            "(boundingbox-xym)"),
+        Arguments.of(
+            Expressions.stIntersects("geometry", bboxXYZM),
+            "st_intersects(geometry, (boundingbox-xyzm))",
+            "(boundingbox-xyzm)"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("geospatialPredicateParameters")
+  public void testSanitizeGeospatialPredicates(
+      UnboundPredicate<ByteBuffer> geoPredicate,
+      String expectedSanitizedString,
+      String expectedLiteral) {
+    Expression.Operation operation = geoPredicate.op();
+    String columnName = geoPredicate.term().ref().name();
+
+    Expression predicateSanitized = Expressions.predicate(operation, columnName, expectedLiteral);
+    assertEquals(predicateSanitized, ExpressionUtil.sanitize(geoPredicate));
+    assertEquals(predicateSanitized, ExpressionUtil.sanitize(STRUCT, geoPredicate, true));
+
+    assertThat(ExpressionUtil.toSanitizedString(geoPredicate))
+        .as("Sanitized string should be identical for geospatial predicates")
+        .isEqualTo(expectedSanitizedString);
+
+    assertThat(ExpressionUtil.toSanitizedString(STRUCT, geoPredicate, true))
+        .as("Sanitized string should be identical for geospatial predicates")
+        .isEqualTo(expectedSanitizedString);
+  }
+
+  @Test
+  public void testBoundingBoxLiteralNormalizesBuffer() {
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    BoundingBox box = new BoundingBox(min, max);
+    ByteBuffer serialized = box.toByteBuffer();
+
+    ByteBuffer padded = ByteBuffer.allocate(serialized.remaining() + 1).order(ByteOrder.BIG_ENDIAN);
+    padded.put((byte) 0x0);
+    padded.put(serialized.duplicate());
+    padded.position(1);
+    Literal<ByteBuffer> literal = new Literals.BoundingBoxLiteral(padded);
+
+    assertThat(literal.toString()).isEqualTo(box.toString());
   }
 
   private void assertEquals(Expression expected, Expression actual) {
