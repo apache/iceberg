@@ -39,7 +39,7 @@ import org.apache.iceberg.flink.TableLoader;
  * be replaced by direct {@link IcebergSink} usage.
  */
 @Internal
-interface IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
+public interface IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
 
   /**
    * @deprecated Use {@link #resolvedSchema(ResolvedSchema)} instead.

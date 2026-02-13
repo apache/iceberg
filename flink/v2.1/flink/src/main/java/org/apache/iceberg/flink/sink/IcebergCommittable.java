@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
+import javax.annotation.Nullable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
@@ -31,33 +32,49 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * <p>{@link IcebergCommittableSerializer} is used for serializing the objects between the Writer
  * and the Aggregator operator and between the Aggregator and the Committer as well.
  */
-class IcebergCommittable implements Serializable {
+public class IcebergCommittable implements Serializable {
   private final byte[] manifest;
   private final String jobId;
   private final String operatorId;
   private final long checkpointId;
+  @Nullable private final CommittableMetadata metadata;
 
-  IcebergCommittable(byte[] manifest, String jobId, String operatorId, long checkpointId) {
+  public IcebergCommittable(byte[] manifest, String jobId, String operatorId, long checkpointId) {
+    this(manifest, jobId, operatorId, checkpointId, null);
+  }
+
+  public IcebergCommittable(
+      byte[] manifest,
+      String jobId,
+      String operatorId,
+      long checkpointId,
+      @Nullable CommittableMetadata metadata) {
     this.manifest = manifest;
     this.jobId = jobId;
     this.operatorId = operatorId;
     this.checkpointId = checkpointId;
+    this.metadata = metadata;
   }
 
-  byte[] manifest() {
+  public byte[] manifest() {
     return manifest;
   }
 
-  String jobId() {
+  public String jobId() {
     return jobId;
   }
 
-  String operatorId() {
+  public String operatorId() {
     return operatorId;
   }
 
-  Long checkpointId() {
+  public Long checkpointId() {
     return checkpointId;
+  }
+
+  @Nullable
+  public CommittableMetadata metadata() {
+    return metadata;
   }
 
   @Override
@@ -66,6 +83,7 @@ class IcebergCommittable implements Serializable {
         .add("jobId", jobId)
         .add("checkpointId", checkpointId)
         .add("operatorId", operatorId)
+        .add("metadata", metadata)
         .toString();
   }
 
@@ -83,12 +101,13 @@ class IcebergCommittable implements Serializable {
     return checkpointId == that.checkpointId
         && Arrays.equals(manifest, that.manifest)
         && Objects.equals(jobId, that.jobId)
-        && Objects.equals(operatorId, that.operatorId);
+        && Objects.equals(operatorId, that.operatorId)
+        && Objects.equals(metadata, that.metadata);
   }
 
   @Override
   public int hashCode() {
-    int result = Objects.hash(jobId, operatorId, checkpointId);
+    int result = Objects.hash(jobId, operatorId, checkpointId, metadata);
     result = 31 * result + Arrays.hashCode(manifest);
     return result;
   }

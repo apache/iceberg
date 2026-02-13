@@ -43,7 +43,8 @@ import org.slf4j.LoggerFactory;
  * IcebergCommittable} per checkpoint (storing the serialized {@link
  * org.apache.iceberg.flink.sink.DeltaManifests}, jobId, operatorId, checkpointId)
  */
-class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<IcebergCommittable>>
+public class IcebergWriteAggregator
+    extends AbstractStreamOperator<CommittableMessage<IcebergCommittable>>
     implements OneInputStreamOperator<
         CommittableMessage<WriteResult>, CommittableMessage<IcebergCommittable>> {
 
@@ -58,7 +59,7 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
   private transient ManifestOutputFileFactory icebergManifestOutputFileFactory;
   private transient Table table;
 
-  IcebergWriteAggregator(TableLoader tableLoader) {
+  public IcebergWriteAggregator(TableLoader tableLoader) {
     this.results = Sets.newHashSet();
     this.tableLoader = tableLoader;
   }

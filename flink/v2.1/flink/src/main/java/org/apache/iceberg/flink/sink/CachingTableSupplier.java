@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
  * table loader should be used carefully when used with writer tasks. It could result in heavy load
  * on a catalog for jobs with many writers.
  */
-class CachingTableSupplier implements SerializableSupplier<Table> {
+public class CachingTableSupplier implements SerializableSupplier<Table> {
 
   private static final Logger LOG = LoggerFactory.getLogger(CachingTableSupplier.class);
 
@@ -43,7 +43,7 @@ class CachingTableSupplier implements SerializableSupplier<Table> {
   private long lastLoadTimeMillis;
   private transient Table table;
 
-  CachingTableSupplier(
+  public CachingTableSupplier(
       SerializableTable initialTable, TableLoader tableLoader, Duration tableRefreshInterval) {
     Preconditions.checkArgument(initialTable != null, "initialTable cannot be null");
     Preconditions.checkArgument(tableLoader != null, "tableLoader cannot be null");
