@@ -116,14 +116,9 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
-    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
-      transitive = false
-    }
-    testImplementation libs.sqlite.jdbc
+    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
     testImplementation libs.awaitility
     testImplementation(testFixtures(project(':iceberg-parquet')))
-    // runtime dependencies for running REST Catalog based integration test
-    testRuntimeOnly libs.jetty.servlet
   }
 
   test {
@@ -184,13 +179,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
-    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
-      transitive = false
-    }
-    // runtime dependencies for running REST Catalog based integration test
-    testRuntimeOnly libs.jetty.servlet
-    testRuntimeOnly libs.sqlite.jdbc
-
+    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
     testImplementation libs.awaitility
@@ -283,11 +272,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     integrationRuntimeOnly project(':iceberg-hive-metastore')
     // runtime dependencies for running REST Catalog based integration test
     integrationRuntimeOnly project(path: ':iceberg-core', configuration: 'testArtifacts')
-    integrationRuntimeOnly (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
-      transitive = false
-    }
-    integrationRuntimeOnly libs.jetty.servlet
-    integrationRuntimeOnly libs.sqlite.jdbc
+    integrationRuntimeOnly (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
 
     // Not allowed on our classpath, only the runtime jar is allowed
     integrationCompileOnly project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
