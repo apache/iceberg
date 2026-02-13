@@ -103,11 +103,11 @@ public class TestSchemaUtils {
 
     // the updates to "i" should be ignored as it already exists and is the same type
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    consumer.addColumn(null, "i", IntegerType.get());
+    consumer.addColumn(null, "i", IntegerType.get(), true);
     consumer.updateType("i", IntegerType.get());
     consumer.makeOptional("i");
     consumer.updateType("f", DoubleType.get());
-    consumer.addColumn(null, "s", StringType.get());
+    consumer.addColumn(null, "s", StringType.get(), true);
 
     SchemaUtils.applySchemaUpdates(table, consumer);
     verify(table).refresh();
@@ -133,11 +133,11 @@ public class TestSchemaUtils {
 
     // the updates to "st.i" should be ignored as it already exists and is the same type
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    consumer.addColumn("st", "i", IntegerType.get());
+    consumer.addColumn("st", "i", IntegerType.get(), true);
     consumer.updateType("st.i", IntegerType.get());
     consumer.makeOptional("st.i");
     consumer.updateType("st.f", DoubleType.get());
-    consumer.addColumn("st", "s", StringType.get());
+    consumer.addColumn("st", "s", StringType.get(), true);
 
     SchemaUtils.applySchemaUpdates(table, consumer);
     verify(table).refresh();
@@ -166,6 +166,46 @@ public class TestSchemaUtils {
     SchemaUtils.applySchemaUpdates(table, new SchemaUpdate.Consumer());
     verify(table, times(0)).refresh();
     verify(table, times(0)).updateSchema();
+  }
+
+  @Test
+  public void testApplySchemaUpdatesWithRequiredColumns() {
+    UpdateSchema updateSchema = mock(UpdateSchema.class);
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+    when(table.updateSchema()).thenReturn(updateSchema);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    consumer.addColumn(null, "s1", StringType.get(), true);
+    consumer.addColumn(null, "s2", StringType.get(), false);
+
+    SchemaUtils.applySchemaUpdates(table, consumer);
+    verify(table).refresh();
+    verify(table).updateSchema();
+
+    verify(updateSchema).addColumn(isNull(), eq("s1"), isA(StringType.class));
+    verify(updateSchema).addRequiredColumn(isNull(), eq("s2"), isA(StringType.class));
+    verify(updateSchema).commit();
+  }
+
+  @Test
+  public void testApplyNestedSchemaUpdatesWithRequiredColumns() {
+    UpdateSchema updateSchema = mock(UpdateSchema.class);
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(NESTED_SCHEMA);
+    when(table.updateSchema()).thenReturn(updateSchema);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    consumer.addColumn("st", "s1", StringType.get(), true);
+    consumer.addColumn("st", "s2", StringType.get(), false);
+
+    SchemaUtils.applySchemaUpdates(table, consumer);
+    verify(table).refresh();
+    verify(table).updateSchema();
+
+    verify(updateSchema).addColumn(eq("st"), eq("s1"), isA(StringType.class));
+    verify(updateSchema).addRequiredColumn(eq("st"), eq("s2"), isA(StringType.class));
+    verify(updateSchema).commit();
   }
 
   @Test
