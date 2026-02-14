@@ -1025,6 +1025,16 @@ public class Parquet {
       return this;
     }
 
+    /**
+     * Builds an {@link EqualityDeleteWriter} to write equality deletes to a Parquet file.
+     *
+     * <p>Equality deletes identify rows to be deleted by the values of one or more columns. This
+     * writer is configured using the row schema and the specific field IDs that should be used for
+     * equality comparison.
+     *
+     * @return an EqualityDeleteWriter for Parquet
+     * @throws IOException if there is an error creating the file
+     */
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
       Preconditions.checkState(
           rowSchema != null, "Cannot create equality delete file without a schema");
@@ -1062,6 +1072,16 @@ public class Parquet {
           equalityFieldIds);
     }
 
+    /**
+     * Builds a {@link PositionDeleteWriter} to write position deletes to a Parquet file.
+     *
+     * <p>Position deletes identify rows to be deleted by their absolute position within a specific
+     * data file (file path and row ordinal). This is generally more efficient for readers than
+     * equality deletes.
+     *
+     * @return a PositionDeleteWriter for Parquet
+     * @throws IOException if there is an error creating the file
+     */
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
       Preconditions.checkState(
           equalityFieldIds == null, "Cannot create position delete file using delete field ids");
