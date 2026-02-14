@@ -69,7 +69,6 @@ public class StrictMetricsEvaluator {
    *     otherwise.
    */
   public boolean eval(ContentFile<?> file) {
-    // TODO: detect the case where a column is missing from the file using file's max field id.
     return new MetricsEvalVisitor().eval(file);
   }
 
@@ -82,6 +81,7 @@ public class StrictMetricsEvaluator {
     private Map<Integer, Long> nanCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    private Long maxFieldId = null;
 
     private boolean eval(ContentFile<?> file) {
       if (file.recordCount() <= 0) {
@@ -93,8 +93,13 @@ public class StrictMetricsEvaluator {
       this.nanCounts = file.nanValueCounts();
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
+      this.maxFieldId = file.maxFieldId();
 
       return ExpressionVisitors.visitEvaluator(expr, this);
+    }
+
+    private boolean isFieldNotInFile(int id) {
+      return maxFieldId != null && id > maxFieldId;
     }
 
     @Override
@@ -140,6 +145,10 @@ public class StrictMetricsEvaluator {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has any non-null values, the expression does not match
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MUST_MATCH;
+      }
+
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -156,6 +165,10 @@ public class StrictMetricsEvaluator {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has any null values, the expression does not match
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -170,6 +183,9 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean isNaN(BoundReference<T> ref) {
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
 
       if (containsNaNsOnly(id)) {
         return ROWS_MUST_MATCH;
@@ -181,6 +197,9 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean notNaN(BoundReference<T> ref) {
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MUST_MATCH;
+      }
 
       if (nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) == 0) {
         return ROWS_MUST_MATCH;
@@ -197,6 +216,10 @@ public class StrictMetricsEvaluator {
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <----------Min----Max---X------->
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -221,6 +244,10 @@ public class StrictMetricsEvaluator {
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <----------Min----Max---X------->
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -245,6 +272,10 @@ public class StrictMetricsEvaluator {
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <-------X---Min----Max---------->
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -274,6 +305,10 @@ public class StrictMetricsEvaluator {
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <-------X---Min----Max---------->
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -303,6 +338,10 @@ public class StrictMetricsEvaluator {
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when Min == X == Max
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -339,6 +378,10 @@ public class StrictMetricsEvaluator {
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when X < Min or Max < X because it is not in the range
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -376,6 +419,10 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
@@ -416,6 +463,10 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
+      if (isFieldNotInFile(id)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
       if (isNestedColumn(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }

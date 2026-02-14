@@ -99,6 +99,11 @@ public interface ContentFile<F> {
   /** Returns if collected, map from column ID to value upper bounds, null otherwise. */
   Map<Integer, ByteBuffer> upperBounds();
 
+  /** Returns if collected, Max Field ID present in schema used to write the file. */
+  default Long maxFieldId() {
+    return null;
+  }
+
   /**
    * Returns metadata about how this file is encrypted, or null if the file is stored in plain text.
    */

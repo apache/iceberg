@@ -84,6 +84,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private String referencedDataFile = null;
   private Long contentOffset = null;
   private Long contentSizeInBytes = null;
+  private Long maxFieldId = null;
 
   // cached schema
   private transient Schema avroSchema = null;
@@ -116,6 +117,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
           DataFile.REFERENCED_DATA_FILE,
           DataFile.CONTENT_OFFSET,
           DataFile.CONTENT_SIZE,
+          DataFile.MAX_FIELD_ID,
           MetadataColumns.ROW_POSITION);
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
@@ -194,6 +196,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.referencedDataFile = referencedDataFile;
     this.contentOffset = contentOffset;
     this.contentSizeInBytes = contentSizeInBytes;
+    this.maxFieldId = null;
   }
 
   /**
@@ -250,6 +253,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.referencedDataFile = toCopy.referencedDataFile;
     this.contentOffset = toCopy.contentOffset;
     this.contentSizeInBytes = toCopy.contentSizeInBytes;
+    this.maxFieldId = toCopy.maxFieldId;
   }
 
   /** Constructor for Java serialization. */
@@ -380,6 +384,9 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         this.contentSizeInBytes = (Long) value;
         return;
       case 21:
+        this.maxFieldId = (Long) value;
+        return;
+      case 22:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -437,6 +444,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       case 20:
         return contentSizeInBytes;
       case 21:
+        return maxFieldId;
+      case 22:
         return fileOrdinal;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
@@ -575,6 +584,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     return contentSizeInBytes;
   }
 
+  @Override
+  public Long maxFieldId() {
+    return maxFieldId;
+  }
+
   private static <K, V> Map<K, V> copyMap(Map<K, V> map, Set<K> keys) {
     return keys == null ? SerializableMap.copyOf(map) : SerializableMap.filteredCopyOf(map, keys);
   }
@@ -630,6 +644,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("referenced_data_file", referencedDataFile == null ? "null" : referencedDataFile)
         .add("content_offset", contentOffset == null ? "null" : contentOffset)
         .add("content_size_in_bytes", contentSizeInBytes == null ? "null" : contentSizeInBytes)
+        .add("max_field_id", maxFieldId == null ? "null" : maxFieldId)
         .toString();
   }
 }

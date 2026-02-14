@@ -170,7 +170,9 @@ public class TestStrictMetricsEvaluator {
           // lower bounds
           ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
           // upper bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")));
+          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
+          // max field id
+          6L);
 
   @Test
   public void testAllNulls() {
@@ -320,6 +322,42 @@ public class TestStrictMetricsEvaluator {
           .as("Should never match when stats are missing for expr: " + expr)
           .isFalse();
     }
+  }
+
+  @Test
+  public void testSchemaEvolution() {
+    // Using no_nans column with Field id - 10, considering schema is evolved after writing FILE_3
+    // (Previous max Field id - 6)
+
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, isNull("no_nans")).eval(FILE_3);
+    assertThat(shouldRead).as("Should match: missing fields are null").isTrue();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("no_nans")).eval(FILE_3);
+    assertThat(shouldRead).as("Should not match: missing fields are null").isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("no_nans")).eval(FILE_3);
+    assertThat(shouldRead).as("Should not match: missing fields are null - not isNaN").isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("no_nans")).eval(FILE_3);
+    assertThat(shouldRead).as("Should match: missing fields are null - not NaN").isTrue();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, greaterThan("no_nans", 1.9)).eval(FILE_3);
+    assertThat(shouldRead).as("Should not match: missing fields are null").isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, lessThan("no_nans", 1.9)).eval(FILE_3);
+    assertThat(shouldRead).as("Should not match: missing fields are null").isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, equal("no_nans", 1.9)).eval(FILE_3);
+    assertThat(shouldRead).as("Should not match: missing fields are null").isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("no_nans", 1.9)).eval(FILE_3);
+    assertThat(shouldRead).as("Should not match: missing fields are null").isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, in("no_nans", 1.9, 2.5)).eval(FILE_3);
+    assertThat(shouldRead).as("Should not match: missing fields are null").isFalse();
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notIn("no_nans", 1.9, 2.5)).eval(FILE_3);
+    assertThat(shouldRead).as("Should not match: missing fields are null").isFalse();
   }
 
   @Test
