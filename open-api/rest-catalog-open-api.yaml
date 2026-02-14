@@ -3468,6 +3468,9 @@ components:
         ## General Configurations
 
         - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
+        - `scan-planning-mode`: Controls scan planning behavior for table operations. Valid values:
+          - `client` (default): Clients MUST use client-side scan planning
+          - `catalog`: Clients MUST use server-side scan planning if the server supports it, otherwise MUST fall back to client-side planning
 
         ## AWS Configurations
 
