@@ -61,6 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -356,7 +357,11 @@ public class TestFlinkTableSinkExtended extends SqlBase {
       // only keep the snapshots with added data files
       snapshots =
           snapshots.stream()
-              .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+              .filter(
+                  snapshot ->
+                      SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs())
+                          .iterator()
+                          .hasNext())
               .collect(Collectors.toList());
 
       // Sometimes we will have more checkpoints than the bounded source if we pass the
@@ -371,7 +376,8 @@ public class TestFlinkTableSinkExtended extends SqlBase {
 
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
-            Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
+            Lists.newArrayList(
+                SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator());
         // range partition results in each partition only assigned to one writer task
         // maybe less than 26 partitions as BoundedSource doesn't always precisely
         // control the checkpoint boundary.

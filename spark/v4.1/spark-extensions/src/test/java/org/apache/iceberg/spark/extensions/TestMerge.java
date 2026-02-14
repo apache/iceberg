@@ -503,7 +503,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
     withUnavailableFiles(
-        snapshot.addedDataFiles(table.io()),
+        SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()),
         () -> {
           // disable dynamic pruning and rely only on static predicate pushdown
           withSQLConf(

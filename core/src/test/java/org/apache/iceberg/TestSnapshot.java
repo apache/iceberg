@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -35,7 +36,8 @@ public class TestSnapshot extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     // collect data files from deserialization
-    Iterable<DataFile> filesToAdd = table.currentSnapshot().addedDataFiles(table.io());
+    Iterable<DataFile> filesToAdd =
+        SnapshotUtil.addedDataFiles(table.currentSnapshot(), table.io(), table.specs());
 
     table.newDelete().deleteFile(FILE_A).deleteFile(FILE_B).commit();
 
@@ -89,7 +91,9 @@ public class TestSnapshot extends TestBase {
 
     Snapshot thirdSnapshot = table.currentSnapshot();
 
-    Iterable<DataFile> removedDataFiles = thirdSnapshot.removedDataFiles(FILE_IO);
+    SnapshotChanges changes =
+        SnapshotChanges.builder(thirdSnapshot, FILE_IO, table.specs()).build();
+    Iterable<DataFile> removedDataFiles = changes.removedDataFiles();
     assertThat(removedDataFiles).as("Must have 1 removed data file").hasSize(1);
 
     DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
@@ -97,7 +101,7 @@ public class TestSnapshot extends TestBase {
     assertThat(removedDataFile.specId()).isEqualTo(FILE_A.specId());
     assertThat(removedDataFile.partition()).isEqualTo(FILE_A.partition());
 
-    Iterable<DataFile> addedDataFiles = thirdSnapshot.addedDataFiles(FILE_IO);
+    Iterable<DataFile> addedDataFiles = changes.addedDataFiles();
     assertThat(addedDataFiles).as("Must have 1 added data file").hasSize(1);
 
     DataFile addedDataFile = Iterables.getOnlyElement(addedDataFiles);
@@ -135,7 +139,9 @@ public class TestSnapshot extends TestBase {
 
     Snapshot thirdSnapshot = table.currentSnapshot();
 
-    Iterable<DeleteFile> removedDeleteFiles = thirdSnapshot.removedDeleteFiles(FILE_IO);
+    SnapshotChanges changes =
+        SnapshotChanges.builder(thirdSnapshot, FILE_IO, table.specs()).build();
+    Iterable<DeleteFile> removedDeleteFiles = changes.removedDeleteFiles();
     assertThat(removedDeleteFiles).as("Must have 1 removed delete file").hasSize(1);
 
     DeleteFile removedDeleteFile = Iterables.getOnlyElement(removedDeleteFiles);
@@ -143,7 +149,7 @@ public class TestSnapshot extends TestBase {
     assertThat(removedDeleteFile.specId()).isEqualTo(secondSnapshotDeleteFile.specId());
     assertThat(removedDeleteFile.partition()).isEqualTo(secondSnapshotDeleteFile.partition());
 
-    Iterable<DeleteFile> addedDeleteFiles = thirdSnapshot.addedDeleteFiles(FILE_IO);
+    Iterable<DeleteFile> addedDeleteFiles = changes.addedDeleteFiles();
     assertThat(addedDeleteFiles).as("Must have 1 added delete file").hasSize(1);
 
     DeleteFile addedDeleteFile = Iterables.getOnlyElement(addedDeleteFiles);
@@ -172,7 +178,8 @@ public class TestSnapshot extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> addedDataFiles = snapshot.addedDataFiles(table.io());
+    Iterable<DataFile> addedDataFiles =
+        SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs());
 
     assertThat(snapshot.sequenceNumber())
         .as("Sequence number mismatch in Snapshot")
@@ -218,7 +225,8 @@ public class TestSnapshot extends TestBase {
     table.newDelete().deleteFile(fileToRemove).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> removedDataFiles = snapshot.removedDataFiles(table.io());
+    Iterable<DataFile> removedDataFiles =
+        SnapshotUtil.removedDataFiles(snapshot, table.io(), table.specs());
     assertThat(removedDataFiles).as("Must have 1 removed data file").hasSize(1);
 
     DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
@@ -250,7 +258,8 @@ public class TestSnapshot extends TestBase {
     table.newRowDelta().addDeletes(deleteFileToAdd).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DeleteFile> addedDeleteFiles = snapshot.addedDeleteFiles(table.io());
+    Iterable<DeleteFile> addedDeleteFiles =
+        SnapshotUtil.addedDeleteFiles(snapshot, table.io(), table.specs());
     assertThat(addedDeleteFiles).as("Must have 1 added delete file").hasSize(1);
 
     DeleteFile addedDeleteFile = Iterables.getOnlyElement(addedDeleteFiles);

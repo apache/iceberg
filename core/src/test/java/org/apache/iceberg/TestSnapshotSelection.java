@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -67,7 +68,8 @@ public class TestSnapshotSelection extends TestBase {
     table.newFastAppend().appendFile(fileWithStats).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> addedFiles = snapshot.addedDataFiles(table.io());
+    Iterable<DataFile> addedFiles =
+        SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs());
     assertThat(addedFiles).hasSize(1);
     DataFile dataFile = Iterables.getOnlyElement(addedFiles);
     assertThat(dataFile.valueCounts()).isNotNull();

@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
@@ -442,7 +443,7 @@ public class TestDeleteFiles extends TestBase {
 
     Snapshot delete2 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
     assertThat(delete2.allManifests(FILE_IO)).isEmpty();
-    assertThat(delete2.removedDataFiles(FILE_IO)).isEmpty();
+    assertThat(SnapshotUtil.removedDataFiles(delete2, FILE_IO, table.specs())).isEmpty();
   }
 
   @Test

@@ -20,13 +20,17 @@ package org.apache.iceberg.util;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HistoryEntry;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -535,5 +539,57 @@ public class SnapshotUtil {
     }
 
     return metadata.snapshot(ref.snapshotId());
+  }
+
+  /**
+   * Return all data files added to the table in the given snapshot.
+   *
+   * @param snapshot the snapshot to detect changes for
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @param specsById a map of partition spec IDs to partition specs
+   * @return all data files added to the table in this snapshot
+   */
+  public static Iterable<DataFile> addedDataFiles(
+      Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return SnapshotChanges.builder(snapshot, io, specsById).build().addedDataFiles();
+  }
+
+  /**
+   * Return all data files removed from the table in the given snapshot.
+   *
+   * @param snapshot the snapshot to detect changes for
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @param specsById a map of partition spec IDs to partition specs
+   * @return all data files removed from the table in this snapshot
+   */
+  public static Iterable<DataFile> removedDataFiles(
+      Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return SnapshotChanges.builder(snapshot, io, specsById).build().removedDataFiles();
+  }
+
+  /**
+   * Return all delete files added to the table in the given snapshot.
+   *
+   * @param snapshot the snapshot to detect changes for
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @param specsById a map of partition spec IDs to partition specs
+   * @return all delete files added to the table in this snapshot
+   */
+  public static Iterable<DeleteFile> addedDeleteFiles(
+      Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return SnapshotChanges.builder(snapshot, io, specsById).build().addedDeleteFiles();
+  }
+
+  /**
+   * Return all delete files removed from the table in the given snapshot.
+   *
+   * @param snapshot the snapshot to detect changes for
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @param specsById a map of partition spec IDs to partition specs
+   * @return all delete files removed from the table in this snapshot
+   */
+  public static Iterable<DeleteFile> removedDeleteFiles(
+      Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return SnapshotChanges.builder(snapshot, io, specsById).build().removedDeleteFiles();
   }
 }

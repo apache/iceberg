@@ -58,6 +58,7 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -202,7 +203,11 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
       // only keep the snapshots with added data files
       snapshots =
           snapshots.stream()
-              .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+              .filter(
+                  snapshot ->
+                      SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs())
+                          .iterator()
+                          .hasNext())
               .collect(Collectors.toList());
 
       // Source rate limit per checkpoint cycle may not be super precise.
@@ -217,7 +222,8 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
 
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
-            Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
+            Lists.newArrayList(
+                SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator());
         assertThat(addedDataFiles)
             .hasSizeLessThanOrEqualTo(maxAddedDataFilesPerCheckpoint(parallelism));
       }

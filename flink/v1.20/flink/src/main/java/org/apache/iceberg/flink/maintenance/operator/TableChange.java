@@ -23,7 +23,8 @@ import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.SnapshotChanges;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** Event describing changes in an Iceberg table */
@@ -54,8 +55,12 @@ public class TableChange {
     this.commitCount = commitCount;
   }
 
-  TableChange(Snapshot snapshot, FileIO io) {
-    this(snapshot.addedDataFiles(io), snapshot.addedDeleteFiles(io));
+  TableChange(Snapshot snapshot, Table table) {
+    this(SnapshotChanges.builder(snapshot, table.io(), table.specs()).build());
+  }
+
+  private TableChange(SnapshotChanges changes) {
+    this(changes.addedDataFiles(), changes.addedDeleteFiles());
   }
 
   public TableChange(Iterable<DataFile> dataFiles, Iterable<DeleteFile> deleteFiles) {
