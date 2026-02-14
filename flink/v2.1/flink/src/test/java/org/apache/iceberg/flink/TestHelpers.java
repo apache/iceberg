@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -55,6 +56,8 @@ import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
+import org.apache.flink.types.variant.BinaryVariant;
+import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataColumns;
@@ -378,9 +381,53 @@ public class TestHelpers {
             .isInstanceOf(byte[].class)
             .isEqualTo(expected);
         break;
+      case VARIANT:
+        assertThat(actual).as("Should expect a Variant").isInstanceOf(Variant.class);
+        assertThat(expected)
+            .as("Should expect a Variant")
+            .isInstanceOf(org.apache.iceberg.variants.Variant.class);
+        Variant flinkVariant = (Variant) actual;
+        org.apache.iceberg.variants.Variant icebergVariant =
+            (org.apache.iceberg.variants.Variant) expected;
+        compareVariants(icebergVariant, flinkVariant);
+        break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
     }
+  }
+
+  private static void compareVariants(
+      org.apache.iceberg.variants.Variant icebergVariant, Variant flinkVariant) {
+
+    org.apache.iceberg.variants.VariantValue icebergValue = icebergVariant.value();
+    org.apache.iceberg.variants.VariantMetadata icebergMetadata = icebergVariant.metadata();
+
+    assertThat(flinkVariant)
+        .as("Flink variant should be a BinaryVariant")
+        .isInstanceOf(BinaryVariant.class);
+
+    BinaryVariant binaryVariant = (BinaryVariant) flinkVariant;
+
+    byte[] flinkValueBytes = binaryVariant.getValue();
+    byte[] flinkMetadataBytes = binaryVariant.getMetadata();
+
+    assertThat(flinkValueBytes).as("Flink variant should contain value bytes").isNotNull();
+    assertThat(flinkMetadataBytes).as("Flink variant should contain metadata bytes").isNotNull();
+
+    byte[] icebergMetadataBytes = new byte[icebergMetadata.sizeInBytes()];
+    icebergMetadata.writeTo(
+        ByteBuffer.wrap(icebergMetadataBytes).order(ByteOrder.LITTLE_ENDIAN), 0);
+
+    byte[] icebergValueBytes = new byte[icebergValue.sizeInBytes()];
+    icebergValue.writeTo(ByteBuffer.wrap(icebergValueBytes).order(ByteOrder.LITTLE_ENDIAN), 0);
+
+    // Compare metadata bytes
+    assertThat(flinkMetadataBytes)
+        .as("Metadata bytes should be equal")
+        .isEqualTo(icebergMetadataBytes);
+
+    // Compare value bytes
+    assertThat(flinkValueBytes).as("Value bytes should be equal").isEqualTo(icebergValueBytes);
   }
 
   public static void assertEquals(Schema schema, List<GenericData.Record> records, List<Row> rows) {
@@ -528,6 +575,18 @@ public class TestHelpers {
             .as("Should expect byte[]")
             .isInstanceOf(byte[].class)
             .isEqualTo(expected);
+        break;
+      case VARIANT:
+        assertThat(actual).as("Should expect a Variant").isInstanceOf(Variant.class);
+        assertThat(expected)
+            .as("Should expect a Variant")
+            .isInstanceOf(org.apache.iceberg.variants.Variant.class);
+
+        Variant flinkVariant = (Variant) actual;
+        org.apache.iceberg.variants.Variant icebergVariant =
+            (org.apache.iceberg.variants.Variant) expected;
+
+        compareVariants(icebergVariant, flinkVariant);
         break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);
