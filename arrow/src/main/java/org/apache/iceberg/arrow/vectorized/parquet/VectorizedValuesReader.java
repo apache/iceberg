@@ -76,6 +76,41 @@ interface VectorizedValuesReader {
   /** Read `total` doubles into `vec` starting at `vec[rowId]` */
   void readDoubles(int total, FieldVector vec, int rowId);
 
+  /*
+   * Skips `total` values
+   */
+  default void skipBooleans(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipIntegers(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipLongs(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipFloats(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipDoubles(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipBinary(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipFixedSizeBinary(int total, int len) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipBytes(int total) {
+    throw new UnsupportedOperationException();
+  }
+
   /**
    * Initialize the reader from a page. See {@link ValuesReader#initFromPage(int,
    * ByteBufferInputStream)}.

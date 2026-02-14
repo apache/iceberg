@@ -43,6 +43,7 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.ArrowSchemaUtil;
+import org.apache.iceberg.arrow.vectorized.parquet.ParquetReadState;
 import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -372,11 +373,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   @Override
   public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+    ParquetReadState readState = new ParquetReadState(source.getRowIndexes().orElse(null));
     ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
     this.dictionary =
         vectorizedColumnIterator.setRowGroupInfo(
             source.getPageReader(columnDescriptor),
-            !ParquetUtil.hasNonDictionaryPages(chunkMetaData));
+            !ParquetUtil.hasNonDictionaryPages(chunkMetaData),
+            readState);
   }
 
   @Override
@@ -649,6 +652,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     private long rowStart;
     private int batchSize;
     private NullabilityHolder nulls;
+    private ParquetReadState readState;
+    private long readOrder;
+    private long curRowPosInRowGroup;
 
     PositionVectorReader(boolean setArrowValidityVector) {
       super(MetadataColumns.ROW_POSITION);
@@ -667,7 +673,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
       ArrowBuf dataBuffer = vec.getDataBuffer();
       for (int i = 0; i < numValsToRead; i += 1) {
-        dataBuffer.setLong((long) i * Long.BYTES, rowStart + i);
+        curRowPosInRowGroup =
+            readState.getReadOrderToRowGroupPosMap().getOrDefault(readOrder, curRowPosInRowGroup);
+        dataBuffer.setLong((long) i * Long.BYTES, rowStart + curRowPosInRowGroup);
+        readOrder++;
+        curRowPosInRowGroup++;
       }
 
       if (setArrowValidityVector) {
@@ -677,7 +687,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         }
       }
 
-      rowStart += numValsToRead;
       vec.setValueCount(numValsToRead);
 
       return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION, nulls);
@@ -700,6 +709,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
                   () ->
                       new IllegalArgumentException(
                           "PageReadStore does not contain row index offset"));
+      readState = new ParquetReadState(source.getRowIndexes().orElse(null));
+      readOrder = 0;
+      curRowPosInRowGroup = 0;
     }
 
     @Override
