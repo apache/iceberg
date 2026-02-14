@@ -533,6 +533,7 @@ project(':iceberg-aws') {
     testImplementation libs.awaitility
     testImplementation libs.jetty.servlet
     testImplementation libs.mockito.junit.jupiter
+    testImplementation libs.junit.pioneer
   }
 
   sourceSets {
