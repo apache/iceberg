@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.source.StreamingReadMode;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 
 /** Flink source read options */
@@ -120,4 +121,11 @@ public class FlinkReadOptions {
       ConfigOptions.key(PREFIX + WATERMARK_COLUMN_TIME_UNIT)
           .enumType(TimeUnit.class)
           .defaultValue(TimeUnit.MICROSECONDS);
+
+  // CDC (Change Data Capture) related options
+  public static final String STREAMING_READ_MODE = "streaming-read-mode";
+  public static final ConfigOption<StreamingReadMode> STREAMING_READ_MODE_OPTION =
+      ConfigOptions.key(PREFIX + STREAMING_READ_MODE)
+          .enumType(StreamingReadMode.class)
+          .defaultValue(StreamingReadMode.APPEND_ONLY);
 }
