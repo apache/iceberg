@@ -34,6 +34,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
@@ -69,6 +70,7 @@ public class TestStructuredStreaming {
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
             .config("spark.sql.shuffle.partitions", 4)
+            .config(TestBase.DISABLE_UI)
             .getOrCreate();
   }
 

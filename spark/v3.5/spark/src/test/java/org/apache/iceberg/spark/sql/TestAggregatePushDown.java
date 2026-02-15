@@ -63,6 +63,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.sql.iceberg.aggregate_pushdown", "true")
+            .config(TestBase.DISABLE_UI)
             .enableHiveSupport()
             .getOrCreate();
 
