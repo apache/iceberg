@@ -54,7 +54,8 @@ public class SinkUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(SinkUtil.class);
 
-  static Set<Integer> checkAndGetEqualityFieldIds(Table table, List<String> equalityFieldColumns) {
+  public static Set<Integer> checkAndGetEqualityFieldIds(
+      Table table, List<String> equalityFieldColumns) {
     Set<Integer> equalityFieldIds = Sets.newHashSet(table.schema().identifierFieldIds());
     if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
       Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());

@@ -249,6 +249,26 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
   }
 
+  protected Supplier<Table> getTableSupplier() {
+    return tableSupplier;
+  }
+
+  protected PartitionSpec getSpec() {
+    return spec;
+  }
+
+  protected FileFormat getFormat() {
+    return format;
+  }
+
+  protected OutputFileFactory getOutputFileFactory() {
+    return outputFileFactory;
+  }
+
+  protected void setOutputFileFactory(OutputFileFactory outputFileFactory) {
+    this.outputFileFactory = outputFileFactory;
+  }
+
   private static class RowDataPartitionedFanoutWriter extends PartitionedFanoutWriter<RowData> {
 
     private final PartitionKey partitionKey;
