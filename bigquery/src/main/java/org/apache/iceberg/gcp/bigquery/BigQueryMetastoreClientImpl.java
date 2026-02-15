@@ -75,9 +75,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** A client of Google Bigquery Metastore functions over the BigQuery service. */
 public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClient {
+
+  private static final Logger LOG = LoggerFactory.getLogger(BigQueryMetastoreClientImpl.class);
 
   private final Bigquery client;
   private final BigQueryOptions bigqueryOptions;
@@ -524,6 +528,76 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       }
     } catch (IOException e) {
       throw new RuntimeIOException("%s", e);
+    }
+  }
+
+  @Override
+  public void rename(TableReference fromTableReference, TableReference toTableReference) {
+    try {
+      Table sourceTable = load(fromTableReference);
+
+      DatasetReference toDatasetReference =
+          new DatasetReference()
+              .setProjectId(toTableReference.getProjectId())
+              .setDatasetId(toTableReference.getDatasetId());
+      load(toDatasetReference);
+
+      Table renamedTable = new Table();
+      renamedTable.setTableReference(toTableReference);
+      renamedTable.setExternalCatalogTableOptions(sourceTable.getExternalCatalogTableOptions());
+
+      createNewTableDuringRename(toTableReference, renamedTable);
+      deleteOriginalTableDuringRename(fromTableReference, toTableReference);
+
+    } catch (Exception e) {
+      throw new RuntimeIOException(
+          "Failed to rename table from %s to %s: %s",
+          fromTableReference, toTableReference, e.getMessage());
+    }
+  }
+
+  private void createNewTableDuringRename(TableReference toTableReference, Table renamedTable) {
+    try {
+      HttpResponse createResponse =
+          client
+              .tables()
+              .insert(
+                  toTableReference.getProjectId(), toTableReference.getDatasetId(), renamedTable)
+              .executeUnparsed();
+
+      convertExceptionIfUnsuccessful(createResponse);
+
+    } catch (Exception createException) {
+      throw new RuntimeIOException(
+          "Failed to create new table %s during rename: %s",
+          toTableReference, createException.getMessage());
+    }
+  }
+
+  private void deleteOriginalTableDuringRename(
+      TableReference fromTableReference, TableReference toTableReference) {
+    try {
+      delete(fromTableReference);
+    } catch (Exception deleteException) {
+      LOG.error("Failed to cleanup original table {}", fromTableReference, deleteException);
+      cleanupNewlyCreatedTableDuringRename(toTableReference);
+    }
+  }
+
+  private void cleanupNewlyCreatedTableDuringRename(TableReference toTableReference) {
+    try {
+      client
+          .tables()
+          .delete(
+              toTableReference.getProjectId(),
+              toTableReference.getDatasetId(),
+              toTableReference.getTableId())
+          .executeUnparsed();
+    } catch (Exception cleanupException) {
+      LOG.error(
+          "Failed to cleanup newly created table {} after failed rename",
+          toTableReference,
+          cleanupException);
     }
   }
 
