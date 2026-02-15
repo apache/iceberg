@@ -29,6 +29,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Comparators;
 
 public class DataDistributionUtil {
   private DataDistributionUtil() {}
@@ -162,7 +163,7 @@ public class DataDistributionUtil {
       }
     }
 
-    Arrays.sort(reservoir);
+    Arrays.sort(reservoir, Comparators.uuids());
     return reservoir;
   }
 
@@ -172,7 +173,7 @@ public class DataDistributionUtil {
     for (int i = 0; i < rangeBoundSize; ++i) {
       rangeBounds[i] = sampledUUIDs[i * step];
     }
-    Arrays.sort(rangeBounds);
+    Arrays.sort(rangeBounds, Comparators.uuids());
     return rangeBounds;
   }
 }
