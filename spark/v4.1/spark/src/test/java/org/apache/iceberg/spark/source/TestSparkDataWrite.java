@@ -44,6 +44,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -154,6 +155,7 @@ public class TestSparkDataWrite {
           assertThat(file.splitOffsets()).as("Split offsets not present").isNotNull();
         }
         assertThat(file.recordCount()).as("Should have reported record count as 1").isEqualTo(1);
+        assertThat(file.sortOrderId()).isEqualTo(SortOrder.unsorted().orderId());
         // TODO: append more metric info
         if (format.equals(FileFormat.PARQUET)) {
           assertThat(file.columnSizes()).as("Column sizes metric not present").isNotNull();
@@ -553,6 +555,55 @@ public class TestSparkDataWrite {
     List<SimpleRecord> expected2 =
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(1, "a"));
     assertThat(actual2).hasSameSizeAs(expected2).isEqualTo(expected2);
+  }
+
+  @TestTemplate
+  public void testWriteDataFilesInTableSortOrder() {
+    File parent = temp.resolve(format.toString()).toFile();
+    File location = new File(parent, "test");
+    String targetLocation = locationWithBranch(location);
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    table.replaceSortOrder().asc("id").commit();
+
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(4000);
+    for (int i = 0; i < 4000; i++) {
+      expected.add(new SimpleRecord(i, "a"));
+    }
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    createBranch(table);
+    table.refresh();
+
+    Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
+
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
+
+    List<DataFile> files = Lists.newArrayList();
+    for (ManifestFile manifest :
+        SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+        files.add(file);
+      }
+    }
+
+    assertThat(files)
+        .extracting(DataFile::sortOrderId)
+        .as("All DataFiles are written with the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
   }
 
   public void partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType option) {
