@@ -21,7 +21,10 @@ package org.apache.iceberg.data;
 import org.apache.iceberg.avro.AvroFormatModel;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.avro.PlannedDataReader;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.parquet.ParquetFormatModel;
 
 public class GenericFormatModels {
   public static void register() {
@@ -34,6 +37,17 @@ public class GenericFormatModels {
                 PlannedDataReader.create(icebergSchema, idToConstant)));
 
     FormatModelRegistry.register(AvroFormatModel.forPositionDeletes());
+
+    FormatModelRegistry.register(
+        ParquetFormatModel.create(
+            Record.class,
+            Void.class,
+            (icebergSchema, fileSchema, engineSchema) ->
+                GenericParquetWriter.create(icebergSchema, fileSchema),
+            (icebergSchema, fileSchema, engineSchema, idToConstant) ->
+                GenericParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
+
+    FormatModelRegistry.register(ParquetFormatModel.forPositionDeletes());
   }
 
   private GenericFormatModels() {}
