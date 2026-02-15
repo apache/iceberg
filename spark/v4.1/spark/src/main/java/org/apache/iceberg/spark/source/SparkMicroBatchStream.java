@@ -194,13 +194,18 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   }
 
   private void initializePlanner(StreamingOffset startOffset, StreamingOffset endOffset) {
-    this.planner =
-        new SyncSparkMicroBatchPlanner(table, readConf, lastOffsetForTriggerAvailableNow);
+    if (readConf.asyncMicroBatchPlanningEnabled()) {
+      this.planner =
+          new AsyncSparkMicroBatchPlanner(
+              table, readConf, startOffset, endOffset, lastOffsetForTriggerAvailableNow);
+    } else {
+      this.planner =
+          new SyncSparkMicroBatchPlanner(table, readConf, lastOffsetForTriggerAvailableNow);
+    }
   }
 
   @Override
   public Offset latestOffset(Offset startOffset, ReadLimit limit) {
-    // calculate end offset get snapshotId from the startOffset
     Preconditions.checkArgument(
         startOffset instanceof StreamingOffset,
         "Invalid start offset: %s is not a StreamingOffset",
