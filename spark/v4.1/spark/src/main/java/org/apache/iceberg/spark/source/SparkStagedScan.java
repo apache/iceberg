@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import org.apache.iceberg.ScanTask;
@@ -28,8 +29,10 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.read.Statistics;
 
 class SparkStagedScan extends SparkScan {
 
@@ -40,12 +43,24 @@ class SparkStagedScan extends SparkScan {
 
   private List<ScanTaskGroup<ScanTask>> taskGroups = null; // lazy cache of tasks
 
-  SparkStagedScan(SparkSession spark, Table table, Schema expectedSchema, SparkReadConf readConf) {
-    super(spark, table, readConf, expectedSchema, ImmutableList.of(), null);
-    this.taskSetId = readConf.scanTaskSetId();
+  SparkStagedScan(
+      SparkSession spark,
+      Table table,
+      Schema projection,
+      String taskSetId,
+      SparkReadConf readConf) {
+    super(spark, table, readConf, projection, ImmutableList.of(), null);
+    this.taskSetId = taskSetId;
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.openFileCost = readConf.splitOpenFileCost();
+  }
+
+  @Override
+  public Statistics estimateStatistics() {
+    long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
+    long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
+    return new Stats(sizeInBytes, rowsCount, Collections.emptyMap());
   }
 
   @Override

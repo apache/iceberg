@@ -54,7 +54,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private final LogicalWriteInfo writeInfo;
   private final StructType dsSchema;
   private final String overwriteMode;
-  private final String rewrittenFileSetId;
   private boolean overwriteDynamic = false;
   private boolean overwriteByFilter = false;
   private Expression overwriteExpr = null;
@@ -70,15 +69,12 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     this.writeInfo = info;
     this.dsSchema = info.schema();
     this.overwriteMode = writeConf.overwriteMode();
-    this.rewrittenFileSetId = writeConf.rewrittenFileSetId();
   }
 
   public WriteBuilder overwriteFiles(Scan scan, Command command, IsolationLevel isolationLevel) {
     Preconditions.checkState(!overwriteByFilter, "Cannot overwrite individual files and by filter");
     Preconditions.checkState(
         !overwriteDynamic, "Cannot overwrite individual files and dynamically");
-    Preconditions.checkState(
-        rewrittenFileSetId == null, "Cannot overwrite individual files and rewrite");
 
     this.overwriteFiles = true;
     this.copyOnWriteScan = (SparkCopyOnWriteScan) scan;
@@ -92,8 +88,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     Preconditions.checkState(
         !overwriteByFilter, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);
     Preconditions.checkState(!overwriteFiles, "Cannot overwrite individual files and dynamically");
-    Preconditions.checkState(
-        rewrittenFileSetId == null, "Cannot overwrite dynamically and rewrite");
 
     this.overwriteDynamic = true;
     return this;
@@ -103,7 +97,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   public WriteBuilder overwrite(Filter[] filters) {
     Preconditions.checkState(
         !overwriteFiles, "Cannot overwrite individual files and using filters");
-    Preconditions.checkState(rewrittenFileSetId == null, "Cannot overwrite and rewrite");
 
     this.overwriteExpr = SparkFilters.convert(filters);
     if (overwriteExpr == Expressions.alwaysTrue() && "dynamic".equals(overwriteMode)) {
@@ -123,9 +116,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     // operation or if it's a compaction.
     // In any other case, only null row IDs and sequence numbers would be produced which
     // means the row lineage columns can be excluded from the output files
-    boolean writeRequiresRowLineage =
-        TableUtil.supportsRowLineage(table)
-            && (overwriteFiles || writeConf.rewrittenFileSetId() != null);
+    boolean writeRequiresRowLineage = TableUtil.supportsRowLineage(table) && overwriteFiles;
     boolean writeAlreadyIncludesLineage =
         dsSchema.exists(field -> field.name().equals(MetadataColumns.ROW_ID.name()));
     StructType sparkWriteSchema = dsSchema;
@@ -156,9 +147,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
       @Override
       public BatchWrite toBatch() {
-        if (rewrittenFileSetId != null) {
-          return asRewrite(rewrittenFileSetId);
-        } else if (overwriteByFilter) {
+        if (overwriteByFilter) {
           return asOverwriteByFilter(overwriteExpr);
         } else if (overwriteDynamic) {
           return asDynamicOverwrite();
@@ -177,8 +166,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
             !overwriteByFilter || overwriteExpr == Expressions.alwaysTrue(),
             "Unsupported streaming operation: overwrite by filter: %s",
             overwriteExpr);
-        Preconditions.checkState(
-            rewrittenFileSetId == null, "Unsupported streaming operation: rewrite");
 
         if (overwriteByFilter) {
           return asStreamingOverwrite();

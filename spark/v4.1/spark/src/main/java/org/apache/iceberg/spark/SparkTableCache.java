@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.Collection;
 import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -50,5 +51,9 @@ public class SparkTableCache {
 
   public Table remove(String key) {
     return cache.remove(key);
+  }
+
+  public Collection<Table> tables() {
+    return cache.values();
   }
 }

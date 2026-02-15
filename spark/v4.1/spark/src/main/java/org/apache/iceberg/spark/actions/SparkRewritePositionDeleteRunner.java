@@ -105,7 +105,6 @@ class SparkRewritePositionDeleteRunner
         spark()
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
             .option(SparkReadOptions.SPLIT_SIZE, group.inputSplitSize())
             .option(SparkReadOptions.FILE_OPEN_COST, "0")
             .load(groupId);
@@ -120,7 +119,6 @@ class SparkRewritePositionDeleteRunner
         .sortWithinPartitions("file_path", "pos")
         .write()
         .format("iceberg")
-        .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
         .option(SparkWriteOptions.TARGET_DELETE_FILE_SIZE_BYTES, group.maxOutputFileSize())
         .mode("append")
         .save(groupId);

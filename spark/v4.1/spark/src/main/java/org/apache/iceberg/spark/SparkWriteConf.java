@@ -267,13 +267,6 @@ public class SparkWriteConf {
     return extraSnapshotMetadata;
   }
 
-  public String rewrittenFileSetId() {
-    return confParser
-        .stringConf()
-        .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID)
-        .parseOptional();
-  }
-
   public SparkWriteRequirements writeRequirements() {
     if (ignoreTableDistributionAndOrdering()) {
       LOG.info("Skipping distribution/ordering: disabled per job configuration");

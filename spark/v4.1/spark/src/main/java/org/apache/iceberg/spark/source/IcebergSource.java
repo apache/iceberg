@@ -27,12 +27,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkCachedTableCatalog;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkRewriteTableCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableCache;
-import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -66,15 +65,14 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 public class IcebergSource
     implements DataSourceRegister, SupportsCatalogOptions, SessionConfigSupport {
   private static final String DEFAULT_CATALOG_NAME = "default_iceberg";
-  private static final String DEFAULT_CACHE_CATALOG_NAME = "default_cache_iceberg";
-  private static final String DEFAULT_CATALOG = "spark.sql.catalog." + DEFAULT_CATALOG_NAME;
-  private static final String DEFAULT_CACHE_CATALOG =
-      "spark.sql.catalog." + DEFAULT_CACHE_CATALOG_NAME;
+  private static final String REWRITE_CATALOG_NAME = "default_rewrite_catalog";
+  private static final String CATALOG_PREFIX = "spark.sql.catalog.";
+  private static final String DEFAULT_CATALOG = CATALOG_PREFIX + DEFAULT_CATALOG_NAME;
+  private static final String REWRITE_CATALOG = CATALOG_PREFIX + REWRITE_CATALOG_NAME;
   private static final String AT_TIMESTAMP = "at_timestamp_";
   private static final String SNAPSHOT_ID = "snapshot_id_";
   private static final String BRANCH_PREFIX = "branch_";
   private static final String TAG_PREFIX = "tag_";
-  private static final String REWRITE_SELECTOR = "rewrite";
   private static final String[] EMPTY_NAMESPACE = new String[0];
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
@@ -165,21 +163,15 @@ public class IcebergSource
       selector = TAG_PREFIX + tag;
     }
 
-    String groupId =
-        options.getOrDefault(
-            SparkReadOptions.SCAN_TASK_SET_ID,
-            options.get(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID));
-    if (groupId != null) {
-      selector = REWRITE_SELECTOR;
-    }
-
     CatalogManager catalogManager = spark.sessionState().catalogManager();
 
+    // return rewrite catalog with path as group ID if table is staged for rewrite
     if (TABLE_CACHE.contains(path)) {
       return new Spark3Util.CatalogAndIdentifier(
-          catalogManager.catalog(DEFAULT_CACHE_CATALOG_NAME),
-          Identifier.of(EMPTY_NAMESPACE, pathWithSelector(path, selector)));
-    } else if (path.contains("/")) {
+          catalogManager.catalog(REWRITE_CATALOG_NAME), Identifier.of(EMPTY_NAMESPACE, path));
+    }
+
+    if (path.contains("/")) {
       // contains a path. Return iceberg default catalog and a PathIdentifier
       return new Spark3Util.CatalogAndIdentifier(
           catalogManager.catalog(DEFAULT_CATALOG_NAME),
@@ -258,8 +250,8 @@ public class IcebergSource
       config.forEach((key, value) -> spark.conf().set(DEFAULT_CATALOG + "." + key, value));
     }
 
-    if (spark.conf().getOption(DEFAULT_CACHE_CATALOG).isEmpty()) {
-      spark.conf().set(DEFAULT_CACHE_CATALOG, SparkCachedTableCatalog.class.getName());
+    if (spark.conf().getOption(REWRITE_CATALOG).isEmpty()) {
+      spark.conf().set(REWRITE_CATALOG, SparkRewriteTableCatalog.class.getName());
     }
   }
 }
