@@ -32,4 +32,4 @@ echo ""
 
 ./dev/setup_env.sh
 
-"${VENV_DIR}/bin/python3" -m mkdocs serve -f mkdocs-dev.yml --livereload --watch .
+"${VENV_DIR}/bin/python3" -m mkdocs serve -f mkdocs-dev.yml --livereload
