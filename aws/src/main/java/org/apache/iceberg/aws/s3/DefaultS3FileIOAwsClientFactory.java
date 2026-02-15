@@ -56,6 +56,7 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
                     awsClientProperties, s3ClientBuilder))
         .applyMutation(s3FileIOProperties::applySignerConfiguration)
         .applyMutation(s3FileIOProperties::applyS3AccessGrantsConfigurations)
+        .applyMutation(s3FileIOProperties::applyMetricsPublisherConfiguration)
         .applyMutation(s3FileIOProperties::applyUserAgentConfigurations)
         .applyMutation(s3FileIOProperties::applyRetryConfigurations)
         .build();
@@ -76,6 +77,7 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
         .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
         .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
         .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
+        .applyMutation(s3FileIOProperties::applyMetricsPublisherConfiguration)
         .build();
   }
 }

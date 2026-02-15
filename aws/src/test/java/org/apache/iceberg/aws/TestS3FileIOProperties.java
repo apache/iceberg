@@ -23,12 +23,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -38,6 +42,10 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.signer.Signer;
+import software.amazon.awssdk.metrics.MetricCollection;
+import software.amazon.awssdk.metrics.MetricPublisher;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -319,5 +327,71 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY, "false");
     S3FileIOProperties properties = new S3FileIOProperties(map);
     assertThat(properties.isS3DirectoryBucketListPrefixAsDirectory()).isEqualTo(false);
+  }
+
+  @ParameterizedTest
+  @ValueSource(classes = {FactoryMetricPublisher.class, NoArgMetricPublisher.class})
+  public void testMetricsPublisher(Class<?> publisherClass) {
+    S3FileIOProperties props =
+        new S3FileIOProperties(
+            ImmutableMap.of(S3FileIOProperties.METRICS_PUBLISHER_IMPL, publisherClass.getName()));
+
+    var syncBuilder = S3Client.builder();
+    props.applyMetricsPublisherConfiguration(syncBuilder);
+    assertThat(syncBuilder.overrideConfiguration().metricPublishers())
+        .singleElement()
+        .isInstanceOf(publisherClass);
+
+    var asyncBuilder = S3AsyncClient.builder();
+    props.applyMetricsPublisherConfiguration(asyncBuilder);
+    assertThat(asyncBuilder.overrideConfiguration().metricPublishers())
+        .singleElement()
+        .isInstanceOf(publisherClass);
+  }
+
+  @ParameterizedTest
+  @MethodSource("clientBuilders")
+  public <T extends S3BaseClientBuilder<T, ?>> void testMetricsPublisherDisabled(T builder) {
+    S3FileIOProperties props = new S3FileIOProperties(ImmutableMap.of());
+    props.applyMetricsPublisherConfiguration(builder);
+
+    assertThat(builder.overrideConfiguration().metricPublishers()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @MethodSource("clientBuilders")
+  public <T extends S3BaseClientBuilder<T, ?>> void testMetricsPublisherInvalidClass(T builder) {
+    S3FileIOProperties props =
+        new S3FileIOProperties(
+            ImmutableMap.of(
+                S3FileIOProperties.METRICS_PUBLISHER_IMPL, "com.invalid.NonExistentClass"));
+
+    assertThatThrownBy(() -> props.applyMetricsPublisherConfiguration(builder))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot instantiate MetricPublisher");
+  }
+
+  static Stream<S3BaseClientBuilder<?, ?>> clientBuilders() {
+    return Stream.of(S3Client.builder(), S3AsyncClient.builder());
+  }
+
+  public static class FactoryMetricPublisher implements MetricPublisher {
+    public static FactoryMetricPublisher create(Map<String, String> properties) {
+      return new FactoryMetricPublisher();
+    }
+
+    @Override
+    public void publish(MetricCollection metricCollection) {}
+
+    @Override
+    public void close() {}
+  }
+
+  public static class NoArgMetricPublisher implements MetricPublisher {
+    @Override
+    public void publish(MetricCollection metricCollection) {}
+
+    @Override
+    public void close() {}
   }
 }
