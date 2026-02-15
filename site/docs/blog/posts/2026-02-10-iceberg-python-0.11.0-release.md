@@ -2,6 +2,7 @@
 date: 2026-02-10
 title: Apache Iceberg Python 0.11.0 Release
 slug: apache-iceberg-python-0.11.0-release
+description: Apache Iceberg Python 0.11.0 release
 authors:
   - iceberg-pmc
 categories:

@@ -2,6 +2,7 @@
 date: 2026-01-26
 title: Apache Iceberg C++ 0.2.0 Release
 slug: apache-iceberg-cpp-0.2.0-release  # this is the blog url
+description: Apache Iceberg C++ 0.2.0 release
 authors:
   - iceberg-pmc
 categories:
