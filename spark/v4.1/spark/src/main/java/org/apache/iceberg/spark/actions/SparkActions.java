@@ -119,4 +119,14 @@ public class SparkActions implements ActionsProvider {
   public RewriteTablePathSparkAction rewriteTablePath(Table table) {
     return new RewriteTablePathSparkAction(spark, table);
   }
+
+  /**
+   * Build a minimal Bloom-filter-based file index for a single column and store it as a Puffin
+   * statistics file.
+   *
+   * <p>This is a proof-of-concept helper intended for experimentation and benchmarking.
+   */
+  public BuildBloomFilterIndexSparkAction buildBloomFilterIndex(Table table) {
+    return new BuildBloomFilterIndexSparkAction(spark, table);
+  }
 }
