@@ -2,6 +2,7 @@
 date: 2026-01-10
 title: Announcing Iceberg Summit 2026
 slug: announcing-iceberg-summit-2026  # this is the url
+description: Iceberg Summit returns April 8-9, 2026 in San Francisco.
 authors:
   - iceberg-pmc
 categories:

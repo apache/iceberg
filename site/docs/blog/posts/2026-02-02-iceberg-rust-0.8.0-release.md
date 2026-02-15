@@ -2,6 +2,7 @@
 date: 2026-02-02
 title: Apache Iceberg Rust 0.8.0 Release
 slug: apache-iceberg-rust-0.8.0-release  # this is the blog url
+description: Apache Iceberg Rust 0.8.0 release
 authors:
   - iceberg-pmc
 categories:
