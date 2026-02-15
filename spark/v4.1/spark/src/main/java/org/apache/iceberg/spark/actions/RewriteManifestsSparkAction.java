@@ -103,6 +103,7 @@ public class RewriteManifestsSparkAction
           .build();
 
   private static final String DATA_FILE_PARTITION_COLUMN_NAME = "data_file.partition";
+  private static final String DATA_FILE_PATH_COLUMN_NAME = "data_file.file_path";
 
   private final Table table;
   private final int formatVersion;
@@ -329,7 +330,9 @@ public class RewriteManifestsSparkAction
   }
 
   private Dataset<Row> repartitionAndSort(Dataset<Row> df, Column col, int numPartitions) {
-    return df.repartitionByRange(numPartitions, col).sortWithinPartitions(col);
+    // add file path for range partition to make sure we have enough parallelism
+    return df.repartitionByRange(numPartitions, col, df.col(DATA_FILE_PATH_COLUMN_NAME))
+        .sortWithinPartitions(col);
   }
 
   private <T, U> U withReusableDS(Dataset<T> ds, Function<Dataset<T>, U> func) {
