@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import java.util.Set;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
@@ -29,21 +28,18 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.data.vectorized.ColumnVectorWithFilter;
 import org.apache.iceberg.spark.data.vectorized.ColumnarBatchUtil;
 import org.apache.iceberg.spark.data.vectorized.UpdatableDeletedColumnVector;
-import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
@@ -74,79 +70,37 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Expression residual,
       Map<Integer, ?> idToConstant,
       @Nonnull SparkDeleteFilter deleteFilter) {
-    CloseableIterable<ColumnarBatch> iterable;
-    switch (format) {
-      case PARQUET:
-        iterable =
-            newParquetIterable(
-                inputFile, start, length, residual, idToConstant, deleteFilter.requiredSchema());
-        break;
-      case ORC:
-        iterable = newOrcIterable(inputFile, start, length, residual, idToConstant);
-        break;
-      default:
-        throw new UnsupportedOperationException(
-            "Format: " + format + " not supported for batched reads");
+    Class<? extends ColumnarBatch> readType =
+        useComet() ? VectorizedSparkParquetReaders.CometColumnarBatch.class : ColumnarBatch.class;
+    ReadBuilder<ColumnarBatch, ?> readBuilder =
+        FormatModelRegistry.readBuilder(format, readType, inputFile);
+
+    if (parquetConf != null) {
+      readBuilder = readBuilder.recordsPerBatch(parquetConf.batchSize());
+    } else if (orcConf != null) {
+      readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
     }
+
+    CloseableIterable<ColumnarBatch> iterable =
+        readBuilder
+            .project(deleteFilter.requiredSchema())
+            .idToConstant(idToConstant)
+            .split(start, length)
+            .filter(residual)
+            .caseSensitive(caseSensitive())
+            // Spark eagerly consumes the batches. So the underlying memory allocated could be
+            // reused without worrying about subsequent reads clobbering over each other. This
+            // improves read performance as every batch read doesn't have to pay the cost of
+            // allocating memory.
+            .reuseContainers()
+            .withNameMapping(nameMapping())
+            .build();
 
     return CloseableIterable.transform(iterable, new BatchDeleteFilter(deleteFilter)::filterBatch);
   }
 
-  private CloseableIterable<ColumnarBatch> newParquetIterable(
-      InputFile inputFile,
-      long start,
-      long length,
-      Expression residual,
-      Map<Integer, ?> idToConstant,
-      Schema requiredSchema) {
-    return Parquet.read(inputFile)
-        .project(requiredSchema)
-        .split(start, length)
-        .createBatchedReaderFunc(
-            fileSchema -> {
-              if (parquetConf.readerType() == ParquetReaderType.COMET) {
-                return VectorizedSparkParquetReaders.buildCometReader(
-                    requiredSchema, fileSchema, idToConstant);
-              } else {
-                return VectorizedSparkParquetReaders.buildReader(
-                    requiredSchema, fileSchema, idToConstant);
-              }
-            })
-        .recordsPerBatch(parquetConf.batchSize())
-        .filter(residual)
-        .caseSensitive(caseSensitive())
-        // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
-        // without worrying about subsequent reads clobbering over each other. This improves
-        // read performance as every batch read doesn't have to pay the cost of allocating memory.
-        .reuseContainers()
-        .withNameMapping(nameMapping())
-        .build();
-  }
-
-  private CloseableIterable<ColumnarBatch> newOrcIterable(
-      InputFile inputFile,
-      long start,
-      long length,
-      Expression residual,
-      Map<Integer, ?> idToConstant) {
-    Set<Integer> constantFieldIds = idToConstant.keySet();
-    Set<Integer> metadataFieldIds = MetadataColumns.metadataFieldIds();
-    Sets.SetView<Integer> constantAndMetadataFieldIds =
-        Sets.union(constantFieldIds, metadataFieldIds);
-    Schema schemaWithoutConstantAndMetadataFields =
-        TypeUtil.selectNot(expectedSchema(), constantAndMetadataFieldIds);
-
-    return ORC.read(inputFile)
-        .project(schemaWithoutConstantAndMetadataFields)
-        .split(start, length)
-        .createBatchedReaderFunc(
-            fileSchema ->
-                VectorizedSparkOrcReaders.buildReader(expectedSchema(), fileSchema, idToConstant))
-        .recordsPerBatch(orcConf.batchSize())
-        .filter(residual)
-        .caseSensitive(caseSensitive())
-        .withNameMapping(nameMapping())
-        .build();
+  private boolean useComet() {
+    return parquetConf != null && parquetConf.readerType() == ParquetReaderType.COMET;
   }
 
   @VisibleForTesting
