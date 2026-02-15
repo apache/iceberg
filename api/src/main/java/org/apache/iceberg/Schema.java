@@ -105,6 +105,10 @@ public class Schema implements Serializable {
     this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds, getId);
   }
 
+  public Schema(List<NestedField> columns, TypeUtil.GetID getId) {
+    this(DEFAULT_SCHEMA_ID, columns, ImmutableSet.of(), getId);
+  }
+
   public Schema(int schemaId, List<NestedField> columns) {
     this(schemaId, columns, ImmutableSet.of());
   }
