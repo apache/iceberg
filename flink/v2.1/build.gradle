@@ -31,6 +31,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
+    implementation libs.caffeine
 
     compileOnly libs.flink21.avro
     // for dropwizard histogram metrics implementation
