@@ -1897,6 +1897,345 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    get:
+      tags:
+        - Index Catalog API
+      summary: List all indexes for a table filtered by the types if requested
+      description: |
+        Return a list of index summaries for the specified table.
+        The list can be filtered by index type(s) using the `types` query parameter.
+        This enables query optimizers to discover indexes available for a given table.
+      operationId: listIndexes
+      parameters:
+        - name: types
+          in: query
+          description: |
+            Optional comma-separated list of index types to filter by.
+            If not provided, all indexes are returned.
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/IndexType'
+          style: form
+          explode: false
+          example: "bloom,btree"
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+      responses:
+        200:
+          $ref: '#/components/responses/ListIndexesResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The table or namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    post:
+      tags:
+        - Index Catalog API
+      summary: Create an index on a table
+      description: |
+        Create a new index on the specified table.
+        The index type, column IDs, and other configuration must be provided in the request body.
+      operationId: createIndex
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIndexRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadIndexResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The table or namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - An index with the same name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                IndexAlreadyExists:
+                  $ref: '#/components/examples/IndexAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/indexes/{index}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+      - $ref: '#/components/parameters/index'
+
+    get:
+      tags:
+        - Index Catalog API
+      summary: Load an index from the catalog
+      description: |
+        Load the full metadata for an index.
+        The response contains the complete index definition including versions, snapshots, and history.
+      operationId: loadIndex
+      responses:
+        200:
+          $ref: '#/components/responses/LoadIndexResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The index, table, or namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchIndexError:
+                  $ref: '#/components/examples/NoSuchIndexError'
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    post:
+      tags:
+        - Index Catalog API
+      summary: Commit updates to an index
+      description: |
+        Commit updates to an index.
+        This can be used to add new versions, snapshots, or update index metadata.
+        The request includes requirements that must be met and updates to apply.
+      operationId: updateIndex
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitIndexRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadIndexResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The index, table, or namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchIndexError:
+                  $ref: '#/components/examples/NoSuchIndexError'
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - CommitFailedException, one or more requirements failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        500:
+          description: An unknown server-side problem occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example:
+                error:
+                  message: "Internal Server Error"
+                  type: "CommitStateUnknownException"
+                  code: 500
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    delete:
+      tags:
+        - Index Catalog API
+      summary: Drop an index from the catalog
+      description: Remove an index from the catalog. This will delete the index and all its data.
+      operationId: dropIndex
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      responses:
+        204:
+          description: Success, no content
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The index does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchIndexError:
+                  $ref: '#/components/examples/NoSuchIndexError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    head:
+      tags:
+        - Index Catalog API
+      summary: Check if an index exists
+      description: Check if an index exists for a given table. The response does not contain a body.
+      operationId: indexExists
+      responses:
+        204:
+          description: Success, no content - Index exists
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Index not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchIndexError:
+                  $ref: '#/components/examples/NoSuchIndexError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/register-index:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Index Catalog API
+      summary: Register an index using a metadata file location
+      description: |
+        Register an index in the catalog using a given metadata file location.
+        This allows importing an existing index from its metadata file.
+      operationId: registerIndex
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterIndexRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadIndexResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The table or namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - An index with the same identifier already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                IndexAlreadyExists:
+                  $ref: '#/components/examples/IndexAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
 components:
   #######################################################
   # Common Parameter Definitions Used In Several Routes #
@@ -1953,6 +2292,15 @@ components:
       schema:
         type: string
       example: "sales"
+
+    index:
+      name: index
+      in: path
+      description: An index name
+      required: true
+      schema:
+        type: string
+      example: "customer_id_btree_idx"
 
     data-access:
       name: X-Iceberg-Access-Delegation
@@ -2860,6 +3208,417 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    IndexIdentifier:
+      type: object
+      description: Identifies an index within a catalog, scoped to a table
+      required:
+        - namespace
+        - table
+        - name
+      properties:
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+        table:
+          type: string
+          description: The table name
+        name:
+          type: string
+          description: The index name
+      example:
+        namespace: ["accounting", "tax"]
+        table: "sales"
+        name: "customer_id_btree_idx"
+
+    IndexType:
+      type: string
+      description: The type of index algorithm
+      enum:
+        - bloom
+        - btree
+        - term
+        - ivf
+      example: "btree"
+
+    IndexSummary:
+      type: object
+      description: A lightweight summary of an index for discovery and optimization
+      required:
+        - identifier
+        - type
+        - index-column-ids
+        - optimized-column-ids
+        - available-table-snapshots
+      properties:
+        identifier:
+          $ref: '#/components/schemas/IndexIdentifier'
+        type:
+          $ref: '#/components/schemas/IndexType'
+        index-column-ids:
+          type: array
+          description: IDs of columns stored losslessly in the index
+          items:
+            type: integer
+          example: [1, 2]
+        optimized-column-ids:
+          type: array
+          description: IDs of columns the index is optimized for retrieval
+          items:
+            type: integer
+          example: [1]
+        available-table-snapshots:
+          type: array
+          description: Table snapshot IDs for which this index has valid snapshots
+          items:
+            type: integer
+            format: int64
+          example: [1234567890123, 1234567890456]
+
+    IndexSnapshot:
+      type: object
+      description: Represents a point-in-time snapshot of an index
+      required:
+        - index-snapshot-id
+        - table-snapshot-id
+        - timestamp-ms
+        - manifest-list
+      properties:
+        index-snapshot-id:
+          type: integer
+          format: int64
+          description: Unique identifier for this index snapshot
+        table-snapshot-id:
+          type: integer
+          format: int64
+          description: The table snapshot ID this index snapshot corresponds to
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: Timestamp when this snapshot was created (ms since epoch)
+        manifest-list:
+          type: string
+          description: Location of the manifest list for this snapshot
+        snapshot-properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: Properties for this index snapshot typically set by the index maintenance process
+
+    IndexVersion:
+      type: object
+      description: Represents a version of the index schema/configuration
+      required:
+        - version-id
+        - timestamp-ms
+      properties:
+        version-id:
+          type: integer
+          description: Unique identifier for this version
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: Timestamp when this version was created (ms since epoch)
+        snapshot-id:
+          type: integer
+          format: int64
+          description: The index snapshot ID associated with this version
+        user-properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: User provided properties for this version
+
+    IndexHistoryEntry:
+      type: object
+      description: An entry in the index version history
+      required:
+        - timestamp-ms
+        - version-id
+      properties:
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: Timestamp of the history entry (ms since epoch)
+        version-id:
+          type: integer
+          description: The version ID at this point in history
+
+    IndexMetadata:
+      type: object
+      description: Full metadata for an index
+      required:
+        - format-version
+        - index-uuid
+        - name
+        - type
+        - location
+        - index-column-ids
+        - optimized-column-ids
+        - current-version-id
+      properties:
+        format-version:
+          type: integer
+          description: Format version of the index metadata
+          example: 1
+        index-uuid:
+          type: string
+          format: uuid
+          description: Unique UUID for this index
+        name:
+          type: string
+          description: The name of the index
+        type:
+          $ref: '#/components/schemas/IndexType'
+        location:
+          type: string
+          description: Base location for index files
+        index-column-ids:
+          type: array
+          description: IDs of columns stored losslessly in the index
+          items:
+            type: integer
+        optimized-column-ids:
+          type: array
+          description: IDs of columns the index is optimized for retrieval
+          items:
+            type: integer
+        current-version-id:
+          type: integer
+          description: ID of the current index version
+        versions:
+          type: array
+          description: List of known index versions
+          items:
+            $ref: '#/components/schemas/IndexVersion'
+        version-history:
+          type: array
+          description: History of version changes
+          items:
+            $ref: '#/components/schemas/IndexHistoryEntry'
+        snapshots:
+          type: array
+          description: List of index snapshots
+          items:
+            $ref: '#/components/schemas/IndexSnapshot'
+
+    IndexRequirement:
+      type: object
+      description: A requirement that must be met for an index commit to succeed
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum:
+            - assert-index-uuid
+          description: The type of requirement
+        uuid:
+          type: string
+          format: uuid
+          description: Required for assert-index-uuid
+      discriminator:
+        propertyName: type
+        mapping:
+          assert-index-uuid: '#/components/schemas/AssertIndexUUID'
+
+    AssertIndexUUID:
+      allOf:
+        - $ref: '#/components/schemas/IndexRequirement'
+        - type: object
+          required:
+            - uuid
+          properties:
+            uuid:
+              type: string
+              format: uuid
+
+    IndexUpdate:
+      type: object
+      description: An update to apply to an index
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - update-format-version
+            - add-snapshot
+            - remove-snapshots
+            - add-version
+            - set-current-version
+            - set-location
+          description: The type of update
+      discriminator:
+        propertyName: action
+        mapping:
+          upgrade-format-version: '#/components/schemas/UpgradeIndexFormatVersionUpdate'
+          add-snapshot: '#/components/schemas/AddIndexSnapshotUpdate'
+          remove-snapshots: '#/components/schemas/RemoveIndexSnapshotsUpdate'
+          add-version: '#/components/schemas/AddIndexVersionUpdate'
+          set-current-version-id: '#/components/schemas/SetCurrentIndexVersionUpdate'
+          set-location: '#/components/schemas/SetIndexLocationUpdate'
+
+    UpgradeIndexFormatVersionUpdate:
+      allOf:
+        - $ref: '#/components/schemas/IndexUpdate'
+        - type: object
+          required:
+            - format-version
+          properties:
+            action:
+              type: string
+              const: "upgrade-format-version"
+            format-version:
+              type: integer
+
+    AddIndexSnapshotUpdate:
+      allOf:
+        - $ref: '#/components/schemas/IndexUpdate'
+        - type: object
+          required:
+            - snapshot
+          properties:
+            snapshot:
+              $ref: '#/components/schemas/IndexSnapshot'
+
+    RemoveIndexSnapshotsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/IndexUpdate'
+        - type: object
+          required:
+            - snapshot-ids
+          properties:
+            snapshot-ids:
+              type: array
+              items:
+                type: integer
+                format: int64
+
+    AddIndexVersionUpdate:
+      allOf:
+        - $ref: '#/components/schemas/IndexUpdate'
+        - type: object
+          required:
+            - version
+          properties:
+            version:
+              $ref: '#/components/schemas/IndexVersion'
+
+    SetCurrentIndexVersionUpdate:
+      allOf:
+        - $ref: '#/components/schemas/IndexUpdate'
+      required:
+        - version-id
+      properties:
+        action:
+          type: string
+          const: "set-current-index-version"
+        version-id:
+          type: integer
+          description: The index version id to set as current, or -1 to set last added index version id
+
+    SetIndexLocationUpdate:
+      allOf:
+        - $ref: '#/components/schemas/IndexUpdate'
+        - type: object
+          required:
+            - location
+          properties:
+            location:
+              type: string
+
+    LoadIndexResult:
+      type: object
+      description: Result for loading an index
+      required:
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+          description: The location of the index metadata file
+        metadata:
+          $ref: '#/components/schemas/IndexMetadata'
+        config:
+          type: object
+          additionalProperties:
+            type: string
+
+    CreateIndexRequest:
+      type: object
+      description: Request to create a new index
+      required:
+        - name
+        - type
+        - index-column-ids
+      properties:
+        name:
+          type: string
+          description: The name for the new index
+          example: "customer_id_btree_idx"
+        type:
+          $ref: '#/components/schemas/IndexType'
+        index-column-ids:
+          type: array
+          description: IDs of columns to store losslessly in the index
+          items:
+            type: integer
+          example: [1, 2]
+        optimized-column-ids:
+          type: array
+          description: IDs of columns the index is optimized for retrieval
+          items:
+            type: integer
+          example: [1]
+        location:
+          type: string
+          description: Optional base location for index files
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: Index-specific properties
+        index-snapshot-id:
+          type: integer
+          format: int64
+          description: Unique identifier for this index snapshot
+        table-snapshot-id:
+          type: integer
+          format: int64
+          description: The table snapshot ID this index snapshot corresponds to
+        snapshot-properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: Properties for this index snapshot typically set by the index maintenance process
+
+    RegisterIndexRequest:
+      type: object
+      description: Request to register an existing index by metadata file location
+      required:
+        - name
+        - metadata-location
+      properties:
+        name:
+          type: string
+          description: The name to register the index under
+        metadata-location:
+          type: string
+          description: Location of the index metadata file
+
+    CommitIndexRequest:
+      type: object
+      description: Request to commit updates to an index
+      properties:
+        requirements:
+          type: array
+          description: Requirements that must be met before applying updates
+          items:
+            $ref: '#/components/schemas/IndexRequirement'
+        updates:
+          type: array
+          description: Updates to apply to the index
+          items:
+            $ref: '#/components/schemas/IndexUpdate'
 
     BaseUpdate:
       discriminator:
@@ -4974,6 +5733,29 @@ components:
           schema:
             $ref: '#/components/schemas/LoadCredentialsResponse'
 
+    ListIndexesResponse:
+      description: A list of index summaries
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - indexes
+            properties:
+              next-page-token:
+                $ref: '#/components/schemas/PageToken'
+              indexes:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IndexSummary'
+
+    LoadIndexResponse:
+      description: The loaded index metadata
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadIndexResult'
+
   #######################################
   # Common examples of different values #
   #######################################
@@ -5139,6 +5921,26 @@ components:
       value: {
         "removals": [ "foo", "bar" ],
         "updates": { "owner": "Raoul" }
+      }
+
+    NoSuchIndexError:
+      summary: The requested index does not exist
+      value: {
+        "error": {
+          "message": "Index does not exist: customer_id_btree_idx in accounting.sales",
+          "type": "NoSuchIndexException",
+          "code": 404
+        }
+      }
+
+    IndexAlreadyExistsError:
+      summary: An index with the same name already exists
+      value: {
+        "error": {
+          "message": "Index already exists: customer_id_btree_idx in accounting.sales",
+          "type": "AlreadyExistsException",
+          "code": 409
+        }
       }
 
   securitySchemes:

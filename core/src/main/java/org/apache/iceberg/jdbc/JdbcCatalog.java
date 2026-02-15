@@ -45,6 +45,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.catalog.IndexCatalog;
+import org.apache.iceberg.catalog.IndexIdentifier;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -55,6 +57,10 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.index.Index;
+import org.apache.iceberg.index.IndexBuilder;
+import org.apache.iceberg.index.IndexSummary;
+import org.apache.iceberg.index.IndexType;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -73,7 +79,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreViewCatalog
-    implements Configurable<Object>, SupportsNamespaces {
+    implements Configurable<Object>, SupportsNamespaces, IndexCatalog {
 
   public static final String PROPERTY_PREFIX = "jdbc.";
   private static final String NAMESPACE_EXISTS_PROPERTY = "exists";
@@ -93,6 +99,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private boolean initializeCatalogTables;
   private CloseableGroup closeableGroup;
   private JdbcUtil.SchemaVersion schemaVersion = JdbcUtil.SchemaVersion.V0;
+  private JdbcIndexCatalog indexCatalog;
 
   public JdbcCatalog() {
     this(null, null, true);
@@ -150,8 +157,13 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
     updateSchemaIfRequired();
 
+    // Initialize the index catalog
+    this.indexCatalog = new JdbcIndexCatalog(this, connections, io);
+    this.indexCatalog.initialize(catalogName, properties);
+
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.addCloseable(indexCatalog);
     closeableGroup.addCloseable(connections);
     closeableGroup.addCloseable(io);
     closeableGroup.setSuppressCloseFailure(true);
@@ -907,5 +919,42 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
       return super.replaceTransaction();
     }
+  }
+
+  // IndexCatalog delegate methods
+
+  @Override
+  public List<IndexSummary> listIndexes(TableIdentifier tableIdentifier, IndexType... types) {
+    return indexCatalog.listIndexes(tableIdentifier, types);
+  }
+
+  @Override
+  public Index loadIndex(IndexIdentifier identifier) {
+    return indexCatalog.loadIndex(identifier);
+  }
+
+  @Override
+  public boolean indexExists(IndexIdentifier identifier) {
+    return indexCatalog.indexExists(identifier);
+  }
+
+  @Override
+  public IndexBuilder buildIndex(IndexIdentifier identifier) {
+    return indexCatalog.buildIndex(identifier);
+  }
+
+  @Override
+  public boolean dropIndex(IndexIdentifier identifier) {
+    return indexCatalog.dropIndex(identifier);
+  }
+
+  @Override
+  public void invalidateIndex(IndexIdentifier identifier) {
+    indexCatalog.invalidateIndex(identifier);
+  }
+
+  @Override
+  public Index registerIndex(IndexIdentifier identifier, String metadataFileLocation) {
+    return indexCatalog.registerIndex(identifier, metadataFileLocation);
   }
 }

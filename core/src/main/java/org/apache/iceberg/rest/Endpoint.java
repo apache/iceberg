@@ -89,6 +89,16 @@ public class Endpoint {
   public static final Endpoint V1_REGISTER_VIEW =
       Endpoint.create("POST", ResourcePaths.V1_VIEW_REGISTER);
 
+  // index endpoints
+  public static final Endpoint V1_LIST_INDEXES = Endpoint.create("GET", ResourcePaths.V1_INDEXES);
+  public static final Endpoint V1_CREATE_INDEX = Endpoint.create("POST", ResourcePaths.V1_INDEXES);
+  public static final Endpoint V1_LOAD_INDEX = Endpoint.create("GET", ResourcePaths.V1_INDEX);
+  public static final Endpoint V1_UPDATE_INDEX = Endpoint.create("POST", ResourcePaths.V1_INDEX);
+  public static final Endpoint V1_DELETE_INDEX = Endpoint.create("DELETE", ResourcePaths.V1_INDEX);
+  public static final Endpoint V1_INDEX_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_INDEX);
+  public static final Endpoint V1_REGISTER_INDEX =
+      Endpoint.create("POST", ResourcePaths.V1_INDEX_REGISTER);
+
   private static final Splitter ENDPOINT_SPLITTER = Splitter.on(" ");
   private static final Joiner ENDPOINT_JOINER = Joiner.on(" ");
   private final String httpMethod;
