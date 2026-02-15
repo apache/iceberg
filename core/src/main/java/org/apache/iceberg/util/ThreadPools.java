@@ -19,6 +19,9 @@
 package org.apache.iceberg.util;
 
 import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -29,8 +32,11 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ThreadPools {
+  private static final Logger LOG = LoggerFactory.getLogger(ThreadPools.class);
 
   private ThreadPools() {}
 
@@ -44,6 +50,9 @@ public class ThreadPools {
 
   public static final int WORKER_THREAD_POOL_SIZE = SystemConfigs.WORKER_THREAD_POOL_SIZE.value();
 
+  private static final ConcurrentLinkedDeque<ExecutorService> THREAD_POOLS_TO_SHUTDOWN =
+      new ConcurrentLinkedDeque<>();
+
   private static final ExecutorService WORKER_POOL =
       newExitingWorkerPool("iceberg-worker-pool", WORKER_THREAD_POOL_SIZE);
 
@@ -55,6 +64,14 @@ public class ThreadPools {
 
   public static final int AUTH_REFRESH_THREAD_POOL_SIZE =
       SystemConfigs.AUTH_REFRESH_THREAD_POOL_SIZE.value();
+
+  private static final int SHUTDOWN_TIMEOUT_SECONDS = 120;
+
+  private static Thread shutdownHook;
+
+  static {
+    initShutdownHook();
+  }
 
   /**
    * Return an {@link ExecutorService} that uses the "worker" thread-pool.
@@ -149,8 +166,85 @@ public class ThreadPools {
    * that should be automatically cleaned up on JVM shutdown.
    */
   public static ExecutorService newExitingWorkerPool(String namePrefix, int poolSize) {
-    return MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) newFixedThreadPool(namePrefix, poolSize));
+    ExecutorService service =
+        Executors.unconfigurableExecutorService(newFixedThreadPool(namePrefix, poolSize));
+    THREAD_POOLS_TO_SHUTDOWN.add(service);
+    return service;
+  }
+
+  /**
+   * Force manual shutdown of the thread pools created via the {@link #newExitingWorkerPool(String,
+   * int)}.
+   */
+  public static void shutdownStartedThreadPools() {
+    long startTime = System.nanoTime();
+    ExecutorService item;
+    Queue<ExecutorService> invoked = new ArrayDeque<>();
+    while ((item = THREAD_POOLS_TO_SHUTDOWN.poll()) != null) {
+      item.shutdown();
+      invoked.add(item);
+    }
+    while ((item = invoked.poll()) != null) {
+      long timeElapsed = System.nanoTime() - startTime;
+      long remainingTime = SHUTDOWN_TIMEOUT_SECONDS * 1_000_000_000L - timeElapsed;
+      if (remainingTime > 0) {
+        try {
+          item.awaitTermination(remainingTime, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException ignored) {
+          // We're shutting down anyway, so just ignore.
+        }
+      }
+    }
+  }
+
+  /**
+   * Initialize a shutdown hook to stop the thread pools created via the {@link
+   * #newExitingWorkerPool(String, int)}.
+   */
+  @SuppressWarnings("ShutdownHook")
+  private static void initShutdownHook() {
+    if (shutdownHook == null) {
+      shutdownHook =
+          Executors.defaultThreadFactory()
+              .newThread(
+                  new Runnable() {
+                    @Override
+                    public void run() {
+                      shutdownStartedThreadPools();
+                    }
+                  });
+
+      try {
+        shutdownHook.setName("DelayedShutdownHook-iceberg");
+      } catch (SecurityException e) {
+        LOG.warn("Cannot set thread name for the shutdown hook", e);
+      }
+
+      try {
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
+      } catch (SecurityException e) {
+        LOG.warn("Cannot install a shutdown hook for thread pools clean up", e);
+      }
+    }
+  }
+
+  /**
+   * Stop the shutdown hook for the thread pools created via the {@link
+   * #newExitingWorkerPool(String, int)}.
+   *
+   * <p>Thread pools can still be stopped manually via the {@link #shutdownStartedThreadPools()}
+   * method.
+   */
+  @SuppressWarnings("ShutdownHook")
+  public static void removeShutdownHook() {
+    if (shutdownHook != null) {
+      try {
+        Runtime.getRuntime().removeShutdownHook(shutdownHook);
+      } catch (SecurityException e) {
+        LOG.warn("Cannot remove the shutdown hook for thread pools clean up", e);
+      }
+      shutdownHook = null;
+    }
   }
 
   /** Creates a fixed-size thread pool that uses daemon threads. */
