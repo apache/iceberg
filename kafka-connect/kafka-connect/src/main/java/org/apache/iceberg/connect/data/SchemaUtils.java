@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect.data;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -36,6 +37,8 @@ import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SchemaUpdate.AddColumn;
 import org.apache.iceberg.connect.data.SchemaUpdate.MakeOptional;
 import org.apache.iceberg.connect.data.SchemaUpdate.UpdateType;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -70,6 +73,8 @@ class SchemaUtils {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUtils.class);
 
   private static final Pattern TRANSFORM_REGEX = Pattern.compile("(\\w+)\\((.+)\\)");
+
+  private static final int DEFAULT_VALUE_MIN_FORMAT_VERSION = 3;
 
   static PrimitiveType needsDataTypeUpdate(Type currentIcebergType, Schema valueSchema) {
     if (currentIcebergType.typeId() == TypeID.FLOAT && valueSchema.type() == Schema.Type.FLOAT64) {
@@ -123,7 +128,9 @@ class SchemaUtils {
     // apply the updates
     UpdateSchema updateSchema = table.updateSchema();
     addColumns.forEach(
-        update -> updateSchema.addColumn(update.parentName(), update.name(), update.type()));
+        update ->
+            updateSchema.addColumn(
+                update.parentName(), update.name(), update.type(), null, update.defaultValue()));
     updateTypes.forEach(update -> updateSchema.updateColumn(update.name(), update.type()));
     makeOptionals.forEach(update -> updateSchema.makeColumnOptional(update.name()));
     updateSchema.commit();
@@ -209,21 +216,200 @@ class SchemaUtils {
     return Pair.of(parts.get(0).trim(), Integer.parseInt(parts.get(1).trim()));
   }
 
-  static Type toIcebergType(Schema valueSchema, IcebergSinkConfig config) {
-    return new SchemaGenerator(config).toIcebergType(valueSchema);
+  static Type toIcebergType(Schema valueSchema, IcebergSinkConfig config, boolean includeDefaults) {
+    return new SchemaGenerator(config, includeDefaults).toIcebergType(valueSchema);
   }
 
   static Type inferIcebergType(Object value, IcebergSinkConfig config) {
-    return new SchemaGenerator(config).inferIcebergType(value);
+    return new SchemaGenerator(config, true).inferIcebergType(value);
+  }
+
+  /**
+   * Converts a Kafka Connect default value to an Iceberg Literal based on the provided Iceberg
+   * type.
+   *
+   * @param defaultValue the default value from Kafka Connect schema
+   * @param icebergType the target Iceberg type
+   * @return an Iceberg Literal representing the default value, or null if conversion is not
+   *     possible
+   */
+  static Literal<?> convertDefaultValue(Object defaultValue, Type icebergType) {
+    if (defaultValue == null) {
+      return null;
+    }
+
+    try {
+      TypeID typeId = icebergType.typeId();
+      switch (typeId) {
+        case BOOLEAN:
+          return Expressions.lit((Boolean) defaultValue);
+        case INTEGER:
+          return convertIntegerDefault(defaultValue);
+        case LONG:
+          return convertLongDefault(defaultValue);
+        case FLOAT:
+          return convertFloatDefault(defaultValue);
+        case DOUBLE:
+          return convertDoubleDefault(defaultValue);
+        case STRING:
+          return Expressions.lit(defaultValue.toString());
+        case DECIMAL:
+          return convertDecimalDefault(defaultValue, (DecimalType) icebergType);
+        case DATE:
+          return convertDateDefault(defaultValue, icebergType);
+        case TIME:
+          return convertTimeDefault(defaultValue, icebergType);
+        case TIMESTAMP:
+          return convertTimestampDefault(defaultValue);
+        case BINARY:
+        case FIXED:
+          return convertBinaryDefault(defaultValue);
+        case UUID:
+          return convertUuidDefault(defaultValue);
+        default:
+          // Nested types (LIST, MAP, STRUCT) cannot have non-null defaults in Iceberg
+          LOG.warn(
+              "Default value conversion not supported for type: {}. Nested types can only have null defaults.",
+              typeId);
+          return null;
+      }
+    } catch (Exception e) {
+      LOG.warn(
+          "Failed to convert default value {} to Iceberg type {}", defaultValue, icebergType, e);
+      return null;
+    }
+  }
+
+  private static Literal<?> convertIntegerDefault(Object defaultValue) {
+    if (defaultValue instanceof Number) {
+      return Expressions.lit(((Number) defaultValue).intValue());
+    }
+    return null;
+  }
+
+  private static Literal<?> convertLongDefault(Object defaultValue) {
+    if (defaultValue instanceof Number) {
+      return Expressions.lit(((Number) defaultValue).longValue());
+    }
+    return null;
+  }
+
+  private static Literal<?> convertFloatDefault(Object defaultValue) {
+    if (defaultValue instanceof Number) {
+      return Expressions.lit(((Number) defaultValue).floatValue());
+    }
+    return null;
+  }
+
+  private static Literal<?> convertDoubleDefault(Object defaultValue) {
+    if (defaultValue instanceof Number) {
+      return Expressions.lit(((Number) defaultValue).doubleValue());
+    }
+    return null;
+  }
+
+  private static Literal<?> convertDecimalDefault(Object defaultValue, DecimalType decimalType) {
+    if (defaultValue instanceof BigDecimal) {
+      return Expressions.lit((BigDecimal) defaultValue);
+    } else if (defaultValue instanceof byte[]) {
+      // Kafka Connect Decimal can be byte array
+      // BigDecimal constructor takes (unscaledValue, scale)
+      // Precision is determined by the number of digits in unscaledValue
+      BigDecimal decimal =
+          new BigDecimal(new java.math.BigInteger((byte[]) defaultValue), decimalType.scale());
+      return Expressions.lit(decimal);
+    }
+    return null;
+  }
+
+  private static Literal<?> convertDateDefault(Object defaultValue, Type icebergType) {
+    // Iceberg Date is stored as days from epoch (int)
+    if (defaultValue instanceof java.util.Date) {
+      // Convert java.util.Date to days from epoch
+      long epochDay =
+          ((java.util.Date) defaultValue)
+              .toInstant()
+              .atZone(java.time.ZoneOffset.UTC)
+              .toLocalDate()
+              .toEpochDay();
+      // Create an IntegerLiteral and convert to DateLiteral using .to(Type)
+      return Expressions.lit((int) epochDay).to(icebergType);
+    } else if (defaultValue instanceof Number) {
+      // Already in days from epoch
+      return Expressions.lit(((Number) defaultValue).intValue()).to(icebergType);
+    } else if (defaultValue instanceof LocalDate) {
+      int days = (int) ((LocalDate) defaultValue).toEpochDay();
+      return Expressions.lit(days).to(icebergType);
+    }
+    return null;
+  }
+
+  private static Literal<?> convertTimeDefault(Object defaultValue, Type icebergType) {
+    // Iceberg Time is stored as microseconds from midnight (long)
+    if (defaultValue instanceof java.util.Date) {
+      // Kafka Connect Time is milliseconds since midnight
+      long millis = ((java.util.Date) defaultValue).getTime();
+      // Create a LongLiteral and convert to TimeLiteral using .to(Type)
+      return Expressions.lit(millis * 1000).to(icebergType);
+    } else if (defaultValue instanceof Number) {
+      // Assume microseconds from midnight
+      return Expressions.lit(((Number) defaultValue).longValue()).to(icebergType);
+    } else if (defaultValue instanceof LocalTime) {
+      long micros = ((LocalTime) defaultValue).toNanoOfDay() / 1000;
+      return Expressions.lit(micros).to(icebergType);
+    }
+    return null;
+  }
+
+  private static Literal<?> convertTimestampDefault(Object defaultValue) {
+    // Iceberg Timestamp is stored as microseconds from epoch (long)
+    if (defaultValue instanceof java.util.Date) {
+      // Kafka Connect Timestamp is milliseconds from epoch
+      long micros = ((java.util.Date) defaultValue).getTime() * 1000;
+      // Create TimestampLiteral directly using micros() which returns the correct type
+      return Expressions.micros(micros);
+    } else if (defaultValue instanceof Number) {
+      // Assume microseconds from epoch
+      return Expressions.micros(((Number) defaultValue).longValue());
+    } else if (defaultValue instanceof LocalDateTime) {
+      long micros =
+          ((LocalDateTime) defaultValue).atZone(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+              * 1000;
+      return Expressions.micros(micros);
+    } else if (defaultValue instanceof OffsetDateTime) {
+      long micros = ((OffsetDateTime) defaultValue).toInstant().toEpochMilli() * 1000;
+      return Expressions.micros(micros);
+    }
+    return null;
+  }
+
+  private static Literal<?> convertBinaryDefault(Object defaultValue) {
+    if (defaultValue instanceof byte[]) {
+      return Expressions.lit(ByteBuffer.wrap((byte[]) defaultValue));
+    } else if (defaultValue instanceof ByteBuffer) {
+      return Expressions.lit((ByteBuffer) defaultValue);
+    }
+    return null;
+  }
+
+  private static Literal<?> convertUuidDefault(Object defaultValue) {
+    if (defaultValue instanceof java.util.UUID) {
+      return Expressions.lit((java.util.UUID) defaultValue);
+    } else if (defaultValue instanceof String) {
+      return Expressions.lit(java.util.UUID.fromString((String) defaultValue));
+    }
+    return null;
   }
 
   static class SchemaGenerator {
 
     private int fieldId = 1;
     private final IcebergSinkConfig config;
+    private final boolean includeDefaults;
 
-    SchemaGenerator(IcebergSinkConfig config) {
+    SchemaGenerator(IcebergSinkConfig config, boolean includeDefaults) {
       this.config = config;
+      this.includeDefaults = includeDefaults;
     }
 
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -275,14 +461,31 @@ class SchemaUtils {
           List<NestedField> structFields =
               valueSchema.fields().stream()
                   .map(
-                      field ->
-                          NestedField.builder()
-                              .isOptional(
-                                  config.schemaForceOptional() || field.schema().isOptional())
-                              .withId(nextId())
-                              .ofType(toIcebergType(field.schema()))
-                              .withName(field.name())
-                              .build())
+                      field -> {
+                        Type fieldType = toIcebergType(field.schema());
+                        NestedField.Builder builder =
+                            NestedField.builder()
+                                .isOptional(
+                                    config.schemaForceOptional() || field.schema().isOptional())
+                                .withId(nextId())
+                                .ofType(fieldType)
+                                .withName(field.name());
+
+                        if (includeDefaults) {
+                          // Extract default value from Kafka Connect schema if present
+                          Object defaultValue = field.schema().defaultValue();
+                          if (defaultValue != null) {
+                            Literal<?> defaultLiteral =
+                                convertDefaultValue(defaultValue, fieldType);
+                            if (defaultLiteral != null) {
+                              builder.withInitialDefault(defaultLiteral);
+                              builder.withWriteDefault(defaultLiteral);
+                            }
+                          }
+                        }
+
+                        return builder.build();
+                      })
                   .collect(Collectors.toList());
           return StructType.of(structFields);
         case STRING:
@@ -347,6 +550,10 @@ class SchemaUtils {
     private int nextId() {
       return fieldId++;
     }
+  }
+
+  public static boolean includeDefaults(int formatVersion) {
+    return formatVersion >= DEFAULT_VALUE_MIN_FORMAT_VERSION;
   }
 
   private SchemaUtils() {}
