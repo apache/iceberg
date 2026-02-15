@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.data;
 
 import java.util.List;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
@@ -29,9 +30,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
+@Internal
 abstract class FlinkSchemaVisitor<T> {
 
-  static <T> T visit(RowType flinkType, Schema schema, FlinkSchemaVisitor<T> visitor) {
+  public static <T> T visit(RowType flinkType, Schema schema, FlinkSchemaVisitor<T> visitor) {
     return visit(flinkType, schema.asStruct(), visitor);
   }
 
@@ -94,24 +96,29 @@ abstract class FlinkSchemaVisitor<T> {
     List<LogicalType> fieldTypes = Lists.newArrayListWithExpectedSize(fieldSize);
     List<Types.NestedField> nestedFields = struct.fields();
 
-    for (int i = 0; i < fieldSize; i++) {
-      Types.NestedField iField = nestedFields.get(i);
-      int fieldIndex = rowType.getFieldIndex(iField.name());
-      Preconditions.checkArgument(
-          fieldIndex >= 0, "NestedField: %s is not found in flink RowType: %s", iField, rowType);
+    visitor.beforeStruct(struct.asStructType());
 
-      LogicalType fieldFlinkType = rowType.getTypeAt(fieldIndex);
+    try {
+      for (int i = 0; i < fieldSize; i++) {
+        Types.NestedField iField = nestedFields.get(i);
+        int fieldIndex = rowType.getFieldIndex(iField.name());
+        Preconditions.checkArgument(
+            fieldIndex >= 0, "NestedField: %s is not found in flink RowType: %s", iField, rowType);
 
-      fieldTypes.add(fieldFlinkType);
+        LogicalType fieldFlinkType = rowType.getTypeAt(fieldIndex);
+        fieldTypes.add(fieldFlinkType);
 
-      visitor.beforeField(iField);
-      try {
-        if (iField.type() != Types.UnknownType.get()) {
-          results.add(visit(fieldFlinkType, iField.type(), visitor));
+        visitor.beforeField(iField);
+        try {
+          if (iField.type() != Types.UnknownType.get()) {
+            results.add(visit(fieldFlinkType, iField.type(), visitor));
+          }
+        } finally {
+          visitor.afterField(iField);
         }
-      } finally {
-        visitor.afterField(iField);
       }
+    } finally {
+      visitor.afterStruct(struct.asStructType());
     }
 
     return visitor.record(struct, results, fieldTypes);
@@ -136,6 +143,10 @@ abstract class FlinkSchemaVisitor<T> {
   public void beforeField(Types.NestedField field) {}
 
   public void afterField(Types.NestedField field) {}
+
+  public void beforeStruct(Types.StructType type) {}
+
+  public void afterStruct(Types.StructType type) {}
 
   public void beforeListElement(Types.NestedField elementField) {
     beforeField(elementField);
