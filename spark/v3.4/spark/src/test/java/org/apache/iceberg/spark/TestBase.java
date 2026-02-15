@@ -65,6 +65,12 @@ public abstract class TestBase extends SparkTestHelperBase {
   protected static SparkSession spark = null;
   protected static JavaSparkContext sparkContext = null;
   protected static HiveCatalog catalog = null;
+  public static final Map<String, Object> DISABLE_UI_CONFIGS =
+      ImmutableMap.of(
+          "spark.ui.enabled",
+          "false",
+          "spark.metrics.conf.*.sink.servlet.class",
+          "org.apache.iceberg.spark.DummyMetricsServlet");
 
   @BeforeAll
   public static void startMetastoreAndSpark() {
@@ -75,10 +81,7 @@ public abstract class TestBase extends SparkTestHelperBase {
     TestBase.spark =
         SparkSession.builder()
             .master("local[2]")
-            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
-            .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
-            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
-            .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
+            .config(baseConfigs(hiveConf))
             .enableHiveSupport()
             .getOrCreate();
 
@@ -108,6 +111,16 @@ public abstract class TestBase extends SparkTestHelperBase {
       TestBase.spark = null;
       TestBase.sparkContext = null;
     }
+  }
+
+  protected static Map<String, Object> baseConfigs(HiveConf conf) {
+    return ImmutableMap.<String, Object>builder()
+        .put("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+        .put("spark.hadoop." + METASTOREURIS.varname, conf.get(METASTOREURIS.varname))
+        .put(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
+        .put("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
+        .putAll(DISABLE_UI_CONFIGS)
+        .build();
   }
 
   protected long waitUntilAfter(long timestampMillis) {

@@ -89,6 +89,7 @@ public abstract class SparkDistributedDataScanTestBase
     return SparkSession.builder()
         .master("local[2]")
         .config("spark.serializer", serializer)
+        .config(org.apache.iceberg.spark.TestBase.DISABLE_UI_CONFIGS)
         .config(SQLConf.SHUFFLE_PARTITIONS().key(), "4")
         .getOrCreate();
   }

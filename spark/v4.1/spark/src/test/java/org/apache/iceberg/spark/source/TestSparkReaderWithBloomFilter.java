@@ -64,6 +64,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkValueConverter;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
@@ -182,6 +183,7 @@ public class TestSparkReaderWithBloomFilter {
         SparkSession.builder()
             .master("local[2]")
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .config(TestBase.DISABLE_UI_CONFIGS)
             .enableHiveSupport()
             .getOrCreate();
 

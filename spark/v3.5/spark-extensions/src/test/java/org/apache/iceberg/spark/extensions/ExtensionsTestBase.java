@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
-
-import java.net.InetAddress;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.iceberg.CatalogUtil;
@@ -49,14 +46,11 @@ public abstract class ExtensionsTestBase extends CatalogTestBase {
     TestBase.spark =
         SparkSession.builder()
             .master("local[2]")
-            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config(baseConfigs(hiveConf))
             .config("spark.testing", "true")
-            .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
-            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
             .config("spark.sql.shuffle.partitions", "4")
             .config("spark.sql.hive.metastorePartitionPruningFallbackOnException", "true")
-            .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .config(
                 SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), String.valueOf(RANDOM.nextBoolean()))
             .enableHiveSupport()

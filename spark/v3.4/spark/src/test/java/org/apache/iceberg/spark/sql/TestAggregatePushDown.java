@@ -26,57 +26,21 @@ import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.hive.HiveCatalog;
-import org.apache.iceberg.hive.TestHiveMetastore;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.spark.TestBase;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.ExplainMode;
 import org.apache.spark.sql.functions;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestAggregatePushDown extends CatalogTestBase {
-
-  @BeforeAll
-  public static void startMetastoreAndSpark() {
-    TestBase.metastore = new TestHiveMetastore();
-    metastore.start();
-    TestBase.hiveConf = metastore.hiveConf();
-
-    TestBase.spark.close();
-
-    TestBase.spark =
-        SparkSession.builder()
-            .master("local[2]")
-            .config("spark.sql.iceberg.aggregate_pushdown", "true")
-            .enableHiveSupport()
-            .getOrCreate();
-
-    TestBase.catalog =
-        (HiveCatalog)
-            CatalogUtil.loadCatalog(
-                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
-
-    try {
-      catalog.createNamespace(Namespace.of("default"));
-    } catch (AlreadyExistsException ignored) {
-      // the default namespace already exists. ignore the create error
-    }
-  }
 
   @AfterEach
   public void removeTables() {
