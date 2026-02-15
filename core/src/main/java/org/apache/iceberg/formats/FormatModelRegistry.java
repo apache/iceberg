@@ -58,7 +58,8 @@ public final class FormatModelRegistry {
       ImmutableList.of(
           "org.apache.iceberg.data.GenericFormatModels",
           "org.apache.iceberg.arrow.vectorized.ArrowFormatModels",
-          "org.apache.iceberg.flink.data.FlinkFormatModels");
+          "org.apache.iceberg.flink.data.FlinkFormatModels",
+          "org.apache.iceberg.spark.source.SparkFormatModels");
 
   // Format models indexed by file format and object model class
   private static final Map<Pair<FileFormat, Class<?>>, FormatModel<?, ?>> MODELS =
