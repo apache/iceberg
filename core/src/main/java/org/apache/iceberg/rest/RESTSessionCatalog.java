@@ -91,8 +91,10 @@ import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ListFunctionsResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadFunctionResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
@@ -338,6 +340,57 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     } while (pageToken != null);
 
     return tables.build();
+  }
+
+  public List<String> listFunctions(SessionContext context, Namespace ns) {
+    if (!endpoints.contains(Endpoint.V1_LIST_FUNCTIONS)) {
+      return ImmutableList.of();
+    }
+
+    checkNamespaceIsValid(ns);
+    Map<String, String> queryParams = Maps.newHashMap();
+    ImmutableList.Builder<String> functions = ImmutableList.builder();
+    String pageToken = "";
+    if (pageSize != null) {
+      queryParams.put("pageSize", String.valueOf(pageSize));
+    }
+
+    do {
+      queryParams.put("pageToken", pageToken);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      ListFunctionsResponse response =
+          client
+              .withAuthSession(contextualSession)
+              .get(
+                  paths.functions(ns),
+                  queryParams,
+                  ListFunctionsResponse.class,
+                  Map.of(),
+                  ErrorHandlers.namespaceErrorHandler());
+      pageToken = response.nextPageToken();
+      functions.addAll(response.names());
+    } while (pageToken != null);
+
+    return functions.build();
+  }
+
+  public com.fasterxml.jackson.databind.node.ObjectNode loadFunctionSpec(
+      SessionContext context, Namespace ns, String functionName) {
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_FUNCTION);
+    checkNamespaceIsValid(ns);
+    Preconditions.checkArgument(
+        functionName != null && !functionName.isEmpty(), "Invalid function name: null or empty");
+
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+    LoadFunctionResponse response =
+        client
+            .withAuthSession(contextualSession)
+            .get(
+                paths.function(ns, functionName),
+                LoadFunctionResponse.class,
+                Map.of(),
+                ErrorHandlers.namespaceErrorHandler());
+    return response.spec();
   }
 
   @Override

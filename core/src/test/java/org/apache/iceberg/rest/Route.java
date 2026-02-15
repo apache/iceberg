@@ -39,8 +39,10 @@ import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ListFunctionsResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadFunctionResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -70,6 +72,8 @@ enum Route {
       UpdateNamespacePropertiesRequest.class,
       UpdateNamespacePropertiesResponse.class),
   LIST_TABLES(HTTPRequest.HTTPMethod.GET, ResourcePaths.V1_TABLES, null, ListTablesResponse.class),
+  LIST_FUNCTIONS(
+      HTTPRequest.HTTPMethod.GET, ResourcePaths.V1_FUNCTIONS, null, ListFunctionsResponse.class),
   CREATE_TABLE(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TABLES,
@@ -77,6 +81,8 @@ enum Route {
       LoadTableResponse.class),
   TABLE_EXISTS(HTTPRequest.HTTPMethod.HEAD, ResourcePaths.V1_TABLE),
   LOAD_TABLE(HTTPRequest.HTTPMethod.GET, ResourcePaths.V1_TABLE, null, LoadTableResponse.class),
+  LOAD_FUNCTION(
+      HTTPRequest.HTTPMethod.GET, ResourcePaths.V1_FUNCTION, null, LoadFunctionResponse.class),
   REGISTER_TABLE(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TABLE_REGISTER,

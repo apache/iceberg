@@ -33,6 +33,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
     // analyzer extensions
     extensions.injectResolutionRule { spark => ResolveViews(spark) }
+    extensions.injectPostHocResolutionRule { spark => new RewriteSqlFunctions(spark) }
     extensions.injectCheckRule(_ => CheckViews)
 
     // optimizer extensions
