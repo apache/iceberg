@@ -609,22 +609,22 @@ public class TypeUtil {
    * IDs, while preserving other IDs.
    *
    * @param conflictingIds the set of conflicting field IDs that should be reassigned
-   * @param usedIds the set of field IDs that are already in use and cannot be reused
-   * @return a function that maps old IDs to new IDs while resolving conflicts
+   * @param allUsedIds the set of field IDs that are already in use and cannot be reused
+   * @return a function that reassigns conflicting field IDs while preserving others
    */
-  public static GetID reassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> usedIds) {
-    return new ReassignConflictingIds(conflictingIds, usedIds);
+  public static GetID reassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
+    return new ReassignConflictingIds(conflictingIds, allUsedIds);
   }
 
   private static class ReassignConflictingIds implements GetID {
     private final Set<Integer> conflictingIds;
-    private final Set<Integer> usedIds;
+    private final Set<Integer> allUsedIds;
     private final AtomicInteger nextId;
 
-    private ReassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> usedIds) {
+    private ReassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
       this.conflictingIds = conflictingIds;
-      this.usedIds = usedIds;
-      this.nextId = new AtomicInteger(usedIds.size()); // assume sequential assignment
+      this.allUsedIds = allUsedIds;
+      this.nextId = new AtomicInteger();
     }
 
     @Override
@@ -639,7 +639,7 @@ public class TypeUtil {
     private int nextAvailableId() {
       int candidateId = nextId.incrementAndGet();
 
-      while (usedIds.contains(candidateId)) {
+      while (allUsedIds.contains(candidateId)) {
         candidateId = nextId.incrementAndGet();
       }
 
