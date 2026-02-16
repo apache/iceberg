@@ -64,7 +64,7 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void writeMetrics() throws NoSuchTableException {
+  public void writeMetrics() {
     sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
 
     String insertSql = String.format("INSERT INTO %s SELECT id FROM range(1000)", tableName);
@@ -84,25 +84,19 @@ public class TestSparkWriteMetrics extends TestBaseWithCatalog {
     }
 
     assertThat(metricsMap).isNotNull();
-
     assertThat(metricsMap)
         .hasEntrySatisfying(AddedDataFiles.NAME, metric -> assertThat(metric.value()).isEqualTo(2));
-
     assertThat(metricsMap)
         .hasEntrySatisfying(
             AddedRecords.NAME, metric -> assertThat(metric.value()).isEqualTo(1000));
-
     assertThat(metricsMap)
         .hasEntrySatisfying(
             AddedFileSizeInBytes.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
-
     assertThat(metricsMap)
         .hasEntrySatisfying(TotalDataFiles.NAME, metric -> assertThat(metric.value()).isEqualTo(2));
-
     assertThat(metricsMap)
         .hasEntrySatisfying(
             TotalRecords.NAME, metric -> assertThat(metric.value()).isEqualTo(1000));
-
     assertThat(metricsMap)
         .hasEntrySatisfying(
             TotalFileSizeInBytes.NAME, metric -> assertThat(metric.value()).isGreaterThan(0));
