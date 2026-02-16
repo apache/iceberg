@@ -66,7 +66,7 @@ docker build \
 The easiest way to get started is using the quickstart docker-compose file:
 
 ```bash
-cd flink/quickstart
+cd docker/iceberg-flink-quickstart
 docker compose up -d
 ```
 
@@ -92,7 +92,3 @@ docker run -d --name taskmanager \
   apache/iceberg-flink-quickstart:latest \
   taskmanager
 ```
-
-## Iceberg quickstart for Flink
-
-See https://iceberg.apache.org/flink-quickstart/[Flink quickstart] in the Iceberg documentation.
