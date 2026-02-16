@@ -28,7 +28,7 @@ SHELL ["/bin/bash", "-c"]
 ARG ICEBERG_VERSION=1.10.1
 ARG ICEBERG_FLINK_RUNTIME_VERSION=2.0
 ARG ICEBERG_AWS_BUNDLE_VERSION=1.9.2
-ARG HADOOP_VERSION=3.3.4
+ARG HADOOP_VERSION=3.4.2
 
 # Switch to flink user for installation
 USER flink
@@ -46,6 +46,7 @@ RUN echo "-> Install JARs: Dependencies for Iceberg" && \
 RUN echo "-> Install JARs: Hadoop" && \
     mkdir -p ./lib/hadoop && pushd $_ && \
     curl -fO https://repo.maven.apache.org/maven2/org/apache/commons/commons-configuration2/2.1.1/commons-configuration2-2.1.1.jar && \
+    curl -fO https://repo.maven.apache.org/maven2/org/apache/commons/commons-collections4/4.4/commons-collections4-4.4.jar && \
     curl -fO https://repo.maven.apache.org/maven2/org/apache/hadoop/hadoop-auth/${HADOOP_VERSION}/hadoop-auth-${HADOOP_VERSION}.jar && \
     curl -fO https://repo.maven.apache.org/maven2/org/apache/hadoop/hadoop-common/${HADOOP_VERSION}/hadoop-common-${HADOOP_VERSION}.jar && \
     curl -fO https://repo.maven.apache.org/maven2/org/apache/hadoop/thirdparty/hadoop-shaded-guava/1.1.1/hadoop-shaded-guava-1.1.1.jar && \
