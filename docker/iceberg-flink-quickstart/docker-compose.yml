@@ -24,10 +24,6 @@
 #
 # Connect to SQL client:
 #   docker exec -it jobmanager ./bin/sql-client.sh
-
-volumes:
-  data: {}
-
 services:
   # MinIO for S3-compatible object storage
   minio:
