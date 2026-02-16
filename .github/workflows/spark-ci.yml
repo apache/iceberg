@@ -71,6 +71,7 @@ jobs:
   spark-tests:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 20
       matrix:
         jvm: [17, 21]
         spark: ['3.4', '3.5', '4.0', '4.1']

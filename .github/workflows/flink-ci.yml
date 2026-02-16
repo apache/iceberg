@@ -73,6 +73,7 @@ jobs:
   flink-scala-2-12-tests:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 20
       matrix:
         jvm: [17, 21]
         flink: ['1.20', '2.0', '2.1']

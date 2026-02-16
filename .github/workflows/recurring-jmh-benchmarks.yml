@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
+      max-parallel: 20
       matrix:
         # TODO: "IcebergSortCompactionBenchmark" seems to run indefinitely
         benchmark: ["SparkParquetReadersFlatDataBenchmark", "SparkParquetReadersNestedDataBenchmark",
