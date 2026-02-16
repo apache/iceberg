@@ -24,9 +24,6 @@ FROM apache/flink:${FLINK_VERSION}-java21
 
 SHELL ["/bin/bash", "-c"]
 
-# Copy LICENSE and NOTICE files for ASF compliance
-COPY --chown=flink:flink LICENSE NOTICE /opt/flink/
-
 # Redeclare ARG variables after FROM to make them available in subsequent layers
 ARG ICEBERG_VERSION=1.10.1
 ARG ICEBERG_FLINK_RUNTIME_VERSION=2.0
