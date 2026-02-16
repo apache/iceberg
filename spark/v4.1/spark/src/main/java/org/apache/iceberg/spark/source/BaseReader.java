@@ -20,8 +20,8 @@ package org.apache.iceberg.spark.source;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +49,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkExecutorCache;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -103,10 +104,11 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     this.isAsyncEnabled = true;
 
     if (isAsyncEnabled) {
-      List<TaskT> allTasks = new ArrayList<>();
+      List<TaskT> allTasks = Lists.newArrayList();
       taskGroup.tasks().forEach(task -> allTasks.add((TaskT) task));
       this.asyncOpener = new AsyncTaskOpener<>(allTasks, this::open, 4, 10);
-      this.tasks = null;
+      this.tasks = Collections.emptyIterator();
+      ;
     } else {
       this.tasks = taskGroup.tasks().iterator();
       this.asyncOpener = null;
