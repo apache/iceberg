@@ -25,9 +25,9 @@ FROM apache/flink:${FLINK_VERSION}-java21
 SHELL ["/bin/bash", "-c"]
 
 # Redeclare ARG variables after FROM to make them available in subsequent layers
-ARG ICEBERG_VERSION=1.10.1
 ARG ICEBERG_FLINK_RUNTIME_VERSION=2.0
-ARG ICEBERG_AWS_BUNDLE_VERSION=1.9.2
+ARG ICEBERG_VERSION=1.10.1
+ARG ICEBERG_AWS_BUNDLE_VERSION=1.10.1
 ARG HADOOP_VERSION=3.4.2
 
 # Switch to flink user for installation

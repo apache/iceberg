@@ -20,7 +20,7 @@
 # Flink Quickstart with Apache Iceberg
 #
 # Usage:
-#   docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml up -d
+#   docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml up -d --build
 #
 # Connect to SQL client:
 #   docker exec -it jobmanager ./bin/sql-client.sh
@@ -31,7 +31,8 @@ services:
     hostname: jobmanager
     container_name: jobmanager
     depends_on:
-      - iceberg-rest
+      iceberg-rest:
+        condition: service_healthy
     networks:
       iceberg_net:
     ports:
@@ -58,7 +59,8 @@ services:
     build: .
     hostname: taskmanager
     depends_on:
-      - jobmanager
+      jobmanager:
+        condition: service_healthy
     networks:
       iceberg_net:
     command: taskmanager
@@ -86,6 +88,11 @@ services:
     ports:
       - "8181:8181"
     environment:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/v1/config"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
       AWS_REGION: us-east-1
       CATALOG_WAREHOUSE: s3://warehouse/
       CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO

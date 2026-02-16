@@ -36,9 +36,9 @@ The following build arguments can be customized when building the image:
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `FLINK_VERSION` | `2.0` | Apache Flink version |
-| `ICEBERG_VERSION` | `1.10.1` | Apache Iceberg version |
 | `ICEBERG_FLINK_RUNTIME_VERSION` | `2.0` | Iceberg Flink runtime version |
-| `ICEBERG_AWS_BUNDLE_VERSION` | `1.9.2` | Iceberg AWS bundle version |
+| `ICEBERG_VERSION` | `1.10.1` | Apache Iceberg version |
+| `ICEBERG_AWS_BUNDLE_VERSION` | `1.10.1` | Iceberg AWS bundle version |
 | `HADOOP_VERSION` | `3.4.2` | Apache Hadoop version |
 
 ## Building Locally
@@ -61,13 +61,12 @@ docker build \
 
 ## Usage
 
-### Using docker-compose
+### Using docker compose
 
-The easiest way to get started is using the quickstart docker-compose file:
+The easiest way to get started is using the quickstart docker-compose file from the repository root:
 
 ```bash
-cd docker/iceberg-flink-quickstart
-docker compose up -d
+docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml up -d --build
 ```
 
 Then connect to Flink SQL client:
@@ -75,7 +74,10 @@ Then connect to Flink SQL client:
 ```bash
 docker exec -it jobmanager ./bin/sql-client.sh
 ```
+To stop the stack:
 
+```bash
+docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml down
 ### Running Directly
 
 ```bash
