@@ -28,6 +28,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -40,6 +41,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -1329,6 +1331,235 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(result.fileListLocation())
         .as("File list location should not be set when createFileList is false")
         .isEqualTo(NOT_APPLICABLE);
+  }
+
+  @TestTemplate
+  public void testIncrementalCopyWithEmptyTargetTable() throws Exception {
+    String sourceLocation = newTableLocation();
+    String targetLocation = targetTableLocation();
+
+    Table sourceTable = createTableWithSnapshots(sourceLocation, 3);
+    Table emptyTarget = createTableWithSnapshots(targetLocation, 0);
+
+    assertThat(Lists.newArrayList(sourceTable.snapshots())).hasSize(3);
+    assertThat(Lists.newArrayList(emptyTarget.snapshots())).isEmpty();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .targetTable(emptyTarget)
+            .rewriteLocationPrefix(sourceLocation, targetLocation)
+            .execute();
+
+    assertThat(result.latestVersion()).isEqualTo("v4.metadata.json");
+    // v1 (create) + v2, v3, v4 (3 appends) = 4 version files, 3 manifest lists, 3 manifests
+    checkFileNum(4, 3, 3, 13, result);
+  }
+
+  @TestTemplate
+  public void testIncrementalCopyWithTargetTable() throws Exception {
+    String sourceLocation = newTableLocation();
+    String targetLocation = targetTableLocation();
+
+    Table sourceTable = createTableWithSnapshots(sourceLocation, 3);
+    Table emptyTarget = createTableWithSnapshots(targetLocation, 0);
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .targetTable(emptyTarget)
+            .rewriteLocationPrefix(sourceLocation, targetLocation)
+            .execute();
+
+    checkFileNum(4, 3, 3, 13, result);
+    copyTableFiles(result);
+    Table loadedTarget = TABLES.load(targetLocation);
+
+    List<ThreeColumnRecord> records = Lists.newArrayList(new ThreeColumnRecord(42, "A", "B"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(sourceLocation);
+    sourceTable.refresh();
+
+    result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .targetTable(loadedTarget)
+            .rewriteLocationPrefix(sourceLocation, targetLocation)
+            .execute();
+
+    assertThat(result.latestVersion()).isEqualTo("v5.metadata.json");
+    checkFileNum(1, 1, 1, 4, result);
+  }
+
+  @TestTemplate
+  public void testIncrementalCopyNoOverlap() throws Exception {
+    String sourceLocation = newTableLocation();
+    String targetLocation = targetTableLocation();
+
+    Table sourceTable = createTableWithSnapshots(sourceLocation, 3);
+    Table targetTableNoOverlap = createTableWithSnapshots(targetLocation, 4);
+
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteTablePath(sourceTable)
+                    .targetTable(targetTableNoOverlap)
+                    .rewriteLocationPrefix(sourceLocation, targetLocation)
+                    .execute())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("does not exist in the source table");
+  }
+
+  @TestTemplate
+  public void testIncrementalCopyAlreadyInSync() throws Exception {
+    String sourceLocation = newTableLocation();
+    String targetLocation = targetTableLocation();
+
+    Table sourceTable = createTableWithSnapshots(sourceLocation, 3);
+    Table emptyTarget = createTableWithSnapshots(targetLocation, 0);
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .targetTable(emptyTarget)
+            .rewriteLocationPrefix(sourceLocation, targetLocation)
+            .execute();
+
+    copyTableFiles(result);
+    Table loadedTarget = TABLES.load(targetLocation);
+
+    assertThat(Lists.newArrayList(loadedTarget.snapshots())).hasSize(3);
+
+    result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .targetTable(loadedTarget)
+            .rewriteLocationPrefix(sourceLocation, targetLocation)
+            .execute();
+
+    checkFileNum(0, 0, 0, 0, result);
+    assertThat(result.latestVersion()).isEqualTo("v4.metadata.json");
+  }
+
+  @TestTemplate
+  public void testIncrementalCopyWithExpiredSnapshot() throws Exception {
+    String sourceLocation = newTableLocation();
+    String targetLocation = targetTableLocation();
+
+    Table sourceTable = createTableWithSnapshots(sourceLocation, 2);
+    Table emptyTarget = createTableWithSnapshots(targetLocation, 0);
+
+    actions()
+        .expireSnapshots(sourceTable)
+        .retainLast(1)
+        .expireOlderThan(sourceTable.currentSnapshot().timestampMillis())
+        .execute();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .targetTable(emptyTarget)
+            .rewriteLocationPrefix(sourceLocation, targetLocation)
+            .execute();
+
+    // 2 data files but only 1 manifest list due to expiry
+    // v1 (create) + v2 (append) + v3 (append) + v4 (expire) = 4 version files
+    checkFileNum(4, 1, 2, 9, result);
+  }
+
+  @TestTemplate
+  public void testIncrementalCopyWithMissingTargetManifest() throws Exception {
+    String sourceLocation = newTableLocation();
+    String targetLocation = targetTableLocation();
+
+    Table sourceTable = createTableWithSnapshots(sourceLocation, 2);
+    Table emptyTarget = createTableWithSnapshots(targetLocation, 0);
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .targetTable(emptyTarget)
+            .rewriteLocationPrefix(sourceLocation, targetLocation)
+            .execute();
+
+    copyTableFiles(result);
+    Table loadedTarget = TABLES.load(targetLocation);
+
+    ManifestFile manifestFile =
+        loadedTarget.currentSnapshot().allManifests(loadedTarget.io()).get(0);
+    loadedTarget.io().deleteFile(manifestFile.path());
+
+    Table finalTarget = loadedTarget;
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteTablePath(sourceTable)
+                    .targetTable(finalTarget)
+                    .rewriteLocationPrefix(sourceLocation, targetLocation)
+                    .execute())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("has missing files");
+  }
+
+  @TestTemplate
+  public void testIncrementalCopyWithAppendOnTargetAndSourceTable() throws Exception {
+    String sourceLocation = newTableLocation();
+    String targetLocation = targetTableLocation();
+
+    Table sourceTable = createTableWithSnapshots(sourceLocation, 3);
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceLocation, targetLocation)
+            .execute();
+
+    copyTableFiles(result);
+    Table loadedTarget = TABLES.load(targetLocation);
+
+    // Append to target table independently
+    spark
+        .createDataFrame(
+            Collections.singletonList(new ThreeColumnRecord(1, "AAAA", "AAAA")),
+            ThreeColumnRecord.class)
+        .select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(targetLocation);
+    loadedTarget.refresh();
+
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteTablePath(sourceTable)
+                    .targetTable(loadedTarget)
+                    .rewriteLocationPrefix(sourceLocation, targetLocation)
+                    .execute())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("does not exist in the source table");
+
+    // Append to source table
+    spark
+        .createDataFrame(
+            Collections.singletonList(new ThreeColumnRecord(1, "AAAA", "AAAA")),
+            ThreeColumnRecord.class)
+        .select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(sourceLocation);
+    sourceTable.refresh();
+
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteTablePath(sourceTable)
+                    .targetTable(loadedTarget)
+                    .rewriteLocationPrefix(sourceLocation, targetLocation)
+                    .execute())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("are not identical");
   }
 
   protected void checkFileNum(

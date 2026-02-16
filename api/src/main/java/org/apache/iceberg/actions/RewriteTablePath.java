@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.actions;
 
+import org.apache.iceberg.Table;
+
 /**
  * An action that rewrites the table's metadata files to a staging directory, replacing all source
  * prefixes in absolute paths with a specified target prefix. There are two modes:
@@ -96,6 +98,18 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    * @return this instance for method chaining
    */
   default RewriteTablePath createFileList(boolean createFileList) {
+    return this;
+  }
+
+  /**
+   * Sets a target table to automatically determine the start version for incremental copy. The
+   * target table's current metadata version is matched against the source table's metadata log to
+   * find where to resume copying.
+   *
+   * @param targetTable the target table used to determine the start version
+   * @return this for method chaining
+   */
+  default RewriteTablePath targetTable(Table targetTable) {
     return this;
   }
 

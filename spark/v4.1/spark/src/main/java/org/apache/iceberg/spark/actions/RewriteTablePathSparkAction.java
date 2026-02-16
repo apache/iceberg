@@ -24,6 +24,8 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -56,6 +58,7 @@ import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.io.CloseableIterable;
@@ -74,6 +77,7 @@ import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.api.java.function.ForeachFunction;
 import org.apache.spark.api.java.function.MapFunction;
+import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.api.java.function.ReduceFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
@@ -98,6 +102,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private String endVersionName;
   private String stagingDir;
   private boolean createFileList = true;
+  private Table targetTable;
 
   private final Table table;
   private Broadcast<Table> tableBroadcast = null;
@@ -158,6 +163,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   @Override
+  public RewriteTablePath targetTable(Table tgtTable) {
+    this.targetTable = tgtTable;
+    return this;
+  }
+
+  @Override
   public Result execute() {
     validateInputs();
     JobGroupInfo info = newJobGroupInfo("REWRITE-TABLE-PATH", jobDesc());
@@ -212,9 +223,137 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private void validateAndSetStartVersion() {
     TableMetadata tableMetadata = ((HasTableOperations) table).operations().current();
 
-    if (startVersionName != null) {
+    if (targetTable != null) {
+      this.startVersionName = resolveStartVersionFromTargetTable(tableMetadata);
+    } else if (startVersionName != null) {
       this.startVersionName = validateVersion(tableMetadata, startVersionName);
     }
+  }
+
+  private String resolveStartVersionFromTargetTable(TableMetadata sourceMetadata) {
+    Preconditions.checkArgument(
+        startVersionName == null, "Cannot set both startVersion and targetTable.");
+
+    if (targetTable.currentSnapshot() == null) {
+      LOG.info("Target table has no snapshots. Doing a full copy.");
+      return null;
+    }
+
+    String targetVersionFullPath = currentMetadataPath(targetTable);
+    String targetVersionName = RewriteTablePathUtil.fileName(targetVersionFullPath);
+    String sourceVersionFullPath = findVersion(targetVersionName, sourceMetadata);
+
+    Preconditions.checkState(
+        sourceVersionFullPath != null,
+        "The current version of the target table (\"%s\") does not exist in the source table.",
+        targetVersionName);
+
+    Preconditions.checkState(
+        isSameSnapshot(sourceVersionFullPath, targetVersionFullPath),
+        "The snapshot ids found in source and target table version \"%s\" are not identical.",
+        targetVersionName);
+
+    checkVersionAndAllFilesExistsOrThrow(targetVersionFullPath, targetTable);
+    return sourceVersionFullPath;
+  }
+
+  private String findVersion(String version, TableMetadata sourceMetadata) {
+    String currentSourceMetadataFile = currentMetadataPath(table);
+    if (currentSourceMetadataFile.endsWith(version)) {
+      return currentSourceMetadataFile;
+    }
+
+    for (MetadataLogEntry entry : sourceMetadata.previousFiles()) {
+      if (entry.file().endsWith(version)) {
+        return entry.file();
+      }
+    }
+
+    return null;
+  }
+
+  private boolean isSameSnapshot(String sourceVersionPath, String targetVersionPath) {
+    Table staticSource = newStaticTable(sourceVersionPath, table.io());
+    Table staticTarget = newStaticTable(targetVersionPath, targetTable.io());
+    return Objects.equals(
+        Optional.ofNullable(staticSource.currentSnapshot()).map(Snapshot::snapshotId).orElse(null),
+        Optional.ofNullable(staticTarget.currentSnapshot()).map(Snapshot::snapshotId).orElse(null));
+  }
+
+  private boolean versionAndAllMetadataFilesExist(String versionPath, Table tbl) {
+    if (!fileExist(versionPath, tbl)) {
+      LOG.warn("Version file {} does not exist.", versionPath);
+      return false;
+    }
+
+    try {
+      StaticTableOperations ops = new StaticTableOperations(versionPath, tbl.io());
+      TableMetadata versionMetadata = ops.current();
+
+      List<ManifestFile> allManifestFiles = Lists.newArrayList();
+      for (Snapshot snapshot : versionMetadata.snapshots()) {
+        allManifestFiles.addAll(snapshot.allManifests(tbl.io()));
+      }
+
+      Set<String> uniqueManifestPaths =
+          allManifestFiles.stream().map(ManifestFile::path).collect(Collectors.toSet());
+
+      Broadcast<Table> serializableTable =
+          sparkContext().broadcast(SerializableTableWithSize.copyOf(tbl));
+      Dataset<String> manifestPathsDS =
+          spark().createDataset(Lists.newArrayList(uniqueManifestPaths), Encoders.STRING());
+      List<String> missingManifests =
+          manifestPathsDS
+              .mapPartitions(
+                  (MapPartitionsFunction<String, String>)
+                      paths -> {
+                        Table deserializedTable = serializableTable.value();
+                        Set<String> missing = Sets.newHashSet();
+                        while (paths.hasNext()) {
+                          String path = paths.next();
+                          if (!deserializedTable.io().newInputFile(path).exists()) {
+                            missing.add(path);
+                          }
+                        }
+
+                        return missing.iterator();
+                      },
+                  Encoders.STRING())
+              .collectAsList();
+
+      if (!missingManifests.isEmpty()) {
+        LOG.warn(
+            "Manifest files {} missing for version {}",
+            missingManifests,
+            RewriteTablePathUtil.fileName(versionPath));
+        return false;
+      }
+
+      return true;
+    } catch (NotFoundException e) {
+      LOG.warn("Manifest list file not found.", e);
+      return false;
+    }
+  }
+
+  private void checkVersionAndAllFilesExistsOrThrow(String versionFullPath, Table tbl) {
+    Preconditions.checkState(
+        versionAndAllMetadataFilesExist(versionFullPath, tbl),
+        "Table version \"%s\" has missing files. This is usually caused by snapshots contained "
+            + "in this version which have been expired in newer versions.",
+        RewriteTablePathUtil.fileName(versionFullPath));
+  }
+
+  private String currentMetadataPath(Table tbl) {
+    return ((HasTableOperations) tbl).operations().current().metadataFileLocation();
+  }
+
+  private boolean fileExist(String path, Table tbl) {
+    if (path == null || path.trim().isEmpty()) {
+      return false;
+    }
+
+    return tbl.io().newInputFile(path).exists();
   }
 
   private String validateVersion(TableMetadata tableMetadata, String versionFileName) {
@@ -357,7 +496,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private RewriteResult<Snapshot> rewriteVersionFiles(TableMetadata endMetadata) {
     RewriteResult<Snapshot> result = new RewriteResult<>();
+    // Any snapshots contained in the start version will be filtered down the line
     result.toRewrite().addAll(endMetadata.snapshots());
+
+    if (endVersionName.equals(startVersionName)) {
+      return result;
+    }
+
     result.copyPlan().addAll(rewriteVersionFile(endMetadata, endVersionName));
 
     List<MetadataLogEntry> versions = endMetadata.previousFiles();
