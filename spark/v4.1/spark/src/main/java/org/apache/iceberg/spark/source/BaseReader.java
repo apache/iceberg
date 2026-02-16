@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -75,7 +76,9 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private final Iterator<TaskT> tasks;
   private final DeleteCounter counter;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final boolean isAsyncEnabled;
 
+  private AsyncTaskOpener<T, TaskT> asyncOpener;
   private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
   private T current = null;
@@ -89,7 +92,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       boolean cacheDeleteFilesOnExecutors) {
     this.table = table;
     this.taskGroup = taskGroup;
-    this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
     this.expectedSchema = expectedSchema;
     this.caseSensitive = caseSensitive;
@@ -98,6 +100,17 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     this.counter = new DeleteCounter();
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
+    this.isAsyncEnabled = true;
+
+    if (isAsyncEnabled) {
+      List<TaskT> allTasks = new ArrayList<>();
+      taskGroup.tasks().forEach(task -> allTasks.add((TaskT) task));
+      this.asyncOpener = new AsyncTaskOpener<>(allTasks, this::open, 4, 10);
+      this.tasks = null;
+    } else {
+      this.tasks = taskGroup.tasks().iterator();
+      this.asyncOpener = null;
+    }
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
@@ -134,6 +147,18 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         if (currentIterator.hasNext()) {
           this.current = currentIterator.next();
           return true;
+        } else if (isAsyncEnabled) {
+          this.currentIterator.close();
+          try {
+            this.currentIterator = asyncOpener.getNext();
+            if (this.currentIterator == null) {
+              this.currentIterator = CloseableIterator.empty();
+              return false;
+            }
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while getting next task iterator" + e);
+          }
         } else if (tasks.hasNext()) {
           this.currentIterator.close();
           this.currentTask = tasks.next();
@@ -166,9 +191,13 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     // close the current iterator
     this.currentIterator.close();
 
-    // exhaust the task iterator
-    while (tasks.hasNext()) {
-      tasks.next();
+    if (isAsyncEnabled) {
+      this.asyncOpener.close();
+    } else {
+      // exhaust the task iterator
+      while (tasks.hasNext()) {
+        tasks.next();
+      }
     }
   }
 
