@@ -23,8 +23,13 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -121,10 +126,28 @@ public class SparkParquetWritersFlatDataBenchmark {
             .set("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
             .set("spark.sql.caseSensitive", "false")
             .set("spark.sql.parquet.fieldId.write.enabled", "false")
+            .set("spark.sql.parquet.variant.annotateLogicalType.enabled", "false")
             .schema(SCHEMA)
             .build()) {
 
       writer.addAll(rows);
+    }
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void writeUsingRegistryWriter() throws IOException {
+    try (DataWriter<InternalRow> writer =
+        FormatModelRegistry.dataWriteBuilder(
+                FileFormat.PARQUET,
+                InternalRow.class,
+                EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(dataFile)))
+            .schema(SCHEMA)
+            .engineSchema(SparkSchemaUtil.convert(SCHEMA))
+            .spec(PartitionSpec.unpartitioned())
+            .build()) {
+
+      writer.write(rows);
     }
   }
 }

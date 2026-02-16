@@ -25,9 +25,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -167,6 +169,21 @@ public class SparkParquetReadersNestedDataBenchmark {
 
   @Benchmark
   @Threads(1)
+  public void readUsingRegistryReader(Blackhole blackhole) throws IOException {
+    try (CloseableIterable<InternalRow> rows =
+        FormatModelRegistry.readBuilder(
+                FileFormat.PARQUET, InternalRow.class, Files.localInput(dataFile))
+            .project(SCHEMA)
+            .build()) {
+
+      for (InternalRow row : rows) {
+        blackhole.consume(row);
+      }
+    }
+  }
+
+  @Benchmark
+  @Threads(1)
   public void readWithProjectionUsingIcebergReader(Blackhole blackhole) throws IOException {
     try (CloseableIterable<InternalRow> rows =
         Parquet.read(Files.localInput(dataFile))
@@ -217,6 +234,21 @@ public class SparkParquetReadersNestedDataBenchmark {
             .set("spark.sql.parquet.inferTimestampNTZ.enabled", "false")
             .set("spark.sql.legacy.parquet.nanosAsLong", "false")
             .callInit()
+            .build()) {
+
+      for (InternalRow row : rows) {
+        blackhole.consume(row);
+      }
+    }
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readWithProjectionUsingRegistryReader(Blackhole blackhole) throws IOException {
+    try (CloseableIterable<InternalRow> rows =
+        FormatModelRegistry.readBuilder(
+                FileFormat.PARQUET, InternalRow.class, Files.localInput(dataFile))
+            .project(PROJECTED_SCHEMA)
             .build()) {
 
       for (InternalRow row : rows) {
