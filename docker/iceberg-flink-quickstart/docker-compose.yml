@@ -77,9 +77,11 @@ services:
 
   # Flink JobManager
   jobmanager:
-    build: ../../docker/iceberg-flink-quickstart
+    build: .
     hostname: jobmanager
     container_name: jobmanager
+    depends_on:
+      - iceberg-rest
     ports:
       - "8081:8081"
     command: jobmanager
@@ -102,7 +104,7 @@ services:
 
   # Flink TaskManager
   taskmanager:
-    build: ../../docker/iceberg-flink-quickstart
+    build: .
     hostname: taskmanager
     depends_on:
       - jobmanager
