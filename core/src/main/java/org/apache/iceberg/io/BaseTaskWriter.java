@@ -40,7 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructLikeUtil;
@@ -188,28 +187,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private PartitioningWriter<PositionDelete<T>, DeleteWriteResult> posDeleteWriter;
     private Map<StructLike, PathOffset> insertedRowMap;
     private boolean closePosDeleteWriter;
-
-    /**
-     * Cache of delete keys written within this writer's lifecycle to deduplicate
-     * equality delete operations. This is particularly useful in CDC scenarios where
-     * the same row key may be deleted multiple times within a checkpoint.
-     *
-     * <p>Memory usage scales linearly with the number of unique delete keys
-     * (approximately 10-15 bytes per key). The cache is cleared when the writer
-     * is closed, ensuring memory is bounded by checkpoint/transaction size.
-     *
-     * <p>This optimization does not affect correctness - it only reduces redundant
-     * delete records that would have the same effect.
-     */
     private Set<StructLike> pendingDeleteKeys;
-
-    /**
-     * Cache of delete rows written within this writer's lifecycle to deduplicate
-     * full-row equality delete operations. Similar to {@link #pendingDeleteKeys},
-     * but for delete operations that write entire rows instead of just key fields.
-     *
-     * <p>Memory usage scales with the number of unique rows deleted and the row size.
-     */
     private Set<StructLike> pendingDeleteRows;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
@@ -243,7 +221,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
               : createPosDeleteWriter(partition, deleteGranularity);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
       this.partitionKey = partition;
-      // Initialize delete deduplication caches
       this.pendingDeleteKeys = StructLikeSet.create(deleteSchema.asStruct());
       this.pendingDeleteRows = StructLikeSet.create(schema.asStruct());
     }
@@ -321,7 +298,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       StructLike key = structProjection.wrap(asStructLike(row));
       if (!internalPosDelete(key)) {
         StructLike rowStruct = asStructLike(row);
-        // Check containment first to avoid unnecessary copy for duplicates
         if (!pendingDeleteRows.contains(rowStruct)) {
           pendingDeleteRows.add(StructLikeUtil.copy(rowStruct));
           eqDeleteWriter.write(row);
@@ -338,7 +314,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     public void deleteKey(T key) throws IOException {
       StructLike keyStruct = asStructLikeKey(key);
       if (!internalPosDelete(keyStruct)) {
-        // Check containment first to avoid unnecessary copy for duplicates
         if (!pendingDeleteKeys.contains(keyStruct)) {
           pendingDeleteKeys.add(StructLikeUtil.copy(keyStruct));
           eqDeleteWriter.write(key);
