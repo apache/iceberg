@@ -61,8 +61,6 @@ docker build \
 
 ## Usage
 
-### Using docker compose
-
 The easiest way to get started is using the quickstart docker-compose file from the repository root:
 
 ```bash
@@ -78,19 +76,4 @@ To stop the stack:
 
 ```bash
 docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml down
-### Running Directly
-
-```bash
-# Start JobManager
-docker run -d --name jobmanager \
-  -e FLINK_PROPERTIES="jobmanager.rpc.address: jobmanager" \
-  apache/iceberg-flink-quickstart:latest \
-  jobmanager
-
-# Start TaskManager
-docker run -d --name taskmanager \
-  -e FLINK_PROPERTIES="jobmanager.rpc.address: jobmanager" \
-  --link jobmanager:jobmanager \
-  apache/iceberg-flink-quickstart:latest \
-  taskmanager
 ```
