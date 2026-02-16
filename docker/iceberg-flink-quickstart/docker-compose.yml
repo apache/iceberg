@@ -18,8 +18,12 @@
 #
 
 # Flink Quickstart with Apache Iceberg
-# Usage: docker compose up -d
-# Connect to SQL client: docker exec -it jobmanager ./bin/sql-client.sh
+#
+# Usage:
+#   docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml up -d
+#
+# Connect to SQL client:
+#   docker exec -it jobmanager ./bin/sql-client.sh
 
 volumes:
   data: {}
