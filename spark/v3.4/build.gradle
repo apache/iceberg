@@ -107,13 +107,9 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
-    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
-      transitive = false
-    }
+    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
-    // runtime dependencies for running REST Catalog based integration test
-    testRuntimeOnly libs.jetty.servlet
   }
 
   test {
