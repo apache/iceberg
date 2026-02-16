@@ -72,6 +72,7 @@ Then connect to Flink SQL client:
 ```bash
 docker exec -it jobmanager ./bin/sql-client.sh
 ```
+
 To stop the stack:
 
 ```bash
