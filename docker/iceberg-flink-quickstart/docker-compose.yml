@@ -32,6 +32,11 @@ services:
     environment:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: password
+      MINIO_DOMAIN: minio
+    networks:
+      iceberg_net:
+        aliases:
+          - warehouse.minio
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -50,11 +55,14 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-    entrypoint: >
+    networks:
+      iceberg_net:
+    entrypoint: |
       /bin/sh -c "
-      mc alias set minio http://minio:9000 admin password;
-      mc mb minio/warehouse --ignore-existing;
-      exit 0;
+      until (/usr/bin/mc alias set minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
+      /usr/bin/mc rm -r --force minio/warehouse;
+      /usr/bin/mc mb minio/warehouse;
+      /usr/bin/mc policy set public minio/warehouse;
       "
 
   # Iceberg REST Catalog
@@ -64,6 +72,8 @@ services:
     depends_on:
       create-bucket:
         condition: service_completed_successfully
+    networks:
+      iceberg_net:
     ports:
       - "8181:8181"
     environment:
@@ -71,7 +81,6 @@ services:
       CATALOG_WAREHOUSE: s3://warehouse/
       CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
       CATALOG_S3_ENDPOINT: http://minio:9000
-      CATALOG_S3_PATH__STYLE__ACCESS: "true"
       CATALOG_S3_ACCESS__KEY__ID: admin
       CATALOG_S3_SECRET__ACCESS__KEY: password
 
@@ -82,6 +91,8 @@ services:
     container_name: jobmanager
     depends_on:
       - iceberg-rest
+    networks:
+      iceberg_net:
     ports:
       - "8081:8081"
     command: jobmanager
@@ -100,7 +111,6 @@ services:
       AWS_ACCESS_KEY_ID: admin
       AWS_SECRET_ACCESS_KEY: password
       S3_ENDPOINT: http://minio:9000
-      S3_PATH_STYLE_ACCESS: "true"
 
   # Flink TaskManager
   taskmanager:
@@ -108,6 +118,8 @@ services:
     hostname: taskmanager
     depends_on:
       - jobmanager
+    networks:
+      iceberg_net:
     command: taskmanager
     deploy:
       replicas: 1
@@ -120,4 +132,9 @@ services:
       AWS_ACCESS_KEY_ID: admin
       AWS_SECRET_ACCESS_KEY: password
       S3_ENDPOINT: http://minio:9000
-      S3_PATH_STYLE_ACCESS: "true"
+
+volumes:
+  data:
+
+networks:
+  iceberg_net:
