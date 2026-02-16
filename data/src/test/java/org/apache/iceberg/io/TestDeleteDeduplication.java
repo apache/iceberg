@@ -20,7 +20,6 @@ package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.DeleteFile;
@@ -59,12 +58,13 @@ public class TestDeleteDeduplication extends TestBase {
     // Set equality field IDs to field 0 (id field) for delete operations
     // Create delete schema containing only the ID field
     Schema deleteSchema = table.schema().select("id");
-    this.appenderFactory = new GenericAppenderFactory(
-        table.schema(),
-        PartitionSpec.unpartitioned(),
-        new int[] {table.schema().findField("id").fieldId()},  // equality field IDs
-        deleteSchema,  // eqDeleteRowSchema
-        null);  // posDeleteRowSchema
+    this.appenderFactory =
+        new GenericAppenderFactory(
+            table.schema(),
+            PartitionSpec.unpartitioned(),
+            new int[] {table.schema().findField("id").fieldId()}, // equality field IDs
+            deleteSchema, // eqDeleteRowSchema
+            null); // posDeleteRowSchema
   }
 
   @Test
@@ -109,8 +109,7 @@ public class TestDeleteDeduplication extends TestBase {
       assertThat(deleteFiles).isNotEmpty();
 
       // Count total delete records
-      long totalDeleteRecords =
-          deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
+      long totalDeleteRecords = deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
 
       // Should have exactly 2 delete records (key1 and key2), not 5
       assertThat(totalDeleteRecords)
@@ -157,13 +156,10 @@ public class TestDeleteDeduplication extends TestBase {
       WriteResult result = writer.complete();
 
       List<DeleteFile> deleteFiles = Lists.newArrayList(result.deleteFiles());
-      long totalDeleteRecords =
-          deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
+      long totalDeleteRecords = deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
 
       // Should have 2 delete records (row1 and row2), not 4
-      assertThat(totalDeleteRecords)
-          .as("Full row deletes should be deduplicated")
-          .isEqualTo(2L);
+      assertThat(totalDeleteRecords).as("Full row deletes should be deduplicated").isEqualTo(2L);
 
     } finally {
       writer.close();
@@ -198,13 +194,10 @@ public class TestDeleteDeduplication extends TestBase {
       WriteResult result = writer.complete();
 
       List<DeleteFile> deleteFiles = Lists.newArrayList(result.deleteFiles());
-      long totalDeleteRecords =
-          deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
+      long totalDeleteRecords = deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
 
       // Should have all 100 records since they're all unique
-      assertThat(totalDeleteRecords)
-          .as("All unique deletes should be preserved")
-          .isEqualTo(100L);
+      assertThat(totalDeleteRecords).as("All unique deletes should be preserved").isEqualTo(100L);
 
     } finally {
       writer.close();
