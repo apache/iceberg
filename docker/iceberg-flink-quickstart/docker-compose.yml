@@ -40,8 +40,6 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
-    volumes:
-      - data:/data
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -132,9 +130,6 @@ services:
       AWS_ACCESS_KEY_ID: admin
       AWS_SECRET_ACCESS_KEY: password
       S3_ENDPOINT: http://minio:9000
-
-volumes:
-  data:
 
 networks:
   iceberg_net:
