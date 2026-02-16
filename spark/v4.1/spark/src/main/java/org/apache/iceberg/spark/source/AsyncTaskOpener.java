@@ -36,7 +36,7 @@ class AsyncTaskOpener<T, TaskT extends ScanTask> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(AsyncTaskOpener.class);
 
   private final BlockingQueue<CloseableIterator<T>> queue;
-  private final CloseableIterator<T> ALL_TASKS_COMPLETE = CloseableIterator.empty();
+  private final CloseableIterator<T> allTasksComplete = CloseableIterator.empty();
   private final ExecutorService executor;
 
   AsyncTaskOpener(
@@ -80,13 +80,13 @@ class AsyncTaskOpener<T, TaskT extends ScanTask> implements Closeable {
                                 "Interrupted while adding opened task iterator to queue", e);
                           }
                         });
-                this.queue.put(ALL_TASKS_COMPLETE);
+                this.queue.put(allTasksComplete);
               } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 try {
-                  this.queue.put(ALL_TASKS_COMPLETE);
+                  this.queue.put(allTasksComplete);
                 } catch (InterruptedException ie) {
-                  this.queue.offer(ALL_TASKS_COMPLETE);
+                  this.queue.offer(allTasksComplete);
                 }
                 throw new RuntimeException("Interrupted while opening tasks in parallel", e);
               } finally {
@@ -100,7 +100,7 @@ class AsyncTaskOpener<T, TaskT extends ScanTask> implements Closeable {
 
   CloseableIterator<T> getNext() throws InterruptedException {
     CloseableIterator<T> next = this.queue.take();
-    if (next == ALL_TASKS_COMPLETE) {
+    if (next == allTasksComplete) {
       return null;
     }
     return next;
@@ -111,7 +111,7 @@ class AsyncTaskOpener<T, TaskT extends ScanTask> implements Closeable {
     this.executor.shutdownNow();
     CloseableIterator<T> iterator;
     while ((iterator = this.queue.poll()) != null) {
-      if (iterator != ALL_TASKS_COMPLETE) {
+      if (iterator != allTasksComplete) {
         try {
           iterator.close();
         } catch (Exception e) {
