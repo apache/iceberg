@@ -90,7 +90,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
         createOperator(new TriggerEvaluator.Builder().commitCount(3).build(), mockGateway);
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
 
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().commitCount(1).build(), 0);
@@ -120,10 +119,9 @@ class TestTriggerManagerOperator extends OperatorTestBase {
             new MockOperatorEventGateway());
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
-
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().dataFileCount(1).build(), 0);
+
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().dataFileCount(2).build(), 1);
       addEventAndCheckResult(
@@ -148,7 +146,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
             new MockOperatorEventGateway());
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
 
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().dataFileSizeInBytes(1L).build(), 0);
@@ -174,8 +171,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
             new MockOperatorEventGateway());
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
-
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().posDeleteFileCount(1).build(), 0);
       addEventAndCheckResult(
@@ -205,8 +200,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
             new MockOperatorEventGateway());
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
-
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().posDeleteRecordCount(1L).build(), 0);
       addEventAndCheckResult(
@@ -231,7 +224,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
             new MockOperatorEventGateway());
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
 
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().eqDeleteFileCount(1).build(), 0);
@@ -261,8 +253,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
             new MockOperatorEventGateway());
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
-
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().eqDeleteRecordCount(1L).build(), 0);
       addEventAndCheckResult(
@@ -287,8 +277,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
             new MockOperatorEventGateway());
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
-
       TableChange event = TableChange.builder().dataFileCount(1).commitCount(1).build();
 
       // Wait for some time
@@ -329,7 +317,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
             new TriggerEvaluator.Builder().commitCount(2).build(), new MockOperatorEventGateway());
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
       testHarness.processElement(
           TableChange.builder().dataFileCount(1).commitCount(1).build(), EVENT_TIME);
 
@@ -347,7 +334,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       testHarness.initializeState(state);
       testHarness.open();
 
-      newOperator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
       // Mock a recovery trigger lock
       assertTriggers(
           testHarness.extractOutputValues(),
@@ -376,7 +362,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
       testHarness.open();
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
+
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().commitCount(2).build(), 1);
       long currentTime = testHarness.getProcessingTime();
@@ -403,7 +389,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
     try (OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness =
         createHarness(operator)) {
       testHarness.open();
-      operator.handleLockRegisterAck(new LockRegisterAckEvent(tableName, processingTime));
+
       // Create a lock to prevent execution, and check that there is no result
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().commitCount(2).build(), 1, false);

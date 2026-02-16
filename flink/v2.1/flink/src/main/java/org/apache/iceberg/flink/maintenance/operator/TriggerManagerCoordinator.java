@@ -76,11 +76,6 @@ public class TriggerManagerCoordinator extends BaseCoordinator {
           subtaskGateways().getSubtaskGateway(0).sendEvent(lock);
         });
 
-    subtaskGateways()
-        .getSubtaskGateway(0)
-        .sendEvent(
-            new LockRegisterAckEvent(lockRegisterEvent.lockId(), lockRegisterEvent.timestamp()));
-
     PENDING_RELEASE_EVENTS.forEach(this::handleReleaseLock);
     PENDING_RELEASE_EVENTS.clear();
   }

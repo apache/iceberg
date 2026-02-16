@@ -57,14 +57,12 @@ class TestTriggerManagerCoordinator extends TestBaseCoordinator {
 
       triggerManagerCoordinator.handleEventFromOperator(0, 0, LOCK_REGISTER_EVENT);
       waitForCoordinatorToProcessActions(triggerManagerCoordinator);
-      assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(1);
-      assertThat(receivingTasks.getSentEventsForSubtask(0).get(0))
-          .isEqualTo(LOCK_REGISTER_ACK_EVENT);
+      assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(0);
 
       // release lock from coordinator1 and get one event from coordinator
       triggerManagerCoordinator1.handleReleaseLock(LOCK_RELEASE_EVENT);
       waitForCoordinatorToProcessActions(triggerManagerCoordinator1);
-      assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(2);
+      assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(1);
       assertThat(receivingTasks1.getSentEventsForSubtask(0).size()).isEqualTo(0);
     }
   }
@@ -84,7 +82,7 @@ class TestTriggerManagerCoordinator extends TestBaseCoordinator {
 
       triggerManagerCoordinator.handleEventFromOperator(0, 0, LOCK_REGISTER_EVENT);
       waitForCoordinatorToProcessActions(triggerManagerCoordinator);
-      assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(2);
+      assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(1);
 
       assertThat(triggerManagerCoordinator.pendingReleaseEvents()).hasSize(0);
     }
