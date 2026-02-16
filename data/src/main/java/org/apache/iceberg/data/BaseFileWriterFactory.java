@@ -43,7 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 /**
  * A base writer factory to be extended by query engine integrations.
  *
- * @deprecated deprecated as of version 1.11.0 and will be removed in 1.12.0. Use {@link
+ * @deprecated since version 1.11.0 and will be removed in 1.12.0. Use {@link
  *     RegistryBasedFileWriterFactory}
  */
 @Deprecated

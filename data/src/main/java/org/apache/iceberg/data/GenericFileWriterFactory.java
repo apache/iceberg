@@ -150,90 +150,84 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
    *     configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    throwUnsupportedOperationException();
+    builder.createWriterFunc(DataWriter::create);
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
    *     configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    throwUnsupportedOperationException();
+    builder.createWriterFunc(DataWriter::create);
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
    *     configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
-    throwUnsupportedOperationException();
+    builder.createWriterFunc(DataWriter::create);
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
    *     configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    throwUnsupportedOperationException();
+    builder.createWriterFunc(GenericParquetWriter::create);
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
    *     configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    throwUnsupportedOperationException();
+    builder.createWriterFunc(GenericParquetWriter::create);
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
    *     configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    throwUnsupportedOperationException();
+    builder.createWriterFunc(GenericParquetWriter::create);
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
    *     configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    throwUnsupportedOperationException();
+    builder.createWriterFunc(GenericOrcWriter::buildWriter);
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
    *     configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    throwUnsupportedOperationException();
+    builder.createWriterFunc(GenericOrcWriter::buildWriter);
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
    *     configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    throwUnsupportedOperationException();
-  }
-
-  private void throwUnsupportedOperationException() {
-    throw new UnsupportedOperationException(
-        "Method is deprecated and should not be called. "
-            + "Configuration is already done by the registry.");
+    builder.createWriterFunc(GenericOrcWriter::buildWriter);
   }
 
   @Override
@@ -242,7 +236,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
     if (positionDeleteRowSchema == null) {
       return super.newPositionDeleteWriter(file, spec, partition);
     } else {
-      LOG.info(
+      LOG.warn(
           "Deprecated feature used. Position delete row schema is used to create the position delete writer.");
       MetricsConfig metricsConfig =
           table != null
