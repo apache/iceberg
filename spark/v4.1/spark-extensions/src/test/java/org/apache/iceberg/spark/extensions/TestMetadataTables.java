@@ -56,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -642,6 +643,9 @@ public class TestMetadataTables extends ExtensionsTestBase {
         .append();
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    Long previousSnapshotId = table.currentSnapshot().snapshotId();
+    // remember the time when the first snapshot was valid
+    long previousSnapshotTimestamp = System.currentTimeMillis();
 
     table.updateSchema().addColumn("category", Types.StringType.get()).commit();
 
@@ -659,14 +663,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
     table.refresh();
     Long currentSnapshotId = table.currentSnapshot().snapshotId();
 
-    Dataset<Row> actualFilesDs =
-        spark.sql(
-            "SELECT * FROM "
-                + tableName
-                + ".files VERSION AS OF "
-                + currentSnapshotId
-                + " ORDER BY content");
-    List<Row> actualFiles = TestHelpers.selectNonDerived(actualFilesDs).collectAsList();
+    // Test schema
     Schema entriesTableSchema =
         TypeUtil.selectNot(
             Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema(),
@@ -674,6 +671,11 @@ public class TestMetadataTables extends ExtensionsTestBase {
     List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
     List<Record> expectedFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
+
+    // Metadata for current snapshot
+    Dataset<Row> actualFilesDs =
+        spark.sql("SELECT * FROM " + tableName + ".files" + " ORDER BY content");
+    List<Row> actualFiles = TestHelpers.selectNonDerived(actualFilesDs).collectAsList();
 
     assertThat(actualFiles).as("actualFiles size should be 2").hasSize(2);
 
@@ -686,6 +688,33 @@ public class TestMetadataTables extends ExtensionsTestBase {
     assertThat(actualFiles)
         .as("expectedFiles and actualFiles size should be the same")
         .hasSameSizeAs(expectedFiles);
+
+    // Metadata for previous snapshot
+    Dataset<Row> actualFilesDs2 =
+        spark.sql(
+            "SELECT * FROM "
+                + tableName
+                + ".files VERSION AS OF "
+                + previousSnapshotId
+                + " ORDER BY content");
+    List<Row> actualFiles2 = TestHelpers.selectNonDerived(actualFilesDs2).collectAsList();
+
+    assertThat(actualFiles2).as("actualFiles size should be 1").hasSize(1);
+
+    TestHelpers.assertEqualsSafe(
+        TestHelpers.nonDerivedSchema(actualFilesDs2), expectedFiles.get(0), actualFiles.get(0));
+
+    // Using session-level time-travel
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, previousSnapshotTimestamp);
+    Dataset<Row> actualFilesDs3 =
+        spark.sql("SELECT * FROM " + tableName + ".files" + " ORDER BY content");
+    List<Row> actualFiles3 = TestHelpers.selectNonDerived(actualFilesDs3).collectAsList();
+
+    assertThat(actualFiles3).as("actualFiles size should be 1").hasSize(1);
+
+    TestHelpers.assertEqualsSafe(
+        TestHelpers.nonDerivedSchema(actualFilesDs3), expectedFiles.get(0), actualFiles.get(0));
+    spark.conf().unset(SparkSQLProperties.AS_OF_TIMESTAMP);
   }
 
   @TestTemplate

@@ -33,6 +33,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
@@ -43,6 +44,7 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -55,6 +57,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestSelect extends CatalogTestBase {
   private int scanEventCount = 0;
   private ScanEvent lastScanEvent = null;
+  private final long timestampBeforeAnySnapshots = 1L; // no snapshot at this time
 
   @Parameter(index = 3)
   private String binaryTableName;
@@ -104,6 +107,7 @@ public class TestSelect extends CatalogTestBase {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s", binaryTableName);
+    spark.conf().unset(SparkSQLProperties.AS_OF_TIMESTAMP);
   }
 
   @TestTemplate
@@ -244,6 +248,27 @@ public class TestSelect extends CatalogTestBase {
             .orderBy("id");
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at specific ID " + snapshotId, expected, fromDF);
+
+    // Validate precedence: snapshot_id_ prefix overrides session property
+    spark
+        .conf()
+        .set(SparkSQLProperties.AS_OF_TIMESTAMP, String.valueOf(timestampBeforeAnySnapshots));
+    List<Object[]> actualWithSessionProperty =
+        sql("SELECT * FROM %s.%s ORDER by id", tableName, prefix + snapshotId);
+    assertEquals(
+        "Explicit snapshot_id_ should override session property",
+        expected,
+        actualWithSessionProperty);
+
+    Dataset<Row> df2 =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+            .load(tableName)
+            .orderBy("id");
+    List<Object[]> fromDF2 = rowsToJava(df2.collectAsList());
+    assertEquals("DataFrame SNAPSHOT_ID should override session property", expected, fromDF2);
   }
 
   @TestTemplate
@@ -271,6 +296,23 @@ public class TestSelect extends CatalogTestBase {
             .orderBy("id");
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at timestamp " + timestamp, expected, fromDF);
+
+    // Validate precedence: at_timestamp_ prefix overrides session property
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, timestampBeforeAnySnapshots);
+    List<Object[]> actualWithPrecedence =
+        sql("SELECT * FROM %s.%s ORDER by id", tableName, prefix + timestamp);
+    assertEquals(
+        "Explicit at_timestamp_ should override session property", expected, actualWithPrecedence);
+
+    Dataset<Row> df2 =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+            .load(tableName)
+            .orderBy("id");
+    List<Object[]> fromDF2 = rowsToJava(df2.collectAsList());
+    assertEquals("DataFrame AS_OF_TIMESTAMP should override session property", expected, fromDF2);
   }
 
   @TestTemplate
@@ -303,6 +345,24 @@ public class TestSelect extends CatalogTestBase {
             .orderBy("id");
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at specific ID " + snapshotId, expected, fromDF);
+
+    // Validate precedence: VERSION AS OF overrides session property
+    spark
+        .conf()
+        .set(SparkSQLProperties.AS_OF_TIMESTAMP, String.valueOf(timestampBeforeAnySnapshots));
+    List<Object[]> actualWithPrecedence =
+        sql("SELECT * FROM %s VERSION AS OF %s ORDER BY id", tableName, snapshotId);
+    assertEquals("VERSION AS OF should override session property", expected, actualWithPrecedence);
+
+    Dataset<Row> df2 =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VERSION_AS_OF, snapshotId)
+            .load(tableName)
+            .orderBy("id");
+    List<Object[]> fromDF2 = rowsToJava(df2.collectAsList());
+    assertEquals("DataFrame VERSION_AS_OF should override session property", expected, fromDF2);
   }
 
   @TestTemplate
@@ -341,6 +401,31 @@ public class TestSelect extends CatalogTestBase {
             .orderBy("id");
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at specific tag reference name", expected, fromDF);
+
+    // Validate precedence: VERSION AS OF tag overrides session property
+    spark
+        .conf()
+        .set(SparkSQLProperties.AS_OF_TIMESTAMP, String.valueOf(timestampBeforeAnySnapshots));
+    List<Object[]> actualWithVersionAsOf =
+        sql("SELECT * FROM %s VERSION AS OF 'test_tag' ORDER by id", tableName);
+    assertEquals(
+        "VERSION AS OF tag should override session property", expected, actualWithVersionAsOf);
+
+    if (!"spark_catalog".equals(catalogName)) {
+      List<Object[]> actualWithTagPrefix =
+          sql("SELECT * FROM %s.tag_test_tag ORDER by id", tableName);
+      assertEquals("Tag prefix should override session property", expected, actualWithTagPrefix);
+    }
+
+    Dataset<Row> df2 =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.TAG, "test_tag")
+            .load(tableName)
+            .orderBy("id");
+    List<Object[]> fromDF2 = rowsToJava(df2.collectAsList());
+    assertEquals("DataFrame TAG should override session property", expected, fromDF2);
   }
 
   @TestTemplate
@@ -462,6 +547,32 @@ public class TestSelect extends CatalogTestBase {
             .orderBy("id");
     List<Object[]> fromDF = rowsToJava(df.collectAsList());
     assertEquals("Snapshot at specific branch reference name", expected, fromDF);
+
+    // Validate precedence: VERSION AS OF branch overrides session property
+    spark
+        .conf()
+        .set(SparkSQLProperties.AS_OF_TIMESTAMP, String.valueOf(timestampBeforeAnySnapshots));
+    List<Object[]> actualWithVersionAsOf =
+        sql("SELECT * FROM %s VERSION AS OF 'test_branch' ORDER BY id", tableName);
+    assertEquals(
+        "VERSION AS OF branch should override session property", expected, actualWithVersionAsOf);
+
+    if (!"spark_catalog".equals(catalogName)) {
+      List<Object[]> actualWithBranchPrefix =
+          sql("SELECT * FROM %s.branch_test_branch ORDER BY id", tableName);
+      assertEquals(
+          "Branch prefix should override session property", expected, actualWithBranchPrefix);
+    }
+
+    Dataset<Row> df2 =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.BRANCH, "test_branch")
+            .load(tableName)
+            .orderBy("id");
+    List<Object[]> fromDF2 = rowsToJava(df2.collectAsList());
+    assertEquals("DataFrame BRANCH should override session property", expected, fromDF2);
   }
 
   @TestTemplate
@@ -469,6 +580,15 @@ public class TestSelect extends CatalogTestBase {
     assertThatThrownBy(() -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
         .hasMessageContaining("Cannot find matching snapshot ID or reference name for version")
         .isInstanceOf(ValidationException.class);
+
+    // Validate that session property with timestamp before any snapshots raises exception
+    assertThatThrownBy(
+            () -> {
+              spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, timestampBeforeAnySnapshots);
+              sql("SELECT * FROM %s", tableName);
+            })
+        .hasMessageContaining("Cannot find a snapshot older than")
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @TestTemplate
@@ -693,5 +813,102 @@ public class TestSelect extends CatalogTestBase {
 
     assertEquals("Should return all expected rows", ImmutableList.of(row(0)), result);
     sql("DROP TABLE IF EXISTS %s", nestedStructTable);
+  }
+
+  @TestTemplate
+  public void testSessionPropertyWithMultiTableJoin() {
+    // Create two tables with initial data
+    String table1Name = tableName("table1");
+    TableIdentifier table1Identifier = TableIdentifier.of(Namespace.of("default"), "table1");
+    String table2Name = tableName("table2");
+    TableIdentifier table2Identifier = TableIdentifier.of(Namespace.of("default"), "table2");
+
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", table1Name);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", table1Name);
+
+    sql("CREATE TABLE %s (id bigint, value string) USING iceberg", table2Name);
+    sql("INSERT INTO %s VALUES (1, 'x'), (2, 'y')", table2Name);
+
+    // Capture timestamps after first snapshots
+    long timestamp1 =
+        waitUntilAfter(
+            validationCatalog.loadTable(table1Identifier).currentSnapshot().timestampMillis()
+                + 1000);
+    long timestamp2 =
+        waitUntilAfter(
+            validationCatalog.loadTable(table2Identifier).currentSnapshot().timestampMillis()
+                + 1000);
+    long timestampSnapshot1 = Long.max(timestamp1, timestamp2);
+
+    List<Object[]> expectedJoinSnapshot1 = ImmutableList.of(row(1L, "a", "x"), row(2L, "b", "y"));
+
+    // Add more data to both tables
+    sql("INSERT INTO %s VALUES (3, 'c'), (4, 'd')", table1Name);
+    sql("INSERT INTO %s VALUES (3, 'z'), (4, 'w')", table2Name);
+
+    // Capture timestamps after second snapshots
+    long timestamp3 =
+        waitUntilAfter(
+            validationCatalog.loadTable(table1Identifier).currentSnapshot().timestampMillis()
+                + 1000);
+    long timestamp4 =
+        waitUntilAfter(
+            validationCatalog.loadTable(table2Identifier).currentSnapshot().timestampMillis()
+                + 1000);
+    long timestampSnapshot2 = Long.max(timestamp3, timestamp4);
+
+    List<Object[]> expectedJoinSnapshot2 =
+        ImmutableList.of(
+            row(1L, "a", "x"), row(2L, "b", "y"), row(3L, "c", "z"), row(4L, "d", "w"));
+
+    List<Object[]> actual1 =
+        sql(
+            "SELECT t1.id, t1.data, t2.value FROM %s t1 FULL OUTER JOIN %s t2 ON t1.id = t2.id ORDER BY t1.id",
+            table1Name, table2Name);
+    assertEquals(
+        "Without session property, last snapshot for both table should be read.",
+        expectedJoinSnapshot2,
+        actual1);
+
+    spark.conf().set(SparkSQLProperties.AS_OF_TIMESTAMP, String.valueOf(timestampSnapshot1));
+
+    // Session property applies to both tables in join
+    List<Object[]> actual2 =
+        sql(
+            "SELECT t1.id, t1.data, t2.value FROM %s t1 FULL OUTER JOIN %s t2 ON t1.id = t2.id ORDER BY t1.id",
+            table1Name, table2Name);
+    assertEquals(
+        "Session property should apply to both tables in join", expectedJoinSnapshot1, actual2);
+
+    // Table-level option on table1 overrides session property, table2 uses session property
+    List<Object[]> expected3 =
+        ImmutableList.of(
+            row(1L, "a", "x"), row(2L, "b", "y"), row(3L, "c", null), row(4L, "d", null));
+    List<Object[]> actual3 =
+        sql(
+            "SELECT t1.id, t1.data, t2.value FROM %s TIMESTAMP AS OF %s t1 FULL OUTER JOIN %s t2 ON t1.id = t2.id ORDER BY t1.id",
+            table1Name, timestampSnapshot2 / 1000, table2Name);
+    assertEquals(
+        "Table-level TIMESTAMP AS OF should override session property for table1 only",
+        expected3,
+        actual3);
+
+    // Table identifier selector on table2, session property applies to table1
+    List<Object[]> expected4 =
+        ImmutableList.of(
+            row(1L, "a", "x"), row(2L, "b", "y"), row(3L, null, "z"), row(4L, null, "w"));
+
+    List<Object[]> actual =
+        sql(
+            "SELECT t2.id, t1.data, t2.value FROM %s t1 FULL OUTER JOIN %s TIMESTAMP AS OF %s t2 ON t1.id = t2.id ORDER BY t2.id",
+            table1Name, table2Name, timestampSnapshot2 / 1000);
+    assertEquals(
+        "Table-level TIMESTAMP AS OF should override session property for table2 only",
+        expected4,
+        actual);
+
+    // Cleanup
+    sql("DROP TABLE IF EXISTS %s", table1Name);
+    sql("DROP TABLE IF EXISTS %s", table2Name);
   }
 }

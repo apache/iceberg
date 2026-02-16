@@ -196,6 +196,7 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.executor-cache.locality.enabled      | false                                                          | Enables locality-aware executor cache usage                                                                                     |
 | spark.sql.iceberg.merge-schema                         | false                                                          | Enables modifying the table schema to match the write schema. Only adds columns missing columns                                 |
 | spark.sql.iceberg.report-column-stats                  | true                                                           | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
+| spark.sql.iceberg.read.as-of-timestamp                 | null                                                           | Default timestamp in milliseconds for time-travel queries; applies to all reads when no explicit snapshot-id, as-of-timestamp, branch, or tag is specified |
 
 ### Read options
 
