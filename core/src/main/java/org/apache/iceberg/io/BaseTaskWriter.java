@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -39,9 +40,11 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructLikeUtil;
+import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -186,6 +189,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private Map<StructLike, PathOffset> insertedRowMap;
     private boolean closePosDeleteWriter;
 
+    // Delete deduplication: cache delete keys within a checkpoint to avoid duplicate deletes
+    private Set<StructLike> pendingDeleteKeys;
+    private Set<StructLike> pendingDeleteRows;
+
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
       this(partition, schema, deleteSchema, DeleteGranularity.PARTITION, null);
     }
@@ -217,6 +224,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
               : createPosDeleteWriter(partition, deleteGranularity);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
       this.partitionKey = partition;
+      // Initialize delete deduplication caches
+      this.pendingDeleteKeys = StructLikeSet.create(deleteSchema.asStruct());
+      this.pendingDeleteRows = StructLikeSet.create(schema.asStruct());
     }
 
     /** Wrap the data as a {@link StructLike}. */
@@ -289,8 +299,17 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param row the given row to delete.
      */
     public void delete(T row) throws IOException {
-      if (!internalPosDelete(structProjection.wrap(asStructLike(row)))) {
-        eqDeleteWriter.write(row);
+      StructLike key = structProjection.wrap(asStructLike(row));
+      if (!internalPosDelete(key)) {
+        // Check if this row has already been deleted in this checkpoint
+        StructLike rowStruct = asStructLike(row);
+        StructLike copiedRow = StructLikeUtil.copy(rowStruct);
+
+        if (!pendingDeleteRows.contains(copiedRow)) {
+          pendingDeleteRows.add(copiedRow);
+          eqDeleteWriter.write(row);
+        }
+        // If already in pendingDeleteRows, skip to deduplicate
       }
     }
 
@@ -301,8 +320,16 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param key is the projected data whose columns are the same as the equality fields.
      */
     public void deleteKey(T key) throws IOException {
-      if (!internalPosDelete(asStructLikeKey(key))) {
-        eqDeleteWriter.write(key);
+      StructLike keyStruct = asStructLikeKey(key);
+      if (!internalPosDelete(keyStruct)) {
+        // Check if this key has already been deleted in this checkpoint
+        StructLike copiedKey = StructLikeUtil.copy(keyStruct);
+
+        if (!pendingDeleteKeys.contains(copiedKey)) {
+          pendingDeleteKeys.add(copiedKey);
+          eqDeleteWriter.write(key);
+        }
+        // If already in pendingDeleteKeys, skip to deduplicate
       }
     }
 
@@ -330,6 +357,17 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         if (insertedRowMap != null) {
           insertedRowMap.clear();
           insertedRowMap = null;
+        }
+
+        // Clear delete deduplication caches
+        if (pendingDeleteKeys != null) {
+          pendingDeleteKeys.clear();
+          pendingDeleteKeys = null;
+        }
+
+        if (pendingDeleteRows != null) {
+          pendingDeleteRows.clear();
+          pendingDeleteRows = null;
         }
 
         // Add the completed pos-delete files.
