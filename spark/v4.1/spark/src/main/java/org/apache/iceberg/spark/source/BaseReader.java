@@ -108,7 +108,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       taskGroup.tasks().forEach(task -> allTasks.add((TaskT) task));
       this.asyncOpener = new AsyncTaskOpener<>(allTasks, this::open, 4, 10);
       this.tasks = Collections.emptyIterator();
-      ;
     } else {
       this.tasks = taskGroup.tasks().iterator();
       this.asyncOpener = null;
