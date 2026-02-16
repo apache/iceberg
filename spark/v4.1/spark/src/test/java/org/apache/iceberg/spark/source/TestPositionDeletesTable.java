@@ -987,12 +987,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
         SparkTableCache.get().add(fileSetID, posDeletesTable);
         stageTask(tab, fileSetID, tasks);
 
-        Dataset<Row> scanDF =
-            spark
-                .read()
-                .format("iceberg")
-                .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
-                .load(fileSetID);
+        Dataset<Row> scanDF = spark.read().format("iceberg").load(fileSetID);
         assertThat(scanDF.javaRDD().getNumPartitions()).isEqualTo(1);
         scanDF.write().format("iceberg").mode("append").save(fileSetID);
 
