@@ -21,6 +21,7 @@ package org.apache.iceberg.encryption;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
@@ -53,8 +54,18 @@ public class EncryptionUtil {
         kmsType,
         kmsImpl);
 
-    // TODO: Add KMS implementations
-    Preconditions.checkArgument(kmsType == null, "Unsupported KMS type: %s", kmsType);
+    if (kmsType != null) {
+      kmsImpl =
+          switch (kmsType.toLowerCase(Locale.ROOT)) {
+            case CatalogProperties.ENCRYPTION_KMS_TYPE_AWS ->
+                CatalogProperties.ENCRYPTION_KMS_IMPL_AWS;
+            case CatalogProperties.ENCRYPTION_KMS_TYPE_AZURE ->
+                CatalogProperties.ENCRYPTION_KMS_IMPL_AZURE;
+            case CatalogProperties.ENCRYPTION_KMS_TYPE_GCP ->
+                CatalogProperties.ENCRYPTION_KMS_IMPL_GCP;
+            default -> throw new IllegalStateException("Unsupported KMS type: " + kmsType);
+          };
+    }
 
     KeyManagementClient kmsClient;
     DynConstructors.Ctor<KeyManagementClient> ctor;

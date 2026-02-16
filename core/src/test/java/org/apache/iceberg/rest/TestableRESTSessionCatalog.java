@@ -16,7 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.rest;
 
-/** Marker interface to indicate whether a Table requires remote scan planning */
-public interface RequiresRemoteScanPlanning {}
+import com.github.benmanes.caffeine.cache.Ticker;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import org.apache.iceberg.io.FileIO;
+
+class TestableRESTSessionCatalog extends RESTSessionCatalog {
+  private Ticker ticker;
+
+  TestableRESTSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder,
+      BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder) {
+    super(clientBuilder, ioBuilder);
+  }
+
+  public void setTicker(Ticker newTicker) {
+    this.ticker = newTicker;
+  }
+
+  @Override
+  protected RESTTableCache createTableCache(Map<String, String> props) {
+    return new RESTTableCache(props, ticker);
+  }
+}

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.view;
 
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -2005,5 +2006,137 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(tableCatalog().tableExists(identifier)).as("Table should not exist").isFalse();
     assertThat(catalog().dropView(identifier)).isTrue();
+  }
+
+  @Test
+  public void registerView() {
+    C catalog = catalog();
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    View originalView =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .withProperty(GC_ENABLED, "false") // don't delete metadata when dropping the view
+            .create();
+
+    ViewOperations ops = ((BaseView) originalView).operations();
+    String metadataLocation = ops.current().metadataFileLocation();
+
+    assertThat(catalog.dropView(identifier)).isTrue();
+    assertThat(catalog.viewExists(identifier)).as("View must not exist").isFalse();
+
+    // view metadata should still exist after dropping the view as gc is disabled
+    if (ops instanceof BaseViewOperations) {
+      assertThat(((BaseViewOperations) ops).io().newInputFile(metadataLocation).exists()).isTrue();
+    }
+
+    View registeredView = catalog.registerView(identifier, metadataLocation);
+
+    assertThat(registeredView).isNotNull();
+    assertThat(catalog.viewExists(identifier)).as("View must exist").isTrue();
+    assertThat(registeredView.name())
+        .isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
+    assertThat(registeredView.history())
+        .hasSize(1)
+        .first()
+        .extracting(ViewHistoryEntry::versionId)
+        .isEqualTo(1);
+    assertThat(registeredView.schemas()).hasSize(1).containsKey(0);
+    assertThat(registeredView.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
+    assertThat(registeredView.currentVersion().operation()).isEqualTo("create");
+    assertThat(registeredView.versions())
+        .hasSize(1)
+        .containsExactly(registeredView.currentVersion());
+    assertThat(registeredView.versions()).isEqualTo(originalView.versions());
+    assertThat(registeredView.currentVersion())
+        .isEqualTo(
+            ImmutableViewVersion.builder()
+                .timestampMillis(registeredView.currentVersion().timestampMillis())
+                .versionId(1)
+                .schemaId(0)
+                .summary(registeredView.currentVersion().summary())
+                .defaultNamespace(identifier.namespace())
+                .defaultCatalog(catalog().name())
+                .addRepresentations(
+                    ImmutableSQLViewRepresentation.builder()
+                        .sql("select * from ns.tbl")
+                        .dialect("spark")
+                        .build())
+                .build());
+
+    assertThat(catalog.loadView(identifier)).isNotNull();
+    assertThat(catalog.dropView(identifier)).isTrue();
+    assertThat(catalog.viewExists(identifier)).isFalse();
+  }
+
+  @Test
+  public void registerExistingView() {
+    C catalog = catalog();
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .create();
+
+    ViewOperations ops = ((BaseView) view).operations();
+    String metadataLocation = ops.current().metadataFileLocation();
+
+    assertThatThrownBy(() -> catalog.registerView(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("View already exists: ns.view");
+    assertThat(catalog.dropView(identifier)).isTrue();
+  }
+
+  @Test
+  public void registerViewThatAlreadyExistsAsTable() {
+    C catalog = catalog();
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .withProperty(GC_ENABLED, "false") // don't delete metadata when dropping the view
+            .create();
+
+    ViewOperations ops = ((BaseView) view).operations();
+    String metadataLocation = ops.current().metadataFileLocation();
+    assertThat(catalog.dropView(identifier)).isTrue();
+
+    // create a table with the same name as the view
+    tableCatalog().createTable(identifier, SCHEMA);
+
+    assertThatThrownBy(() -> catalog.registerView(identifier, metadataLocation))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("Table with same name already exists: ns.view");
+
+    assertThat(tableCatalog().dropTable(identifier)).isTrue();
   }
 }

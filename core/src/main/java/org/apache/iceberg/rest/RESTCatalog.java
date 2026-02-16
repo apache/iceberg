@@ -96,6 +96,10 @@ public class RESTCatalog
     sessionCatalog.initialize(name, props);
   }
 
+  protected RESTSessionCatalog sessionCatalog() {
+    return sessionCatalog;
+  }
+
   @Override
   public String name() {
     return sessionCatalog.name();
@@ -324,5 +328,10 @@ public class RESTCatalog
   @Override
   public void invalidateView(TableIdentifier identifier) {
     viewSessionCatalog.invalidateView(identifier);
+  }
+
+  @Override
+  public View registerView(TableIdentifier identifier, String metadataFileLocation) {
+    return viewSessionCatalog.registerView(identifier, metadataFileLocation);
   }
 }

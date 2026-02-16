@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.apache.iceberg.flink.TestFixtures.TABLE;
-import static org.apache.iceberg.flink.sink.dynamic.DynamicCommitter.MAX_CONTINUOUS_EMPTY_COMMITS;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -123,10 +122,7 @@ class TestDynamicIcebergSinkPerf {
           CATALOG_EXTENSION
               .catalog()
               .createTable(
-                  IDENTIFIERS[i],
-                  SCHEMA,
-                  PartitionSpec.unpartitioned(),
-                  ImmutableMap.of(MAX_CONTINUOUS_EMPTY_COMMITS, "100000"));
+                  IDENTIFIERS[i], SCHEMA, PartitionSpec.unpartitioned(), ImmutableMap.of());
 
       table.manageSnapshots().createBranch(SnapshotRef.MAIN_BRANCH).commit();
     }

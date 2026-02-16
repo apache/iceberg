@@ -182,6 +182,7 @@ public class DynConstructors {
       return this;
     }
 
+    @SuppressWarnings("removal")
     public <T> Builder hiddenImpl(Class<T> targetClass, Class<?>... types) {
       // don't do any work if an implementation has been found
       if (ctor != null) {

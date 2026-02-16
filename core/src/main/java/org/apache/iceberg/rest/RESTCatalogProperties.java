@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.concurrent.TimeUnit;
+
 public final class RESTCatalogProperties {
 
   private RESTCatalogProperties() {}
 
   public static final String SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
   public static final String SNAPSHOT_LOADING_MODE_DEFAULT = SnapshotMode.ALL.name();
+  public static final String SNAPSHOTS_QUERY_PARAMETER = "snapshots";
 
   public static final String METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   public static final boolean METRICS_REPORTING_ENABLED_DEFAULT = true;
@@ -42,6 +45,15 @@ public final class RESTCatalogProperties {
   public static final boolean REST_SCAN_PLANNING_ENABLED_DEFAULT = false;
 
   public static final String REST_SCAN_PLAN_ID = "rest-scan-plan-id";
+
+  // Properties that control the behaviour of the table cache used for freshness-aware table
+  // loading.
+  public static final String TABLE_CACHE_EXPIRE_AFTER_WRITE_MS =
+      "rest-table-cache.expire-after-write-ms";
+  public static final long TABLE_CACHE_EXPIRE_AFTER_WRITE_MS_DEFAULT = TimeUnit.MINUTES.toMillis(5);
+
+  public static final String TABLE_CACHE_MAX_ENTRIES = "rest-table-cache.max-entries";
+  public static final int TABLE_CACHE_MAX_ENTRIES_DEFAULT = 100;
 
   public enum SnapshotMode {
     ALL,

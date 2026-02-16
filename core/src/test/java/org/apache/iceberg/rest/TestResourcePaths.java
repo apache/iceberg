@@ -268,6 +268,13 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void testRegisterView() {
+    Namespace ns = Namespace.of("ns");
+    assertThat(withPrefix.registerView(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/register-view");
+    assertThat(withoutPrefix.registerView(ns)).isEqualTo("v1/namespaces/ns/register-view");
+  }
+
+  @Test
   public void planEndpointPath() {
     TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
 
@@ -312,14 +319,14 @@ public class TestResourcePaths {
         .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/plan-abc-123");
 
     // The planId contains a space which needs to be encoded
-    String spaceSeperatedPlanId = "plan with spaces";
+    String spaceSeparatedPlanId = "plan with spaces";
     // The expected encoded version of the planId
     String encodedPlanId = "plan+with+spaces";
 
-    assertThat(withPrefix.plan(tableId, spaceSeperatedPlanId))
+    assertThat(withPrefix.plan(tableId, spaceSeparatedPlanId))
         .isEqualTo(
             "v1/ws/catalog/namespaces/test_namespace/tables/test_table/plan/" + encodedPlanId);
-    assertThat(withoutPrefix.plan(tableId, spaceSeperatedPlanId))
+    assertThat(withoutPrefix.plan(tableId, spaceSeparatedPlanId))
         .isEqualTo("v1/namespaces/test_namespace/tables/test_table/plan/" + encodedPlanId);
 
     // Test with different identifiers

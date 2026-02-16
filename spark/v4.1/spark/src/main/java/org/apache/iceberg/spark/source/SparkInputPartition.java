@@ -34,7 +34,6 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
   private final Types.StructType groupingKeyType;
   private final ScanTaskGroup<?> taskGroup;
   private final Broadcast<Table> tableBroadcast;
-  private final String branch;
   private final String expectedSchemaString;
   private final boolean caseSensitive;
   private final transient String[] preferredLocations;
@@ -46,7 +45,6 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
       Types.StructType groupingKeyType,
       ScanTaskGroup<?> taskGroup,
       Broadcast<Table> tableBroadcast,
-      String branch,
       String expectedSchemaString,
       boolean caseSensitive,
       String[] preferredLocations,
@@ -54,7 +52,6 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
-    this.branch = branch;
     this.expectedSchemaString = expectedSchemaString;
     this.caseSensitive = caseSensitive;
     this.preferredLocations = preferredLocations;
@@ -82,10 +79,6 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
 
   public Table table() {
     return tableBroadcast.value();
-  }
-
-  public String branch() {
-    return branch;
   }
 
   public boolean isCaseSensitive() {

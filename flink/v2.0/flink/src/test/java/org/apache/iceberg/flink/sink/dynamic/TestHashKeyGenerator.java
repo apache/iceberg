@@ -160,6 +160,48 @@ class TestHashKeyGenerator {
   }
 
   @Test
+  void testHashModeWithPartitionFieldAndEqualityField() throws Exception {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 4).build();
+
+    GenericRowData row1 = GenericRowData.of(1, StringData.fromString("foo"));
+    GenericRowData row2 = GenericRowData.of(1, StringData.fromString("bar"));
+    Set<String> equalityColumns = Sets.newHashSet("id", "data");
+
+    int writeKey1 =
+        getWriteKey(
+            generator, spec, DistributionMode.HASH, writeParallelism, equalityColumns, row1);
+    int writeKey2 =
+        getWriteKey(
+            generator, spec, DistributionMode.HASH, writeParallelism, equalityColumns, row2);
+
+    assertThat(writeKey1).isEqualTo(writeKey2);
+  }
+
+  @Test
+  void testHashModeWithPartitionFieldNotInEqualityFieldsFails() {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 4).build();
+    Set<String> equalityColumns = Collections.singleton("data");
+
+    GenericRowData row = GenericRowData.of(1, StringData.fromString("foo"));
+
+    assertThatThrownBy(
+            () ->
+                getWriteKey(
+                    generator, spec, DistributionMode.HASH, writeParallelism, equalityColumns, row))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("partition field")
+        .hasMessageContaining(spec.fields().get(0).toString())
+        .hasMessageContaining("should be included in equality fields");
+  }
+
+  @Test
   void testFailOnNonPositiveWriteParallelism() {
     final int maxWriteParallelism = 5;
     HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);

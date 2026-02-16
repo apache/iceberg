@@ -1,6 +1,7 @@
 ---
 date: 2026-01-10
 title: Announcing Iceberg Summit 2026
+slug: announcing-iceberg-summit-2026  # this is the url
 authors:
   - iceberg-pmc
 categories:

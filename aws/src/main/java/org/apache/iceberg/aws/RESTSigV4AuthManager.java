@@ -36,7 +36,9 @@ import software.amazon.awssdk.auth.signer.Aws4Signer;
  */
 public class RESTSigV4AuthManager implements AuthManager {
 
+  @SuppressWarnings("deprecation")
   private final Aws4Signer signer = Aws4Signer.create();
+
   private final AuthManager delegate;
 
   private Map<String, String> catalogProperties = Map.of();

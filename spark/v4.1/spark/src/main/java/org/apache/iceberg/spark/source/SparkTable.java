@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_ID;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.BaseMetadataTable;
@@ -31,7 +32,6 @@ import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
@@ -49,10 +49,10 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
@@ -78,8 +78,6 @@ import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
 import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
@@ -273,58 +271,20 @@ public class SparkTable
 
   @Override
   public MetadataColumn[] metadataColumns() {
-    DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(table()));
-    ImmutableList.Builder<SparkMetadataColumn> metadataColumns = ImmutableList.builder();
-    metadataColumns.add(
-        SparkMetadataColumn.builder()
-            .name(MetadataColumns.SPEC_ID.name())
-            .dataType(DataTypes.IntegerType)
-            .withNullability(true)
-            .build(),
-        SparkMetadataColumn.builder()
-            .name(MetadataColumns.PARTITION_COLUMN_NAME)
-            .dataType(sparkPartitionType)
-            .withNullability(true)
-            .build(),
-        SparkMetadataColumn.builder()
-            .name(MetadataColumns.FILE_PATH.name())
-            .dataType(DataTypes.StringType)
-            .withNullability(false)
-            .build(),
-        SparkMetadataColumn.builder()
-            .name(MetadataColumns.ROW_POSITION.name())
-            .dataType(DataTypes.LongType)
-            .withNullability(false)
-            .build(),
-        SparkMetadataColumn.builder()
-            .name(MetadataColumns.IS_DELETED.name())
-            .dataType(DataTypes.BooleanType)
-            .withNullability(false)
-            .build());
+    List<SparkMetadataColumn> cols = Lists.newArrayList();
+
+    cols.add(SparkMetadataColumns.SPEC_ID);
+    cols.add(SparkMetadataColumns.partition(icebergTable));
+    cols.add(SparkMetadataColumns.FILE_PATH);
+    cols.add(SparkMetadataColumns.ROW_POSITION);
+    cols.add(SparkMetadataColumns.IS_DELETED);
 
     if (TableUtil.supportsRowLineage(icebergTable)) {
-      metadataColumns.add(
-          SparkMetadataColumn.builder()
-              .name(MetadataColumns.ROW_ID.name())
-              .dataType(DataTypes.LongType)
-              .withNullability(true)
-              .preserveOnReinsert(true)
-              .preserveOnUpdate(true)
-              .preserveOnDelete(false)
-              .build());
-
-      metadataColumns.add(
-          SparkMetadataColumn.builder()
-              .name(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
-              .dataType(DataTypes.LongType)
-              .withNullability(true)
-              .preserveOnReinsert(false)
-              .preserveOnUpdate(false)
-              .preserveOnDelete(false)
-              .build());
+      cols.add(SparkMetadataColumns.ROW_ID);
+      cols.add(SparkMetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
     }
 
-    return metadataColumns.build().toArray(SparkMetadataColumn[]::new);
+    return cols.toArray(SparkMetadataColumn[]::new);
   }
 
   @Override

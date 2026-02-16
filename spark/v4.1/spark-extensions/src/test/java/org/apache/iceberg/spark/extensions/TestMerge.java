@@ -3014,7 +3014,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
           assertThat(planAsString)
               .as("Pushed filters must match")
-              .contains("[filters=" + icebergFilters + ",");
+              .contains(", filters=" + icebergFilters + ",");
         });
   }
 

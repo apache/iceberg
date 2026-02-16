@@ -68,30 +68,101 @@ public class PartitionStatsHandler {
   private static final Logger LOG = LoggerFactory.getLogger(PartitionStatsHandler.class);
 
   // schema of the partition stats file as per spec
-  public static final int PARTITION_FIELD_ID = 1;
-  public static final String PARTITION_FIELD_NAME = "partition";
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#EMPTY_PARTITION_FIELD}
+   */
+  @Deprecated public static final int PARTITION_FIELD_ID = 1;
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#EMPTY_PARTITION_FIELD}
+   */
+  @Deprecated public static final String PARTITION_FIELD_NAME = "partition";
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#SPEC_ID}
+   */
+  @Deprecated
   public static final NestedField SPEC_ID = NestedField.required(2, "spec_id", IntegerType.get());
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#DATA_RECORD_COUNT}
+   */
+  @Deprecated
   public static final NestedField DATA_RECORD_COUNT =
       NestedField.required(3, "data_record_count", LongType.get());
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#DATA_FILE_COUNT}
+   */
+  @Deprecated
   public static final NestedField DATA_FILE_COUNT =
       NestedField.required(4, "data_file_count", IntegerType.get());
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link
+   *     PartitionStatistics#TOTAL_DATA_FILE_SIZE_IN_BYTES}
+   */
+  @Deprecated
   public static final NestedField TOTAL_DATA_FILE_SIZE_IN_BYTES =
       NestedField.required(5, "total_data_file_size_in_bytes", LongType.get());
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link
+   *     PartitionStatistics#POSITION_DELETE_RECORD_COUNT}
+   */
+  @Deprecated
   public static final NestedField POSITION_DELETE_RECORD_COUNT =
       NestedField.optional(6, "position_delete_record_count", LongType.get());
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link
+   *     PartitionStatistics#POSITION_DELETE_FILE_COUNT}
+   */
+  @Deprecated
   public static final NestedField POSITION_DELETE_FILE_COUNT =
       NestedField.optional(7, "position_delete_file_count", IntegerType.get());
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link
+   *     PartitionStatistics#EQUALITY_DELETE_RECORD_COUNT}
+   */
+  @Deprecated
   public static final NestedField EQUALITY_DELETE_RECORD_COUNT =
       NestedField.optional(8, "equality_delete_record_count", LongType.get());
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link
+   *     PartitionStatistics#EQUALITY_DELETE_FILE_COUNT}
+   */
+  @Deprecated
   public static final NestedField EQUALITY_DELETE_FILE_COUNT =
       NestedField.optional(9, "equality_delete_file_count", IntegerType.get());
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#TOTAL_RECORD_COUNT}
+   */
+  @Deprecated
   public static final NestedField TOTAL_RECORD_COUNT =
       NestedField.optional(10, "total_record_count", LongType.get());
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#LAST_UPDATED_AT}
+   */
+  @Deprecated
   public static final NestedField LAST_UPDATED_AT =
       NestedField.optional(11, "last_updated_at", LongType.get());
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#LAST_UPDATED_SNAPSHOT_ID}
+   */
+  @Deprecated
   public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
       NestedField.optional(12, "last_updated_snapshot_id", LongType.get());
-  // Using default value for v3 field to support v3 reader reading file written by v2
+
+  /**
+   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#DV_COUNT}
+   */
+  @Deprecated
   public static final NestedField DV_COUNT =
       NestedField.required("dv_count")
           .withId(13)
@@ -107,7 +178,10 @@ public class PartitionStatsHandler {
    * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
    *     Partitioning#partitionType(Table)}.
    * @return a schema that corresponds to the provided unified partition type.
+   * @deprecated will be removed in 1.12.0. Use {@link PartitionStatistics#schema(StructType, int)}
+   *     instead.
    */
+  @Deprecated
   public static Schema schema(StructType unifiedPartitionType, int formatVersion) {
     Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
     Preconditions.checkState(
@@ -243,7 +317,7 @@ public class PartitionStatsHandler {
     return writePartitionStatsFile(
         table,
         snapshot.snapshotId(),
-        schema(partitionType, TableUtil.formatVersion(table)),
+        PartitionStatistics.schema(partitionType, TableUtil.formatVersion(table)),
         sortedStats);
   }
 

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import java.io.UncheckedIOException;
 import java.net.BindException;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -71,7 +72,7 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
           break;
         } catch (BindException e) {
           if (!findFreePort || i == maxAttempts - 1) {
-            throw new RuntimeException("Failed to start REST server", e);
+            throw new UncheckedIOException("Failed to start REST server", e);
           }
         } catch (Exception e) {
           throw new RuntimeException("Failed to start REST server", e);
