@@ -38,7 +38,6 @@ The following build arguments can be customized when building the image:
 | `FLINK_VERSION` | `2.0` | Apache Flink version |
 | `ICEBERG_FLINK_RUNTIME_VERSION` | `2.0` | Iceberg Flink runtime version |
 | `ICEBERG_VERSION` | `1.10.1` | Apache Iceberg version |
-| `ICEBERG_AWS_BUNDLE_VERSION` | `1.10.1` | Iceberg AWS bundle version |
 | `HADOOP_VERSION` | `3.4.2` | Apache Hadoop version |
 
 ## Building Locally

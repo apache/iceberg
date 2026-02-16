@@ -27,7 +27,6 @@ SHELL ["/bin/bash", "-c"]
 # Redeclare ARG variables after FROM to make them available in subsequent layers
 ARG ICEBERG_FLINK_RUNTIME_VERSION=2.0
 ARG ICEBERG_VERSION=1.10.1
-ARG ICEBERG_AWS_BUNDLE_VERSION=1.10.1
 ARG HADOOP_VERSION=3.4.2
 
 # Switch to flink user for installation
@@ -39,7 +38,7 @@ WORKDIR /opt/flink
 RUN echo "-> Install JARs: Dependencies for Iceberg" && \
     mkdir -p ./lib/iceberg && pushd $_ && \
     curl -fO https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime-${ICEBERG_FLINK_RUNTIME_VERSION}/${ICEBERG_VERSION}/iceberg-flink-runtime-${ICEBERG_FLINK_RUNTIME_VERSION}-${ICEBERG_VERSION}.jar && \
-    curl -fO https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-aws-bundle/${ICEBERG_AWS_BUNDLE_VERSION}/iceberg-aws-bundle-${ICEBERG_AWS_BUNDLE_VERSION}.jar && \
+    curl -fO https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-aws-bundle/${ICEBERG_VERSION}/iceberg-aws-bundle-${ICEBERG_VERSION}.jar && \
     popd
 
 # Install Hadoop dependencies required for filesystem operations
