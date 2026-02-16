@@ -81,11 +81,21 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
           lockReleaseEvent.lockId(),
           lockReleaseEvent.timestamp());
     } else {
-      PENDING_RELEASE_EVENTS.add(lockReleaseEvent);
-      LOG.info(
-          "No consumer for lock id {}, timestamp: {}",
-          lockReleaseEvent.lockId(),
-          lockReleaseEvent.timestamp());
+      synchronized (PENDING_RELEASE_EVENTS) {
+        if (LOCK_RELEASE_CONSUMERS.containsKey(lockReleaseEvent.lockId())) {
+          LOCK_RELEASE_CONSUMERS.get(lockReleaseEvent.lockId()).accept(lockReleaseEvent);
+          LOG.info(
+              "Send release event for lock id {}, timestamp: {}",
+              lockReleaseEvent.lockId(),
+              lockReleaseEvent.timestamp());
+        } else {
+          PENDING_RELEASE_EVENTS.add(lockReleaseEvent);
+          LOG.info(
+              "No consumer for lock id {}, timestamp: {}",
+              lockReleaseEvent.lockId(),
+              lockReleaseEvent.timestamp());
+        }
+      }
     }
   }
 
@@ -99,8 +109,11 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   public void close() throws Exception {
     coordinatorExecutor.shutdown();
     this.started = false;
-    LOCK_RELEASE_CONSUMERS.clear();
-    PENDING_RELEASE_EVENTS.clear();
+    synchronized (PENDING_RELEASE_EVENTS) {
+      LOCK_RELEASE_CONSUMERS.clear();
+      PENDING_RELEASE_EVENTS.clear();
+    }
+
     LOG.info("Closed coordinator: {}", operatorName);
   }
 

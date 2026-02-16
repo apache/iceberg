@@ -76,8 +76,12 @@ public class TriggerManagerCoordinator extends BaseCoordinator {
           subtaskGateways().getSubtaskGateway(0).sendEvent(lock);
         });
 
-    PENDING_RELEASE_EVENTS.forEach(this::handleReleaseLock);
-    PENDING_RELEASE_EVENTS.clear();
+    if (!PENDING_RELEASE_EVENTS.isEmpty()) {
+      synchronized (PENDING_RELEASE_EVENTS) {
+        PENDING_RELEASE_EVENTS.forEach(this::handleReleaseLock);
+        PENDING_RELEASE_EVENTS.clear();
+      }
+    }
   }
 
   @Override
@@ -100,8 +104,10 @@ public class TriggerManagerCoordinator extends BaseCoordinator {
         () -> {
           LOG.info("Reset to checkpoint {}", checkpointId);
           Preconditions.checkState(coordinatorThreadFactory().isCurrentThreadCoordinatorThread());
-          LOCK_RELEASE_CONSUMERS.clear();
-          PENDING_RELEASE_EVENTS.clear();
+          synchronized (PENDING_RELEASE_EVENTS) {
+            LOCK_RELEASE_CONSUMERS.clear();
+            PENDING_RELEASE_EVENTS.clear();
+          }
         },
         String.format(Locale.ROOT, "handling checkpoint %d recovery", checkpointId));
   }
