@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.io;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -27,15 +29,14 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 /**
  * Benchmark test to quantify the delete deduplication optimization.
@@ -48,24 +49,17 @@ import org.junit.Test;
  *
  * <p>Run this test to see concrete performance improvements.
  */
-public class BenchmarkDeleteDeduplication extends TableTestBase {
+public class BenchmarkDeleteDeduplication extends TestBase {
 
   private static final int FORMAT_V2 = 2;
   private FileFormat format = FileFormat.PARQUET;
   private OutputFileFactory fileFactory;
   private FileAppenderFactory<Record> appenderFactory;
 
-  public BenchmarkDeleteDeduplication() {
-    super(FORMAT_V2);
-  }
-
   @Override
-  @Before
-  public void setupTable() throws IOException {
-    this.tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
-    this.metadataDir = new File(tableDir, "metadata");
-    this.table = create(SCHEMA, PartitionSpec.unpartitioned());
+  @BeforeEach
+  public void setupTable() throws Exception {
+    super.setupTable();
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(format).build();
     // Set equality field IDs to field 0 (id field) for delete operations
     // Create delete schema containing only the ID field
@@ -168,13 +162,14 @@ public class BenchmarkDeleteDeduplication extends TableTestBase {
       System.out.println("  - Memory per delete: " + formatBytes(memoryUsed / totalDeletes));
 
       // Assertions
-      Assert.assertEquals(
-          "Should have exactly " + numOrders + " delete records (one per unique key)",
-          numOrders,
-          actualDeleteRecords);
+      assertThat(actualDeleteRecords)
+          .as("Should have exactly %d delete records (one per unique key)", numOrders)
+          .isEqualTo(numOrders);
 
-      Assert.assertTrue(
-          "Deduplication rate should be ~90%", deduplicationRate > 85 && deduplicationRate < 95);
+      assertThat(deduplicationRate)
+          .as("Deduplication rate should be ~90%%")
+          .isGreaterThan(85)
+          .isLessThan(95);
 
     } finally {
       writer.close();
@@ -254,10 +249,13 @@ public class BenchmarkDeleteDeduplication extends TableTestBase {
       System.out.println("  - Execution time: " + executionTime + " ms");
       System.out.println("  - Memory used: " + formatBytes(memoryUsed));
 
-      Assert.assertEquals(
-          "Should have one delete record per device", numDevices, actualDeleteRecords);
+      assertThat(actualDeleteRecords)
+          .as("Should have one delete record per device")
+          .isEqualTo(numDevices);
 
-      Assert.assertTrue("Deduplication rate should be ~83%", deduplicationRate > 80);
+      assertThat(deduplicationRate)
+          .as("Deduplication rate should be ~83%%")
+          .isGreaterThan(80);
 
     } finally {
       writer.close();
@@ -297,7 +295,7 @@ public class BenchmarkDeleteDeduplication extends TableTestBase {
 
       try {
         // Create delete schema for keys (only id field)
-        Schema deleteSchema = new Schema(table.schema().findField("id"));
+        Schema deleteSchema = table.schema().select("id");
 
         // Generate delete operations with specified duplication rate
         int uniqueKeys = totalOperations * (100 - duplicationRate) / 100;
@@ -366,7 +364,7 @@ public class BenchmarkDeleteDeduplication extends TableTestBase {
 
       try {
         // Create delete schema for keys (only id field)
-        Schema deleteSchema = new Schema(table.schema().findField("id"));
+        Schema deleteSchema = table.schema().select("id");
 
         // Force GC before measurement
         System.gc();
@@ -493,8 +491,9 @@ public class BenchmarkDeleteDeduplication extends TableTestBase {
       System.out.println(
           "  Delete files saved: ~" + (totalSavedRecords / 5000) + " (assuming 5K records/file)");
 
-      Assert.assertTrue(
-          "Should deduplicate significantly", actualDeleteRecords < totalOperations / 2);
+      assertThat(actualDeleteRecords)
+          .as("Should deduplicate significantly")
+          .isLessThan(totalOperations / 2);
 
     } finally {
       writer.close();

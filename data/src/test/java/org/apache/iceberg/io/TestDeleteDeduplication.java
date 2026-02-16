@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.io;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -26,15 +28,14 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 /**
  * Test delete deduplication within a checkpoint.
@@ -43,24 +44,17 @@ import org.junit.Test;
  * within a single checkpoint, which is critical for Flink CDC scenarios where the same key might be
  * deleted multiple times during high-frequency updates.
  */
-public class TestDeleteDeduplication extends TableTestBase {
+public class TestDeleteDeduplication extends TestBase {
 
   private static final int FORMAT_V2 = 2;
   private FileFormat format = FileFormat.PARQUET;
   private OutputFileFactory fileFactory;
   private FileAppenderFactory<Record> appenderFactory;
 
-  public TestDeleteDeduplication() {
-    super(FORMAT_V2);
-  }
-
   @Override
-  @Before
-  public void setupTable() throws IOException {
-    this.tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
-    this.metadataDir = new File(tableDir, "metadata");
-    this.table = create(SCHEMA, PartitionSpec.unpartitioned());
+  @BeforeEach
+  public void setupTable() throws Exception {
+    super.setupTable();
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(format).build();
     // Set equality field IDs to field 0 (id field) for delete operations
     // Create delete schema containing only the ID field
@@ -112,15 +106,16 @@ public class TestDeleteDeduplication extends TableTestBase {
 
       // Verify: Should only have 2 delete records (one per unique key), not 5
       List<DeleteFile> deleteFiles = Lists.newArrayList(result.deleteFiles());
-      Assert.assertFalse("Should have delete files", deleteFiles.isEmpty());
+      assertThat(deleteFiles).isNotEmpty();
 
       // Count total delete records
       long totalDeleteRecords =
           deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
 
       // Should have exactly 2 delete records (key1 and key2), not 5
-      Assert.assertEquals(
-          "Delete records should be deduplicated within checkpoint", 2L, totalDeleteRecords);
+      assertThat(totalDeleteRecords)
+          .as("Delete records should be deduplicated within checkpoint")
+          .isEqualTo(2L);
 
     } finally {
       writer.close();
@@ -139,36 +134,36 @@ public class TestDeleteDeduplication extends TableTestBase {
             table.io(),
             Long.MAX_VALUE,
             table.schema(),
-            ImmutableList.of(0));
+            ImmutableList.of(table.schema().findField("id").fieldId()));
 
     try {
-      // Create full row records
+      // Simulate deleting full rows (not just keys)
       Record row1 = GenericRecord.create(table.schema());
       row1.setField("id", 1);
-      row1.setField("data", "data1");
+      row1.setField("data", "test1");
 
       Record row2 = GenericRecord.create(table.schema());
       row2.setField("id", 2);
-      row2.setField("data", "data2");
+      row2.setField("data", "test2");
 
-      // Delete same rows multiple times
+      // Delete row1 multiple times
       writer.delete(row1);
       writer.delete(row1); // Duplicate
       writer.delete(row1); // Duplicate
 
+      // Delete row2 once
       writer.delete(row2);
-      writer.delete(row2); // Duplicate
 
       WriteResult result = writer.complete();
 
-      // Verify deduplication
       List<DeleteFile> deleteFiles = Lists.newArrayList(result.deleteFiles());
       long totalDeleteRecords =
           deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
 
-      // Should have exactly 2 delete records, not 5
-      Assert.assertEquals(
-          "Delete rows should be deduplicated within checkpoint", 2L, totalDeleteRecords);
+      // Should have 2 delete records (row1 and row2), not 4
+      assertThat(totalDeleteRecords)
+          .as("Full row deletes should be deduplicated")
+          .isEqualTo(2L);
 
     } finally {
       writer.close();
@@ -187,7 +182,7 @@ public class TestDeleteDeduplication extends TableTestBase {
             table.io(),
             Long.MAX_VALUE,
             table.schema(),
-            ImmutableList.of(0));
+            ImmutableList.of(table.schema().findField("id").fieldId()));
 
     try {
       // Create delete schema for keys (only id field)
@@ -207,7 +202,9 @@ public class TestDeleteDeduplication extends TableTestBase {
           deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
 
       // Should have all 100 records since they're all unique
-      Assert.assertEquals("All unique deletes should be preserved", 100L, totalDeleteRecords);
+      assertThat(totalDeleteRecords)
+          .as("All unique deletes should be preserved")
+          .isEqualTo(100L);
 
     } finally {
       writer.close();
