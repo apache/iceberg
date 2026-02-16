@@ -842,7 +842,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     Table posDeletesTable =
         MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
-    String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
     for (String partValue : ImmutableList.of("a", "b")) {
       try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", partValue)) {
         String fileSetID = UUID.randomUUID().toString();
@@ -908,7 +907,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     Table posDeletesTable =
         MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
-    String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
     try (CloseableIterable<ScanTask> tasks = posDeletesTable.newBatchScan().planFiles()) {
       String fileSetID = UUID.randomUUID().toString();
       SparkTableCache.get().add(fileSetID, posDeletesTable);
@@ -980,7 +978,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     // rewrite delete files
     Table posDeletesTable =
         MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
-    String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
     for (String partValue : ImmutableList.of("a", "b")) {
       try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", partValue)) {
         String fileSetID = UUID.randomUUID().toString();
@@ -1054,7 +1051,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     Table posDeletesTable =
         MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
-    String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
 
     // Read/write back unpartitioned data
     try (CloseableIterable<ScanTask> tasks =
@@ -1224,7 +1220,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     Table posDeletesTable =
         MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
-    String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
 
     // rewrite files of old schema
     try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", "a")) {
@@ -1342,7 +1337,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     Table posDeletesTable =
         MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
-    String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
 
     // rewrite files
     for (String partValue : ImmutableList.of("a", "b", "c", "d")) {
