@@ -188,7 +188,28 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private PartitioningWriter<PositionDelete<T>, DeleteWriteResult> posDeleteWriter;
     private Map<StructLike, PathOffset> insertedRowMap;
     private boolean closePosDeleteWriter;
+
+    /**
+     * Cache of delete keys written within this writer's lifecycle to deduplicate
+     * equality delete operations. This is particularly useful in CDC scenarios where
+     * the same row key may be deleted multiple times within a checkpoint.
+     *
+     * <p>Memory usage scales linearly with the number of unique delete keys
+     * (approximately 10-15 bytes per key). The cache is cleared when the writer
+     * is closed, ensuring memory is bounded by checkpoint/transaction size.
+     *
+     * <p>This optimization does not affect correctness - it only reduces redundant
+     * delete records that would have the same effect.
+     */
     private Set<StructLike> pendingDeleteKeys;
+
+    /**
+     * Cache of delete rows written within this writer's lifecycle to deduplicate
+     * full-row equality delete operations. Similar to {@link #pendingDeleteKeys},
+     * but for delete operations that write entire rows instead of just key fields.
+     *
+     * <p>Memory usage scales with the number of unique rows deleted and the row size.
+     */
     private Set<StructLike> pendingDeleteRows;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
@@ -300,9 +321,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       StructLike key = structProjection.wrap(asStructLike(row));
       if (!internalPosDelete(key)) {
         StructLike rowStruct = asStructLike(row);
-        StructLike copiedRow = StructLikeUtil.copy(rowStruct);
-        if (!pendingDeleteRows.contains(copiedRow)) {
-          pendingDeleteRows.add(copiedRow);
+        // Check containment first to avoid unnecessary copy for duplicates
+        if (!pendingDeleteRows.contains(rowStruct)) {
+          pendingDeleteRows.add(StructLikeUtil.copy(rowStruct));
           eqDeleteWriter.write(row);
         }
       }
@@ -317,9 +338,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     public void deleteKey(T key) throws IOException {
       StructLike keyStruct = asStructLikeKey(key);
       if (!internalPosDelete(keyStruct)) {
-        StructLike copiedKey = StructLikeUtil.copy(keyStruct);
-        if (!pendingDeleteKeys.contains(copiedKey)) {
-          pendingDeleteKeys.add(copiedKey);
+        // Check containment first to avoid unnecessary copy for duplicates
+        if (!pendingDeleteKeys.contains(keyStruct)) {
+          pendingDeleteKeys.add(StructLikeUtil.copy(keyStruct));
           eqDeleteWriter.write(key);
         }
       }
