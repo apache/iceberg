@@ -179,6 +179,15 @@ for Puffin v1.
 [roaring-bitmap-portable-serialization]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#extension-for-64-bit-implementations
 [roaring-bitmap-general-layout]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#general-layout
 
+#### `apache-datasketches-kll-v1` blob type
+
+A serialized form of a KLL sketch, a very compact quantiles sketch, produced by the 
+[Apache DataSketches](https://datasketches.apache.org/) library.
+KLL quantiles sketch is a mergeable streaming algorithm to estimate 
+the distribution of values, and approximately answer queries about the rank of a value, 
+probability mass function of the distribution (PMF) or histogram, 
+cumulative distribution function (CDF), and quantiles (median, min, max, 95th percentile and such)
+
 ### Compression codecs
 
 The data can also be uncompressed. If it is compressed the codec should be one of
