@@ -126,15 +126,15 @@ To read a table, use the Iceberg table's name:
 SELECT * FROM iceberg_catalog.nyc.taxis;
 ```
 
-## Creating a Table with Inline Catalog Configuration
+## Creating a Table with Inline Configuration
 
-Creating a Flink catalog as shown above, backed by an Iceberg catalog, is one way to use Iceberg in Flink.
-Another way is to use the [Iceberg connector](docs/latest/flink-connector.md) and specify the Iceberg details as table properties:
+Creating a Flink catalog as shown above, backed by an Iceberg REST Catalog, is one way to use Iceberg in Flink.
+Another way is to use the [Flink connector](docs/latest/flink-connector.md) and specify the catalog connection details directly in the table definition. This still connects to the same external Iceberg REST Catalog - the difference is just that you don't need a separate `CREATE CATALOG` statement.
 
-Now create a table using inline configuration:
+Create a table using inline configuration:
 
 !!! note
-    The table is _not_ being created in the Iceberg catalog that we created above, since we haven't supplied it as a prefix. If we had used `iceberg_catalog.taxis_inline_config`, it would use the Iceberg details from the catalog definition instead of the inline configuration.
+    The Flink table definition here is registered in Flink's default in-memory catalog (`default_catalog`), but the connector properties tell Flink to store the Iceberg table and its data in the same REST Catalog and S3 storage as before.
 
 ```sql
 CREATE TABLE taxis_inline_config (
