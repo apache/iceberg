@@ -94,10 +94,6 @@ sudo setenforce Enforcing
 
 ---
 
-#### Documentation
-
-For information about building the documentation, see [here](site/README.md).
-
 ### Engine Compatibility
 
 See the [Multi-Engine Support](https://iceberg.apache.org/multi-engine-support/) page to know about Iceberg compatibility with different Spark, Flink and Hive versions.
