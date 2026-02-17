@@ -305,7 +305,8 @@ public class TestBigQueryTableOperations {
   }
 
   @Test
-  public void testKnownExceptionWithoutRetryDoesNotCallCheckCommitStatus() {
+  public void testCommitFailedExceptionThrowsDirectly() {
+    // CommitFailedException should fail immediately without retry or status checks
     when(client.load(TABLE_REFERENCE)).thenThrow(new NoSuchTableException("Table not found"));
     when(client.create(any(), any())).thenThrow(new CommitFailedException("Commit rejected"));
 
@@ -321,8 +322,8 @@ public class TestBigQueryTableOperations {
 
   @Test
   public void testRuntimeIOExceptionTriggersCommitStatusCheck() {
+    // RuntimeIOException should trigger commit status check as the commit may have succeeded
     when(client.load(TABLE_REFERENCE)).thenThrow(new NoSuchTableException("Table not found"));
-
     when(client.create(any(), any())).thenThrow(new RuntimeIOException("Network error"));
 
     tableOps.refresh();

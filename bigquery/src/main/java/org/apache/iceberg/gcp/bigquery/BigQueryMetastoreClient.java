@@ -99,7 +99,7 @@ interface BigQueryMetastoreClient {
    * Creates and returns a new table.
    *
    * @param table body of the table to create
-   * @param retryDetector detector to determine if a retry is needed
+   * @param retryDetector detector to track if retries occurred during the operation
    */
   Table create(Table table, RetryDetector retryDetector);
 
@@ -123,7 +123,7 @@ interface BigQueryMetastoreClient {
    *
    * @param tableReference full table reference
    * @param table to patch
-   * @param retryDetector detector to determine if a retry is needed
+   * @param retryDetector detector to track if retries occurred during the operation
    */
   Table update(TableReference tableReference, Table table, RetryDetector retryDetector);
 

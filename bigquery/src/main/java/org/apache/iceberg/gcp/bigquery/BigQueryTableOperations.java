@@ -98,10 +98,11 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
         updateTable(newMetadataLocation, metadata, retryDetector);
       }
       commitStatus = CommitStatus.SUCCESS;
-    } catch (CommitFailedException | AlreadyExistsException e) {
+    } catch (CommitFailedException e) {
       throw e;
     } catch (Throwable e) {
       LOG.error("Exception thrown on commit: ", e);
+      boolean isAlreadyExistsException = e instanceof AlreadyExistsException;
       boolean isRuntimeIOException = e instanceof RuntimeIOException;
 
       // If retries occurred, an earlier attempt may have succeeded. If we got a
@@ -116,6 +117,9 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
       }
 
       if (commitStatus == CommitStatus.FAILURE) {
+        if (isAlreadyExistsException) {
+          throw new AlreadyExistsException(e, "Table already exists: %s", tableName());
+        }
         throw new CommitFailedException(e, "Failed to commit");
       }
       if (commitStatus == CommitStatus.UNKNOWN) {
