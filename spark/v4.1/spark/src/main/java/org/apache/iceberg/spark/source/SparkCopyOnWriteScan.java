@@ -162,7 +162,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
     return table().name().equals(that.table().name())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filterExpressions().toString().equals(that.filterExpressions().toString())
+        && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(snapshotId(), that.snapshotId())
         && Objects.equals(filteredLocations, that.filteredLocations);
   }
@@ -170,18 +170,14 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(),
-        readSchema(),
-        filterExpressions().toString(),
-        snapshotId(),
-        filteredLocations);
+        table().name(), readSchema(), filtersDesc(), snapshotId(), filteredLocations);
   }
 
   @Override
-  public String toString() {
+  public String description() {
     return String.format(
-        "IcebergCopyOnWriteScan(table=%s, type=%s, filters=%s, caseSensitive=%s)",
-        table(), expectedSchema().asStruct(), filterExpressions(), caseSensitive());
+        "IcebergCopyOnWriteScan(table=%s, filters=%s, groupedBy=%s)",
+        table(), filtersDesc(), groupingKeyDesc());
   }
 
   private Long currentSnapshotId() {

@@ -1004,8 +1004,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(lastSnapshot.summary())
         .containsAllEntriesOf(
             ImmutableMap.<String, String>builder()
-                .put("total-equality-deletes", "1")
-                .put("total-position-deletes", "1")
+                .put("total-delete-files", "2")
                 .put("total-records", "6")
                 .build());
 
@@ -1297,14 +1296,14 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     @Override
     DynamicIcebergSink instantiateSink(
-        Map<String, String> writeProperties, FlinkWriteConf flinkWriteConf) {
+        Map<String, String> writeProperties, Configuration flinkConfig) {
       return new CommitHookDynamicIcebergSink(
           commitHook,
           CATALOG_EXTENSION.catalogLoader(),
           Collections.emptyMap(),
           "uidPrefix",
           writeProperties,
-          flinkWriteConf,
+          flinkConfig,
           100);
     }
   }
@@ -1320,17 +1319,17 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         Map<String, String> snapshotProperties,
         String uidPrefix,
         Map<String, String> writeProperties,
-        FlinkWriteConf flinkWriteConf,
+        Configuration flinkConfig,
         int cacheMaximumSize) {
       super(
           catalogLoader,
           snapshotProperties,
           uidPrefix,
           writeProperties,
-          flinkWriteConf,
+          flinkConfig,
           cacheMaximumSize);
       this.commitHook = commitHook;
-      this.overwriteMode = flinkWriteConf.overwriteMode();
+      this.overwriteMode = new FlinkWriteConf(writeProperties, flinkConfig).overwriteMode();
     }
 
     @Override

@@ -41,21 +41,24 @@ class SparkStagedScanBuilder implements ScanBuilder, SupportsPushDownRequiredCol
 
   private final SparkSession spark;
   private final Table table;
+  private final String taskSetId;
   private final SparkReadConf readConf;
   private final List<String> metaColumns = Lists.newArrayList();
 
   private Schema schema;
 
-  SparkStagedScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
+  SparkStagedScanBuilder(
+      SparkSession spark, Table table, String taskSetId, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
+    this.taskSetId = taskSetId;
     this.readConf = new SparkReadConf(spark, table, options);
     this.schema = table.schema();
   }
 
   @Override
   public Scan build() {
-    return new SparkStagedScan(spark, table, schemaWithMetadataColumns(), readConf);
+    return new SparkStagedScan(spark, table, schemaWithMetadataColumns(), taskSetId, readConf);
   }
 
   @Override

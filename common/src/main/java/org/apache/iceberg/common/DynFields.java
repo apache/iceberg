@@ -48,7 +48,7 @@ public class DynFields {
       this.name = name;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "deprecation"})
     public T get(Object target) {
       try {
         return (T) field.get(target);
@@ -57,6 +57,7 @@ public class DynFields {
       }
     }
 
+    @SuppressWarnings("deprecation")
     public void set(Object target, T value) {
       try {
         field.set(target, value);
@@ -299,6 +300,7 @@ public class DynFields {
      * @see java.lang.Class#forName(String)
      * @see java.lang.Class#getField(String)
      */
+    @SuppressWarnings("removal")
     public Builder hiddenImpl(Class<?> targetClass, String fieldName) {
       // don't do any work if an implementation has been found
       if (field != null || targetClass == null) {

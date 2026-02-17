@@ -189,15 +189,17 @@ publish_changes creates a new snapshot from an existing snapshot without alterin
 
 Only append and dynamic overwrite snapshots can be successfully published.
 
+The `publish_changes` procedure will fail if there are multiple snapshots in the table with the provided `wap_id`.
+
 !!! info
     This procedure invalidates all cached Spark plans that reference the affected table.
 
 #### Usage
 
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
+| Argument Name | Required? | Type   | Description |
+|---------------|-----------|--------|-------------|
 | `table`       | ✔️  | string | Name of the table to update |
-| `wap_id`      | ✔️  | long | The wap_id to be published from stage to prod |
+| `wap_id`      | ✔️  | string | The wap_id to be published from stage to prod |
 
 #### Output
 

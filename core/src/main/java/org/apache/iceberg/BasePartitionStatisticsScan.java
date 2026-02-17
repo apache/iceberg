@@ -72,7 +72,7 @@ public class BasePartitionStatisticsScan implements PartitionStatisticsScan {
     }
 
     Types.StructType partitionType = Partitioning.partitionType(table);
-    Schema schema = PartitionStatsHandler.schema(partitionType, TableUtil.formatVersion(table));
+    Schema schema = PartitionStatistics.schema(partitionType, TableUtil.formatVersion(table));
 
     FileFormat fileFormat = FileFormat.fromFileName(statsFile.get().path());
     Preconditions.checkNotNull(

@@ -37,7 +37,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
   private final TableLoader tableLoader;
-  @Deprecated private final TableSchema tableSchema;
+
+  @SuppressWarnings("deprecation")
+  @Deprecated
+  private final TableSchema tableSchema;
+
   private final ResolvedSchema resolvedSchema;
   private final ReadableConfig readableConfig;
   private final Map<String, String> writeProps;
@@ -82,6 +86,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     this.writeProps = writeProps;
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public SinkRuntimeProvider getSinkRuntimeProvider(Context context) {
     Preconditions.checkState(

@@ -24,6 +24,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -84,6 +85,7 @@ import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -746,6 +748,18 @@ public class CatalogHandlers {
     }
   }
 
+  public static LoadViewResponse registerView(
+      ViewCatalog catalog, Namespace namespace, RegisterViewRequest request) {
+    request.validate();
+
+    TableIdentifier identifier = TableIdentifier.of(namespace, request.name());
+    View view = catalog.registerView(identifier, request.metadataLocation());
+    return ImmutableLoadViewResponse.builder()
+        .metadata(asBaseView(view).operations().current())
+        .metadataLocation(request.metadataLocation())
+        .build();
+  }
+
   static ViewMetadata commit(ViewOperations ops, UpdateTableRequest request) {
     AtomicBoolean isRetry = new AtomicBoolean(false);
     try {
@@ -988,7 +1002,7 @@ public class CatalogHandlers {
       }
       return Pair.of(initialFileScanTasks, firstPlanTaskKey);
     } catch (IOException e) {
-      throw new RuntimeException(e);
+      throw new UncheckedIOException(e);
     }
   }
 

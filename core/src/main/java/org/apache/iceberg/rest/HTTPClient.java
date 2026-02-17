@@ -299,6 +299,7 @@ public class HTTPClient extends BaseHTTPClient {
         req, responseType, errorHandler, responseHeaders, ParserContext.builder().build());
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   protected <T extends RESTResponse> T execute(
       HTTPRequest req,

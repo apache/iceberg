@@ -1500,15 +1500,17 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
         tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
 
+    // writing to explicit branch should succeed even with WAP branch set
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
-        () ->
-            assertThatThrownBy(() -> sql("UPDATE %s SET dep='hr' WHERE dep='a'", commitTarget()))
-                .isInstanceOf(ValidationException.class)
-                .hasMessage(
-                    String.format(
-                        "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
-                        branch)));
+        () -> {
+          sql("UPDATE %s SET dep='software' WHERE dep='hr'", commitTarget());
+
+          assertEquals(
+              "Should have updated row in explicit branch",
+              ImmutableList.of(row(1, "software")),
+              sql("SELECT * FROM %s ORDER BY id", commitTarget()));
+        });
   }
 
   private RowLevelOperationMode mode(Table table) {

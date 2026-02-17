@@ -149,6 +149,11 @@ public class EncryptingFileIO implements FileIO, Serializable {
   }
 
   @Override
+  public Map<String, String> properties() {
+    return io.properties();
+  }
+
+  @Override
   public void close() {
     io.close();
 

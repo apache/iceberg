@@ -255,8 +255,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     return table().name().equals(that.table().name())
         && Objects.equals(branch(), that.branch())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filterExpressions().toString().equals(that.filterExpressions().toString())
-        && runtimeFilterExpressions.toString().equals(that.runtimeFilterExpressions.toString())
+        && filtersDesc().equals(that.filtersDesc())
+        && runtimeFiltersDesc().equals(that.runtimeFiltersDesc())
         && Objects.equals(snapshotId, that.snapshotId)
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId)
@@ -270,8 +270,8 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         table().name(),
         branch(),
         readSchema(),
-        filterExpressions().toString(),
-        runtimeFilterExpressions.toString(),
+        filtersDesc(),
+        runtimeFiltersDesc(),
         snapshotId,
         startSnapshotId,
         endSnapshotId,
@@ -280,14 +280,13 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   }
 
   @Override
-  public String toString() {
+  public String description() {
     return String.format(
-        "IcebergScan(table=%s, branch=%s, type=%s, filters=%s, runtimeFilters=%s, caseSensitive=%s)",
-        table(),
-        branch(),
-        expectedSchema().asStruct(),
-        filterExpressions(),
-        runtimeFilterExpressions,
-        caseSensitive());
+        "IcebergScan(table=%s, branch=%s, filters=%s, runtimeFilters=%s, groupedBy=%s)",
+        table(), branch(), filtersDesc(), runtimeFiltersDesc(), groupingKeyDesc());
+  }
+
+  private String runtimeFiltersDesc() {
+    return Spark3Util.describe(runtimeFilterExpressions);
   }
 }
