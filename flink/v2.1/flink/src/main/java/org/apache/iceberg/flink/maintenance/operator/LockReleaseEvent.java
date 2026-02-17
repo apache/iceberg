@@ -18,13 +18,16 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
- * Event sent from TriggerManagerOperatorCoordinator to TriggerManager operator to notify that a
- * lock has been released (watermark arrived).
+ * Event sent from LockRemoverOperator to LockRemoverCoordinator to notify that a lock has been
+ * released. The LockRemoverCoordinator then forwards this event to the TriggerManagerOperator via
+ * the registered lock release handler.
  */
+@Internal
 public class LockReleaseEvent implements OperatorEvent {
 
   private final String lockId;

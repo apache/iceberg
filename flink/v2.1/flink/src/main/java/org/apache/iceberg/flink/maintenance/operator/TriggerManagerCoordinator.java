@@ -19,15 +19,12 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.Locale;
-import java.util.concurrent.CompletableFuture;
-import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Experimental
 @Internal
 public class TriggerManagerCoordinator extends BaseCoordinator {
 
@@ -61,41 +58,6 @@ public class TriggerManagerCoordinator extends BaseCoordinator {
             event.getClass(),
             subtask,
             attemptNumber));
-  }
-
-  @SuppressWarnings("FutureReturnValueIgnored")
-  private void registerLock(LockRegisterEvent lockRegisterEvent) {
-    LOCK_RELEASE_CONSUMERS.put(
-        lockRegisterEvent.lockId(),
-        lock -> {
-          LOG.info(
-              "Send release event for lock id {}, timestamp: {} to Operator {}",
-              lock.lockId(),
-              lock.timestamp(),
-              operatorName());
-          subtaskGateways().getSubtaskGateway(0).sendEvent(lock);
-        });
-
-    synchronized (PENDING_RELEASE_EVENTS) {
-      if (!PENDING_RELEASE_EVENTS.isEmpty()) {
-        PENDING_RELEASE_EVENTS.forEach(this::handleReleaseLock);
-        PENDING_RELEASE_EVENTS.clear();
-      }
-    }
-  }
-
-  @Override
-  public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture) {
-    // We don’t need to track how many locks are currently held, because when recovering from state,
-    // a `recover lock` will be issued to ensure all tasks finish running and then release all
-    // locks.
-    // The `TriggerManagerOperator` already keeps the `TableChange` state and related information,
-    // so there’s no need to store additional state here.
-    runInCoordinatorThread(
-        () -> {
-          resultFuture.complete(new byte[0]);
-        },
-        String.format(Locale.ROOT, "taking checkpoint %d", checkpointId));
   }
 
   @Override

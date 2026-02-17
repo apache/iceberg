@@ -23,6 +23,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
+import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.CoordinatedOperatorFactory;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
@@ -89,5 +90,21 @@ public class TriggerManagerOperatorFactory extends AbstractStreamOperatorFactory
   @Override
   public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
     return TriggerManagerOperator.class;
+  }
+
+  static class TriggerManagerCoordinatorProvider
+      extends RecreateOnResetOperatorCoordinator.Provider {
+
+    private final String operatorName;
+
+    TriggerManagerCoordinatorProvider(String operatorName, OperatorID operatorID) {
+      super(operatorID);
+      this.operatorName = operatorName;
+    }
+
+    @Override
+    public OperatorCoordinator getCoordinator(OperatorCoordinator.Context context) {
+      return new TriggerManagerCoordinator(operatorName, context);
+    }
   }
 }

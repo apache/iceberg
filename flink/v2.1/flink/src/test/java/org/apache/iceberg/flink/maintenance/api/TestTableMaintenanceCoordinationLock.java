@@ -332,8 +332,6 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
 
     @Override
     public TaskResult map(Trigger trigger) {
-      // Ensure that the lock is held when processing
-      //      assertThat(LOCK_FACTORY.createLock().isHeld()).isTrue();
       PROCESSED.add(trigger);
 
       return new TaskResult(

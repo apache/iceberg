@@ -290,7 +290,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       assertThat(testHarness.extractOutputValues()).hasSize(1);
 
       // Remove the lock to allow the next trigger
-      operator.handleLockReleaseResult(new LockReleaseEvent(tableName, newTime));
+      operator.handleLockRelease(new LockReleaseEvent(tableName, newTime));
 
       // Send a new event
       testHarness.setProcessingTime(newTime + 1);
@@ -394,7 +394,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       addEventAndCheckResult(
           operator, testHarness, TableChange.builder().commitCount(2).build(), 1, false);
       addEventAndCheckResult(
-          operator, testHarness, TableChange.builder().commitCount(2).build(), 1);
+          operator, testHarness, TableChange.builder().commitCount(2).build(), 1, false);
       long currentTime = testHarness.getProcessingTime();
 
       // Remove the lock, and still no trigger
@@ -615,9 +615,9 @@ class TestTriggerManagerOperator extends OperatorTestBase {
     testHarness.setProcessingTime(processingTime);
     testHarness.processElement(event, processingTime);
     assertThat(testHarness.extractOutputValues()).hasSize(expectedSize);
-    if (removeLock) {
+    if (removeLock && operator.lockTime() != null) {
       // Remove the lock to allow the next trigger
-      operator.handleLockReleaseResult(new LockReleaseEvent(tableName, processingTime));
+      operator.handleLockRelease(new LockReleaseEvent(tableName, processingTime));
     }
   }
 

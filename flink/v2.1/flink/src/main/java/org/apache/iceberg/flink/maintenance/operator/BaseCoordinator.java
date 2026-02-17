@@ -22,11 +22,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
@@ -71,6 +73,27 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
     LOG.info("Created coordinator: {}", operatorName);
   }
 
+  @SuppressWarnings("FutureReturnValueIgnored")
+  void registerLock(LockRegisterEvent lockRegisterEvent) {
+    LOCK_RELEASE_CONSUMERS.put(
+        lockRegisterEvent.lockId(),
+        lock -> {
+          LOG.info(
+              "Send release event for lock id {}, timestamp: {} to Operator {}",
+              lock.lockId(),
+              lock.timestamp(),
+              operatorName());
+          subtaskGateways().getSubtaskGateway(0).sendEvent(lock);
+        });
+
+    synchronized (PENDING_RELEASE_EVENTS) {
+      if (!PENDING_RELEASE_EVENTS.isEmpty()) {
+        PENDING_RELEASE_EVENTS.forEach(this::handleReleaseLock);
+        PENDING_RELEASE_EVENTS.clear();
+      }
+    }
+  }
+
   @VisibleForTesting
   void handleReleaseLock(LockReleaseEvent lockReleaseEvent) {
     synchronized (PENDING_RELEASE_EVENTS) {
@@ -109,7 +132,21 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   }
 
   @Override
+  public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture)
+      throws Exception {
+    runInCoordinatorThread(
+        () -> {
+          resultFuture.complete(new byte[0]);
+        },
+        String.format(Locale.ROOT, "taking checkpoint %d", checkpointId));
+  }
+
+  @Override
   public void notifyCheckpointComplete(long checkpointId) {}
+
+  @Override
+  public void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData)
+      throws Exception {}
 
   @Override
   public void subtaskReset(int subtask, long checkpointId) {

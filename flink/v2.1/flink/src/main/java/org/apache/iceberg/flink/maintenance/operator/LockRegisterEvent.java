@@ -23,25 +23,20 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 
 /**
- * Event sent from TriggerManager operator to TriggerManagerCoordinator to confirm that the lock has
- * been acquired and the maintenance task is starting.
+ * Event sent from TriggerManagerOperator to TriggerManagerCoordinator to register a lock release
+ * handler. This handler will be used to forward lock release events back to the operator when
+ * triggered by downstream operators.
  */
 public class LockRegisterEvent implements OperatorEvent {
 
   private final String lockId;
-  private final long timestamp;
 
-  public LockRegisterEvent(String lockId, long timestamp) {
+  public LockRegisterEvent(String lockId) {
     this.lockId = lockId;
-    this.timestamp = timestamp;
   }
 
   public String lockId() {
     return lockId;
-  }
-
-  public long timestamp() {
-    return timestamp;
   }
 
   @Override
@@ -55,19 +50,16 @@ public class LockRegisterEvent implements OperatorEvent {
     }
 
     LockRegisterEvent that = (LockRegisterEvent) o;
-    return Objects.equal(timestamp, that.timestamp) && Objects.equal(lockId, that.lockId);
+    return Objects.equal(lockId, that.lockId);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(timestamp, lockId);
+    return Objects.hashCode(lockId);
   }
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("timeStamp", timestamp)
-        .add("lockId", lockId)
-        .toString();
+    return MoreObjects.toStringHelper(this).add("lockId", lockId).toString();
   }
 }

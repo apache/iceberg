@@ -23,6 +23,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
+import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.CoordinatedOperatorFactory;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
@@ -65,5 +66,20 @@ public class LockRemoverOperatorFactory extends AbstractStreamOperatorFactory<Vo
   @Override
   public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
     return LockRemoverOperator.class;
+  }
+
+  static class LockRemoverCoordinatorProvider extends RecreateOnResetOperatorCoordinator.Provider {
+
+    private final String operatorName;
+
+    LockRemoverCoordinatorProvider(String operatorName, OperatorID operatorID) {
+      super(operatorID);
+      this.operatorName = operatorName;
+    }
+
+    @Override
+    public OperatorCoordinator getCoordinator(OperatorCoordinator.Context context) {
+      return new LockRemoverCoordinator(operatorName, context);
+    }
   }
 }

@@ -171,7 +171,7 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
     }
 
     // register the lock register event
-    operatorEventGateway.sendEventToCoordinator(new LockRegisterEvent(tableName, current));
+    operatorEventGateway.sendEventToCoordinator(new LockRegisterEvent(tableName));
 
     if (context.isRestored()) {
       // When the job state is restored, there could be ongoing tasks.
@@ -214,7 +214,7 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
   public void handleOperatorEvent(OperatorEvent event) {
     if (event instanceof LockReleaseEvent) {
       LOG.info("Received lock released event: {}", event);
-      handleLockReleaseResult((LockReleaseEvent) event);
+      handleLockRelease((LockReleaseEvent) event);
     } else {
       throw new IllegalArgumentException(
           "Invalid operator event type: " + event.getClass().getCanonicalName());
@@ -252,10 +252,8 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
   }
 
   @VisibleForTesting
-  void handleLockReleaseResult(LockReleaseEvent event) {
-    if (lockTime == null) {
-      return;
-    }
+  void handleLockRelease(LockReleaseEvent event) {
+    Preconditions.checkArgument(lockTime != null, "Lock time is null, Can't release lock");
 
     if (event.timestamp() >= lockTime) {
       this.lockTime = null;
@@ -317,5 +315,10 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
   private void schedule(ProcessingTimeService timerService, long time) {
     this.nextEvaluationTime = time;
     timerService.registerTimer(time, this);
+  }
+
+  @VisibleForTesting
+  Long lockTime() {
+    return lockTime;
   }
 }

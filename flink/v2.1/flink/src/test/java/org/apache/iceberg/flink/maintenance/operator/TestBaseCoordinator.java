@@ -33,7 +33,7 @@ class TestBaseCoordinator extends OperatorTestBase {
   protected static final OperatorID TEST_OPERATOR_ID_1 = new OperatorID(1235L, 5679L);
   protected static final int NUM_SUBTASKS = 1;
   protected static final LockRegisterEvent LOCK_REGISTER_EVENT =
-      new LockRegisterEvent(DUMMY_TABLE_NAME, 1L);
+      new LockRegisterEvent(DUMMY_TABLE_NAME);
   protected static final LockReleaseEvent LOCK_RELEASE_EVENT =
       new LockReleaseEvent(DUMMY_TABLE_NAME, 1L);
 

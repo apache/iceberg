@@ -19,8 +19,6 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.Locale;
-import java.util.concurrent.CompletableFuture;
-import javax.annotation.Nullable;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -63,18 +61,4 @@ public class LockRemoverCoordinator extends BaseCoordinator {
             subtask,
             attemptNumber));
   }
-
-  @Override
-  public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture)
-      throws Exception {
-    runInCoordinatorThread(
-        () -> {
-          resultFuture.complete(new byte[0]);
-        },
-        String.format(Locale.ROOT, "taking checkpoint %d", checkpointId));
-  }
-
-  @Override
-  public void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData)
-      throws Exception {}
 }
