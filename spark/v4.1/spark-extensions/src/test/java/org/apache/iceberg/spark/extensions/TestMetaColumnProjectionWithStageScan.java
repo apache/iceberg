@@ -33,6 +33,7 @@ import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -88,32 +89,31 @@ public class TestMetaColumnProjectionWithStageScan extends ExtensionsTestBase {
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     table.refresh();
-    String tableLocation = table.location();
 
     try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
       String fileSetID = UUID.randomUUID().toString();
+      SparkTableCache.get().add(fileSetID, table);
       stageTask(table, fileSetID, tasks);
       Dataset<Row> scanDF2 =
           spark
               .read()
               .format("iceberg")
               .option(SparkReadOptions.FILE_OPEN_COST, "0")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-              .load(tableLocation);
+              .load(fileSetID);
 
       assertThat(scanDF2.columns()).hasSize(2);
     }
 
     try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
       String fileSetID = UUID.randomUUID().toString();
+      SparkTableCache.get().add(fileSetID, table);
       stageTask(table, fileSetID, tasks);
       Dataset<Row> scanDF =
           spark
               .read()
               .format("iceberg")
               .option(SparkReadOptions.FILE_OPEN_COST, "0")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-              .load(tableLocation)
+              .load(fileSetID)
               .select("*", "_pos");
 
       List<Row> rows = scanDF.collectAsList();
