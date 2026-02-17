@@ -86,6 +86,7 @@ import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -99,6 +100,7 @@ import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
@@ -2647,6 +2649,77 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  public void testNoCleanupOnCreate503() {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              protected <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                var response = super.execute(request, responseType, errorHandler, responseHeaders);
+                if (request.method() == HTTPMethod.POST && request.path().contains(TABLE.name())) {
+                  // Simulate a 503 Service Unavailable error
+                  ErrorResponse error =
+                      ErrorResponse.builder()
+                          .responseCode(503)
+                          .withMessage("Service unavailable")
+                          .build();
+
+                  errorHandler.accept(error);
+                  throw new IllegalStateException("Error handler should have thrown");
+                }
+                return response;
+              }
+            });
+
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Transaction createTableTransaction = catalog.newCreateTableTransaction(TABLE, SCHEMA);
+    createTableTransaction.newAppend().appendFile(FILE_A).commit();
+
+    // Verify that 503 is mapped to CommitStateUnknownException (not just ServiceFailureException)
+    assertThatThrownBy(createTableTransaction::commitTransaction)
+        .isInstanceOf(CommitStateUnknownException.class)
+        .cause()
+        .isInstanceOf(ServiceFailureException.class)
+        .hasMessageContaining("Service failed: 503");
+
+    // Verify files are NOT cleaned up (because commit state is unknown)
+    assertThat(allRequests(adapter))
+        .anySatisfy(
+            req -> {
+              assertThat(req.method()).isEqualTo(HTTPMethod.POST);
+              assertThat(req.path()).isEqualTo(RESOURCE_PATHS.table(TABLE));
+              assertThat(req.body()).isInstanceOf(UpdateTableRequest.class);
+              UpdateTableRequest body = (UpdateTableRequest) req.body();
+              assertThat(
+                      body.updates().stream()
+                          .filter(MetadataUpdate.AddSnapshot.class::isInstance)
+                          .map(MetadataUpdate.AddSnapshot.class::cast)
+                          .findFirst())
+                  .hasValueSatisfying(
+                      addSnapshot -> {
+                        String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
+                        // Files should still exist because we don't know if commit succeeded
+                        assertThat(
+                                catalog
+                                    .loadTable(TABLE)
+                                    .io()
+                                    .newInputFile(manifestListLocation)
+                                    .exists())
+                            .isTrue();
+                      });
+            });
+  }
+
+  @Test
   public void testCleanupCleanableExceptionsReplace() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog = catalog(adapter);
@@ -3448,8 +3521,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                     "parent",
                     RESTUtil.namespaceToQueryParam(parentNamespace, expectedSeparator),
                     "pageToken",
-                    ""),
-                null),
+                    "")),
             eq(ListNamespacesResponse.class),
             any(),
             any());
@@ -3575,6 +3647,40 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThatThrownBy(() -> restCatalog.loadTable(TBL))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining("No in-memory file found for location: " + metadataFileLocation);
+  }
+
+  @Test
+  public void testNumLoadTableCallsForMergeAppend() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    BaseTable table = (BaseTable) catalog.createTable(TABLE, SCHEMA);
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // loadTable is executed once
+    Mockito.verify(adapter)
+        .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+
+    // CommitReport reflects the table state after the commit
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                RESOURCE_PATHS.metrics(TABLE),
+                Map.of(),
+                Map.of(),
+                requestObj ->
+                    requestObj instanceof ReportMetricsRequest reportRequest
+                        && reportRequest.report() instanceof CommitReport commitReport
+                        && commitReport.tableName().equals(table.name())
+                        && commitReport.snapshotId() == table.currentSnapshot().snapshotId()
+                        && commitReport.sequenceNumber() == table.currentSnapshot().sequenceNumber()
+                        && commitReport.operation().equals("append")
+                        && commitReport.commitMetrics().addedDataFiles().value() == 1),
+            any(),
+            any(),
+            any());
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {

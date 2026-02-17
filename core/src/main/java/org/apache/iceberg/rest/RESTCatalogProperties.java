@@ -26,6 +26,7 @@ public final class RESTCatalogProperties {
 
   public static final String SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
   public static final String SNAPSHOT_LOADING_MODE_DEFAULT = SnapshotMode.ALL.name();
+  public static final String SNAPSHOTS_QUERY_PARAMETER = "snapshots";
 
   public static final String METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   public static final boolean METRICS_REPORTING_ENABLED_DEFAULT = true;

@@ -172,7 +172,7 @@ public class OrcMetrics {
         if (statsColumns.contains(fieldId)) {
           // Since ORC does not track null values nor repeated ones, the value count for columns in
           // containers (maps, list) may be larger than what it actually is, however these are not
-          // used in expressions right now. For such cases, we use the value number of values
+          // used in expressions right now. For such cases, we use the number of values
           // directly stored in ORC.
           if (colStat.hasNull()) {
             nullCounts.put(fieldId, numOfRows - colStat.getNumberOfValues());

@@ -26,6 +26,7 @@ import java.net.URI;
 import java.util.Collection;
 import java.util.Map;
 import javax.annotation.Nonnull;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileFormat;
@@ -34,6 +35,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.data.BaseFileWriterFactory;
+import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
 import org.apache.iceberg.io.BaseTaskWriter;
@@ -140,7 +142,7 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  void testDynamicWriterPropertiesPriority() throws Exception {
+  void testFlinkConfigOverridesTableProperties() throws Exception {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     Table table1 =
         catalog.createTable(
@@ -149,15 +151,105 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
             null,
             ImmutableMap.of("write.parquet.compression-codec", "zstd"));
 
+    Configuration flinkConfig = new Configuration();
+    flinkConfig.set(FlinkWriteOptions.COMPRESSION_CODEC, "snappy");
+
     DynamicWriter dynamicWriter =
-        createDynamicWriter(catalog, ImmutableMap.of("write.parquet.compression-codec", "gzip"));
+        new DynamicWriter(
+            catalog,
+            Map.of(),
+            flinkConfig,
+            100,
+            new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
+            0,
+            0);
     DynamicRecordInternal record1 = getDynamicRecordInternal(table1);
 
-    assertThat(getNumDataFiles(table1)).isEqualTo(0);
+    dynamicWriter.write(record1, null);
+    Map<String, String> properties = properties(dynamicWriter);
+    assertThat(properties).containsEntry("write.parquet.compression-codec", "snappy");
+
+    dynamicWriter.close();
+  }
+
+  @Test
+  void testWritePropertiesOverrideFlinkConfig() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table1 = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+
+    Configuration flinkConfig = new Configuration();
+    flinkConfig.set(FlinkWriteOptions.COMPRESSION_CODEC, "snappy");
+
+    DynamicWriter dynamicWriter =
+        new DynamicWriter(
+            catalog,
+            ImmutableMap.of("compression-codec", "gzip"),
+            flinkConfig,
+            100,
+            new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
+            0,
+            0);
+    DynamicRecordInternal record1 = getDynamicRecordInternal(table1);
 
     dynamicWriter.write(record1, null);
     Map<String, String> properties = properties(dynamicWriter);
     assertThat(properties).containsEntry("write.parquet.compression-codec", "gzip");
+
+    dynamicWriter.close();
+  }
+
+  @Test
+  void testFlinkConfigFileFormat() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table1 = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+
+    Configuration flinkConfig = new Configuration();
+    flinkConfig.set(FlinkWriteOptions.WRITE_FORMAT, "orc");
+
+    DynamicWriter dynamicWriter =
+        new DynamicWriter(
+            catalog,
+            Map.of(),
+            flinkConfig,
+            100,
+            new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
+            0,
+            0);
+    DynamicRecordInternal record1 = getDynamicRecordInternal(table1);
+
+    dynamicWriter.write(record1, null);
+    dynamicWriter.prepareCommit();
+
+    File dataDir = new File(URI.create(table1.location()).getPath(), "data");
+    File[] files = dataDir.listFiles((dir, name) -> name.endsWith(".orc"));
+    assertThat(files).isNotNull().hasSize(1);
+
+    dynamicWriter.close();
+  }
+
+  @Test
+  void testFlinkConfigTargetFileSize() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    Table table1 = catalog.createTable(TABLE1, SimpleDataUtil.SCHEMA);
+
+    Configuration flinkConfig = new Configuration();
+    flinkConfig.set(FlinkWriteOptions.TARGET_FILE_SIZE_BYTES, 2048L);
+
+    DynamicWriter dynamicWriter =
+        new DynamicWriter(
+            catalog,
+            Map.of(),
+            flinkConfig,
+            100,
+            new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
+            0,
+            0);
+    DynamicRecordInternal record1 = getDynamicRecordInternal(table1);
+
+    dynamicWriter.write(record1, null);
+    dynamicWriter.prepareCommit();
+
+    assertThat(getNumDataFiles(table1)).isEqualTo(1);
 
     dynamicWriter.close();
   }
@@ -239,9 +331,8 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     DynamicWriter dynamicWriter =
         new DynamicWriter(
             catalog,
-            FileFormat.PARQUET,
-            1024L,
             properties,
+            new Configuration(),
             100,
             new DynamicWriterMetrics(UnregisteredMetricsGroup.createSinkWriterMetricGroup()),
             0,

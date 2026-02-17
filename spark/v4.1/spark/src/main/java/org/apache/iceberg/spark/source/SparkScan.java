@@ -153,6 +153,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filterExpressions;
   }
 
+  protected String filtersDesc() {
+    return Spark3Util.describe(filterExpressions);
+  }
+
   protected Types.StructType groupingKeyType() {
     return Types.StructType.of();
   }
@@ -257,15 +261,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   @Override
-  public String description() {
-    String groupingKeyFieldNamesAsString =
-        groupingKeyType().fields().stream()
-            .map(Types.NestedField::name)
-            .collect(Collectors.joining(", "));
-
-    return String.format(
-        "%s (branch=%s) [filters=%s, groupedBy=%s]",
-        table(), branch(), Spark3Util.describe(filterExpressions), groupingKeyFieldNamesAsString);
+  public String toString() {
+    return description();
   }
 
   @Override

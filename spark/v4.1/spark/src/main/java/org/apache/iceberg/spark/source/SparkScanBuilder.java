@@ -22,9 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.FileScanTask;
@@ -33,8 +31,6 @@ import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.RequiresRemoteScanPlanning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SparkDistributedDataScan;
@@ -50,7 +46,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
@@ -61,6 +56,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.TypeUtil.GetID;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -98,10 +94,10 @@ public class SparkScanBuilder
   private final Table table;
   private final CaseInsensitiveStringMap options;
   private final SparkReadConf readConf;
-  private final List<String> metaColumns = Lists.newArrayList();
+  private final Set<String> metaFieldNames = Sets.newLinkedHashSet();
   private final InMemoryMetricsReporter metricsReporter;
 
-  private Schema schema;
+  private Schema projection;
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Predicate[] pushedPredicates = NO_PREDICATES;
@@ -115,7 +111,7 @@ public class SparkScanBuilder
       CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
-    this.schema = schema;
+    this.projection = schema;
     this.options = options;
     this.readConf = new SparkReadConf(spark, table, branch, options);
     this.caseSensitive = readConf.caseSensitive();
@@ -170,14 +166,12 @@ public class SparkScanBuilder
 
         if (expr != null) {
           // try binding the expression to ensure it can be pushed down
-          Binder.bind(schema.asStruct(), expr, caseSensitive);
+          Binder.bind(projection.asStruct(), expr, caseSensitive);
           expressions.add(expr);
           pushableFilters.add(predicate);
         }
 
-        if (expr == null
-            || unpartitioned()
-            || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
+        if (expr == null || !ExpressionUtil.selectsPartitions(expr, table, caseSensitive)) {
           postScanFilters.add(predicate);
         } else {
           LOG.info("Evaluating completely on Iceberg side: {}", predicate);
@@ -193,10 +187,6 @@ public class SparkScanBuilder
     this.pushedPredicates = pushableFilters.toArray(new Predicate[0]);
 
     return postScanFilters.toArray(new Predicate[0]);
-  }
-
-  private boolean unpartitioned() {
-    return table.specs().values().stream().noneMatch(PartitionSpec::isPartitioned);
   }
 
   @Override
@@ -218,7 +208,7 @@ public class SparkScanBuilder
       try {
         Expression expr = SparkAggregates.convert(aggregateFunc);
         if (expr != null) {
-          Expression bound = Binder.bind(schema.asStruct(), expr, caseSensitive);
+          Expression bound = Binder.bind(projection.asStruct(), expr, caseSensitive);
           expressions.add((BoundAggregate<?, ?>) bound);
         } else {
           LOG.info(
@@ -239,7 +229,7 @@ public class SparkScanBuilder
     }
 
     org.apache.iceberg.Scan scan =
-        buildIcebergBatchScan(true /* include Column Stats */, schemaWithMetadataColumns());
+        buildIcebergBatchScan(true /* include Column Stats */, projectionWithMetadataColumns());
 
     try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
       for (FileScanTask task : fileScanTasks) {
@@ -328,74 +318,63 @@ public class SparkScanBuilder
 
   @Override
   public void pruneColumns(StructType requestedSchema) {
-    StructType requestedProjection =
-        new StructType(
-            Stream.of(requestedSchema.fields())
-                .filter(field -> MetadataColumns.nonMetadataColumn(field.name()))
-                .toArray(StructField[]::new));
+    List<StructField> dataFields = Lists.newArrayList();
 
-    // the projection should include all columns that will be returned, including those only used in
-    // filters
-    this.schema =
-        SparkSchemaUtil.prune(schema, requestedProjection, filterExpression(), caseSensitive);
-
-    Stream.of(requestedSchema.fields())
-        .map(StructField::name)
-        .filter(MetadataColumns::isMetadataColumn)
-        .distinct()
-        .forEach(metaColumns::add);
-  }
-
-  private Schema schemaWithMetadataColumns() {
-    // metadata columns
-    List<Types.NestedField> metadataFields =
-        metaColumns.stream()
-            .distinct()
-            .map(name -> MetadataColumns.metadataColumn(table, name))
-            .collect(Collectors.toList());
-    Schema metadataSchema = calculateMetadataSchema(metadataFields);
-
-    // schema or rows returned by readers
-    return TypeUtil.join(schema, metadataSchema);
-  }
-
-  private Schema calculateMetadataSchema(List<Types.NestedField> metaColumnFields) {
-    Optional<Types.NestedField> partitionField =
-        metaColumnFields.stream()
-            .filter(f -> MetadataColumns.PARTITION_COLUMN_ID == f.fieldId())
-            .findFirst();
-
-    // only calculate potential column id collision if partition metadata column was requested
-    if (!partitionField.isPresent()) {
-      return new Schema(metaColumnFields);
+    for (StructField field : requestedSchema.fields()) {
+      if (MetadataColumns.isMetadataColumn(field.name())) {
+        metaFieldNames.add(field.name());
+      } else {
+        dataFields.add(field);
+      }
     }
 
-    Set<Integer> idsToReassign =
-        TypeUtil.indexById(partitionField.get().type().asStructType()).keySet();
+    StructType requestedProjection = SparkSchemaUtil.toStructType(dataFields);
+    this.projection = prune(projection, requestedProjection);
+  }
 
-    // Calculate used ids by union metadata columns with all base table schemas
-    Set<Integer> currentlyUsedIds =
-        metaColumnFields.stream().map(Types.NestedField::fieldId).collect(Collectors.toSet());
-    Set<Integer> allUsedIds =
-        table.schemas().values().stream()
-            .map(currSchema -> TypeUtil.indexById(currSchema.asStruct()).keySet())
-            .reduce(currentlyUsedIds, Sets::union);
+  // the projection should include all columns that will be returned,
+  // including those only used in filters
+  private Schema prune(Schema schema, StructType requestedSchema) {
+    return SparkSchemaUtil.prune(schema, requestedSchema, filterExpression(), caseSensitive);
+  }
 
-    // Reassign selected ids to deduplicate with used ids.
-    AtomicInteger nextId = new AtomicInteger();
-    return new Schema(
-        metaColumnFields,
-        ImmutableSet.of(),
-        oldId -> {
-          if (!idsToReassign.contains(oldId)) {
-            return oldId;
-          }
-          int candidate = nextId.incrementAndGet();
-          while (allUsedIds.contains(candidate)) {
-            candidate = nextId.incrementAndGet();
-          }
-          return candidate;
-        });
+  // schema of rows that must be returned by readers
+  protected Schema projectionWithMetadataColumns() {
+    return TypeUtil.join(projection, calculateMetadataSchema());
+  }
+
+  // computes metadata schema avoiding conflicts between partition and data field IDs
+  private Schema calculateMetadataSchema() {
+    List<Types.NestedField> metaFields = metaFields();
+    Optional<Types.NestedField> partitionField = findPartitionField(metaFields);
+
+    if (partitionField.isEmpty()) {
+      return new Schema(metaFields);
+    }
+
+    Types.StructType partitionType = partitionField.get().type().asStructType();
+    Set<Integer> partitionFieldIds = TypeUtil.getProjectedIds(partitionType);
+    GetID getId = TypeUtil.reassignConflictingIds(partitionFieldIds, allUsedFieldIds());
+    return new Schema(metaFields, getId);
+  }
+
+  private List<Types.NestedField> metaFields() {
+    return metaFieldNames.stream()
+        .map(name -> MetadataColumns.metadataColumn(table, name))
+        .collect(Collectors.toList());
+  }
+
+  private Optional<Types.NestedField> findPartitionField(List<Types.NestedField> fields) {
+    return fields.stream()
+        .filter(field -> MetadataColumns.PARTITION_COLUMN_ID == field.fieldId())
+        .findFirst();
+  }
+
+  // collects used data field IDs across all known table schemas
+  private Set<Integer> allUsedFieldIds() {
+    return table.schemas().values().stream()
+        .flatMap(tableSchema -> TypeUtil.getProjectedIds(tableSchema.asStruct()).stream())
+        .collect(Collectors.toSet());
   }
 
   @Override
@@ -408,7 +387,7 @@ public class SparkScanBuilder
   }
 
   private Scan buildBatchScan() {
-    Schema expectedSchema = schemaWithMetadataColumns();
+    Schema expectedSchema = projectionWithMetadataColumns();
     return new SparkBatchQueryScan(
         spark,
         table,
@@ -580,7 +559,7 @@ public class SparkScanBuilder
       }
     }
 
-    Schema expectedSchema = schemaWithMetadataColumns();
+    Schema expectedSchema = projectionWithMetadataColumns();
 
     IncrementalChangelogScan scan =
         table
@@ -649,7 +628,7 @@ public class SparkScanBuilder
           table,
           null,
           readConf,
-          schemaWithMetadataColumns(),
+          projectionWithMetadataColumns(),
           filterExpressions,
           metricsReporter::scanReport);
     }
@@ -662,7 +641,7 @@ public class SparkScanBuilder
     SparkReadConf adjustedReadConf =
         new SparkReadConf(spark, table, readConf.branch(), adjustedOptions);
 
-    Schema expectedSchema = schemaWithMetadataColumns();
+    Schema expectedSchema = projectionWithMetadataColumns();
 
     BatchScan scan =
         newBatchScan()
@@ -692,16 +671,15 @@ public class SparkScanBuilder
           spark,
           table,
           readConf,
-          schemaWithMetadataColumns(),
+          projectionWithMetadataColumns(),
           filterExpressions,
           metricsReporter::scanReport);
     }
 
-    Schema expectedSchema = schemaWithMetadataColumns();
+    Schema expectedSchema = projectionWithMetadataColumns();
 
     BatchScan scan =
-        table
-            .newBatchScan()
+        newBatchScan()
             .useSnapshot(snapshot.snapshotId())
             .ignoreResiduals()
             .caseSensitive(caseSensitive)
@@ -761,9 +739,7 @@ public class SparkScanBuilder
   }
 
   private BatchScan newBatchScan() {
-    if (table instanceof RequiresRemoteScanPlanning) {
-      return table.newBatchScan();
-    } else if (table instanceof BaseTable && readConf.distributedPlanningEnabled()) {
+    if (readConf.distributedPlanningEnabled()) {
       return new SparkDistributedDataScan(spark, table, readConf);
     } else {
       return table.newBatchScan();

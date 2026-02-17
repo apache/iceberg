@@ -321,6 +321,11 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withSortOrderId(int newSortOrderId) {
+      this.sortOrderId = newSortOrderId;
+      return this;
+    }
+
     public Builder withFirstRowId(Long nextRowId) {
       this.firstRowId = nextRowId;
       return this;
