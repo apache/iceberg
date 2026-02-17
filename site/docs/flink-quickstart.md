@@ -165,7 +165,6 @@ Once you've finished with the quickstart, shut down the Docker containers by run
 docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml down
 ```
 
-
 ## Learn More
 
 !!! note
