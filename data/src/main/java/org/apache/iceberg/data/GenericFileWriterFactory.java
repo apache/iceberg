@@ -280,7 +280,6 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
                   .createWriterFunc(GenericParquetWriter::create)
                   .withPartition(partition)
                   .overwrite()
-                  .metricsConfig(metricsConfig)
                   .rowSchema(positionDeleteRowSchema)
                   .withSpec(spec)
                   .withKeyMetadata(file.keyMetadata())
