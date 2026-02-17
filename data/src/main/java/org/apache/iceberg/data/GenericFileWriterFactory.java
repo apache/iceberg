@@ -150,8 +150,8 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
-   *     configuration is done by the {@link FormatModelRegistry}.
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureDataWrite(Avro.DataWriteBuilder builder) {
@@ -159,8 +159,8 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
-   *     configuration is done by the {@link FormatModelRegistry}.
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
@@ -168,8 +168,8 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
-   *     configuration is done by the {@link FormatModelRegistry}.
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
@@ -177,8 +177,8 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
-   *     configuration is done by the {@link FormatModelRegistry}.
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
@@ -186,8 +186,8 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
-   *     configuration is done by the {@link FormatModelRegistry}.
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
@@ -195,8 +195,8 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
-   *     configuration is done by the {@link FormatModelRegistry}.
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
@@ -204,8 +204,8 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
-   *     configuration is done by the {@link FormatModelRegistry}.
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureDataWrite(ORC.DataWriteBuilder builder) {
@@ -213,8 +213,8 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
-   *     configuration is done by the {@link FormatModelRegistry}.
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
@@ -222,8 +222,8 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   }
 
   /**
-   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting 1.11.0 as the
-   *     configuration is done by the {@link FormatModelRegistry}.
+   * @deprecated Since 1.11.0, will be removed in 1.12.0. It won't be called starting in 1.11.0 as
+   *     the configuration is done by the {@link FormatModelRegistry}.
    */
   @Deprecated
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
@@ -241,7 +241,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
       MetricsConfig metricsConfig =
           table != null
               ? MetricsConfig.forPositionDelete(table)
-              : MetricsConfig.fromProperties(ImmutableMap.of());
+              : MetricsConfig.forPositionDelete();
 
       try {
         return switch (format) {
