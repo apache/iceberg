@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,6 +34,7 @@ import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FatalExitExceptionHandler;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,8 +57,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   private final SubtaskGateways subtaskGateways;
   protected static final Map<String, Consumer<LockReleaseEvent>> LOCK_RELEASE_CONSUMERS =
       Maps.newConcurrentMap();
-  protected static final List<LockReleaseEvent> PENDING_RELEASE_EVENTS =
-      new CopyOnWriteArrayList<>();
+  protected static final List<LockReleaseEvent> PENDING_RELEASE_EVENTS = Lists.newArrayList();
 
   protected BaseCoordinator(String operatorName, Context context) {
     this.operatorName = operatorName;
@@ -74,27 +73,19 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
 
   @VisibleForTesting
   void handleReleaseLock(LockReleaseEvent lockReleaseEvent) {
-    if (LOCK_RELEASE_CONSUMERS.containsKey(lockReleaseEvent.lockId())) {
-      LOCK_RELEASE_CONSUMERS.get(lockReleaseEvent.lockId()).accept(lockReleaseEvent);
-      LOG.info(
-          "Send release event for lock id {}, timestamp: {}",
-          lockReleaseEvent.lockId(),
-          lockReleaseEvent.timestamp());
-    } else {
-      synchronized (PENDING_RELEASE_EVENTS) {
-        if (LOCK_RELEASE_CONSUMERS.containsKey(lockReleaseEvent.lockId())) {
-          LOCK_RELEASE_CONSUMERS.get(lockReleaseEvent.lockId()).accept(lockReleaseEvent);
-          LOG.info(
-              "Send release event for lock id {}, timestamp: {}",
-              lockReleaseEvent.lockId(),
-              lockReleaseEvent.timestamp());
-        } else {
-          PENDING_RELEASE_EVENTS.add(lockReleaseEvent);
-          LOG.info(
-              "No consumer for lock id {}, timestamp: {}",
-              lockReleaseEvent.lockId(),
-              lockReleaseEvent.timestamp());
-        }
+    synchronized (PENDING_RELEASE_EVENTS) {
+      if (LOCK_RELEASE_CONSUMERS.containsKey(lockReleaseEvent.lockId())) {
+        LOCK_RELEASE_CONSUMERS.get(lockReleaseEvent.lockId()).accept(lockReleaseEvent);
+        LOG.info(
+            "Send release event for lock id {}, timestamp: {}",
+            lockReleaseEvent.lockId(),
+            lockReleaseEvent.timestamp());
+      } else {
+        PENDING_RELEASE_EVENTS.add(lockReleaseEvent);
+        LOG.info(
+            "No consumer for lock id {}, timestamp: {}",
+            lockReleaseEvent.lockId(),
+            lockReleaseEvent.timestamp());
       }
     }
   }

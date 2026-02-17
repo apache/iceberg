@@ -76,8 +76,8 @@ public class TriggerManagerCoordinator extends BaseCoordinator {
           subtaskGateways().getSubtaskGateway(0).sendEvent(lock);
         });
 
-    if (!PENDING_RELEASE_EVENTS.isEmpty()) {
-      synchronized (PENDING_RELEASE_EVENTS) {
+    synchronized (PENDING_RELEASE_EVENTS) {
+      if (!PENDING_RELEASE_EVENTS.isEmpty()) {
         PENDING_RELEASE_EVENTS.forEach(this::handleReleaseLock);
         PENDING_RELEASE_EVENTS.clear();
       }
