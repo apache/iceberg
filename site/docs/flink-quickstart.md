@@ -21,7 +21,7 @@ title: "Flink and Iceberg Quickstart"
 This guide will get you up and running with Apache Iceberg™ using Apache Flink™, including sample code to
 highlight some powerful features. You can learn more about Iceberg's Flink runtime by checking out the [Flink](docs/latest/flink.md) section.
 
-## Docker Compose
+## Quickstart environment
 
 The fastest way to get started is to use Docker Compose with the [Iceberg Flink Quickstart](https://github.com/apache/iceberg/tree/main/docker/iceberg-flink-quickstart) image.
 
@@ -129,12 +129,12 @@ SELECT * FROM iceberg_catalog.nyc.taxis;
 ## Creating a Table with Inline Catalog Configuration
 
 Creating a Flink catalog as shown above, backed by an Iceberg catalog, is one way to use Iceberg in Flink.
-Another way is to use the [Iceberg connector](/docs/latest/flink-connector.md) and specify the Iceberg details as table properties:
+Another way is to use the [Iceberg connector](docs/latest/flink-connector.md) and specify the Iceberg details as table properties:
 
 Now create a table using inline configuration:
 
 !!! note
-    The table is _not_ being created in the Iceberg catalog that we created above (since we've not supplied it as a prefix). Otherwise it would be using the Iceberg details that we configured in the catalog definition.
+    The table is _not_ being created in the Iceberg catalog that we created above, since we haven't supplied it as a prefix. If we had used `iceberg_catalog.taxis_inline_config`, it would use the Iceberg details from the catalog definition instead of the inline configuration.
 
 ```sql
 CREATE TABLE taxis_inline_config (
@@ -145,7 +145,7 @@ CREATE TABLE taxis_inline_config (
     store_and_fwd_flag STRING
 ) WITH (
     'connector'            = 'iceberg',
-    'catalog-name'         = 'foo', -- Note: this config is needed, but not used
+    'catalog-name'         = 'foo', -- Required by Flink connector but value doesn't matter for inline config
     'catalog-type'         = 'rest',
     'uri'                  = 'http://iceberg-rest:8181',
     'warehouse'            = 's3://warehouse/',
@@ -156,6 +156,15 @@ CREATE TABLE taxis_inline_config (
     's3.path-style-access' = 'true'
 );
 ```
+
+## Shutting down the quickstart environment
+
+Once you've finished with the quickstart, shut down the Docker containers by running the following:
+
+```sh
+docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml down
+```
+
 
 ## Learn More
 
