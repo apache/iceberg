@@ -39,6 +39,24 @@ public class TestRetryDetector {
   }
 
   @Test
+  public void testAttemptCountedOnException() {
+    RetryDetector detector = new RetryDetector();
+    try {
+      detector
+          .wrap(
+              () -> {
+                throw new RuntimeException("test error");
+              })
+          .call();
+    } catch (Exception e) {
+      // an exception is expected, we're verifying the counter increments before the callable
+      // executes
+    }
+    assertThat(detector.attempts()).isEqualTo(1);
+    assertThat(detector.retried()).isFalse();
+  }
+
+  @Test
   public void testMultipleAttempts() throws Exception {
     RetryDetector detector = new RetryDetector();
     var wrapped = detector.wrap(() -> "result");
