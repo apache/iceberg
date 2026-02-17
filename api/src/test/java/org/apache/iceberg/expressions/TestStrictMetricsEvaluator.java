@@ -735,24 +735,59 @@ public class TestStrictMetricsEvaluator {
   }
 
   // Tests for UUID with StrictMetricsEvaluator using RFC-compliant comparison only
+  // UUID_FILE has bounds [UUID_MIN=0x00...01, UUID_MAX=0x80...01]
 
   @Test
   public void testStrictUuidGt() {
-    // Query: uuid > 0x00... (all UUIDs in file should be > this)
+    // Query: uuid > belowMin (all UUIDs in file should be > this)
     UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
     boolean allMatch =
         new StrictMetricsEvaluator(SCHEMA, greaterThan("uuid", belowMin)).eval(UUID_FILE);
-    // With bounds [UUID_MIN, UUID_MAX], all values should be > belowMin
     assertThat(allMatch).as("All UUIDs should be greater than belowMin").isTrue();
+
+    // Query: uuid > UUID_MIN (lower bound) - not all values are > lower bound
+    allMatch = new StrictMetricsEvaluator(SCHEMA, greaterThan("uuid", UUID_MIN)).eval(UUID_FILE);
+    assertThat(allMatch).as("Not all UUIDs are greater than lower bound").isFalse();
+
+    // Query: uuid > middle value - not all values are > middle
+    UUID middle = UUID.fromString("40000000-0000-0000-0000-000000000001");
+    allMatch = new StrictMetricsEvaluator(SCHEMA, greaterThan("uuid", middle)).eval(UUID_FILE);
+    assertThat(allMatch).as("Not all UUIDs are greater than middle").isFalse();
+
+    // Query: uuid > UUID_MAX (upper bound) - no values are > upper bound
+    allMatch = new StrictMetricsEvaluator(SCHEMA, greaterThan("uuid", UUID_MAX)).eval(UUID_FILE);
+    assertThat(allMatch).as("No UUIDs are greater than upper bound").isFalse();
+
+    // Query: uuid > aboveMax - no values are > aboveMax
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    allMatch = new StrictMetricsEvaluator(SCHEMA, greaterThan("uuid", aboveMax)).eval(UUID_FILE);
+    assertThat(allMatch).as("No UUIDs are greater than aboveMax").isFalse();
   }
 
   @Test
   public void testStrictUuidLt() {
-    // Query: uuid < 0xFF... (all UUIDs in file should be < this)
-    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    // Query: uuid < belowMin - no values are < belowMin
+    UUID belowMin = UUID.fromString("00000000-0000-0000-0000-000000000000");
     boolean allMatch =
-        new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", aboveMax)).eval(UUID_FILE);
-    // With bounds [UUID_MIN, UUID_MAX], all values should be < aboveMax
+        new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", belowMin)).eval(UUID_FILE);
+    assertThat(allMatch).as("No UUIDs are less than belowMin").isFalse();
+
+    // Query: uuid < UUID_MIN (lower bound) - no values are < lower bound
+    allMatch = new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", UUID_MIN)).eval(UUID_FILE);
+    assertThat(allMatch).as("No UUIDs are less than lower bound").isFalse();
+
+    // Query: uuid < middle value - not all values are < middle
+    UUID middle = UUID.fromString("40000000-0000-0000-0000-000000000001");
+    allMatch = new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", middle)).eval(UUID_FILE);
+    assertThat(allMatch).as("Not all UUIDs are less than middle").isFalse();
+
+    // Query: uuid < UUID_MAX (upper bound) - not all values are < upper bound
+    allMatch = new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", UUID_MAX)).eval(UUID_FILE);
+    assertThat(allMatch).as("Not all UUIDs are less than upper bound").isFalse();
+
+    // Query: uuid < aboveMax (all UUIDs in file should be < this)
+    UUID aboveMax = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+    allMatch = new StrictMetricsEvaluator(SCHEMA, lessThan("uuid", aboveMax)).eval(UUID_FILE);
     assertThat(allMatch).as("All UUIDs should be less than aboveMax").isTrue();
   }
 

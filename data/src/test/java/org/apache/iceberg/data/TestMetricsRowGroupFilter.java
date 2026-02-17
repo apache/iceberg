@@ -41,10 +41,13 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -69,21 +72,27 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetMetricsRowGroupFilter;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.DoubleType;
 import org.apache.iceberg.types.Types.FloatType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.Variants;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
+import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -1151,8 +1160,8 @@ public class TestMetricsRowGroupFilter {
 
   /**
    * Tests UUID filtering with values that span the signed/unsigned comparison boundary. In RFC 9562
-   * unsigned comparison: UUID_LOW < UUID_MID < UUID_HIGH < UUID_HIGHER In legacy signed comparison:
-   * UUID_HIGH < UUID_HIGHER < UUID_LOW < UUID_MID (high bit treated as negative)
+   * unsigned comparison: UUID_LOW < UUID_MID < UUID_HIGH < UUID_HIGHER. In legacy signed
+   * comparison: UUID_HIGH < UUID_HIGHER < UUID_LOW < UUID_MID (high bit treated as negative).
    *
    * <p>The dual-comparator approach ensures we don't incorrectly skip files that might contain
    * matching rows when reading legacy files with inverted UUID bounds.
@@ -1274,6 +1283,119 @@ public class TestMetricsRowGroupFilter {
           .as("Should read: all values are greater than UUID_LOW")
           .isTrue();
     }
+  }
+
+  /**
+   * Tests reading a legacy Parquet file's metadata where UUID min/max statistics were computed
+   * using signed comparison.
+   *
+   * <p>In signed comparison, UUIDs with high bit set (0x80...) are treated as negative, so they
+   * sort before UUIDs without high bit set. This creates "inverted bounds" where min > max in RFC
+   * unsigned order.
+   *
+   * <p>This test uses mocked Parquet metadata to simulate such a legacy file, verifying that the
+   * dual-comparator approach correctly handles queries that would otherwise be incorrectly filtered
+   * out using the unsigned comparison.
+   */
+  @TestTemplate
+  public void testLegacyUUIDParquetFileWithSignedComparator() throws IOException {
+    assumeThat(format).as("Only valid for Parquet").isEqualTo(FileFormat.PARQUET);
+
+    MessageType legacySchema = ParquetSchemaUtil.convert(UUID_SCHEMA, "legacy_uuid_test");
+
+    // Simulate inverted bounds from a legacy file written with signed comparator.
+    // In signed order: 0x80... (negative) < 0x00... < 0x20... < 0x40... (positive)
+    // So min=0x80..., max=0x40... represents a valid range in signed order,
+    // but appears inverted in RFC unsigned order where 0x40... < 0x80...
+    // Therefore, with unsigned UUID expression evaluation, the Parquet row group is not read.
+    UUID legacyMin = UUID.fromString("80000000-0000-0000-0000-000000000001");
+    UUID legacyMax = UUID.fromString("40000000-0000-0000-0000-000000000001");
+
+    BlockMetaData mockRowGroup = createMockRowGroupWithUUIDStats(legacyMin, legacyMax);
+
+    // Test 1: equal(0x20...)
+    // In unsigned order: 0x20... < 0x80... (min), fails lower bound check
+    // In signed order: 0x80... < 0x20... < 0x40..., passes bounds check
+    UUID queryInRange = UUID.fromString("20000000-0000-0000-0000-000000000001");
+    assertThat(shouldReadUUID(equal("uuid_col", queryInRange), legacySchema, mockRowGroup))
+        .as("Should read: signed fallback finds UUID in signed-ordered bounds")
+        .isTrue();
+
+    // Test 2: lessThan(0x30...)
+    // In unsigned order: min (0x80...) > 0x30..., fails lower bound check
+    // In signed order: min (0x80...) < 0x30..., passes lower bound check
+    UUID queryLt = UUID.fromString("30000000-0000-0000-0000-000000000001");
+    assertThat(shouldReadUUID(lessThan("uuid_col", queryLt), legacySchema, mockRowGroup))
+        .as("Should read: signed fallback finds UUIDs less than query in signed order")
+        .isTrue();
+
+    // Test 3: greaterThan(0x20...)
+    // In unsigned order: max (0x40...) < 0x80... (min), bounds are inverted
+    // In signed order: max (0x40...) > 0x20..., passes upper bound check
+    assertThat(shouldReadUUID(greaterThan("uuid_col", queryInRange), legacySchema, mockRowGroup))
+        .as("Should read: signed fallback finds UUIDs greater than query in signed order")
+        .isTrue();
+
+    // Test 4: in(0x20..., 0x30...)
+    // In unsigned order: both values < 0x80... (min), fails lower bound check
+    // In signed order: both values between 0x80... and 0x40..., passes bounds check
+    assertThat(shouldReadUUID(in("uuid_col", queryInRange, queryLt), legacySchema, mockRowGroup))
+        .as("Should read: signed fallback finds UUIDs in signed-ordered bounds")
+        .isTrue();
+
+    // Test 5: equal(0x50...)
+    // In unsigned order: 0x50... < 0x80... (min), fails lower bound check
+    // In signed order: 0x50... > 0x40... (max), fails upper bound check
+    UUID outsideBounds = UUID.fromString("50000000-0000-0000-0000-000000000001");
+    assertThat(shouldReadUUID(equal("uuid_col", outsideBounds), legacySchema, mockRowGroup))
+        .as("Should not read: UUID outside bounds in both RFC and signed order")
+        .isFalse();
+  }
+
+  /**
+   * Creates a mock BlockMetaData with UUID column statistics set to the specified min/max values.
+   * This simulates a legacy Parquet file where statistics were computed using signed comparison.
+   */
+  private BlockMetaData createMockRowGroupWithUUIDStats(UUID minUuid, UUID maxUuid) {
+    // Convert UUIDs to Binary (16-byte fixed-length)
+    ByteBuffer minBuffer = UUIDUtil.convertToByteBuffer(minUuid);
+    ByteBuffer maxBuffer = UUIDUtil.convertToByteBuffer(maxUuid);
+    Binary minBinary = Binary.fromConstantByteBuffer(minBuffer);
+    Binary maxBinary = Binary.fromConstantByteBuffer(maxBuffer);
+
+    // Create mock Statistics
+    @SuppressWarnings("unchecked")
+    Statistics<Binary> mockStats = mock(Statistics.class);
+    when(mockStats.isEmpty()).thenReturn(false);
+    when(mockStats.hasNonNullValue()).thenReturn(true);
+    when(mockStats.isNumNullsSet()).thenReturn(true);
+    when(mockStats.getNumNulls()).thenReturn(0L);
+    when(mockStats.genericGetMin()).thenReturn(minBinary);
+    when(mockStats.genericGetMax()).thenReturn(maxBinary);
+    when(mockStats.getMinBytes()).thenReturn(minBuffer.array());
+    when(mockStats.getMaxBytes()).thenReturn(maxBuffer.array());
+
+    // Create mock ColumnChunkMetaData for the UUID column
+    ColumnChunkMetaData mockUuidColumn = mock(ColumnChunkMetaData.class);
+    when(mockUuidColumn.getPath()).thenReturn(ColumnPath.fromDotString("uuid_col"));
+    when(mockUuidColumn.getStatistics()).thenReturn(mockStats);
+    when(mockUuidColumn.getValueCount()).thenReturn(50L);
+
+    // Create mock ColumnChunkMetaData for the id column (required for schema)
+    ColumnChunkMetaData mockIdColumn = mock(ColumnChunkMetaData.class);
+    when(mockIdColumn.getPath()).thenReturn(ColumnPath.fromDotString("id"));
+    @SuppressWarnings("unchecked")
+    Statistics<Integer> mockIdStats = mock(Statistics.class);
+    when(mockIdStats.isEmpty()).thenReturn(true);
+    when(mockIdColumn.getStatistics()).thenReturn(mockIdStats);
+    when(mockIdColumn.getValueCount()).thenReturn(50L);
+
+    // Create mock BlockMetaData
+    BlockMetaData mockRowGroup = mock(BlockMetaData.class);
+    when(mockRowGroup.getRowCount()).thenReturn(50L);
+    when(mockRowGroup.getColumns()).thenReturn(Arrays.asList(mockIdColumn, mockUuidColumn));
+
+    return mockRowGroup;
   }
 
   private boolean shouldReadUUID(

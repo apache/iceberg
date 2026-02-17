@@ -116,6 +116,63 @@ public class TestInclusiveManifestEvaluator {
   private static final ByteBuffer UUID_MIN = toByteBuffer(Types.UUIDType.get(), UUID_MIN_VALUE);
   private static final ByteBuffer UUID_MAX = toByteBuffer(Types.UUIDType.get(), UUID_MAX_VALUE);
 
+  // Legacy manifest with "inverted" bounds (min > max in unsigned order)
+  // Used for testing backward compatibility with files written using signed UUID comparator
+  private static final UUID LEGACY_UUID_MIN =
+      UUID.fromString("80000000-0000-0000-0000-000000000001");
+  private static final UUID LEGACY_UUID_MAX =
+      UUID.fromString("40000000-0000-0000-0000-000000000001");
+
+  private static final ManifestFile LEGACY_UUID_MANIFEST =
+      new TestHelpers.TestManifestFile(
+          "legacy-uuid-manifest.avro",
+          1024,
+          0,
+          System.currentTimeMillis(),
+          5,
+          10,
+          0,
+          ImmutableList.of(
+              new TestHelpers.TestFieldSummary(false, INT_MIN, INT_MAX),
+              new TestHelpers.TestFieldSummary(true, null, null),
+              new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MAX),
+              new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MAX),
+              new TestHelpers.TestFieldSummary(
+                  false,
+                  toByteBuffer(Types.FloatType.get(), 0F),
+                  toByteBuffer(Types.FloatType.get(), 20F)),
+              new TestHelpers.TestFieldSummary(true, null, null),
+              new TestHelpers.TestFieldSummary(true, false, null, null),
+              new TestHelpers.TestFieldSummary(false, true, null, null),
+              new TestHelpers.TestFieldSummary(true, true, null, null),
+              new TestHelpers.TestFieldSummary(
+                  false,
+                  false,
+                  toByteBuffer(Types.FloatType.get(), 0F),
+                  toByteBuffer(Types.FloatType.get(), 20F)),
+              new TestHelpers.TestFieldSummary(true, null, null),
+              new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MIN),
+              new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MIN),
+              new TestHelpers.TestFieldSummary(
+                  false,
+                  true,
+                  toByteBuffer(Types.FloatType.get(), 5.0F),
+                  toByteBuffer(Types.FloatType.get(), 5.0F)),
+              new TestHelpers.TestFieldSummary(
+                  false,
+                  toByteBuffer(Types.FloatType.get(), 5.0F),
+                  toByteBuffer(Types.FloatType.get(), 5.0F)),
+              new TestHelpers.TestFieldSummary(
+                  false,
+                  false,
+                  toByteBuffer(Types.FloatType.get(), 5.0F),
+                  toByteBuffer(Types.FloatType.get(), 5.0F)),
+              new TestHelpers.TestFieldSummary(
+                  false,
+                  toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_MIN),
+                  toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_MAX))),
+          null);
+
   private static final ManifestFile NO_STATS =
       new TestHelpers.TestManifestFile(
           "manifest-list.avro", 1024, 0, System.currentTimeMillis(), null, null, null, null, null);
@@ -969,7 +1026,9 @@ public class TestInclusiveManifestEvaluator {
     UUID justBelowMax = UUID.fromString("ffffffff-ffff-fffe-ffff-ffffffffffff");
     shouldRead =
         ManifestEvaluator.forRowFilter(greaterThan("uuid", justBelowMax), SPEC, true).eval(FILE);
-    assertThat(shouldRead).as("Should read: one possible uuid").isTrue();
+    assertThat(shouldRead)
+        .as("Should read: uuid between justBelowMax and the upper bound")
+        .isTrue();
 
     // UUID_MAX_VALUE is the upper bound, so no rows can be > UUID_MAX_VALUE.
     // Both RFC and signed comparators agree on this since we're comparing the value to itself.
@@ -1048,85 +1107,24 @@ public class TestInclusiveManifestEvaluator {
     assertThat(shouldRead).as("Should not read: uuids above upper bound").isFalse();
   }
 
-  // Tests for legacy UUID file compatibility (files written with signed UUID comparator)
+  // Tests for legacy UUID file compatibility (files written with signed UUID comparator).
   // These tests simulate manifests where min/max bounds were computed using Java's signed
   // comparison.
   //
-  // Key insight: Java's UUID.compareTo() compares MSB first, then LSB, both as SIGNED longs.
-  // This means:
-  //   - UUIDs starting with 0x00-0x7F are "positive" (MSB is positive as signed long)
-  //   - UUIDs starting with 0x80-0xFF are "negative" (MSB is negative as signed long)
+  // Java's UUID.compareTo() compares MSB first, then LSB, both as SIGNED longs:
+  //   - UUIDs starting with 0x00-0x7F have positive MSB (as signed long)
+  //   - UUIDs starting with 0x80-0xFF have negative MSB (as signed long)
   //
-  // Example file containing UUIDs: 0x00..., 0x40..., 0x80...
+  // For a file containing UUIDs 0x00..., 0x40..., 0x80...:
   //   - Unsigned (RFC) order: 0x00... < 0x40... < 0x80...
   //   - Signed (Java) order:  0x80... < 0x00... < 0x40...
   //
-  // If written with signed comparator, the manifest would have:
-  //   - min = 0x80... (smallest in signed order)
-  //   - max = 0x40... (largest in signed order)
-
-  // Legacy manifest with "inverted" bounds (min > max in unsigned order)
-  private static final UUID LEGACY_UUID_MIN =
-      UUID.fromString("80000000-0000-0000-0000-000000000001");
-  private static final UUID LEGACY_UUID_MAX =
-      UUID.fromString("40000000-0000-0000-0000-000000000001");
-
-  private static final ManifestFile LEGACY_UUID_MANIFEST =
-      new TestHelpers.TestManifestFile(
-          "legacy-uuid-manifest.avro",
-          1024,
-          0,
-          System.currentTimeMillis(),
-          5,
-          10,
-          0,
-          ImmutableList.of(
-              new TestHelpers.TestFieldSummary(false, INT_MIN, INT_MAX),
-              new TestHelpers.TestFieldSummary(true, null, null),
-              new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MAX),
-              new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MAX),
-              new TestHelpers.TestFieldSummary(
-                  false,
-                  toByteBuffer(Types.FloatType.get(), 0F),
-                  toByteBuffer(Types.FloatType.get(), 20F)),
-              new TestHelpers.TestFieldSummary(true, null, null),
-              new TestHelpers.TestFieldSummary(true, false, null, null),
-              new TestHelpers.TestFieldSummary(false, true, null, null),
-              new TestHelpers.TestFieldSummary(true, true, null, null),
-              new TestHelpers.TestFieldSummary(
-                  false,
-                  false,
-                  toByteBuffer(Types.FloatType.get(), 0F),
-                  toByteBuffer(Types.FloatType.get(), 20F)),
-              new TestHelpers.TestFieldSummary(true, null, null),
-              new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MIN),
-              new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MIN),
-              new TestHelpers.TestFieldSummary(
-                  false,
-                  true,
-                  toByteBuffer(Types.FloatType.get(), 5.0F),
-                  toByteBuffer(Types.FloatType.get(), 5.0F)),
-              new TestHelpers.TestFieldSummary(
-                  false,
-                  toByteBuffer(Types.FloatType.get(), 5.0F),
-                  toByteBuffer(Types.FloatType.get(), 5.0F)),
-              new TestHelpers.TestFieldSummary(
-                  false,
-                  false,
-                  toByteBuffer(Types.FloatType.get(), 5.0F),
-                  toByteBuffer(Types.FloatType.get(), 5.0F)),
-              new TestHelpers.TestFieldSummary(
-                  false,
-                  toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_MIN),
-                  toByteBuffer(Types.UUIDType.get(), LEGACY_UUID_MAX))),
-          null);
+  // With signed comparator, the manifest has min=0x80..., max=0x40... (inverted bounds).
 
   @Test
   public void testLegacyUuidManifestIn() {
-    // Query: uuid IN (0x20..., 0x30...)
-    // Both are between 0x80... and 0x40... in signed order
-    // RFC evaluation: Both values are < 0x80... (lower bound) in unsigned, so filtered out
-    // Legacy evaluation: Uses signed comparator, so 0x80... < 0x20... < 0x30... < 0x40...
+    // 0x20... and 0x30... are between 0x80... and 0x40... in signed order.
+    // RFC unsigned filters them out (both < 0x80...), but legacy signed includes them.
     UUID uuid1 = UUID.fromString("20000000-0000-0000-0000-000000000001");
     UUID uuid2 = UUID.fromString("30000000-0000-0000-0000-000000000001");
     boolean shouldRead =
@@ -1139,20 +1137,14 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testLegacyUuidManifestInAllBelowLowerBound() {
-    // Query: uuid IN (0x50..., 0x60...)
-    // Both are > 0x40... (upper bound) in both unsigned and signed order
-    // RFC evaluation: Both values are < 0x80... (lower bound) in unsigned, so filtered out
-    // Legacy evaluation: Both values are > 0x40... (upper bound) in signed order, so filtered out
-    // So both comparators should filter these out
+    // 0x50... and 0x60... are outside bounds in both orderings:
+    //   - RFC unsigned: both < 0x80... (lower bound)
+    //   - Signed: both > 0x40... (upper bound)
     UUID uuid1 = UUID.fromString("50000000-0000-0000-0000-000000000001");
     UUID uuid2 = UUID.fromString("60000000-0000-0000-0000-000000000001");
     boolean shouldRead =
         ManifestEvaluator.forRowFilter(in("uuid", uuid1, uuid2), SPEC, true)
             .eval(LEGACY_UUID_MANIFEST);
-    // In signed order: 0x80... < 0x90... < ... < 0xFF... < 0x00... < ... < 0x40... < 0x50... <
-    // 0x60...
-    // So 0x50... and 0x60... are above upper bound [0x40...] in signed order
-    // In RFC order: 0x50... and 0x60... are below lower bound [0x80...]
     assertThat(shouldRead)
         .as("Should not read: UUIDs outside bounds in both RFC and signed order")
         .isFalse();
@@ -1160,11 +1152,9 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testLegacyUuidManifestEq() {
-    // Query for 0x20... which is between 0x80... and 0x40... in signed order
+    // 0x20... is between 0x80... and 0x40... in signed order (within the manifest's actual range).
+    // RFC unsigned fails (0x20... < 0x80...), but legacy signed succeeds.
     UUID queryUuid = UUID.fromString("20000000-0000-0000-0000-000000000001");
-
-    // RFC evaluation would fail: 0x20... < 0x80... in unsigned, so outside [0x80..., 0x40...]
-    // Legacy evaluation should succeed: 0x80... < 0x20... < 0x40... in signed
     boolean shouldRead =
         ManifestEvaluator.forRowFilter(equal("uuid", queryUuid), SPEC, true)
             .eval(LEGACY_UUID_MANIFEST);
@@ -1175,9 +1165,7 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testLegacyUuidManifestLt() {
-    // Query: uuid < 0x30...
-    // In signed order, values less than 0x30... include 0x80..., 0x00..., 0x20...
-    // The manifest's min is 0x80... which is < 0x30... in signed order
+    // In signed order, 0x80... < 0x30..., so the manifest's min satisfies uuid < 0x30...
     UUID queryUuid = UUID.fromString("30000000-0000-0000-0000-000000000001");
     boolean shouldRead =
         ManifestEvaluator.forRowFilter(lessThan("uuid", queryUuid), SPEC, true)
@@ -1189,9 +1177,7 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testLegacyUuidManifestGt() {
-    // Query: uuid > 0x20...
-    // In signed order, values greater than 0x20... include 0x30..., 0x40...
-    // The manifest's max is 0x40... which is > 0x20... in signed order
+    // In signed order, 0x40... > 0x20..., so the manifest's max satisfies uuid > 0x20...
     UUID queryUuid = UUID.fromString("20000000-0000-0000-0000-000000000001");
     boolean shouldRead =
         ManifestEvaluator.forRowFilter(greaterThan("uuid", queryUuid), SPEC, true)

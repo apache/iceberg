@@ -105,8 +105,8 @@ public class ManifestEvaluator {
   private static class ManifestEvalVisitor extends BoundExpressionVisitor<Boolean> {
     private List<PartitionFieldSummary> stats = null;
     // Flag to use signed UUID comparator for backward compatibility.
-    // This is needed for the IN predicate because the comparator information is lost
-    // when binding converts literals to a Set<T> of raw values.
+    // This is specifically necessary for IN predicates because the comparator information
+    // is lost when binding converts literals to a Set<T> of raw values.
     private boolean useSignedUuidComparator = false;
 
     private boolean eval(ManifestFile manifest, Expression expression, boolean signedUuidMode) {

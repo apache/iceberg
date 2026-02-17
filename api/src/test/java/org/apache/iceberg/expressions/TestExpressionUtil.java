@@ -1378,6 +1378,14 @@ public class TestExpressionUtil {
     UUID testUuid = UUID.randomUUID();
     Expression original = Expressions.equal("uuid_col", testUuid);
 
+    // Verify the original literal uses unsigned comparator (useSignedComparator = false)
+    UnboundPredicate<?> originalPredicate = (UnboundPredicate<?>) original;
+    assertThat(originalPredicate.literal())
+        .isInstanceOf(Literals.UUIDLiteral.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(Literals.UUIDLiteral.class))
+        .extracting("useSignedComparator")
+        .isEqualTo(false);
+
     Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
     assertThat(result).isNotNull().isInstanceOf(UnboundPredicate.class);
     UnboundPredicate<?> predicate = (UnboundPredicate<?>) result;
@@ -1395,6 +1403,14 @@ public class TestExpressionUtil {
     UUID testUuid = UUID.randomUUID();
     Expression original = Expressions.lessThan("uuid_col", testUuid);
 
+    // Verify the original literal uses unsigned comparator (useSignedComparator = false)
+    UnboundPredicate<?> originalPredicate = (UnboundPredicate<?>) original;
+    assertThat(originalPredicate.literal())
+        .isInstanceOf(Literals.UUIDLiteral.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(Literals.UUIDLiteral.class))
+        .extracting("useSignedComparator")
+        .isEqualTo(false);
+
     Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
     assertThat(result).isNotNull().isInstanceOf(UnboundPredicate.class);
     UnboundPredicate<?> predicate = (UnboundPredicate<?>) result;
@@ -1409,6 +1425,14 @@ public class TestExpressionUtil {
   public void testToSignedUUIDLiteralTransformsGtPredicate() {
     UUID testUuid = UUID.randomUUID();
     Expression original = Expressions.greaterThan("uuid_col", testUuid);
+
+    // Verify the original literal uses unsigned comparator (useSignedComparator = false)
+    UnboundPredicate<?> originalPredicate = (UnboundPredicate<?>) original;
+    assertThat(originalPredicate.literal())
+        .isInstanceOf(Literals.UUIDLiteral.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(Literals.UUIDLiteral.class))
+        .extracting("useSignedComparator")
+        .isEqualTo(false);
 
     Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
     assertThat(result).isNotNull().isInstanceOf(UnboundPredicate.class);
@@ -1425,6 +1449,19 @@ public class TestExpressionUtil {
     UUID uuid1 = UUID.randomUUID();
     UUID uuid2 = UUID.randomUUID();
     Expression original = Expressions.in("uuid_col", uuid1, uuid2);
+
+    // Verify the original literals use unsigned comparator (useSignedComparator = false)
+    UnboundPredicate<?> originalPredicate = (UnboundPredicate<?>) original;
+    originalPredicate
+        .literals()
+        .forEach(
+            lit -> {
+              assertThat(lit)
+                  .isInstanceOf(Literals.UUIDLiteral.class)
+                  .asInstanceOf(InstanceOfAssertFactories.type(Literals.UUIDLiteral.class))
+                  .extracting("useSignedComparator")
+                  .isEqualTo(false);
+            });
 
     Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
     assertThat(result).isNotNull().isInstanceOf(UnboundPredicate.class);
@@ -1449,6 +1486,15 @@ public class TestExpressionUtil {
     Expression original =
         Expressions.and(
             Expressions.equal("id", 42L), Expressions.greaterThan("uuid_col", testUuid));
+
+    // Verify the original UUID literal uses unsigned comparator (useSignedComparator = false)
+    And originalAnd = (And) original;
+    UnboundPredicate<?> originalUuidPredicate = (UnboundPredicate<?>) originalAnd.right();
+    assertThat(originalUuidPredicate.literal())
+        .isInstanceOf(Literals.UUIDLiteral.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(Literals.UUIDLiteral.class))
+        .extracting("useSignedComparator")
+        .isEqualTo(false);
 
     Expression result = ExpressionUtil.toSignedUUIDLiteral(original);
     assertThat(result).isNotNull().isInstanceOf(And.class);

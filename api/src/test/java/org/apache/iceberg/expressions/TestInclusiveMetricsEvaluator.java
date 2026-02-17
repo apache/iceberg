@@ -103,6 +103,28 @@ public class TestInclusiveMetricsEvaluator {
   private static final UUID UUID_MAX_VALUE =
       UUID.fromString("ffffffff-ffff-ffff-0000-000000000000");
 
+  // Legacy file with "inverted" bounds (min > max in unsigned order)
+  // Used for testing backward compatibility with files written using signed UUID comparator
+  // File contains UUIDs from 0x80... to 0x40... (in signed order)
+  // This represents actual values: 0x80..., 0x00..., 0x20..., 0x40...
+  private static final UUID LEGACY_SIGNED_MIN =
+      UUID.fromString("80000000-0000-0000-0000-000000000001"); // a small value in signed order
+  private static final UUID LEGACY_SIGNED_MAX =
+      UUID.fromString("40000000-0000-0000-0000-000000000001"); // a large value in signed order
+
+  private static final DataFile LEGACY_UUID_FILE =
+      new TestDataFile(
+          "legacy_uuid_file.avro",
+          Row.of(),
+          50,
+          ImmutableMap.of(15, 50L),
+          ImmutableMap.of(15, 0L),
+          null,
+          // lower bound: 0x80... (smallest in signed comparison)
+          ImmutableMap.of(15, toByteBuffer(Types.UUIDType.get(), LEGACY_SIGNED_MIN)),
+          // upper bound: 0x40... (largest in signed comparison)
+          ImmutableMap.of(15, toByteBuffer(Types.UUIDType.get(), LEGACY_SIGNED_MAX)));
+
   private static final DataFile FILE =
       new TestDataFile(
           "file.avro",
@@ -1363,56 +1385,28 @@ public class TestInclusiveMetricsEvaluator {
     assertThat(shouldRead).as("Should read: notIn always reads").isTrue();
   }
 
-  // Tests for legacy UUID file compatibility (files written with signed UUID comparator)
+  // Tests for legacy UUID file compatibility (files written with signed UUID comparator).
   // These tests simulate files where min/max bounds were computed using Java's signed comparison.
   //
-  // Key insight: Java's UUID.compareTo() compares MSB first, then LSB, both as SIGNED longs.
-  // This means:
-  //   - UUIDs starting with 0x00-0x7F are "positive" (MSB is positive as signed long)
-  //   - UUIDs starting with 0x80-0xFF are "negative" (MSB is negative as signed long)
+  // Java's UUID.compareTo() compares MSB first, then LSB, both as SIGNED longs:
+  //   - UUIDs starting with 0x00-0x7F have positive MSB (as signed long)
+  //   - UUIDs starting with 0x80-0xFF have negative MSB (as signed long)
   //
-  // Example file containing UUIDs: 0x00..., 0x40..., 0x80...
+  // For a file containing UUIDs 0x00..., 0x40..., 0x80...:
   //   - Unsigned (RFC) order: 0x00... < 0x40... < 0x80...
   //   - Signed (Java) order:  0x80... < 0x00... < 0x40...
   //
-  // If written with signed comparator, the file would have:
-  //   - min = 0x80... (smallest in signed order)
-  //   - max = 0x40... (largest in signed order)
+  // With signed comparator, the file has min=0x80..., max=0x40... (inverted bounds).
   //
-  // Query for 0x20... (which is in the file):
-  //   - RFC evaluation: Is 0x20... in [0x80..., 0x40...]?
-  //     In unsigned: 0x20... < 0x80... (lower bound), so NO - incorrectly skipped!
-  //   - Legacy evaluation: Is 0x20... in [0x80..., 0x40...]?
-  //     In signed: 0x80... < 0x20... < 0x40..., so YES - correctly included!
-
-  // File contains UUIDs from 0x80... to 0x40... (in signed order)
-  // This represents actual values: 0x80..., 0x00..., 0x20..., 0x40...
-  private static final UUID LEGACY_SIGNED_MIN =
-      UUID.fromString("80000000-0000-0000-0000-000000000001"); // Smallest in signed order
-  private static final UUID LEGACY_SIGNED_MAX =
-      UUID.fromString("40000000-0000-0000-0000-000000000001"); // Largest in signed order
-
-  private static final DataFile LEGACY_UUID_FILE =
-      new TestDataFile(
-          "legacy_uuid_file.avro",
-          Row.of(),
-          50,
-          ImmutableMap.of(15, 50L),
-          ImmutableMap.of(15, 0L),
-          null,
-          // lower bound: 0x80... (smallest in signed comparison)
-          ImmutableMap.of(15, toByteBuffer(Types.UUIDType.get(), LEGACY_SIGNED_MIN)),
-          // upper bound: 0x40... (largest in signed comparison)
-          ImmutableMap.of(15, toByteBuffer(Types.UUIDType.get(), LEGACY_SIGNED_MAX)));
+  // Querying for 0x20... (which exists in the file):
+  //   - RFC unsigned: 0x20... < 0x80... (lower bound), so incorrectly skipped
+  //   - Legacy signed: 0x80... < 0x20... < 0x40..., so correctly included
 
   @Test
   public void testLegacyUuidFileEq() {
-    // Query for 0x20... which is between 0x80... and 0x40... in signed order
-    // (i.e., it's in the file's actual range)
+    // 0x20... is between 0x80... and 0x40... in signed order (within the file's actual range).
+    // RFC unsigned fails (0x20... < 0x80...), but legacy signed succeeds.
     UUID queryUuid = UUID.fromString("20000000-0000-0000-0000-000000000001");
-
-    // RFC evaluation would fail: 0x20... < 0x80... in unsigned, so outside [0x80..., 0x40...]
-    // Legacy evaluation should succeed: 0x80... < 0x20... < 0x40... in signed
     boolean shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, equal("uuid", queryUuid)).eval(LEGACY_UUID_FILE);
     assertThat(shouldRead)
@@ -1422,9 +1416,7 @@ public class TestInclusiveMetricsEvaluator {
 
   @Test
   public void testLegacyUuidFileLt() {
-    // Query: uuid < 0x30...
-    // In signed order, values less than 0x30... include 0x80..., 0x00..., 0x20...
-    // The file contains 0x80... which is < 0x30... in signed order
+    // In signed order, 0x80... < 0x30..., so the file's min satisfies uuid < 0x30...
     UUID queryUuid = UUID.fromString("30000000-0000-0000-0000-000000000001");
     boolean shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, lessThan("uuid", queryUuid)).eval(LEGACY_UUID_FILE);
@@ -1435,9 +1427,7 @@ public class TestInclusiveMetricsEvaluator {
 
   @Test
   public void testLegacyUuidFileGt() {
-    // Query: uuid > 0x20...
-    // In signed order, values greater than 0x20... include 0x30..., 0x40...
-    // The file's max is 0x40... which is > 0x20... in signed order
+    // In signed order, 0x40... > 0x20..., so the file's max satisfies uuid > 0x20...
     UUID queryUuid = UUID.fromString("20000000-0000-0000-0000-000000000001");
     boolean shouldRead =
         new InclusiveMetricsEvaluator(SCHEMA, greaterThan("uuid", queryUuid))
@@ -1449,10 +1439,8 @@ public class TestInclusiveMetricsEvaluator {
 
   @Test
   public void testLegacyUuidFileIn() {
-    // Query: uuid IN (0x20..., 0x30...)
-    // Both are between 0x80... and 0x40... in signed order
-    // RFC evaluation: Both values are < 0x80... (lower bound) in unsigned, so filtered out
-    // Legacy evaluation: Uses signed comparator, so 0x80... < 0x20... < 0x30... < 0x40...
+    // 0x20... and 0x30... are between 0x80... and 0x40... in signed order.
+    // RFC unsigned filters them out (both < 0x80...), but legacy signed includes them.
     UUID uuid1 = UUID.fromString("20000000-0000-0000-0000-000000000001");
     UUID uuid2 = UUID.fromString("30000000-0000-0000-0000-000000000001");
     boolean shouldRead =
@@ -1464,8 +1452,7 @@ public class TestInclusiveMetricsEvaluator {
 
   @Test
   public void testNonUuidPredicateNoLegacyFallback() {
-    // Verify that non-UUID predicates don't trigger legacy fallback (no performance impact)
-    // This is a sanity check - the evaluator should work normally for non-UUID columns
+    // Non-UUID predicates should not trigger legacy fallback (no performance impact).
     boolean shouldRead = new InclusiveMetricsEvaluator(SCHEMA, equal("id", 50)).eval(FILE);
     assertThat(shouldRead).as("Should read: id 50 is in range [30, 79]").isTrue();
 

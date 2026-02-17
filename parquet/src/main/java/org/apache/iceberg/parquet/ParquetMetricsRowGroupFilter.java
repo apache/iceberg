@@ -81,7 +81,7 @@ public class ParquetMetricsRowGroupFilter {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
-    boolean result = new MetricsEvalVisitor().eval(fileSchema, rowGroup, false);
+    boolean result = new MetricsEvalVisitor(schema).eval(fileSchema, rowGroup, expr, false);
 
     // If the RFC-compliant evaluation says rows might match, or there's no signed UUID expression,
     // return the result.
@@ -93,22 +93,31 @@ public class ParquetMetricsRowGroupFilter {
     // whether signed or unsigned comparator was used when the UUID column stats were written.
     // The signedUuidExpr has literals with signed comparators for lt/gt/eq predicates.
     // For IN predicates, signed comparator is used via Comparators#comparatorFor.
-    return new MetricsEvalVisitor().eval(fileSchema, rowGroup, true);
+    return new MetricsEvalVisitor(schema).eval(fileSchema, rowGroup, signedUuidExpr, true);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
   private static final boolean ROWS_CANNOT_MATCH = false;
 
-  private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private static class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
+    private final Schema schema;
     private Map<Integer, Statistics<?>> stats = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Function<Object, Object>> conversions = null;
     // Flag to use signed UUID comparator for backward compatibility.
-    // This is needed for the IN predicate because the comparator information is lost
-    // when binding converts literals to a Set<T> of raw values.
+    // This is specifically necessary for IN predicates because the comparator information
+    // is lost when binding converts literals to a Set<T> of raw values.
     private boolean useSignedUuidComparator = false;
 
-    private boolean eval(MessageType fileSchema, BlockMetaData rowGroup, boolean signedUuidMode) {
+    private MetricsEvalVisitor(Schema schema) {
+      this.schema = schema;
+    }
+
+    private boolean eval(
+        MessageType fileSchema,
+        BlockMetaData rowGroup,
+        Expression expression,
+        boolean signedUuidMode) {
       if (rowGroup.getRowCount() <= 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -128,7 +137,7 @@ public class ParquetMetricsRowGroupFilter {
         }
       }
 
-      return ExpressionVisitors.visitEvaluator(signedUuidMode ? signedUuidExpr : expr, this);
+      return ExpressionVisitors.visitEvaluator(expression, this);
     }
 
     @Override
