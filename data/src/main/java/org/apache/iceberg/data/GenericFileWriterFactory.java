@@ -52,6 +52,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
   private Table table;
   private FileFormat format;
   private Schema positionDeleteRowSchema;
+  private Map<String, String> writerProperties;
 
   GenericFileWriterFactory(
       Table table,
@@ -111,6 +112,7 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
     this.table = table;
     this.format = dataFileFormat;
     this.positionDeleteRowSchema = positionDeleteRowSchema;
+    this.writerProperties = writerProperties != null ? writerProperties : ImmutableMap.of();
   }
 
   /**
@@ -238,15 +240,19 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
     } else {
       LOG.warn(
           "Deprecated feature used. Position delete row schema is used to create the position delete writer.");
+      Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
       MetricsConfig metricsConfig =
-          table != null
-              ? MetricsConfig.forPositionDelete(table)
-              : MetricsConfig.forPositionDelete();
+          table == null
+              ? MetricsConfig.forPositionDelete()
+              : MetricsConfig.forPositionDelete(table);
 
       try {
         return switch (format) {
           case AVRO ->
               Avro.writeDeletes(file)
+                  .setAll(properties)
+                  .setAll(writerProperties)
+                  .metricsConfig(metricsConfig)
                   .createWriterFunc(DataWriter::create)
                   .withPartition(partition)
                   .overwrite()
@@ -256,6 +262,9 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
                   .buildPositionWriter();
           case ORC ->
               ORC.writeDeletes(file)
+                  .setAll(properties)
+                  .setAll(writerProperties)
+                  .metricsConfig(metricsConfig)
                   .createWriterFunc(GenericOrcWriter::buildWriter)
                   .withPartition(partition)
                   .overwrite()
@@ -265,6 +274,9 @@ public class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Rec
                   .buildPositionWriter();
           case PARQUET ->
               Parquet.writeDeletes(file)
+                  .setAll(properties)
+                  .setAll(writerProperties)
+                  .metricsConfig(metricsConfig)
                   .createWriterFunc(GenericParquetWriter::create)
                   .withPartition(partition)
                   .overwrite()
