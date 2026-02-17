@@ -166,39 +166,44 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     } else {
       LOG.warn(
           "Deprecated feature used. Position delete row schema is used to create the position delete writer.");
+      Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
       MetricsConfig metricsConfig =
-          table != null
-              ? MetricsConfig.forPositionDelete(table)
-              : MetricsConfig.fromProperties(ImmutableMap.of());
+          table == null
+              ? MetricsConfig.forPositionDelete()
+              : MetricsConfig.forPositionDelete(table);
 
       try {
         return switch (format) {
-          case AVRO -> {
-            StructType positionDeleteRowSparkType =
-                (StructType) positionDeleteSparkType().apply(DELETE_FILE_ROW_FIELD_NAME).dataType();
-
-            yield Avro.writeDeletes(file)
-                .createWriterFunc(ignored -> new SparkAvroWriter(positionDeleteRowSparkType))
-                .withPartition(partition)
-                .overwrite()
-                .rowSchema(positionDeleteRowSchema)
-                .withSpec(spec)
-                .withKeyMetadata(file.keyMetadata())
-                .setAll(writeProperties)
-                .metricsConfig(metricsConfig)
-                .buildPositionWriter();
-          }
-          case ORC ->
-              ORC.writeDeletes(file)
-                  .createWriterFunc(SparkOrcWriter::new)
-                  .transformPaths(path -> UTF8String.fromString(path.toString()))
+          case AVRO ->
+              Avro.writeDeletes(file)
+                  .createWriterFunc(
+                      ignored ->
+                          new SparkAvroWriter(
+                              (StructType)
+                                  positionDeleteSparkType()
+                                      .apply(DELETE_FILE_ROW_FIELD_NAME)
+                                      .dataType()))
+                  .setAll(properties)
+                  .setAll(writeProperties)
+                  .metricsConfig(metricsConfig)
                   .withPartition(partition)
                   .overwrite()
                   .rowSchema(positionDeleteRowSchema)
                   .withSpec(spec)
                   .withKeyMetadata(file.keyMetadata())
+                  .buildPositionWriter();
+          case ORC ->
+              ORC.writeDeletes(file)
+                  .createWriterFunc(SparkOrcWriter::new)
+                  .transformPaths(path -> UTF8String.fromString(path.toString()))
+                  .setAll(properties)
                   .setAll(writeProperties)
                   .metricsConfig(metricsConfig)
+                  .withPartition(partition)
+                  .overwrite()
+                  .rowSchema(positionDeleteRowSchema)
+                  .withSpec(spec)
+                  .withKeyMetadata(file.keyMetadata())
                   .buildPositionWriter();
           case PARQUET ->
               Parquet.writeDeletes(file)
@@ -206,14 +211,15 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
                       msgType ->
                           SparkParquetWriters.buildWriter(positionDeleteSparkType(), msgType))
                   .transformPaths(path -> UTF8String.fromString(path.toString()))
+                  .setAll(properties)
+                  .setAll(writeProperties)
+                  .metricsConfig(metricsConfig)
                   .withPartition(partition)
                   .overwrite()
                   .metricsConfig(metricsConfig)
                   .rowSchema(positionDeleteRowSchema)
                   .withSpec(spec)
                   .withKeyMetadata(file.keyMetadata())
-                  .setAll(writeProperties)
-                  .metricsConfig(metricsConfig)
                   .buildPositionWriter();
           default ->
               throw new UnsupportedOperationException(
