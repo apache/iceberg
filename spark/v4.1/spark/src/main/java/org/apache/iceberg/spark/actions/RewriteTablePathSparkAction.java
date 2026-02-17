@@ -57,9 +57,7 @@ import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.formats.FileWriterBuilder;
 import org.apache.iceberg.formats.FormatModelRegistry;
-import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileIO;
@@ -727,10 +725,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private static CloseableIterable<Record> positionDeletesReader(
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
-    Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
-    ReadBuilder<Record, ?> builder =
-        FormatModelRegistry.readBuilder(format, Record.class, inputFile);
-    return builder.project(deleteSchema).reuseContainers().build();
+    return FormatModelRegistry.readBuilder(format, Record.class, inputFile)
+        .project(DeleteSchemaUtil.posDeleteReadSchema(spec.schema()))
+        .reuseContainers()
+        .build();
   }
 
   private static PositionDeleteWriter<Record> positionDeletesWriter(
@@ -741,10 +739,11 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       Schema rowSchema)
       throws IOException {
     if (rowSchema == null) {
-      FileWriterBuilder<PositionDeleteWriter<Record>, ?> builder =
-          FormatModelRegistry.positionDeleteWriteBuilder(
-              format, EncryptedFiles.plainAsEncryptedOutput(outputFile));
-      return builder.partition(partition).spec(spec).build();
+      return FormatModelRegistry.<Record>positionDeleteWriteBuilder(
+              format, EncryptedFiles.plainAsEncryptedOutput(outputFile))
+          .partition(partition)
+          .spec(spec)
+          .build();
     } else {
       return switch (format) {
         case AVRO ->
