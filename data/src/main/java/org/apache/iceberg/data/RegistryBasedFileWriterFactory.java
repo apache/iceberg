@@ -98,7 +98,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
   @Override
   public DataWriter<T> newDataWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
-    Preconditions.checkNotNull(dataSchema, "Data schema must not be null");
+    Preconditions.checkArgument(dataSchema != null, "Invalid data schema: null");
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table != null ? table.properties() : ImmutableMap.of();
     MetricsConfig metricsConfig =
@@ -127,7 +127,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S>
   @Override
   public EqualityDeleteWriter<T> newEqualityDeleteWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
-    Preconditions.checkNotNull(equalityDeleteRowSchema, "Equality delete schema must not be null");
+    Preconditions.checkArgument(equalityDeleteRowSchema != null, "Invalid delete schema: null");
 
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table != null ? table.properties() : ImmutableMap.of();
