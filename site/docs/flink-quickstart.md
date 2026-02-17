@@ -23,34 +23,30 @@ highlight some powerful features. You can learn more about Iceberg's Flink runti
 
 ## Docker Compose
 
-The fastest way to get started is to use a Docker Compose file.
+The fastest way to get started is to use Docker Compose with the [Iceberg Flink Quickstart](https://github.com/apache/iceberg/tree/main/docker/iceberg-flink-quickstart) image.
+
 To use this, you'll need to install the [Docker CLI](https://docs.docker.com/get-docker/) as well as the [Docker Compose CLI](https://github.com/docker/compose-cli/blob/main/INSTALL.md).
 
-Once you have those, save these two files into a new folder:
+The quickstart includes:
 
-* [`docker-compose.yml`](https://raw.githubusercontent.com/apache/iceberg/refs/heads/main/flink/v2.0/quickstart/docker-compose.yml)
+* A local Flink cluster (Job Manager and Task Manager)
+* Iceberg REST Catalog
+* MinIO (local S3 storage)
 
-    This contains:
+![An overview of the Flink quickstart containers](/assets/images/flink-quickstart.excalidraw.png)
 
-    * A local Flink cluster (Job Manager and Task Manager)
-    * Iceberg REST Catalog
-    * MinIO (local S3 storage)
-    * AWS CLI (to create the S3 bucket)
-
-    ![An overview of the Flink quickstart containers](/assets/images/flink-quickstart.excalidraw.png)
-
-* [`Dockerfile`](https://raw.githubusercontent.com/apache/iceberg/refs/heads/main/flink/v2.0/quickstart/Dockerfile) - base Flink image, plus some required JARs for S3 and Iceberg.
-
-Next, start up the docker containers with this command:
+Clone the Iceberg repository and start up the Docker containers:
 
 ```sh
-docker compose up -d
+git clone https://github.com/apache/iceberg.git
+cd iceberg
+docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml up -d --build
 ```
 
 Launch a Flink SQL client session:
 
 ```sh
-docker compose exec -it jobmanager ./bin/sql-client.sh
+docker exec -it jobmanager ./bin/sql-client.sh
 ```
 
 ## Creating an Iceberg Catalog in Flink

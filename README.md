@@ -96,7 +96,7 @@ sudo setenforce Enforcing
 
 #### Documentation
 
-For information about building the documentation, see [here](../site/README.md).
+For information about building the documentation, see [here](site/README.md).
 
 ### Engine Compatibility
 
