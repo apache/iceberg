@@ -29,6 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<String>> {
+  private static final int DEFAULT_FORMAT_VERSION = 2;
+
   /**
    * Returns a list of compatibility errors for writing with the given write schema. This includes
    * nullability: writing optional (nullable) values to a required field is an error.
@@ -38,7 +40,22 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
   public static List<String> writeCompatibilityErrors(Schema readSchema, Schema writeSchema) {
-    return writeCompatibilityErrors(readSchema, writeSchema, true);
+    return writeCompatibilityErrors(readSchema, writeSchema, true, DEFAULT_FORMAT_VERSION);
+  }
+
+  /**
+   * Returns a list of compatibility errors for writing with the given write schema. This includes
+   * nullability: writing optional (nullable) values to a required field is an error.
+   *
+   * @param readSchema a read schema
+   * @param writeSchema a write schema
+   * @param formatVersion the table format version
+   * @return a list of error details, or an empty list if there are no compatibility problems
+   */
+  public static List<String> writeCompatibilityErrors(
+      Schema readSchema, Schema writeSchema, int formatVersion) {
+    return writeCompatibilityErrors(
+        readSchema, writeSchema, /* checkOrdering= */ true, formatVersion);
   }
 
   /**
@@ -53,7 +70,24 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    */
   public static List<String> writeCompatibilityErrors(
       Schema readSchema, Schema writeSchema, boolean checkOrdering) {
-    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, checkOrdering, true));
+    return writeCompatibilityErrors(readSchema, writeSchema, checkOrdering, DEFAULT_FORMAT_VERSION);
+  }
+
+  /**
+   * Returns a list of compatibility errors for writing with the given write schema. This includes
+   * nullability: writing optional (nullable) values to a required field is an error. This method
+   * allows configuring whether different orderings between schema is considered an error.
+   *
+   * @param readSchema a read schema - input schema
+   * @param writeSchema a write schema
+   * @param checkOrdering If false, allow input schema to have different ordering than table schema
+   * @param formatVersion the table format version
+   * @return a list of error details, or an empty list if there are no compatibility problems
+   */
+  public static List<String> writeCompatibilityErrors(
+      Schema readSchema, Schema writeSchema, boolean checkOrdering, int formatVersion) {
+    return TypeUtil.visit(
+        readSchema, new CheckCompatibility(writeSchema, checkOrdering, true, formatVersion));
   }
 
   /**
@@ -70,7 +104,13 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    */
   public static List<String> typeCompatibilityErrors(
       Schema readSchema, Schema writeSchema, boolean checkOrdering) {
-    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, checkOrdering, false));
+    return typeCompatibilityErrors(readSchema, writeSchema, checkOrdering, 1);
+  }
+
+  public static List<String> typeCompatibilityErrors(
+      Schema readSchema, Schema writeSchema, boolean checkOrdering, int formatVersion) {
+    return TypeUtil.visit(
+        readSchema, new CheckCompatibility(writeSchema, checkOrdering, false, formatVersion));
   }
 
   /**
@@ -84,7 +124,13 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
   public static List<String> typeCompatibilityErrors(Schema readSchema, Schema writeSchema) {
-    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, true, false));
+    return typeCompatibilityErrors(readSchema, writeSchema, DEFAULT_FORMAT_VERSION);
+  }
+
+  public static List<String> typeCompatibilityErrors(
+      Schema readSchema, Schema writeSchema, int formatVersion) {
+    return TypeUtil.visit(
+        readSchema, new CheckCompatibility(writeSchema, true, false, formatVersion));
   }
 
   /**
@@ -95,7 +141,13 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
    * @return a list of error details, or an empty list if there are no compatibility problems
    */
   public static List<String> readCompatibilityErrors(Schema readSchema, Schema writeSchema) {
-    return TypeUtil.visit(readSchema, new CheckCompatibility(writeSchema, false, true));
+    return readCompatibilityErrors(readSchema, writeSchema, DEFAULT_FORMAT_VERSION);
+  }
+
+  public static List<String> readCompatibilityErrors(
+      Schema readSchema, Schema writeSchema, int formatVersion) {
+    return TypeUtil.visit(
+        readSchema, new CheckCompatibility(writeSchema, false, true, formatVersion));
   }
 
   private static final ImmutableList<String> NO_ERRORS = ImmutableList.of();
@@ -103,14 +155,17 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
   private final Schema schema;
   private final boolean checkOrdering;
   private final boolean checkNullability;
+  private final int formatVersion;
 
   // the current file schema, maintained while traversing a write schema
   private Type currentType;
 
-  private CheckCompatibility(Schema schema, boolean checkOrdering, boolean checkNullability) {
+  private CheckCompatibility(
+      Schema schema, boolean checkOrdering, boolean checkNullability, int formatVersion) {
     this.schema = schema;
     this.checkOrdering = checkOrdering;
     this.checkNullability = checkNullability;
+    this.formatVersion = formatVersion;
   }
 
   @Override
@@ -273,7 +328,8 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
               currentType.typeId().toString().toLowerCase(Locale.ENGLISH), readPrimitive));
     }
 
-    if (!TypeUtil.isPromotionAllowed(currentType.asPrimitiveType(), readPrimitive)) {
+    if (!TypeUtil.isPromotionAllowed(
+        currentType.asPrimitiveType(), readPrimitive, formatVersion, false)) {
       return ImmutableList.of(
           String.format(": %s cannot be promoted to %s", currentType, readPrimitive));
     }

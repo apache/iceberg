@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -77,11 +78,13 @@ public class TestSchemaUpdate {
               7,
               "properties",
               Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get()),
-              "string map of properties"));
+              "string map of properties"),
+          optional(24, "date_to_time", Types.DateType.get()),
+          optional(25, "date_to_time_nano", Types.DateType.get()));
 
   private static final Set<Integer> ALL_IDS = ImmutableSet.copyOf(TypeUtil.getProjectedIds(SCHEMA));
 
-  private static final int SCHEMA_LAST_COLUMN_ID = 23;
+  private static final int SCHEMA_LAST_COLUMN_ID = 25;
 
   @Test
   public void testNoChanges() {
@@ -193,13 +196,17 @@ public class TestSchemaUpdate {
                 7,
                 "properties",
                 Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get()),
-                "string map of properties"));
+                "string map of properties"),
+            optional(24, "date_to_time", Types.TimestampType.withoutZone()),
+            optional(25, "date_to_time_nano", Types.TimestampNanoType.withoutZone()));
 
     Schema updated =
-        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID, 3)
             .updateColumn("id", Types.LongType.get())
             .updateColumn("locations.lat", Types.DoubleType.get())
             .updateColumn("locations.long", Types.DoubleType.get())
+            .updateColumn("date_to_time", Types.TimestampType.withoutZone())
+            .updateColumn("date_to_time_nano", Types.TimestampNanoType.withoutZone())
             .apply();
 
     assertThat(updated.asStruct()).isEqualTo(expected);
@@ -326,7 +333,9 @@ public class TestSchemaUpdate {
                 7,
                 "properties",
                 Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get()),
-                "string map of properties"));
+                "string map of properties"),
+            optional(24, "date_to_time", Types.DateType.get()),
+            optional(25, "date_to_time_nano", Types.DateType.get()));
 
     Schema updated =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -432,7 +441,9 @@ public class TestSchemaUpdate {
                 7,
                 "properties",
                 Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get()),
-                "string map of properties"));
+                "string map of properties"),
+            optional(24, "date_to_time", Types.DateType.get()),
+            optional(25, "date_to_time_nano", Types.DateType.get()));
 
     Schema renamed =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -489,7 +500,9 @@ public class TestSchemaUpdate {
                 7,
                 "properties",
                 Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get()),
-                "string map of properties"));
+                "string map of properties"),
+            optional(24, "date_to_time", Types.DateType.get()),
+            optional(25, "date_to_time_nano", Types.DateType.get()));
 
     Schema renamed =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -532,7 +545,7 @@ public class TestSchemaUpdate {
                     Types.StructType.of(
                         required(12, "lat", Types.FloatType.get()),
                         required(13, "long", Types.FloatType.get()),
-                        optional(25, "alt", Types.FloatType.get()))),
+                        optional(27, "alt", Types.FloatType.get()))),
                 "map of address to coordinate"),
             optional(
                 5,
@@ -542,8 +555,8 @@ public class TestSchemaUpdate {
                     Types.StructType.of(
                         required(15, "x", Types.LongType.get()),
                         required(16, "y", Types.LongType.get()),
-                        optional(26, "z", Types.LongType.get()),
-                        optional(27, "t.t", Types.LongType.get()))),
+                        optional(28, "z", Types.LongType.get()),
+                        optional(29, "t.t", Types.LongType.get()))),
                 "2-D cartesian points"),
             required(6, "doubles", Types.ListType.ofRequired(17, Types.DoubleType.get())),
             optional(
@@ -551,7 +564,9 @@ public class TestSchemaUpdate {
                 "properties",
                 Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get()),
                 "string map of properties"),
-            optional(24, "toplevel", Types.DecimalType.of(9, 2)));
+            optional(24, "date_to_time", Types.DateType.get()),
+            optional(25, "date_to_time_nano", Types.DateType.get()),
+            optional(26, "toplevel", Types.DecimalType.of(9, 2)));
 
     Schema added =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -901,9 +916,9 @@ public class TestSchemaUpdate {
                         required(23, "zip", Types.IntegerType.get())),
                     Types.StructType.of(
                         required(12, "latitude", Types.DoubleType.get(), "latitude"),
-                        optional(25, "alt", Types.FloatType.get()),
+                        optional(27, "alt", Types.FloatType.get()),
                         required(
-                            28, "description", Types.StringType.get(), "Location description"))),
+                            30, "description", Types.StringType.get(), "Location description"))),
                 "map of address to coordinate"),
             optional(
                 5,
@@ -913,11 +928,13 @@ public class TestSchemaUpdate {
                     Types.StructType.of(
                         optional(15, "X", Types.LongType.get()),
                         required(16, "y.y", Types.LongType.get()),
-                        optional(26, "z", Types.LongType.get()),
-                        optional(27, "t.t", Types.LongType.get(), "name with '.'"))),
+                        optional(28, "z", Types.LongType.get()),
+                        optional(29, "t.t", Types.LongType.get(), "name with '.'"))),
                 "2-D cartesian points"),
             required(6, "doubles", Types.ListType.ofRequired(17, Types.DoubleType.get())),
-            optional(24, "toplevel", Types.DecimalType.of(9, 2)));
+            optional(24, "date_to_time", Types.DateType.get()),
+            optional(25, "date_to_time_nano", Types.DateType.get()),
+            optional(26, "toplevel", Types.DecimalType.of(9, 2)));
 
     Schema updated =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -1002,7 +1019,7 @@ public class TestSchemaUpdate {
                 "preferences",
                 Types.StructType.of(
                     optional(9, "feature2", Types.BooleanType.get()),
-                    optional(24, "feature1", Types.BooleanType.get())),
+                    optional(26, "feature1", Types.BooleanType.get())),
                 "struct of named boolean options"),
             required(
                 4,
@@ -1033,7 +1050,9 @@ public class TestSchemaUpdate {
                 7,
                 "properties",
                 Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get()),
-                "string map of properties"));
+                "string map of properties"),
+            optional(24, "date_to_time", Types.DateType.get()),
+            optional(25, "date_to_time_nano", Types.DateType.get()));
 
     Schema updatedNested =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -2204,8 +2223,7 @@ public class TestSchemaUpdate {
                 new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID + 2).deleteColumn("out").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot delete field 24: out: required struct<25: nested: required string> "
-                + "as it will delete nested identifier field 25: nested: required string");
+            "Cannot delete field 26: out: required struct<27: nested: required string> as it will delete nested identifier field 27: nested: required string");
   }
 
   @Test
@@ -2578,5 +2596,72 @@ public class TestSchemaUpdate {
             .apply();
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testDateToTimestampPromotionNotAllowedInV2() {
+    Schema schema = new Schema(required(1, "col", Types.DateType.get()));
+    // v2 format does not allow date to timestamp promotion
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1, 2)
+                    .updateColumn("col", Types.TimestampType.withoutZone()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: col: date -> timestamp");
+  }
+
+  @Test
+  public void testDateToTimestampTzPromotionNotAllowedInV3() {
+    Schema schema = new Schema(required(1, "col", Types.DateType.get()));
+    // v3 format does not allow date to timestamptz promotion
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1, 3).updateColumn("col", Types.TimestampType.withZone()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: col: date -> timestamptz");
+  }
+
+  @Test
+  public void testUpdatePartitionedDateToTimestampV3Succeeds() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()), required(2, "ts", Types.DateType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).day("ts").build();
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema, spec, "file:/tmp", ImmutableMap.of("format-version", "3"));
+
+    Schema updated =
+        new SchemaUpdate(metadata).updateColumn("ts", Types.TimestampType.withoutZone()).apply();
+
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "ts", Types.TimestampType.withoutZone()));
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testUpdatePartitionedDateToTimestampV3Fails() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()), required(2, "ts", Types.DateType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("ts", 4).build();
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema, spec, "file:/tmp", ImmutableMap.of("format-version", "3"));
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(metadata)
+                    .updateColumn("ts", Types.TimestampType.withoutZone())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: ts: date -> timestamp");
   }
 }
