@@ -25,7 +25,7 @@ highlight some powerful features. You can learn more about Iceberg's Flink runti
 
 The fastest way to get started is to use Docker Compose with the [Iceberg Flink Quickstart](https://github.com/apache/iceberg/tree/main/docker/iceberg-flink-quickstart) image.
 
-To use this, you'll need to install the [Docker CLI](https://docs.docker.com/get-docker/) as well as the [Docker Compose CLI](https://github.com/docker/compose-cli/blob/main/INSTALL.md).
+To use this, you'll need to install the [Docker CLI](https://docs.docker.com/get-docker/).
 
 The quickstart includes:
 
