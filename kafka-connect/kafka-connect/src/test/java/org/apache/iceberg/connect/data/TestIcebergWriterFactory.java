@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -95,5 +96,34 @@ public class TestIcebergWriterFactory {
     assertThat(capturedArguments.get(0)).isEqualTo(Namespace.of("foo1"));
     assertThat(capturedArguments.get(1)).isEqualTo(Namespace.of("foo1", "foo2"));
     assertThat(capturedArguments.get(2)).isEqualTo(Namespace.of("foo1", "foo2", "foo3"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testAutoCreateTableWithInvalidPartitionSpec() {
+    Catalog catalog = mock(Catalog.class, withSettings().extraInterfaces(SupportsNamespaces.class));
+    when(catalog.loadTable(any())).thenThrow(new NoSuchTableException("no such table"));
+
+    TableSinkConfig tableConfig = mock(TableSinkConfig.class);
+    // Use an invalid partition column that doesn't exist in the schema
+    when(tableConfig.partitionBy()).thenReturn(ImmutableList.of("nonexistent_column"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.autoCreateProps()).thenReturn(ImmutableMap.of("test-prop", "foo1"));
+    when(config.tableConfig(any())).thenReturn(tableConfig);
+
+    SinkRecord record = mock(SinkRecord.class);
+    when(record.value()).thenReturn(ImmutableMap.of("id", 123, "data", "foo2"));
+
+    IcebergWriterFactory factory = new IcebergWriterFactory(catalog, config);
+    factory.autoCreateTable("db.table", record);
+
+    ArgumentCaptor<PartitionSpec> specCaptor = ArgumentCaptor.forClass(PartitionSpec.class);
+
+    verify(catalog)
+        .createTable(any(TableIdentifier.class), any(Schema.class), specCaptor.capture(), any());
+
+    // Verify that the table is created as unpartitioned when partition spec is invalid
+    assertThat(specCaptor.getValue().isUnpartitioned()).isTrue();
   }
 }
