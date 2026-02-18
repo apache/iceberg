@@ -60,6 +60,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
+import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
@@ -388,6 +389,10 @@ public class SparkTable
             .newDelete()
             .set("spark.app.id", sparkSession().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
+
+    // Apply snapshot properties from session configuration
+    SparkWriteConf writeConf = new SparkWriteConf(sparkSession(), icebergTable, Maps.newHashMap());
+    writeConf.extraSnapshotMetadata().forEach(deleteFiles::set);
 
     if (SparkTableUtil.wapEnabled(table())) {
       branch = SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
