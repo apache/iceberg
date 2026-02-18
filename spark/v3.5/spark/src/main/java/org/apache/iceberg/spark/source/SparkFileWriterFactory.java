@@ -23,13 +23,20 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.BaseFileWriterFactory;
+import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
@@ -40,14 +47,20 @@ import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
-  private StructType dataSparkType;
-  private StructType equalityDeleteSparkType;
+class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow, StructType> {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkFileWriterFactory.class);
+  // We need to use old writers to write position deletes with row data, which is a deprecated
+  // feature.
+  private final boolean useDeprecatedPositionDeleteWriter;
   private StructType positionDeleteSparkType;
+  private final Schema positionDeleteRowSchema;
+  private final Table table;
+  private final FileFormat format;
   private final Map<String, String> writeProperties;
 
   /**
@@ -75,18 +88,26 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     super(
         table,
         dataFileFormat,
+        InternalRow.class,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,
         equalityFieldIds,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
-        positionDeleteRowSchema);
+        writeProperties,
+        useOrConvert(dataSparkType, dataSchema),
+        useOrConvert(equalityDeleteSparkType, equalityDeleteRowSchema));
 
-    this.dataSparkType = dataSparkType;
-    this.equalityDeleteSparkType = equalityDeleteSparkType;
-    this.positionDeleteSparkType = positionDeleteSparkType;
+    this.table = table;
+    this.format = dataFileFormat;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
+    this.positionDeleteRowSchema = positionDeleteRowSchema;
+    this.positionDeleteSparkType = positionDeleteSparkType;
+    this.useDeprecatedPositionDeleteWriter =
+        positionDeleteRowSchema != null
+            || (positionDeleteSparkType != null
+                && positionDeleteSparkType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME).isDefined());
   }
 
   SparkFileWriterFactory(
@@ -105,117 +126,108 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     super(
         table,
         dataFileFormat,
+        InternalRow.class,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,
         equalityFieldIds,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
-        ImmutableMap.of());
+        writeProperties,
+        useOrConvert(dataSparkType, dataSchema),
+        useOrConvert(equalityDeleteSparkType, equalityDeleteRowSchema));
 
-    this.dataSparkType = dataSparkType;
-    this.equalityDeleteSparkType = equalityDeleteSparkType;
-    this.positionDeleteSparkType = null;
+    this.table = table;
+    this.format = dataFileFormat;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
+    this.positionDeleteRowSchema = null;
+    this.useDeprecatedPositionDeleteWriter = false;
   }
 
   static Builder builderFor(Table table) {
     return new Builder(table);
   }
 
-  @Override
-  protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    builder.createWriterFunc(ignored -> new SparkAvroWriter(dataSparkType()));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(ignored -> new SparkAvroWriter(equalityDeleteSparkType()));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
-    boolean withRow =
-        positionDeleteSparkType().getFieldIndex(DELETE_FILE_ROW_FIELD_NAME).isDefined();
-    if (withRow) {
-      // SparkAvroWriter accepts just the Spark type of the row ignoring the path and pos
-      StructField rowField = positionDeleteSparkType().apply(DELETE_FILE_ROW_FIELD_NAME);
-      StructType positionDeleteRowSparkType = (StructType) rowField.dataType();
-      builder.createWriterFunc(ignored -> new SparkAvroWriter(positionDeleteRowSparkType));
-    }
-
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dataSparkType(), msgType));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(
-        msgType -> SparkParquetWriters.buildWriter(equalityDeleteSparkType(), msgType));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(
-        msgType -> SparkParquetWriters.buildWriter(positionDeleteSparkType(), msgType));
-    builder.transformPaths(path -> UTF8String.fromString(path.toString()));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    builder.createWriterFunc(SparkOrcWriter::new);
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(SparkOrcWriter::new);
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(SparkOrcWriter::new);
-    builder.transformPaths(path -> UTF8String.fromString(path.toString()));
-    builder.setAll(writeProperties);
-  }
-
-  private StructType dataSparkType() {
-    if (dataSparkType == null) {
-      Preconditions.checkNotNull(dataSchema(), "Data schema must not be null");
-      this.dataSparkType = SparkSchemaUtil.convert(dataSchema());
-    }
-
-    return dataSparkType;
-  }
-
-  private StructType equalityDeleteSparkType() {
-    if (equalityDeleteSparkType == null) {
-      Preconditions.checkNotNull(
-          equalityDeleteRowSchema(), "Equality delete schema must not be null");
-      this.equalityDeleteSparkType = SparkSchemaUtil.convert(equalityDeleteRowSchema());
-    }
-
-    return equalityDeleteSparkType;
-  }
-
   private StructType positionDeleteSparkType() {
     if (positionDeleteSparkType == null) {
       // wrap the optional row schema into the position delete schema containing path and position
-      Schema positionDeleteSchema = DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema());
+      Schema positionDeleteSchema = DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema);
       this.positionDeleteSparkType = SparkSchemaUtil.convert(positionDeleteSchema);
     }
 
     return positionDeleteSparkType;
+  }
+
+  @Override
+  public PositionDeleteWriter<InternalRow> newPositionDeleteWriter(
+      EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
+    if (!useDeprecatedPositionDeleteWriter) {
+      return super.newPositionDeleteWriter(file, spec, partition);
+    } else {
+      LOG.warn("Position deletes with deleted rows are deprecated and will be removed in 1.12.0.");
+      Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
+      MetricsConfig metricsConfig =
+          table == null
+              ? MetricsConfig.forPositionDelete()
+              : MetricsConfig.forPositionDelete(table);
+
+      try {
+        return switch (format) {
+          case AVRO ->
+              Avro.writeDeletes(file)
+                  .createWriterFunc(
+                      ignored ->
+                          new SparkAvroWriter(
+                              (StructType)
+                                  positionDeleteSparkType()
+                                      .apply(DELETE_FILE_ROW_FIELD_NAME)
+                                      .dataType()))
+                  .setAll(properties)
+                  .setAll(writeProperties)
+                  .metricsConfig(metricsConfig)
+                  .withPartition(partition)
+                  .overwrite()
+                  .rowSchema(positionDeleteRowSchema)
+                  .withSpec(spec)
+                  .withKeyMetadata(file.keyMetadata())
+                  .buildPositionWriter();
+          case ORC ->
+              ORC.writeDeletes(file)
+                  .createWriterFunc(SparkOrcWriter::new)
+                  .transformPaths(path -> UTF8String.fromString(path.toString()))
+                  .setAll(properties)
+                  .setAll(writeProperties)
+                  .metricsConfig(metricsConfig)
+                  .withPartition(partition)
+                  .overwrite()
+                  .rowSchema(positionDeleteRowSchema)
+                  .withSpec(spec)
+                  .withKeyMetadata(file.keyMetadata())
+                  .buildPositionWriter();
+          case PARQUET ->
+              Parquet.writeDeletes(file)
+                  .createWriterFunc(
+                      msgType ->
+                          SparkParquetWriters.buildWriter(positionDeleteSparkType(), msgType))
+                  .transformPaths(path -> UTF8String.fromString(path.toString()))
+                  .setAll(properties)
+                  .setAll(writeProperties)
+                  .metricsConfig(metricsConfig)
+                  .withPartition(partition)
+                  .overwrite()
+                  .metricsConfig(metricsConfig)
+                  .rowSchema(positionDeleteRowSchema)
+                  .withSpec(spec)
+                  .withKeyMetadata(file.keyMetadata())
+                  .buildPositionWriter();
+          default ->
+              throw new UnsupportedOperationException(
+                  "Cannot write pos-deletes for unsupported file format: " + format);
+        };
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to create new position delete writer", e);
+      }
+    }
   }
 
   static class Builder {
@@ -338,6 +350,16 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
           positionDeleteRowSchema,
           positionDeleteSparkType,
           writeProperties);
+    }
+  }
+
+  private static StructType useOrConvert(StructType sparkType, Schema schema) {
+    if (sparkType != null) {
+      return sparkType;
+    } else if (schema != null) {
+      return SparkSchemaUtil.convert(schema);
+    } else {
+      return null;
     }
   }
 }
