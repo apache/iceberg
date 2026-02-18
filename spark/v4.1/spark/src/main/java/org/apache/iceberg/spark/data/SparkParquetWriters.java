@@ -78,12 +78,21 @@ public class SparkParquetWriters {
   private SparkParquetWriters() {}
 
   public static <T> ParquetValueWriter<T> buildWriter(StructType dfSchema, MessageType type) {
-    return buildWriter(null, dfSchema, type);
+    return buildWriter(null, type, dfSchema);
   }
 
   @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(
-      Schema icebergSchema, StructType dfSchema, MessageType type) {
+      Schema icebergSchema, MessageType type, StructType dfSchema) {
+    return (ParquetValueWriter<T>)
+        ParquetWithSparkSchemaVisitor.visit(
+            dfSchema != null ? dfSchema : SparkSchemaUtil.convert(icebergSchema),
+            type,
+            new WriteBuilder(type));
+  }
+
+  public static <T> ParquetValueWriter<T> buildWriter(
+      StructType dfSchema, MessageType type, Schema icebergSchema) {
     return (ParquetValueWriter<T>)
         ParquetWithSparkSchemaVisitor.visit(
             dfSchema != null ? dfSchema : SparkSchemaUtil.convert(icebergSchema),

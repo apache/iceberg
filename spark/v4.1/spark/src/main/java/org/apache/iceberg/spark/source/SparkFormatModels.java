@@ -48,8 +48,7 @@ public class SparkFormatModels {
         ParquetFormatModel.create(
             InternalRow.class,
             StructType.class,
-            (icebergSchema, fileSchema, engineSchema) ->
-                SparkParquetWriters.buildWriter(icebergSchema, engineSchema, fileSchema),
+            SparkParquetWriters::buildWriter,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 SparkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
 
