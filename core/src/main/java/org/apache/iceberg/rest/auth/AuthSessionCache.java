@@ -54,7 +54,7 @@ public class AuthSessionCache implements AutoCloseable {
   public AuthSessionCache(String name, Duration sessionTimeout) {
     this(
         sessionTimeout,
-        ThreadPools.newExitingWorkerPool(name + "-auth-session-evict", 1),
+        ThreadPools.newScheduledPool(name + "-auth-session-evict", 1),
         Ticker.systemTicker());
   }
 
