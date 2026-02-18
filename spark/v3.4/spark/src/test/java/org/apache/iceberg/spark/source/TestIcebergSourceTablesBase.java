@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -45,6 +46,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -1286,6 +1288,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 Types.IntegerType.get(),
                 "Count of position delete files"),
             required(
+                12,
+                "total_position_delete_file_size_in_bytes",
+                Types.LongType.get(),
+                "Total size in bytes of position delete files"),
+            required(
                 7,
                 "equality_delete_record_count",
                 Types.LongType.get(),
@@ -1295,6 +1302,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 "equality_delete_file_count",
                 Types.IntegerType.get(),
                 "Count of equality delete files"),
+            required(
+                13,
+                "total_equality_delete_file_size_in_bytes",
+                Types.LongType.get(),
+                "Total size in bytes of equality delete files"),
             optional(
                 9,
                 "last_updated_at",
@@ -1325,8 +1337,10 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 totalSizeInBytes(table.currentSnapshot().addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
+            .set("total_position_delete_file_size_in_bytes", 0L)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("total_equality_delete_file_size_in_bytes", 0L)
             .build();
 
     List<Row> actual =
@@ -1394,8 +1408,10 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
+            .set("total_position_delete_file_size_in_bytes", 0L)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("total_equality_delete_file_size_in_bytes", 0L)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
@@ -1410,8 +1426,10 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 totalSizeInBytes(table.snapshot(secondCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
+            .set("total_position_delete_file_size_in_bytes", 0L)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("total_equality_delete_file_size_in_bytes", 0L)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
@@ -1530,8 +1548,10 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("total_data_file_size_in_bytes", dataFiles.get(0).fileSizeInBytes())
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
+            .set("total_position_delete_file_size_in_bytes", 0L)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("total_equality_delete_file_size_in_bytes", 0L)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
@@ -1546,8 +1566,10 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 dataFiles.get(1).fileSizeInBytes() + dataFiles.get(2).fileSizeInBytes())
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
+            .set("total_position_delete_file_size_in_bytes", 0L)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("total_equality_delete_file_size_in_bytes", 0L)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
@@ -1584,8 +1606,10 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("total_data_file_size_in_bytes", dataFiles.get(0).fileSizeInBytes())
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
+            .set("total_position_delete_file_size_in_bytes", 0L)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("total_equality_delete_file_size_in_bytes", 0L)
             .set("spec_id", 0)
             .set("last_updated_at", null)
             .set("last_updated_snapshot_id", null)
@@ -1674,8 +1698,10 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
+            .set("total_position_delete_file_size_in_bytes", 0L)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("total_equality_delete_file_size_in_bytes", 0L)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
@@ -1690,8 +1716,14 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 totalSizeInBytes(table.snapshot(firstCommitId).addedDataFiles(table.io())))
             .set("position_delete_record_count", 2L) // should be incremented now
             .set("position_delete_file_count", 2) // should be incremented now
+            .set(
+                "total_position_delete_file_size_in_bytes",
+                totalDeleteFileSizeInBytes(
+                    table.snapshot(posDeleteCommitId).addedDeleteFiles(table.io()),
+                    FileContent.POSITION_DELETES))
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("total_equality_delete_file_size_in_bytes", 0L)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(posDeleteCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", posDeleteCommitId)
@@ -1725,8 +1757,14 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("file_count", 1)
             .set("position_delete_record_count", 0L)
             .set("position_delete_file_count", 0)
+            .set("total_position_delete_file_size_in_bytes", 0L)
             .set("equality_delete_record_count", 2L) // should be incremented now
             .set("equality_delete_file_count", 2) // should be incremented now
+            .set(
+                "total_equality_delete_file_size_in_bytes",
+                totalDeleteFileSizeInBytes(
+                    table.snapshot(eqDeleteCommitId).addedDeleteFiles(table.io()),
+                    FileContent.EQUALITY_DELETES))
             .set("last_updated_at", table.snapshot(eqDeleteCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", eqDeleteCommitId)
             .build());
@@ -2444,6 +2482,15 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
   private long totalSizeInBytes(Iterable<DataFile> dataFiles) {
     return Lists.newArrayList(dataFiles).stream().mapToLong(DataFile::fileSizeInBytes).sum();
+  }
+
+  private static long totalDeleteFileSizeInBytes(
+      Iterable<DeleteFile> deleteFiles, FileContent content) {
+    return Lists.newArrayList(deleteFiles).stream()
+        .filter(Objects::nonNull)
+        .filter(f -> f.content() == content)
+        .mapToLong(DeleteFile::fileSizeInBytes)
+        .sum();
   }
 
   private void assertDataFilePartitions(
