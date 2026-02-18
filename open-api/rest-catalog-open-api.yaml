@@ -125,6 +125,10 @@ paths:
 
           - DELETE /v1/{prefix}/namespaces/{namespace}/tables/{table}
 
+          - GET /v1/{prefix}/namespaces/{namespace}/functions
+
+          - GET /v1/{prefix}/namespaces/{namespace}/functions/{function}
+
           - POST /v1/{prefix}/namespaces/{namespace}/register
 
           - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics
@@ -606,6 +610,88 @@ paths:
               examples:
                 TableAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/functions:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    get:
+      tags:
+        - Catalog API
+      summary: List all functions underneath a given namespace
+      description: Return all function names under this namespace
+      operationId: listFunctions
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+      responses:
+        200:
+          $ref: '#/components/responses/ListFunctionsResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/functions/{function}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/function'
+
+    get:
+      tags:
+        - Catalog API
+      summary: Load a function from the catalog
+      description: >
+        Load a function from the catalog.
+
+
+        The response contains the function's full spec document in the `spec` field.
+      operationId: loadFunction
+      responses:
+        200:
+          $ref: '#/components/responses/LoadFunctionResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Function or namespace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+                FunctionNotFound:
+                  $ref: '#/components/examples/NoSuchFunctionError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1936,6 +2022,15 @@ components:
       schema:
         type: string
       example: "sales"
+
+    function:
+      name: function
+      in: path
+      description: A function name
+      required: true
+      schema:
+        type: string
+      example: "add_one"
 
     plan-id:
       name: plan-id
@@ -4170,6 +4265,17 @@ components:
           items:
             $ref: '#/components/schemas/TableIdentifier'
 
+    ListFunctionsResponse:
+      type: object
+      properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
+        names:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+
     ListNamespacesResponse:
       type: object
       properties:
@@ -4180,6 +4286,21 @@ components:
           uniqueItems: true
           items:
             $ref: '#/components/schemas/Namespace'
+
+    LoadFunctionResult:
+      type: object
+      required:
+        - spec
+      properties:
+        spec:
+          type: object
+          description: >
+            The function's full spec document, returned inline as JSON.
+
+
+            The structure of this JSON document is defined by the Iceberg function spec version
+            negotiated between the client and the server.
+          additionalProperties: true
 
     UpdateNamespacePropertiesResponse:
       type: object
@@ -4830,6 +4951,13 @@ components:
             ListTablesResponseEmpty:
               $ref: '#/components/examples/ListTablesEmptyExample'
 
+    ListFunctionsResponse:
+      description: A list of function names
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ListFunctionsResponse'
+
     ListNamespacesResponse:
       description: A list of namespaces
       content:
@@ -4947,6 +5075,13 @@ components:
         etag:
           $ref: '#/components/parameters/etag'
 
+    LoadFunctionResponse:
+      description: Function spec result when loading a function
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadFunctionResult'
+
     LoadViewResponse:
       description: View metadata result when loading a view
       content:
@@ -5063,6 +5198,16 @@ components:
         "error": {
           "message": "The given view does not exist",
           "type": "NoSuchViewException",
+          "code": 404
+        }
+      }
+
+    NoSuchFunctionError:
+      summary: The requested function does not exist
+      value: {
+        "error": {
+          "message": "The given function does not exist",
+          "type": "NoSuchFunctionException",
           "code": 404
         }
       }
