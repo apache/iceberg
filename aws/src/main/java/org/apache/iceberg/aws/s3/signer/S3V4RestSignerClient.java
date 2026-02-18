@@ -22,7 +22,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -72,7 +71,8 @@ public abstract class S3V4RestSignerClient
   static final String CACHE_CONTROL_PRIVATE = "private";
   static final String CACHE_CONTROL_NO_CACHE = "no-cache";
 
-  private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
+  @VisibleForTesting
+  static final Cache<S3SignRequest, S3SignResponse> SIGNED_RESPONSE_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
 
   private static final String SCOPE = "sign";
@@ -251,16 +251,15 @@ public abstract class S3V4RestSignerClient
             .body(bodyAsString(request))
             .build();
 
-    Key cacheKey = Key.from(remoteSigningRequest);
-    SignedComponent cachedSignedComponent = SIGNED_COMPONENT_CACHE.getIfPresent(cacheKey);
-    SignedComponent signedComponent;
+    S3SignResponse cachedResponse = SIGNED_RESPONSE_CACHE.getIfPresent(remoteSigningRequest);
+    S3SignResponse signedResponse;
 
-    if (null != cachedSignedComponent) {
-      signedComponent = cachedSignedComponent;
+    if (null != cachedResponse) {
+      signedResponse = cachedResponse;
     } else {
       Map<String, String> responseHeaders = Maps.newHashMap();
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
-      S3SignResponse s3SignResponse =
+      signedResponse =
           httpClient()
               .withAuthSession(authSession())
               .post(
@@ -271,14 +270,8 @@ public abstract class S3V4RestSignerClient
                   ErrorHandlers.defaultErrorHandler(),
                   responseHeadersConsumer);
 
-      signedComponent =
-          ImmutableSignedComponent.builder()
-              .headers(s3SignResponse.headers())
-              .signedURI(s3SignResponse.uri())
-              .build();
-
       if (canBeCached(responseHeaders)) {
-        SIGNED_COMPONENT_CACHE.put(cacheKey, signedComponent);
+        SIGNED_RESPONSE_CACHE.put(remoteSigningRequest, signedResponse);
       }
     }
 
@@ -286,8 +279,8 @@ public abstract class S3V4RestSignerClient
     // so we need to clear the current path from the request
     SdkHttpFullRequest.Builder mutableRequest = request.toBuilder();
     mutableRequest.encodedPath("");
-    mutableRequest.uri(signedComponent.signedURI());
-    reconstructHeaders(signedComponent.headers(), mutableRequest);
+    mutableRequest.uri(signedResponse.uri());
+    reconstructHeaders(signedResponse.headers(), mutableRequest);
 
     return mutableRequest.build();
   }
@@ -341,30 +334,6 @@ public abstract class S3V4RestSignerClient
     if (signerParams.enableChunkedEncoding()) {
       throw new UnsupportedOperationException("Chunked encoding not supported");
     }
-  }
-
-  @Value.Immutable
-  interface Key {
-    String method();
-
-    String region();
-
-    String uri();
-
-    static Key from(S3SignRequest request) {
-      return ImmutableKey.builder()
-          .method(request.method())
-          .region(request.region())
-          .uri(request.uri().toString())
-          .build();
-    }
-  }
-
-  @Value.Immutable
-  interface SignedComponent {
-    Map<String, List<String>> headers();
-
-    URI signedURI();
   }
 
   public static S3V4RestSignerClient create(Map<String, String> properties) {
