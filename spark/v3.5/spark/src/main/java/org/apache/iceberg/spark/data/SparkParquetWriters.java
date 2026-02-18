@@ -77,15 +77,6 @@ public class SparkParquetWriters {
             new WriteBuilder(type));
   }
 
-  public static <T> ParquetValueWriter<T> buildWriter(
-      StructType dfSchema, MessageType type, Schema icebergSchema) {
-    return (ParquetValueWriter<T>)
-        ParquetWithSparkSchemaVisitor.visit(
-            dfSchema != null ? dfSchema : SparkSchemaUtil.convert(icebergSchema),
-            type,
-            new WriteBuilder(type));
-  }
-
   private static class WriteBuilder extends ParquetWithSparkSchemaVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
 
