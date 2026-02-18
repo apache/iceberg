@@ -60,7 +60,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
   private StructType positionDeleteSparkType;
   private final Schema positionDeleteRowSchema;
   private final Table table;
-  private final FileFormat format;
+  private final FileFormat deleteFormat;
   private final Map<String, String> writeProperties;
 
   /**
@@ -100,7 +100,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
         useOrConvert(equalityDeleteSparkType, equalityDeleteRowSchema));
 
     this.table = table;
-    this.format = dataFileFormat;
+    this.deleteFormat = deleteFileFormat;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
     this.positionDeleteRowSchema = positionDeleteRowSchema;
     this.positionDeleteSparkType = positionDeleteSparkType;
@@ -138,7 +138,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
         useOrConvert(equalityDeleteSparkType, equalityDeleteRowSchema));
 
     this.table = table;
-    this.format = dataFileFormat;
+    this.deleteFormat = deleteFileFormat;
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
     this.positionDeleteRowSchema = null;
     this.useDeprecatedPositionDeleteWriter = false;
@@ -172,7 +172,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
               : MetricsConfig.forPositionDelete(table);
 
       try {
-        return switch (format) {
+        return switch (deleteFormat) {
           case AVRO ->
               Avro.writeDeletes(file)
                   .createWriterFunc(
@@ -215,14 +215,13 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
                   .metricsConfig(metricsConfig)
                   .withPartition(partition)
                   .overwrite()
-                  .metricsConfig(metricsConfig)
                   .rowSchema(positionDeleteRowSchema)
                   .withSpec(spec)
                   .withKeyMetadata(file.keyMetadata())
                   .buildPositionWriter();
           default ->
               throw new UnsupportedOperationException(
-                  "Cannot write pos-deletes for unsupported file format: " + format);
+                  "Cannot write pos-deletes for unsupported file format: " + deleteFormat);
         };
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to create new position delete writer", e);
