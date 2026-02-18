@@ -682,13 +682,6 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     @Override
     public PositionDeleteWriter<Record> writer(
-        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
-        throws IOException {
-      return positionDeletesWriter(outputFile, format, spec, partition, null);
-    }
-
-    @Override
-    public PositionDeleteWriter<Record> writer(
         OutputFile outputFile,
         FileFormat format,
         PartitionSpec spec,

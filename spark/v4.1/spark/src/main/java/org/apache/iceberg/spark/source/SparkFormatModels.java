@@ -49,7 +49,7 @@ public class SparkFormatModels {
             InternalRow.class,
             StructType.class,
             (icebergSchema, fileSchema, engineSchema) ->
-                SparkParquetWriters.buildWriter(engineSchema, fileSchema),
+                SparkParquetWriters.buildWriter(icebergSchema, engineSchema, fileSchema),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 SparkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
 

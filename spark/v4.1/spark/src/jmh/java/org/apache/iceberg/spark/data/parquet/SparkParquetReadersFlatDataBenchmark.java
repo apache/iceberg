@@ -115,9 +115,9 @@ public class SparkParquetReadersFlatDataBenchmark {
   @Threads(1)
   public void readUsingIcebergReader(Blackhole blackHole) throws IOException {
     try (CloseableIterable<InternalRow> rows =
-        Parquet.read(Files.localInput(dataFile))
+        FormatModelRegistry.readBuilder(
+                FileFormat.PARQUET, InternalRow.class, Files.localInput(dataFile))
             .project(SCHEMA)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(SCHEMA, type))
             .build()) {
 
       for (InternalRow row : rows) {
@@ -171,26 +171,11 @@ public class SparkParquetReadersFlatDataBenchmark {
 
   @Benchmark
   @Threads(1)
-  public void readUsingRegistryReader(Blackhole blackHole) throws IOException {
+  public void readWithProjectionUsingIcebergReader(Blackhole blackhole) throws IOException {
     try (CloseableIterable<InternalRow> rows =
         FormatModelRegistry.readBuilder(
                 FileFormat.PARQUET, InternalRow.class, Files.localInput(dataFile))
-            .project(SCHEMA)
-            .build()) {
-
-      for (InternalRow row : rows) {
-        blackHole.consume(row);
-      }
-    }
-  }
-
-  @Benchmark
-  @Threads(1)
-  public void readWithProjectionUsingIcebergReader(Blackhole blackhole) throws IOException {
-    try (CloseableIterable<InternalRow> rows =
-        Parquet.read(Files.localInput(dataFile))
             .project(PROJECTED_SCHEMA)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(PROJECTED_SCHEMA, type))
             .build()) {
 
       for (InternalRow row : rows) {
@@ -236,21 +221,6 @@ public class SparkParquetReadersFlatDataBenchmark {
             .set("spark.sql.parquet.inferTimestampNTZ.enabled", "false")
             .set("spark.sql.legacy.parquet.nanosAsLong", "false")
             .callInit()
-            .build()) {
-
-      for (InternalRow row : rows) {
-        blackhole.consume(row);
-      }
-    }
-  }
-
-  @Benchmark
-  @Threads(1)
-  public void readWithProjectionUsingRegistryReader(Blackhole blackhole) throws IOException {
-    try (CloseableIterable<InternalRow> rows =
-        FormatModelRegistry.readBuilder(
-                FileFormat.PARQUET, InternalRow.class, Files.localInput(dataFile))
-            .project(PROJECTED_SCHEMA)
             .build()) {
 
       for (InternalRow row : rows) {

@@ -34,7 +34,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport;
@@ -100,15 +99,16 @@ public class SparkParquetWritersNestedDataBenchmark {
   @Benchmark
   @Threads(1)
   public void writeUsingIcebergWriter() throws IOException {
-    try (FileAppender<InternalRow> writer =
-        Parquet.write(Files.localOutput(dataFile))
-            .createWriterFunc(
-                msgType ->
-                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
+    try (DataWriter<InternalRow> writer =
+        FormatModelRegistry.dataWriteBuilder(
+                FileFormat.PARQUET,
+                InternalRow.class,
+                EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(dataFile)))
             .schema(SCHEMA)
+            .spec(PartitionSpec.unpartitioned())
             .build()) {
 
-      writer.addAll(rows);
+      writer.write(rows);
     }
   }
 
@@ -131,23 +131,6 @@ public class SparkParquetWritersNestedDataBenchmark {
             .build()) {
 
       writer.addAll(rows);
-    }
-  }
-
-  @Benchmark
-  @Threads(1)
-  public void writeUsingRegistryWriter() throws IOException {
-    try (DataWriter<InternalRow> writer =
-        FormatModelRegistry.dataWriteBuilder(
-                FileFormat.PARQUET,
-                InternalRow.class,
-                EncryptedFiles.plainAsEncryptedOutput(Files.localOutput(dataFile)))
-            .schema(SCHEMA)
-            .engineSchema(SparkSchemaUtil.convert(SCHEMA))
-            .spec(PartitionSpec.unpartitioned())
-            .build()) {
-
-      writer.write(rows);
     }
   }
 }

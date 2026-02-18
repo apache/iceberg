@@ -164,8 +164,7 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
     if (!useDeprecatedPositionDeleteWriter) {
       return super.newPositionDeleteWriter(file, spec, partition);
     } else {
-      LOG.warn(
-          "Deprecated feature used. Position delete row schema is used to create the position delete writer.");
+      LOG.warn("Position deletes with deleted rows are deprecated and will be removed in 1.12.0.");
       Map<String, String> properties = table == null ? ImmutableMap.of() : table.properties();
       MetricsConfig metricsConfig =
           table == null
