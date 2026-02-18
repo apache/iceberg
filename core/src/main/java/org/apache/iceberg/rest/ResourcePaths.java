@@ -45,6 +45,9 @@ public class ResourcePaths {
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/plan/{plan-id}";
   public static final String V1_TABLE_SCAN_PLAN_TASKS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/tasks";
+  public static final String V1_FUNCTIONS = "/v1/{prefix}/namespaces/{namespace}/functions";
+  public static final String V1_FUNCTION =
+      "/v1/{prefix}/namespaces/{namespace}/functions/{function}";
   public static final String V1_TRANSACTIONS_COMMIT = "/v1/{prefix}/transactions/commit";
   public static final String V1_VIEWS = "/v1/{prefix}/namespaces/{namespace}/views";
   public static final String V1_VIEW = "/v1/{prefix}/namespaces/{namespace}/views/{view}";
@@ -132,6 +135,15 @@ public class ResourcePaths {
 
   public String commitTransaction() {
     return SLASH.join("v1", prefix, "transactions", "commit");
+  }
+
+  public String functions(Namespace ns) {
+    return SLASH.join("v1", prefix, "namespaces", pathEncode(ns), "functions");
+  }
+
+  public String function(Namespace ns, String name) {
+    return SLASH.join(
+        "v1", prefix, "namespaces", pathEncode(ns), "functions", RESTUtil.encodeString(name));
   }
 
   public String views(Namespace ns) {

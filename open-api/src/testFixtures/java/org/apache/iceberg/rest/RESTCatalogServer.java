@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -25,6 +26,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
@@ -47,6 +49,7 @@ public class RESTCatalogServer {
   static final String CATALOG_NAME_DEFAULT = "rest_backend";
 
   private Server httpServer;
+  private RESTCatalogAdapter adapter;
   private final Map<String, String> config;
 
   RESTCatalogServer() {
@@ -109,7 +112,7 @@ public class RESTCatalogServer {
   public void start(boolean join) throws Exception {
     CatalogContext catalogContext = initializeBackendCatalog();
 
-    RESTCatalogAdapter adapter = new RESTServerCatalogAdapter(catalogContext);
+    this.adapter = new RESTServerCatalogAdapter(catalogContext);
     RESTCatalogServlet servlet = new RESTCatalogServlet(adapter);
 
     ServletContextHandler context = new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
@@ -129,6 +132,10 @@ public class RESTCatalogServer {
     if (join) {
       httpServer.join();
     }
+  }
+
+  void putFunction(Namespace ns, String name, ObjectNode spec) {
+    adapter.putFunction(ns, name, spec);
   }
 
   public void stop() throws Exception {

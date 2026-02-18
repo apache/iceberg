@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.rest;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.UncheckedIOException;
 import java.net.BindException;
 import java.util.Map;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
@@ -55,6 +57,13 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
 
   public RESTCatalog client() {
     return client;
+  }
+
+  public void putFunction(Namespace ns, String name, ObjectNode spec) {
+    if (localServer == null) {
+      throw new IllegalStateException("REST server is not running");
+    }
+    localServer.putFunction(ns, name, spec);
   }
 
   @Override
