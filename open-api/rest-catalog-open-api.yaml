@@ -2690,7 +2690,7 @@ components:
           minimum: 1
           maximum: 3
         table-uuid:
-          type: string
+          $ref: '#/components/schemas/UUIDTypeValue'
         location:
           type: string
         last-updated-ms:
@@ -2835,7 +2835,7 @@ components:
         - schemas
       properties:
         view-uuid:
-          type: string
+          $ref: '#/components/schemas/UUIDTypeValue'
         format-version:
           type: integer
           minimum: 1
@@ -2908,7 +2908,7 @@ components:
           type: string
           const: "assign-uuid"
         uuid:
-          type: string
+          $ref: '#/components/schemas/UUIDTypeValue'
 
     UpgradeFormatVersionUpdate:
       allOf:
@@ -3312,7 +3312,7 @@ components:
           type: string
           const: "assert-table-uuid"
         uuid:
-          type: string
+          $ref: '#/components/schemas/UUIDTypeValue'
 
     AssertRefSnapshotId:
       description: |
@@ -3424,7 +3424,7 @@ components:
           type: string
           const: "assert-view-uuid"
         uuid:
-          type: string
+          $ref: '#/components/schemas/UUIDTypeValue'
 
     StorageCredential:
       type: object
