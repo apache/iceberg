@@ -66,12 +66,12 @@ public final class RESTCatalogProperties {
    *
    * <ul>
    *   <li>CLIENT - Use client-side scan planning
-   *   <li>CATALOG - Use server-side scan planning
+   *   <li>SERVER - Use server-side scan planning
    * </ul>
    */
   public enum ScanPlanningMode {
     CLIENT("client"),
-    CATALOG("catalog");
+    SERVER("server");
 
     private final String modeName;
 
@@ -91,7 +91,7 @@ public final class RESTCatalogProperties {
       }
 
       throw new IllegalArgumentException(
-          String.format("Invalid scan planning mode: %s. Valid values are: client, catalog", mode));
+          String.format("Invalid scan planning mode: %s. Valid values are: client, server", mode));
     }
   }
 }

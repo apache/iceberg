@@ -84,6 +84,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
               Class<T> responseType,
               Consumer<ErrorResponse> errorHandler,
               Consumer<Map<String, String>> responseHeaders) {
+            // roundTripSerialize before intercepting so we modify the deserialized response
             Object body = roundTripSerialize(request.body(), "request");
             HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
             T response = super.execute(req, responseType, errorHandler, responseHeaders);
@@ -91,15 +92,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
             // Add scan planning mode to table config for LoadTableResponse
             if (response instanceof LoadTableResponse) {
-              LoadTableResponse loadResponse = (LoadTableResponse) response;
               return castResponse(
-                  responseType,
-                  LoadTableResponse.builder()
-                      .withTableMetadata(loadResponse.tableMetadata())
-                      .addAllConfig(loadResponse.config())
-                      .addConfig(RESTCatalogProperties.SCAN_PLANNING_MODE, "catalog")
-                      .addAllCredentials(loadResponse.credentials())
-                      .build());
+                  responseType, withServerPlanningMode((LoadTableResponse) response));
             }
 
             return response;
@@ -131,11 +125,24 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
         ImmutableMap.<String, String>builder()
             .put(CatalogProperties.URI, httpServer.getURI().toString())
             .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
-            .put(RESTCatalogProperties.SCAN_PLANNING_MODE, "catalog")
+            .put(
+                RESTCatalogProperties.SCAN_PLANNING_MODE,
+                RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
             .build());
   }
 
   // ==================== Helper Methods ====================
+
+  private static LoadTableResponse withServerPlanningMode(LoadTableResponse response) {
+    return LoadTableResponse.builder()
+        .withTableMetadata(response.tableMetadata())
+        .addAllConfig(response.config())
+        .addConfig(
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
+        .addAllCredentials(response.credentials())
+        .build();
+  }
 
   @Override
   @SuppressWarnings("unchecked")
@@ -938,15 +945,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
                 // Add scan planning mode to table config for LoadTableResponse
                 if (response instanceof LoadTableResponse) {
-                  LoadTableResponse loadResponse = (LoadTableResponse) response;
                   return castResponse(
-                      responseType,
-                      LoadTableResponse.builder()
-                          .withTableMetadata(loadResponse.tableMetadata())
-                          .addAllConfig(loadResponse.config())
-                          .addConfig(RESTCatalogProperties.SCAN_PLANNING_MODE, "catalog")
-                          .addAllCredentials(loadResponse.credentials())
-                          .build());
+                      responseType, withServerPlanningMode((LoadTableResponse) response));
                 }
 
                 return response;
@@ -965,7 +965,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
             RESTCatalogProperties.SCAN_PLANNING_MODE,
-            "catalog"));
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
     return new CatalogWithAdapter(catalog, adapter);
   }
 
@@ -1065,7 +1065,10 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   @Test
   public void catalogAndTableConfigMismatch() {
-    CatalogWithAdapter catalogWithAdapter = catalogWithScanPlanningModes("catalog", "client");
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithScanPlanningModes(
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName());
     catalogWithAdapter.catalog.createNamespace(NS);
 
     assertThatThrownBy(
@@ -1076,13 +1079,16 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
                     .create())
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Scan planning mode mismatch")
-        .hasMessageContaining("client config specifies 'CATALOG'")
-        .hasMessageContaining("server config specifies 'CLIENT'");
+        .hasMessageContaining("client config=server")
+        .hasMessageContaining("server config=client");
   }
 
   @Test
   public void clientExplicitlyRequestsClientSidePlanning() {
-    CatalogWithAdapter catalogWithAdapter = catalogWithScanPlanningModes("client", "client");
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithScanPlanningModes(
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(),
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName());
     catalogWithAdapter.catalog.createNamespace(NS);
 
     Table table =
@@ -1097,7 +1103,10 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   @Test
   public void clientRequestsClientButServerReturnsCatalog() {
-    CatalogWithAdapter catalogWithAdapter = catalogWithScanPlanningModes("client", "catalog");
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithScanPlanningModes(
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(),
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName());
     catalogWithAdapter.catalog.createNamespace(NS);
 
     assertThatThrownBy(
@@ -1108,13 +1117,15 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
                     .create())
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Scan planning mode mismatch")
-        .hasMessageContaining("client config specifies 'CLIENT'")
-        .hasMessageContaining("server config specifies 'CATALOG'");
+        .hasMessageContaining("client config=client")
+        .hasMessageContaining("server config=server");
   }
 
   @Test
   public void clientRequestsClientAndServerReturnsNothing() {
-    CatalogWithAdapter catalogWithAdapter = catalogWithScanPlanningModes("client", null);
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithScanPlanningModes(
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(), null);
     catalogWithAdapter.catalog.createNamespace(NS);
 
     Table table =
