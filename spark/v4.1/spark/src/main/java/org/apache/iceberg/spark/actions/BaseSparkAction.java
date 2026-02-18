@@ -230,6 +230,10 @@ abstract class BaseSparkAction<ThisT> {
     return spark.createDataset(fileInfoList, FileInfo.ENCODER);
   }
 
+  protected Dataset<FileInfo> emptyFileInfoDS() {
+    return spark.emptyDataset(FileInfo.ENCODER);
+  }
+
   /**
    * Deletes files and keeps track of how many files were removed for each file type.
    *
@@ -405,7 +409,7 @@ abstract class BaseSparkAction<ThisT> {
     }
   }
 
-  private static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {
+  protected static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {
     private final Broadcast<Table> table;
 
     ReadManifest(Broadcast<Table> table) {
