@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -36,8 +35,6 @@ import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorCo
 import org.apache.flink.runtime.operators.coordination.MockOperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
-import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
@@ -589,12 +586,6 @@ class TestTriggerManagerOperator extends OperatorTestBase {
             .build());
   }
 
-  private KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> harness(
-      TriggerManager manager) throws Exception {
-    return new KeyedOneInputStreamOperatorTestHarness<>(
-        new KeyedProcessOperator<>(manager), value -> true, Types.BOOLEAN);
-  }
-
   private void addEventAndCheckResult(
       TriggerManagerOperator operator,
       OneInputStreamOperatorTestHarness<TableChange, Trigger> testHarness,
@@ -657,16 +648,14 @@ class TestTriggerManagerOperator extends OperatorTestBase {
       OperatorEventGateway mockGateway,
       long minFireDelayMs,
       long lockCheckDelayMs) {
-    TriggerManagerOperator operator =
-        new TriggerManagerOperator(
-            null,
-            mockGateway,
-            Lists.newArrayList(TASKS[0]),
-            Lists.newArrayList(evaluator),
-            minFireDelayMs,
-            lockCheckDelayMs,
-            lockId);
-    return operator;
+    return new TriggerManagerOperator(
+        null,
+        mockGateway,
+        Lists.newArrayList(TASKS[0]),
+        Lists.newArrayList(evaluator),
+        minFireDelayMs,
+        lockCheckDelayMs,
+        lockId);
   }
 
   private OneInputStreamOperatorTestHarness<TableChange, Trigger> createHarness(

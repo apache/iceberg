@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Objects;
 
 /**
  * Event sent from TriggerManagerOperator to TriggerManagerCoordinator to register a lock release
@@ -37,25 +36,6 @@ public class LockRegisterEvent implements OperatorEvent {
 
   public String lockId() {
     return lockId;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
-    if (!(o instanceof LockRegisterEvent)) {
-      return false;
-    }
-
-    LockRegisterEvent that = (LockRegisterEvent) o;
-    return Objects.equal(lockId, that.lockId);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hashCode(lockId);
   }
 
   @Override

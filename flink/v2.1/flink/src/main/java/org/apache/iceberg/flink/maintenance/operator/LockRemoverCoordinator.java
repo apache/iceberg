@@ -19,14 +19,12 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.Locale;
-import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Coordinator for LockRemoverOperator. Handles lock release events from downstream operators. */
-@Experimental
 @Internal
 public class LockRemoverCoordinator extends BaseCoordinator {
 

@@ -43,7 +43,7 @@ class TestLockRemoveCoordinator extends TestBaseCoordinator {
   public void testEventHandling() throws Exception {
     try (LockRemoverCoordinator lockRemoverCoordinator =
         new LockRemoverCoordinator(
-            OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1)); ) {
+            OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1))) {
 
       lockRemoverCoordinator.start();
 

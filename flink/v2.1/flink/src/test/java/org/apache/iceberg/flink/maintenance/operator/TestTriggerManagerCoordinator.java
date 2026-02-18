@@ -73,7 +73,6 @@ class TestTriggerManagerCoordinator extends TestBaseCoordinator {
         createCoordinator(OPERATOR_NAME, TEST_OPERATOR_ID)) {
 
       triggerManagerCoordinator.start();
-
       setAllTasksReady(triggerManagerCoordinator, receivingTasks);
 
       // release event arrive before register

@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.List;
-import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.operators.ProcessingTimeService.ProcessingTimeCallback;
@@ -51,7 +50,6 @@ import org.slf4j.LoggerFactory;
  * coordinator. When a task finishes, it sends a signal from downstream to the coordinator to
  * trigger this callback, allowing the TriggerManagerOperator to release the lock.
  */
-@Experimental
 @Internal
 public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
     implements OneInputStreamOperator<TableChange, Trigger>,
@@ -221,7 +219,6 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
     }
   }
 
-  @SuppressWarnings("FutureReturnValueIgnored")
   @Override
   public void processElement(StreamRecord<TableChange> streamRecord) throws Exception {
     TableChange change = streamRecord.getValue();
@@ -311,7 +308,6 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
     }
   }
 
-  @SuppressWarnings("FutureReturnValueIgnored")
   private void schedule(ProcessingTimeService timerService, long time) {
     this.nextEvaluationTime = time;
     timerService.registerTimer(time, this);

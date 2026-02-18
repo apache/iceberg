@@ -73,7 +73,6 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
     LOG.info("Created coordinator: {}", operatorName);
   }
 
-  @SuppressWarnings("FutureReturnValueIgnored")
   void registerLock(LockRegisterEvent lockRegisterEvent) {
     LOCK_RELEASE_CONSUMERS.put(
         lockRegisterEvent.lockId(),
@@ -135,9 +134,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture)
       throws Exception {
     runInCoordinatorThread(
-        () -> {
-          resultFuture.complete(new byte[0]);
-        },
+        () -> resultFuture.complete(new byte[0]),
         String.format(Locale.ROOT, "taking checkpoint %d", checkpointId));
   }
 

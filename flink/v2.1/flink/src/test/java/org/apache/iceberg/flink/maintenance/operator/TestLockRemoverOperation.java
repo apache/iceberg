@@ -175,14 +175,9 @@ class TestLockRemoverOperation extends OperatorTestBase {
   }
 
   private void processAndCheck(ManualSource<TaskResult> source, TaskResult input) {
-    processAndCheck(source, input, null);
-  }
-
-  private void processAndCheck(
-      ManualSource<TaskResult> source, TaskResult input, String counterPrefix) {
     List<String> counterKey =
         ImmutableList.of(
-            (counterPrefix != null ? counterPrefix : "") + DUMMY_TASK_NAME,
+            DUMMY_TASK_NAME,
             DUMMY_TABLE_NAME,
             TASKS[input.taskIndex()],
             String.valueOf(input.taskIndex()),
