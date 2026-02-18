@@ -593,34 +593,29 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       RESTClient restClient,
       Map<String, String> tableConf) {
     // Get client-side and server-side scan planning modes
-    String clientModeConfig = properties().get(RESTCatalogProperties.SCAN_PLANNING_MODE);
-    String serverModeConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    String planningModeClientConfig = properties().get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
 
     // Validate that client and server configs don't conflict
     // Only validate if BOTH are explicitly set (not null)
-    if (clientModeConfig != null && serverModeConfig != null) {
-      RESTCatalogProperties.ScanPlanningMode clientMode =
-          RESTCatalogProperties.ScanPlanningMode.fromString(clientModeConfig);
-      RESTCatalogProperties.ScanPlanningMode serverMode =
-          RESTCatalogProperties.ScanPlanningMode.fromString(serverModeConfig);
-
-      if (clientMode != serverMode) {
-        throw new IllegalStateException(
-            String.format(
-                "Scan planning mode mismatch for table %s: client config specifies '%s' but server config specifies '%s'. "
-                    + "These must be consistent.",
-                finalIdentifier, clientMode, serverMode));
-      }
+    if (planningModeClientConfig != null && planningModeServerConfig != null) {
+      Preconditions.checkState(
+          planningModeClientConfig.equalsIgnoreCase(planningModeServerConfig),
+          "Scan planning mode mismatch for table %s: client config=%s, server config=%s",
+          finalIdentifier,
+          planningModeClientConfig,
+          planningModeServerConfig);
     }
 
     // Determine effective mode: prefer server config if present, otherwise use client config
-    String effectiveModeConfig = serverModeConfig != null ? serverModeConfig : clientModeConfig;
+    String effectiveModeConfig =
+        planningModeServerConfig != null ? planningModeServerConfig : planningModeClientConfig;
     RESTCatalogProperties.ScanPlanningMode effectiveMode =
         effectiveModeConfig != null
             ? RESTCatalogProperties.ScanPlanningMode.fromString(effectiveModeConfig)
             : RESTCatalogProperties.ScanPlanningMode.CLIENT;
 
-    if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.CATALOG
+    if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.SERVER
         && endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN)) {
       return new RESTTable(
           ops,
