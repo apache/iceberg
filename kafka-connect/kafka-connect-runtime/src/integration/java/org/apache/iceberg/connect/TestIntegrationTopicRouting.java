@@ -29,17 +29,20 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class TestIntegrationDynamicTable extends IntegrationTestBase {
+public class TestIntegrationTopicRouting extends IntegrationTestBase {
 
-  private static final String TEST_TABLE1 = "tbl1";
-  private static final String TEST_TABLE2 = "tbl2";
+  private static final String TEST_DB = "test";
+  private static final String TEST_TABLE1 = "table1";
+  private static final String TEST_TABLE2 = "table2";
   private static final TableIdentifier TABLE_IDENTIFIER1 = TableIdentifier.of(TEST_DB, TEST_TABLE1);
   private static final TableIdentifier TABLE_IDENTIFIER2 = TableIdentifier.of(TEST_DB, TEST_TABLE2);
+  private static final String TEST_TOPIC1 = "topic1";
+  private static final String TEST_TOPIC2 = "topic2";
 
   @ParameterizedTest
   @NullSource
   @ValueSource(strings = "test_branch")
-  public void testIcebergSink(String branch) {
+  public void testTopicRouter(String branch) {
     // partitioned table
     catalog().createTable(TABLE_IDENTIFIER1, TestEvent.TEST_SCHEMA, TestEvent.TEST_SPEC);
     // unpartitioned table
@@ -47,32 +50,7 @@ public class TestIntegrationDynamicTable extends IntegrationTestBase {
 
     boolean useSchema = branch == null; // use a schema for one of the tests
     runTest(branch, useSchema, ImmutableMap.of(), List.of(TABLE_IDENTIFIER1, TABLE_IDENTIFIER2));
-    verify(branch);
-  }
 
-  @ParameterizedTest
-  @NullSource
-  @ValueSource(strings = "test_branch")
-  public void testIcebergSinkNewConfig(String branch) {
-    // partitioned table
-    catalog().createTable(TABLE_IDENTIFIER1, TestEvent.TEST_SCHEMA, TestEvent.TEST_SPEC);
-    // unpartitioned table
-    catalog().createTable(TABLE_IDENTIFIER2, TestEvent.TEST_SCHEMA);
-
-    boolean useSchema = branch == null; // use a schema for one of the tests
-    runTest(
-        branch,
-        useSchema,
-        ImmutableMap.of(
-            "iceberg.tables.route-with",
-            "org.apache.iceberg.connect.data.RecordRouter$DynamicRecordRouter",
-            "iceberg.tables.dynamic-enabled",
-            "false"),
-        List.of(TABLE_IDENTIFIER1, TABLE_IDENTIFIER2));
-    verify(branch);
-  }
-
-  private void verify(String branch) {
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER1, branch);
     assertThat(files).hasSize(1);
     assertThat(files.get(0).recordCount()).isEqualTo(1);
@@ -80,31 +58,40 @@ public class TestIntegrationDynamicTable extends IntegrationTestBase {
 
     files = dataFiles(TABLE_IDENTIFIER2, branch);
     assertThat(files).hasSize(1);
-    assertThat(files.get(0).recordCount()).isEqualTo(1);
+    assertThat(files.get(0).recordCount()).isEqualTo(2);
     assertSnapshotProps(TABLE_IDENTIFIER2, branch);
   }
 
   @Override
-  protected KafkaConnectUtils.Config createConfig(boolean useSchema) {
+  KafkaConnectUtils.Config createConfig(boolean useSchema) {
     return createCommonConfig(useSchema)
-        .config("iceberg.tables.dynamic-enabled", true)
-        .config("iceberg.tables.route-field", "payload");
+        .config("topics", String.format("%s,%s", TEST_TOPIC1, TEST_TOPIC2))
+        .config(
+            "iceberg.tables.route-with",
+            "org.apache.iceberg.connect.data.RecordRouter$TopicRecordRouter")
+        .config(
+            "iceberg.tables",
+            String.format("%s.%s,%s.%s", TEST_DB, TEST_TABLE1, TEST_DB, TEST_TABLE2))
+        .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE1), ".*1")
+        .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE2), ".*2");
   }
 
   @Override
-  protected void sendEvents(boolean useSchema) {
-    TestEvent event1 = new TestEvent(1, "type1", Instant.now(), TEST_DB + "." + TEST_TABLE1);
-    TestEvent event2 = new TestEvent(2, "type2", Instant.now(), TEST_DB + "." + TEST_TABLE2);
-    TestEvent event3 = new TestEvent(3, "type3", Instant.now(), TEST_DB + ".tbl3");
+  void sendEvents(boolean useSchema) {
+    TestEvent event1 = new TestEvent(1, "type1", Instant.now(), "test1");
+    TestEvent event2 = new TestEvent(2, "type2", Instant.now(), "test2");
+    TestEvent event3 = new TestEvent(3, "type3", Instant.now(), "test3");
 
-    send(testTopic(), event1, useSchema);
-    send(testTopic(), event2, useSchema);
-    send(testTopic(), event3, useSchema);
+    send(TEST_TOPIC1, event1, useSchema);
+    send(TEST_TOPIC2, event2, useSchema);
+    send(TEST_TOPIC2, event3, useSchema);
   }
 
   @Override
   void dropTables() {
-    catalog().dropTable(TableIdentifier.of(TEST_DB, TEST_TABLE1));
-    catalog().dropTable(TableIdentifier.of(TEST_DB, TEST_TABLE2));
+    deleteTopic(TEST_TOPIC1);
+    deleteTopic(TEST_TOPIC2);
+    catalog().dropTable(TABLE_IDENTIFIER1);
+    catalog().dropTable(TABLE_IDENTIFIER2);
   }
 }

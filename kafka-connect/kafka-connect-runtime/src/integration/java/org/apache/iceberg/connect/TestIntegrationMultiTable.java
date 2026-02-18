@@ -47,7 +47,30 @@ public class TestIntegrationMultiTable extends IntegrationTestBase {
 
     boolean useSchema = branch == null; // use a schema for one of the tests
     runTest(branch, useSchema, ImmutableMap.of(), List.of(TABLE_IDENTIFIER1, TABLE_IDENTIFIER2));
+    verify(branch);
+  }
 
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(strings = "test_branch")
+  public void testIcebergSinkNewConfig(String branch) {
+    // partitioned table
+    catalog().createTable(TABLE_IDENTIFIER1, TestEvent.TEST_SCHEMA, TestEvent.TEST_SPEC);
+    // unpartitioned table
+    catalog().createTable(TABLE_IDENTIFIER2, TestEvent.TEST_SCHEMA);
+
+    boolean useSchema = branch == null; // use a schema for one of the tests
+    runTest(
+        branch,
+        useSchema,
+        ImmutableMap.of(
+            "iceberg.tables.route-with",
+            "org.apache.iceberg.connect.data.RecordRouter$StaticRecordRouter"),
+        List.of(TABLE_IDENTIFIER1, TABLE_IDENTIFIER2));
+    verify(branch);
+  }
+
+  private void verify(String branch) {
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER1, branch);
     assertThat(files).hasSize(1);
     assertThat(files.get(0).recordCount()).isEqualTo(1);
