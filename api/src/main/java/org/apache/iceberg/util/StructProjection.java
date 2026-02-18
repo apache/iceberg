@@ -90,6 +90,7 @@ public class StructProjection implements StructLike {
   private final int[] positionMap;
   private final StructProjection[] nestedProjections;
   private StructLike struct;
+  private String description;
 
   private StructProjection(
       StructType type, int[] positionMap, StructProjection[] nestedProjections) {
@@ -179,12 +180,21 @@ public class StructProjection implements StructLike {
   }
 
   public StructProjection wrap(StructLike newStruct) {
+    return wrap(newStruct, null);
+  }
+
+  public StructProjection wrap(StructLike newStruct, String newDescription) {
     this.struct = newStruct;
+    this.description = newDescription;
     return this;
   }
 
+  public String getDescription() {
+    return description;
+  }
+
   public StructProjection copyFor(StructLike newStruct) {
-    return new StructProjection(type, positionMap, nestedProjections).wrap(newStruct);
+    return new StructProjection(type, positionMap, nestedProjections).wrap(newStruct, description);
   }
 
   @Override
