@@ -107,13 +107,9 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
-    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
-      transitive = false
-    }
+    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
-    // runtime dependencies for running REST Catalog based integration test
-    testRuntimeOnly libs.jetty.servlet
   }
 
   test {
@@ -174,11 +170,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
-    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
-      transitive = false
-    }
-    // runtime dependencies for running REST Catalog based integration test
-    testRuntimeOnly libs.jetty.servlet
+    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
     testRuntimeOnly libs.sqlite.jdbc
 
     testImplementation libs.avro.avro
@@ -272,9 +264,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     integrationRuntimeOnly project(':iceberg-hive-metastore')
     // runtime dependencies for running REST Catalog based integration test
     integrationRuntimeOnly project(path: ':iceberg-core', configuration: 'testArtifacts')
-    integrationRuntimeOnly (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements')) {
-      transitive = false
-    }
+    integrationRuntimeOnly (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
     integrationRuntimeOnly libs.jetty.servlet
     integrationRuntimeOnly libs.sqlite.jdbc
 

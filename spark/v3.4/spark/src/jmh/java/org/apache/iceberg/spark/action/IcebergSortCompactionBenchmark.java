@@ -41,6 +41,7 @@ import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -393,6 +394,7 @@ public class IcebergSortCompactionBenchmark {
                 "spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
             .config("spark.sql.catalog.spark_catalog.type", "hadoop")
             .config("spark.sql.catalog.spark_catalog.warehouse", getCatalogWarehouse())
+            .config(TestBase.DISABLE_UI)
             .master("local[*]");
     spark = builder.getOrCreate();
     Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();

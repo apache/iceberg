@@ -113,10 +113,11 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
+import org.eclipse.jetty.compression.gzip.GzipCompression;
+import org.eclipse.jetty.compression.server.CompressionHandler;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -295,7 +296,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.addServlet(
         new ServletHolder(new RESTCatalogServlet(adapterForRESTServer)), "/*");
-    servletContext.setHandler(new GzipHandler());
+    CompressionHandler compressionHandler = new CompressionHandler();
+    compressionHandler.putCompression(new GzipCompression());
+    servletContext.setHandler(compressionHandler);
 
     this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
@@ -407,6 +410,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Override
   protected boolean requiresNamespaceCreate() {
     return true;
+  }
+
+  @Override
+  protected boolean supportsNamesWithSlashes() {
+    // names with slashes are rejected and considered as suspicious characters after upgrading Jetty
+    // and the Servlet API. See also
+    // https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0.html#uri-path-canonicalization
+    // for additional details
+    return false;
   }
 
   /* RESTCatalog specific tests */
