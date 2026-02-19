@@ -18,14 +18,21 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.apache.iceberg.hadoop.Util.await;
+import static org.apache.iceberg.hadoop.Util.determineReadPolicy;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FutureDataInputStreamBuilder;
+import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.encryption.NativeFileCryptoParameters;
 import org.apache.iceberg.encryption.NativelyEncryptedFile;
@@ -180,7 +187,20 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
   @Override
   public SeekableInputStream newStream() {
     try {
-      return HadoopStreams.wrap(fs.open(path));
+      final FutureDataInputStreamBuilder builder = fs.openFile(path);
+      if (stat != null) {
+        // ABFS and S3A; saves a HEAD request.
+        builder.withFileStatus(stat);
+      }
+      if (length != null) {
+        // optLong() isn't in Hadoop 3.3.5, so use the string option.
+        builder.opt(Options.OpenFileOptions.FS_OPTION_OPENFILE_LENGTH, length.toString());
+      }
+      // read policy controls how read() calls are mapped to GET ranges.
+      builder.opt(
+          Options.OpenFileOptions.FS_OPTION_OPENFILE_READ_POLICY, determineReadPolicy(path));
+      final CompletableFuture<FSDataInputStream> future = builder.build();
+      return HadoopStreams.wrap(await(future));
     } catch (FileNotFoundException e) {
       throw new NotFoundException(e, "Failed to open input stream for file: %s", path);
     } catch (IOException e) {

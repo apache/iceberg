@@ -23,11 +23,14 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -141,5 +144,76 @@ public class Util {
    */
   public static String uriToString(URI uri) {
     return new Path(uri).toString();
+  }
+
+  public static final String RANDOMIO_READS = "random, adaptive";
+  /**
+   * Read chain for recent parquet/orc libraries.
+   */
+  public static final String VECTOR_READS = "vector, " + RANDOMIO_READS;
+  public static final String ADAPTIVE_READS = "adaptive";
+  /** Sequential read from start of split to end. */
+  public static final String SEQUENTIAL_READS = "sequential";
+  /** Sequential read of the whole file. */
+  public static final String WHOLE_FILE_READS = "whole-file";
+  public static final String PARQUET_READS = "parquet," + VECTOR_READS;
+  public static final String ORC_READS = "orc," + VECTOR_READS;
+  public static final String JSON_READS = "json," + WHOLE_FILE_READS;
+  public static final String AVRO_READS = "avro," + SEQUENTIAL_READS;
+
+  /**
+   * Given a path, determine the read policy to use when opening the file.
+   *
+   * <p>The policy is a comma separated list of policies, the connector should use the first that it
+   * recognizes.
+   *
+   * @param path path to file being opened.
+   * @return policy to use.
+   */
+  static String determineReadPolicy(Path path) {
+    final FileFormat format = FileFormat.fromFileName(path.toString());
+    String policy;
+    if (format != null) {
+      policy =
+          switch (format) {
+            case PUFFIN -> RANDOMIO_READS;
+            case ORC -> ORC_READS;
+            case PARQUET -> PARQUET_READS;
+            case AVRO -> AVRO_READS;
+            case METADATA -> JSON_READS; // assumes metadata is JSON.
+          };
+    } else {
+      policy = ADAPTIVE_READS;
+    }
+    return policy;
+  }
+
+  /**
+   * Wait for a future to complete. RuntimeExceptions and IOExceptions are extracted and rethrown;
+   * if the wait is interrupted an RTE is generated.
+   *
+   * @param future future to await.
+   * @return the value
+   * @param <T> type of return value
+   * @throws IOException if the future raised an IOException.
+   * @throws RuntimeException any other exception raised by the future
+   */
+  static <T> T await(CompletableFuture<T> future) throws IOException {
+    try {
+      return future.get();
+    } catch (ExecutionException e) {
+      final Throwable cause = e.getCause();
+      if (cause instanceof RuntimeException rte) {
+        // rethrow a runtime exception
+        throw rte;
+      } else if (cause instanceof IOException ioe) {
+        // expect to be handled in an outer try/catch
+        throw ioe;
+      } else {
+        throw new RuntimeException("Failed while awaiting task completion", cause);
+      }
+    } catch (InterruptedException e) {
+      throw new RuntimeException("Interrupted while running awaiting task completion", e);
+    }
   }
 }
