@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
@@ -29,6 +30,7 @@ import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.MetricsReporter;
 
 class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
@@ -40,6 +42,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final Set<Endpoint> supportedEndpoints;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
+  private final AtomicReference<FileIO> ioReference;
 
   RESTTable(
       TableOperations ops,
@@ -61,6 +64,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
     this.supportedEndpoints = supportedEndpoints;
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
+    this.ioReference = new AtomicReference<>(ops.io());
   }
 
   @Override
@@ -75,9 +79,18 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
         tableIdentifier,
         resourcePaths,
         supportedEndpoints,
-        io(),
+        ioReference,
         catalogProperties,
         hadoopConf);
+  }
+
+  @Override
+  public FileIO io() {
+    if (null != ioReference.get()) {
+      return ioReference.get();
+    }
+
+    return super.io();
   }
 
   @Override
