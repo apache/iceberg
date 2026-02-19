@@ -48,19 +48,15 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 /**
- * The IcebergSource loads/writes tables with format "iceberg". It can load paths and tables.
+ * Data source for reading and writing Iceberg tables using the "iceberg" format.
  *
- * <p>How paths/tables are loaded when using spark.read().format("iceberg").load(table)
+ * <p>The `path` parameter provided by Spark is resolved in the following priority order:
  *
- * <p>table = "file:///path/to/table" -&gt; loads a HadoopTable at given path table = "tablename"
- * -&gt; loads currentCatalog.currentNamespace.tablename table = "catalog.tablename" -&gt; load
- * "tablename" from the specified catalog. table = "namespace.tablename" -&gt; load
- * "namespace.tablename" from current catalog table = "catalog.namespace.tablename" -&gt;
- * "namespace.tablename" from the specified catalog. table = "namespace1.namespace2.tablename" -&gt;
- * load "namespace1.namespace2.tablename" from current catalog
- *
- * <p>The above list is in order of priority. For example: a matching catalog will take priority
- * over any namespace resolution.
+ * <ol>
+ *   <li>Rewrite key - If `path` is a rewrite key, load a table from the rewrite catalog
+ *   <li>Table location - If `path` contains "/", load a table at the specified location
+ *   <li>Catalog identifier - Otherwise resolve `path` as an identifier per Spark rules
+ * </ol>
  */
 public class IcebergSource
     implements DataSourceRegister, SupportsCatalogOptions, SessionConfigSupport {
