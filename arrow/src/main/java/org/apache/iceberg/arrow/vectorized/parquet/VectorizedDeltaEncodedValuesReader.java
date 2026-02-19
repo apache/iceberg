@@ -127,9 +127,24 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     throw new UnsupportedOperationException("readBinary is not supported");
   }
 
+  int totalValueCount() {
+    return totalValueCount;
+  }
+
   @Override
   public void readIntegers(int total, FieldVector vec, int rowId) {
     readValues(total, vec, rowId, INT_SIZE, (f, i, v) -> f.getDataBuffer().setInt(i, (int) v));
+  }
+
+  int[] readIntegers(int total, int rowId) {
+    int[] result = new int[total];
+    readValues(
+        total,
+        null,
+        rowId,
+        INT_SIZE,
+        (vec, idx, val) -> result[(int) (idx / INT_SIZE)] = (int) val);
+    return result;
   }
 
   @Override

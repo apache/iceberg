@@ -81,7 +81,12 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   private static final String PLAIN = "PLAIN";
   private static final List<String> GOLDEN_FILE_ENCODINGS =
-      ImmutableList.of("PLAIN_DICTIONARY", "RLE_DICTIONARY", "DELTA_BINARY_PACKED");
+      ImmutableList.of(
+          "PLAIN_DICTIONARY",
+          "RLE_DICTIONARY",
+          "DELTA_BINARY_PACKED",
+          "DELTA_LENGTH_BYTE_ARRAY",
+          "DELTA_BYTE_ARRAY");
   private static final Map<String, PrimitiveType> GOLDEN_FILE_TYPES =
       ImmutableMap.of(
           "string", Types.StringType.get(),
@@ -401,16 +406,18 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   @Test
   public void testSupportedReadsForParquetV2() throws Exception {
-    // Float and double column types are written using plain encoding with Parquet V2,
-    // also Parquet V2 will dictionary encode decimals that use fixed length binary
-    // (i.e. decimals > 8 bytes). Int and long types use DELTA_BINARY_PACKED.
+    // Parquet V2 uses PLAIN for float/double, DELTA_BINARY_PACKED for int/long,
+    // DELTA_LENGTH_BYTE_ARRAY for string/binary, and dictionary encoding for decimals
+    // that use fixed length binary (i.e. decimals > 8 bytes).
     Schema schema =
         new Schema(
             optional(102, "float_data", Types.FloatType.get()),
             optional(103, "double_data", Types.DoubleType.get()),
             optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
             optional(105, "int_data", Types.IntegerType.get()),
-            optional(106, "long_data", Types.LongType.get()));
+            optional(106, "long_data", Types.LongType.get()),
+            optional(107, "string_data", Types.StringType.get()),
+            optional(108, "binary_data", Types.BinaryType.get()));
 
     File dataFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(dataFile.delete()).as("Delete should succeed").isTrue();
@@ -490,10 +497,16 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                     .flatMap(
                         e ->
                             Stream.of(true, false)
-                                .map(
+                                .flatMap(
                                     vectorized ->
-                                        Arguments.of(
-                                            encoding, e.getKey(), e.getValue(), vectorized))));
+                                        Stream.of(
+                                            Arguments.of(
+                                                encoding, e.getKey(), e.getValue(), vectorized),
+                                            Arguments.of(
+                                                encoding,
+                                                e.getKey() + "_with_nulls",
+                                                e.getValue(),
+                                                vectorized)))));
   }
 
   private File resourceUrlToLocalFile(URL url) throws IOException, URISyntaxException {
