@@ -196,4 +196,10 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
           }
         });
   }
+
+  @Test
+  @Override
+  @Disabled // Ignored since vectorized reads are supported for parquet v2 written files over
+  // dictionary-encoded files
+  public void testUnsupportedReadsForParquetV2() throws IOException {}
 }
