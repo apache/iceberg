@@ -176,7 +176,8 @@ public class FlinkDynamicTableFactory
         FlinkCreateTableOptions.CATALOG_NAME.key());
 
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
-    return (FlinkCatalog) factory.createCatalog(catalogName, tableProps, FlinkCatalogFactory.clusterHadoopConf());
+    return (FlinkCatalog)
+        factory.createCatalog(catalogName, tableProps, FlinkCatalogFactory.clusterHadoopConf());
   }
 
   private static TableLoader createTableLoader(
