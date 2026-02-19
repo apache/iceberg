@@ -81,7 +81,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     this.options = options;
   }
 
-  SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
+  public SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
     this(spark, table, table.schema(), options);
   }
 

@@ -137,7 +137,7 @@ class RESTTableScan extends DataTableScan {
   }
 
   @Override
-  protected FileIO io() {
+  public FileIO io() {
     return null != fileIOForPlanId ? fileIOForPlanId : tableIo;
   }
 

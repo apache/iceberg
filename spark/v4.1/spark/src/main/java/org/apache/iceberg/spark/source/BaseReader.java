@@ -45,6 +45,7 @@ import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -68,6 +69,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(BaseReader.class);
 
   private final Table table;
+  private final FileIO fileIO;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
@@ -83,11 +85,13 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   BaseReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<TaskT> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
     this.table = table;
+    this.fileIO = fileIO;
     this.taskGroup = taskGroup;
     this.tasks = taskGroup.tasks().iterator();
     this.currentIterator = CloseableIterator.empty();
@@ -179,7 +183,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private Map<String, InputFile> inputFiles() {
     if (lazyInputFiles == null) {
       this.lazyInputFiles =
-          EncryptingFileIO.combine(table().io(), table().encryption())
+          EncryptingFileIO.combine(fileIO, table().encryption())
               .bulkDecrypt(
                   () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
     }
