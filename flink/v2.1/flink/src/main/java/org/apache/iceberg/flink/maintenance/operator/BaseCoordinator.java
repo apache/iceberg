@@ -26,9 +26,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
@@ -57,9 +57,9 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   private boolean started;
   private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
   private final SubtaskGateways subtaskGateways;
-  protected static final Map<String, Consumer<LockReleaseEvent>> LOCK_RELEASE_CONSUMERS =
+  private static final Map<String, Consumer<LockReleaseEvent>> LOCK_RELEASE_CONSUMERS =
       Maps.newConcurrentMap();
-  protected static final List<LockReleaseEvent> PENDING_RELEASE_EVENTS = Lists.newArrayList();
+  private static final List<LockReleaseEvent> PENDING_RELEASE_EVENTS = Lists.newArrayList();
 
   protected BaseCoordinator(String operatorName, Context context) {
     this.operatorName = operatorName;
@@ -139,11 +139,18 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   }
 
   @Override
-  public void notifyCheckpointComplete(long checkpointId) {}
+  public void resetToCheckpoint(long checkpointId, byte[] checkpointData) {
+    Preconditions.checkState(
+        !started, "The coordinator %s can only be reset if it was not yet started", operatorName);
+    LOG.info("Reset to checkpoint {}", checkpointId);
+    synchronized (PENDING_RELEASE_EVENTS) {
+      LOCK_RELEASE_CONSUMERS.clear();
+      PENDING_RELEASE_EVENTS.clear();
+    }
+  }
 
   @Override
-  public void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData)
-      throws Exception {}
+  public void notifyCheckpointComplete(long checkpointId) {}
 
   @Override
   public void subtaskReset(int subtask, long checkpointId) {
@@ -304,7 +311,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
 
   /** Custom thread factory for the coordinator executor. */
   protected static class CoordinatorExecutorThreadFactory
-      implements java.util.concurrent.ThreadFactory, Thread.UncaughtExceptionHandler {
+      implements ThreadFactory, Thread.UncaughtExceptionHandler {
 
     private final String coordinatorThreadName;
     private final ClassLoader classLoader;

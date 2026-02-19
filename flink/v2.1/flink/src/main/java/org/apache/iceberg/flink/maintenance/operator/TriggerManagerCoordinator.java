@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.util.Locale;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,19 +57,5 @@ public class TriggerManagerCoordinator extends BaseCoordinator {
             event.getClass(),
             subtask,
             attemptNumber));
-  }
-
-  @Override
-  public void resetToCheckpoint(long checkpointId, byte[] checkpointData) {
-    runInCoordinatorThread(
-        () -> {
-          LOG.info("Reset to checkpoint {}", checkpointId);
-          Preconditions.checkState(coordinatorThreadFactory().isCurrentThreadCoordinatorThread());
-          synchronized (PENDING_RELEASE_EVENTS) {
-            LOCK_RELEASE_CONSUMERS.clear();
-            PENDING_RELEASE_EVENTS.clear();
-          }
-        },
-        String.format(Locale.ROOT, "handling checkpoint %d recovery", checkpointId));
   }
 }
