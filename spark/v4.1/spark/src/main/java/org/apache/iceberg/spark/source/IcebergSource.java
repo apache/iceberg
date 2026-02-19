@@ -53,15 +53,9 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>The `path` parameter provided by Spark is resolved in the following priority order:
  *
  * <ol>
- *   <li>Rewrite key - If `path` is a key in the table cache, load from the rewrite catalog
+ *   <li>Rewrite key - If `path` is a rewrite key, load a table from the rewrite catalog
  *   <li>Table location - If `path` contains "/", load a table at the specified location
- *   <li>Catalog identifier - Otherwise treat `path` as an identifier and resolve as:
- *       <ul>
- *         <li>{@code "tbl"} - {@code currentCatalog.currentNamespace.tbl}
- *         <li>{@code "cat.tbl"} - {@code tbl} from the specified catalog
- *         <li>{@code "ns.tbl"} - {@code ns.tbl} from the current catalog
- *         <li>{@code "cat.ns.tbl"} - {@code ns.tbl} from the specified catalog
- *       </ul>
+ *   <li>Catalog identifier - Otherwise resolve `path` as an identifier per Spark rules
  * </ol>
  */
 public class IcebergSource
