@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -28,6 +29,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
 import org.apache.iceberg.spark.OrcBatchReadConf;
@@ -47,6 +49,7 @@ class SparkBatch implements Batch {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final Supplier<FileIO> fileIO;
   private final SparkReadConf readConf;
   private final Types.StructType groupingKeyType;
   private final List<? extends ScanTaskGroup<?>> taskGroups;
@@ -60,6 +63,7 @@ class SparkBatch implements Batch {
   SparkBatch(
       JavaSparkContext sparkContext,
       Table table,
+      Supplier<FileIO> fileIO,
       SparkReadConf readConf,
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
@@ -67,6 +71,7 @@ class SparkBatch implements Batch {
       int scanHashCode) {
     this.sparkContext = sparkContext;
     this.table = table;
+    this.fileIO = fileIO;
     this.readConf = readConf;
     this.groupingKeyType = groupingKeyType;
     this.taskGroups = taskGroups;
@@ -83,6 +88,8 @@ class SparkBatch implements Batch {
     // broadcast the table metadata as input partitions will be sent to executors
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
+    Broadcast<FileIO> fileIOBroadcast =
+        sparkContext.broadcast(SerializableTableWithSize.copyOf(fileIO.get()));
     String projectionString = SchemaParser.toJson(projection);
     String[][] locations = computePreferredLocations();
 
@@ -94,6 +101,7 @@ class SparkBatch implements Batch {
               groupingKeyType,
               taskGroups.get(index),
               tableBroadcast,
+              fileIOBroadcast,
               projectionString,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
@@ -105,7 +113,7 @@ class SparkBatch implements Batch {
 
   private String[][] computePreferredLocations() {
     if (localityEnabled) {
-      return SparkPlanningUtil.fetchBlockLocations(table.io(), taskGroups);
+      return SparkPlanningUtil.fetchBlockLocations(fileIO.get(), taskGroups);
 
     } else if (executorCacheLocalityEnabled) {
       List<String> executorLocations = SparkUtil.executorLocations();

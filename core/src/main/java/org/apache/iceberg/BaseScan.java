@@ -102,7 +102,8 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return table;
   }
 
-  protected FileIO io() {
+  @Override
+  public FileIO io() {
     return table.io();
   }
 

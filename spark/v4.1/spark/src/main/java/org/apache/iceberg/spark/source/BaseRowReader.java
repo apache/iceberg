@@ -28,17 +28,19 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
   BaseRowReader(
       Table table,
+      FileIO fileIO,
       ScanTaskGroup<T> taskGroup,
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
-    super(table, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+    super(table, fileIO, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
   }
 
   protected CloseableIterable<InternalRow> newIterable(
