@@ -953,4 +953,18 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     // Verify no exception was thrown - cancelPlan returns false when endpoint not supported
     assertThat(cancelled).isFalse();
   }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void fileIOForRemotePlanningIsPropagated(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
+    configurePlanningBehavior(planMode);
+    Table table = restTableFor(restCatalog, "file_io_propagation");
+    setParserContext(table);
+
+    assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    // make sure remote scan planning is called and FileIO gets the planId
+    assertThat(table.newScan().planFiles()).hasSize(1);
+    assertThat(table.io().properties()).containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+  }
 }
