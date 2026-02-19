@@ -46,10 +46,11 @@ services:
       iceberg_net:
     depends_on:
       - rest
-      - minio
+      - rustfs
     volumes:
       - ./warehouse:/home/iceberg/warehouse
       - ./notebooks:/home/iceberg/notebooks/notebooks
+      - ./spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     environment:
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
@@ -72,25 +73,28 @@ services:
       - AWS_REGION=us-east-1
       - CATALOG_WAREHOUSE=s3://warehouse/
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_ENDPOINT=http://minio:9000
-  minio:
-    image: minio/minio
-    container_name: minio
+      - CATALOG_S3_ENDPOINT=http://rustfs:9000
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: rustfs
     environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=password
-      - MINIO_DOMAIN=minio
+      - RUSTFS_ACCESS_KEY=admin
+      - RUSTFS_SECRET_KEY=password
+      - RUSTFS_VOLUMES=/data
+      - RUSTFS_ADDRESS=0.0.0.0:9000
+      - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
+      - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_SERVER_DOMAINS=rustfs:9001
     networks:
       iceberg_net:
         aliases:
-          - warehouse.minio
+          - warehouse.rustfs
     ports:
       - 9001:9001
       - 9000:9000
-    command: ["server", "/data", "--console-address", ":9001"]
   mc:
     depends_on:
-      - minio
+      - rustfs
     image: minio/mc
     container_name: mc
     networks:
@@ -101,20 +105,30 @@ services:
       - AWS_REGION=us-east-1
     entrypoint: |
       /bin/sh -c "
-      until (/usr/bin/mc alias set minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
-      /usr/bin/mc rm -r --force minio/warehouse;
-      /usr/bin/mc mb minio/warehouse;
-      /usr/bin/mc policy set public minio/warehouse;
+      until (/usr/bin/mc alias set rustfs http://rustfs:9000 admin password) do echo '...waiting...' && sleep 1; done;
+      /usr/bin/mc rm -r --force rustfs/warehouse;
+      /usr/bin/mc mb rustfs/warehouse;
+      /usr/bin/mc policy set public rustfs/warehouse;
       tail -f /dev/null
       "
 networks:
   iceberg_net:
-
 ```
+
+!!! note
+
+    Since the [default Spark config](https://github.com/databricks/docker-spark-iceberg/blob/main/spark/spark-defaults.conf) hardcodes the value for `spark.sql.catalog.demo.s3.endpoint`, you **must** change it from `http://minio:9000` to `http://rustfs:9000`. Additionally, add the configuration `spark.sql.catalog.demo.s3.path-style-access true` to disable virtual host mode for RustFS. Keep all other configurations as they are, and mount the spark-defaults.conf file to the container.
+
+    ```conf
+
+    # replace minio address with rustfs address
+    spark.sql.catalog.demo.s3.endpoint     http://rustfs:9000
+
+    ```
 
 Next, start up the docker containers with this command:
 ```sh
-docker-compose up
+docker-compose up -d
 ```
 
 You can then run any of the following commands to start a Spark session.
@@ -149,6 +163,7 @@ using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database n
 === "SparkSQL"
 
     ```sql
+    CREATE NAMESPACE demo.nyc;
     CREATE TABLE demo.nyc.taxis
     (
       vendor_id bigint,
