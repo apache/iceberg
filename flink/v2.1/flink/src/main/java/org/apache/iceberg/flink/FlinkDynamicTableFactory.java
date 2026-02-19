@@ -144,9 +144,9 @@ public class FlinkDynamicTableFactory
       Context context, Configuration flinkConf, Map<String, String> writeProps) {
     String dynamicRecordGeneratorImpl =
         flinkConf.get(FlinkCreateTableOptions.DYNAMIC_RECORD_GENERATOR_IMPL);
-    Preconditions.checkNotNull(
-        dynamicRecordGeneratorImpl,
-        "%s must be specified when use-dynamic-iceberg-sink is true",
+    Preconditions.checkArgument(
+        dynamicRecordGeneratorImpl != null,
+        "Invalid dynamic record generator value: null. %s  must be specified when use-dynamic-iceberg-sink is true.",
         FlinkCreateTableOptions.DYNAMIC_RECORD_GENERATOR_IMPL.key());
 
     CatalogLoader catalogLoader;
@@ -175,9 +175,8 @@ public class FlinkDynamicTableFactory
         "Table property '%s' cannot be null",
         FlinkCreateTableOptions.CATALOG_NAME.key());
 
-    org.apache.hadoop.conf.Configuration hadoopConf = FlinkCatalogFactory.clusterHadoopConf();
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
-    return (FlinkCatalog) factory.createCatalog(catalogName, tableProps, hadoopConf);
+    return (FlinkCatalog) factory.createCatalog(catalogName, tableProps, FlinkCatalogFactory.clusterHadoopConf());
   }
 
   private static TableLoader createTableLoader(

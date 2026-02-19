@@ -420,9 +420,9 @@ public class TestIcebergConnector extends TestBase {
                     "INSERT INTO %s VALUES (1, 'AAA', '%s', '%s')",
                     TABLE_NAME + "_dynamic", databaseName(), tableName()))
         .cause()
-        .isInstanceOf(NullPointerException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "dynamic-record-generator-impl must be specified when use-dynamic-iceberg-sink is true");
+            "Invalid dynamic record generator value: null. dynamic-record-generator-impl  must be specified when use-dynamic-iceberg-sink is true.");
   }
 
   public static class SimpleRowDataTableRecordGenerator extends DynamicTableRecordGenerator {
