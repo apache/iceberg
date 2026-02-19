@@ -170,10 +170,10 @@ public class FlinkDynamicTableFactory
 
   private static FlinkCatalog createCatalogLoader(
       Map<String, String> tableProps, String catalogName) {
-    Preconditions.checkNotNull(
-        catalogName,
-        "Table property '%s' cannot be null",
-        FlinkCreateTableOptions.CATALOG_NAME.key());
+    Preconditions.checkArgument(
+        catalogName != null,
+        "Invalid catalog name: null. Set %s create table option.",
+        FlinkCreateTableOptions.CATALOG_NAME);
 
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     return (FlinkCatalog)
@@ -194,10 +194,12 @@ public class FlinkDynamicTableFactory
     String catalogName = flinkConf.get(FlinkCreateTableOptions.CATALOG_NAME);
 
     String catalogDatabase = flinkConf.get(FlinkCreateTableOptions.CATALOG_DATABASE, databaseName);
-    Preconditions.checkNotNull(catalogDatabase, "The iceberg database name cannot be null");
+    Preconditions.checkArgument(
+        catalogDatabase != null,
+        "Invalid database name: null. Set %s create table option or specify fully qualified table name.",
+        FlinkCreateTableOptions.CATALOG_DATABASE);
 
     String catalogTable = flinkConf.get(FlinkCreateTableOptions.CATALOG_TABLE, tableName);
-    Preconditions.checkNotNull(catalogTable, "The iceberg table name cannot be null");
 
     FlinkCatalog flinkCatalog = createCatalogLoader(mergedProps, catalogName);
     ObjectPath objectPath = new ObjectPath(catalogDatabase, catalogTable);
@@ -271,7 +273,6 @@ public class FlinkDynamicTableFactory
   }
 
   private static TableLoader createTableLoader(FlinkCatalog catalog, ObjectPath objectPath) {
-    Preconditions.checkNotNull(catalog, "Flink catalog cannot be null");
     return TableLoader.fromCatalog(catalog.getCatalogLoader(), catalog.toIdentifier(objectPath));
   }
 }

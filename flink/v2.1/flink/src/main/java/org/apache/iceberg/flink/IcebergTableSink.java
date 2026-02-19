@@ -59,8 +59,8 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   private final ReadableConfig readableConfig;
   private final Map<String, String> writeProps;
   private final String dynamicRecordGeneratorImpl;
-
   private boolean overwrite = false;
+  private boolean useDynamicSink = false;
 
   private IcebergTableSink(IcebergTableSink toCopy) {
     this.tableLoader = toCopy.tableLoader;
@@ -71,6 +71,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     this.readableConfig = toCopy.readableConfig;
     this.writeProps = toCopy.writeProps;
     this.dynamicRecordGeneratorImpl = toCopy.dynamicRecordGeneratorImpl;
+    this.useDynamicSink = toCopy.useDynamicSink;
   }
 
   /**
@@ -119,6 +120,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     this.writeProps = writeProps;
     this.tableSchema = null;
     this.resolvedSchema = resolvedSchema;
+    this.useDynamicSink = true;
   }
 
   @SuppressWarnings("deprecation")
@@ -130,11 +132,16 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
     return (DataStreamSinkProvider)
         (providerContext, dataStream) -> {
-          if (catalogLoader != null && dynamicRecordGeneratorImpl != null) {
+          if (useDynamicSink) {
+            Preconditions.checkArgument(
+                catalogLoader != null && dynamicRecordGeneratorImpl != null,
+                "Invalid value catalogLoader: %s, DynamicRecordGenerator Implementation class: %s. "
+                    + "Both should be not null to use dynamic iceberg sink.",
+                catalogLoader,
+                dynamicRecordGeneratorImpl);
             return createDynamicIcebergSink(dataStream);
           }
 
-          // Existing logic for regular sink
           if (resolvedSchema != null) {
             ResolvedSchema physicalColumnsOnlySchema =
                 ResolvedSchema.of(
@@ -148,25 +155,10 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
                     .map(UniqueConstraint::getColumns)
                     .orElseGet(ImmutableList::of);
 
-            if (Boolean.TRUE.equals(
-                readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK))) {
-              return IcebergSink.forRowData(dataStream)
-                  .tableLoader(tableLoader)
-                  .resolvedSchema(physicalColumnsOnlySchema)
-                  .equalityFieldColumns(equalityColumns)
-                  .overwrite(overwrite)
-                  .setAll(writeProps)
-                  .flinkConf(readableConfig)
-                  .append();
+            if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK)) {
+              return createIcebergSink(dataStream, equalityColumns, physicalColumnsOnlySchema);
             } else {
-              return FlinkSink.forRowData(dataStream)
-                  .tableLoader(tableLoader)
-                  .resolvedSchema(physicalColumnsOnlySchema)
-                  .equalityFieldColumns(equalityColumns)
-                  .overwrite(overwrite)
-                  .setAll(writeProps)
-                  .flinkConf(readableConfig)
-                  .append();
+              return createLegacySink(dataStream, equalityColumns, physicalColumnsOnlySchema);
             }
           } else {
             List<String> equalityColumns =
@@ -176,23 +168,9 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
                     .orElseGet(ImmutableList::of);
 
             if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK)) {
-              return IcebergSink.forRowData(dataStream)
-                  .tableLoader(tableLoader)
-                  .tableSchema(tableSchema)
-                  .equalityFieldColumns(equalityColumns)
-                  .overwrite(overwrite)
-                  .setAll(writeProps)
-                  .flinkConf(readableConfig)
-                  .append();
+              return createIcebergSink(dataStream, equalityColumns, null);
             } else {
-              return FlinkSink.forRowData(dataStream)
-                  .tableLoader(tableLoader)
-                  .tableSchema(tableSchema)
-                  .equalityFieldColumns(equalityColumns)
-                  .overwrite(overwrite)
-                  .setAll(writeProps)
-                  .flinkConf(readableConfig)
-                  .append();
+              return createLegacySink(dataStream, equalityColumns, null);
             }
           }
         };
@@ -226,6 +204,44 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   @Override
   public void applyOverwrite(boolean newOverwrite) {
     this.overwrite = newOverwrite;
+  }
+
+  private DataStreamSink<?> createLegacySink(
+      DataStream<RowData> dataStream, List<String> equalityColumns, ResolvedSchema resolvedSchema) {
+    FlinkSink.Builder builder =
+        FlinkSink.forRowData(dataStream)
+            .tableLoader(tableLoader)
+            .equalityFieldColumns(equalityColumns)
+            .overwrite(overwrite)
+            .setAll(writeProps)
+            .flinkConf(readableConfig);
+
+    if (resolvedSchema != null) {
+      builder = builder.resolvedSchema(resolvedSchema);
+    } else {
+      builder = builder.tableSchema(tableSchema);
+    }
+
+    return builder.append();
+  }
+
+  private DataStreamSink<?> createIcebergSink(
+      DataStream<RowData> dataStream, List<String> equalityColumns, ResolvedSchema resolvedSchema) {
+    IcebergSink.Builder builder =
+        IcebergSink.forRowData(dataStream)
+            .tableLoader(tableLoader)
+            .equalityFieldColumns(equalityColumns)
+            .overwrite(overwrite)
+            .setAll(writeProps)
+            .flinkConf(readableConfig);
+
+    if (resolvedSchema != null) {
+      builder = builder.resolvedSchema(resolvedSchema);
+    } else {
+      builder = builder.tableSchema(tableSchema);
+    }
+
+    return builder.append();
   }
 
   private DataStreamSink<?> createDynamicIcebergSink(DataStream<RowData> dataStream) {
