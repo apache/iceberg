@@ -184,7 +184,8 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
           broadcastRewritableDeletes(),
           command,
           context,
-          writeProperties);
+          writeProperties,
+          writeRequirements.icebergOrdering());
     }
 
     private Broadcast<Map<String, DeleteFileSet>> broadcastRewritableDeletes() {
@@ -394,18 +395,21 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
     private final Command command;
     private final Context context;
     private final Map<String, String> writeProperties;
+    private final org.apache.iceberg.SortOrder sortOrder;
 
     PositionDeltaWriteFactory(
         Broadcast<Table> tableBroadcast,
         Broadcast<Map<String, DeleteFileSet>> rewritableDeletesBroadcast,
         Command command,
         Context context,
-        Map<String, String> writeProperties) {
+        Map<String, String> writeProperties,
+        org.apache.iceberg.SortOrder sortOrder) {
       this.tableBroadcast = tableBroadcast;
       this.rewritableDeletesBroadcast = rewritableDeletesBroadcast;
       this.command = command;
       this.context = context;
       this.writeProperties = writeProperties;
+      this.sortOrder = sortOrder;
     }
 
     @Override
@@ -432,6 +436,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
               .deleteFileFormat(context.deleteFileFormat())
               .positionDeleteSparkType(context.deleteSparkType())
               .writeProperties(writeProperties)
+              .dataSortOrder(sortOrder)
               .build();
 
       if (command == DELETE) {

@@ -42,7 +42,12 @@ class SparkRowReaderFactory implements PartitionReaderFactory {
     SparkInputPartition partition = (SparkInputPartition) inputPartition;
 
     if (partition.allTasksOfType(FileScanTask.class)) {
-      return new RowDataReader(partition);
+      Integer reportableSortOrderId = partition.reportableSortOrderId();
+      if (reportableSortOrderId != null && partition.taskGroup().tasks().size() > 1) {
+        return new MergingSortedRowDataReader(partition, reportableSortOrderId);
+      } else {
+        return new RowDataReader(partition);
+      }
 
     } else if (partition.allTasksOfType(ChangelogScanTask.class)) {
       return new ChangelogRowReader(partition);
