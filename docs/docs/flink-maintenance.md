@@ -219,6 +219,7 @@ env.execute("Table Maintenance Job");
 | `maxRewriteBytes(long)` | Maximum bytes to rewrite per execution | Long.MAX_VALUE | long |
 | `filter(Expression)` | Filter expression for selecting files to rewrite | Expressions.alwaysTrue() | Expression |
 | `maxFileGroupInputFiles(long)`         | Maximum allowed number of input files within a file group                                              | Long.MAX_VALUE | long |
+| `openParquetMerge(boolean)`         | For Parquet tables, `rewriteDataFiles` can use an optimized row-group level merge strategy that is significantly faster than the standard read-rewrite approach. This optimization directly copies row groups without deserialization and re-serialization.                                              | false | boolean |
 
 #### DeleteOrphanFiles Configuration
 
@@ -398,6 +399,12 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 - Enable `partialProgressEnabled` for large rewrite operations
 - Set reasonable `maxRewriteBytes` limits
 - Setting an appropriate `maxFileGroupSizeBytes` can break down large FileGroups into smaller ones, thereby increasing the speed of parallel processing
+- For Parquet tables, `rewriteDataFiles` can open parquet merge, use an optimized row-group level merge strategy that is significantly faster than the standard read-rewrite approach. This optimization is applied when the following requirements are met:
+- * All files are in Parquet format
+- * Files have compatible schemas
+- * Files are not encrypted
+- * Files do not have associated delete files or delete vectors
+- * Table does not have a sort order (including z-ordered tables)
 
 ### Troubleshooting
 

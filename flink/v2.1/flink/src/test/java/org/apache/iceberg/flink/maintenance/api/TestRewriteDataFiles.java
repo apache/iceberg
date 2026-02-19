@@ -34,6 +34,9 @@ import java.util.stream.StreamSupport;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -43,9 +46,21 @@ import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTe
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 class TestRewriteDataFiles extends MaintenanceTaskTestBase {
-  @Test
+
+  @Parameter(index = 0)
+  private boolean openParquetMerge;
+
+  @Parameters(name = "openParquetMerge = {0}")
+  private static Object[][] parameters() {
+    return new Object[][] {{true}, {false}};
+  }
+
+  @TestTemplate
   void testRewriteUnpartitioned() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
@@ -57,6 +72,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     appendRewriteDataFiles(
         RewriteDataFiles.builder()
+            .parquetMergeThresholdByteSize(0L)
             .parallelism(2)
             .deleteFileThreshold(10)
             .targetFileSizeBytes(1_000_000L)
@@ -64,6 +80,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .maxFileSizeBytes(2_000_000L)
             .minFileSizeBytes(500_000L)
             .minInputFiles(2)
+            .openParquetMerge(openParquetMerge)
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)
@@ -82,7 +99,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             createRecord(4, "d")));
   }
 
-  @Test
+  @TestTemplate
   void testRewriteUnpartitionedPreserveLineage() throws Exception {
     Table table = createTable(3);
     insert(table, 1, "a");
@@ -94,6 +111,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     appendRewriteDataFiles(
         RewriteDataFiles.builder()
+            .parquetMergeThresholdByteSize(0L)
             .parallelism(2)
             .deleteFileThreshold(10)
             .targetFileSizeBytes(1_000_000L)
@@ -101,6 +119,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .maxFileSizeBytes(2_000_000L)
             .minFileSizeBytes(500_000L)
             .minInputFiles(2)
+            .openParquetMerge(openParquetMerge)
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)
@@ -122,7 +141,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
         schema);
   }
 
-  @Test
+  @TestTemplate
   void testRewriteTheSameFilePreserveLineage() throws Exception {
     Table table = createTable(3);
     insert(table, 1, "a");
@@ -136,6 +155,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     appendRewriteDataFiles(
         RewriteDataFiles.builder()
+            .parquetMergeThresholdByteSize(0L)
             .parallelism(2)
             .deleteFileThreshold(10)
             .targetFileSizeBytes(1_000_000L)
@@ -143,6 +163,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .maxFileSizeBytes(2_000_000L)
             .minFileSizeBytes(500_000L)
             .minInputFiles(2)
+            .openParquetMerge(openParquetMerge)
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)
@@ -166,7 +187,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
         schema);
   }
 
-  @Test
+  @TestTemplate
   void testRewritePartitionedPreserveLineage() throws Exception {
     Table table = createPartitionedTable(3);
     insertPartitioned(table, 1, "p1");
@@ -194,7 +215,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
         schema);
   }
 
-  @Test
+  @TestTemplate
   void testRewritePartitioned() throws Exception {
     Table table = createPartitionedTable();
     insertPartitioned(table, 1, "p1");
@@ -294,7 +315,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .build());
   }
 
-  @Test
+  @TestTemplate
   void testUidAndSlotSharingGroup() {
     createTable();
 
@@ -316,7 +337,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
     checkSlotSharingGroupsAreSet(infra.env(), SLOT_SHARING_GROUP);
   }
 
-  @Test
+  @TestTemplate
   void testUidAndSlotSharingGroupUnset() {
     createTable();
 
@@ -336,7 +357,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
     checkSlotSharingGroupsAreSet(infra.env(), null);
   }
 
-  @Test
+  @TestTemplate
   void testMetrics() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
@@ -410,7 +431,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .build());
   }
 
-  @Test
+  @TestTemplate
   void testV2Table() throws Exception {
     Table table = createTableWithDelete();
     update(table, 1, null, "a", "b");
@@ -489,7 +510,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .build());
   }
 
-  @Test
+  @TestTemplate
   void testRewriteWithFilter() throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
@@ -501,6 +522,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     appendRewriteDataFiles(
         RewriteDataFiles.builder()
+            .parquetMergeThresholdByteSize(0L)
             .parallelism(2)
             .deleteFileThreshold(10)
             .targetFileSizeBytes(1_000_000L)
@@ -530,7 +552,11 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
   }
 
   private void appendRewriteDataFiles() {
-    appendRewriteDataFiles(RewriteDataFiles.builder().rewriteAll(true));
+    appendRewriteDataFiles(
+        RewriteDataFiles.builder()
+            .openParquetMerge(openParquetMerge)
+            .parquetMergeThresholdByteSize(0L)
+            .rewriteAll(true));
   }
 
   private void appendRewriteDataFiles(RewriteDataFiles.Builder builder) {

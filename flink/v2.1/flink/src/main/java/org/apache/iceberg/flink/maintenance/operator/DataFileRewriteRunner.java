@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
@@ -33,6 +34,7 @@ import org.apache.flink.util.Collector;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
@@ -115,7 +117,8 @@ public class DataFileRewriteRunner
     boolean preserveRowId = TableUtil.supportsRowLineage(value.table());
 
     try (TaskWriter<RowData> writer = writerFor(value, preserveRowId)) {
-      try (DataIterator<RowData> iterator = readerFor(value, preserveRowId)) {
+      try (DataIterator<RowData> iterator =
+          readerFor(value, preserveRowId, value.group().fileScanTasks())) {
         while (iterator.hasNext()) {
           writer.write(iterator.next());
         }
@@ -175,7 +178,7 @@ public class DataFileRewriteRunner
     }
   }
 
-  private TaskWriter<RowData> writerFor(PlannedGroup value, boolean preserveRowId) {
+  protected TaskWriter<RowData> writerFor(PlannedGroup value, boolean preserveRowId) {
     String formatString =
         PropertyUtil.propertyAsString(
             value.table().properties(),
@@ -201,7 +204,8 @@ public class DataFileRewriteRunner
     return factory.create();
   }
 
-  private DataIterator<RowData> readerFor(PlannedGroup value, boolean preserveRowId) {
+  protected DataIterator<RowData> readerFor(
+      PlannedGroup value, boolean preserveRowId, List<FileScanTask> fileScanTasks) {
     Schema projectedSchema =
         preserveRowId
             ? MetadataColumns.schemaWithRowLineage(value.table().schema())
@@ -216,12 +220,12 @@ public class DataFileRewriteRunner
             Collections.emptyList());
     return new DataIterator<>(
         reader,
-        new BaseCombinedScanTask(value.group().fileScanTasks()),
+        new BaseCombinedScanTask(fileScanTasks),
         value.table().io(),
         value.table().encryption());
   }
 
-  private void abort(TaskWriter<RowData> writer, long timestamp) {
+  protected void abort(TaskWriter<RowData> writer, long timestamp) {
     try {
       LOG.info(
           DataFileRewritePlanner.MESSAGE_PREFIX
@@ -242,6 +246,30 @@ public class DataFileRewriteRunner
           timestamp,
           e);
     }
+  }
+
+  protected String tableName() {
+    return tableName;
+  }
+
+  protected String taskName() {
+    return taskName;
+  }
+
+  protected int taskIndex() {
+    return taskIndex;
+  }
+
+  protected int subTaskId() {
+    return subTaskId;
+  }
+
+  protected int attemptId() {
+    return attemptId;
+  }
+
+  protected Counter errorCounter() {
+    return errorCounter;
   }
 
   public static class ExecutedGroup {
