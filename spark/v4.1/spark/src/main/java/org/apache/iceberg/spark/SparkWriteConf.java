@@ -449,9 +449,10 @@ public class SparkWriteConf {
   }
 
   public IsolationLevel isolationLevel() {
-    String isolationLevelName =
-        confParser.stringConf().option(SparkWriteOptions.ISOLATION_LEVEL).parseOptional();
-    return isolationLevelName != null ? IsolationLevel.fromName(isolationLevelName) : null;
+    return confParser
+        .enumConf(IsolationLevel::fromName)
+        .option(SparkWriteOptions.ISOLATION_LEVEL)
+        .parseOptional();
   }
 
   public boolean caseSensitive() {
