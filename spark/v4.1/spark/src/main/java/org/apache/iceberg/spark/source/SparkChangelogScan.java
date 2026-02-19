@@ -148,6 +148,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
     SparkChangelogScan that = (SparkChangelogScan) o;
     return table.name().equals(that.table.name())
+        && Objects.equals(table.uuid(), that.table.uuid())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field IDs
         && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(startSnapshotId, that.startSnapshotId)
@@ -156,7 +157,8 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
   @Override
   public int hashCode() {
-    return Objects.hash(table.name(), readSchema(), filtersDesc(), startSnapshotId, endSnapshotId);
+    return Objects.hash(
+        table.name(), table.uuid(), readSchema(), filtersDesc(), startSnapshotId, endSnapshotId);
   }
 
   private String filtersDesc() {
