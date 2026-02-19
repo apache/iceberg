@@ -18,10 +18,12 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.source.SparkView
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.expressions.UpCast
 import org.apache.spark.sql.catalyst.parser.ParseException
@@ -74,6 +76,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
           _,
           _,
           _,
+          _,
           _) if query.resolved && !c.rewritten =>
       val aliased = aliasColumns(query, columnAliases, columnComments)
       c.copy(
@@ -109,13 +112,27 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
     val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace);
 
-    // Apply the field aliases and column comments
-    // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
-    // This is more strict because it doesn't allow resolution by field name.
+    // Determine the schema mode from view properties
+    val schemaMode = view.properties.getOrDefault(SparkView.VIEW_SCHEMA_MODE, null)
+
+    // Apply the field aliases and column comments based on the schema mode.
+    // BINDING (default): Use UpCast for strict safe type enforcement.
+    // COMPENSATION: Use Cast for lenient type enforcement (may produce runtime errors).
+    // TYPE EVOLUTION / EVOLUTION: Use output types from the query directly, adapting the view
+    // schema to changes in the underlying table.
     val aliases = view.schema.fields.zipWithIndex.map { case (expected, pos) =>
       val attr = GetColumnByOrdinal(pos, expected.dataType)
-      Alias(UpCast(attr, expected.dataType), expected.name)(explicitMetadata =
-        Some(expected.metadata))
+      val castExpr = schemaMode match {
+        case "Compensation" =>
+          Cast(attr, expected.dataType)
+        case "TypeEvolution" | "Evolution" =>
+          // For type evolution, skip the cast and let the query types flow through
+          attr
+        case _ =>
+          // Default to BINDING behavior: strict UpCast
+          UpCast(attr, expected.dataType)
+      }
+      Alias(castExpr, expected.name)(explicitMetadata = Some(expected.metadata))
     }.toIndexedSeq
 
     SubqueryAlias(nameParts, Project(aliases, rewritten))
