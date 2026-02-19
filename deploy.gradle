@@ -33,13 +33,13 @@ subprojects {
       task sourceJar(type: Jar, dependsOn: classes) {
         archiveClassifier.set('sources')
         from sourceSets.main.allSource
-        group 'build'
+        group = 'build'
       }
 
       task javadocJar(type: Jar, dependsOn: javadoc) {
         archiveClassifier.set('javadoc')
         from javadoc.destinationDir
-        group 'build'
+        group = 'build'
       }
 
       task testJar(type: Jar) {
@@ -124,8 +124,8 @@ subprojects {
       repositories {
         maven {
           credentials {
-            username project.hasProperty('mavenUser') ? "$mavenUser" : ""
-            password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
+            username = project.hasProperty('mavenUser') ? "$mavenUser" : ""
+            password = project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
           }
           // upload to the releases repository using ./gradlew -Prelease publish
           def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'

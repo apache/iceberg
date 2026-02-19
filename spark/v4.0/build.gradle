@@ -132,7 +132,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
   tasks.withType(Test) {
     // Vectorized reads need more memory
-    maxHeapSize '3160m'
+    maxHeapSize = '3160m'
   }
 }
 
@@ -296,7 +296,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
   shadowJar {
     configurations = [project.configurations.runtimeClasspath]
 
-    zip64 true
+    zip64 = true
 
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {
