@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.MetricsReporter;
 
 /** An adapter that allows using {@link TableScan} as {@link BatchScan}. */
@@ -36,6 +37,11 @@ public class BatchScanAdapter implements BatchScan {
   @Override
   public Table table() {
     return scan.table();
+  }
+
+  @Override
+  public FileIO io() {
+    return scan.io();
   }
 
   @Override
