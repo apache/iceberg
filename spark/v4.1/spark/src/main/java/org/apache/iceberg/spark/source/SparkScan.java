@@ -105,7 +105,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final SparkSession spark;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
-  private final Schema expectedSchema;
+  private final Schema projection;
   private final List<Expression> filters;
   private final String branch;
   private final Supplier<ScanReport> scanReportSupplier;
@@ -117,18 +117,18 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       SparkSession spark,
       Table table,
       SparkReadConf readConf,
-      Schema expectedSchema,
+      Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
-    SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
+    SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, projection);
 
     this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
-    this.expectedSchema = expectedSchema;
+    this.projection = projection;
     this.filters = filters != null ? filters : Collections.emptyList();
     this.branch = readConf.branch();
     this.scanReportSupplier = scanReportSupplier;
@@ -146,8 +146,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return caseSensitive;
   }
 
-  protected Schema expectedSchema() {
-    return expectedSchema;
+  protected Schema projection() {
+    return projection;
   }
 
   protected List<Expression> filters() {
@@ -171,19 +171,18 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public Batch toBatch() {
     return new SparkBatch(
-        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema, hashCode());
+        sparkContext, table, readConf, groupingKeyType(), taskGroups(), projection, hashCode());
   }
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-    return new SparkMicroBatchStream(
-        sparkContext, table, readConf, expectedSchema, checkpointLocation);
+    return new SparkMicroBatchStream(sparkContext, table, readConf, projection, checkpointLocation);
   }
 
   @Override
   public StructType readSchema() {
     if (readSchema == null) {
-      this.readSchema = SparkSchemaUtil.convert(expectedSchema);
+      this.readSchema = SparkSchemaUtil.convert(projection);
     }
     return readSchema;
   }

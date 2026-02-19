@@ -50,7 +50,7 @@ class SparkBatch implements Batch {
   private final SparkReadConf readConf;
   private final Types.StructType groupingKeyType;
   private final List<? extends ScanTaskGroup<?>> taskGroups;
-  private final Schema expectedSchema;
+  private final Schema projection;
   private final boolean caseSensitive;
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
@@ -63,14 +63,14 @@ class SparkBatch implements Batch {
       SparkReadConf readConf,
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
-      Schema expectedSchema,
+      Schema projection,
       int scanHashCode) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.readConf = readConf;
     this.groupingKeyType = groupingKeyType;
     this.taskGroups = taskGroups;
-    this.expectedSchema = expectedSchema;
+    this.projection = projection;
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
@@ -83,7 +83,7 @@ class SparkBatch implements Batch {
     // broadcast the table metadata as input partitions will be sent to executors
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-    String expectedSchemaString = SchemaParser.toJson(expectedSchema);
+    String projectionString = SchemaParser.toJson(projection);
     String[][] locations = computePreferredLocations();
 
     InputPartition[] partitions = new InputPartition[taskGroups.size()];
@@ -94,7 +94,7 @@ class SparkBatch implements Batch {
               groupingKeyType,
               taskGroups.get(index),
               tableBroadcast,
-              expectedSchemaString,
+              projectionString,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
               cacheDeleteFilesOnExecutors);
@@ -150,7 +150,7 @@ class SparkBatch implements Batch {
   // - all tasks are of FileScanTask type and read only Parquet files
   private boolean useParquetBatchReads() {
     return readConf.parquetVectorizationEnabled()
-        && expectedSchema.columns().stream().allMatch(this::supportsParquetBatchReads)
+        && projection.columns().stream().allMatch(this::supportsParquetBatchReads)
         && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
   }
 
@@ -175,7 +175,7 @@ class SparkBatch implements Batch {
   private boolean useCometBatchReads() {
     return readConf.parquetVectorizationEnabled()
         && readConf.parquetReaderType() == ParquetReaderType.COMET
-        && expectedSchema.columns().stream().allMatch(this::supportsCometBatchReads)
+        && projection.columns().stream().allMatch(this::supportsCometBatchReads)
         && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
   }
 

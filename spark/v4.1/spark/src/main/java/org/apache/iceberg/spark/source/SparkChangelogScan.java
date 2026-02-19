@@ -52,7 +52,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   private final Table table;
   private final IncrementalChangelogScan scan;
   private final SparkReadConf readConf;
-  private final Schema expectedSchema;
+  private final Schema projection;
   private final List<Expression> filters;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
@@ -66,17 +66,17 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
       Table table,
       IncrementalChangelogScan scan,
       SparkReadConf readConf,
-      Schema expectedSchema,
+      Schema projection,
       List<Expression> filters,
       boolean emptyScan) {
 
-    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
+    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), projection);
 
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.scan = scan;
     this.readConf = readConf;
-    this.expectedSchema = expectedSchema;
+    this.projection = projection;
     this.filters = filters != null ? filters : Collections.emptyList();
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
@@ -95,7 +95,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   @Override
   public StructType readSchema() {
     if (expectedSparkType == null) {
-      this.expectedSparkType = SparkSchemaUtil.convert(expectedSchema);
+      this.expectedSparkType = SparkSchemaUtil.convert(projection);
     }
 
     return expectedSparkType;
@@ -109,7 +109,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         readConf,
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
-        expectedSchema,
+        projection,
         hashCode());
   }
 

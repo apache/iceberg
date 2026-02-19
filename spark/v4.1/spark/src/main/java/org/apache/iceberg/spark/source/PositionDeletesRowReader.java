@@ -49,7 +49,7 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
     this(
         partition.table(),
         partition.taskGroup(),
-        partition.expectedSchema(),
+        partition.projection(),
         partition.isCaseSensitive(),
         partition.cacheDeleteFilesOnExecutors());
   }
