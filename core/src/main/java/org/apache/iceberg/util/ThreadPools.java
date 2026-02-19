@@ -175,6 +175,14 @@ public class ThreadPools {
   /**
    * Force manual shutdown of the thread pools created via the {@link #newExitingWorkerPool(String,
    * int)}.
+   *
+   * <p>This method allows: (1) to stop thread pools manually, to avoid leaks in hot-reload
+   * environments; (2) opt-out of the standard shutdown mechanism to manage graceful service stops
+   * (and commit the last pending files, if the client application needs to react to shutdown hooks
+   * on its own).
+   *
+   * <p>Please only call this method at the end of the intended usage of the library, and NEVER
+   * before, as this method will stop thread pools required for normal library workflows.
    */
   public static void shutdownThreadPools() {
     removeShutdownHook();
