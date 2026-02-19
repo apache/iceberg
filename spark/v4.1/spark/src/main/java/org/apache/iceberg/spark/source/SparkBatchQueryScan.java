@@ -253,6 +253,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
 
     SparkBatchQueryScan that = (SparkBatchQueryScan) o;
     return table().name().equals(that.table().name())
+        && Objects.equals(table().uuid(), that.table().uuid())
         && Objects.equals(branch(), that.branch())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
         && filtersDesc().equals(that.filtersDesc())
@@ -268,6 +269,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   public int hashCode() {
     return Objects.hash(
         table().name(),
+        table().uuid(),
         branch(),
         readSchema(),
         filtersDesc(),

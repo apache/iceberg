@@ -52,7 +52,6 @@ import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BasePositionDeltaWriter;
 import org.apache.iceberg.io.ClusteredDataWriter;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
@@ -247,7 +246,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       // the scan may be null if the optimizer replaces it with an empty relation
       // no validation is needed in this case as the command is independent of the table state
       if (scan != null) {
-        Expression conflictDetectionFilter = conflictDetectionFilter(scan);
+        Expression conflictDetectionFilter = scan.filter();
         rowDelta.conflictDetectionFilter(conflictDetectionFilter);
 
         rowDelta.validateDataFilesExist(referencedDataFiles);
@@ -289,16 +288,6 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
                 addedDeleteFilesCount);
         commitOperation(rowDelta, commitMsg, summary);
       }
-    }
-
-    private Expression conflictDetectionFilter(SparkBatchQueryScan queryScan) {
-      Expression filter = Expressions.alwaysTrue();
-
-      for (Expression expr : queryScan.filterExpressions()) {
-        filter = Expressions.and(filter, expr);
-      }
-
-      return filter;
     }
 
     @Override

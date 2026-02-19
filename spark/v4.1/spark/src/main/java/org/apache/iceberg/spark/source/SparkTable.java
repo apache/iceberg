@@ -32,7 +32,6 @@ import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -289,10 +288,6 @@ public class SparkTable
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
-    if (options.containsKey(SparkReadOptions.SCAN_TASK_SET_ID)) {
-      return new SparkStagedScanBuilder(sparkSession(), icebergTable, options);
-    }
-
     if (refreshEagerly) {
       icebergTable.refresh();
     }
@@ -307,12 +302,7 @@ public class SparkTable
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
         snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
-
-    if (icebergTable instanceof PositionDeletesTable) {
-      return new SparkPositionDeletesRewriteBuilder(sparkSession(), icebergTable, branch, info);
-    } else {
-      return new SparkWriteBuilder(sparkSession(), icebergTable, branch, info);
-    }
+    return new SparkWriteBuilder(sparkSession(), icebergTable, branch, info);
   }
 
   @Override
@@ -400,7 +390,7 @@ public class SparkTable
             .deleteFromRowFilter(deleteExpr);
 
     if (SparkTableUtil.wapEnabled(table())) {
-      branch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
+      branch = SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
     }
 
     if (branch != null) {

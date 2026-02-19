@@ -161,6 +161,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
     SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
     return table().name().equals(that.table().name())
+        && Objects.equals(table().uuid(), that.table().uuid())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
         && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(snapshotId(), that.snapshotId())
@@ -170,7 +171,12 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(), readSchema(), filtersDesc(), snapshotId(), filteredLocations);
+        table().name(),
+        table().uuid(),
+        readSchema(),
+        filtersDesc(),
+        snapshotId(),
+        filteredLocations);
   }
 
   @Override

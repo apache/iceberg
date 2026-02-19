@@ -55,7 +55,11 @@ public final class FormatModelRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(FormatModelRegistry.class);
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER =
-      ImmutableList.of("org.apache.iceberg.data.GenericFormatModels");
+      ImmutableList.of(
+          "org.apache.iceberg.data.GenericFormatModels",
+          "org.apache.iceberg.arrow.vectorized.ArrowFormatModels",
+          "org.apache.iceberg.flink.data.FlinkFormatModels",
+          "org.apache.iceberg.spark.source.SparkFormatModels");
 
   // Format models indexed by file format and object model class
   private static final Map<Pair<FileFormat, Class<?>>, FormatModel<?, ?>> MODELS =

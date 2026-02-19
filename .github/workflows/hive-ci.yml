@@ -72,6 +72,7 @@ jobs:
   hive2-tests:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 15
       matrix:
         jvm: [17, 21]
     env:
