@@ -285,7 +285,11 @@ public class TestMergeAppend extends TestBase {
         statuses(Status.ADDED, Status.ADDED));
 
     // validate that the metadata summary is correct when using appendManifest
-    assertThat(committedSnapshot.summary()).containsEntry("added-data-files", "2");
+    assertThat(committedSnapshot.summary())
+        .containsEntry("added-data-files", "2")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
   @TestTemplate
@@ -514,6 +518,12 @@ public class TestMergeAppend extends TestBase {
         ids(commitId1, commitId1),
         files(FILE_C, FILE_D),
         statuses(Status.ADDED, Status.ADDED));
+    // 3 manifests appended, bin-packing creates 2 bins: [m1] and [m2, m3]
+    // bin 1 kept as-is, bin 2 merged; first snapshot has no prior manifests
+    assertThat(snap1.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
 
     // produce new manifests as the old ones could have been compacted
     manifest = writeManifestWithName("FILE_A_S2", FILE_A);
@@ -559,8 +569,13 @@ public class TestMergeAppend extends TestBase {
         files(FILE_A, FILE_C, FILE_D),
         statuses(Status.EXISTING, Status.EXISTING, Status.EXISTING));
 
-    // validate that the metadata summary is correct when using appendManifest
-    assertThat(snap2.summary()).containsEntry("added-data-files", "3");
+    // 3 new manifests + 2 existing from snap1; bin-packing merges both groups
+    // 2 replaced = existing manifests from snap1 that were merged
+    assertThat(snap2.summary())
+        .containsEntry("added-data-files", "3")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "3")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
   @TestTemplate
@@ -780,6 +795,13 @@ public class TestMergeAppend extends TestBase {
         "Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
     V1Assert.assertEquals(
         "Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
+
+    // The delete operation rewrites the original manifest to mark FILE_A as deleted
+    // This should result in 1 replaced manifest, 1 created manifest, and 0 kept manifests
+    assertThat(deleteSnapshot.summary())
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
 
     long deleteId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).allManifests(table.io())).hasSize(1);
@@ -1485,7 +1507,10 @@ public class TestMergeAppend extends TestBase {
 
     assertThat(table.currentSnapshot().summary())
         .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
-        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1");
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
   @TestTemplate
@@ -1505,7 +1530,10 @@ public class TestMergeAppend extends TestBase {
         .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1")
         .containsEntry(
             SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0",
-            "added-data-files=1,added-records=1,added-files-size=10");
+            "added-data-files=1,added-records=1,added-files-size=10")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
   @TestTemplate
@@ -1522,6 +1550,9 @@ public class TestMergeAppend extends TestBase {
 
     assertThat(table.currentSnapshot().summary())
         .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
-        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2");
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 }
