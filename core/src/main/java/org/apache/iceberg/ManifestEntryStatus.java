@@ -19,24 +19,19 @@
 package org.apache.iceberg;
 
 /**
- * Content type stored in a file.
+ * Status of an entry in a manifest file.
  *
- * <p>For V1-V3 tables: DATA, POSITION_DELETES, or EQUALITY_DELETES.
- *
- * <p>For V4 tables: DATA, POSITION_DELETES, EQUALITY_DELETES, DATA_MANIFEST, or DELETE_MANIFEST.
+ * <p>This is a top-level enum to avoid duplication across manifest entry types (V3 ManifestEntry
+ * and V4 TrackingInfo).
  */
-public enum FileContent {
-  DATA(0),
-  POSITION_DELETES(1),
-  EQUALITY_DELETES(2),
-  /** Data manifest entry (V4+ only) - references data files in a root manifest. */
-  DATA_MANIFEST(3),
-  /** Delete manifest entry (V4+ only) - references delete files in a root manifest. */
-  DELETE_MANIFEST(4);
+public enum ManifestEntryStatus {
+  EXISTING(0),
+  ADDED(1),
+  DELETED(2);
 
   private final int id;
 
-  FileContent(int id) {
+  ManifestEntryStatus(int id) {
     this.id = id;
   }
 
