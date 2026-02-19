@@ -51,12 +51,10 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.expressions.aggregate.AggregateFunc;
 import org.apache.spark.sql.connector.expressions.aggregate.Aggregation;
 import org.apache.spark.sql.connector.read.Scan;
-import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsPushDownAggregates;
 import org.apache.spark.sql.connector.read.SupportsPushDownLimit;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
-import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
@@ -65,7 +63,6 @@ import org.slf4j.LoggerFactory;
 public class SparkScanBuilder extends BaseSparkScanBuilder
     implements SupportsPushDownV2Filters,
         SupportsPushDownRequiredColumns,
-        SupportsReportStatistics,
         SupportsPushDownLimit,
         SupportsPushDownAggregates {
 
@@ -542,16 +539,6 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         expectedSchema,
         filters(),
         metricsReporter()::scanReport);
-  }
-
-  @Override
-  public Statistics estimateStatistics() {
-    return ((SupportsReportStatistics) build()).estimateStatistics();
-  }
-
-  @Override
-  public StructType readSchema() {
-    return build().readSchema();
   }
 
   private BatchScan newBatchScan() {
