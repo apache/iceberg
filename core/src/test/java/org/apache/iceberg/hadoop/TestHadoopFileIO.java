@@ -130,7 +130,7 @@ public class TestHadoopFileIO {
   public void testFileExists() throws IOException {
     Path parent = new Path(tempDir.toURI());
     Path randomFilePath = new Path(parent, "random-file-" + UUID.randomUUID());
-    fs.createNewFile(randomFilePath);
+    touch(randomFilePath);
 
     // check existence of the created file
     assertThat(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isTrue();
@@ -216,22 +216,22 @@ public class TestHadoopFileIO {
   }
 
   @Test
-  public void testDefaultTrashSchemas() {
-    // hdfs is a default trash schema; viewfs is, file isn't
+  public void testDefaultTrashSchemes() {
+    // hdfs is a default trash scheme; viewfs is, file isn't
     assertThat(hadoopFileIO.useTrashForPath(new Path("hdfs:///")))
-        .describedAs("hdfs schema")
+        .describedAs("hdfs scheme")
         .isTrue();
     assertThat(hadoopFileIO.useTrashForPath(new Path("viewfs:///")))
-        .describedAs("viewfs schema")
+        .describedAs("viewfs scheme")
         .isTrue();
     assertThat(hadoopFileIO.useTrashForPath(new Path("file:///")))
-        .describedAs("file schema")
+        .describedAs("file scheme")
         .isFalse();
   }
 
   @Test
-  public void testRemoveTrashSchemas() {
-    // set the schema list to "" and verify that the default values are gone
+  public void testRemoveTrashSchemes() {
+    // set the scheme list to "" and verify that the default values are gone
     final Configuration conf = new Configuration(false);
     conf.set(DELETE_TRASH_SCHEMES, "");
     hadoopFileIO = new HadoopFileIO(conf);
@@ -284,7 +284,7 @@ public class TestHadoopFileIO {
 
     Path parent = new Path(tempDir.toURI());
     Path path = new Path(parent, "child");
-    fs.createNewFile(path);
+    touch(path);
     final String p = path.toUri().toString();
     // this will delete the file, even with the simulated IOE on moveToTrash
     hadoopFileIO.deleteFile(p);
@@ -403,15 +403,24 @@ public class TestHadoopFileIO {
         .parallel()
         .forEach(
             i -> {
-              try {
-                Path path = new Path(parent, "file-" + i);
-                paths.add(path);
-                fs.createNewFile(path);
-              } catch (IOException e) {
-                throw new UncheckedIOException(e);
-              }
+              Path path = new Path(parent, "file-" + i);
+              paths.add(path);
+              touch(path);
             });
     return paths;
+  }
+
+  /**
+   * Create a file at a path, overwriting any existing file.
+   *
+   * @param path path of file.
+   */
+  private void touch(Path path) {
+    try {
+      fs.create(path, true).close();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   /**

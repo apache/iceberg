@@ -60,7 +60,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   private volatile SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
-  private String[] trashSchemes;
+  private volatile String[] trashSchemes;
 
   /**
    * Constructor used for dynamic FileIO loading.
@@ -243,8 +243,8 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   /**
    * Delete a path.
    *
-   * <p>If the filesystem supports trash, it will attempt to move it to trash. If there is
-   * any failure to move to trash then the fallback is to delete the path. As a result: when this
+   * <p>If trash is enabled for the filesystem: attempt to move the file to trash. If there is any
+   * failure to move to trash then the fallback is to delete the path. As a result: when this
    * operation returns there will not be a file/dir at the target path.
    *
    * @param fs target filesystem.
@@ -271,8 +271,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
         // other failure (failure to get remote server trash policy, rename,...)
         // log one line at info, full stack at debug, so a failure to move many files to trash
         // doesn't flood the log
-        LOG.info("Failed to move {} to trash: {}", toDelete, e.toString());
-        LOG.debug("Trash.moveToAppropriateTrash failure", e);
+        LOG.info("Failed to move {} to trash", toDelete, e);
       }
     }
     fs.delete(toDelete, recursive);
