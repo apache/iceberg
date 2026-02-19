@@ -86,6 +86,12 @@ public interface ViewMetadata extends Serializable {
   @Nullable
   String metadataFileLocation();
 
+  @Nullable
+  default Long maxStaleness() {
+    String value = properties().get(ViewProperties.MAX_STALENESS_MS);
+    return value != null ? Long.parseLong(value) : null;
+  }
+
   default ViewVersion version(int versionId) {
     return versionsById().get(versionId);
   }
