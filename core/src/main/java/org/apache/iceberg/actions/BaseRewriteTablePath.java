@@ -32,6 +32,18 @@ interface BaseRewriteTablePath extends RewriteTablePath {
   interface Result extends RewriteTablePath.Result {
     @Override
     @Value.Default
+    default String dataFileListLocation() {
+      return RewriteTablePath.Result.super.dataFileListLocation();
+    }
+
+    @Override
+    @Value.Default
+    default String metadataFileListLocation() {
+      return RewriteTablePath.Result.super.metadataFileListLocation();
+    }
+
+    @Override
+    @Value.Default
     default int rewrittenDeleteFilePathsCount() {
       return RewriteTablePath.Result.super.rewrittenDeleteFilePathsCount();
     }
