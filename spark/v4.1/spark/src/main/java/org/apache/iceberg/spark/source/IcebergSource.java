@@ -32,7 +32,6 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkRewriteTableCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableCache;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -215,14 +214,12 @@ public class IcebergSource
 
   @Override
   public Optional<String> extractTimeTravelVersion(CaseInsensitiveStringMap options) {
-    return Optional.ofNullable(
-        PropertyUtil.propertyAsString(options, SparkReadOptions.VERSION_AS_OF, null));
+    return Optional.ofNullable(options.get(SparkReadOptions.VERSION_AS_OF));
   }
 
   @Override
   public Optional<String> extractTimeTravelTimestamp(CaseInsensitiveStringMap options) {
-    return Optional.ofNullable(
-        PropertyUtil.propertyAsString(options, SparkReadOptions.TIMESTAMP_AS_OF, null));
+    return Optional.ofNullable(options.get(SparkReadOptions.TIMESTAMP_AS_OF));
   }
 
   private static Long propertyAsLong(CaseInsensitiveStringMap options, String property) {
