@@ -20,12 +20,10 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import org.apache.iceberg.IsolationLevel;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -99,23 +97,23 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
 
   @Override
   public NamedReference[] requiredMetadataAttributes() {
-    List<NamedReference> metadataAttributes = Lists.newArrayList();
-    metadataAttributes.add(Expressions.column(MetadataColumns.SPEC_ID.name()));
-    metadataAttributes.add(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME));
+    List<NamedReference> metaAttrs = Lists.newArrayList();
+    metaAttrs.add(SparkMetadataColumns.SPEC_ID.asRef());
+    metaAttrs.add(SparkMetadataColumns.partition(table).asRef());
+
     if (TableUtil.supportsRowLineage(table)) {
-      metadataAttributes.add(Expressions.column(MetadataColumns.ROW_ID.name()));
-      metadataAttributes.add(
-          Expressions.column(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()));
+      metaAttrs.add(SparkMetadataColumns.ROW_ID.asRef());
+      metaAttrs.add(SparkMetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.asRef());
     }
 
-    return metadataAttributes.toArray(new NamedReference[0]);
+    return metaAttrs.toArray(new NamedReference[0]);
   }
 
   @Override
   public NamedReference[] rowId() {
-    NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
-    NamedReference pos = Expressions.column(MetadataColumns.ROW_POSITION.name());
-    return new NamedReference[] {file, pos};
+    return new NamedReference[] {
+      SparkMetadataColumns.FILE_PATH.asRef(), SparkMetadataColumns.ROW_POSITION.asRef()
+    };
   }
 
   @Override
