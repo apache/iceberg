@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
@@ -45,6 +46,9 @@ import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.ImmutableRemoteSignRequest;
+import org.apache.iceberg.rest.requests.RemoteSignRequest;
+import org.apache.iceberg.rest.responses.RemoteSignResponse;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
@@ -64,13 +68,30 @@ public abstract class S3V4RestSignerClient
     extends AbstractAws4Signer<AwsS3V4SignerParams, Aws4PresignerParams> implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(S3V4RestSignerClient.class);
-  public static final String S3_SIGNER_URI = "s3.signer.uri";
-  public static final String S3_SIGNER_ENDPOINT = "s3.signer.endpoint";
-  static final String S3_SIGNER_DEFAULT_ENDPOINT = "v1/aws/s3/sign";
-  static final String UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
-  static final String CACHE_CONTROL = "Cache-Control";
-  static final String CACHE_CONTROL_PRIVATE = "private";
-  static final String CACHE_CONTROL_NO_CACHE = "no-cache";
+
+  public static final String S3_PROVIDER = "s3";
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     RESTCatalogProperties#SIGNER_URI} instead.
+   */
+  @Deprecated public static final String S3_SIGNER_URI = "s3.signer.uri";
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     RESTCatalogProperties#SIGNER_URI} instead.
+   */
+  @Deprecated public static final String S3_SIGNER_ENDPOINT = "s3.signer.endpoint";
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; there is no replacement.
+   */
+  @Deprecated static final String S3_SIGNER_DEFAULT_ENDPOINT = "v1/aws/s3/sign";
+
+  @VisibleForTesting static final String UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
+
+  private static final String CACHE_CONTROL = "Cache-Control";
+  private static final String CACHE_CONTROL_PRIVATE = "private";
 
   private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
@@ -94,13 +115,28 @@ public abstract class S3V4RestSignerClient
 
   @Value.Lazy
   public String baseSignerUri() {
-    return properties().getOrDefault(S3_SIGNER_URI, properties().get(CatalogProperties.URI));
+    // TODO remove in 1.12.0
+    if (properties().containsKey(S3_SIGNER_URI)) {
+      return properties().get(S3_SIGNER_URI);
+    }
+
+    return properties()
+        .getOrDefault(RESTCatalogProperties.SIGNER_URI, properties().get(CatalogProperties.URI));
   }
 
   @Value.Lazy
   public String endpoint() {
-    return RESTUtil.resolveEndpoint(
-        baseSignerUri(), properties().getOrDefault(S3_SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT));
+    // TODO remove in 1.12.0
+    String endpointPath;
+    if (properties().containsKey(S3_SIGNER_ENDPOINT)) {
+      endpointPath = properties().get(S3_SIGNER_ENDPOINT);
+    } else {
+      endpointPath =
+          properties()
+              .getOrDefault(RESTCatalogProperties.SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT);
+    }
+
+    return RESTUtil.resolveEndpoint(baseSignerUri(), endpointPath);
   }
 
   /** A credential to exchange for a token in the OAuth2 client credentials flow. */
@@ -160,7 +196,6 @@ public abstract class S3V4RestSignerClient
           httpClient =
               HTTPClient.builder(properties())
                   .withHeaders(RESTUtil.configHeaders(properties()))
-                  .withObjectMapper(S3ObjectMapper.mapper())
                   .build();
         }
       }
@@ -197,8 +232,36 @@ public abstract class S3V4RestSignerClient
   @Value.Check
   protected void check() {
     Preconditions.checkArgument(
-        properties().containsKey(S3_SIGNER_URI) || properties().containsKey(CatalogProperties.URI),
+        properties().containsKey(S3_SIGNER_URI)
+            || properties().containsKey(RESTCatalogProperties.SIGNER_URI)
+            || properties().containsKey(CatalogProperties.URI),
         "S3 signer service URI is required");
+
+    if (properties().containsKey(S3_SIGNER_URI)
+        && !properties().containsKey(RESTCatalogProperties.SIGNER_URI)) {
+      LOG.warn(
+          "S3 signer URI is configured via deprecated property {}, this won't be supported in future releases. "
+              + "Please use {} instead.",
+          S3_SIGNER_URI,
+          RESTCatalogProperties.SIGNER_URI);
+    }
+
+    if (properties().containsKey(S3_SIGNER_ENDPOINT)
+        && !properties().containsKey(RESTCatalogProperties.SIGNER_ENDPOINT)) {
+      LOG.warn(
+          "Signer endpoint is configured via deprecated property {}, this won't be supported in future releases. "
+              + "Please use {} instead.",
+          S3_SIGNER_ENDPOINT,
+          RESTCatalogProperties.SIGNER_ENDPOINT);
+    }
+
+    // TODO change to required in 1.12.0
+    if (!properties().containsKey(S3_SIGNER_ENDPOINT)
+        && !properties().containsKey(RESTCatalogProperties.SIGNER_ENDPOINT)) {
+      LOG.warn(
+          "Signer endpoint is not set, this won't be supported in future releases. Using deprecated default: {}",
+          S3_SIGNER_DEFAULT_ENDPOINT);
+    }
   }
 
   @Override
@@ -241,14 +304,15 @@ public abstract class S3V4RestSignerClient
     AwsS3V4SignerParams signerParams =
         extractSignerParams(AwsS3V4SignerParams.builder(), executionAttributes).build();
 
-    S3SignRequest remoteSigningRequest =
-        ImmutableS3SignRequest.builder()
+    RemoteSignRequest remoteSigningRequest =
+        ImmutableRemoteSignRequest.builder()
             .method(request.method().name())
             .region(signerParams.signingRegion().id())
             .uri(request.getUri())
             .headers(request.headers())
             .properties(requestPropertiesSupplier().get())
             .body(bodyAsString(request))
+            .provider(S3_PROVIDER)
             .build();
 
     Key cacheKey = Key.from(remoteSigningRequest);
@@ -260,21 +324,21 @@ public abstract class S3V4RestSignerClient
     } else {
       Map<String, String> responseHeaders = Maps.newHashMap();
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
-      S3SignResponse s3SignResponse =
+      RemoteSignResponse remoteSignResponse =
           httpClient()
               .withAuthSession(authSession())
               .post(
                   endpoint(),
                   remoteSigningRequest,
-                  S3SignResponse.class,
+                  RemoteSignResponse.class,
                   Map.of(),
                   ErrorHandlers.defaultErrorHandler(),
                   responseHeadersConsumer);
 
       signedComponent =
           ImmutableSignedComponent.builder()
-              .headers(s3SignResponse.headers())
-              .signedURI(s3SignResponse.uri())
+              .headers(remoteSignResponse.headers())
+              .signedURI(remoteSignResponse.uri())
               .build();
 
       if (canBeCached(responseHeaders)) {
@@ -351,7 +415,7 @@ public abstract class S3V4RestSignerClient
 
     String uri();
 
-    static Key from(S3SignRequest request) {
+    static Key from(RemoteSignRequest request) {
       return ImmutableKey.builder()
           .method(request.method())
           .region(request.region())

@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.CatalogProperties;
 
 public final class RESTCatalogProperties {
 
@@ -59,4 +60,16 @@ public final class RESTCatalogProperties {
     ALL,
     REFS
   }
+
+  /**
+   * The base URI of the remote signer endpoint. Optional, defaults to {@link
+   * CatalogProperties#URI}.
+   */
+  public static final String SIGNER_URI = "signer.uri";
+
+  /**
+   * The endpoint path of the remote signer endpoint. If remote signing has been requested, this
+   * must be set.
+   */
+  public static final String SIGNER_ENDPOINT = "signer.endpoint";
 }

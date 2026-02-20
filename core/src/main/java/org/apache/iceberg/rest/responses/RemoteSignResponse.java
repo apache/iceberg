@@ -16,15 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3.signer;
+package org.apache.iceberg.rest.responses;
 
-import org.apache.iceberg.rest.responses.RemoteSignResponse;
+import java.net.URI;
+import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.rest.RESTResponse;
 import org.immutables.value.Value;
 
-/**
- * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link RemoteSignResponse} instead.
- */
-@Deprecated
 @Value.Immutable
-@SuppressWarnings("immutables:subtype")
-public interface S3SignResponse extends RemoteSignResponse {}
+public interface RemoteSignResponse extends RESTResponse {
+  URI uri();
+
+  Map<String, List<String>> headers();
+
+  @Override
+  default void validate() {}
+}

@@ -1254,6 +1254,40 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/sign:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Remotely signs requests to object storage
+      operationId: signRequest
+      requestBody:
+        description: The request to be signed
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoteSignRequest'
+        required: true
+      responses:
+        200:
+          $ref: '#/components/responses/RemoteSignResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
   /v1/{prefix}/tables/rename:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -1963,12 +1997,8 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
-        Specific properties and handling for `vended-credentials` is documented
-        in the `LoadTableResult` schema section of this spec document.
-
-
-        The protocol and specification for `remote-signing` is documented in
-        the `s3-signer-open-api.yaml` OpenApi spec in the `aws` module.
+        Specific properties and handling for `vended-credentials` and `remote-signing`
+        is documented in the `LoadTableResult` schema section of this spec document.
 
       required: false
       schema:
@@ -3476,13 +3506,19 @@ components:
          - `s3.access-key-id`: id for credentials that provide access to the data in S3
          - `s3.secret-access-key`: secret for credentials that provide access to data in S3
          - `s3.session-token`: if present, this value should be used for as the session token
-         - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
+         - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `RemoteSignRequest` schema section of this spec document.
          - `s3.cross-region-access-enabled`: if `true`, S3 Cross-Region bucket access is enabled
 
         ## Storage Credentials
 
         Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
         Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+
+        ## Remote Signing
+
+        If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
+         - `signer.endpoint`: the remote signer endpoint. Required. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+         - `signer.uri`: the base URI to resolve `signer.endpoint` against. Optional. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
       type: object
       required:
         - metadata
@@ -4693,6 +4729,62 @@ components:
           allOf:
             - $ref: '#/components/schemas/Expression'
 
+    MultiValuedMap:
+      description: A map of string keys where each key can map to multiple string values.
+      type: object
+      additionalProperties:
+        type: array
+        items:
+          type: string
+
+    RemoteSignRequest:
+      description: The request to be signed remotely.
+      type: object
+      required:
+        - region
+        - uri
+        - method
+        - headers
+      properties:
+        region:
+          type: string
+        uri:
+          type: string
+        method:
+          type: string
+          enum: ["PUT", "GET", "HEAD", "POST", "DELETE", "PATCH", "OPTIONS"]
+        headers:
+          $ref: '#/components/schemas/MultiValuedMap'
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+        body:
+          type: string
+          description: Optional body of the request to send to the signing API. This should only be populated
+            for requests where the body of the message contains content which must be validated before a request is
+            signed, such as the S3 DeleteObjects call.
+        provider:
+          type: string
+          enum:
+            - s3
+            - gcs
+            - adls
+          default: s3
+          description: The storage provider for which the request is to be signed.
+
+    RemoteSignResult:
+      description: The result of a remote request signing operation.
+      type: object
+      required:
+        - uri
+        - headers
+      properties:
+        uri:
+          type: string
+        headers:
+          $ref: '#/components/schemas/MultiValuedMap'
+
   #############################
   # Reusable Response Objects #
   #############################
@@ -4973,6 +5065,15 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadCredentialsResponse'
+
+    RemoteSignResponse:
+      description: The response containing signed & unsigned headers. The server will also send
+        a Cache-Control header, indicating whether the response can be cached (Cache-Control = ["private"])
+        or not (Cache-Control = ["no-cache"]).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RemoteSignResult'
 
   #######################################
   # Common examples of different values #
