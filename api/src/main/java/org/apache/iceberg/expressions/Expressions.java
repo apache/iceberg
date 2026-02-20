@@ -102,6 +102,38 @@ public class Expressions {
     return new UnboundTransform<>(ref(name), Transforms.truncate(width));
   }
 
+  @SuppressWarnings("unchecked")
+  public static <S, T> UnboundTerm<T> bucket(NamedReference<S> ref, int numBuckets) {
+    Transform<S, T> transform = (Transform<S, T>) Transforms.bucket(numBuckets);
+    return new UnboundTransform<>(ref, transform);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <S, T> UnboundTerm<T> year(NamedReference<S> ref) {
+    return new UnboundTransform<>(ref, (Transform<S, T>) Transforms.year());
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <S, T> UnboundTerm<T> month(NamedReference<S> ref) {
+    return new UnboundTransform<>(ref, (Transform<S, T>) Transforms.month());
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <S, T> UnboundTerm<T> day(NamedReference<S> ref) {
+    return new UnboundTransform<>(ref, (Transform<S, T>) Transforms.day());
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <S, T> UnboundTerm<T> hour(NamedReference<S> ref) {
+    return new UnboundTransform<>(ref, (Transform<S, T>) Transforms.hour());
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <S, T> UnboundTerm<T> truncate(NamedReference<S> ref, int width) {
+    Transform<S, T> transform = (Transform<S, T>) Transforms.truncate(width);
+    return new UnboundTransform<>(ref, transform);
+  }
+
   public static <T> UnboundTerm<T> extract(String name, String path, String type) {
     return new UnboundExtract<>(ref(name), path, type);
   }
@@ -303,6 +335,21 @@ public class Expressions {
    */
   public static <T> NamedReference<T> ref(String name) {
     return new NamedReference<>(name);
+  }
+
+  /**
+   * Constructs a resolved reference for a given column.
+   *
+   * <p>The following are equivalent: equals("a", 5) and if a fieldId is 1 and equals(ref("a", 1),
+   * 5).
+   *
+   * @param name a column name
+   * @param fieldId the field ID of the column
+   * @param <T> the Java type of this reference
+   * @return a named reference
+   */
+  static <T> IDReference<T> ref(String name, int fieldId) {
+    return new IDReference<>(name, fieldId);
   }
 
   /**

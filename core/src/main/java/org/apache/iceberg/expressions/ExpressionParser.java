@@ -34,6 +34,7 @@ import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
@@ -49,7 +50,13 @@ public class ExpressionParser {
   private static final String RIGHT = "right";
   private static final String CHILD = "child";
   private static final String REFERENCE = "reference";
+  private static final String SOURCE_ID = "source-id";
   private static final String LITERAL = "literal";
+
+  private enum SerializationMode {
+    NAMES_ONLY,
+    WITH_FIELD_IDS
+  }
 
   private ExpressionParser() {}
 
@@ -62,16 +69,37 @@ public class ExpressionParser {
     return JsonUtil.generate(gen -> toJson(expression, gen), pretty);
   }
 
+  public static String toResolvedJson(Expression expression) {
+    return toResolvedJson(expression, false);
+  }
+
+  public static String toResolvedJson(Expression expression, boolean pretty) {
+    Preconditions.checkArgument(expression != null, "Invalid expression: null");
+    return JsonUtil.generate(
+        gen -> toJsonInternal(expression, gen, SerializationMode.WITH_FIELD_IDS), pretty);
+  }
+
   public static void toJson(Expression expression, JsonGenerator gen) {
-    ExpressionVisitors.visit(expression, new JsonGeneratorVisitor(gen));
+    toJsonInternal(expression, gen, SerializationMode.NAMES_ONLY);
+  }
+
+  public static void toResolvedJson(Expression expression, JsonGenerator gen) {
+    toJsonInternal(expression, gen, SerializationMode.WITH_FIELD_IDS);
+  }
+
+  private static void toJsonInternal(
+      Expression expression, JsonGenerator gen, SerializationMode mode) {
+    ExpressionVisitors.visit(expression, new JsonGeneratorVisitor(gen, mode));
   }
 
   private static class JsonGeneratorVisitor
       extends ExpressionVisitors.CustomOrderExpressionVisitor<Void> {
     private final JsonGenerator gen;
+    private final SerializationMode mode;
 
-    private JsonGeneratorVisitor(JsonGenerator gen) {
+    private JsonGeneratorVisitor(JsonGenerator gen, SerializationMode mode) {
       this.gen = gen;
+      this.mode = mode;
     }
 
     /**
@@ -236,11 +264,28 @@ public class ExpressionParser {
     private void term(Term term) throws IOException {
       if (term instanceof UnboundTransform) {
         UnboundTransform<?, ?> transform = (UnboundTransform<?, ?>) term;
-        transform(transform.transform().toString(), transform.ref().name());
+        NamedReference<?> ref = transform.ref();
+        Integer fieldId = null;
+        if (mode == SerializationMode.WITH_FIELD_IDS && ref instanceof IDReference) {
+          fieldId = ((IDReference<?>) ref).id();
+        }
+        transform(transform.transform().toString(), ref.name(), fieldId);
         return;
       } else if (term instanceof BoundTransform) {
         BoundTransform<?, ?> transform = (BoundTransform<?, ?>) term;
-        transform(transform.transform().toString(), transform.ref().name());
+        Integer fieldId =
+            mode == SerializationMode.WITH_FIELD_IDS ? transform.ref().fieldId() : null;
+        transform(transform.transform().toString(), transform.ref().name(), fieldId);
+        return;
+      } else if (term instanceof BoundReference) {
+        BoundReference<?> ref = (BoundReference<?>) term;
+        Integer fieldId = mode == SerializationMode.WITH_FIELD_IDS ? ref.fieldId() : null;
+        reference(ref.name(), fieldId);
+        return;
+      } else if (term instanceof IDReference) {
+        IDReference<?> ref = (IDReference<?>) term;
+        Integer fieldId = mode == SerializationMode.WITH_FIELD_IDS ? ref.id() : null;
+        reference(ref.name(), fieldId);
         return;
       } else if (term instanceof Reference) {
         gen.writeString(((Reference<?>) term).name());
@@ -250,12 +295,25 @@ public class ExpressionParser {
       throw new UnsupportedOperationException("Cannot write unsupported term: " + term);
     }
 
-    private void transform(String transform, String name) throws IOException {
+    private void transform(String transform, String name, Integer fieldId) throws IOException {
       gen.writeStartObject();
       gen.writeStringField(TYPE, TRANSFORM);
       gen.writeStringField(TRANSFORM, transform);
-      gen.writeStringField(TERM, name);
+      gen.writeFieldName(TERM);
+      reference(name, fieldId);
       gen.writeEndObject();
+    }
+
+    private void reference(String name, Integer fieldId) throws IOException {
+      if (fieldId != null) {
+        gen.writeStartObject();
+        gen.writeStringField(TYPE, REFERENCE);
+        gen.writeStringField(TERM, name);
+        gen.writeNumberField(SOURCE_ID, fieldId);
+        gen.writeEndObject();
+      } else {
+        gen.writeString(name);
+      }
     }
   }
 
@@ -408,12 +466,27 @@ public class ExpressionParser {
       String type = JsonUtil.getString(TYPE, node);
       switch (type) {
         case REFERENCE:
-          return Expressions.ref(JsonUtil.getString(TERM, node));
+          // source-id is optional - if present, creates IDReference, otherwise NamedReference
+          String name = JsonUtil.getString(TERM, node);
+          boolean hasSourceId = node.has(SOURCE_ID);
+
+          if (hasSourceId) {
+            int fieldId = JsonUtil.getInt(SOURCE_ID, node);
+            return Expressions.ref(name, fieldId);
+          } else {
+            return Expressions.ref(name);
+          }
         case TRANSFORM:
           UnboundTerm<T> child = term(JsonUtil.get(TERM, node));
-          String transform = JsonUtil.getString(TRANSFORM, node);
-          return (UnboundTerm<T>)
-              Expressions.transform(child.ref().name(), Transforms.fromString(transform));
+          String transformStr = JsonUtil.getString(TRANSFORM, node);
+          NamedReference<?> ref;
+          if (child instanceof NamedReference) {
+            ref = (NamedReference<?>) child;
+          } else {
+            ref = child.ref();
+          }
+          Transform<?, ?> transform = Transforms.fromString(transformStr);
+          return (UnboundTerm<T>) new UnboundTransform(ref, transform);
         default:
           throw new IllegalArgumentException("Cannot parse type as a reference: " + type);
       }
