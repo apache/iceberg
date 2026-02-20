@@ -126,6 +126,16 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
     /** Name of latest metadata file version */
     String latestVersion();
 
+    /** Location of the file list containing only data file paths. */
+    default String dataFileListLocation() {
+      return null;
+    }
+
+    /** Location of the file list containing only metadata file paths. */
+    default String metadataFileListLocation() {
+      return null;
+    }
+
     /** Number of delete files with rewritten paths. */
     default int rewrittenDeleteFilePathsCount() {
       return 0;

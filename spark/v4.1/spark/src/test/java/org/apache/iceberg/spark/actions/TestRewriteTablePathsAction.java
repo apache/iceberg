@@ -1331,6 +1331,47 @@ public class TestRewriteTablePathsAction extends TestBase {
         .isEqualTo(NOT_APPLICABLE);
   }
 
+  @TestTemplate
+  public void testSeparateDataAndMetadataFileLists() throws Exception {
+    String targetTableLocation = targetTableLocation();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(table)
+            .rewriteLocationPrefix(tableLocation, targetTableLocation)
+            .execute();
+
+    checkFileNum(3, 2, 2, 9, result);
+
+    List<String> allFiles =
+        spark
+            .read()
+            .format("text")
+            .load(result.fileListLocation())
+            .as(Encoders.STRING())
+            .collectAsList();
+
+    List<String> metadataFiles =
+        spark
+            .read()
+            .format("text")
+            .load(result.metadataFileListLocation())
+            .as(Encoders.STRING())
+            .collectAsList();
+
+    List<String> dataFiles =
+        spark
+            .read()
+            .format("text")
+            .load(result.dataFileListLocation())
+            .as(Encoders.STRING())
+            .collectAsList();
+
+    assertThat(allFiles).hasSize(9);
+    assertThat(metadataFiles).allMatch(f -> f.contains("/metadata/")).hasSize(7);
+    assertThat(dataFiles).allMatch(f -> f.contains("/data/")).hasSize(2);
+  }
+
   protected void checkFileNum(
       int versionFileCount,
       int manifestListCount,
