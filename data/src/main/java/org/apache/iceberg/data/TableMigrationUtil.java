@@ -29,8 +29,10 @@ import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Metrics;
@@ -43,12 +45,15 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
 public class TableMigrationUtil {
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
+  private static final String RECURSIVE_LISTING_PROPERTY =
+      "spark.hive.mapred.supports.subdirectories";
 
   private TableMigrationUtil() {}
 
@@ -162,11 +167,7 @@ public class TableMigrationUtil {
               .collect(Collectors.toList());
 
       Path partitionDir = new Path(partitionUri);
-      FileSystem fs = partitionDir.getFileSystem(conf);
-      List<FileStatus> fileStatus =
-          Arrays.stream(fs.listStatus(partitionDir, HIDDEN_PATH_FILTER))
-              .filter(FileStatus::isFile)
-              .collect(Collectors.toList());
+      List<FileStatus> fileStatus = fetchPartitionFiles(conf, partitionDir);
       DataFile[] datafiles = new DataFile[fileStatus.size()];
       Tasks.Builder<Integer> task =
           Tasks.range(fileStatus.size()).stopOnFailure().throwFailureWhenFinished();
@@ -209,6 +210,22 @@ public class TableMigrationUtil {
         service.shutdown();
       }
     }
+  }
+
+  private static List<FileStatus> fetchPartitionFiles(Configuration conf, Path partitionDir)
+      throws IOException {
+    boolean recursiveListing = conf.getBoolean(RECURSIVE_LISTING_PROPERTY, false);
+    FileSystem fs = partitionDir.getFileSystem(conf);
+    List<FileStatus> partitionStatuses = Lists.newArrayList();
+
+    RemoteIterator<LocatedFileStatus> it = fs.listFiles(partitionDir, recursiveListing);
+    while (it.hasNext()) {
+      LocatedFileStatus fileStatus = it.next();
+      if (HIDDEN_PATH_FILTER.accept(fileStatus.getPath()) && fileStatus.isFile()) {
+        partitionStatuses.add(fileStatus);
+      }
+    }
+    return partitionStatuses;
   }
 
   private static Metrics getAvroMetrics(Path path, Configuration conf) {
