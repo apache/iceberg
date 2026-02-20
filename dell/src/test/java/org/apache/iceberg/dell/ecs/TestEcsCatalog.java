@@ -55,11 +55,17 @@ public class TestEcsCatalog {
 
   @BeforeEach
   public void before() {
-    ecsCatalog = new EcsCatalog();
+    ecsCatalog = createCatalog("test", ImmutableMap.of());
+  }
+
+  private EcsCatalog createCatalog(String name, Map<String, String> additionalProperties) {
+    EcsCatalog catalog = new EcsCatalog();
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, new EcsURI(rule.bucket(), "").location());
     properties.putAll(rule.clientProperties());
-    ecsCatalog.initialize("test", properties);
+    properties.putAll(additionalProperties);
+    catalog.initialize(name, properties);
+    return catalog;
   }
 
   @AfterEach
@@ -170,6 +176,30 @@ public class TestEcsCatalog {
     assertThat(ecsCatalog.tableExists(TableIdentifier.of("b", "t2")))
         .as("New table exists")
         .isTrue();
+  }
+
+  @Test
+  public void testCreateTableInUniqueLocation() throws Exception {
+    try (EcsCatalog catalog =
+        createCatalog(
+            "unique_location_catalog",
+            ImmutableMap.of(CatalogProperties.UNIQUE_TABLE_LOCATION, "true"))) {
+
+      Namespace ns = Namespace.of("a");
+      TableIdentifier tableIdent = TableIdentifier.of(ns, "t1");
+      TableIdentifier renamedIdent = TableIdentifier.of(ns, "t2");
+
+      catalog.createNamespace(ns);
+      catalog.createTable(tableIdent, SCHEMA);
+      catalog.renameTable(tableIdent, renamedIdent);
+
+      Table table = catalog.createTable(tableIdent, SCHEMA);
+      Table renamedTable = catalog.loadTable(renamedIdent);
+
+      assertThat(table.location())
+          .as("Should have a different table location")
+          .isNotEqualTo(renamedTable.location());
+    }
   }
 
   @Test
