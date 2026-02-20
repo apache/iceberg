@@ -1,0 +1,85 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg;
+
+import java.util.Map;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
+/** Factory methods for creating {@link V4ManifestReader} instances. */
+public class V4ManifestReaders {
+
+  private V4ManifestReaders() {}
+
+  /**
+   * Create a reader for a root manifest.
+   *
+   * <p>In v4, root manifests should be written with explicit {@code first_row_id} values, similar
+   * to how manifest lists work in v3. Row ID assignment only happens when reading leaf manifests
+   * via {@link #readLeaf}, not for root manifests.
+   *
+   * @param rootManifestPath path to the root manifest file
+   * @param io file IO for reading
+   * @param snapshotId snapshot ID for metadata inheritance
+   * @param sequenceNumber sequence number for metadata inheritance
+   * @return a V4ManifestReader for the root manifest
+   */
+  public static V4ManifestReader readRoot(
+      String rootManifestPath, FileIO io, long snapshotId, long sequenceNumber) {
+    InputFile inputFile = io.newInputFile(rootManifestPath);
+    InheritableTrackedMetadata metadata =
+        InheritableTrackedMetadataFactory.create(snapshotId, sequenceNumber);
+
+    // Root manifests have explicit first_row_id values; no assignment needed
+    return new V4ManifestReader(
+        inputFile, FileFormat.AVRO, metadata, /* manifestFirstRowId= */ null);
+  }
+
+  /**
+   * Create a reader for a leaf manifest referenced from a root manifest.
+   *
+   * <p>Row ID assignment happens during leaf manifest reading. The {@code first_row_id} is
+   * extracted from the manifest entry's tracking info and used to assign row IDs to data files that
+   * don't already have them.
+   *
+   * @param manifestEntry the DATA_MANIFEST or DELETE_MANIFEST entry from root
+   * @param io file IO for reading
+   * @param specsById map of partition specs by ID (currently unused, reserved for future use)
+   * @return a V4ManifestReader for the leaf manifest
+   */
+  public static V4ManifestReader readLeaf(
+      TrackedFile manifestEntry, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(
+        manifestEntry.contentType() == FileContent.DATA_MANIFEST
+            || manifestEntry.contentType() == FileContent.DELETE_MANIFEST,
+        "Can only read manifest entries, got: %s",
+        manifestEntry.contentType());
+
+    InputFile inputFile = io.newInputFile(manifestEntry.location());
+
+    InheritableTrackedMetadata metadata =
+        InheritableTrackedMetadataFactory.fromTrackedFile(manifestEntry);
+
+    TrackingInfo tracking = manifestEntry.trackingInfo();
+    Long firstRowId = tracking != null ? tracking.firstRowId() : null;
+
+    return new V4ManifestReader(inputFile, FileFormat.AVRO, metadata, firstRowId);
+  }
+}
