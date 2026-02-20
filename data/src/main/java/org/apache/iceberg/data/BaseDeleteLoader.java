@@ -173,7 +173,8 @@ public class BaseDeleteLoader implements DeleteLoader {
     InputFile inputFile = loadInputFile.apply(dv);
     long offset = dv.contentOffset();
     int length = dv.contentSizeInBytes().intValue();
-    byte[] bytes = IOUtil.readBytes(inputFile, offset, length);
+    byte[] bytes = new byte[length];
+    IOUtil.readFully(inputFile, offset, bytes, 0, length);
     return PositionDeleteIndex.deserialize(bytes, dv);
   }
 

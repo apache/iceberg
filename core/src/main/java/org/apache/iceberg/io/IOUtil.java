@@ -24,7 +24,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 
 public class IOUtil {
   // not meant to be instantiated
@@ -51,19 +50,25 @@ public class IOUtil {
     }
   }
 
-  public static byte[] readBytes(InputFile inputFile, long offset, int length) {
+  /**
+   * Reads exactly {@code length} bytes from the input file starting at {@code fileOffset} into the
+   * buffer. Uses range reads when supported.
+   *
+   * @param inputFile the file to read from
+   * @param fileOffset the position in the file to start reading from
+   * @param bytes a buffer to write into
+   * @param offset starting offset in the buffer for the data
+   * @param length number of bytes to read
+   */
+  public static void readFully(
+      InputFile inputFile, long fileOffset, byte[] bytes, int offset, int length) {
     try (SeekableInputStream stream = inputFile.newStream()) {
-      byte[] bytes = new byte[length];
-
       if (stream instanceof RangeReadable) {
-        RangeReadable rangeReadable = (RangeReadable) stream;
-        rangeReadable.readFully(offset, bytes);
+        ((RangeReadable) stream).readFully(fileOffset, bytes, offset, length);
       } else {
-        stream.seek(offset);
-        ByteStreams.readFully(stream, bytes);
+        stream.seek(fileOffset);
+        readFully(stream, bytes, offset, length);
       }
-
-      return bytes;
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

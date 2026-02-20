@@ -29,8 +29,6 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.encryption.EncryptingFileIO;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
@@ -133,15 +131,16 @@ public class Deletes {
     return toPositionIndexes(posDeletes, null /* unknown delete file */);
   }
 
-  public static PositionDeleteIndex readDV(
-      DeleteFile deleteFile, FileIO fileIO, EncryptionManager encryptionManager) {
+  public static PositionDeleteIndex readDV(DeleteFile deleteFile, FileIO fileIO) {
     Preconditions.checkArgument(
-        ContentFileUtil.isDV(deleteFile), "Delete file must be a deletion vector");
-    InputFile inputFile =
-        EncryptingFileIO.combine(fileIO, encryptionManager).newInputFile(deleteFile);
+        ContentFileUtil.isDV(deleteFile),
+        "Cannot read, not a deletion vector: %s",
+        deleteFile.location());
+    InputFile inputFile = fileIO.newInputFile(deleteFile);
     long offset = deleteFile.contentOffset();
     int length = deleteFile.contentSizeInBytes().intValue();
-    byte[] bytes = IOUtil.readBytes(inputFile, offset, length);
+    byte[] bytes = new byte[length];
+    IOUtil.readFully(inputFile, offset, bytes, 0, length);
     return PositionDeleteIndex.deserialize(bytes, deleteFile);
   }
 
