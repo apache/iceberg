@@ -226,18 +226,18 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
   }
 
   private Scan buildBatchScan() {
-    Schema expectedSchema = projectionWithMetadataColumns();
+    Schema projection = projectionWithMetadataColumns();
     return new SparkBatchQueryScan(
         spark(),
         table(),
-        buildIcebergBatchScan(false /* not include Column Stats */, expectedSchema),
+        buildIcebergBatchScan(false /* not include Column Stats */, projection),
         readConf(),
-        expectedSchema,
+        projection,
         filters(),
         metricsReporter()::scanReport);
   }
 
-  private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats, Schema expectedSchema) {
+  private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats, Schema projection) {
     Long snapshotId = readConf().snapshotId();
     Long asOfTimestamp = readConf().asOfTimestamp();
     String branch = readConf().branch();
@@ -278,9 +278,9 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         SparkReadOptions.END_TIMESTAMP);
 
     if (startSnapshotId != null) {
-      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, withStats, expectedSchema);
+      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, withStats, projection);
     } else {
-      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats, expectedSchema);
+      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats, projection);
     }
   }
 
@@ -290,12 +290,12 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
       String branch,
       String tag,
       boolean withStats,
-      Schema expectedSchema) {
+      Schema projection) {
     BatchScan scan =
         newBatchScan()
             .caseSensitive(caseSensitive())
             .filter(filter())
-            .project(expectedSchema)
+            .project(projection)
             .metricsReporter(metricsReporter());
 
     if (withStats) {
@@ -322,14 +322,14 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
   }
 
   private org.apache.iceberg.Scan buildIncrementalAppendScan(
-      long startSnapshotId, Long endSnapshotId, boolean withStats, Schema expectedSchema) {
+      long startSnapshotId, Long endSnapshotId, boolean withStats, Schema projection) {
     IncrementalAppendScan scan =
         table()
             .newIncrementalAppendScan()
             .fromSnapshotExclusive(startSnapshotId)
             .caseSensitive(caseSensitive())
             .filter(filter())
-            .project(expectedSchema)
+            .project(projection)
             .metricsReporter(metricsReporter());
 
     if (withStats) {
@@ -398,14 +398,14 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
       }
     }
 
-    Schema expectedSchema = projectionWithMetadataColumns();
+    Schema projection = projectionWithMetadataColumns();
 
     IncrementalChangelogScan scan =
         table()
             .newIncrementalChangelogScan()
             .caseSensitive(caseSensitive())
             .filter(filter())
-            .project(expectedSchema)
+            .project(projection)
             .metricsReporter(metricsReporter());
 
     if (startSnapshotId != null) {
@@ -419,7 +419,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     scan = configureSplitPlanning(scan);
 
     return new SparkChangelogScan(
-        spark(), table(), scan, readConf(), expectedSchema, filters(), emptyScan);
+        spark(), table(), scan, readConf(), projection, filters(), emptyScan);
   }
 
   private Long getStartSnapshotId(Long startTimestamp) {
@@ -482,14 +482,14 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
     SparkReadConf adjustedReadConf =
         new SparkReadConf(spark(), table(), readConf().branch(), adjustedOptions);
 
-    Schema expectedSchema = projectionWithMetadataColumns();
+    Schema projection = projectionWithMetadataColumns();
 
     BatchScan scan =
         newBatchScan()
             .useSnapshot(snapshotId)
             .caseSensitive(caseSensitive())
             .filter(filter())
-            .project(expectedSchema)
+            .project(projection)
             .metricsReporter(metricsReporter());
 
     scan = configureSplitPlanning(scan);
@@ -499,7 +499,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         table(),
         scan,
         adjustedReadConf,
-        expectedSchema,
+        projection,
         filters(),
         metricsReporter()::scanReport);
   }
@@ -517,7 +517,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
           metricsReporter()::scanReport);
     }
 
-    Schema expectedSchema = projectionWithMetadataColumns();
+    Schema projection = projectionWithMetadataColumns();
 
     BatchScan scan =
         newBatchScan()
@@ -525,7 +525,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
             .ignoreResiduals()
             .caseSensitive(caseSensitive())
             .filter(filter())
-            .project(expectedSchema)
+            .project(projection)
             .metricsReporter(metricsReporter());
 
     scan = configureSplitPlanning(scan);
@@ -536,7 +536,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         scan,
         snapshot,
         readConf(),
-        expectedSchema,
+        projection,
         filters(),
         metricsReporter()::scanReport);
   }

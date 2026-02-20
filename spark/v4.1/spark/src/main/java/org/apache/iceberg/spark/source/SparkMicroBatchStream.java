@@ -61,7 +61,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final Table table;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
-  private final String expectedSchema;
+  private final String projection;
   private final Broadcast<Table> tableBroadcast;
   private final long splitSize;
   private final int splitLookback;
@@ -79,12 +79,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
       JavaSparkContext sparkContext,
       Table table,
       SparkReadConf readConf,
-      Schema expectedSchema,
+      Schema projection,
       String checkpointLocation) {
     this.table = table;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
-    this.expectedSchema = SchemaParser.toJson(expectedSchema);
+    this.projection = SchemaParser.toJson(projection);
     this.localityPreferred = readConf.localityEnabled();
     this.tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     this.splitSize = readConf.splitSize();
@@ -155,7 +155,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
               EMPTY_GROUPING_KEY_TYPE,
               combinedScanTasks.get(index),
               tableBroadcast,
-              expectedSchema,
+              projection,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
               cacheDeleteFilesOnExecutors);
