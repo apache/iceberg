@@ -19,7 +19,6 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.io.EOFException;
-import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -39,16 +38,15 @@ public class VectorizedByteStreamSplitValuesReader extends ValuesReader
     implements VectorizedValuesReader {
 
   private int totalBytesInStream;
-  private ByteBufferInputStream in;
+  private ByteBufferInputStream dataStream;
   private ByteBuffer decodedDataStream;
 
   public VectorizedByteStreamSplitValuesReader() {}
 
   @Override
-  public void initFromPage(int ignoredValueCount, ByteBufferInputStream inputStream)
-      throws IOException {
-    totalBytesInStream = inputStream.available();
-    this.in = inputStream;
+  public void initFromPage(int ignoredValueCount, ByteBufferInputStream in) {
+    this.totalBytesInStream = in.available();
+    this.dataStream = in;
   }
 
   @Override
@@ -81,7 +79,7 @@ public class VectorizedByteStreamSplitValuesReader extends ValuesReader
   private void readBatch(int typeWidth, int total, FieldVector vec, int rowId) {
     ensureDecoded(typeWidth);
     int bytesToRead = total * typeWidth;
-    long destOffset = 1L * rowId * typeWidth;
+    long destOffset = (long) rowId * typeWidth;
     ByteBuffer slice = decodedDataStream.slice();
     slice.limit(bytesToRead);
     vec.getDataBuffer().setBytes(destOffset, slice);
@@ -90,21 +88,21 @@ public class VectorizedByteStreamSplitValuesReader extends ValuesReader
 
   private void ensureDecoded(int elementSizeInBytes) {
     if (decodedDataStream == null) {
-      decodedDataStream = decode(totalBytesInStream / elementSizeInBytes, elementSizeInBytes);
+      this.decodedDataStream = decode(totalBytesInStream / elementSizeInBytes, elementSizeInBytes);
     }
   }
 
   private ByteBuffer decode(int valuesCount, int elementSizeInBytes) {
     ByteBuffer encoded;
     try {
-      encoded = in.slice(totalBytesInStream).slice();
+      encoded = dataStream.slice(totalBytesInStream).slice();
     } catch (EOFException e) {
       throw new UncheckedIOException("Failed to read bytes from stream", e);
     }
     byte[] decoded = new byte[encoded.limit()];
     int destByteIndex = 0;
-    for (int srcValueIndex = 0; srcValueIndex < valuesCount; ++srcValueIndex) {
-      for (int stream = 0; stream < elementSizeInBytes; ++stream, ++destByteIndex) {
+    for (int srcValueIndex = 0; srcValueIndex < valuesCount; srcValueIndex++) {
+      for (int stream = 0; stream < elementSizeInBytes; stream++, destByteIndex++) {
         decoded[destByteIndex] = encoded.get(srcValueIndex + stream * valuesCount);
       }
     }
