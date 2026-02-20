@@ -2243,7 +2243,7 @@ public class TestRowDelta extends TestBase {
 
   private void assertDVHasDeletedPositions(DeleteFile dv, Iterable<Long> positions) {
     assertThat(dv).isNotNull();
-    PositionDeleteIndex index = Deletes.readDV(dv, table.io(), table.encryption());
+    PositionDeleteIndex index = Deletes.readDV(dv, table.io());
     assertThat(positions)
         .allSatisfy(
             pos ->

@@ -58,6 +58,6 @@ public interface DVFileWriter extends Closeable {
       PositionDeleteIndex positionDeleteIndex,
       PartitionSpec spec,
       StructLike partition) {
-    throw new UnsupportedOperationException("Delete with positionDeleteIndex is not supported");
+    positionDeleteIndex.forEach(position -> this.delete(path, position, spec, partition));
   }
 }
