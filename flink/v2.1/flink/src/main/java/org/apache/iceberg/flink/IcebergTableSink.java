@@ -150,7 +150,6 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
                     .getPrimaryKey()
                     .map(UniqueConstraint::getColumns)
                     .orElseGet(ImmutableList::of);
-
           } else {
             equalityColumns =
                 tableSchema
@@ -158,6 +157,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
                     .map(org.apache.flink.table.legacy.api.constraints.UniqueConstraint::getColumns)
                     .orElseGet(ImmutableList::of);
           }
+
           if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK)) {
             return createIcebergSink(dataStream, equalityColumns, physicalColumnsOnlySchema);
           } else {
@@ -197,7 +197,9 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   }
 
   private DataStreamSink<?> createLegacySink(
-      DataStream<RowData> dataStream, List<String> equalityColumns, ResolvedSchema resolvedSchema) {
+      DataStream<RowData> dataStream,
+      List<String> equalityColumns,
+      ResolvedSchema physicalColumnsOnlySchema) {
     FlinkSink.Builder builder =
         FlinkSink.forRowData(dataStream)
             .tableLoader(tableLoader)
@@ -206,8 +208,8 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
             .setAll(writeProps)
             .flinkConf(readableConfig);
 
-    if (resolvedSchema != null) {
-      builder = builder.resolvedSchema(resolvedSchema);
+    if (physicalColumnsOnlySchema != null) {
+      builder = builder.resolvedSchema(physicalColumnsOnlySchema);
     } else {
       builder = builder.tableSchema(tableSchema);
     }
@@ -216,7 +218,9 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   }
 
   private DataStreamSink<?> createIcebergSink(
-      DataStream<RowData> dataStream, List<String> equalityColumns, ResolvedSchema resolvedSchema) {
+      DataStream<RowData> dataStream,
+      List<String> equalityColumns,
+      ResolvedSchema physicalColumnsOnlySchema) {
     IcebergSink.Builder builder =
         IcebergSink.forRowData(dataStream)
             .tableLoader(tableLoader)
@@ -225,8 +229,8 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
             .setAll(writeProps)
             .flinkConf(readableConfig);
 
-    if (resolvedSchema != null) {
-      builder = builder.resolvedSchema(resolvedSchema);
+    if (physicalColumnsOnlySchema != null) {
+      builder = builder.resolvedSchema(physicalColumnsOnlySchema);
     } else {
       builder = builder.tableSchema(tableSchema);
     }
