@@ -245,7 +245,7 @@ abstract class BaseParquetWriter<T> {
         LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
       Preconditions.checkArgument(
           intType.isSigned() || intType.getBitWidth() < 64,
-          "Cannot read uint64: not a supported Java type");
+          "Cannot write uint64: not a supported Java type");
       if (intType.getBitWidth() < 64) {
         return Optional.of(ParquetValueWriters.ints(desc));
       } else {
