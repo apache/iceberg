@@ -62,8 +62,12 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
+import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -958,13 +962,85 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   @EnumSource(PlanningMode.class)
   void fileIOForRemotePlanningIsPropagated(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
-    configurePlanningBehavior(planMode);
-    Table table = restTableFor(restCatalog, "file_io_propagation");
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders,
+                  ParserContext parserContext) {
+                T response =
+                    super.execute(
+                        request, responseType, errorHandler, responseHeaders, parserContext);
+                return maybeAddStorageCredential(response);
+              }
+            });
+
+    adapter.setPlanningBehavior(planMode.apply(TestPlanningBehavior.builder()).build());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
+            "true"));
+
+    Table table = restTableFor(catalog, "file_io_propagation");
     setParserContext(table);
 
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
     // make sure remote scan planning is called and FileIO gets the planId
     assertThat(table.newScan().planFiles()).hasSize(1);
     assertThat(table.io().properties()).containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T extends RESTResponse> T maybeAddStorageCredential(T response) {
+    if (response instanceof PlanTableScanResponse resp
+        && PlanStatus.COMPLETED == resp.planStatus()) {
+      return (T)
+          PlanTableScanResponse.builder()
+              .withPlanStatus(resp.planStatus())
+              .withPlanId(resp.planId())
+              .withPlanTasks(resp.planTasks())
+              .withFileScanTasks(resp.fileScanTasks())
+              .withCredentials(
+                  ImmutableList.<Credential>builder()
+                      .addAll(resp.credentials())
+                      .add(
+                          ImmutableCredential.builder()
+                              .prefix("dummy")
+                              .putConfig("dummyKey", "dummyVal")
+                              .build())
+                      .build())
+              .withSpecsById(resp.specsById())
+              .build();
+    } else if (response instanceof FetchPlanningResultResponse resp
+        && PlanStatus.COMPLETED == resp.planStatus()) {
+      return (T)
+          FetchPlanningResultResponse.builder()
+              .withPlanStatus(resp.planStatus())
+              .withFileScanTasks(resp.fileScanTasks())
+              .withPlanTasks(resp.planTasks())
+              .withSpecsById(resp.specsById())
+              .withCredentials(
+                  ImmutableList.<Credential>builder()
+                      .addAll(resp.credentials())
+                      .add(
+                          ImmutableCredential.builder()
+                              .prefix("dummy")
+                              .putConfig("dummyKey", "dummyVal")
+                              .build())
+                      .build())
+              .build();
+    }
+
+    return response;
   }
 }

@@ -75,13 +75,10 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
-import org.apache.iceberg.rest.credentials.Credential;
-import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
@@ -119,9 +116,6 @@ public class CatalogHandlers {
   private static final InMemoryPlanningState IN_MEMORY_PLANNING_STATE =
       InMemoryPlanningState.getInstance();
   private static final ExecutorService ASYNC_PLANNING_POOL = Executors.newSingleThreadExecutor();
-  private static final List<Credential> DUMMY_STORAGE_CREDENTIALS =
-      ImmutableList.of(
-          ImmutableCredential.builder().prefix("dummy").putConfig("dummyKey", "dummyVal").build());
 
   // Advanced idempotency store with TTL and in-flight coalescing.
   //
@@ -873,8 +867,7 @@ public class CatalogHandlers {
             .withPlanStatus(PlanStatus.COMPLETED)
             .withPlanId(planId)
             .withFileScanTasks(initial.first())
-            .withSpecsById(table.specs())
-            .withCredentials(DUMMY_STORAGE_CREDENTIALS);
+            .withSpecsById(table.specs());
 
     if (!nextPlanTasks.isEmpty()) {
       builder.withPlanTasks(nextPlanTasks);
@@ -905,7 +898,6 @@ public class CatalogHandlers {
         .withFileScanTasks(initial.first())
         .withPlanTasks(IN_MEMORY_PLANNING_STATE.nextPlanTask(initial.second()))
         .withSpecsById(table.specs())
-        .withCredentials(DUMMY_STORAGE_CREDENTIALS)
         .build();
   }
 
