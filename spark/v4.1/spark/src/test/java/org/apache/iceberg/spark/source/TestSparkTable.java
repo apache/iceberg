@@ -118,12 +118,7 @@ public class TestSparkTable extends CatalogTestBase {
   @TestTemplate
   public void testIdentifierFieldsRelyViaSessionConf() {
     SparkTable sparkTable = loadSparkTable();
-    sparkTable
-        .table()
-        .updateSchema()
-        .allowIncompatibleChanges()
-        .setIdentifierFields("id")
-        .commit();
+    sparkTable.table().updateSchema().allowIncompatibleChanges().setIdentifierFields("id").commit();
 
     // session conf enables rely without a table property
     withSQLConf(
