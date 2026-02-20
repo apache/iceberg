@@ -133,45 +133,35 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     return (DataStreamSinkProvider)
         (providerContext, dataStream) -> {
           if (useDynamicSink) {
-            Preconditions.checkArgument(
-                catalogLoader != null && dynamicRecordGeneratorImpl != null,
-                "Invalid value catalogLoader: %s, DynamicRecordGenerator Implementation class: %s. "
-                    + "Both should be not null to use dynamic iceberg sink.",
-                catalogLoader,
-                dynamicRecordGeneratorImpl);
             return createDynamicIcebergSink(dataStream);
           }
 
+          ResolvedSchema physicalColumnsOnlySchema = null;
+          List<String> equalityColumns;
           if (resolvedSchema != null) {
-            ResolvedSchema physicalColumnsOnlySchema =
+            physicalColumnsOnlySchema =
                 ResolvedSchema.of(
                     resolvedSchema.getColumns().stream()
                         .filter(Column::isPhysical)
                         .collect(Collectors.toList()));
 
-            List<String> equalityColumns =
+            equalityColumns =
                 physicalColumnsOnlySchema
                     .getPrimaryKey()
                     .map(UniqueConstraint::getColumns)
                     .orElseGet(ImmutableList::of);
 
-            if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK)) {
-              return createIcebergSink(dataStream, equalityColumns, physicalColumnsOnlySchema);
-            } else {
-              return createLegacySink(dataStream, equalityColumns, physicalColumnsOnlySchema);
-            }
           } else {
-            List<String> equalityColumns =
+            equalityColumns =
                 tableSchema
                     .getPrimaryKey()
                     .map(org.apache.flink.table.legacy.api.constraints.UniqueConstraint::getColumns)
                     .orElseGet(ImmutableList::of);
-
-            if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK)) {
-              return createIcebergSink(dataStream, equalityColumns, null);
-            } else {
-              return createLegacySink(dataStream, equalityColumns, null);
-            }
+          }
+          if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK)) {
+            return createIcebergSink(dataStream, equalityColumns, physicalColumnsOnlySchema);
+          } else {
+            return createLegacySink(dataStream, equalityColumns, physicalColumnsOnlySchema);
           }
         };
   }
@@ -245,6 +235,13 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   }
 
   private DataStreamSink<?> createDynamicIcebergSink(DataStream<RowData> dataStream) {
+    Preconditions.checkArgument(
+        catalogLoader != null && dynamicRecordGeneratorImpl != null,
+        "Invalid value catalogLoader: %s, DynamicRecordGenerator Implementation class: %s. "
+            + "Both should be not null to use dynamic iceberg sink.",
+        catalogLoader,
+        dynamicRecordGeneratorImpl);
+
     TableCreator tableCreator = createTableCreator();
     DynamicRecordGenerator<RowData> generator =
         createDynamicRecordGenerator(dynamicRecordGeneratorImpl);
