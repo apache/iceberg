@@ -21,6 +21,8 @@ package org.apache.iceberg.spark.source;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
+import org.apache.spark.sql.connector.expressions.Expressions;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.MetadataBuilder;
 
@@ -126,5 +128,9 @@ public class SparkMetadataColumn implements MetadataColumn {
         .putBoolean(MetadataColumn.PRESERVE_ON_DELETE, preserveOnDelete)
         .build()
         .json();
+  }
+
+  public NamedReference asRef() {
+    return Expressions.column(name());
   }
 }

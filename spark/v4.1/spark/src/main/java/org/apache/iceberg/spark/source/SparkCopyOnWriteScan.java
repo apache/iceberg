@@ -37,7 +37,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
@@ -98,8 +97,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
   @Override
   public NamedReference[] filterAttributes() {
-    NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
-    return new NamedReference[] {file};
+    return new NamedReference[] {SparkMetadataColumns.FILE_PATH.asRef()};
   }
 
   @Override
