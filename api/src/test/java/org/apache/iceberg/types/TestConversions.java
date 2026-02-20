@@ -19,6 +19,7 @@
 package org.apache.iceberg.types;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -43,6 +44,150 @@ import org.apache.iceberg.types.Types.UUIDType;
 import org.junit.jupiter.api.Test;
 
 public class TestConversions {
+
+  @Test
+  public void testFromPartitionStringNull() {
+    assertThat(Conversions.fromPartitionString(BooleanType.get(), null)).isNull();
+  }
+
+  @Test
+  public void testFromPartitionStringHiveNull() {
+    assertThat(Conversions.fromPartitionString(BooleanType.get(), "__HIVE_DEFAULT_PARTITION__"))
+        .isNull();
+  }
+
+  @Test
+  public void testFromPartitionStringBoolean() {
+    assertThat(Conversions.fromPartitionString(BooleanType.get(), "true")).isEqualTo(Boolean.TRUE);
+    assertThat(Conversions.fromPartitionString(BooleanType.get(), "false"))
+        .isEqualTo(Boolean.FALSE);
+  }
+
+  @Test
+  public void testFromPartitionStringInteger() {
+    assertThat(Conversions.fromPartitionString(IntegerType.get(), "123")).isEqualTo(123);
+    assertThat(Conversions.fromPartitionString(IntegerType.get(), "-456")).isEqualTo(-456);
+    assertThat(Conversions.fromPartitionString(IntegerType.get(), "0")).isEqualTo(0);
+  }
+
+  @Test
+  public void testFromPartitionStringLong() {
+    assertThat(Conversions.fromPartitionString(LongType.get(), "1234567890"))
+        .isEqualTo(1234567890L);
+    assertThat(Conversions.fromPartitionString(LongType.get(), "-9876543210"))
+        .isEqualTo(-9876543210L);
+    assertThat(Conversions.fromPartitionString(LongType.get(), "0")).isEqualTo(0L);
+  }
+
+  @Test
+  public void testFromPartitionStringFloat() {
+    assertThat(Conversions.fromPartitionString(FloatType.get(), "3.14")).isEqualTo(3.14f);
+    assertThat(Conversions.fromPartitionString(FloatType.get(), "-2.5")).isEqualTo(-2.5f);
+    assertThat(Conversions.fromPartitionString(FloatType.get(), "0.0")).isEqualTo(0.0f);
+  }
+
+  @Test
+  public void testFromPartitionStringDouble() {
+    assertThat(Conversions.fromPartitionString(DoubleType.get(), "3.141592653589793"))
+        .isEqualTo(3.141592653589793);
+    assertThat(Conversions.fromPartitionString(DoubleType.get(), "-123.456")).isEqualTo(-123.456);
+    assertThat(Conversions.fromPartitionString(DoubleType.get(), "0.0")).isEqualTo(0.0);
+  }
+
+  @Test
+  public void testFromPartitionStringString() {
+    assertThat(Conversions.fromPartitionString(StringType.get(), "test")).isEqualTo("test");
+    assertThat(Conversions.fromPartitionString(StringType.get(), "")).isEqualTo("");
+    assertThat(Conversions.fromPartitionString(StringType.get(), "special chars: !@#$%"))
+        .isEqualTo("special chars: !@#$%");
+  }
+
+  @Test
+  public void testFromPartitionStringUUID() {
+    String uuidString = "f79c3e09-677c-4bbd-a479-3f349cb785e7";
+    UUID expected = UUID.fromString(uuidString);
+    assertThat(Conversions.fromPartitionString(UUIDType.get(), uuidString)).isEqualTo(expected);
+  }
+
+  @Test
+  public void testFromPartitionStringFixed() {
+    String input = "test";
+    byte[] result = (byte[]) Conversions.fromPartitionString(FixedType.ofLength(10), input);
+    assertThat(result).hasSize(10);
+    assertThat(new String(result, 0, input.length(), StandardCharsets.UTF_8)).isEqualTo("test");
+  }
+
+  @Test
+  public void testFromPartitionStringBinary() {
+    String input = "binary data";
+    byte[] expected = input.getBytes(StandardCharsets.UTF_8);
+    byte[] result = (byte[]) Conversions.fromPartitionString(BinaryType.get(), input);
+    assertThat(result).isEqualTo(expected);
+  }
+
+  @Test
+  public void testFromPartitionStringDecimal() {
+    assertThat(Conversions.fromPartitionString(DecimalType.of(9, 2), "123.45"))
+        .isEqualTo(new BigDecimal("123.45"));
+    assertThat(Conversions.fromPartitionString(DecimalType.of(9, 2), "-67.89"))
+        .isEqualTo(new BigDecimal("-67.89"));
+    assertThat(Conversions.fromPartitionString(DecimalType.of(9, 2), "0.00"))
+        .isEqualTo(new BigDecimal("0.00"));
+  }
+
+  @Test
+  public void testFromPartitionStringDate() {
+    String dateString = "2017-08-18";
+    Integer expected = (Integer) Literal.of(dateString).to(DateType.get()).value();
+    assertThat(Conversions.fromPartitionString(DateType.get(), dateString)).isEqualTo(expected);
+  }
+
+  @Test
+  public void testFromPartitionStringTimestamp() {
+    String timestampString = "2017-08-18T14:21:01.919";
+    Long expected = (Long) Literal.of(timestampString).to(TimestampType.withoutZone()).value();
+    assertThat(Conversions.fromPartitionString(TimestampType.withoutZone(), timestampString))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void testFromPartitionStringTimestampNano() {
+    String timestampString = "2017-08-18T14:21:01.919876543";
+    Long expected = (Long) Literal.of(timestampString).to(TimestampNanoType.withoutZone()).value();
+    assertThat(Conversions.fromPartitionString(TimestampNanoType.withoutZone(), timestampString))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void testFromPartitionStringTimestampWithZoneNotSupported() {
+    assertThatThrownBy(
+            () ->
+                Conversions.fromPartitionString(
+                    TimestampType.withZone(), "2017-08-18T14:21:01.919-07:00"))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Unsupported type for fromPartitionString: timestamptz");
+  }
+
+  @Test
+  public void testFromPartitionStringTimestampNanoWithZoneNotSupported() {
+    assertThatThrownBy(
+            () ->
+                Conversions.fromPartitionString(
+                    TimestampNanoType.withZone(), "2017-08-18T14:21:01.919876543-07:00"))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Unsupported type for fromPartitionString: timestamptz_ns");
+  }
+
+  @Test
+  public void testFromPartitionStringUnsupportedType() {
+    assertThatThrownBy(
+            () ->
+                Conversions.fromPartitionString(
+                    Types.StructType.of(Types.NestedField.required(1, "field", IntegerType.get())),
+                    "value"))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Unsupported type for fromPartitionString");
+  }
 
   @Test
   public void testByteBufferConversions() {
