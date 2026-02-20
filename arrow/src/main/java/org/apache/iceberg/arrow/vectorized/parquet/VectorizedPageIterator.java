@@ -106,6 +106,9 @@ public class VectorizedPageIterator extends BasePageIterator {
         case DELTA_BYTE_ARRAY:
           valuesReader = new VectorizedDeltaByteArrayValuesReader();
           break;
+        case BYTE_STREAM_SPLIT:
+          valuesReader = new VectorizedByteStreamSplitValuesReader();
+          break;
         default:
           throw new UnsupportedOperationException(
               "Cannot support vectorized reads for column "
