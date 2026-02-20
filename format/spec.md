@@ -707,6 +707,92 @@ For `geography` only, xmin (X value of `lower_bounds`) may be greater than xmax 
 
 When calculating upper and lower bounds for `geometry` and `geography`, null or NaN values in a coordinate dimension are skipped; for example, POINT (1 NaN) contributes a value to X but no values to Y, Z, or M dimension bounds. If a dimension has only null or NaN values, that dimension is omitted from the bounding box. If either the X or Y dimension is missing then the bounding box itself is not produced.
 
+#### Content Stats
+
+Iceberg v4 introduces content stats which represent stats in a `struct<struct<...>>` where each nested struct holds the stats for an individual field of a table. The different field stats types are defined in the next section.
+
+##### Field Stats Types
+
+The struct that holds individual stats for a particular field of a table consists of the following fields:
+
+| Name             | Type                | Offset from field ID of base struct | required | Description                                                                                                                                                                    |
+|------------------|---------------------|-------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| value_count      | `long`              | 1                                   | false    | Number of values in the column (including null and NaN values)                                                                                                                 |
+| null_value_count | `long`              | 2                                   | false    | Number of null values in the column                                                                                                                                            |
+| nan_value_count  | `long`              | 3                                   | false    | Number of NaN values in the column                                                                                                                                             |
+| avg_value_count  | `int`               | 4                                   | false    | The avg value count for variable-length types (string/binary)                                                                                                                  |
+| max_value_count  | `long`              | 5                                   | false    | The max value count for variable-length types (string/binary)                                                                                                                  |
+| lower_bound      | type of table field | 6                                   | false    | Lower bound in the column serialized as the type of the column itself. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2]    |
+| upper_bound      | type of table field | 7                                   | false    | Upper bound in the column serialized as the type of the column itself. Each value must be greater than or equal to all non-null, non-NaN values in the column for the file [2] |
+| exact_bounds     | `boolean`           | 8                                   | false    | Whether the `upper_bound` / `lower_bound` is exact or not. Defaults to true. Types such as string/binary can't have exact bounds. Additionally, if a DV or an equality delete matches a given data file, then `exact_bounds` must be treated as `false` |
+
+#### ID Assignment for Stats fields
+
+ID assignment follows a deterministic transform that maps from the **table ID space** to the **metadata ID space**. For a given field ID from the **table ID space** each nested stats struct gets an ID assigned from the **metadata ID space**.
+Offsets defined in the [field stats types section](#field-stats-types) are then applied to the stats ID of the enclosing stats struct to calculate IDs for each individual field stats type.
+The calculation is: `stats_space_field_id_start_for_data_fields + (num_supported_stats_per_column * table_field_id`)
+
+If the table field ID is a [reserved field ID](#reserved-field-ids) then a slightly adjusted calculation is used: `stats_space_field_id_start_for_metadata_fields + (num_supported_stats_per_column * (num_reserved_field_ids - (Integer.MAX_VALUE - metadata_field_id))`)
+
+The individual variables are defined as following:
+
+* `stats_space_field_id_start_for_data_fields = 10_000`
+* `stats_space_field_id_start_for_metadata_fields = 2_147_000_000`
+* `num_supported_stats_per_column = 200`, thus supporting a range of **200** potential stats fields for a single table field
+* `num_reserved_field_ids = 200` as defined in [reserved field ID](#reserved-field-ids)
+
+Note that stats field IDs are only calculated for an assigned field ID:
+
+* that is defined in the table field ID space
+* that is defined in the [reserved field ID](#reserved-field-ids) space
+
+The stats ID range is defined from `10_000` to `200_010_000`, which effectively means that the highest supported data field ID is `1_000_000`.
+
+#### Stats projection
+
+To retrieve stats for a particular table field ID, one would always project by stats ID, whereas the stats ID for a given table field ID can be calculated by applying the reverse calculation.
+This would be `(stats_field_id - stats_space_field_id_start_for_data_fields) / num_supported_stats_per_column` for normal table field IDs and `stats_field_id - num_reserved_field_ids + (Integer.MAX_VALUE - stats_field_id) + (stats_field_id - stats_space_field_id_start_for_metadata_fields) / num_supported_stats_per_column` for [reserved field IDs](#reserved-field-ids).
+
+Below are examples for some table field ID -> stats field ID calculations.
+
+| Table Field ID      | Stats ID of Stats struct  |
+|---------------------|---------------------------|
+| 0                   | 10_000                    |
+| 1                   | 10_200                    |
+| 2                   | 10_400                    |
+| 5                   | 11_000                    |
+| 100                 | 30_000                    |
+| 1_000_000           | 200_010_000               |
+
+| Reserved Field ID   | Stats ID of Stats struct  |
+|---------------------|---------------------------|
+| 2_147_483_447       | 2_147_000_000             |
+| 2_147_483_448       | 2_147_000_200             |
+| 2_147_483_541       | 2_147_018_800             |
+| 2_147_483_645       | 2_147_039_600             |
+| 2_147_483_646       | 2_147_039_800             |
+
+The below table shows the stats IDs of individual field statistics, which are calculated based on the offset that is described in the [field stats types section](#field-stats-types).
+
+| Table Field ID | Stats ID of Stats struct | Stats Type       | Stats ID of individual statistic |
+|----------------|--------------------------|------------------|----------------------------------|
+| 2              | 10_400                   | value_count      | 10_401                           |
+|                |                          | null_value_count | 10_402                           |
+|                |                          | nan_value_count  | 10_403                           |
+|                |                          | avg_value_size   | 10_404                           |
+|                |                          | max_value_size   | 10_405                           |
+|                |                          | lower_bound      | 10_406                           |
+|                |                          | upper_bound      | 10_407                           |
+|                |                          | exact_bounds     | 10_408                           |
+| 5              | 11_000                   | value_count      | 11_001                           |
+|                |                          | null_value_count | 11_002                           |
+|                |                          | nan_value_count  | 11_003                           |
+|                |                          | avg_value_size   | 11_004                           |
+|                |                          | max_value_size   | 11_005                           |
+|                |                          | lower_bound      | 11_006                           |
+|                |                          | upper_bound      | 11_007                           |
+|                |                          | upper_bound      | 11_008                           |
+
 #### Sequence Number Inheritance
 
 Manifests track the sequence number when a data or delete file was added to the table.
