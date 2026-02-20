@@ -37,44 +37,68 @@ interface VectorizedValuesReader {
   int DOUBLE_SIZE = 8;
 
   /** Read a single boolean */
-  boolean readBoolean();
+  default boolean readBoolean() {
+    throw new UnsupportedOperationException();
+  }
 
   /** Read a single byte */
-  byte readByte();
+  default byte readByte() {
+    throw new UnsupportedOperationException();
+  }
 
   /** Read a single short */
-  short readShort();
+  default short readShort() {
+    throw new UnsupportedOperationException();
+  }
 
   /** Read a single integer */
-  int readInteger();
+  default int readInteger() {
+    throw new UnsupportedOperationException();
+  }
 
   /** Read a single long */
-  long readLong();
+  default long readLong() {
+    throw new UnsupportedOperationException();
+  }
 
   /** Read a single float */
-  float readFloat();
+  default float readFloat() {
+    throw new UnsupportedOperationException();
+  }
 
   /** Read a single double */
-  double readDouble();
+  default double readDouble() {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Read binary data of some length
    *
    * @param len The number of bytes to read
    */
-  Binary readBinary(int len);
+  default Binary readBinary(int len) {
+    throw new UnsupportedOperationException();
+  }
 
   /** Read `total` integers into `vec` starting at `vec[rowId]` */
-  void readIntegers(int total, FieldVector vec, int rowId);
+  default void readIntegers(int total, FieldVector vec, int rowId) {
+    throw new UnsupportedOperationException();
+  }
 
   /** Read `total` longs into `vec` starting at `vec[rowId]` */
-  void readLongs(int total, FieldVector vec, int rowId);
+  default void readLongs(int total, FieldVector vec, int rowId) {
+    throw new UnsupportedOperationException();
+  }
 
   /** Read `total` floats into `vec` starting at `vec[rowId]` */
-  void readFloats(int total, FieldVector vec, int rowId);
+  default void readFloats(int total, FieldVector vec, int rowId) {
+    throw new UnsupportedOperationException();
+  }
 
   /** Read `total` doubles into `vec` starting at `vec[rowId]` */
-  void readDoubles(int total, FieldVector vec, int rowId);
+  default void readDoubles(int total, FieldVector vec, int rowId) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Initialize the reader from a page. See {@link ValuesReader#initFromPage(int,

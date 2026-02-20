@@ -21,7 +21,6 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.api.Binary;
@@ -57,13 +56,13 @@ public class VectorizedDeltaLengthByteArrayValuesReader extends ValuesReader
   @Override
   public Binary readBinary(int len) {
     try {
-      ByteBuffer buffer = dataStream.slice(lengths[currentRow]);
+      ByteBuffer buffer = dataStream.slice(len);
       this.currentRow++;
       if (buffer.hasArray()) {
         return Binary.fromConstantByteArray(
-            buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+            buffer.array(), buffer.arrayOffset() + buffer.position(), len);
       } else {
-        byte[] bytes = new byte[buffer.remaining()];
+        byte[] bytes = new byte[len];
         buffer.get(bytes);
         return Binary.fromConstantByteArray(bytes);
       }
@@ -75,56 +74,6 @@ public class VectorizedDeltaLengthByteArrayValuesReader extends ValuesReader
   @Override
   public int readInteger() {
     return lengths[currentRow];
-  }
-
-  @Override
-  public boolean readBoolean() {
-    throw new UnsupportedOperationException("readBoolean is not supported");
-  }
-
-  @Override
-  public byte readByte() {
-    throw new UnsupportedOperationException("readByte is not supported");
-  }
-
-  @Override
-  public short readShort() {
-    throw new UnsupportedOperationException("readShort is not supported");
-  }
-
-  @Override
-  public long readLong() {
-    throw new UnsupportedOperationException("readLong is not supported");
-  }
-
-  @Override
-  public float readFloat() {
-    throw new UnsupportedOperationException("readFloat is not supported");
-  }
-
-  @Override
-  public double readDouble() {
-    throw new UnsupportedOperationException("readDouble is not supported");
-  }
-
-  @Override
-  public void readIntegers(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readIntegers is not supported");
-  }
-
-  @Override
-  public void readLongs(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readLongs is not supported");
-  }
-
-  @Override
-  public void readFloats(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readFloats is not supported");
-  }
-
-  @Override
-  public void readDoubles(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readDoubles is not supported");
   }
 
   @Override
