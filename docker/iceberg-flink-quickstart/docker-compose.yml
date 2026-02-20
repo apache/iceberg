@@ -1,0 +1,135 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+# Flink Quickstart with Apache Iceberg
+#
+# Usage:
+#   docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml up -d --build
+#
+# Connect to SQL client:
+#   docker exec -it jobmanager ./bin/sql-client.sh
+services:
+  # Flink JobManager
+  jobmanager:
+    build: .
+    hostname: jobmanager
+    container_name: jobmanager
+    depends_on:
+      iceberg-rest:
+        condition: service_healthy
+    networks:
+      iceberg_net:
+    command: jobmanager
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/overview"]
+      start_period: 30s
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        parallelism.default: 2
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: password
+      S3_ENDPOINT: http://minio:9000
+
+  # Flink TaskManager
+  taskmanager:
+    build: .
+    hostname: taskmanager
+    depends_on:
+      jobmanager:
+        condition: service_healthy
+    networks:
+      iceberg_net:
+    command: taskmanager
+    deploy:
+      replicas: 1
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        parallelism.default: 2
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: password
+      S3_ENDPOINT: http://minio:9000
+
+  # Iceberg REST Catalog
+  iceberg-rest:
+    image: apache/iceberg-rest-fixture
+    hostname: iceberg-rest
+    depends_on:
+      create-bucket:
+        condition: service_completed_successfully
+    networks:
+      iceberg_net:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/v1/config"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    environment:
+      AWS_REGION: us-east-1
+      CATALOG_WAREHOUSE: s3://warehouse/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_ACCESS__KEY__ID: admin
+      CATALOG_S3_SECRET__ACCESS__KEY: password
+
+  # MinIO for S3-compatible object storage
+  minio:
+    image: minio/minio
+    hostname: minio
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password
+      MINIO_DOMAIN: minio
+    networks:
+      iceberg_net:
+        aliases:
+          - warehouse.minio
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Create the warehouse bucket
+  create-bucket:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      iceberg_net:
+    entrypoint: |
+      /bin/sh -c "
+      until (/usr/bin/mc alias set minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
+      /usr/bin/mc rm -r --force minio/warehouse;
+      /usr/bin/mc mb minio/warehouse;
+      /usr/bin/mc policy set public minio/warehouse;
+      "
+
+networks:
+  iceberg_net:

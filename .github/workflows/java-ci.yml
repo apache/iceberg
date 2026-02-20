@@ -67,6 +67,7 @@ jobs:
   core-tests:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 15
       matrix:
         jvm: [17, 21]
     env:
@@ -96,6 +97,7 @@ jobs:
   build-checks:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 15
       matrix:
         jvm: [17, 21]
     steps:
@@ -109,6 +111,7 @@ jobs:
   build-javadoc:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 15
       matrix:
         jvm: [17, 21]
     steps:

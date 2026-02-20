@@ -19,7 +19,7 @@
 set -e
 
 export REMOTE="iceberg_docs"
-export VENV_DIR=".venv"
+export VENV_DIR="${VENV_DIR:-.venv}"
 
 # Ensures the presence of a specified remote repository for documentation.
 # If the remote doesn't exist, it adds it using the provided URL.
@@ -48,7 +48,8 @@ install_deps () {
   echo " --> install deps"
 
   # Use pip from venv to install or upgrade dependencies from the 'requirements.txt' file quietly
-  "${VENV_DIR}/bin/pip3" -q install -r requirements.txt --upgrade
+  local PIP="${PIP:-${VENV_DIR}/bin/pip3}"
+  ${PIP} -q install -r requirements.txt --upgrade
 }
 
 # Checks if a provided argument is not empty. If empty, displays an error message and exits with a status code 1.

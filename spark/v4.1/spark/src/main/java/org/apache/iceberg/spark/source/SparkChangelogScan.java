@@ -129,23 +129,11 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   public String description() {
     return String.format(
         Locale.ROOT,
-        "%s [fromSnapshotId=%d, toSnapshotId=%d, filters=%s]",
+        "IcebergChangelogScan(table=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s)",
         table,
         startSnapshotId,
         endSnapshotId,
-        Spark3Util.describe(filters));
-  }
-
-  @Override
-  public String toString() {
-    return String.format(
-        Locale.ROOT,
-        "IcebergChangelogScan(table=%s, type=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s)",
-        table,
-        expectedSchema.asStruct(),
-        startSnapshotId,
-        endSnapshotId,
-        Spark3Util.describe(filters));
+        filtersDesc());
   }
 
   @Override
@@ -160,8 +148,9 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
     SparkChangelogScan that = (SparkChangelogScan) o;
     return table.name().equals(that.table.name())
+        && Objects.equals(table.uuid(), that.table.uuid())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field IDs
-        && filters.toString().equals(that.filters.toString())
+        && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId);
   }
@@ -169,6 +158,10 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   @Override
   public int hashCode() {
     return Objects.hash(
-        table.name(), readSchema(), filters.toString(), startSnapshotId, endSnapshotId);
+        table.name(), table.uuid(), readSchema(), filtersDesc(), startSnapshotId, endSnapshotId);
+  }
+
+  private String filtersDesc() {
+    return Spark3Util.describe(filters);
   }
 }

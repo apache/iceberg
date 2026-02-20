@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import java.io.Closeable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -46,7 +45,6 @@ class DynamicTableUpdateOperator
   private final TableCreator tableCreator;
   private final boolean caseSensitive;
 
-  private transient Catalog catalog;
   private transient TableUpdater updater;
 
   DynamicTableUpdateOperator(
@@ -69,7 +67,7 @@ class DynamicTableUpdateOperator
   @Override
   public void open(OpenContext openContext) throws Exception {
     super.open(openContext);
-    this.catalog = catalogLoader.loadCatalog();
+    Catalog catalog = catalogLoader.loadCatalog();
     this.updater =
         new TableUpdater(
             new TableMetadataCache(
@@ -102,13 +100,5 @@ class DynamicTableUpdateOperator
     data.setRowData(newRowData);
 
     return data;
-  }
-
-  @Override
-  public void close() throws Exception {
-    super.close();
-    if (catalog instanceof Closeable rs) {
-      rs.close();
-    }
   }
 }

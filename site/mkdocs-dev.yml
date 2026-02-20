@@ -25,6 +25,7 @@ nav:
   - Home: index.md
   - Quickstart:
     - Spark: spark-quickstart.md
+    - Flink: flink-quickstart.md
     - Hive: hive-quickstart.md
   - Docs:
     - Java:

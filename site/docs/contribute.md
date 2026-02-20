@@ -57,6 +57,17 @@ There are several exceptions to a single committer being able to merge a PR:
 * Behavioral and functional changes to a specification must go through the [Iceberg improvement proposal](#apache-iceberg-improvement-proposals) before any code can be merged.
 * Changes to files under the `format` directory and `open-api/rest-catalog*` are considered specification changes. Unless already covered under an Iceberg improvement proposal, specification changes require their own vote (e.g. bug fixes or specification clarifications). The vote follows the ASF [code modification](https://www.apache.org/foundation/voting.html#votes-on-code-modification) model and no lazy consensus modifier. Grammar, spelling and minor formatting fixes are exempted from this rule. Draft specifications (new independent specifications that are going through the Iceberg improvement process) do not require a vote but authors should provide notice on the developer mailing list about substantive changes (the final draft will be subject to a vote).
 
+### Guidelines for AI-assisted Contributions
+
+The Iceberg community welcomes contributions that are created or assisted by AI tools (e.g., large language models or code assistants). Contributors using such tools are expected to adhere to the following principles:
+
+* The PR author should **understand the core ideas** behind the implementation **end-to-end**, and be able to justify the design and code during review.
+* PR titles, commit messages, and code must align with the style, tone, and level of detail used in the existing Iceberg codebase.
+* Use AI for acceleration, then verify. Treat AI output as a draft for code, tests, or docs; run linters/tests and review the logic yourself.
+* Be transparent about AI usage and uncertainties. Disclose if AI was used (e.g., draft, refactoring, test scaffolding) and call out any areas of uncertainty or assumptions, especially regarding complex logic, concurrency, or internal APIs, so reviewers can focus on them.
+* **Respect ASF policy**. Ensure generated content does not introduce incompatible licenses or undisclosed third-party code; review the [ASF Generative Tooling Guidance](https://www.apache.org/legal/generative-tooling.html) and licensing rules when in doubt.
+* If you are filing a security report based on AI assisted scanning, please verify that the issue is reproducible and clearly document the steps to reproduce it before submitting. Security reports can be time-consuming for maintainers to examine and triage, so thorough, well-documented reports help ensure they are addressed efficiently.
+
 ## Apache Iceberg Improvement Proposals
 
 ### What is an improvement proposal?

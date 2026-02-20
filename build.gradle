@@ -34,7 +34,7 @@ buildscript {
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
-    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.4'
+    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.7'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:4.3.0'
     classpath 'org.openapitools:openapi-generator-gradle-plugin:7.19.0'
   }
@@ -117,7 +117,6 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
-    maven { url 'https://jitpack.io/' }
   }
 }
 
@@ -194,6 +193,11 @@ subprojects {
       exclude group: 'com.sun.jersey.contribs'
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
       exclude group: 'org.jetbrains', module: 'annotations'
+      resolutionStrategy {
+        dependencySubstitution {
+          substitute module("org.lz4:lz4-java") using module(libs.lz4Java.get().toString()) because("Enforce lz4-java that contains CVE-2025-12183 and CVE-2025-66566 fixes")
+        }
+      }
     }
 
     testArtifacts

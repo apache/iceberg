@@ -253,10 +253,11 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
 
     SparkBatchQueryScan that = (SparkBatchQueryScan) o;
     return table().name().equals(that.table().name())
+        && Objects.equals(table().uuid(), that.table().uuid())
         && Objects.equals(branch(), that.branch())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filterExpressions().toString().equals(that.filterExpressions().toString())
-        && runtimeFilterExpressions.toString().equals(that.runtimeFilterExpressions.toString())
+        && filtersDesc().equals(that.filtersDesc())
+        && runtimeFiltersDesc().equals(that.runtimeFiltersDesc())
         && Objects.equals(snapshotId, that.snapshotId)
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId)
@@ -268,10 +269,11 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   public int hashCode() {
     return Objects.hash(
         table().name(),
+        table().uuid(),
         branch(),
         readSchema(),
-        filterExpressions().toString(),
-        runtimeFilterExpressions.toString(),
+        filtersDesc(),
+        runtimeFiltersDesc(),
         snapshotId,
         startSnapshotId,
         endSnapshotId,
@@ -280,14 +282,13 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   }
 
   @Override
-  public String toString() {
+  public String description() {
     return String.format(
-        "IcebergScan(table=%s, branch=%s, type=%s, filters=%s, runtimeFilters=%s, caseSensitive=%s)",
-        table(),
-        branch(),
-        expectedSchema().asStruct(),
-        filterExpressions(),
-        runtimeFilterExpressions,
-        caseSensitive());
+        "IcebergScan(table=%s, branch=%s, filters=%s, runtimeFilters=%s, groupedBy=%s)",
+        table(), branch(), filtersDesc(), runtimeFiltersDesc(), groupingKeyDesc());
+  }
+
+  private String runtimeFiltersDesc() {
+    return Spark3Util.describe(runtimeFilterExpressions);
   }
 }
