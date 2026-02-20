@@ -108,7 +108,10 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    * @param executorService an executor service to parallelize metadata rewriting
    * @return this for method chaining
    */
-  RewriteTablePath executeWith(ExecutorService executorService);
+  default RewriteTablePath executeWith(ExecutorService executorService) {
+    throw new UnsupportedOperationException(
+        "This implementation does not support providing an ExecutorService.");
+  }
 
   /** The action result that contains a summary of the execution. */
   interface Result {
