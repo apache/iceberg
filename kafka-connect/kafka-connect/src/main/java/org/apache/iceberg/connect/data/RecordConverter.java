@@ -35,6 +35,7 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.Temporal;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -52,6 +53,7 @@ import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -64,6 +66,12 @@ import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.ValueArray;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
+import org.apache.iceberg.variants.Variants;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 
@@ -142,6 +150,8 @@ class RecordConverter {
         return convertTimeValue(value);
       case TIMESTAMP:
         return convertTimestampValue(value, (TimestampType) type);
+      case VARIANT:
+        return convertVariantValue(value);
     }
     throw new UnsupportedOperationException("Unsupported type: " + type.typeId());
   }
@@ -462,6 +472,117 @@ class RecordConverter {
       return convertOffsetDateTime(value);
     }
     return convertLocalDateTime(value);
+  }
+
+  protected Variant convertVariantValue(Object value) {
+    if (value instanceof ByteBuffer) {
+      return Variant.from((ByteBuffer) value);
+    }
+
+    List<String> allFieldNames =
+        collectFieldNames(value).stream().distinct().sorted().collect(Collectors.toList());
+    VariantMetadata metadata =
+        allFieldNames.isEmpty() ? Variants.emptyMetadata() : Variants.metadata(allFieldNames);
+    VariantValue variantValue = objectToVariantValue(value, metadata);
+    return Variant.of(metadata, variantValue);
+  }
+
+  /**
+   * Collects all field names (map keys) from the entire object tree. Used to build a single
+   * VariantMetadata for the whole Variant (required for nested maps).
+   */
+  private static List<String> collectFieldNames(Object value) {
+    if (value == null) {
+      return List.of();
+    }
+    if (value instanceof Map) {
+      Map<?, ?> map = (Map<?, ?>) value;
+      List<String> names = Lists.newArrayList();
+      map.keySet().stream().map(Object::toString).forEach(names::add);
+      for (Object v : map.values()) {
+        names.addAll(collectFieldNames(v));
+      }
+      return names;
+    }
+    if (value instanceof Collection) {
+      List<String> names = Lists.newArrayList();
+      for (Object element : (Collection<?>) value) {
+        names.addAll(collectFieldNames(element));
+      }
+      return names;
+    }
+    return List.of();
+  }
+
+  /**
+   * Recursively converts a Java object to a VariantValue using the given shared metadata for all
+   * nested maps. Handles primitives, List (array), and Map (object); map keys become field names.
+   */
+  private static VariantValue objectToVariantValue(Object value, VariantMetadata metadata) {
+    if (value == null) {
+      return Variants.ofNull();
+    }
+    if (value instanceof Boolean) {
+      return Variants.of((Boolean) value);
+    }
+    if (value instanceof Number) {
+      return numberToVariantValue((Number) value);
+    }
+    if (value instanceof String) {
+      return Variants.of((String) value);
+    }
+    if (value instanceof ByteBuffer) {
+      return Variants.of((ByteBuffer) value);
+    }
+    if (value instanceof byte[]) {
+      return Variants.of(ByteBuffer.wrap((byte[]) value));
+    }
+    if (value instanceof BigDecimal) {
+      return Variants.of((BigDecimal) value);
+    }
+    if (value instanceof UUID) {
+      return Variants.ofUUID((UUID) value);
+    }
+    if (value instanceof Collection) {
+      ValueArray array = Variants.array();
+      for (Object element : (Collection<?>) value) {
+        array.add(objectToVariantValue(element, metadata));
+      }
+      return array;
+    }
+    if (value instanceof Map) {
+      Map<?, ?> map = (Map<?, ?>) value;
+      ShreddedObject object = Variants.object(metadata);
+      map.forEach((k, v) -> object.put(k.toString(), objectToVariantValue(v, metadata)));
+      return object;
+    }
+    throw new IllegalArgumentException("Cannot convert to variant: " + value.getClass().getName());
+  }
+
+  private static VariantValue numberToVariantValue(Number value) {
+    if (value instanceof Integer) {
+      return Variants.of((Integer) value);
+    }
+    if (value instanceof Long) {
+      return Variants.of((Long) value);
+    }
+    if (value instanceof Float) {
+      return Variants.of((Float) value);
+    }
+    if (value instanceof Double) {
+      return Variants.of((Double) value);
+    }
+    if (value instanceof Byte) {
+      return Variants.of((Byte) value);
+    }
+    if (value instanceof Short) {
+      return Variants.of((Short) value);
+    }
+    Number num = value;
+    if (num.doubleValue() == num.longValue()) {
+      return Variants.of(num.longValue());
+    }
+    return Variants.of(num.doubleValue());
   }
 
   @SuppressWarnings("JavaUtilDate")
