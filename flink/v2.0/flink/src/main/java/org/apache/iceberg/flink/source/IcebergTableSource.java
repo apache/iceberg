@@ -43,6 +43,7 @@ import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.types.RowKind;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
@@ -199,7 +200,24 @@ public class IcebergTableSource
 
   @Override
   public ChangelogMode getChangelogMode() {
+    StreamingReadMode readMode = getStreamingReadMode();
+    if (readMode == StreamingReadMode.CHANGELOG) {
+      return ChangelogMode.newBuilder()
+          .addContainedKind(RowKind.INSERT)
+          .addContainedKind(RowKind.UPDATE_BEFORE)
+          .addContainedKind(RowKind.UPDATE_AFTER)
+          .addContainedKind(RowKind.DELETE)
+          .build();
+    }
     return ChangelogMode.insertOnly();
+  }
+
+  private StreamingReadMode getStreamingReadMode() {
+    String readModeStr = properties.get(FlinkReadOptions.STREAMING_READ_MODE);
+    if (readModeStr != null) {
+      return StreamingReadMode.valueOf(readModeStr.toUpperCase());
+    }
+    return readableConfig.get(FlinkReadOptions.STREAMING_READ_MODE_OPTION);
   }
 
   @Override
