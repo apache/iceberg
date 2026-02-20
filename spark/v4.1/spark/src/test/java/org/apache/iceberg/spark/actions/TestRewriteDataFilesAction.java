@@ -1557,7 +1557,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testSimpleSort() {
+  public void testSimpleSort() throws IOException {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
     table.replaceSortOrder().asc("c2").commit();
@@ -1587,10 +1587,11 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
   }
 
   @TestTemplate
-  public void testSortAfterPartitionChange() {
+  public void testSortAfterPartitionChange() throws IOException {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
     table.updateSpec().addField(Expressions.bucket("c1", 4)).commit();
@@ -1623,10 +1624,11 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesSortOrderShouldMatchTableSortOrder(table);
   }
 
   @TestTemplate
-  public void testSortCustomSortOrder() {
+  public void testSortCustomSortOrder() throws IOException {
     Table table = createTable(20);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
@@ -1654,10 +1656,11 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
-  public void testSortCustomSortOrderRequiresRepartition() {
+  public void testSortCustomSortOrderRequiresRepartition() throws IOException {
     int partitions = 4;
     Table table = createTable();
     writeRecords(20, SCALE, partitions);
@@ -1694,10 +1697,54 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveLastCommitSorted(table, "c3");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
-  public void testAutoSortShuffleOutput() {
+  public void testSortPastTableSortOrderGetsAppliedToFiles() throws IOException {
+    int partitions = 4;
+    Table table = createTable();
+    writeRecords(20, SCALE, partitions);
+    shouldHaveLastCommitUnsorted(table, "c3");
+
+    table.updateSpec().addField("c1").commit();
+
+    table.replaceSortOrder().asc("c3").commit();
+    SortOrder c3SortOrder = table.sortOrder();
+
+    table.replaceSortOrder().asc("c2").commit();
+    shouldHaveFiles(table, 20);
+
+    List<Object[]> originalData = currentData();
+    long dataSizeBefore = testDataSize(table);
+
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .sort(SortOrder.builderFor(table.schema()).asc("c3").build())
+            .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+            .option(
+                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(averageFileSize(table) / partitions))
+            .execute();
+
+    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+    shouldHaveACleanCache(table);
+    shouldHaveMultipleFiles(table);
+    shouldHaveLastCommitUnsorted(table, "c2");
+    shouldHaveLastCommitSorted(table, "c3");
+    dataFilesShouldHaveSortOrderIdMatching(table, c3SortOrder);
+  }
+
+  @TestTemplate
+  public void testAutoSortShuffleOutput() throws IOException {
     Table table = createTable(20);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
@@ -1734,6 +1781,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveACleanCache(table);
     shouldHaveMultipleFiles(table);
     shouldHaveLastCommitSorted(table, "c2");
+    dataFilesShouldHaveSortOrderIdMatching(table, SortOrder.unsorted());
   }
 
   @TestTemplate
@@ -2655,6 +2703,19 @@ public class TestRewriteDataFilesAction extends TestBase {
     @Override
     public boolean matches(RewriteFileGroup argument) {
       return groupIDs.contains(argument.info().globalIndex());
+    }
+  }
+
+  private void dataFilesSortOrderShouldMatchTableSortOrder(Table table) throws IOException {
+    dataFilesShouldHaveSortOrderIdMatching(table, table.sortOrder());
+  }
+
+  private void dataFilesShouldHaveSortOrderIdMatching(Table table, SortOrder sortOrder)
+      throws IOException {
+    try (CloseableIterable<FileScanTask> files = table.newScan().planFiles()) {
+      assertThat(files)
+          .extracting(fileScanTask -> fileScanTask.file().sortOrderId())
+          .containsOnly(sortOrder.orderId());
     }
   }
 }
