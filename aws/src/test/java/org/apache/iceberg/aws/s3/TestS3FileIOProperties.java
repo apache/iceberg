@@ -566,4 +566,25 @@ public class TestS3FileIOProperties {
     RetryPolicy retryPolicy = builder.overrideConfiguration().retryPolicy().get();
     assertThat(retryPolicy.numRetries()).as("retries was not set").isEqualTo(999);
   }
+
+  @Test
+  public void testChunkedEncodingEnabledDefaultValue() {
+    Map<String, String> properties = Maps.newHashMap();
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+
+    assertThat(s3FileIOProperties.isChunkedEncodingEnabled())
+        .as("chunked encoding should be disabled by default")
+        .isFalse();
+  }
+
+  @Test
+  public void testChunkedEncodingEnabled() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.CHUNKED_ENCODING_ENABLED, "true");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+
+    assertThat(s3FileIOProperties.isChunkedEncodingEnabled())
+        .as("chunked encoding should be enabled when explicitly set to true")
+        .isTrue();
+  }
 }
