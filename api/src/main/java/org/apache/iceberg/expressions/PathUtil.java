@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 
 public class PathUtil {
@@ -81,6 +82,26 @@ public class PathUtil {
             .map(PathUtil::rfc9535escape)
             .map(name -> "['" + name + "']")
             .collect(Collectors.joining(""));
+  }
+
+  /**
+   * Converts a normalized path (e.g. $['a']['b']) to dot notation (e.g. $.a.b). Used when unbinding
+   * BoundExtract so the result can be passed to Expressions.extract().
+   */
+  static String toDotNotation(String normalizedPath) {
+    Preconditions.checkArgument(
+        normalizedPath != null && normalizedPath.startsWith(ROOT),
+        "Invalid normalized path: %s",
+        normalizedPath);
+    List<String> fields = Lists.newArrayList();
+    Matcher matcher = Pattern.compile("\\['([^']*)'\\]").matcher(normalizedPath);
+    while (matcher.find()) {
+      fields.add(matcher.group(1));
+    }
+    if (fields.isEmpty()) {
+      return ROOT;
+    }
+    return ROOT + "." + String.join(".", fields);
   }
 
   @VisibleForTesting
