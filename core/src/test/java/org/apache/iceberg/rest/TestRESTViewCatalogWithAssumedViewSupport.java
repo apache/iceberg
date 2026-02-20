@@ -31,14 +31,15 @@ import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.BeforeEach;
 
 public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatalog {
 
+  @SuppressWarnings("removal")
   @BeforeEach
   public void createCatalog() throws Exception {
     File warehouse = temp.toFile();
