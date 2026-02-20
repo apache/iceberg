@@ -123,4 +123,42 @@ public class TestPathUtil {
   public void testPathEscaping(String name, String escaped) {
     assertThat(PathUtil.rfc9535escape(name)).isEqualTo(escaped);
   }
+
+  private static final String[][] TO_DOT_NOTATION_CASES =
+      new String[][] {
+        new String[] {"$", "$"},
+        new String[] {"$['a']", "$.a"},
+        new String[] {"$['a']['b']", "$.a.b"},
+        new String[] {"$['a']['b']['c']", "$.a.b.c"},
+        new String[] {"$['event_id']", "$.event_id"},
+        new String[] {"$['\u2603']", "$.\u2603"},
+        new String[] {"$['a\uD834\uDD1Eb']['x']", "$.a\uD834\uDD1Eb.x"},
+        new String[] {"$['user.name']", "$.user.name"},
+      };
+
+  @ParameterizedTest
+  @FieldSource("TO_DOT_NOTATION_CASES")
+  public void testToDotNotation(String normalizedPath, String expectedDotPath) {
+    assertThat(PathUtil.toDotNotation(normalizedPath)).isEqualTo(expectedDotPath);
+  }
+
+  @Test
+  public void testToDotNotationRoundTrip() {
+    for (String[] pair : NORMALIZED_PATHS) {
+      String dotPath = pair[0];
+      String normalizedPath = pair[1];
+      assertThat(PathUtil.toDotNotation(normalizedPath)).isEqualTo(dotPath);
+    }
+  }
+
+  private static final String[] INVALID_TO_DOT_NOTATION_INPUTS =
+      new String[] {null, "", "event_id"};
+
+  @ParameterizedTest
+  @FieldSource("INVALID_TO_DOT_NOTATION_INPUTS")
+  public void testToDotNotationInvalidInput(String path) {
+    assertThatThrownBy(() -> PathUtil.toDotNotation(path))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid normalized path");
+  }
 }
