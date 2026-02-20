@@ -183,4 +183,15 @@ public interface Transaction {
    * @throws CommitFailedException If the updates cannot be committed due to conflicts.
    */
   void commitTransaction();
+
+  /**
+   * Abort the transaction by cleaning up uncommitted changes.
+   *
+   * <p>This cleans up any files produced by pending updates and deletes any uncommitted files
+   * tracked by the transaction.
+   */
+  default void abortTransaction() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement abortTransaction()");
+  }
 }

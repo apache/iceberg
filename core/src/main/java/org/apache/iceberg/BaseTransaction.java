@@ -78,6 +78,7 @@ public class BaseTransaction implements Transaction {
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
+  private boolean isAborted = false;
   private final MetricsReporter reporter;
 
   BaseTransaction(
@@ -252,6 +253,8 @@ public class BaseTransaction implements Transaction {
 
   @Override
   public void commitTransaction() {
+    Preconditions.checkState(!isAborted, "Cannot commit transaction: transaction has been aborted");
+
     Preconditions.checkState(
         hasLastOpCommitted, "Cannot commit transaction: last operation has not committed");
 
@@ -379,11 +382,11 @@ public class BaseTransaction implements Transaction {
       throw e;
 
     } catch (PendingUpdateFailedException e) {
-      cleanUpOnCommitFailure();
+      cleanAll();
       throw e.wrapped();
     } catch (RuntimeException e) {
       if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
-        cleanUpOnCommitFailure();
+        cleanAll();
       }
 
       throw e;
@@ -420,8 +423,14 @@ public class BaseTransaction implements Transaction {
     }
   }
 
-  private void cleanUpOnCommitFailure() {
-    // the commit failed and no files were committed. clean up each update.
+  @Override
+  public void abortTransaction() {
+    this.isAborted = true;
+    cleanAll();
+  }
+
+  private void cleanAll() {
+    // clean up each update
     cleanAllUpdates();
 
     // delete all the uncommitted files

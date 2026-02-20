@@ -901,6 +901,114 @@ public class TestTransaction extends TestBase {
   }
 
   @TestTemplate
+  public void testAbortEmptyTransaction() {
+    assertThat(version()).isEqualTo(0);
+
+    TableMetadata base = readMetadata();
+
+    Transaction txn = table.newTransaction();
+    txn.abortTransaction();
+
+    assertThat(readMetadata()).isSameAs(base);
+    assertThat(version()).isEqualTo(0);
+  }
+
+  @TestTemplate
+  public void testAbortTransactionCleansUpFiles() {
+    assertThat(version()).isEqualTo(0);
+
+    TableMetadata base = readMetadata();
+
+    Transaction txn = table.newTransaction();
+    txn.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Snapshot txnSnapshot = txn.table().currentSnapshot();
+    ManifestFile appendManifest = txnSnapshot.allManifests(table.io()).get(0);
+    String manifestListLocation = txnSnapshot.manifestListLocation();
+
+    // verify files exist before abort
+    assertThat(new File(appendManifest.path())).exists();
+
+    txn.abortTransaction();
+
+    // verify that the table was not modified
+    assertThat(readMetadata()).isSameAs(base);
+    assertThat(version()).isEqualTo(0);
+
+    // verify that manifest and manifest list are cleaned up
+    assertThat(new File(appendManifest.path())).doesNotExist();
+    assertThat(new File(manifestListLocation)).doesNotExist();
+  }
+
+  @TestTemplate
+  public void testAbortTransactionWithMultipleOperations() {
+    assertThat(version()).isEqualTo(0);
+
+    TableMetadata base = readMetadata();
+
+    Transaction txn = table.newTransaction();
+    txn.newAppend().appendFile(FILE_A).commit();
+
+    ManifestFile firstManifest = txn.table().currentSnapshot().allManifests(table.io()).get(0);
+    String firstManifestList = txn.table().currentSnapshot().manifestListLocation();
+
+    txn.newAppend().appendFile(FILE_B).commit();
+
+    String secondManifestList = txn.table().currentSnapshot().manifestListLocation();
+
+    txn.abortTransaction();
+
+    // verify that the table was not modified
+    assertThat(readMetadata()).isSameAs(base);
+    assertThat(version()).isEqualTo(0);
+
+    // verify that manifests and manifest lists are cleaned up
+    assertThat(new File(firstManifest.path())).doesNotExist();
+    assertThat(new File(firstManifestList)).doesNotExist();
+    assertThat(new File(secondManifestList)).doesNotExist();
+  }
+
+  @TestTemplate
+  public void testAbortTransactionBulkDeletionCleanup() throws IOException {
+    TestTables.TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestTables.TestBulkLocalFileIO());
+    Mockito.doNothing().when(spyFileIO).deleteFiles(any());
+
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnAbortBulkDeleteTest";
+    TestTables.TestTable tableWithBulkIO =
+        TestTables.create(
+            location,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, location, spyFileIO));
+
+    Transaction txn = tableWithBulkIO.newTransaction();
+    txn.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    ManifestFile appendManifest = txn.table().currentSnapshot().allManifests(table.io()).get(0);
+    String txnManifestList = txn.table().currentSnapshot().manifestListLocation();
+
+    txn.abortTransaction();
+
+    // verify bulk delete was called with the uncommitted files
+    Mockito.verify(spyFileIO).deleteFiles(Set.of(appendManifest.path(), txnManifestList));
+  }
+
+  @TestTemplate
+  public void testCommitAfterAbortFails() {
+    Transaction txn = table.newTransaction();
+    txn.newAppend().appendFile(FILE_A).commit();
+    txn.abortTransaction();
+
+    assertThatThrownBy(txn::commitTransaction)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Cannot commit transaction: transaction has been aborted");
+  }
+
+  @TestTemplate
   public void testExtendBaseTransaction() {
     assertThat(version()).isEqualTo(0);
     TableMetadata base = readMetadata();
