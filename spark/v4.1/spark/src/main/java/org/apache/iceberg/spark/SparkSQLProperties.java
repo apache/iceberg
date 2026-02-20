@@ -107,6 +107,10 @@ public class SparkSQLProperties {
   public static final String REPORT_COLUMN_STATS = "spark.sql.iceberg.report-column-stats";
   public static final boolean REPORT_COLUMN_STATS_DEFAULT = true;
 
+  // Rely on identifier fields as a PRIMARY KEY constraint for query optimization (not enforced)
+  public static final String IDENTIFIER_FIELDS_RELY =
+      "spark.sql.iceberg.identifier-fields-rely";
+
   // Prefix for custom snapshot properties
   public static final String SNAPSHOT_PROPERTY_PREFIX = "spark.sql.iceberg.snapshot-property.";
 }
