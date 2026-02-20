@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -33,35 +34,53 @@ import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
 import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.LookupTableSource;
 import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.connector.source.TableFunctionProvider;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
+<<<<<<< HEAD:flink/v2.1/flink/src/main/java/org/apache/iceberg/flink/source/IcebergTableSource.java
 import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark;
+=======
+import org.apache.flink.table.connector.source.lookup.AsyncLookupFunctionProvider;
+>>>>>>> ac7e66b07 ([FLINK] Implement Iceberg lookup join functionality, and source code and junit test code.):flink/v1.18/flink/src/main/java/org/apache/iceberg/flink/source/IcebergTableSource.java
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.DataType;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
+import org.apache.iceberg.flink.source.lookup.IcebergAllLookupFunction;
+import org.apache.iceberg.flink.source.lookup.IcebergAsyncLookupFunction;
+import org.apache.iceberg.flink.source.lookup.IcebergPartialLookupFunction;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+<<<<<<< HEAD:flink/v2.1/flink/src/main/java/org/apache/iceberg/flink/source/IcebergTableSource.java
 import org.apache.iceberg.util.PropertyUtil;
+=======
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+>>>>>>> ac7e66b07 ([FLINK] Implement Iceberg lookup join functionality, and source code and junit test code.):flink/v1.18/flink/src/main/java/org/apache/iceberg/flink/source/IcebergTableSource.java
 
 /** Flink Iceberg table source. */
 @Internal
 public class IcebergTableSource
     implements ScanTableSource,
+        LookupTableSource,
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
         SupportsLimitPushDown,
         SupportsSourceWatermark {
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergTableSource.class);
 
   private int[] projectedFields;
   private Long limit;
@@ -226,6 +245,290 @@ public class IcebergTableSource
             PropertyUtil.propertyAsNullableInt(properties, FactoryUtil.SOURCE_PARALLELISM.key()));
       }
     };
+  }
+
+  @Override
+  public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context) {
+    // 获取 Lookup 键信息
+    int[][] lookupKeys = context.getKeys();
+    Preconditions.checkArgument(
+        lookupKeys.length > 0, "At least one lookup key is required for Lookup Join");
+
+    // 提取 Lookup 键索引（原始表 Schema 中的索引）和名称
+    int[] originalKeyIndices = new int[lookupKeys.length];
+    String[] lookupKeyNames = new String[lookupKeys.length];
+    String[] fieldNames = schema.getFieldNames();
+
+    for (int i = 0; i < lookupKeys.length; i++) {
+      Preconditions.checkArgument(
+          lookupKeys[i].length == 1,
+          "Nested lookup keys are not supported, lookup key: %s",
+          Arrays.toString(lookupKeys[i]));
+      int keyIndex = lookupKeys[i][0];
+      originalKeyIndices[i] = keyIndex;
+      lookupKeyNames[i] = fieldNames[keyIndex];
+    }
+
+    LOG.info("Creating Lookup runtime provider with keys: {}", Arrays.toString(lookupKeyNames));
+
+    // 获取投影后的 Schema
+    Schema icebergProjectedSchema = getIcebergProjectedSchema();
+
+    // 计算 lookup key 在投影后 Schema 中的索引
+    // 如果有投影（projectedFields != null），需要映射到新索引
+    // 如果没有投影，索引保持不变
+    int[] lookupKeyIndices = computeProjectedKeyIndices(originalKeyIndices);
+
+    LOG.info(
+        "Lookup key indices - original: {}, projected: {}",
+        Arrays.toString(originalKeyIndices),
+        Arrays.toString(lookupKeyIndices));
+
+    // 获取 Lookup 配置
+    FlinkConfigOptions.LookupMode lookupMode = getLookupMode();
+    Duration cacheTtl = getCacheTtl();
+    long cacheMaxRows = getCacheMaxRows();
+    Duration reloadInterval = getReloadInterval();
+    boolean asyncEnabled = isAsyncLookupEnabled();
+    int asyncCapacity = getAsyncCapacity();
+    int maxRetries = getMaxRetries();
+
+    LOG.info(
+        "Lookup configuration - mode: {}, cacheTtl: {}, cacheMaxRows: {}, reloadInterval: {}, async: {}, asyncCapacity: {}, maxRetries: {}",
+        lookupMode,
+        cacheTtl,
+        cacheMaxRows,
+        reloadInterval,
+        asyncEnabled,
+        asyncCapacity,
+        maxRetries);
+
+    // 根据配置创建对应的 LookupFunction
+    if (lookupMode == FlinkConfigOptions.LookupMode.ALL) {
+      // ALL 模式：全量加载
+      IcebergAllLookupFunction lookupFunction =
+          new IcebergAllLookupFunction(
+              loader.clone(),
+              icebergProjectedSchema,
+              lookupKeyIndices,
+              lookupKeyNames,
+              true, // caseSensitive
+              reloadInterval);
+      return TableFunctionProvider.of(lookupFunction);
+
+    } else {
+      // PARTIAL 模式：按需查询
+      if (asyncEnabled) {
+        // 异步模式
+        IcebergAsyncLookupFunction asyncLookupFunction =
+            new IcebergAsyncLookupFunction(
+                loader.clone(),
+                icebergProjectedSchema,
+                lookupKeyIndices,
+                lookupKeyNames,
+                true, // caseSensitive
+                cacheTtl,
+                cacheMaxRows,
+                maxRetries,
+                asyncCapacity);
+        return AsyncLookupFunctionProvider.of(asyncLookupFunction);
+
+      } else {
+        // 同步模式
+        IcebergPartialLookupFunction lookupFunction =
+            new IcebergPartialLookupFunction(
+                loader.clone(),
+                icebergProjectedSchema,
+                lookupKeyIndices,
+                lookupKeyNames,
+                true, // caseSensitive
+                cacheTtl,
+                cacheMaxRows,
+                maxRetries);
+        return TableFunctionProvider.of(lookupFunction);
+      }
+    }
+  }
+
+  /**
+   * 计算 lookup key 在投影后 Schema 中的索引
+   *
+   * @param originalKeyIndices 原始表 Schema 中的 lookup key 索引
+   * @return 投影后 Schema 中的 lookup key 索引
+   */
+  private int[] computeProjectedKeyIndices(int[] originalKeyIndices) {
+    if (projectedFields == null) {
+      // 没有投影，索引保持不变
+      return originalKeyIndices;
+    }
+
+    int[] projectedKeyIndices = new int[originalKeyIndices.length];
+    for (int i = 0; i < originalKeyIndices.length; i++) {
+      int originalIndex = originalKeyIndices[i];
+      int projectedIndex = -1;
+
+      // 在 projectedFields 中查找原始索引的位置
+      for (int j = 0; j < projectedFields.length; j++) {
+        if (projectedFields[j] == originalIndex) {
+          projectedIndex = j;
+          break;
+        }
+      }
+
+      Preconditions.checkArgument(
+          projectedIndex >= 0,
+          "Lookup key at original index %s is not in projected fields: %s",
+          originalIndex,
+          Arrays.toString(projectedFields));
+
+      projectedKeyIndices[i] = projectedIndex;
+    }
+
+    return projectedKeyIndices;
+  }
+
+  /**
+   * 获取 Iceberg 投影 Schema（保留原始字段 ID）
+   *
+   * <p>重要：必须使用原始 Iceberg 表的字段 ID，否则 RowDataFileScanTaskReader 无法正确投影数据
+   */
+  private Schema getIcebergProjectedSchema() {
+    // 加载原始 Iceberg 表获取其 Schema
+    if (!loader.isOpen()) {
+      loader.open();
+    }
+    Schema icebergTableSchema = loader.loadTable().schema();
+
+    if (projectedFields == null) {
+      // 没有投影，返回完整 Schema
+      return icebergTableSchema;
+    }
+
+    // 根据投影字段选择原始 Iceberg Schema 中的列
+    String[] fullNames = schema.getFieldNames();
+    List<String> projectedNames = Lists.newArrayList();
+    for (int fieldIndex : projectedFields) {
+      projectedNames.add(fullNames[fieldIndex]);
+    }
+
+    // 使用 Iceberg 的 Schema.select() 方法，保留原始字段 ID
+    return icebergTableSchema.select(projectedNames);
+  }
+
+  /** 获取 Lookup 模式配置 */
+  private FlinkConfigOptions.LookupMode getLookupMode() {
+    // 优先从表属性读取，然后从 readableConfig 读取
+    String modeStr = properties.get("lookup.mode");
+    if (modeStr != null) {
+      try {
+        return FlinkConfigOptions.LookupMode.valueOf(modeStr.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        LOG.debug("Invalid lookup.mode value: {}, using default", modeStr, e);
+      }
+    }
+    return readableConfig.get(FlinkConfigOptions.LOOKUP_MODE);
+  }
+
+  /** 获取缓存 TTL 配置 */
+  private Duration getCacheTtl() {
+    String ttlStr = properties.get("lookup.cache.ttl");
+    if (ttlStr != null) {
+      try {
+        return parseDuration(ttlStr);
+      } catch (Exception e) {
+        LOG.debug("Invalid lookup.cache.ttl value: {}, using default", ttlStr, e);
+      }
+    }
+    return readableConfig.get(FlinkConfigOptions.LOOKUP_CACHE_TTL);
+  }
+
+  /** 获取缓存最大行数配置 */
+  private long getCacheMaxRows() {
+    String maxRowsStr = properties.get("lookup.cache.max-rows");
+    if (maxRowsStr != null) {
+      try {
+        return Long.parseLong(maxRowsStr);
+      } catch (NumberFormatException e) {
+        LOG.debug("Invalid lookup.cache.max-rows value: {}, using default", maxRowsStr, e);
+      }
+    }
+    return readableConfig.get(FlinkConfigOptions.LOOKUP_CACHE_MAX_ROWS);
+  }
+
+  /** 获取缓存刷新间隔配置 */
+  private Duration getReloadInterval() {
+    String intervalStr = properties.get("lookup.cache.reload-interval");
+    if (intervalStr != null) {
+      try {
+        return parseDuration(intervalStr);
+      } catch (Exception e) {
+        LOG.debug("Invalid lookup.cache.reload-interval value: {}, using default", intervalStr, e);
+      }
+    }
+    return readableConfig.get(FlinkConfigOptions.LOOKUP_CACHE_RELOAD_INTERVAL);
+  }
+
+  /** 是否启用异步 Lookup */
+  private boolean isAsyncLookupEnabled() {
+    String asyncStr = properties.get("lookup.async");
+    if (asyncStr != null) {
+      return Boolean.parseBoolean(asyncStr);
+    }
+    return readableConfig.get(FlinkConfigOptions.LOOKUP_ASYNC);
+  }
+
+  /** 获取异步 Lookup 并发容量 */
+  private int getAsyncCapacity() {
+    String capacityStr = properties.get("lookup.async.capacity");
+    if (capacityStr != null) {
+      try {
+        return Integer.parseInt(capacityStr);
+      } catch (NumberFormatException e) {
+        LOG.debug("Invalid lookup.async.capacity value: {}, using default", capacityStr, e);
+      }
+    }
+    return readableConfig.get(FlinkConfigOptions.LOOKUP_ASYNC_CAPACITY);
+  }
+
+  /** 获取最大重试次数 */
+  private int getMaxRetries() {
+    String retriesStr = properties.get("lookup.max-retries");
+    if (retriesStr != null) {
+      try {
+        return Integer.parseInt(retriesStr);
+      } catch (NumberFormatException e) {
+        LOG.debug("Invalid lookup.max-retries value: {}, using default", retriesStr, e);
+      }
+    }
+    return readableConfig.get(FlinkConfigOptions.LOOKUP_MAX_RETRIES);
+  }
+
+  /** 解析 Duration 字符串 支持格式：10m, 1h, 30s, PT10M 等 */
+  private Duration parseDuration(String durationStr) {
+    String normalized = durationStr.trim().toLowerCase();
+
+    // 尝试 ISO-8601 格式
+    if (normalized.startsWith("pt")) {
+      return Duration.parse(normalized.toUpperCase());
+    }
+
+    // 简单格式解析
+    char unit = normalized.charAt(normalized.length() - 1);
+    long value = Long.parseLong(normalized.substring(0, normalized.length() - 1));
+
+    switch (unit) {
+      case 's':
+        return Duration.ofSeconds(value);
+      case 'm':
+        return Duration.ofMinutes(value);
+      case 'h':
+        return Duration.ofHours(value);
+      case 'd':
+        return Duration.ofDays(value);
+      default:
+        // 默认为毫秒
+        return Duration.ofMillis(Long.parseLong(durationStr));
+    }
   }
 
   @Override
