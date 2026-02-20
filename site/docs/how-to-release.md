@@ -316,10 +316,7 @@ To submit to Confluent Hub:
       https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-kafka-connect-runtime/<VERSION>/iceberg-kafka-connect-runtime-<VERSION>.zip
       ```
 
-2. Confluent will publish to the Marketplace
-
-!!! Note
-    This step is optional and can be performed by any PMC member after the release is finalized.
+2. Confluent will publish to the Marketplace.
 
 #### Update revapi
 
