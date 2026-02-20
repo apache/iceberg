@@ -128,12 +128,12 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
 
     /** Location of the file list containing only data file paths. */
     default String dataFileListLocation() {
-      return null;
+      return "";
     }
 
     /** Location of the file list containing only metadata file paths. */
     default String metadataFileListLocation() {
-      return null;
+      return "";
     }
 
     /** Number of delete files with rewritten paths. */
