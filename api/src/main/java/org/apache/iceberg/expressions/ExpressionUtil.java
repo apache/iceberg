@@ -24,12 +24,14 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nullable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -706,5 +708,106 @@ public class ExpressionUtil {
     }
 
     return specBuilder.build();
+  }
+
+  /**
+   * Transform UUID literals in an unbound expression to use signed comparators, if the expression
+   * contains UUID bounds predicates. This maintains backward compatibility with files written
+   * before RFC 4122/9562 compliant comparison was implemented.
+   *
+   * <p>The transformed expression contains literals with signed comparators for lt/gt/eq
+   * predicates. For IN predicates, the comparator information is lost when binding converts
+   * literals to a Set of raw values, so the evaluator must handle this separately.
+   *
+   * @param expr an unbound expression
+   * @return the expression with signed UUID comparators, or null if no UUID predicates are present
+   */
+  @Nullable
+  public static Expression toSignedUUIDLiteral(Expression expr) {
+    SignedUUIDLiteralVisitor visitor = new SignedUUIDLiteralVisitor();
+    Expression transformed = ExpressionVisitors.visit(expr, visitor);
+    return visitor.foundUUIDBoundsPredicate() ? transformed : null;
+  }
+
+  /**
+   * Visitor that transforms an expression to use the signed UUID comparator in all UUID literals,
+   * while also tracking whether any UUID bounds predicates were found.
+   */
+  private static class SignedUUIDLiteralVisitor
+      extends ExpressionVisitors.ExpressionVisitor<Expression> {
+
+    private boolean foundUUIDBoundsPredicate = false;
+
+    boolean foundUUIDBoundsPredicate() {
+      return foundUUIDBoundsPredicate;
+    }
+
+    @Override
+    public Expression alwaysTrue() {
+      return Expressions.alwaysTrue();
+    }
+
+    @Override
+    public Expression alwaysFalse() {
+      return Expressions.alwaysFalse();
+    }
+
+    @Override
+    public Expression not(Expression result) {
+      return Expressions.not(result);
+    }
+
+    @Override
+    public Expression and(Expression leftResult, Expression rightResult) {
+      return Expressions.and(leftResult, rightResult);
+    }
+
+    @Override
+    public Expression or(Expression leftResult, Expression rightResult) {
+      return Expressions.or(leftResult, rightResult);
+    }
+
+    @Override
+    public <T> Expression predicate(BoundPredicate<T> pred) {
+      // Bound predicates should not be transformed - this is for unbound expressions
+      throw new UnsupportedOperationException(
+          "Cannot transform bound predicate; use unbound expressions");
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Expression predicate(UnboundPredicate<T> pred) {
+      switch (pred.op()) {
+        case LT:
+        case LT_EQ:
+        case GT:
+        case GT_EQ:
+        case EQ:
+        case NOT_EQ:
+          if (pred.literal().value() instanceof UUID) {
+            foundUUIDBoundsPredicate = true;
+            Literals.UUIDLiteral uuidLit = (Literals.UUIDLiteral) pred.literal();
+            return new UnboundPredicate<>(
+                pred.op(), pred.term(), (T) uuidLit.withSignedComparator());
+          }
+          return pred;
+
+        case IN:
+        case NOT_IN:
+          List<Literal<T>> literals = pred.literals();
+          if (!literals.isEmpty() && literals.get(0).value() instanceof UUID) {
+            foundUUIDBoundsPredicate = true;
+            List<T> transformedValues =
+                literals.stream()
+                    .map(l -> (T) ((Literals.UUIDLiteral) l).withSignedComparator())
+                    .collect(Collectors.toList());
+            return new UnboundPredicate<>(pred.op(), pred.term(), transformedValues);
+          }
+          return pred;
+
+        default:
+          return pred;
+      }
+    }
   }
 }
