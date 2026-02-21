@@ -1,0 +1,191 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+# Bridges fork-compute CI back to the apache/iceberg PR page.
+#
+# CI for PRs runs on the contributor's fork (push trigger), so the apache/iceberg
+# PR commit has no checks attached. This workflow runs on apache/iceberg in
+# response to PR events, discovers each fork-compute workflow run for the PR's
+# head SHA, and posts a check on the PR commit linking to that run.
+#
+# Adapted from apache/spark's .github/workflows/notify_test_workflow.yml.
+name: On pull request update
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    name: Notify test workflow
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      checks: write
+    steps:
+      - name: Notify fork-compute test workflows
+        uses: actions/github-script@v9
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Workflow files we expect to fire on the fork for every PR push.
+            // Keep in sync with the workflows that use the fork-compute push trigger.
+            const tracked = [
+              { id: 'api-binary-compatibility.yml', name: 'API Binary Compatibility Checks' },
+              { id: 'delta-conversion-ci.yml',     name: 'Delta Conversion CI' },
+              { id: 'docs-ci.yml',                 name: 'Docs Build CI' },
+              { id: 'flink-ci.yml',                name: 'Flink CI' },
+              { id: 'hive-ci.yml',                 name: 'Hive CI' },
+              { id: 'java-ci.yml',                 name: 'Java CI' },
+              { id: 'kafka-connect-ci.yml',        name: 'Kafka Connect CI' },
+              { id: 'license-check.yml',           name: 'Run License Check' },
+              { id: 'open-api.yml',                name: 'Open-API' },
+              { id: 'spark-ci.yml',                name: 'Spark CI' },
+            ];
+
+            const headSha = context.payload.pull_request.head.sha;
+            const forkOwner = context.payload.pull_request.head.repo.owner.login;
+            const forkRepo = context.payload.pull_request.head.repo.name;
+            const forkBranch = context.payload.pull_request.head.ref;
+            const forkFullName = context.payload.pull_request.head.repo.full_name;
+
+            console.log(`PR head SHA: ${headSha}`);
+            console.log(`Fork: ${forkFullName}, branch: ${forkBranch}`);
+
+            // Wait briefly for the fork's push event to register workflow runs.
+            await new Promise(r => setTimeout(r, 3000));
+
+            const runsEndpoint = 'GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs';
+
+            // Find a workflow run whose head_sha matches the PR's head SHA.
+            // The fork may not have all runs registered yet; retry a few times.
+            // Returns { matched: <run|null>, anyRuns: <bool> }.
+            async function findMatchingRun(workflowId) {
+              for (let attempt = 0; attempt < 3; attempt++) {
+                let runs;
+                try {
+                  runs = await github.request(runsEndpoint, {
+                    owner: forkOwner,
+                    repo: forkRepo,
+                    workflow_id: workflowId,
+                    branch: forkBranch,
+                  });
+                } catch (error) {
+                  // 404s here usually mean the workflow file does not exist on the
+                  // fork branch yet (e.g. branch predates the workflow). Skip.
+                  console.log(`${workflowId}: request failed: ${error.message}`);
+                  return { matched: null, anyRuns: false };
+                }
+                const list = runs.data.workflow_runs;
+                if (list.length > 0) {
+                  const matched = list.find(r => r.head_sha === headSha);
+                  if (matched) {
+                    return { matched, anyRuns: true };
+                  }
+                  // Saw runs but none for this SHA yet.
+                  if (attempt < 2) {
+                    await new Promise(r => setTimeout(r, 3000));
+                  } else {
+                    return { matched: null, anyRuns: true };
+                  }
+                } else {
+                  // No runs at all for this workflow on this branch.
+                  if (attempt < 2) {
+                    await new Promise(r => setTimeout(r, 3000));
+                  } else {
+                    return { matched: null, anyRuns: false };
+                  }
+                }
+              }
+              return { matched: null, anyRuns: false };
+            }
+
+            // Process workflows in parallel.
+            const results = await Promise.all(
+              tracked.map(async (wf) => ({ wf, ...(await findMatchingRun(wf.id)) }))
+            );
+
+            const anyMatched = results.some(r => r.matched);
+
+            // If no fork run was found for ANY workflow, post a single
+            // "action required" check explaining the likely cause once.
+            if (!anyMatched) {
+              await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'Iceberg CI',
+                head_sha: headSha,
+                status: 'completed',
+                conclusion: 'action_required',
+                output: {
+                  title: 'Workflow run detection failed',
+                  summary: [
+                    'No fork-compute CI runs were found for this commit.',
+                    '',
+                    'Likely causes:',
+                    '1. GitHub Actions is not enabled on your fork. Enable it under',
+                    '   Settings -> Actions on your forked repository.',
+                    '2. Your branch predates the fork-compute trigger change. Rebase',
+                    '   onto the latest `apache/iceberg` `main` and force-push.',
+                    '',
+                    'Once fixed, push a new commit (or amend and force-push) to',
+                    'retrigger this notification.',
+                  ].join('\n'),
+                },
+              });
+              return;
+            }
+
+            // For each tracked workflow, post a check on the PR commit.
+            // Skip workflows where the fork only had stale runs (newer commit
+            // pushed mid-flight); a fresh notify run will pick those up.
+            for (const { wf, matched, anyRuns } of results) {
+              if (!matched) {
+                if (anyRuns) {
+                  console.log(`${wf.id}: stale runs only; skipping (a newer commit was pushed?)`);
+                } else {
+                  console.log(`${wf.id}: no runs on fork branch; skipping`);
+                }
+                continue;
+              }
+
+              const runUrl = `https://github.com/${forkFullName}/actions/runs/${matched.id}`;
+              console.log(`${wf.id}: posting check -> ${runUrl}`);
+
+              await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: wf.name,
+                head_sha: headSha,
+                status: 'queued',
+                details_url: runUrl,
+                output: {
+                  title: 'Test results',
+                  summary: [
+                    `[See test results](${runUrl})`,
+                    '',
+                    'CI for this PR runs on the contributor\'s fork.',
+                    'If tests fail for reasons unrelated to the PR, rerun the',
+                    'workflow in your forked repository.',
+                  ].join('\n'),
+                },
+              });
+            }
