@@ -89,7 +89,7 @@ class Coordinator extends Channel {
       KafkaClientFactory clientFactory,
       SinkTaskContext context) {
     // pass consumer group ID to which we commit low watermark offsets
-    super("coordinator", config.connectGroupId() + "-coord", config, clientFactory, context);
+    super("coordinator", config.sourceConsumerGroupId() + "-coord", config, clientFactory, context);
 
     this.catalog = catalog;
     this.config = config;
@@ -97,7 +97,7 @@ class Coordinator extends Channel {
         members.stream().mapToInt(desc -> desc.assignment().topicPartitions().size()).sum();
     this.snapshotOffsetsProp =
         String.format(
-            "kafka.connect.offsets.%s.%s", config.controlTopic(), config.connectGroupId());
+            "kafka.connect.offsets.%s.%s", config.controlTopic(), config.sourceConsumerGroupId());
     this.exec =
         new ThreadPoolExecutor(
             config.commitThreads(),
@@ -117,7 +117,7 @@ class Coordinator extends Channel {
       // send out begin commit
       commitState.startNewCommit();
       Event event =
-          new Event(config.connectGroupId(), new StartCommit(commitState.currentCommitId()));
+          new Event(config.sourceConsumerGroupId(), new StartCommit(commitState.currentCommitId()));
       send(event);
       LOG.info("Commit {} initiated", commitState.currentCommitId());
     }
@@ -174,7 +174,7 @@ class Coordinator extends Channel {
 
     Event event =
         new Event(
-            config.connectGroupId(),
+            config.sourceConsumerGroupId(),
             new CommitComplete(commitState.currentCommitId(), validThroughTs));
     send(event);
 
@@ -297,7 +297,7 @@ class Coordinator extends Channel {
       Long snapshotId = latestSnapshot(table, branch).snapshotId();
       Event event =
           new Event(
-              config.connectGroupId(),
+              config.sourceConsumerGroupId(),
               new CommitToTable(
                   commitState.currentCommitId(), tableReference, snapshotId, validThroughTs));
       send(event);

@@ -46,7 +46,7 @@ abstract class Channel {
   private static final Logger LOG = LoggerFactory.getLogger(Channel.class);
 
   private final String controlTopic;
-  private final String connectGroupId;
+  private final String sourceConsumerGroupId;
   private final Producer<String, byte[]> producer;
   private final Consumer<String, byte[]> consumer;
   private final SinkTaskContext context;
@@ -61,7 +61,7 @@ abstract class Channel {
       KafkaClientFactory clientFactory,
       SinkTaskContext context) {
     this.controlTopic = config.controlTopic();
-    this.connectGroupId = config.connectGroupId();
+    this.sourceConsumerGroupId = config.sourceConsumerGroupId();
     this.context = context;
 
     String transactionalId = config.transactionalPrefix() + name + config.transactionalSuffix();
@@ -127,7 +127,7 @@ abstract class Channel {
 
             Event event = AvroUtil.decode(record.value());
 
-            if (event.groupId().equals(connectGroupId)) {
+            if (event.groupId().equals(sourceConsumerGroupId)) {
               LOG.debug("Received event of type: {}", event.type().name());
               if (receive(new Envelope(event, record.partition(), record.offset()))) {
                 LOG.info("Handled event of type: {}", event.type().name());

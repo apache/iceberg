@@ -58,7 +58,7 @@ import org.junit.jupiter.api.BeforeEach;
 public class ChannelTestBase {
   protected static final String SRC_TOPIC_NAME = "src-topic";
   protected static final String CTL_TOPIC_NAME = "ctl-topic";
-  protected static final String CONNECT_CONSUMER_GROUP_ID = "cg-connect";
+  protected static final String SOURCE_CONSUMER_GROUP_ID = "cg-connect";
   protected InMemoryCatalog catalog;
   protected Table table;
   protected IcebergSinkConfig config;
@@ -87,7 +87,7 @@ public class ChannelTestBase {
 
   protected static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commit-id";
   protected static final String OFFSETS_SNAPSHOT_PROP =
-      String.format("kafka.connect.offsets.%s.%s", CTL_TOPIC_NAME, CONNECT_CONSUMER_GROUP_ID);
+      String.format("kafka.connect.offsets.%s.%s", CTL_TOPIC_NAME, SOURCE_CONSUMER_GROUP_ID);
   protected static final String VALID_THROUGH_TS_SNAPSHOT_PROP = "kafka.connect.valid-through-ts";
 
   @BeforeEach
@@ -100,7 +100,7 @@ public class ChannelTestBase {
     config = mock(IcebergSinkConfig.class);
     when(config.controlTopic()).thenReturn(CTL_TOPIC_NAME);
     when(config.commitThreads()).thenReturn(1);
-    when(config.connectGroupId()).thenReturn(CONNECT_CONSUMER_GROUP_ID);
+    when(config.sourceConsumerGroupId()).thenReturn(SOURCE_CONSUMER_GROUP_ID);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
 
     TopicPartitionInfo partitionInfo = mock(TopicPartitionInfo.class);
