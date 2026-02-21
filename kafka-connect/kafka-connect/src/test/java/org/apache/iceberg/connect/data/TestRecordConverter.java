@@ -83,6 +83,7 @@ import org.apache.kafka.connect.data.Time;
 import org.apache.kafka.connect.data.Timestamp;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
+import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.storage.ConverterConfig;
 import org.apache.kafka.connect.storage.ConverterType;
 import org.junit.jupiter.api.BeforeAll;
@@ -213,14 +214,29 @@ public class TestRecordConverter {
     when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
   }
 
+  private SinkRecord createSinkRecord(Object value) {
+    // If it's already a SinkRecord, return it as-is
+    if (value instanceof SinkRecord) {
+      return (SinkRecord) value;
+    }
+
+    Schema valueSchema = null;
+    if (value instanceof Struct) {
+      valueSchema = ((Struct) value).schema();
+    }
+    // For Map values, valueSchema stays null (which is correct)
+
+    return new SinkRecord("test-topic", 0, null, null, valueSchema, value, 0L);
+  }
+
   @Test
-  public void testMapConvert() {
+  public void testMapEvolveSchema() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SCHEMA);
     RecordConverter converter = new RecordConverter(table, config);
 
     Map<String, Object> data = createMapData();
-    Record record = converter.convert(data);
+    Record record = converter.convert(createSinkRecord(data));
     assertRecordValues(record);
   }
 
@@ -239,18 +255,18 @@ public class TestRecordConverter {
     Map<String, Object> data =
         ImmutableMap.<String, Object>builder().put("uuid", UUID_VAL.toString()).build();
 
-    Record record = converter.convert(data);
+    Record record = converter.convert(createSinkRecord(data));
     assertThat(record.getField("uuid")).isEqualTo(UUIDUtil.convert(UUID_VAL));
   }
 
   @Test
-  public void testNestedMapConvert() {
+  public void testNestedMapEvolveSchema() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(NESTED_SCHEMA);
     RecordConverter converter = new RecordConverter(table, config);
 
     Map<String, Object> nestedData = createNestedMapData();
-    Record record = converter.convert(nestedData);
+    Record record = converter.convert(createSinkRecord(nestedData));
     assertNestedRecordValues(record);
   }
 
@@ -262,7 +278,7 @@ public class TestRecordConverter {
     RecordConverter converter = new RecordConverter(table, config);
 
     Map<String, Object> nestedData = createNestedMapData();
-    Record record = converter.convert(nestedData);
+    Record record = converter.convert(createSinkRecord(nestedData));
 
     String str = (String) record.getField("st");
     Map<String, Object> map = (Map<String, Object>) MAPPER.readValue(str, Map.class);
@@ -270,13 +286,14 @@ public class TestRecordConverter {
   }
 
   @Test
-  public void testMapValueInListConvert() {
+  public void testMapValueInListEvolveSchema() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_LIST_SCHEMA);
     RecordConverter converter = new RecordConverter(table, config);
 
     Map<String, Object> data = createNestedMapData();
-    Record record = converter.convert(ImmutableMap.of("stli", ImmutableList.of(data, data)));
+    Record record =
+        converter.convert(createSinkRecord(ImmutableMap.of("stli", ImmutableList.of(data, data))));
     List<?> fieldVal = (List<?>) record.getField("stli");
 
     Record elementVal = (Record) fieldVal.get(0);
@@ -284,14 +301,15 @@ public class TestRecordConverter {
   }
 
   @Test
-  public void testMapValueInMapConvert() {
+  public void testMapValueInMapEvolveSchema() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_MAP_SCHEMA);
     RecordConverter converter = new RecordConverter(table, config);
 
     Map<String, Object> data = createNestedMapData();
     Record record =
-        converter.convert(ImmutableMap.of("stma", ImmutableMap.of("key1", data, "key2", data)));
+        converter.convert(
+            createSinkRecord(ImmutableMap.of("stma", ImmutableMap.of("key1", data, "key2", data))));
 
     Map<?, ?> fieldVal = (Map<?, ?>) record.getField("stma");
     Record mapVal = (Record) fieldVal.get("key1");
@@ -299,24 +317,24 @@ public class TestRecordConverter {
   }
 
   @Test
-  public void testStructConvert() {
+  public void testStructEvolveSchema() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SCHEMA);
     RecordConverter converter = new RecordConverter(table, config);
 
     Struct data = createStructData();
-    Record record = converter.convert(data);
+    Record record = converter.convert(createSinkRecord(data));
     assertRecordValues(record);
   }
 
   @Test
-  public void testNestedStructConvert() {
+  public void testNestedStructEvolveSchema() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(NESTED_SCHEMA);
     RecordConverter converter = new RecordConverter(table, config);
 
     Struct nestedData = createNestedStructData();
-    Record record = converter.convert(nestedData);
+    Record record = converter.convert(createSinkRecord(nestedData));
     assertNestedRecordValues(record);
   }
 
@@ -328,7 +346,7 @@ public class TestRecordConverter {
     RecordConverter converter = new RecordConverter(table, config);
 
     Struct nestedData = createNestedStructData();
-    Record record = converter.convert(nestedData);
+    Record record = converter.convert(createSinkRecord(nestedData));
 
     String str = (String) record.getField("st");
     Map<String, Object> map = (Map<String, Object>) MAPPER.readValue(str, Map.class);
@@ -336,7 +354,7 @@ public class TestRecordConverter {
   }
 
   @Test
-  public void testStructValueInListConvert() {
+  public void testStructValueInListEvolveSchema() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_LIST_SCHEMA);
     RecordConverter converter = new RecordConverter(table, config);
@@ -344,7 +362,7 @@ public class TestRecordConverter {
     Struct data = createNestedStructData();
     Struct struct =
         new Struct(CONNECT_STRUCT_IN_LIST_SCHEMA).put("stli", ImmutableList.of(data, data));
-    Record record = converter.convert(struct);
+    Record record = converter.convert(createSinkRecord(struct));
 
     List<?> fieldVal = (List<?>) record.getField("stli");
     Record elementVal = (Record) fieldVal.get(0);
@@ -352,7 +370,7 @@ public class TestRecordConverter {
   }
 
   @Test
-  public void testStructValueInMapConvert() {
+  public void testStructValueInMapEvolveSchema() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_MAP_SCHEMA);
     RecordConverter converter = new RecordConverter(table, config);
@@ -361,7 +379,7 @@ public class TestRecordConverter {
     Struct struct =
         new Struct(CONNECT_STRUCT_IN_MAP_SCHEMA)
             .put("stma", ImmutableMap.of("key1", data, "key2", data));
-    Record record = converter.convert(struct);
+    Record record = converter.convert(createSinkRecord(struct));
 
     Map<?, ?> fieldVal = (Map<?, ?>) record.getField("stma");
     Record mapVal = (Record) fieldVal.get("key1");
@@ -382,7 +400,7 @@ public class TestRecordConverter {
     RecordConverter converter = new RecordConverter(table, config);
 
     Map<String, Object> data = ImmutableMap.of("renamed_ii", 123);
-    Record record = converter.convert(data);
+    Record record = converter.convert(createSinkRecord(data));
     assertThat(record.getField("ii")).isEqualTo(123);
   }
 
@@ -397,11 +415,11 @@ public class TestRecordConverter {
     RecordConverter converter = new RecordConverter(table, config);
 
     Map<String, Object> mapData = ImmutableMap.of("II", 123);
-    Record record1 = converter.convert(mapData);
+    Record record1 = converter.convert(createSinkRecord(mapData));
 
     Struct structData =
         new Struct(SchemaBuilder.struct().field("II", Schema.INT32_SCHEMA).build()).put("II", 123);
-    Record record2 = converter.convert(structData);
+    Record record2 = converter.convert(createSinkRecord(structData));
 
     if (caseInsensitive) {
       assertThat(record1.getField("ii")).isEqualTo(123);
@@ -554,7 +572,7 @@ public class TestRecordConverter {
   public void testTimestampWithZoneConversion() {
     OffsetDateTime expected = OffsetDateTime.parse("2023-05-18T11:22:33Z");
     long expectedMillis = expected.toInstant().toEpochMilli();
-    assertTimestampConvert(expected, expectedMillis, TimestampType.withZone());
+    assertTimestampEvolveSchema(expected, expectedMillis, TimestampType.withZone());
 
     // zone should be respected
     expected = OffsetDateTime.parse("2023-05-18T03:22:33-08:00");
@@ -566,14 +584,14 @@ public class TestRecordConverter {
             "2023-05-18 03:22:33-08:00",
             "2023-05-18T03:22:33-0800",
             "2023-05-18 03:22:33-0800");
-    assertTimestampConvert(expected, additionalInput, TimestampType.withZone());
+    assertTimestampEvolveSchema(expected, additionalInput, TimestampType.withZone());
   }
 
   @Test
   public void testTimestampWithoutZoneConversion() {
     LocalDateTime expected = LocalDateTime.parse("2023-05-18T11:22:33");
     long expectedMillis = expected.atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
-    assertTimestampConvert(expected, expectedMillis, TimestampType.withoutZone());
+    assertTimestampEvolveSchema(expected, expectedMillis, TimestampType.withoutZone());
 
     // zone should be ignored
     List<Object> additionalInput =
@@ -584,10 +602,10 @@ public class TestRecordConverter {
             "2023-05-18 11:22:33-08:00",
             "2023-05-18T11:22:33-0800",
             "2023-05-18 11:22:33-0800");
-    assertTimestampConvert(expected, additionalInput, TimestampType.withoutZone());
+    assertTimestampEvolveSchema(expected, additionalInput, TimestampType.withoutZone());
   }
 
-  private void assertTimestampConvert(Temporal expected, long expectedMillis, TimestampType type) {
+  private void assertTimestampEvolveSchema(Temporal expected, long expectedMillis, TimestampType type) {
     List<Object> inputList =
         Lists.newArrayList(
             "2023-05-18T11:22:33Z",
@@ -605,10 +623,10 @@ public class TestRecordConverter {
             OffsetDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC),
             LocalDateTime.ofInstant(Instant.ofEpochMilli(expectedMillis), ZoneOffset.UTC));
 
-    assertTimestampConvert(expected, inputList, type);
+    assertTimestampEvolveSchema(expected, inputList, type);
   }
 
-  private void assertTimestampConvert(
+  private void assertTimestampEvolveSchema(
       Temporal expected, List<Object> inputList, TimestampType type) {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
@@ -631,7 +649,7 @@ public class TestRecordConverter {
     data.put("null", null);
 
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(data, consumer);
+    converter.evolveSchema(createSinkRecord(data), consumer);
     Collection<AddColumn> addCols = consumer.addColumns();
 
     assertThat(addCols).hasSize(MAPPED_CNT);
@@ -653,7 +671,7 @@ public class TestRecordConverter {
 
     Map<String, Object> nestedData = createNestedMapData();
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(nestedData, consumer);
+    converter.evolveSchema(createSinkRecord(nestedData), consumer);
     Collection<AddColumn> addCols = consumer.addColumns();
 
     assertThat(addCols).hasSize(1);
@@ -675,7 +693,7 @@ public class TestRecordConverter {
     Map<String, Object> nestedData = createNestedMapData();
     Map<String, Object> map = ImmutableMap.of("stli", ImmutableList.of(nestedData, nestedData));
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(map, consumer);
+    converter.evolveSchema(createSinkRecord(map), consumer);
     Collection<AddColumn> addCols = consumer.addColumns();
 
     assertThat(addCols).hasSize(1);
@@ -716,7 +734,7 @@ public class TestRecordConverter {
 
     Struct data = createStructData();
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(data, consumer);
+    converter.evolveSchema(createSinkRecord(data), consumer);
     Collection<AddColumn> addCols = consumer.addColumns();
 
     assertThat(addCols).hasSize(MAPPED_CNT);
@@ -735,7 +753,7 @@ public class TestRecordConverter {
 
     Struct nestedData = createNestedStructData();
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(nestedData, consumer);
+    converter.evolveSchema(createSinkRecord(nestedData), consumer);
     Collection<AddColumn> addCols = consumer.addColumns();
 
     assertThat(addCols).hasSize(1);
@@ -759,7 +777,7 @@ public class TestRecordConverter {
         new Struct(CONNECT_STRUCT_IN_LIST_SCHEMA)
             .put("stli", ImmutableList.of(nestedData, nestedData));
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(struct, consumer);
+    converter.evolveSchema(createSinkRecord(struct), consumer);
     Collection<AddColumn> addCols = consumer.addColumns();
 
     assertThat(addCols).hasSize(1);
@@ -784,7 +802,7 @@ public class TestRecordConverter {
         new Struct(CONNECT_STRUCT_IN_MAP_SCHEMA)
             .put("stma", ImmutableMap.of("key1", nestedData, "key2", nestedData));
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(struct, consumer);
+    converter.evolveSchema(createSinkRecord(struct), consumer);
     Collection<AddColumn> addCols = consumer.addColumns();
 
     assertThat(addCols).hasSize(1);
@@ -833,7 +851,7 @@ public class TestRecordConverter {
     Struct data = new Struct(valueSchema).put("ii", 11L).put("ff", 22d);
 
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(data, consumer);
+    converter.evolveSchema(createSinkRecord(data), consumer);
     Collection<UpdateType> updates = consumer.updateTypes();
 
     assertThat(updates).hasSize(2);
@@ -869,7 +887,7 @@ public class TestRecordConverter {
     Struct data = new Struct(schema).put("i", 1).put("st", structValue);
 
     SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
-    converter.convert(data, consumer);
+    converter.evolveSchema(createSinkRecord(data), consumer);
     Collection<UpdateType> updates = consumer.updateTypes();
 
     assertThat(updates).hasSize(2);
@@ -954,5 +972,98 @@ public class TestRecordConverter {
     GenericRecord rec = (GenericRecord) record;
     assertThat(rec.getField("ii")).isEqualTo(11);
     assertRecordValues((GenericRecord) rec.getField("st"));
+  }
+
+  // ==================== Nested Schema Evolution Tests ====================
+
+  /**
+   * Tests nested schema evolution using Struct records (evolveSchemaFromStruct path). Scenario:
+   * Table has {@code struct<struct<a:int>>}, record has {@code struct<struct<a:int, b:string>>}.
+   * Expected: New field 'b' should be added inside the nested struct.
+   */
+  @Test
+  public void testNestedSchemaEvolutionFromStruct() {
+    // Table schema: outer struct with inner struct containing only 'a'
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(
+                1,
+                "outer",
+                StructType.of(
+                    NestedField.required(
+                        2,
+                        "inner",
+                        StructType.of(NestedField.required(3, "a", IntegerType.get()))))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    // Record schema: outer struct with inner struct containing 'a' AND 'b' (new field)
+    Schema innerSchema =
+        SchemaBuilder.struct()
+            .field("a", Schema.INT32_SCHEMA)
+            .field("b", Schema.STRING_SCHEMA) // New field to be added
+            .build();
+    Schema outerSchema = SchemaBuilder.struct().field("inner", innerSchema).build();
+    Schema recordSchema = SchemaBuilder.struct().field("outer", outerSchema).build();
+
+    Struct innerStruct = new Struct(innerSchema).put("a", 100).put("b", "newValue");
+    Struct outerStruct = new Struct(outerSchema).put("inner", innerStruct);
+    Struct record = new Struct(recordSchema).put("outer", outerStruct);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.evolveSchema(createSinkRecord(record), consumer);
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("outer.inner");
+    assertThat(addCol.name()).isEqualTo("b");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+  }
+
+  /**
+   * Tests nested schema evolution using Map records (evolveSchemaFromMap path). Scenario: Table has
+   * {@code struct<struct<a:int>>}, record has {@code struct<struct<a:int, b:string>>}. Expected:
+   * New field 'b' should be added inside the nested struct.
+   */
+  @Test
+  public void testNestedSchemaEvolutionFromMap() {
+    // Table schema: outer struct with inner struct containing only 'a'
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(
+                1,
+                "outer",
+                StructType.of(
+                    NestedField.required(
+                        2,
+                        "inner",
+                        StructType.of(NestedField.required(3, "a", IntegerType.get()))))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    // Map record: outer struct with inner struct containing 'a' AND 'b' (new field)
+    Map<String, Object> innerMap =
+        ImmutableMap.of(
+            "a", 100, "b", "newValue" // New field to be added
+            );
+    Map<String, Object> outerMap = ImmutableMap.of("inner", innerMap);
+    Map<String, Object> record = ImmutableMap.of("outer", outerMap);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.evolveSchema(createSinkRecord(record), consumer);
+
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("outer.inner");
+    assertThat(addCol.name()).isEqualTo("b");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
   }
 }
