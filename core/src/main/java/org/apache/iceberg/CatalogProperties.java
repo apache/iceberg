@@ -81,6 +81,14 @@ public class CatalogProperties {
   public static final boolean IO_MANIFEST_CACHE_ENABLED_DEFAULT = false;
 
   /**
+   * Controls whether engines using a REST Catalog should delegate the drop table purge requests to the Catalog.
+   * Defaults to false, allowing the engine to use its own implementation for purging.
+   */
+  public static final String REST_CATALOG_PURGE = "rest.catalog-purge";
+
+  public static final boolean REST_CATALOG_PURGE_DEFAULT = false;
+
+  /**
    * Controls the maximum duration for which an entry stays in the manifest cache.
    *
    * <p>Must be a non-negative value. Following are specific behaviors of this config:
