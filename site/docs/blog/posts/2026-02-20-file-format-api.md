@@ -29,7 +29,7 @@ The Apache Iceberg community is excited to announce the **finalization of the Fi
 
 <!-- more -->
 
-For years, Iceberg has delivered high‑quality support for **Parquet**, **Avro**, and **ORC**, but the data landscape has evolved dramatically. New formats now emphasize extremely fast random access, GPU‑native encodings, flexible file layouts, and built‑in indexing structures. To open up for the possibility to integrating such formats required a new foundation.
+For years, Iceberg has delivered high‑quality support for **Parquet**, **Avro**, and **ORC**, but the data landscape has evolved dramatically. New formats now emphasize extremely fast random access, GPU‑native encodings, flexible file layouts, and built‑in indexing structures. Opening up the possibility of integrating such formats required a new foundation.
 
 The File Format API introduces a unified, extensible layer that engines can rely on when reading and writing Iceberg data files in any supported format.
 
