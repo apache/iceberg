@@ -47,6 +47,16 @@ public class IcebergCommittableSerializer implements SimpleVersionedSerializer<I
     view.writeLong(committable.checkpointId());
     view.writeInt(committable.manifest().length);
     view.write(committable.manifest());
+
+    boolean hasMetadata = committable.metadata() != null;
+    view.writeBoolean(hasMetadata);
+    if (hasMetadata) {
+      CommittableMetadataSerializer metadataSerializer = CommittableMetadataRegistry.get();
+      if (metadataSerializer != null) {
+        metadataSerializer.write(committable.metadata(), view);
+      }
+    }
+
     return out.toByteArray();
   }
 
@@ -61,7 +71,16 @@ public class IcebergCommittableSerializer implements SimpleVersionedSerializer<I
       byte[] manifestBuf;
       manifestBuf = new byte[manifestLen];
       view.read(manifestBuf);
-      return new IcebergCommittable(manifestBuf, jobId, operatorId, checkpointId);
+
+      CommittableMetadata metadata = null;
+      if (view.readBoolean()) { // hasMetadata
+        CommittableMetadataSerializer metadataSerializer = CommittableMetadataRegistry.get();
+        if (metadataSerializer != null) {
+          metadata = metadataSerializer.read(view);
+        }
+      }
+
+      return new IcebergCommittable(manifestBuf, jobId, operatorId, checkpointId, metadata);
     }
     throw new IOException("Unrecognized version or corrupt state: " + version);
   }

@@ -167,7 +167,7 @@ public class IcebergSink
   // equalityFieldIds instead.
   private final Set<String> equalityFieldColumns;
 
-  private IcebergSink(
+  protected IcebergSink(
       TableLoader tableLoader,
       Table table,
       Map<String, String> snapshotProperties,
@@ -203,6 +203,75 @@ public class IcebergSink
     this.compactMode = flinkWriteConf.compactMode();
     this.flinkMaintenanceConfig = flinkMaintenanceConfig;
     this.equalityFieldColumns = equalityFieldColumns;
+  }
+
+  // Protected getters for subclass access
+  protected TableLoader getTableLoader() {
+    return tableLoader;
+  }
+
+  protected Table getTable() {
+    return table;
+  }
+
+  protected Map<String, String> getSnapshotProperties() {
+    return snapshotProperties;
+  }
+
+  protected String getUidSuffix() {
+    return uidSuffix;
+  }
+
+  protected String getSinkId() {
+    return sinkId;
+  }
+
+  protected Map<String, String> getWriteProperties() {
+    return writeProperties;
+  }
+
+  protected RowType getFlinkRowType() {
+    return flinkRowType;
+  }
+
+  protected SerializableSupplier<Table> getTableSupplier() {
+    return tableSupplier;
+  }
+
+  protected FlinkWriteConf getFlinkWriteConf() {
+    return flinkWriteConf;
+  }
+
+  protected Set<Integer> getEqualityFieldIds() {
+    return equalityFieldIds;
+  }
+
+  protected boolean isUpsertMode() {
+    return upsertMode;
+  }
+
+  protected FileFormat getDataFileFormat() {
+    return dataFileFormat;
+  }
+
+  protected long getTargetDataFileSize() {
+    return targetDataFileSize;
+  }
+
+  protected String getBranch() {
+    return branch;
+  }
+
+  protected boolean isOverwriteMode() {
+    return overwriteMode;
+  }
+
+  protected int getWorkerPoolSize() {
+    return workerPoolSize;
+  }
+
+  protected boolean isCompactMode() {
+    return compactMode;
   }
 
   @Override
@@ -339,7 +408,7 @@ public class IcebergSink
     private ReadableConfig readableConfig = new Configuration();
     private List<String> equalityFieldColumns = null;
 
-    private Builder() {}
+    protected Builder() {}
 
     private Builder forRowData(DataStream<RowData> newRowDataInput) {
       this.inputCreator = ignored -> newRowDataInput;
@@ -732,7 +801,7 @@ public class IcebergSink
     return uidSuffix;
   }
 
-  private static SerializableTable checkAndGetTable(TableLoader tableLoader, Table table) {
+  public static SerializableTable checkAndGetTable(TableLoader tableLoader, Table table) {
     if (table == null) {
       if (!tableLoader.isOpen()) {
         tableLoader.open();
@@ -851,7 +920,7 @@ public class IcebergSink
     }
   }
 
-  private int resolveWriterParallelism(DataStream<RowData> input) {
+  protected int resolveWriterParallelism(DataStream<RowData> input) {
     // if the writeParallelism is not specified, we set the default to the input parallelism to
     // encourage chaining.
     return Optional.ofNullable(flinkWriteConf.writeParallelism()).orElseGet(input::getParallelism);
