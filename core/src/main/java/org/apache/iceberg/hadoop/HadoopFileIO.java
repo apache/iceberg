@@ -28,17 +28,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.Trash;
-import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
@@ -53,12 +52,15 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
   private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
+  public static final String DELETE_TRASH_SCHEMES = "iceberg.hadoop.delete-trash-schemes";
+  private static final String[] DEFAULT_TRASH_SCHEMES = {"hdfs", "viewfs"};
   private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
   private static volatile ExecutorService executorService;
 
   private volatile SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
+  private volatile String[] trashSchemes;
 
   /**
    * Constructor used for dynamic FileIO loading.
@@ -214,14 +216,65 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     return executorService;
   }
 
-  private void deletePath(FileSystem fs, Path toDelete, boolean recursive) throws IOException {
-    Trash trash = new Trash(fs, getConf());
-    if ((fs instanceof LocalFileSystem || fs instanceof DistributedFileSystem)
-        && trash.isEnabled()) {
-      trash.moveToTrash(toDelete);
-    } else {
-      fs.delete(toDelete, recursive);
+  /**
+   * Should trash be used to delete a file at this path.
+   *
+   * @param toDelete path to delete
+   * @return true if the path is to be moved to trash rather than deleted.
+   */
+  @VisibleForTesting
+  boolean useTrashForPath(Path toDelete) {
+    if (trashSchemes == null) {
+      // load the trash schemes from the config.
+      // there's a nominal race condition as two threads could do this simultaneously,
+      // but the entry they read is the same so it doesn't matter who writes
+      // the array last.
+      trashSchemes = getConf().getTrimmedStrings(DELETE_TRASH_SCHEMES, DEFAULT_TRASH_SCHEMES);
     }
+    final String scheme = toDelete.toUri().getScheme();
+    for (String s : trashSchemes) {
+      if (s.equalsIgnoreCase(scheme)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Delete a path.
+   *
+   * <p>If trash is enabled for the filesystem: attempt to move the file to trash. If there is any
+   * failure to move to trash then the fallback is to delete the path. As a result: when this
+   * operation returns there will not be a file/dir at the target path.
+   *
+   * @param fs target filesystem.
+   * @param toDelete path to delete/move
+   * @param recursive should the delete operation be recursive?
+   * @throws IOException on a delete failure.
+   */
+  private void deletePath(FileSystem fs, Path toDelete, boolean recursive) throws IOException {
+    if (useTrashForPath(toDelete)) {
+      try {
+        // use moveToAppropriateTrash() which not only resolves through mounted filesystems like
+        // viewfs,
+        // it will query the resolved filesystem for its trash policy.
+        // The HDFS client will ask the remote server for its configuration, rather than
+        // what the client is configured with.
+        if (Trash.moveToAppropriateTrash(fs, toDelete, fs.getConf())) {
+          // trash enabled and operation successful.
+          return;
+        }
+      } catch (FileNotFoundException e) {
+        // the source file is missing. Nothing to do.
+        return;
+      } catch (IOException e) {
+        // other failure (failure to get remote server trash policy, rename,...)
+        // log one line at info, full stack at debug, so a failure to move many files to trash
+        // doesn't flood the log
+        LOG.info("Failed to move {} to trash", toDelete, e);
+      }
+    }
+    fs.delete(toDelete, recursive);
   }
 
   /**

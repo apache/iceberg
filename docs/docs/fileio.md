@@ -35,7 +35,20 @@ The responsibility of reading and writing data files lies with the processing en
 Different FileIO implementations are used depending on the type of storage. Iceberg comes with a set of FileIO implementations for popular storage providers.
 
 - Amazon S3
+- Azure Data Lake Storage Gen2
 - Google Cloud Storage
 - Object Service Storage (including https)
 - Dell Enterprise Cloud Storage
 - Hadoop (adapts any Hadoop FileSystem implementation)
+
+## HadoopFileIO
+
+The HadoopFileIO implementation can connect to any filesystem for which there is a Hadoop filesystem client on the classpath.
+
+Configuration options for these filesystems are generally through properties set in the file `core-site.xml` or in `spark-defaults.conf` prefixed with `spark.hadoop.`
+
+### Specific options for HadoopFileIO
+
+| Property                            | Default        | Description                                                                  |
+|-------------------------------------|----------------|------------------------------------------------------------------------------|
+| iceberg.hadoop.delete-trash-schemes | "hdfs, viewfs" | Filesystem schemes where the trash feature is to be used when deleting files |
