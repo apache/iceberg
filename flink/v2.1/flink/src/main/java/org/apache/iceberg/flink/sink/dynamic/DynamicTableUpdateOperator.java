@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.Closeable;
+import java.io.IOException;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -107,8 +108,8 @@ class DynamicTableUpdateOperator
   @Override
   public void close() throws Exception {
     super.close();
-    if (catalog instanceof Closeable rc) {
-      rc.close();
+    if (catalog instanceof Closeable rs) {
+      rs.close();
     }
   }
 }

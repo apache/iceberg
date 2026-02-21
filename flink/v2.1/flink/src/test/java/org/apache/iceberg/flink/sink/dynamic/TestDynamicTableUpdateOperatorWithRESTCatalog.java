@@ -168,4 +168,33 @@ class TestDynamicTableUpdateOperatorWithS3FileIO {
     System.gc();
     Thread.sleep(1000);
   }
+
+  @Test
+  void testUnclosedS3FileIOLeak() throws Exception {
+    operator.open(null);
+
+    DynamicRecordInternal input =
+            new DynamicRecordInternal(
+                    "default.leak_table",
+                    "main",
+                    SCHEMA,
+                    GenericRowData.of(99),
+                    PartitionSpec.unpartitioned(),
+                    1,
+                    false,
+                    Collections.emptySet());
+
+    operator.map(input);
+
+    // Força o leak
+    operator = null;
+    restCatalog = null;
+
+    // Tenta forçar o GC de forma mais agressiva
+    for (int i = 0; i < 10; i++) {
+      byte[] ignored = new byte[1024 * 1024 * 10]; // aloca 10MB para pressionar o GC
+      System.gc();
+      Thread.sleep(500);
+    }
+  }
 }
