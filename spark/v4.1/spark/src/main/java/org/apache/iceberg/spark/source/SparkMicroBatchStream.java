@@ -40,6 +40,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.StreamingOverwriteMode;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -68,6 +70,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final long splitOpenFileCost;
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
+  private final boolean skipDelete;
+  private final StreamingOverwriteMode overwriteMode;
   private final long fromTimestamp;
   private final int maxFilesPerMicroBatch;
   private final int maxRecordsPerMicroBatch;
@@ -98,6 +102,19 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     InitialOffsetStore initialOffsetStore =
         new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
     this.initialOffset = initialOffsetStore.initialOffset();
+
+    this.skipDelete = readConf.streamingSkipDeleteSnapshots();
+    this.overwriteMode = readConf.streamingOverwriteMode();
+
+    if (overwriteMode == StreamingOverwriteMode.ADDED_FILES_ONLY) {
+      LOG.warn(
+          "Using '{}=added-files-only' mode with table '{}'. "
+              + "This may produce duplicate records when overwrites rewrite existing data "
+              + "(e.g., MERGE, UPDATE, DELETE). "
+              + "Downstream processing must handle duplicates (e.g., idempotent writes, deduplication).",
+          SparkReadOptions.STREAMING_OVERWRITE_MODE,
+          table.name());
+    }
   }
 
   @Override
