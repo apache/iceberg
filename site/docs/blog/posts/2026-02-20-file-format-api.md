@@ -25,7 +25,7 @@ categories:
  - limitations under the License.
  -->
 
-The Apache Iceberg community is excited to announce the **finalization of the File Format API**, a major architectural milestone that makes file formats pluggable, consistent, and engine‑agnostic across the Iceberg Java codebase.
+The Apache Iceberg community is excited to announce the finalization of the File Format API, a major architectural milestone that makes file formats **pluggable**, **consistent**, and **engine‑agnostic** across the Iceberg Java codebase.
 
 <!-- more -->
 
