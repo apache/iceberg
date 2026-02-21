@@ -57,6 +57,9 @@ project(':iceberg-mr') {
     testImplementation(libs.calcite.druid) {
       exclude group: 'org.apache.calcite.avatica', module: 'avatica'
     }
+    testImplementation "org.eclipse.jetty:jetty-server:9.4.x"
+    testImplementation "org.eclipse.jetty:jetty-servlet:9.4.x"
+    testImplementation "javax.servlet:javax.servlet-api:4.0.1"
 
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')

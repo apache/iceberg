@@ -104,11 +104,11 @@ class DynamicTableUpdateOperator
     return data;
   }
 
-  @Override
-  public void close() throws Exception {
-    super.close();
-    if (catalog instanceof Closeable rc) {
-      rc.close();
-    }
-  }
+//  @Override
+//  public void close() throws Exception {
+//    super.close();
+////    if (catalog instanceof Closeable rc) {
+////      rc.close();
+////    }
+//  }
 }
