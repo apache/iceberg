@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.catalog.ContextAwareTableCatalog;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -133,9 +132,9 @@ public class OAuth2RefreshCredentialsHandler
     if (null != planId) {
       queryParams.put("planId", planId);
     }
-    String referencedBy = properties.get(ContextAwareTableCatalog.REFERENCED_BY_PROPERTY);
+    String referencedBy = properties.get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
     if (referencedBy != null) {
-      queryParams.put(ContextAwareTableCatalog.REFERENCED_BY_PROPERTY, referencedBy);
+      queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
     }
     return queryParams.isEmpty() ? null : queryParams;
   }

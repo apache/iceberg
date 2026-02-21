@@ -32,7 +32,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.azure.AzureProperties;
-import org.apache.iceberg.catalog.ContextAwareTableCatalog;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -185,9 +184,9 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     if (null != planId) {
       queryParams.put("planId", planId);
     }
-    String referencedBy = properties.get(ContextAwareTableCatalog.REFERENCED_BY_PROPERTY);
+    String referencedBy = properties.get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
     if (referencedBy != null) {
-      queryParams.put(ContextAwareTableCatalog.REFERENCED_BY_PROPERTY, referencedBy);
+      queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
     }
     return queryParams.isEmpty() ? null : queryParams;
   }

@@ -503,7 +503,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                         + RESTUtil.encodeString(ident.name()))
             .collect(Collectors.joining(","));
 
-    queryParams.put("referenced-by", referencedBy);
+    queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
 
     return queryParams;
   }
@@ -515,13 +515,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Map<String, String> injectReferencedBy(
       Map<String, String> config, Map<String, Object> viewContext) {
     Map<String, String> referencedByParam = referencedByToQueryParam(Map.of(), viewContext);
-    if (!referencedByParam.containsKey("referenced-by")) {
+    if (!referencedByParam.containsKey(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER)) {
       return config;
     }
 
     Map<String, String> merged = Maps.newHashMap(config);
     merged.put(
-        ContextAwareTableCatalog.REFERENCED_BY_PROPERTY, referencedByParam.get("referenced-by"));
+        RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+        referencedByParam.get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER));
     return merged;
   }
 
@@ -1479,44 +1480,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public View loadView(SessionContext context, TableIdentifier identifier) {
-    Endpoint.check(
-        endpoints,
-        Endpoint.V1_LOAD_VIEW,
-        () ->
-            new NoSuchViewException(
-                "Unable to load view %s.%s: Server does not support endpoint %s",
-                name(), identifier, Endpoint.V1_LOAD_VIEW));
-
-    checkViewIdentifierIsValid(identifier);
-
-    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
-    LoadViewResponse response =
-        client
-            .withAuthSession(contextualSession)
-            .get(
-                paths.view(identifier),
-                LoadViewResponse.class,
-                Map.of(),
-                ErrorHandlers.viewErrorHandler());
-
-    Map<String, String> tableConf = response.config();
-    AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
-    ViewMetadata metadata = response.metadata();
-
-    RESTViewOperations ops =
-        newViewOps(
-            client.withAuthSession(tableSession),
-            paths.view(identifier),
-            Map::of,
-            mutationHeaders,
-            metadata,
-            endpoints);
-
-    return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+    return loadView(context, identifier, Map.of());
   }
 
   @Override
-  public View loadViewWithContext(
+  public View loadView(
       SessionContext context, TableIdentifier identifier, Map<String, Object> viewContext) {
     Endpoint.check(
         endpoints,

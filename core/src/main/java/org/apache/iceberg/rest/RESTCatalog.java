@@ -316,8 +316,8 @@ public class RESTCatalog
     return viewSessionCatalog.loadView(identifier);
   }
 
-  public View loadViewWithContext(TableIdentifier identifier, Map<String, Object> viewContext) {
-    return sessionCatalog.loadViewWithContext(context, identifier, viewContext);
+  public View loadView(TableIdentifier identifier, Map<String, Object> viewContext) {
+    return sessionCatalog.loadView(context, identifier, viewContext);
   }
 
   @Override
