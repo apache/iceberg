@@ -23,10 +23,38 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MER
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 
 import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.metrics.CommitMetricsResult;
+import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.CounterResult;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
+import org.apache.iceberg.spark.source.metrics.AddedDataFiles;
+import org.apache.iceberg.spark.source.metrics.AddedDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.AddedEqualityDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.AddedEqualityDeletes;
+import org.apache.iceberg.spark.source.metrics.AddedFileSizeInBytes;
+import org.apache.iceberg.spark.source.metrics.AddedPositionalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.AddedPositionalDeletes;
+import org.apache.iceberg.spark.source.metrics.AddedRecords;
+import org.apache.iceberg.spark.source.metrics.RemovedDataFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedEqualityDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedEqualityDeletes;
+import org.apache.iceberg.spark.source.metrics.RemovedFileSizeInBytes;
+import org.apache.iceberg.spark.source.metrics.RemovedPositionalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.RemovedPositionalDeletes;
+import org.apache.iceberg.spark.source.metrics.RemovedRecords;
+import org.apache.iceberg.spark.source.metrics.TotalDataFiles;
+import org.apache.iceberg.spark.source.metrics.TotalDeleteFiles;
+import org.apache.iceberg.spark.source.metrics.TotalEqualityDeletes;
+import org.apache.iceberg.spark.source.metrics.TotalFileSizeInBytes;
+import org.apache.iceberg.spark.source.metrics.TotalPositionalDeletes;
+import org.apache.iceberg.spark.source.metrics.TotalRecords;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.connector.distributions.Distribution;
@@ -36,6 +64,8 @@ import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.expressions.SortDirection;
 import org.apache.spark.sql.connector.expressions.SortOrder;
+import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
 
 /**
@@ -255,5 +285,102 @@ public class SparkWriteUtil {
 
   private static SortOrder sort(Expression expr) {
     return Expressions.sort(expr, SortDirection.ASCENDING);
+  }
+
+  public static CustomMetric[] supportedCustomMetrics() {
+    return new CustomMetric[] {
+      new AddedDataFiles(),
+      new AddedDeleteFiles(),
+      new AddedEqualityDeletes(),
+      new AddedEqualityDeleteFiles(),
+      new AddedFileSizeInBytes(),
+      new AddedPositionalDeletes(),
+      new AddedPositionalDeleteFiles(),
+      new AddedRecords(),
+      new RemovedDataFiles(),
+      new RemovedDeleteFiles(),
+      new RemovedRecords(),
+      new RemovedEqualityDeleteFiles(),
+      new RemovedEqualityDeletes(),
+      new RemovedFileSizeInBytes(),
+      new RemovedPositionalDeleteFiles(),
+      new RemovedPositionalDeletes(),
+      new TotalDataFiles(),
+      new TotalDeleteFiles(),
+      new TotalEqualityDeletes(),
+      new TotalFileSizeInBytes(),
+      new TotalPositionalDeletes(),
+      new TotalRecords()
+    };
+  }
+
+  public static CustomTaskMetric[] customTaskMetrics(InMemoryMetricsReporter metricsReporter) {
+    List<CustomTaskMetric> taskMetrics = Lists.newArrayList();
+    if (metricsReporter != null) {
+      CommitReport commitReport = metricsReporter.commitReport();
+      if (commitReport != null) {
+        CommitMetricsResult metricsResult = commitReport.commitMetrics();
+        addMetricValue(new AddedDataFiles(), metricsResult.addedDataFiles(), taskMetrics);
+        addMetricValue(new AddedDeleteFiles(), metricsResult.addedDeleteFiles(), taskMetrics);
+        addMetricValue(
+            new AddedEqualityDeletes(), metricsResult.addedEqualityDeletes(), taskMetrics);
+        addMetricValue(
+            new AddedEqualityDeleteFiles(), metricsResult.addedEqualityDeleteFiles(), taskMetrics);
+        addMetricValue(
+            new AddedFileSizeInBytes(), metricsResult.addedFilesSizeInBytes(), taskMetrics);
+        addMetricValue(
+            new AddedPositionalDeletes(), metricsResult.addedPositionalDeletes(), taskMetrics);
+        addMetricValue(
+            new AddedPositionalDeleteFiles(),
+            metricsResult.addedPositionalDeleteFiles(),
+            taskMetrics);
+        addMetricValue(new AddedRecords(), metricsResult.addedRecords(), taskMetrics);
+        addMetricValue(new RemovedDataFiles(), metricsResult.removedDataFiles(), taskMetrics);
+        addMetricValue(new RemovedDeleteFiles(), metricsResult.removedDeleteFiles(), taskMetrics);
+        addMetricValue(new RemovedRecords(), metricsResult.removedRecords(), taskMetrics);
+        addMetricValue(
+            new RemovedEqualityDeleteFiles(),
+            metricsResult.removedEqualityDeleteFiles(),
+            taskMetrics);
+        addMetricValue(
+            new RemovedEqualityDeletes(), metricsResult.removedEqualityDeletes(), taskMetrics);
+        addMetricValue(
+            new RemovedFileSizeInBytes(), metricsResult.removedFilesSizeInBytes(), taskMetrics);
+        addMetricValue(
+            new RemovedPositionalDeleteFiles(),
+            metricsResult.removedPositionalDeleteFiles(),
+            taskMetrics);
+        addMetricValue(
+            new RemovedPositionalDeletes(), metricsResult.removedPositionalDeletes(), taskMetrics);
+        addMetricValue(new TotalDataFiles(), metricsResult.totalDataFiles(), taskMetrics);
+        addMetricValue(new TotalDeleteFiles(), metricsResult.totalDeleteFiles(), taskMetrics);
+        addMetricValue(
+            new TotalEqualityDeletes(), metricsResult.totalEqualityDeletes(), taskMetrics);
+        addMetricValue(
+            new TotalFileSizeInBytes(), metricsResult.totalFilesSizeInBytes(), taskMetrics);
+        addMetricValue(
+            new TotalPositionalDeletes(), metricsResult.totalPositionalDeletes(), taskMetrics);
+        addMetricValue(new TotalRecords(), metricsResult.totalRecords(), taskMetrics);
+      }
+    }
+    return taskMetrics.toArray(new CustomTaskMetric[0]);
+  }
+
+  private static void addMetricValue(
+      CustomMetric metric, CounterResult result, List<CustomTaskMetric> taskMetrics) {
+    if (result != null) {
+      taskMetrics.add(
+          new CustomTaskMetric() {
+            @Override
+            public String name() {
+              return metric.name();
+            }
+
+            @Override
+            public long value() {
+              return result.value();
+            }
+          });
+    }
   }
 }

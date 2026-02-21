@@ -27,6 +27,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -42,7 +43,7 @@ public class BaseTable
     implements Table, HasTableOperations, Serializable, SupportsDistributedScanPlanning {
   private final TableOperations ops;
   private final String name;
-  private final MetricsReporter reporter;
+  private MetricsReporter reporter;
 
   public BaseTable(TableOperations ops, String name) {
     this(ops, name, LoggingMetricsReporter.instance());
@@ -57,6 +58,10 @@ public class BaseTable
 
   public MetricsReporter reporter() {
     return reporter;
+  }
+
+  public void combineMetricsReporter(MetricsReporter metricsReporter) {
+    this.reporter = MetricsReporters.combine(this.reporter, metricsReporter);
   }
 
   @Override
