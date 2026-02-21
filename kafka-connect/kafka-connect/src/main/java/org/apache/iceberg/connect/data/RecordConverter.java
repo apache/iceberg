@@ -111,8 +111,8 @@ class RecordConverter {
   }
 
   /**
-   * Schema Evolution Traverses the entire record schema to detect new fields, type
-   * changes, and optionality changes. Does NOT convert any data - only collects schema updates.
+   * Schema Evolution Traverses the entire record schema to detect new fields, type changes, and
+   * optionality changes. Does NOT convert any data - only collects schema updates.
    */
   private void evolveSchema(
       Object data,
@@ -185,7 +185,8 @@ class RecordConverter {
 
     List<Field> nestedRecordFields =
         extractNestedFieldsFromRecordSchema(recordField, recordFieldType);
-    int nestedParentFieldId = tableField.fieldId();
+    int nestedParentFieldId =
+        getNestedParentFieldId(tableField, tableField.type(), recordFieldType);
 
     for (Field nestedRecordField : nestedRecordFields) {
       NestedField nestedTableField =
@@ -200,6 +201,25 @@ class RecordConverter {
           nestedParentFieldId,
           schemaUpdateConsumer);
     }
+  }
+
+  /**
+   * Gets the correct parent field ID for nested fields based on the container type. For
+   * list&lt;struct&gt;, returns the element field ID. For map&lt;k, struct&gt;, returns the value
+   * field ID. For struct, returns the struct field ID itself.
+   */
+  private int getNestedParentFieldId(NestedField tableField, Type tableType, Type recordFieldType) {
+    if (recordFieldType.isListType() && tableType.isListType()) {
+      // For list<struct>, parent is the element field (first field in list)
+      return tableType.asListType().fields().get(0).fieldId();
+    } else if (recordFieldType.isMapType() && tableType.isMapType()) {
+      // For map<k, struct>, parent is the value field (second field in map)
+      return tableType.asMapType().fields().get(1).fieldId();
+    } else if (recordFieldType.isStructType() && tableType.isStructType()) {
+      // For struct<struct>, parent is the struct field itself
+      return tableField.fieldId();
+    }
+    return -1;
   }
 
   /** Extracts nested fields from a Kafka Connect Field schema based on the Iceberg type. */

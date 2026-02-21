@@ -115,7 +115,7 @@ class IcebergWriter implements RecordWriter {
       }
     }
 
-  // convert the row, this time new table schema will be used
+    // convert the row, this time new table schema will be used
     return recordConverter.convert(record);
   }
 

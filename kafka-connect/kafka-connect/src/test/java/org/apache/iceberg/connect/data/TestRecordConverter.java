@@ -605,7 +605,8 @@ public class TestRecordConverter {
     assertTimestampEvolveSchema(expected, additionalInput, TimestampType.withoutZone());
   }
 
-  private void assertTimestampEvolveSchema(Temporal expected, long expectedMillis, TimestampType type) {
+  private void assertTimestampEvolveSchema(
+      Temporal expected, long expectedMillis, TimestampType type) {
     List<Object> inputList =
         Lists.newArrayList(
             "2023-05-18T11:22:33Z",
