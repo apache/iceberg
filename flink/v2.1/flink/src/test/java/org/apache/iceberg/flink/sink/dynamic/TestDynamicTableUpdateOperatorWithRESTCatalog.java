@@ -52,7 +52,7 @@ class TestDynamicTableUpdateOperatorWithS3FileIO {
 
   @BeforeEach
   void setUp() throws Exception {
-    // 1. Cria S3Client manualmente apontando para o MinIO
+    // 1. Create S3Client pointing to MinIO
     s3Client =
             S3Client.builder()
                     .endpointOverride(URI.create(MINIO.getS3URL()))
@@ -69,7 +69,7 @@ class TestDynamicTableUpdateOperatorWithS3FileIO {
 
     s3Client.createBucket(b -> b.bucket(BUCKET));
 
-    // 2. Propriedades do S3FileIO apontando para o MinIO
+    // 2. S3FileIO properties pointing to MinIO
     Map<String, String> s3Props = new HashMap<>();
     s3Props.put("s3.endpoint", MINIO.getS3URL());
     s3Props.put("s3.access-key-id", MINIO.getUserName());
@@ -77,7 +77,7 @@ class TestDynamicTableUpdateOperatorWithS3FileIO {
     s3Props.put("s3.path-style-access", "true");
     s3Props.put("client.region", "us-east-1");
 
-    // 3. Backend InMemory configurado com S3FileIO
+    // 3. InMemory backend catalog configured with S3FileIO
     InMemoryCatalog backendCatalog = new InMemoryCatalog();
     Map<String, String> backendProps = new HashMap<>(s3Props);
     backendProps.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://" + BUCKET + "/warehouse");
@@ -85,7 +85,7 @@ class TestDynamicTableUpdateOperatorWithS3FileIO {
     backendCatalog.initialize("backend", backendProps);
     backendCatalog.createNamespace(Namespace.of("default"));
 
-    // 4. RESTCatalog com adapter direto (sem HTTP server)
+    // 4. RESTCatalog with direct adapter (no HTTP server)
     RESTCatalogAdapter adapter = new RESTCatalogAdapter(backendCatalog);
     restCatalog =
             new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), properties -> adapter);
@@ -129,8 +129,7 @@ class TestDynamicTableUpdateOperatorWithS3FileIO {
   }
 
   @Test
-  void testOperatorComS3FileIONormal() throws Exception {
-    // ✅ operator.close() chamado no @AfterEach — sem warning de unclosed S3FileIO
+  void testOperatorWithS3FileIO() throws Exception {
     operator.open(null);
 
     DynamicRecordInternal input =
@@ -149,9 +148,7 @@ class TestDynamicTableUpdateOperatorWithS3FileIO {
   }
 
   @Test
-  void testUnclosedS3FileIOLeak() throws Exception {
-    // ❌ operator NÃO é fechado — deve aparecer no log:
-    // WARN S3FileIO - Unclosed S3FileIO instance created by:
+  void testNoUnclosedS3FileIOLeak() throws Exception {
     operator.open(null);
 
     DynamicRecordInternal input =
@@ -167,7 +164,6 @@ class TestDynamicTableUpdateOperatorWithS3FileIO {
 
     operator.map(input);
 
-    // Simula o leak — não fecha o operator
     operator = null;
     System.gc();
     Thread.sleep(1000);
