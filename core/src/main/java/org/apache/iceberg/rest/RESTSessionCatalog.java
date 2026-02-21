@@ -254,7 +254,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
-
     this.fileIOTracker = new FileIOTracker();
     this.closeables.addCloseable(this.io);
     this.closeables.addCloseable(fileIOTracker);
