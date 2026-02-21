@@ -267,7 +267,6 @@ class RecordConverter {
 
   private Map<String, NestedField> createStructNameMap(StructType schema) {
     Map<String, NestedField> map = Maps.newHashMap();
-
     boolean caseInsensitive = config.schemaCaseInsensitive();
     schema
         .fields()
