@@ -1,6 +1,6 @@
 ---
 date: 2026-02-20
-title: Finalizing the Apache Iceberg File Format API
+title: Introducing the Apache Iceberg File Format API
 slug: apache-iceberg-file-format-api-finalization
 authors:
   - iceberg-pmc
