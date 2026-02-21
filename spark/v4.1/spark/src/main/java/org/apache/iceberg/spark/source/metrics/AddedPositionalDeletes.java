@@ -31,6 +31,6 @@ public class AddedPositionalDeletes extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "number of added positional deletes";
+    return "number of added positional deletes records";
   }
 }

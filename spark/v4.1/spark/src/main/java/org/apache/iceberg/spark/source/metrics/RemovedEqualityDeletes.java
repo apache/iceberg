@@ -31,6 +31,6 @@ public class RemovedEqualityDeletes extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "number of removed equality deletes";
+    return "number of removed equality deletes records";
   }
 }
