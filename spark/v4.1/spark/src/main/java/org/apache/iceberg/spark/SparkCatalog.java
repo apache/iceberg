@@ -115,7 +115,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog {
+public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -159,17 +159,47 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    return load(ident, null /* no time travel */);
+    return loadTable(ident, Map.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, Map<String, Object> context)
+      throws NoSuchTableException {
+    try {
+      return load(ident, null /* no time travel */, context);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
   }
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return load(ident, TimeTravel.version(version));
+    return loadTable(ident, version, Map.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, Map<String, Object> loadingContext)
+      throws NoSuchTableException {
+    try {
+      return load(ident, TimeTravel.version(version), loadingContext);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
   }
 
   @Override
   public Table loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
-    return load(ident, TimeTravel.timestampMicros(timestampMicros));
+    return loadTable(ident, timestampMicros, Map.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestampMicros, Map<String, Object> loadingContext)
+      throws NoSuchTableException {
+    try {
+      return load(ident, TimeTravel.timestampMicros(timestampMicros), loadingContext);
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      throw new NoSuchTableException(ident);
+    }
   }
 
   @Override
@@ -796,13 +826,14 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Table load(Identifier ident, TimeTravel timeTravel) throws NoSuchTableException {
+  private Table load(Identifier ident, TimeTravel timeTravel, Map<String, Object> context)
+      throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
       return loadPath((PathIdentifier) ident, timeTravel);
     }
 
     try {
-      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
+      org.apache.iceberg.Table table = loadIcebergTable(buildIdentifier(ident), context);
       return SparkTable.create(table, timeTravel);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -815,7 +846,7 @@ public class SparkCatalog extends BaseCatalog {
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       org.apache.iceberg.Table table;
       try {
-        table = icebergCatalog.loadTable(namespaceAsIdent);
+        table = loadIcebergTable(namespaceAsIdent, context);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw an exception for the original identifier
@@ -848,6 +879,17 @@ public class SparkCatalog extends BaseCatalog {
       // throw an exception for the original identifier
       throw new NoSuchTableException(ident);
     }
+  }
+
+  private org.apache.iceberg.Table loadIcebergTable(
+      TableIdentifier ident, Map<String, Object> context) {
+    if (!context.isEmpty()
+        && icebergCatalog instanceof org.apache.iceberg.catalog.ContextAwareTableCatalog) {
+      return ((org.apache.iceberg.catalog.ContextAwareTableCatalog) icebergCatalog)
+          .loadTable(ident, context);
+    }
+
+    return icebergCatalog.loadTable(ident);
   }
 
   private Pair<String, List<String>> parseLocationString(String location) {

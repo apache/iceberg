@@ -32,6 +32,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.catalog.ContextAwareTableCatalog;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -173,10 +174,22 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     return httpClient()
         .get(
             credentialsEndpoint,
-            null != planId ? Map.of("planId", planId) : null,
+            credentialsQueryParams(),
             LoadCredentialsResponse.class,
             Map.of(),
             ErrorHandlers.defaultErrorHandler());
+  }
+
+  private Map<String, String> credentialsQueryParams() {
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (null != planId) {
+      queryParams.put("planId", planId);
+    }
+    String referencedBy = properties.get(ContextAwareTableCatalog.REFERENCED_BY_PROPERTY);
+    if (referencedBy != null) {
+      queryParams.put(ContextAwareTableCatalog.REFERENCED_BY_PROPERTY, referencedBy);
+    }
+    return queryParams.isEmpty() ? null : queryParams;
   }
 
   private void checkCredential(Credential credential, String property) {
