@@ -124,4 +124,12 @@ interface BigQueryMetastoreClient {
    *     Tables. If false, unsupported Iceberg Tables will be filtered out.
    */
   List<Tables> list(DatasetReference datasetReference, boolean listAllTables);
+
+  /**
+   * Renames a table by copying to a new location and deleting the original.
+   *
+   * @param fromTableReference current table reference
+   * @param toTableReference target table reference
+   */
+  void rename(TableReference fromTableReference, TableReference toTableReference);
 }
