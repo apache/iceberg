@@ -64,6 +64,7 @@ public class SparkProcedures {
     mapBuilder.put("compute_table_stats", ComputeTableStatsProcedure::builder);
     mapBuilder.put("compute_partition_stats", ComputePartitionStatsProcedure::builder);
     mapBuilder.put("rewrite_table_path", RewriteTablePathProcedure::builder);
+    mapBuilder.put("undelete_column", UndeleteColumnProcedure::builder);
     return mapBuilder.build();
   }
 

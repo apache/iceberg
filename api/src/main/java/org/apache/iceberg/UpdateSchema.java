@@ -565,6 +565,20 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   UpdateSchema deleteColumn(String name);
 
   /**
+   * Restore a previously deleted column from the schema history.
+   *
+   * <p>The name is used to search for the column in historical schemas. The column is restored with
+   * its original field ID, preserving data file compatibility. Restored columns are always
+   * optional.
+   *
+   * @param name name of the column to restore (supports dot notation for nested fields)
+   * @return this for method chaining
+   * @throws IllegalArgumentException if name already exists, was never deleted, or parent struct
+   *     does not exist
+   */
+  UpdateSchema undeleteColumn(String name);
+
+  /**
    * Move a column from its current position to the start of the schema or its parent struct.
    *
    * @param name name of the column to move
