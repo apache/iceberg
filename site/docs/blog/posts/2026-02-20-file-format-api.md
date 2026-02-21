@@ -38,7 +38,7 @@ The File Format API introduces a unified, extensible layer that engines can rely
 Iceberg’s original format‑handling code grew organically as support for Parquet, Avro, and ORC matured. Over time, this approach revealed several limitations.
 
 ### Fragmented and duplicated logic
-Each engine—Spark, Flink, and the generic Java implementation—maintained its own format‑specific readers, writers, and feature handling. Trying out a new format required deep modifications across multiple layers.
+Each engine Apache Spark, Apache Flink, and the generic Java implementation—maintained its own format‑specific readers, writers, and feature handling. Trying out a new format required deep modifications across multiple layers.
 
 ### Large branching code paths
 Support for multiple formats was implemented through large switch statements or branching logic, making it difficult to extend and easy to introduce inconsistencies.
