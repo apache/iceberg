@@ -33,13 +33,6 @@ public interface ContextAwareTableCatalog {
   String VIEW_IDENTIFIER_KEY = "view.referenced-by";
 
   /**
-   * Property key used to propagate the pre-encoded referenced-by query parameter value through
-   * table/view configuration properties to credential providers. The value is the URL-encoded
-   * referenced-by string (e.g., "ns%1FviewName" or "ns1%1Fv1,ns2%1Fv2" for chains).
-   */
-  String REFERENCED_BY_PROPERTY = "referenced-by";
-
-  /**
    * Load a table with additional context information.
    *
    * <p>Common context keys:

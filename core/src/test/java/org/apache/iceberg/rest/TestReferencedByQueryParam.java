@@ -43,7 +43,8 @@ public class TestReferencedByQueryParam {
 
     Map<String, String> result = catalog.referencedByToQueryParam(Map.of(), context);
 
-    assertThat(result).containsEntry("referenced-by", "ns%1FviewName");
+    assertThat(result)
+        .containsEntry(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns%1FviewName");
   }
 
   @Test
@@ -55,7 +56,10 @@ public class TestReferencedByQueryParam {
 
     Map<String, String> result = catalog.referencedByToQueryParam(Map.of(), context);
 
-    assertThat(result).containsEntry("referenced-by", "prod%1Fanalytics%1Fquarterly_view");
+    assertThat(result)
+        .containsEntry(
+            RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+            "prod%1Fanalytics%1Fquarterly_view");
   }
 
   @Test
@@ -70,7 +74,9 @@ public class TestReferencedByQueryParam {
     Map<String, String> result = catalog.referencedByToQueryParam(Map.of(), context);
 
     assertThat(result)
-        .containsEntry("referenced-by", "outer_ns%1Fouter_view,inner_ns%1Finner_view");
+        .containsEntry(
+            RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+            "outer_ns%1Fouter_view,inner_ns%1Finner_view");
   }
 
   @Test
@@ -83,7 +89,8 @@ public class TestReferencedByQueryParam {
     Map<String, String> result = catalog.referencedByToQueryParam(Map.of(), context);
 
     // Comma in view name should be encoded as %2C
-    assertThat(result).containsEntry("referenced-by", "ns%1Fview%2Cname");
+    assertThat(result)
+        .containsEntry(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns%1Fview%2Cname");
   }
 
   @Test
@@ -125,7 +132,9 @@ public class TestReferencedByQueryParam {
         catalog.referencedByToQueryParam(ImmutableMap.of("key", "value"), context);
 
     // Should return params without referenced-by since chain is empty
-    assertThat(result).containsEntry("key", "value").doesNotContainKey("referenced-by");
+    assertThat(result)
+        .containsEntry("key", "value")
+        .doesNotContainKey(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
   }
 
   @Test
@@ -139,7 +148,7 @@ public class TestReferencedByQueryParam {
 
     assertThat(result)
         .containsEntry("snapshots", "all")
-        .containsEntry("referenced-by", "ns%1Fview");
+        .containsEntry(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns%1Fview");
   }
 
   @Test
@@ -152,6 +161,8 @@ public class TestReferencedByQueryParam {
     Map<String, String> result = catalog.referencedByToQueryParam(Map.of(), context);
 
     // Spaces encode to + and / encodes to %2F in URL encoding
-    assertThat(result).containsEntry("referenced-by", "ns+with+spaces%1Fview%2Fname");
+    assertThat(result)
+        .containsEntry(
+            RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns+with+spaces%1Fview%2Fname");
   }
 }
