@@ -83,7 +83,7 @@ FormatModelRegistry.register(FormatModel)
 ![Registry Diagram](../../assets/images/2026-02-20-file-format-api-registry.png)
 
 #### **Read and Write Builders**
-Instead of hard‑coded file‑format logic in engines, all operations now go through Registry which provides builders for read/write operations. These builder classes fetched form the registry like this:
+Instead of hard‑coded file‑format logic in engines, all operations now go through the Registry, which provides builders for read/write operations. These builder classes are fetched from the registry like this:
 
 ```
 FormatModelRegistry.readBuilder(fileFormat, clazz, inputFile)
