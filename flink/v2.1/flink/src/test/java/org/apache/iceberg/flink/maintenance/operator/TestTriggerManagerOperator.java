@@ -634,7 +634,7 @@ class TestTriggerManagerOperator extends OperatorTestBase {
 
   private static TriggerManagerCoordinator createCoordinator() {
     return new TriggerManagerCoordinator(
-        OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 2));
+        OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1));
   }
 
   private TriggerManagerOperator createOperator(

@@ -36,6 +36,7 @@ import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FatalExitExceptionHandler;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -69,10 +70,13 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
         new CoordinatorExecutorThreadFactory(
             "Coordinator-" + operatorName, context.getUserCodeClassloader());
     this.coordinatorExecutor = Executors.newSingleThreadExecutor(coordinatorThreadFactory);
-    this.subtaskGateways = new SubtaskGateways(operatorName, context.currentParallelism());
+    Preconditions.checkState(
+        context.currentParallelism() == 1, "Coordinator must run with parallelism 1");
+    this.subtaskGateways = SubtaskGateways.create(operatorName);
     LOG.info("Created coordinator: {}", operatorName);
   }
 
+  @SuppressWarnings("FutureReturnValueIgnored")
   void registerLock(LockRegisterEvent lockRegisterEvent) {
     LOCK_RELEASE_CONSUMERS.put(
         lockRegisterEvent.lockId(),
@@ -82,7 +86,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
               lock.lockId(),
               lock.timestamp(),
               operatorName());
-          subtaskGateways().getSubtaskGateway(0).sendEvent(lock);
+          subtaskGateways.subtaskGateway().sendEvent(lock);
         });
 
     synchronized (PENDING_RELEASE_EVENTS) {
@@ -93,7 +97,6 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
     }
   }
 
-  @VisibleForTesting
   void handleReleaseLock(LockReleaseEvent lockReleaseEvent) {
     synchronized (PENDING_RELEASE_EVENTS) {
       if (LOCK_RELEASE_CONSUMERS.containsKey(lockReleaseEvent.lockId())) {
@@ -158,7 +161,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
         () -> {
           LOG.info("Subtask {} is reset to checkpoint {}", subtask, checkpointId);
           Preconditions.checkState(coordinatorThreadFactory.isCurrentThreadCoordinatorThread());
-          subtaskGateways.reset(subtask);
+          subtaskGateways.reset();
         },
         String.format(
             Locale.ROOT, "handling subtask %d recovery to checkpoint %d", subtask, checkpointId));
@@ -195,14 +198,6 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
             "making event gateway to subtask %d (#%d) available",
             subtask,
             attemptNumber));
-  }
-
-  protected CoordinatorExecutorThreadFactory coordinatorThreadFactory() {
-    return coordinatorThreadFactory;
-  }
-
-  protected SubtaskGateways subtaskGateways() {
-    return subtaskGateways;
   }
 
   protected String operatorName() {
@@ -259,58 +254,44 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   }
 
   /** Inner class to manage subtask gateways. */
-  protected static class SubtaskGateways {
-    private final String operatorName;
-    private final Map<Integer, SubtaskGateway>[] gateways;
+  private record SubtaskGateways(String operatorName, Map<Integer, SubtaskGateway> gateways) {
 
-    @SuppressWarnings("unchecked")
-    protected SubtaskGateways(String operatorName, int parallelism) {
-      this.operatorName = operatorName;
-      gateways = new Map[parallelism];
-
-      for (int i = 0; i < parallelism; ++i) {
-        gateways[i] = new java.util.HashMap<>();
-      }
+    static SubtaskGateways create(String operatorName) {
+      return new SubtaskGateways(operatorName, Maps.newHashMap());
     }
 
-    protected void registerSubtaskGateway(SubtaskGateway gateway) {
-      int subtaskIndex = gateway.getSubtask();
+    void registerSubtaskGateway(SubtaskGateway gateway) {
       int attemptNumber = gateway.getExecution().getAttemptNumber();
       Preconditions.checkState(
-          !gateways[subtaskIndex].containsKey(attemptNumber),
-          "Coordinator of %s already has a subtask gateway for %d (#%d)",
+          !gateways.containsKey(attemptNumber),
+          "Coordinator of %s already has a subtask gateway for (#%d)",
           operatorName,
-          subtaskIndex,
           attemptNumber);
-      LOG.debug(
-          "Coordinator of {} registers gateway for subtask {} attempt {}",
-          operatorName,
-          subtaskIndex,
-          attemptNumber);
-      gateways[subtaskIndex].put(attemptNumber, gateway);
-      LOG.debug("Registered gateway for subtask {} attempt {}", subtaskIndex, attemptNumber);
+      LOG.debug("Coordinator of {} registers gateway for attempt {}", operatorName, attemptNumber);
+      gateways.put(attemptNumber, gateway);
+      LOG.debug("Registered gateway for  attempt {}", attemptNumber);
     }
 
-    protected void unregisterSubtaskGateway(int subtaskIndex, int attemptNumber) {
-      gateways[subtaskIndex].remove(attemptNumber);
+    void unregisterSubtaskGateway(int subtaskIndex, int attemptNumber) {
+      gateways.remove(attemptNumber);
       LOG.debug("Unregistered gateway for subtask {} attempt {}", subtaskIndex, attemptNumber);
     }
 
-    protected SubtaskGateway getSubtaskGateway(int subtaskIndex) {
+    SubtaskGateway subtaskGateway() {
       Preconditions.checkState(
-          !gateways[subtaskIndex].isEmpty(),
-          "Coordinator subtask %d is not ready yet to receive events",
-          subtaskIndex);
-      return gateways[subtaskIndex].values().iterator().next();
+          !gateways.isEmpty(),
+          "Coordinator of %s is not ready yet to receive events",
+          operatorName);
+      return Iterables.getOnlyElement(gateways.values());
     }
 
-    protected void reset(int subtaskIndex) {
-      gateways[subtaskIndex].clear();
+    void reset() {
+      gateways.clear();
     }
   }
 
   /** Custom thread factory for the coordinator executor. */
-  protected static class CoordinatorExecutorThreadFactory
+  private static class CoordinatorExecutorThreadFactory
       implements ThreadFactory, Thread.UncaughtExceptionHandler {
 
     private final String coordinatorThreadName;
