@@ -1823,21 +1823,6 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 | **`engine-name`**        | "spark"    | Name of the engine that created the snapshot                    |
 | **`engine-version`**     | "3.5.4"    | Version of the engine that created the snapshot                 |
 
-#### Spark Merge Into
-
-The following optional summary fields may be written by the Spark engine when performing merge-into (MERGE INTO) operations. Each value is the string form of a non-negative count. A field is omitted when the value is unknown.
-
-| Field                                                                 | Description                                                                 |
-|-----------------------------------------------------------------------|-----------------------------------------------------------------------------|
-| **`spark.merge-into.num-target-rows-copied`**                         | Number of target rows copied unmodified because they did not match any action |
-| **`spark.merge-into.num-target-rows-deleted`**                        | Number of target rows deleted                                               |
-| **`spark.merge-into.num-target-rows-updated`**                        | Number of target rows updated                                               |
-| **`spark.merge-into.num-target-rows-inserted`**                       | Number of target rows inserted                                              |
-| **`spark.merge-into.num-target-rows-matched-updated`**                | Number of target rows updated by a MATCHED clause                           |
-| **`spark.merge-into.num-target-rows-matched-deleted`**                | Number of target rows deleted by a MATCHED clause                           |
-| **`spark.merge-into.num-target-rows-not-matched-by-source-updated`**  | Number of target rows updated by a NOT MATCHED BY SOURCE clause             |
-| **`spark.merge-into.num-target-rows-not-matched-by-source-deleted`**  | Number of target rows deleted by a NOT MATCHED BY SOURCE clause             |
-
 ### Assignment of Snapshot IDs and `current-snapshot-id`
 
 Writers should produce positive values for snapshot ids in a manner that minimizes the probability of id collisions and should verify the id does not conflict with existing snapshots. Producing snapshot ids based on timestamps alone is not recommended as it increases the potential for collisions.
