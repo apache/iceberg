@@ -18,12 +18,22 @@
 #
 name: Docs Build CI
 on:
-  pull_request:
+  push:
+    branches:
+      - '**'
+      - '!main'
+      - '!0.*'
+      - '!1.*'
+      - '!2.*'
     paths:
       - docs/**
       - site/**
       - format/**
       - .github/workflows/docs-ci.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-docs:
@@ -34,6 +44,15 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          repository: apache/iceberg
+          ref: main
+      - name: Sync fork branch with upstream main
+        if: github.repository != 'apache/iceberg'
+        run: |
+          git fetch https://github.com/$GITHUB_REPOSITORY.git ${GITHUB_REF##*/}
+          git merge --progress --ff-only FETCH_HEAD
       - uses: actions/setup-python@v6
         with:
           python-version: 3.x
