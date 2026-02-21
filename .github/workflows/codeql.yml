@@ -32,6 +32,7 @@ jobs:
     name: Analyze Actions
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       security-events: write
       packages: read
 
