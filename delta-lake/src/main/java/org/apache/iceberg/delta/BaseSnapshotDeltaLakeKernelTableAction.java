@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,6 +68,7 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -252,7 +252,6 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     // 1. initial delta version with all the data files
     // 1.1 data skipping stats
     // 1.2 DVs support
-    // 1.3 partitions support
     // 2. Delta log to Iceberg history 1 by 1
     // 3. Delta versions and Delta tags
     // DeltaLogActionUtils.readCommitFiles(engine, commitFiles, readSchema);
@@ -260,7 +259,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     // io.delta.kernel.internal.util.FileNames.deltaVersion(io.delta.kernel.internal.fs.Path)
 
     Long commitTimestamp = null;
-    List<DataFile> dataFilesToAdd = new ArrayList<>();
+    List<DataFile> dataFilesToAdd = Lists.newArrayList();
     try (CloseableIterator<Row> rows = columnarBatch.getRows()) {
       while (rows.hasNext()) {
         Row row = rows.next();

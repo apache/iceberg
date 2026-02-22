@@ -21,7 +21,6 @@ package org.apache.iceberg.delta;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -32,7 +31,6 @@ import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,6 +42,8 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -62,14 +62,14 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
   private Catalog testCatalog;
 
   @BeforeEach
-  public void beforeTest() throws IOException {
+  public void before() throws IOException {
     sourceTableLocation = sourceDeltaFolder.toURI().toString();
 
     Path icebergTablePath = icebergWarehouseFolder.toPath().resolve("iceberg_table");
     newTableLocation = icebergTablePath.toString();
     Files.createDirectories(icebergTablePath);
 
-    Map<String, String> properties = new HashMap<>();
+    Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, icebergWarehouseFolder.toString());
 
     HadoopCatalog icebergCatalog = new HadoopCatalog();

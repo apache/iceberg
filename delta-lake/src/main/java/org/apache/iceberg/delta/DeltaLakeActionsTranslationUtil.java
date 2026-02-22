@@ -26,6 +26,8 @@ import io.delta.kernel.internal.actions.AddFile;
  * href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md#Actions">delta action</a>
  */
 public class DeltaLakeActionsTranslationUtil {
+  private DeltaLakeActionsTranslationUtil() {}
+
   public static boolean isAdd(Row row) {
     return !row.isNullAt(getOrdinal(row, "add"));
   }
@@ -57,10 +59,6 @@ public class DeltaLakeActionsTranslationUtil {
   public static boolean isCommitInfo(Row row) {
     return !row.isNullAt(getOrdinal(row, "commitInfo"));
   }
-
-  //    public static CommitInfo toCommitInfo(Row row) {
-  //        return CommitInfo.fromColumnVector();
-  //    }
 
   private static int getOrdinal(Row row, String filedName) {
     return row.getSchema().indexOf(filedName);
