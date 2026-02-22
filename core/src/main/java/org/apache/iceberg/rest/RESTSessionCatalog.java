@@ -166,7 +166,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
-  private boolean restScanPlanningEnabled;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
@@ -280,12 +279,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.NAMESPACE_SEPARATOR,
             RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
-
-    this.restScanPlanningEnabled =
-        PropertyUtil.propertyAsBoolean(
-            mergedProps,
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED_DEFAULT);
 
     this.tableCache = createTableCache(mergedProps);
     this.closeables.addCloseable(this.tableCache);
@@ -584,7 +577,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient);
+      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf);
       if (table != null) {
         return table;
       }
@@ -595,9 +588,35 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private RESTTable restTableForScanPlanning(
-      TableOperations ops, TableIdentifier finalIdentifier, RESTClient restClient) {
-    // server supports remote planning endpoint and server / client wants to do server side planning
-    if (endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN) && restScanPlanningEnabled) {
+      TableOperations ops,
+      TableIdentifier finalIdentifier,
+      RESTClient restClient,
+      Map<String, String> tableConf) {
+    // Get client-side and server-side scan planning modes
+    String planningModeClientConfig = properties().get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+    String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
+
+    // Validate that client and server configs don't conflict
+    // Only validate if BOTH are explicitly set (not null)
+    if (planningModeClientConfig != null && planningModeServerConfig != null) {
+      Preconditions.checkState(
+          planningModeClientConfig.equalsIgnoreCase(planningModeServerConfig),
+          "Scan planning mode mismatch for table %s: client config=%s, server config=%s",
+          finalIdentifier,
+          planningModeClientConfig,
+          planningModeServerConfig);
+    }
+
+    // Determine effective mode: prefer server config if present, otherwise use client config
+    String effectiveModeConfig =
+        planningModeServerConfig != null ? planningModeServerConfig : planningModeClientConfig;
+    RESTCatalogProperties.ScanPlanningMode effectiveMode =
+        effectiveModeConfig != null
+            ? RESTCatalogProperties.ScanPlanningMode.fromString(effectiveModeConfig)
+            : RESTCatalogProperties.ScanPlanningMode.CLIENT;
+
+    if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.SERVER
+        && endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN)) {
       return new RESTTable(
           ops,
           fullTableName(finalIdentifier),
@@ -610,6 +629,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           properties(),
           conf);
     }
+
+    // Default to client-side planning
     return null;
   }
 
@@ -683,7 +704,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
     if (restTable != null) {
       return restTable;
     }
@@ -952,7 +973,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient);
+      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
       if (restTable != null) {
         return restTable;
       }

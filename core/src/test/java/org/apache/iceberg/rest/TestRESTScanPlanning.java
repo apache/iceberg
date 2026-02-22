@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
@@ -64,6 +65,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -81,22 +84,19 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
               Class<T> responseType,
               Consumer<ErrorResponse> errorHandler,
               Consumer<Map<String, String>> responseHeaders) {
-            if (ResourcePaths.config().equals(request.path())) {
-              return castResponse(
-                  responseType,
-                  ConfigResponse.builder()
-                      .withEndpoints(
-                          Arrays.stream(Route.values())
-                              .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
-                              .collect(Collectors.toList()))
-                      .withOverrides(
-                          ImmutableMap.of(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true"))
-                      .build());
-            }
+            // roundTripSerialize before intercepting so we modify the deserialized response
             Object body = roundTripSerialize(request.body(), "request");
             HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
             T response = super.execute(req, responseType, errorHandler, responseHeaders);
-            return roundTripSerialize(response, "response");
+            response = roundTripSerialize(response, "response");
+
+            // Add scan planning mode to table config for LoadTableResponse
+            if (response instanceof LoadTableResponse) {
+              return castResponse(
+                  responseType, withServerPlanningMode((LoadTableResponse) response));
+            }
+
+            return response;
           }
         });
   }
@@ -106,7 +106,43 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     return "prod-with-scan-planning";
   }
 
+  @BeforeEach
+  public void setupCatalogWithScanPlanning() throws Exception {
+    // Reinitialize the catalog with scan planning mode set on client side
+    // This matches what the server returns in LoadTableResponse
+    restCatalog.close();
+    restCatalog =
+        new RESTCatalog(
+            SessionCatalog.SessionContext.createEmpty(),
+            (config) ->
+                HTTPClient.builder(config)
+                    .uri(config.get(CatalogProperties.URI))
+                    .withHeaders(RESTUtil.configHeaders(config))
+                    .build());
+    restCatalog.setConf(new org.apache.hadoop.conf.Configuration());
+    restCatalog.initialize(
+        catalogName(),
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.URI, httpServer.getURI().toString())
+            .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
+            .put(
+                RESTCatalogProperties.SCAN_PLANNING_MODE,
+                RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
+            .build());
+  }
+
   // ==================== Helper Methods ====================
+
+  private static LoadTableResponse withServerPlanningMode(LoadTableResponse response) {
+    return LoadTableResponse.builder()
+        .withTableMetadata(response.tableMetadata())
+        .addAllConfig(response.config())
+        .addConfig(
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
+        .addAllCredentials(response.credentials())
+        .build();
+  }
 
   @Override
   @SuppressWarnings("unchecked")
@@ -805,6 +841,71 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     }
   }
 
+  /**
+   * Helper method to create a catalog with custom scan planning mode configuration for testing
+   * client-server mode validation.
+   *
+   * @param clientMode The scan planning mode the client requests (null for default)
+   * @param serverMode The scan planning mode the server returns (null for not set)
+   * @return CatalogWithAdapter for testing
+   */
+  private CatalogWithAdapter catalogWithScanPlanningModes(String clientMode, String serverMode) {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  return castResponse(
+                      responseType,
+                      ConfigResponse.builder()
+                          .withEndpoints(
+                              Arrays.stream(Route.values())
+                                  .map(r -> Endpoint.create(r.method().name(), r.resourcePath()))
+                                  .collect(Collectors.toList()))
+                          .build());
+                }
+                Object body = roundTripSerialize(request.body(), "request");
+                HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
+                T response = super.execute(req, responseType, errorHandler, responseHeaders);
+                response = roundTripSerialize(response, "response");
+
+                // Add server's scan planning mode to LoadTableResponse if specified
+                if (response instanceof LoadTableResponse && serverMode != null) {
+                  LoadTableResponse loadResponse = (LoadTableResponse) response;
+                  return castResponse(
+                      responseType,
+                      LoadTableResponse.builder()
+                          .withTableMetadata(loadResponse.tableMetadata())
+                          .addAllConfig(loadResponse.config())
+                          .addConfig(RESTCatalogProperties.SCAN_PLANNING_MODE, serverMode)
+                          .addAllCredentials(loadResponse.credentials())
+                          .build());
+                }
+
+                return response;
+              }
+            });
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+
+    ImmutableMap.Builder<String, String> configBuilder =
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO");
+
+    if (clientMode != null) {
+      configBuilder.put(RESTCatalogProperties.SCAN_PLANNING_MODE, clientMode);
+    }
+
+    catalog.initialize("test-scan-planning-modes", configBuilder.build());
+    return new CatalogWithAdapter(catalog, adapter);
+  }
+
   // Helper: Create base catalog endpoints (namespace and table operations)
   private List<Endpoint> baseCatalogEndpoints() {
     return ImmutableList.of(
@@ -840,7 +941,15 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
                   return castResponse(
                       responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
                 }
-                return super.execute(request, responseType, errorHandler, responseHeaders);
+                T response = super.execute(request, responseType, errorHandler, responseHeaders);
+
+                // Add scan planning mode to table config for LoadTableResponse
+                if (response instanceof LoadTableResponse) {
+                  return castResponse(
+                      responseType, withServerPlanningMode((LoadTableResponse) response));
+                }
+
+                return response;
               }
             });
 
@@ -855,8 +964,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
-            "true"));
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
     return new CatalogWithAdapter(catalog, adapter);
   }
 
@@ -952,5 +1061,80 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
     // Verify no exception was thrown - cancelPlan returns false when endpoint not supported
     assertThat(cancelled).isFalse();
+  }
+
+  @Test
+  public void catalogAndTableConfigMismatch() {
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithScanPlanningModes(
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName());
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    assertThatThrownBy(
+            () ->
+                catalogWithAdapter
+                    .catalog
+                    .buildTable(TableIdentifier.of(NS, "mismatch_test"), SCHEMA)
+                    .create())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Scan planning mode mismatch")
+        .hasMessageContaining("client config=server")
+        .hasMessageContaining("server config=client");
+  }
+
+  @Test
+  public void clientExplicitlyRequestsClientSidePlanning() {
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithScanPlanningModes(
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(),
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName());
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    Table table =
+        catalogWithAdapter
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "client_explicit_test"), SCHEMA)
+            .create();
+
+    assertThat(table).isNotInstanceOf(RESTTable.class);
+    assertThat(table).isInstanceOf(BaseTable.class);
+  }
+
+  @Test
+  public void clientRequestsClientButServerReturnsCatalog() {
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithScanPlanningModes(
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(),
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName());
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    assertThatThrownBy(
+            () ->
+                catalogWithAdapter
+                    .catalog
+                    .buildTable(TableIdentifier.of(NS, "client_override_rejected_test"), SCHEMA)
+                    .create())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Scan planning mode mismatch")
+        .hasMessageContaining("client config=client")
+        .hasMessageContaining("server config=server");
+  }
+
+  @Test
+  public void clientRequestsClientAndServerReturnsNothing() {
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithScanPlanningModes(
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(), null);
+    catalogWithAdapter.catalog.createNamespace(NS);
+
+    Table table =
+        catalogWithAdapter
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "client_server_null_test"), SCHEMA)
+            .create();
+
+    assertThat(table).isNotInstanceOf(RESTTable.class);
+    assertThat(table).isInstanceOf(BaseTable.class);
   }
 }
