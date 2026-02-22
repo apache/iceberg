@@ -100,6 +100,21 @@ Spark 3.5 added support for `WHEN NOT MATCHED BY SOURCE ... THEN ...` to update 
 WHEN NOT MATCHED BY SOURCE THEN UPDATE SET status = 'invalid'
 ```
 
+#### Snapshot summary
+
+After a `MERGE INTO` commit, the [snapshot summary](../../spec.md#optional-snapshot-summary-fields) may include the following fields. Each value is the string form of a non-negative count. A field is omitted when the value is unknown (e.g., not reported by Spark).
+
+| Field                                                                 | Description                                                                 |
+|-----------------------------------------------------------------------|-----------------------------------------------------------------------------|
+| **`spark.merge-into.num-target-rows-copied`**                         | Number of target rows copied unmodified because they did not match any action |
+| **`spark.merge-into.num-target-rows-deleted`**                        | Number of target rows deleted                                               |
+| **`spark.merge-into.num-target-rows-updated`**                        | Number of target rows updated                                               |
+| **`spark.merge-into.num-target-rows-inserted`**                       | Number of target rows inserted                                              |
+| **`spark.merge-into.num-target-rows-matched-updated`**                | Number of target rows updated by a MATCHED clause                           |
+| **`spark.merge-into.num-target-rows-matched-deleted`**                | Number of target rows deleted by a MATCHED clause                           |
+| **`spark.merge-into.num-target-rows-not-matched-by-source-updated`**  | Number of target rows updated by a NOT MATCHED BY SOURCE clause             |
+| **`spark.merge-into.num-target-rows-not-matched-by-source-deleted`**  | Number of target rows deleted by a NOT MATCHED BY SOURCE clause             |
+
 ### `INSERT OVERWRITE`
 
 `INSERT OVERWRITE` can replace data in the table with the result of a query. Overwrites are atomic operations for Iceberg tables.
