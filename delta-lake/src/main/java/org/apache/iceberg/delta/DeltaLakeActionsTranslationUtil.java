@@ -20,50 +20,49 @@ package org.apache.iceberg.delta;
 
 import io.delta.kernel.data.Row;
 import io.delta.kernel.internal.actions.AddFile;
-import io.delta.kernel.internal.actions.CommitInfo;
 
 /**
- * Util class helps to handle json operations for <a href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md#Actions">delta action</a>
- *
+ * Util class helps to handle json operations for <a
+ * href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md#Actions">delta action</a>
  */
 public class DeltaLakeActionsTranslationUtil {
-    public static boolean isAdd(Row row) {
-        return !row.isNullAt(getOrdinal(row, "add"));
-    }
+  public static boolean isAdd(Row row) {
+    return !row.isNullAt(getOrdinal(row, "add"));
+  }
 
-    public static AddFile toAdd(Row row) {
-        return new AddFile(row.getStruct(row.getSchema().indexOf("add")));
-    }
+  public static AddFile toAdd(Row row) {
+    return new AddFile(row.getStruct(row.getSchema().indexOf("add")));
+  }
 
-    public static boolean isRemove(Row row) {
-        return !row.isNullAt(getOrdinal(row, "remove"));
-    }
+  public static boolean isRemove(Row row) {
+    return !row.isNullAt(getOrdinal(row, "remove"));
+  }
 
-    public static boolean isMetaData(Row row) {
-        return !row.isNullAt(getOrdinal(row, "metaData"));
-    }
+  public static boolean isMetaData(Row row) {
+    return !row.isNullAt(getOrdinal(row, "metaData"));
+  }
 
-    public static boolean isTxn(Row row) {
-        return !row.isNullAt(getOrdinal(row, "txn"));
-    }
+  public static boolean isTxn(Row row) {
+    return !row.isNullAt(getOrdinal(row, "txn"));
+  }
 
-    public static boolean isProtocol(Row row) {
-        return !row.isNullAt(getOrdinal(row, "protocol"));
-    }
+  public static boolean isProtocol(Row row) {
+    return !row.isNullAt(getOrdinal(row, "protocol"));
+  }
 
-    public static boolean isCdc(Row row) {
-        return !row.isNullAt(getOrdinal(row, "cdc"));
-    }
+  public static boolean isCdc(Row row) {
+    return !row.isNullAt(getOrdinal(row, "cdc"));
+  }
 
-    public static boolean isCommitInfo(Row row) {
-        return !row.isNullAt(getOrdinal(row, "commitInfo"));
-    }
+  public static boolean isCommitInfo(Row row) {
+    return !row.isNullAt(getOrdinal(row, "commitInfo"));
+  }
 
-//    public static CommitInfo toCommitInfo(Row row) {
-//        return CommitInfo.fromColumnVector();
-//    }
+  //    public static CommitInfo toCommitInfo(Row row) {
+  //        return CommitInfo.fromColumnVector();
+  //    }
 
-    private static int getOrdinal(Row row, String filedName) {
-        return row.getSchema().indexOf(filedName);
-    }
+  private static int getOrdinal(Row row, String filedName) {
+    return row.getSchema().indexOf(filedName);
+  }
 }
