@@ -167,6 +167,10 @@ public final class HiveSchemaUtil {
       case FIXED:
       case BINARY:
         return "binary";
+      case VARIANT:
+        // This is a placeholder for HMS display only. Iceberg will read schema from metadata.json
+        // See https://github.com/apache/iceberg/issues/15220 for more info.
+        return "binary";
       case DECIMAL:
         final Types.DecimalType decimalType = (Types.DecimalType) type;
         return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());

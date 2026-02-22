@@ -205,6 +205,20 @@ public class TestHiveSchemaUtil {
     assertThat(schema.asStruct()).isEqualTo(expected.asStruct());
   }
 
+  @Test
+  public void testVariantTypeConvertToHiveBinary() {
+    // Variant type should convert to Hive binary type.
+    Schema variantSchema =
+        new Schema(optional(0, "variant_col", Types.VariantType.get(), "variant column comment"));
+
+    List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(variantSchema);
+
+    assertThat(hiveSchema).hasSize(1);
+    assertThat(hiveSchema.get(0).getName()).isEqualTo("variant_col");
+    assertThat(hiveSchema.get(0).getType()).isEqualTo(serdeConstants.BINARY_TYPE_NAME);
+    assertThat(hiveSchema.get(0).getComment()).isEqualTo("variant column comment");
+  }
+
   protected List<FieldSchema> getSupportedFieldSchemas() {
     List<FieldSchema> fields = Lists.newArrayListWithCapacity(10);
     fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, "float comment"));
