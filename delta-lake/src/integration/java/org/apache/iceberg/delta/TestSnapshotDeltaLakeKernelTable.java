@@ -87,6 +87,9 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
 
     Dataset<Row> df = spark.range(0, 5, 1, 5).withColumn("dateCol", date_add(current_date(), 1));
     writeDeltaTable(df, sourceTable, sourceTableLocation, "id");
+    spark.sql("INSERT INTO " + sourceTable + " VALUES (10, current_date());");
+    spark.sql("INSERT INTO " + sourceTable + " VALUES (11, current_date());");
+    spark.sql("INSERT INTO " + sourceTable + " VALUES (12, current_date());");
 
     String newTableIdentifier = toFullTableName(ICEBERG_CATALOG_NAME, "iceberg_partitioned_table");
 

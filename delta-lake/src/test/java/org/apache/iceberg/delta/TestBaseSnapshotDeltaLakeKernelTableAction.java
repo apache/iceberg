@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.delta;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -46,9 +49,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TestBaseSnapshotDeltaLakeKernelTableAction {
   private static final String DELTA_GOLDEN_TABLES_ROOT = "delta/golden/";
