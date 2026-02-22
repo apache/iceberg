@@ -30,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.ContextAwareTableCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -45,7 +46,12 @@ import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
 public class RESTCatalog
-    implements Catalog, ViewCatalog, SupportsNamespaces, Configurable<Object>, Closeable {
+    implements Catalog,
+        ViewCatalog,
+        ContextAwareTableCatalog,
+        SupportsNamespaces,
+        Configurable<Object>,
+        Closeable {
   private final RESTSessionCatalog sessionCatalog;
   private final Catalog delegate;
   private final SupportsNamespaces nsDelegate;
@@ -122,6 +128,11 @@ public class RESTCatalog
   @Override
   public Table loadTable(TableIdentifier ident) {
     return delegate.loadTable(ident);
+  }
+
+  @Override
+  public Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext) {
+    return sessionCatalog.loadTable(context, identifier, loadingContext);
   }
 
   @Override
@@ -303,6 +314,11 @@ public class RESTCatalog
   @Override
   public View loadView(TableIdentifier identifier) {
     return viewSessionCatalog.loadView(identifier);
+  }
+
+  @Override
+  public View loadView(TableIdentifier identifier, Map<String, Object> viewContext) {
+    return sessionCatalog.loadView(context, identifier, viewContext);
   }
 
   @Override

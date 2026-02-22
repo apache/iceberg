@@ -42,6 +42,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.ContextAwareTableCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -438,5 +439,123 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
   @Override
   protected boolean supportsServerSideRetry() {
     return true;
+  }
+
+  @Test
+  public void testLoadViewWithReferencedByQueryParam() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    Namespace ns = Namespace.of("ns");
+    catalog.createNamespace(ns);
+
+    TableIdentifier viewIdent = TableIdentifier.of(ns, "test_view");
+    catalog
+        .buildView(viewIdent)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(ns)
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    Mockito.clearInvocations(adapter);
+
+    // load the view with a referenced-by context
+    List<TableIdentifier> viewChain = ImmutableList.of(TableIdentifier.of(ns, "outer_view"));
+    Map<String, Object> viewContext =
+        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, viewChain);
+
+    catalog.loadView(viewIdent, viewContext);
+
+    // The test adapter uses %2E as the namespace separator
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                "v1/namespaces/ns/views/test_view",
+                Map.of(),
+                ImmutableMap.of(
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns%2Eouter_view")),
+            eq(LoadViewResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testLoadViewWithoutContextHasNoReferencedByParam() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    Namespace ns = Namespace.of("ns");
+    catalog.createNamespace(ns);
+
+    TableIdentifier viewIdent = TableIdentifier.of(ns, "test_view");
+    catalog
+        .buildView(viewIdent)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(ns)
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    Mockito.clearInvocations(adapter);
+
+    // load the view without any context
+    catalog.loadView(viewIdent);
+
+    // verify the GET request has no query parameters
+    Mockito.verify(adapter)
+        .execute(
+            matches(HTTPMethod.GET, "v1/namespaces/ns/views/test_view", Map.of(), Map.of()),
+            eq(LoadViewResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testLoadViewWithNestedViewChainReferencedBy() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    Namespace ns = Namespace.of("ns");
+    catalog.createNamespace(ns);
+
+    TableIdentifier viewIdent = TableIdentifier.of(ns, "test_view");
+    catalog
+        .buildView(viewIdent)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(ns)
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    Mockito.clearInvocations(adapter);
+
+    // load the view with a nested view chain
+    List<TableIdentifier> viewChain =
+        ImmutableList.of(
+            TableIdentifier.of(ns, "outer_view"), TableIdentifier.of(ns, "inner_view"));
+    Map<String, Object> viewContext =
+        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, viewChain);
+
+    catalog.loadView(viewIdent, viewContext);
+
+    // verify the GET request includes comma-separated referenced-by chain
+    // The test adapter uses %2E as the namespace separator
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                "v1/namespaces/ns/views/test_view",
+                Map.of(),
+                ImmutableMap.of(
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+                    "ns%2Eouter_view,ns%2Einner_view")),
+            eq(LoadViewResponse.class),
+            any(),
+            any());
   }
 }

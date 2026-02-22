@@ -48,6 +48,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.ContextAwareTableCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -170,7 +171,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
-  private String namespaceSeparator = null;
+  private String namespaceSeparator = RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
 
   private RESTTableCache tableCache;
 
@@ -436,21 +437,103 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SnapshotMode mode,
       Map<String, String> headers,
       Consumer<Map<String, String>> responseHeaders) {
+    return loadInternal(context, identifier, mode, Map.of(), headers, responseHeaders);
+  }
+
+  private LoadTableResponse loadInternal(
+      SessionContext context,
+      TableIdentifier identifier,
+      SnapshotMode mode,
+      Map<String, Object> viewContext,
+      Map<String, String> headers,
+      Consumer<Map<String, String>> responseHeaders) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     return client
         .withAuthSession(contextualSession)
         .get(
             paths.table(identifier),
-            snapshotModeToParam(mode),
+            paramsForLoadTable(mode, viewContext),
             LoadTableResponse.class,
             headers,
             ErrorHandlers.tableErrorHandler(),
             responseHeaders);
   }
 
+  // Visible for testing
+  Map<String, String> paramsForLoadTable(SnapshotMode mode, Map<String, Object> viewContext) {
+    return referencedByToQueryParam(snapshotModeToParam(mode), viewContext);
+  }
+
+  // Visible for testing
+  Map<String, String> referencedByToQueryParam(
+      Map<String, String> params, Map<String, Object> context) {
+    if (context.isEmpty() || !context.containsKey(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY)) {
+      return params;
+    }
+
+    Map<String, String> queryParams = Maps.newHashMap(params);
+    Object viewIdentifierObj = context.get(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY);
+
+    Preconditions.checkArgument(
+        viewIdentifierObj instanceof List,
+        "Invalid view identifier in context, expected List<TableIdentifier>: %s",
+        viewIdentifierObj);
+
+    List<?> rawList = (List<?>) viewIdentifierObj;
+    for (Object element : rawList) {
+      Preconditions.checkArgument(
+          element instanceof TableIdentifier,
+          "Invalid element in view identifier list, expected TableIdentifier: %s",
+          element);
+    }
+
+    @SuppressWarnings("unchecked")
+    List<TableIdentifier> viewChain = (List<TableIdentifier>) rawList;
+    if (viewChain.isEmpty()) {
+      return params;
+    }
+
+    String referencedBy =
+        viewChain.stream()
+            .map(
+                ident ->
+                    RESTUtil.encodeNamespace(ident.namespace(), namespaceSeparator)
+                        + namespaceSeparator
+                        + RESTUtil.encodeString(ident.name()))
+            .collect(Collectors.joining(","));
+
+    queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
+
+    return queryParams;
+  }
+
+  /**
+   * Injects the pre-encoded referenced-by value into config properties so that credential providers
+   * can extract it and pass it as a query parameter to the loadCredentials endpoint.
+   */
+  private Map<String, String> injectReferencedBy(
+      Map<String, String> config, Map<String, Object> viewContext) {
+    Map<String, String> referencedByParam = referencedByToQueryParam(Map.of(), viewContext);
+    if (!referencedByParam.containsKey(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER)) {
+      return config;
+    }
+
+    Map<String, String> merged = Maps.newHashMap(config);
+    merged.put(
+        RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+        referencedByParam.get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER));
+    return merged;
+  }
+
   @Override
   public Table loadTable(SessionContext context, TableIdentifier identifier) {
+    return loadTable(context, identifier, Map.of());
+  }
+
+  @Override
+  public Table loadTable(
+      SessionContext context, TableIdentifier identifier, Map<String, Object> viewContext) {
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_TABLE,
@@ -474,6 +557,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               context,
               identifier,
               snapshotMode,
+              viewContext,
               headersForLoadTable(cachedTable),
               responseHeaders::putAll);
 
@@ -500,6 +584,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   context,
                   baseIdent,
                   snapshotMode,
+                  viewContext,
                   headersForLoadTable(cachedTable),
                   responseHeaders::putAll);
 
@@ -524,7 +609,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     TableIdentifier finalIdentifier = loadedIdent;
-    Map<String, String> tableConf = response.config();
+    Map<String, String> tableConf = injectReferencedBy(response.config(), viewContext);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     AuthSession tableSession =
         authManager.tableSession(finalIdentifier, tableConf, contextualSession);
@@ -537,7 +622,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .setPreviousFileLocation(null)
               .setSnapshotsSupplier(
                   () ->
-                      loadInternal(context, finalIdentifier, SnapshotMode.ALL, Map.of(), h -> {})
+                      loadInternal(
+                              context,
+                              finalIdentifier,
+                              SnapshotMode.ALL,
+                              viewContext,
+                              Map.of(),
+                              h -> {})
                           .tableMetadata()
                           .snapshots())
               .discardChanges()
@@ -1389,6 +1480,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public View loadView(SessionContext context, TableIdentifier identifier) {
+    return loadView(context, identifier, Map.of());
+  }
+
+  @Override
+  public View loadView(
+      SessionContext context, TableIdentifier identifier, Map<String, Object> viewContext) {
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_VIEW,
@@ -1405,11 +1502,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             .withAuthSession(contextualSession)
             .get(
                 paths.view(identifier),
+                referencedByToQueryParam(Map.of(), viewContext),
                 LoadViewResponse.class,
                 Map.of(),
                 ErrorHandlers.viewErrorHandler());
 
-    Map<String, String> tableConf = response.config();
+    Map<String, String> tableConf = injectReferencedBy(response.config(), viewContext);
     AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
     ViewMetadata metadata = response.metadata();
 

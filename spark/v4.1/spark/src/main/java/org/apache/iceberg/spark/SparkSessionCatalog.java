@@ -63,7 +63,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
-    extends BaseCatalog implements CatalogExtension {
+    extends BaseCatalog implements CatalogExtension, ContextAwareTableCatalog {
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
@@ -143,8 +143,18 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
+    return loadTable(ident, Map.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, Map<String, Object> context)
+      throws NoSuchTableException {
     try {
-      return icebergCatalog.loadTable(ident);
+      if (icebergCatalog instanceof ContextAwareTableCatalog && !context.isEmpty()) {
+        return ((ContextAwareTableCatalog) icebergCatalog).loadTable(ident, context);
+      } else {
+        return icebergCatalog.loadTable(ident);
+      }
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident);
     }
@@ -152,8 +162,19 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    return loadTable(ident, version, Map.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, Map<String, Object> loadingContext)
+      throws NoSuchTableException {
     try {
-      return icebergCatalog.loadTable(ident, version);
+      if (icebergCatalog instanceof ContextAwareTableCatalog && !loadingContext.isEmpty()) {
+        return ((ContextAwareTableCatalog) icebergCatalog)
+            .loadTable(ident, version, loadingContext);
+      } else {
+        return icebergCatalog.loadTable(ident, version);
+      }
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, version);
     }
@@ -161,8 +182,19 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    return loadTable(ident, timestamp, Map.of());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestamp, Map<String, Object> loadingContext)
+      throws NoSuchTableException {
     try {
-      return icebergCatalog.loadTable(ident, timestamp);
+      if (icebergCatalog instanceof ContextAwareTableCatalog && !loadingContext.isEmpty()) {
+        return ((ContextAwareTableCatalog) icebergCatalog)
+            .loadTable(ident, timestamp, loadingContext);
+      } else {
+        return icebergCatalog.loadTable(ident, timestamp);
+      }
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, timestamp);
     }
@@ -447,7 +479,17 @@ public class SparkSessionCatalog<
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
+    return loadView(ident, Map.of());
+  }
+
+  @Override
+  public View loadView(Identifier ident, Map<String, Object> context) throws NoSuchViewException {
     if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      if (context != null
+          && !context.isEmpty()
+          && asViewCatalog instanceof ContextAwareTableCatalog) {
+        return ((ContextAwareTableCatalog) asViewCatalog).loadView(ident, context);
+      }
       return asViewCatalog.loadView(ident);
     } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
       return getSessionCatalog().loadView(ident);

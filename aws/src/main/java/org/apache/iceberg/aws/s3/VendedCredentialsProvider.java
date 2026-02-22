@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTCatalogProperties;
@@ -111,10 +112,22 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     return httpClient()
         .get(
             credentialsEndpoint,
-            null != planId ? Map.of("planId", planId) : null,
+            credentialsQueryParams(),
             LoadCredentialsResponse.class,
             Map.of(),
             ErrorHandlers.defaultErrorHandler());
+  }
+
+  private Map<String, String> credentialsQueryParams() {
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (null != planId) {
+      queryParams.put("planId", planId);
+    }
+    String referencedBy = properties.get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
+    if (referencedBy != null) {
+      queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
+    }
+    return queryParams.isEmpty() ? null : queryParams;
   }
 
   private Optional<RefreshResult<AwsCredentials>> credentialFromProperties() {

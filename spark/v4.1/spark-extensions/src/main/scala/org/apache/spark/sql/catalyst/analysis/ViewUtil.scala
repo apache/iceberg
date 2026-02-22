@@ -18,6 +18,7 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.ContextAwareTableCatalog
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.View
@@ -26,6 +27,25 @@ import org.apache.spark.sql.errors.QueryCompilationErrors
 
 object ViewUtil {
   def loadView(catalog: CatalogPlugin, ident: Identifier): Option[View] = catalog match {
+    case viewCatalog: ViewCatalog =>
+      try {
+        Option(viewCatalog.loadView(ident))
+      } catch {
+        case _: NoSuchViewException => None
+      }
+    case _ => None
+  }
+
+  def loadView(
+      catalog: CatalogPlugin,
+      ident: Identifier,
+      context: java.util.Map[String, Object]): Option[View] = catalog match {
+    case contextAware: ContextAwareTableCatalog =>
+      try {
+        Option(contextAware.loadView(ident, context))
+      } catch {
+        case _: NoSuchViewException => None
+      }
     case viewCatalog: ViewCatalog =>
       try {
         Option(viewCatalog.loadView(ident))
