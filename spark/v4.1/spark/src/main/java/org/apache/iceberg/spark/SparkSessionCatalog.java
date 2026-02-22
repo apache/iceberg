@@ -479,7 +479,17 @@ public class SparkSessionCatalog<
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
+    return loadView(ident, Map.of());
+  }
+
+  @Override
+  public View loadView(Identifier ident, Map<String, Object> context) throws NoSuchViewException {
     if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      if (context != null
+          && !context.isEmpty()
+          && asViewCatalog instanceof ContextAwareTableCatalog) {
+        return ((ContextAwareTableCatalog) asViewCatalog).loadView(ident, context);
+      }
       return asViewCatalog.loadView(ident);
     } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
       return getSessionCatalog().loadView(ident);

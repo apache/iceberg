@@ -593,9 +593,17 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
+    return loadView(ident, Map.of());
+  }
+
+  @Override
+  public View loadView(Identifier ident, Map<String, Object> context) throws NoSuchViewException {
     if (null != asViewCatalog) {
       try {
-        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
+        org.apache.iceberg.view.View view =
+            (context != null && !context.isEmpty())
+                ? asViewCatalog.loadView(buildIdentifier(ident), context)
+                : asViewCatalog.loadView(buildIdentifier(ident));
         return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);

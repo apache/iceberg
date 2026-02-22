@@ -316,6 +316,7 @@ public class RESTCatalog
     return viewSessionCatalog.loadView(identifier);
   }
 
+  @Override
   public View loadView(TableIdentifier identifier, Map<String, Object> viewContext) {
     return sessionCatalog.loadView(context, identifier, viewContext);
   }
