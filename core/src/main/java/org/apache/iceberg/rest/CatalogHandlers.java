@@ -53,6 +53,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.MetadataUpdate.UpgradeFormatVersion;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RetryableValidationException;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -634,7 +635,16 @@ public class CatalogHandlers {
 
                 // apply changes
                 TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(base);
-                request.updates().forEach(update -> update.applyTo(metadataBuilder));
+                try {
+                  request.updates().forEach(update -> update.applyTo(metadataBuilder));
+                } catch (RetryableValidationException e) {
+                  // Sequence number conflicts from concurrent commits are retryable by the client,
+                  // but server-side retry won't help since the sequence number is in the request.
+                  // Wrap in ValidationFailureException to skip server retry, return to client as
+                  // CommitFailedException so the client can retry with refreshed metadata.
+                  throw new ValidationFailureException(
+                      new CommitFailedException(e, "Commit conflict: %s", e.getMessage()));
+                }
 
                 TableMetadata updated = metadataBuilder.build();
                 if (updated.changes().isEmpty()) {
