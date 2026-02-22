@@ -433,10 +433,14 @@ If for any reason you have to use S3A, here are the instructions:
 3. Add [hadoop-aws](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws) as a runtime dependency of your compute engine.
 4. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html) (make sure you check the version, S3A configuration varies a lot based on the version you use).  
 
-### S3 Write Checksum Verification
+### S3 Checksum Verification
 
 To ensure integrity of uploaded objects, checksum validations for S3 writes can be turned on by setting catalog property `s3.checksum-enabled` to `true`.
 This is turned off by default.
+
+This property controls both the Iceberg-level MD5 checksum validation for uploads and the AWS SDK's checksum calculation and validation policies.
+When set to `false` (default), the SDK's `requestChecksumCalculation` and `responseChecksumValidation` are set to `WHEN_REQUIRED`, avoiding unexpected checksum overhead.
+When set to `true`, these policies are set to `WHEN_SUPPORTED`, enabling checksums whenever the S3 service supports them.
 
 ### S3 Tags
 
