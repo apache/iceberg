@@ -59,7 +59,6 @@ class RESTTableOperations implements TableOperations {
   private final Supplier<Map<String, String>> mutationHeaders;
   private final FileIO io;
   private final List<MetadataUpdate> createChanges;
-  private final TableMetadata replaceBase;
   private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
@@ -132,7 +131,6 @@ class RESTTableOperations implements TableOperations {
     this.io = io;
     this.updateType = updateType;
     this.createChanges = createChanges;
-    this.replaceBase = current;
     if (updateType == UpdateType.CREATE) {
       this.current = null;
     } else {
@@ -179,8 +177,7 @@ class RESTTableOperations implements TableOperations {
                 .addAll(createChanges)
                 .addAll(metadata.changes())
                 .build();
-        // use the original replace base metadata because the transaction will refresh
-        requirements = UpdateRequirements.forReplaceTable(replaceBase, updates);
+        requirements = UpdateRequirements.forReplaceTable(base, updates);
         errorHandler = ErrorHandlers.tableCommitHandler();
         break;
 

@@ -47,6 +47,7 @@ import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -80,6 +81,12 @@ public class BaseTransaction implements Transaction {
   private boolean hasLastOpCommitted;
   private final MetricsReporter reporter;
 
+  private Schema replaceSchema;
+  private PartitionSpec replaceSpec;
+  private SortOrder replaceSortOrder;
+  private String replaceLocation;
+  private Map<String, String> replaceProperties;
+
   BaseTransaction(
       String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
     this(tableName, ops, type, start, LoggingMetricsReporter.instance());
@@ -101,6 +108,17 @@ public class BaseTransaction implements Transaction {
     this.type = type;
     this.hasLastOpCommitted = true;
     this.reporter = reporter;
+
+    // For replace-style transactions, the provided TableMetadata contains the information needed to
+    // build the replaced table state. This is stored so the replacement can be re-applied on top of
+    // refreshed metadata on commit.
+    if (type == TransactionType.REPLACE_TABLE || type == TransactionType.CREATE_OR_REPLACE_TABLE) {
+      this.replaceSchema = start.schema();
+      this.replaceSpec = start.spec();
+      this.replaceSortOrder = start.sortOrder();
+      this.replaceLocation = start.location();
+      this.replaceProperties = ImmutableMap.copyOf(start.properties());
+    }
   }
 
   @Override
@@ -260,12 +278,8 @@ public class BaseTransaction implements Transaction {
         commitCreateTransaction();
         break;
 
-      case REPLACE_TABLE:
-        commitReplaceTransaction(false);
-        break;
-
-      case CREATE_OR_REPLACE_TABLE:
-        commitReplaceTransaction(true);
+      case REPLACE_TABLE, CREATE_OR_REPLACE_TABLE:
+        commitReplaceTransaction();
         break;
 
       case SIMPLE:
@@ -298,9 +312,13 @@ public class BaseTransaction implements Transaction {
     }
   }
 
-  private void commitReplaceTransaction(boolean orCreate) {
+  private void commitReplaceTransaction() {
     Map<String, String> props = base != null ? base.properties() : current.properties();
 
+    Set<Long> startingSnapshots =
+        base != null
+            ? base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet())
+            : ImmutableSet.of();
     try {
       Tasks.foreach(ops)
           .retry(PropertyUtil.propertyAsInt(props, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -315,19 +333,7 @@ public class BaseTransaction implements Transaction {
           .onlyRetryOn(CommitFailedException.class)
           .run(
               underlyingOps -> {
-                try {
-                  underlyingOps.refresh();
-                } catch (NoSuchTableException e) {
-                  if (!orCreate) {
-                    throw e;
-                  }
-                }
-
-                // because this is a replace table, it will always completely replace the table
-                // metadata. even if it was just updated.
-                if (base != underlyingOps.current()) {
-                  this.base = underlyingOps.current(); // just refreshed
-                }
+                applyUpdates(underlyingOps);
 
                 underlyingOps.commit(base, current);
               });
@@ -335,20 +341,19 @@ public class BaseTransaction implements Transaction {
     } catch (CommitStateUnknownException e) {
       throw e;
 
+    } catch (PendingUpdateFailedException e) {
+      cleanUpOnCommitFailure();
+      throw e.wrapped();
+
     } catch (RuntimeException e) {
-      // the commit failed and no files were committed. clean up each update.
       if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
-        cleanAllUpdates();
+        cleanUpOnCommitFailure();
       }
 
       throw e;
-
-    } finally {
-      // replace table never needs to retry because the table state is completely replaced. because
-      // retries are not
-      // a concern, it is safe to delete all the deleted files from individual operations
-      deleteUncommittedFiles(deletedFiles);
     }
+
+    cleanUpAfterCommitSuccess(startingSnapshots);
   }
 
   private void commitSimpleTransaction() {
@@ -381,6 +386,7 @@ public class BaseTransaction implements Transaction {
     } catch (PendingUpdateFailedException e) {
       cleanUpOnCommitFailure();
       throw e.wrapped();
+
     } catch (RuntimeException e) {
       if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
         cleanUpOnCommitFailure();
@@ -389,8 +395,18 @@ public class BaseTransaction implements Transaction {
       throw e;
     }
 
-    // the commit succeeded
+    cleanUpAfterCommitSuccess(startingSnapshots);
+  }
 
+  private void cleanUpOnCommitFailure() {
+    // the commit failed and no files were committed. clean up each update.
+    cleanAllUpdates();
+
+    // delete all the uncommitted files
+    deleteUncommittedFiles(deletedFiles);
+  }
+
+  private void cleanUpAfterCommitSuccess(Set<Long> startingSnapshots) {
     try {
       // clean up the data files that were deleted by each operation. first, get the list of
       // committed manifests to ensure that no committed manifest is deleted.
@@ -418,14 +434,6 @@ public class BaseTransaction implements Transaction {
     } catch (RuntimeException e) {
       LOG.warn("Failed to load committed metadata, skipping clean-up", e);
     }
-  }
-
-  private void cleanUpOnCommitFailure() {
-    // the commit failed and no files were committed. clean up each update.
-    cleanAllUpdates();
-
-    // delete all the uncommitted files
-    deleteUncommittedFiles(deletedFiles);
   }
 
   private void cleanAllUpdates() {
@@ -459,10 +467,40 @@ public class BaseTransaction implements Transaction {
   }
 
   private void applyUpdates(TableOperations underlyingOps) {
-    if (base != underlyingOps.refresh()) {
-      // use refreshed the metadata
+    try {
+      underlyingOps.refresh();
+    } catch (NoSuchTableException e) {
+      if (type == TransactionType.CREATE_OR_REPLACE_TABLE) {
+        return;
+      }
+      throw e;
+    }
+
+    if (base != underlyingOps.current()) {
+      // use the refreshed metadata
       this.base = underlyingOps.current();
-      this.current = underlyingOps.current();
+
+      this.current =
+          switch (type) {
+            case REPLACE_TABLE, CREATE_OR_REPLACE_TABLE ->
+                // Even if we are dealing with a replace-style transaction, we need to re-apply
+                // updates on top of the refreshed metadata's replacement, because of (1) possible
+                // row lineage requirements, and (2) to not overwrite the metadata with an outdated
+                // replacement that may cause history loss or table corruption.
+                underlyingOps
+                    .current()
+                    .buildReplacement(
+                        replaceSchema,
+                        replaceSpec,
+                        replaceSortOrder,
+                        replaceLocation,
+                        replaceProperties);
+            case SIMPLE -> underlyingOps.current();
+            case CREATE_TABLE ->
+                throw new IllegalStateException(
+                    "Transaction update application not expected for create transactions");
+          };
+
       for (PendingUpdate update : updates) {
         // re-commit each update in the chain to apply it and update current
         try {
