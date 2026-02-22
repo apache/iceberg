@@ -25,6 +25,8 @@ import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -90,28 +92,12 @@ public class SparkReadConf {
         .parse();
   }
 
-  public Long snapshotId() {
-    return confParser.longConf().option(SparkReadOptions.SNAPSHOT_ID).parseOptional();
-  }
-
-  public Long asOfTimestamp() {
-    return confParser.longConf().option(SparkReadOptions.AS_OF_TIMESTAMP).parseOptional();
-  }
-
   public Long startSnapshotId() {
     return confParser.longConf().option(SparkReadOptions.START_SNAPSHOT_ID).parseOptional();
   }
 
   public Long endSnapshotId() {
     return confParser.longConf().option(SparkReadOptions.END_SNAPSHOT_ID).parseOptional();
-  }
-
-  public String branch() {
-    return SparkTableUtil.determineReadBranch(spark, table, branch, options);
-  }
-
-  public String tag() {
-    return confParser.stringConf().option(SparkReadOptions.TAG).parseOptional();
   }
 
   public boolean streamingSkipDeleteSnapshots() {
@@ -355,5 +341,28 @@ public class SparkReadConf {
         .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
         .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
+  }
+
+  public Pair<Long, Long> incrementalAppendScanBoundaries() {
+    Long startSnapshotId = startSnapshotId();
+    Long endSnapshotId = endSnapshotId();
+    Long startTimestamp = startTimestamp();
+    Long endTimestamp = endTimestamp();
+
+    Preconditions.checkArgument(
+        startTimestamp == null && endTimestamp == null,
+        "Only changelog scans support `%s` and `%s`. Use `%s` and `%s` for incremental scans.",
+        SparkReadOptions.START_TIMESTAMP,
+        SparkReadOptions.END_TIMESTAMP,
+        SparkReadOptions.START_SNAPSHOT_ID,
+        SparkReadOptions.END_SNAPSHOT_ID);
+
+    Preconditions.checkArgument(
+        startSnapshotId != null,
+        "Cannot set only `%s` for incremental scans. Please, set `%s` too.",
+        SparkReadOptions.END_SNAPSHOT_ID,
+        SparkReadOptions.START_SNAPSHOT_ID);
+
+    return Pair.of(startSnapshotId, endSnapshotId);
   }
 }

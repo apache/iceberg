@@ -105,13 +105,13 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final String branch;
   private final Command command;
   private final SparkBatchQueryScan scan;
   private final IsolationLevel isolationLevel;
   private final String applicationId;
   private final boolean wapEnabled;
   private final String wapId;
-  private final String branch;
   private final Map<String, String> extraSnapshotMetadata;
   private final SparkWriteRequirements writeRequirements;
   private final Context context;
@@ -122,6 +122,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
   SparkPositionDeltaWrite(
       SparkSession spark,
       Table table,
+      String branch,
       Command command,
       SparkBatchQueryScan scan,
       IsolationLevel isolationLevel,
@@ -130,13 +131,13 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
       Schema dataSchema) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.branch = branch;
     this.command = command;
     this.scan = scan;
     this.isolationLevel = isolationLevel;
     this.applicationId = spark.sparkContext().applicationId();
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
-    this.branch = writeConf.branch();
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
     this.context = new Context(dataSchema, writeConf, info, writeRequirements);

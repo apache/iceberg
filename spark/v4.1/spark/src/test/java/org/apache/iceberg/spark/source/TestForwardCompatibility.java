@@ -59,6 +59,7 @@ import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import scala.Option;
@@ -166,6 +167,7 @@ public class TestForwardCompatibility {
         .hasMessageContaining("Cannot write using unsupported transforms: zero");
   }
 
+  @Disabled("This test is temporarily disabled as Spark 4.1.0 eagerly requests metadata columns")
   @Test
   public void testSparkCanReadUnknownTransform() throws IOException {
     File parent = temp.resolve("avro").toFile();

@@ -26,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.InetAddress;
 import java.nio.file.Path;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -43,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -56,6 +59,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotSelection {
+
+  private static final SimpleDateFormat TIMESTAMP_FORMAT =
+      new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 
   @Parameters(name = "properties = {0}")
   public static Object[] parameters() {
@@ -140,7 +146,11 @@ public class TestSnapshotSelection {
     Snapshot currentSnapshot = table.currentSnapshot();
     Long parentSnapshotId = currentSnapshot.parentId();
     Dataset<Row> previousSnapshotResult =
-        spark.read().format("iceberg").option("snapshot-id", parentSnapshotId).load(tableLocation);
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VERSION_AS_OF, parentSnapshotId)
+            .load(tableLocation);
     List<SimpleRecord> previousSnapshotRecords =
         previousSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(previousSnapshotRecords)
@@ -165,6 +175,7 @@ public class TestSnapshotSelection {
 
     // remember the time when the first snapshot was valid
     long firstSnapshotTimestamp = System.currentTimeMillis();
+    String formattedTimestamp = TIMESTAMP_FORMAT.format(new Date(firstSnapshotTimestamp));
 
     // produce the second snapshot
     List<SimpleRecord> secondBatchRecords =
@@ -191,7 +202,7 @@ public class TestSnapshotSelection {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.AS_OF_TIMESTAMP, firstSnapshotTimestamp)
+            .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTimestamp)
             .load(tableLocation);
     List<SimpleRecord> previousSnapshotRecords =
         previousSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -208,9 +219,13 @@ public class TestSnapshotSelection {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     tables.create(SCHEMA, spec, properties, tableLocation);
 
-    Dataset<Row> df = spark.read().format("iceberg").option("snapshot-id", -10).load(tableLocation);
-
-    assertThatThrownBy(df::collectAsList)
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.VERSION_AS_OF, -10)
+                    .load(tableLocation))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find snapshot with ID -10");
   }
@@ -218,6 +233,7 @@ public class TestSnapshotSelection {
   @TestTemplate
   public void testSnapshotSelectionByInvalidTimestamp() {
     long timestamp = System.currentTimeMillis();
+    String formattedTimestamp = TIMESTAMP_FORMAT.format(new Date(timestamp));
 
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
     HadoopTables tables = new HadoopTables(CONF);
@@ -229,7 +245,7 @@ public class TestSnapshotSelection {
                 spark
                     .read()
                     .format("iceberg")
-                    .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                    .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTimestamp)
                     .load(tableLocation))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot find a snapshot older than");
@@ -250,6 +266,7 @@ public class TestSnapshotSelection {
     firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
     long timestamp = System.currentTimeMillis();
+    String formattedTimestamp = TIMESTAMP_FORMAT.format(new Date(timestamp));
     long snapshotId = table.currentSnapshot().snapshotId();
 
     assertThatThrownBy(
@@ -257,14 +274,11 @@ public class TestSnapshotSelection {
                 spark
                     .read()
                     .format("iceberg")
-                    .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
-                    .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                    .option(SparkReadOptions.VERSION_AS_OF, snapshotId)
+                    .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTimestamp)
                     .load(tableLocation))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Can specify only one of snapshot-id")
-        .hasMessageContaining("as-of-timestamp")
-        .hasMessageContaining("branch")
-        .hasMessageContaining("tag");
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot specify both version and timestamp");
   }
 
   @TestTemplate
@@ -293,7 +307,11 @@ public class TestSnapshotSelection {
 
     // verify records in the current snapshot by tag
     Dataset<Row> currentSnapshotResult =
-        spark.read().format("iceberg").option("tag", "tag").load(tableLocation);
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VERSION_AS_OF, "tag")
+            .load(tableLocation);
     List<SimpleRecord> currentSnapshotRecords =
         currentSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     List<SimpleRecord> expectedRecords = Lists.newArrayList();
@@ -362,12 +380,12 @@ public class TestSnapshotSelection {
                 spark
                     .read()
                     .format("iceberg")
-                    .option(SparkReadOptions.TAG, "tag")
+                    .option(SparkReadOptions.VERSION_AS_OF, "tag")
                     .option(SparkReadOptions.BRANCH, "branch")
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Can specify only one of snapshot-id");
+        .hasMessageStartingWith("Cannot time travel in branch");
   }
 
   @TestTemplate
@@ -385,6 +403,7 @@ public class TestSnapshotSelection {
     firstDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
 
     long timestamp = System.currentTimeMillis();
+    String formattedTimestamp = TIMESTAMP_FORMAT.format(new Date(timestamp));
     table.manageSnapshots().createBranch("branch", table.currentSnapshot().snapshotId()).commit();
     table.manageSnapshots().createTag("tag", table.currentSnapshot().snapshotId()).commit();
 
@@ -393,24 +412,24 @@ public class TestSnapshotSelection {
                 spark
                     .read()
                     .format("iceberg")
-                    .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                    .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTimestamp)
                     .option(SparkReadOptions.BRANCH, "branch")
                     .load(tableLocation)
                     .show())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Can specify only one of snapshot-id");
+        .hasMessageStartingWith("Cannot time travel in branch");
 
     assertThatThrownBy(
             () ->
                 spark
                     .read()
                     .format("iceberg")
-                    .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
-                    .option(SparkReadOptions.TAG, "tag")
+                    .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTimestamp)
+                    .option(SparkReadOptions.VERSION_AS_OF, "tag")
                     .load(tableLocation)
                     .show())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Can specify only one of snapshot-id");
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Cannot specify both version and timestamp");
   }
 
   @TestTemplate
@@ -565,7 +584,11 @@ public class TestSnapshotSelection {
     expectedRecords.addAll(firstBatchRecords);
 
     Dataset<Row> tagSnapshotResult =
-        spark.read().format("iceberg").option("tag", "tag").load(tableLocation);
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VERSION_AS_OF, "tag")
+            .load(tableLocation);
     List<SimpleRecord> tagSnapshotRecords =
         tagSnapshotResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     assertThat(tagSnapshotRecords)
@@ -577,7 +600,11 @@ public class TestSnapshotSelection {
 
     // The data should have the deleted column as it was captured in an earlier snapshot.
     Dataset<Row> deletedColumnTagSnapshotResult =
-        spark.read().format("iceberg").option("tag", "tag").load(tableLocation);
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.VERSION_AS_OF, "tag")
+            .load(tableLocation);
     List<SimpleRecord> deletedColumnTagSnapshotRecords =
         deletedColumnTagSnapshotResult
             .orderBy("id")

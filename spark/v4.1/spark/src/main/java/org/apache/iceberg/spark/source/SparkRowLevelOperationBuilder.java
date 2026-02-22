@@ -34,6 +34,7 @@ import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 import java.util.Map;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.RowLevelOperationMode;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.write.RowLevelOperation;
@@ -45,15 +46,21 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
 
   private final SparkSession spark;
   private final Table table;
+  private final Snapshot snapshot;
   private final String branch;
   private final RowLevelOperationInfo info;
   private final RowLevelOperationMode mode;
   private final IsolationLevel isolationLevel;
 
   SparkRowLevelOperationBuilder(
-      SparkSession spark, Table table, String branch, RowLevelOperationInfo info) {
+      SparkSession spark,
+      Table table,
+      Snapshot snapshot,
+      String branch,
+      RowLevelOperationInfo info) {
     this.spark = spark;
     this.table = table;
+    this.snapshot = snapshot;
     this.branch = branch;
     this.info = info;
     this.mode = mode(table.properties(), info.command());
@@ -62,14 +69,12 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
 
   @Override
   public RowLevelOperation build() {
-    switch (mode) {
-      case COPY_ON_WRITE:
-        return new SparkCopyOnWriteOperation(spark, table, branch, info, isolationLevel);
-      case MERGE_ON_READ:
-        return new SparkPositionDeltaOperation(spark, table, branch, info, isolationLevel);
-      default:
-        throw new IllegalArgumentException("Unsupported operation mode: " + mode);
-    }
+    return switch (mode) {
+      case COPY_ON_WRITE ->
+          new SparkCopyOnWriteOperation(spark, table, snapshot, branch, info, isolationLevel);
+      case MERGE_ON_READ ->
+          new SparkPositionDeltaOperation(spark, table, snapshot, branch, info, isolationLevel);
+    };
   }
 
   private RowLevelOperationMode mode(Map<String, String> properties, Command command) {

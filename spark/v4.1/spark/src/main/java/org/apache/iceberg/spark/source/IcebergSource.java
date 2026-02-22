@@ -20,13 +20,12 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Arrays;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkRewriteTableCatalog;
@@ -64,10 +63,7 @@ public class IcebergSource
   private static final String CATALOG_PREFIX = "spark.sql.catalog.";
   private static final String DEFAULT_CATALOG = CATALOG_PREFIX + DEFAULT_CATALOG_NAME;
   private static final String REWRITE_CATALOG = CATALOG_PREFIX + REWRITE_CATALOG_NAME;
-  private static final String AT_TIMESTAMP = "at_timestamp_";
-  private static final String SNAPSHOT_ID = "snapshot_id_";
   private static final String BRANCH_PREFIX = "branch_";
-  private static final String TAG_PREFIX = "tag_";
   private static final String[] EMPTY_NAMESPACE = new String[0];
 
   private static final SparkTableCache TABLE_CACHE = SparkTableCache.get();
@@ -99,96 +95,74 @@ public class IcebergSource
 
   @Override
   public Table getTable(StructType schema, Transform[] partitioning, Map<String, String> options) {
-    Spark3Util.CatalogAndIdentifier catalogIdentifier =
-        catalogAndIdentifier(new CaseInsensitiveStringMap(options));
-    CatalogPlugin catalog = catalogIdentifier.catalog();
-    Identifier ident = catalogIdentifier.identifier();
-
-    try {
-      if (catalog instanceof TableCatalog) {
-        return ((TableCatalog) catalog).loadTable(ident);
-      }
-    } catch (NoSuchTableException e) {
-      // throwing an iceberg NoSuchTableException because the Spark one is typed and can't be thrown
-      // from this interface
-      throw new org.apache.iceberg.exceptions.NoSuchTableException(
-          e, "Cannot find table for %s.", ident);
-    }
-
-    // throwing an iceberg NoSuchTableException because the Spark one is typed and can't be thrown
-    // from this interface
-    throw new org.apache.iceberg.exceptions.NoSuchTableException(
-        "Cannot find table for %s.", ident);
+    return loadTable(new CaseInsensitiveStringMap(options));
   }
 
-  private Spark3Util.CatalogAndIdentifier catalogAndIdentifier(CaseInsensitiveStringMap options) {
+  private Table loadTable(CaseInsensitiveStringMap options) {
+    CatalogAndIdentifier catalogAndIdent = catalogAndIdentifier(options);
+    TableCatalog catalog = catalogAndIdent.tableCatalog();
+    Identifier ident = catalogAndIdent.identifier();
+    try {
+      return catalog.loadTable(ident);
+    } catch (NoSuchTableException e) {
+      // TableProvider doesn't permit typed exception while loading tables,
+      // so throw Iceberg NoSuchTableException because the Spark one is typed
+      throw new org.apache.iceberg.exceptions.NoSuchTableException(
+          e,
+          "Cannot find table %s in catalog %s (%s)",
+          ident,
+          catalog.name(),
+          catalog.getClass().getName());
+    }
+  }
+
+  private CatalogAndIdentifier catalogAndIdentifier(CaseInsensitiveStringMap options) {
     Preconditions.checkArgument(
         options.containsKey(SparkReadOptions.PATH), "Cannot open table: path is not set");
+    Spark3Util.validateNoLegacyTimeTravel(options);
+
     SparkSession spark = SparkSession.active();
-    setupDefaultSparkCatalogs(spark);
-    String path = options.get(SparkReadOptions.PATH);
-
-    Long snapshotId = propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID);
-    Long asOfTimestamp = propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP);
-    String branch = options.get(SparkReadOptions.BRANCH);
-    String tag = options.get(SparkReadOptions.TAG);
-    Preconditions.checkArgument(
-        Stream.of(snapshotId, asOfTimestamp, branch, tag).filter(Objects::nonNull).count() <= 1,
-        "Can specify only one of snapshot-id (%s), as-of-timestamp (%s), branch (%s), tag (%s)",
-        snapshotId,
-        asOfTimestamp,
-        branch,
-        tag);
-
-    String selector = null;
-
-    if (snapshotId != null) {
-      selector = SNAPSHOT_ID + snapshotId;
-    }
-
-    if (asOfTimestamp != null) {
-      selector = AT_TIMESTAMP + asOfTimestamp;
-    }
-
-    if (branch != null) {
-      selector = BRANCH_PREFIX + branch;
-    }
-
-    if (tag != null) {
-      selector = TAG_PREFIX + tag;
-    }
-
     CatalogManager catalogManager = spark.sessionState().catalogManager();
+
+    setupDefaultSparkCatalogs(spark);
+
+    String path = options.get(SparkReadOptions.PATH);
+    String branch = options.get(SparkReadOptions.BRANCH);
+    String branchSelector = branch != null ? BRANCH_PREFIX + branch : null;
 
     // return rewrite catalog with path as group ID if table is staged for rewrite
     if (TABLE_CACHE.contains(path)) {
-      return new Spark3Util.CatalogAndIdentifier(
+      return new CatalogAndIdentifier(
           catalogManager.catalog(REWRITE_CATALOG_NAME), Identifier.of(EMPTY_NAMESPACE, path));
     }
 
+    // return default catalog and PathIdentifier with branch selector for a path
     if (path.contains("/")) {
-      // contains a path. Return iceberg default catalog and a PathIdentifier
-      return new Spark3Util.CatalogAndIdentifier(
+      return new CatalogAndIdentifier(
           catalogManager.catalog(DEFAULT_CATALOG_NAME),
-          new PathIdentifier(pathWithSelector(path, selector)));
+          new PathIdentifier(pathWithSelector(path, branchSelector)));
     }
 
-    final Spark3Util.CatalogAndIdentifier catalogAndIdentifier =
-        Spark3Util.catalogAndIdentifier("path or identifier", spark, path);
+    // treat path as an identifier and resolve it against the session config
+    // if the catalog resolves to an unknown session catalog, use the default Iceberg catalog
+    CatalogAndIdentifier catalogAndIdent = resolveIdentifier(spark, path);
+    CatalogPlugin catalog = catalogAndIdent.catalog();
+    Identifier ident = catalogAndIdent.identifier();
+    return new CatalogAndIdentifier(
+        isUnknownSessionCatalog(catalog) ? catalogManager.catalog(DEFAULT_CATALOG_NAME) : catalog,
+        identifierWithSelector(ident, branchSelector));
+  }
 
-    Identifier ident = identifierWithSelector(catalogAndIdentifier.identifier(), selector);
-    if (catalogAndIdentifier.catalog().name().equals("spark_catalog")
-        && !(catalogAndIdentifier.catalog() instanceof SparkSessionCatalog)) {
-      // catalog is a session catalog but does not support Iceberg. Use Iceberg instead.
-      return new Spark3Util.CatalogAndIdentifier(
-          catalogManager.catalog(DEFAULT_CATALOG_NAME), ident);
-    } else {
-      return new Spark3Util.CatalogAndIdentifier(catalogAndIdentifier.catalog(), ident);
-    }
+  private static CatalogAndIdentifier resolveIdentifier(SparkSession spark, String ident) {
+    return Spark3Util.catalogAndIdentifier("identifier", spark, ident);
+  }
+
+  private static boolean isUnknownSessionCatalog(CatalogPlugin catalog) {
+    return catalog.name().equals("spark_catalog") && !(catalog instanceof SparkSessionCatalog);
   }
 
   private String pathWithSelector(String path, String selector) {
-    return (selector == null) ? path : path + "#" + selector;
+    return selector == null ? path : path + "#" + selector;
   }
 
   private Identifier identifierWithSelector(Identifier ident, String selector) {
@@ -220,15 +194,6 @@ public class IcebergSource
   @Override
   public Optional<String> extractTimeTravelTimestamp(CaseInsensitiveStringMap options) {
     return Optional.ofNullable(options.get(SparkReadOptions.TIMESTAMP_AS_OF));
-  }
-
-  private static Long propertyAsLong(CaseInsensitiveStringMap options, String property) {
-    String value = options.get(property);
-    if (value != null) {
-      return Long.parseLong(value);
-    }
-
-    return null;
   }
 
   private static void setupDefaultSparkCatalogs(SparkSession spark) {

@@ -30,11 +30,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -102,6 +104,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public abstract class TestIcebergSourceTablesBase extends TestBase {
+
+  private static final SimpleDateFormat TIMESTAMP_FORMAT =
+      new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 
   private static final Schema SCHEMA =
       new Schema(
@@ -1430,7 +1435,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.SNAPSHOT_ID, String.valueOf(firstCommitId))
+            .option(SparkReadOptions.VERSION_AS_OF, String.valueOf(firstCommitId))
             .load(loadLocation(tableIdentifier, "partitions"))
             .orderBy("partition.id")
             .collectAsList();
@@ -1799,7 +1804,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
+            .option(SparkReadOptions.VERSION_AS_OF, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
@@ -1838,6 +1843,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     table.updateSchema().deleteColumn("data").commit();
     long tsAfterDropColumn = waitUntilAfter(System.currentTimeMillis());
 
+    String formattedTsBeforeDropColumn = TIMESTAMP_FORMAT.format(new Date(tsBeforeDropColumn));
+    String formattedTsAfterDropColumn = TIMESTAMP_FORMAT.format(new Date(tsAfterDropColumn));
+
     List<Row> newRecords = Lists.newArrayList(RowFactory.create(4, "B"), RowFactory.create(5, "C"));
 
     StructType newSparkSchema = SparkSchemaUtil.convert(SCHEMA3);
@@ -1868,7 +1876,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.AS_OF_TIMESTAMP, tsBeforeDropColumn)
+            .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTsBeforeDropColumn)
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf3.orderBy("id").collectAsList())
         .as("Records should match")
@@ -1881,7 +1889,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.AS_OF_TIMESTAMP, tsAfterDropColumn)
+            .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTsAfterDropColumn)
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
@@ -1964,7 +1972,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.SNAPSHOT_ID, snapshotBeforeAddColumn.snapshotId())
+            .option(SparkReadOptions.VERSION_AS_OF, snapshotBeforeAddColumn.snapshotId())
             .load(loadLocation(tableIdentifier));
     assertThat(resultDf4.orderBy("id").collectAsList())
         .as("Records should match")
@@ -2328,7 +2336,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     withSQLConf(
         // set read option through session configuration
-        ImmutableMap.of("spark.datasource.iceberg.snapshot-id", String.valueOf(s1)),
+        ImmutableMap.of("spark.datasource.iceberg.versionAsOf", String.valueOf(s1)),
         () -> {
           Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
           List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();

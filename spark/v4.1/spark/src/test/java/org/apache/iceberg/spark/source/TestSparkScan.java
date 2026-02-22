@@ -44,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.spark.functions.BucketFunction;
@@ -1026,6 +1027,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
   @TestTemplate
   public void testBatchQueryScanDescription() throws Exception {
     createPartitionedTable(spark, tableName, "data");
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkScanBuilder builder = scanBuilder();
 
     withSQLConf(
@@ -1040,6 +1042,9 @@ public class TestSparkScan extends TestBaseWithCatalog {
 
           assertThat(description).contains("IcebergScan");
           assertThat(description).contains(tableName);
+          assertThat(description).contains("schemaId=" + table.schema().schemaId());
+          assertThat(description).contains("snapshotId=" + table.currentSnapshot().snapshotId());
+          assertThat(description).contains("branch=null");
           assertThat(description).contains("filters=id = 1, id > 0");
           assertThat(description).contains("groupedBy=data");
         });
@@ -1048,6 +1053,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
   @TestTemplate
   public void testCopyOnWriteScanDescription() throws Exception {
     createPartitionedTable(spark, tableName, "data");
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkScanBuilder builder = scanBuilder();
 
     withSQLConf(
@@ -1062,17 +1068,51 @@ public class TestSparkScan extends TestBaseWithCatalog {
 
           assertThat(description).contains("IcebergCopyOnWriteScan");
           assertThat(description).contains(tableName);
+          assertThat(description).contains("schemaId=" + table.schema().schemaId());
+          assertThat(description).contains("snapshotId=" + table.currentSnapshot().snapshotId());
+          assertThat(description).contains("branch=null");
           assertThat(description).contains("filters=id = 2, id < 10");
           assertThat(description).contains("groupedBy=data");
         });
   }
 
-  private SparkScanBuilder scanBuilder() throws Exception {
+  @TestTemplate
+  public void testIncrementalScanDescription() throws Exception {
+    createPartitionedTable(spark, tableName, "data");
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    CaseInsensitiveStringMap options =
-        new CaseInsensitiveStringMap(ImmutableMap.of("path", tableName));
+    long startSnapshotId = table.currentSnapshot().snapshotId();
 
-    return new SparkScanBuilder(spark, table, options);
+    // add a second snapshot to use as the end
+    sql("INSERT INTO %s VALUES (1, CAST('2021-01-01 00:00:00' AS TIMESTAMP), 'b')", tableName);
+    table.refresh();
+    long endSnapshotId = table.currentSnapshot().snapshotId();
+
+    SparkScanBuilder builder =
+        scanBuilder(
+            ImmutableMap.of(
+                SparkReadOptions.START_SNAPSHOT_ID, String.valueOf(startSnapshotId),
+                SparkReadOptions.END_SNAPSHOT_ID, String.valueOf(endSnapshotId)));
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true"),
+        () -> {
+          Scan scan = builder.build();
+          String description = scan.description();
+
+          assertThat(description).contains("IcebergIncrementalScan");
+          assertThat(description).contains(tableName);
+          assertThat(description).contains("startSnapshotId=" + startSnapshotId);
+          assertThat(description).contains("endSnapshotId=" + endSnapshotId);
+        });
+  }
+
+  private SparkScanBuilder scanBuilder() throws Exception {
+    return scanBuilder(ImmutableMap.of());
+  }
+
+  private SparkScanBuilder scanBuilder(Map<String, String> extraOptions) throws Exception {
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    return new SparkScanBuilder(spark, table, new CaseInsensitiveStringMap(extraOptions));
   }
 
   private void pushFilters(ScanBuilder scan, Predicate... predicates) {

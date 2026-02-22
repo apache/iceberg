@@ -32,10 +32,8 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.ScanReport;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.Statistics;
@@ -51,31 +49,24 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   private static final Logger LOG = LoggerFactory.getLogger(SparkCopyOnWriteScan.class);
 
   private final Snapshot snapshot;
+  private final String branch;
+
   private Set<String> filteredLocations = null;
 
   SparkCopyOnWriteScan(
       SparkSession spark,
       Table table,
-      SparkReadConf readConf,
-      Schema projection,
-      List<Expression> filters,
-      Supplier<ScanReport> scanReportSupplier) {
-    this(spark, table, null, null, readConf, projection, filters, scanReportSupplier);
-  }
-
-  SparkCopyOnWriteScan(
-      SparkSession spark,
-      Table table,
-      BatchScan scan,
+      Schema schema,
       Snapshot snapshot,
+      String branch,
+      BatchScan scan,
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, scan, readConf, projection, filters, scanReportSupplier);
-
+    super(spark, table, schema, scan, readConf, projection, filters, scanReportSupplier);
     this.snapshot = snapshot;
-
+    this.branch = branch;
     if (scan == null) {
       this.filteredLocations = Collections.emptySet();
     }
@@ -102,15 +93,6 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
   @Override
   public void filter(Filter[] filters) {
-    Preconditions.checkState(
-        Objects.equals(snapshotId(), currentSnapshotId()),
-        "Runtime file filtering is not possible: the table has been concurrently modified. "
-            + "Row-level operation scan snapshot ID: %s, current table snapshot ID: %s. "
-            + "If an external process modifies the table, enable table caching in the catalog. "
-            + "If multiple threads modify the table, use independent Spark sessions in each thread.",
-        snapshotId(),
-        currentSnapshotId());
-
     for (Filter filter : filters) {
       // Spark can only pass In filters at the moment
       if (filter instanceof In
@@ -160,9 +142,10 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
     return table().name().equals(that.table().name())
         && Objects.equals(table().uuid(), that.table().uuid())
+        && Objects.equals(snapshot, that.snapshot)
+        && Objects.equals(branch, that.branch)
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
         && filtersDesc().equals(that.filtersDesc())
-        && Objects.equals(snapshotId(), that.snapshotId())
         && Objects.equals(filteredLocations, that.filteredLocations);
   }
 
@@ -171,21 +154,17 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     return Objects.hash(
         table().name(),
         table().uuid(),
+        snapshot,
+        branch,
         readSchema(),
         filtersDesc(),
-        snapshotId(),
         filteredLocations);
   }
 
   @Override
   public String description() {
     return String.format(
-        "IcebergCopyOnWriteScan(table=%s, filters=%s, groupedBy=%s)",
-        table(), filtersDesc(), groupingKeyDesc());
-  }
-
-  private Long currentSnapshotId() {
-    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table(), branch());
-    return currentSnapshot != null ? currentSnapshot.snapshotId() : null;
+        "IcebergCopyOnWriteScan(table=%s, schemaId=%s, snapshotId=%s, branch=%s, filters=%s, groupedBy=%s)",
+        table(), schema().schemaId(), snapshotId(), branch, filtersDesc(), groupingKeyDesc());
   }
 }
