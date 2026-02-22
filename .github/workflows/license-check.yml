@@ -18,12 +18,32 @@
 #
 
 name: "Run License Check"
-on: pull_request
+on:
+  push:
+    branches:
+    - '**'
+    - '!main'
+    - '!0.*'
+    - '!1.*'
+    - '!2.*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   rat:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        repository: apache/iceberg
+        ref: main
+    - name: Sync fork branch with upstream main
+      if: github.repository != 'apache/iceberg'
+      run: |
+        git fetch https://github.com/$GITHUB_REPOSITORY.git ${GITHUB_REF##*/}
+        git merge --progress --ff-only FETCH_HEAD
     - run: |
         dev/check-license
