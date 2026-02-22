@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -221,6 +222,7 @@ class SchemaUtils {
 
     private int fieldId = 1;
     private final IcebergSinkConfig config;
+    private final IdentityHashMap<Schema, Type> visited = new IdentityHashMap<>();
 
     SchemaGenerator(IcebergSinkConfig config) {
       this.config = config;
@@ -228,66 +230,80 @@ class SchemaUtils {
 
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     Type toIcebergType(Schema valueSchema) {
-      switch (valueSchema.type()) {
-        case BOOLEAN:
-          return BooleanType.get();
-        case BYTES:
-          if (Decimal.LOGICAL_NAME.equals(valueSchema.name())) {
-            int scale = Integer.parseInt(valueSchema.parameters().get(Decimal.SCALE_FIELD));
-            return DecimalType.of(38, scale);
-          }
-          return BinaryType.get();
-        case INT8:
-        case INT16:
-          return IntegerType.get();
-        case INT32:
-          if (Date.LOGICAL_NAME.equals(valueSchema.name())) {
-            return DateType.get();
-          } else if (Time.LOGICAL_NAME.equals(valueSchema.name())) {
-            return TimeType.get();
-          }
-          return IntegerType.get();
-        case INT64:
-          if (Timestamp.LOGICAL_NAME.equals(valueSchema.name())) {
-            return TimestampType.withZone();
-          }
-          return LongType.get();
-        case FLOAT32:
-          return FloatType.get();
-        case FLOAT64:
-          return DoubleType.get();
-        case ARRAY:
-          Type elementType = toIcebergType(valueSchema.valueSchema());
-          if (config.schemaForceOptional() || valueSchema.valueSchema().isOptional()) {
-            return ListType.ofOptional(nextId(), elementType);
-          } else {
-            return ListType.ofRequired(nextId(), elementType);
-          }
-        case MAP:
-          Type keyType = toIcebergType(valueSchema.keySchema());
-          Type valueType = toIcebergType(valueSchema.valueSchema());
-          if (config.schemaForceOptional() || valueSchema.valueSchema().isOptional()) {
-            return MapType.ofOptional(nextId(), nextId(), keyType, valueType);
-          } else {
-            return MapType.ofRequired(nextId(), nextId(), keyType, valueType);
-          }
-        case STRUCT:
-          List<NestedField> structFields =
-              valueSchema.fields().stream()
-                  .map(
-                      field ->
-                          NestedField.builder()
-                              .isOptional(
-                                  config.schemaForceOptional() || field.schema().isOptional())
-                              .withId(nextId())
-                              .ofType(toIcebergType(field.schema()))
-                              .withName(field.name())
-                              .build())
-                  .collect(Collectors.toList());
-          return StructType.of(structFields);
-        case STRING:
-        default:
-          return StringType.get();
+      if (visited.containsKey(valueSchema)) {
+        return StringType.get();
+      }
+
+      try {
+        visited.put(valueSchema, null);
+
+        switch (valueSchema.type()) {
+          case BOOLEAN:
+            return BooleanType.get();
+          case BYTES:
+            if (Decimal.LOGICAL_NAME.equals(valueSchema.name())) {
+              int scale = Integer.parseInt(valueSchema.parameters().get(Decimal.SCALE_FIELD));
+              return DecimalType.of(38, scale);
+            }
+            return BinaryType.get();
+          case INT8:
+          case INT16:
+            return IntegerType.get();
+          case INT32:
+            if (Date.LOGICAL_NAME.equals(valueSchema.name())) {
+              return DateType.get();
+            } else if (Time.LOGICAL_NAME.equals(valueSchema.name())) {
+              return TimeType.get();
+            }
+            return IntegerType.get();
+          case INT64:
+            if (Timestamp.LOGICAL_NAME.equals(valueSchema.name())) {
+              return TimestampType.withZone();
+            }
+            return LongType.get();
+          case FLOAT32:
+            return FloatType.get();
+          case FLOAT64:
+            return DoubleType.get();
+          case ARRAY:
+            Type elementType = toIcebergType(valueSchema.valueSchema());
+            if (config.schemaForceOptional() || valueSchema.valueSchema().isOptional()) {
+              return ListType.ofOptional(nextId(), elementType);
+            } else {
+              return ListType.ofRequired(nextId(), elementType);
+            }
+          case MAP:
+            Type keyType = toIcebergType(valueSchema.keySchema());
+            Type valueType = toIcebergType(valueSchema.valueSchema());
+            if (config.schemaForceOptional() || valueSchema.valueSchema().isOptional()) {
+              return MapType.ofOptional(nextId(), nextId(), keyType, valueType);
+            } else {
+              return MapType.ofRequired(nextId(), nextId(), keyType, valueType);
+            }
+          case STRUCT:
+            List<NestedField> structFields =
+                valueSchema.fields().stream()
+                    .map(
+                        field ->
+                            NestedField.builder()
+                                .isOptional(
+                                    config.schemaForceOptional() || field.schema().isOptional())
+                                .withId(nextId())
+                                .ofType(toIcebergType(field.schema()))
+                                .withName(field.name())
+                                .build())
+                    .collect(Collectors.toList());
+            // Handle empty structs - Parquet cannot write empty groups, so convert to string
+            if (structFields.isEmpty()) {
+              return StringType.get();
+            }
+            return StructType.of(structFields);
+          case STRING:
+          default:
+            return StringType.get();
+        }
+      } finally {
+        visited.remove(valueSchema);
       }
     }
 
