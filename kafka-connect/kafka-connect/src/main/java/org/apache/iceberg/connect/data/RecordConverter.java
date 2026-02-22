@@ -318,11 +318,14 @@ class RecordConverter {
     throw new IllegalArgumentException("Cannot convert to int: " + value.getClass().getName());
   }
 
+  @SuppressWarnings("JavaUtilDate")
   protected long convertLong(Object value) {
     if (value instanceof Number) {
       return ((Number) value).longValue();
     } else if (value instanceof String) {
       return Long.parseLong((String) value);
+    } else if (value instanceof Date) {
+      return ((Date) value).getTime();
     }
     throw new IllegalArgumentException("Cannot convert to long: " + value.getClass().getName());
   }
