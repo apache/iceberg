@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
+import static org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient.S3_SIGNER_PROPERTIES_PREFIX;
 import static org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient.S3_SIGNER_URI;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
@@ -25,6 +26,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import java.util.stream.Stream;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -168,5 +170,35 @@ class TestS3V4RestSignerClient {
                 "custom"),
             "custom",
             "token"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("validRequestProperties")
+  void requestProperties(Map<String, String> input, Map<String, String> expected) throws Exception {
+    Map<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .put(S3_SIGNER_URI, "https://signer.com")
+            .putAll(input)
+            .build();
+
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder().properties(properties).build()) {
+      Map<String, String> signerProperties = client.requestPropertiesSupplier().get();
+      assertThat(signerProperties).containsAllEntriesOf(expected);
+    }
+  }
+
+  static Stream<Arguments> validRequestProperties() {
+    return Stream.of(
+        Arguments.of(Map.of(), Map.of()),
+        Arguments.of(
+            Map.of(S3_SIGNER_PROPERTIES_PREFIX + "key1", "value1"), Map.of("key1", "value1")),
+        Arguments.of(
+            Map.of(
+                S3_SIGNER_PROPERTIES_PREFIX + "key1",
+                "value1",
+                S3_SIGNER_PROPERTIES_PREFIX + "key2",
+                "value2"),
+            Map.of("key1", "value1", "key2", "value2")));
   }
 }
