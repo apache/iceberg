@@ -50,6 +50,7 @@ import org.apache.iceberg.connect.data.SchemaUpdate.UpdateType;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mapping.MappedField;
+import org.apache.iceberg.mapping.MappedFields;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -384,6 +385,171 @@ public class TestRecordConverter {
     Map<String, Object> data = ImmutableMap.of("renamed_ii", 123);
     Record record = converter.convert(data);
     assertThat(record.getField("ii")).isEqualTo(123);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testNameMappingWithDifferentCaseAlias(boolean caseInsensitive) {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    when(config.schemaCaseInsensitive()).thenReturn(caseInsensitive);
+
+    // Field 1 (ii) has alias "II" with different case
+    NameMapping nameMapping = NameMapping.of(MappedField.of(1, ImmutableList.of("II")));
+    when(table.properties())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)));
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    // Test with exact case match "II"
+    Map<String, Object> data1 = ImmutableMap.of("II", 100);
+    Record record1 = converter.convert(data1);
+    assertThat(record1.getField("ii")).isEqualTo(100);
+
+    // Test with lowercase "ii" - should only work in case-insensitive mode
+    Map<String, Object> data2 = ImmutableMap.of("ii", 200);
+    Record record2 = converter.convert(data2);
+    if (caseInsensitive) {
+      assertThat(record2.getField("ii")).isEqualTo(200);
+    } else {
+      assertThat(record2.getField("ii")).isNull();
+    }
+  }
+
+  @Test
+  public void testNameMappingFieldWithoutMappingFallsBackToColumnName() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    // Only map field 1 (ii), field 2 (st) has no mapping
+    NameMapping nameMapping = NameMapping.of(MappedField.of(1, ImmutableList.of("renamed_ii")));
+    when(table.properties())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)));
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    // Field without mapping should still be accessible by original name
+    Map<String, Object> data = ImmutableMap.of("renamed_ii", 123, "st", "test_value");
+    Record record = converter.convert(data);
+    assertThat(record.getField("ii")).isEqualTo(123);
+    assertThat(record.getField("st")).isEqualTo("test_value");
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testNameMappingWithNestedStruct(boolean caseInsensitive) {
+    org.apache.iceberg.Schema nestedSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "outer_id", IntegerType.get()),
+            NestedField.required(
+                2,
+                "nested",
+                StructType.of(
+                    NestedField.required(3, "inner_id", IntegerType.get()),
+                    NestedField.required(4, "inner_value", StringType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedSchema);
+
+    when(config.schemaCaseInsensitive()).thenReturn(caseInsensitive);
+
+    // Map outer field and nested fields with different case aliases
+    NameMapping nameMapping =
+        NameMapping.of(
+            MappedField.of(1, ImmutableList.of("OUTER_ID")),
+            MappedField.of(
+                2,
+                ImmutableList.of("NESTED"),
+                MappedFields.of(
+                    MappedField.of(3, ImmutableList.of("INNER_ID")),
+                    MappedField.of(4, ImmutableList.of("INNER_VALUE")))));
+    when(table.properties())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)));
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    // Test with exact case match (uppercase)
+    Map<String, Object> innerDataUpper = ImmutableMap.of("INNER_ID", 99, "INNER_VALUE", "hello");
+    Map<String, Object> dataUpper = ImmutableMap.of("OUTER_ID", 1, "NESTED", innerDataUpper);
+    Record recordUpper = converter.convert(dataUpper);
+
+    assertThat(recordUpper.getField("outer_id")).isEqualTo(1);
+    Record nestedRecordUpper = (Record) recordUpper.getField("nested");
+    assertThat(nestedRecordUpper.getField("inner_id")).isEqualTo(99);
+    assertThat(nestedRecordUpper.getField("inner_value")).isEqualTo("hello");
+
+    // Test with lowercase - should only work in case-insensitive mode
+    Map<String, Object> innerDataLower = ImmutableMap.of("inner_id", 88, "inner_value", "world");
+    Map<String, Object> dataLower = ImmutableMap.of("outer_id", 2, "nested", innerDataLower);
+    Record recordLower = converter.convert(dataLower);
+
+    if (caseInsensitive) {
+      assertThat(recordLower.getField("outer_id")).isEqualTo(2);
+      Record nestedRecordLower = (Record) recordLower.getField("nested");
+      assertThat(nestedRecordLower.getField("inner_id")).isEqualTo(88);
+      assertThat(nestedRecordLower.getField("inner_value")).isEqualTo("world");
+    } else {
+      assertThat(recordLower.getField("outer_id")).isNull();
+      assertThat(recordLower.getField("nested")).isNull();
+    }
+  }
+
+  @Test
+  public void testNameMappingWithEmptyAliasListFallsBackToColumnName() {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    // Empty names list should fall back to column name
+    NameMapping nameMapping = NameMapping.of(MappedField.of(1, ImmutableList.of()));
+    when(table.properties())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)));
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = ImmutableMap.of("ii", 123);
+    Record record = converter.convert(data);
+    assertThat(record.getField("ii")).isEqualTo(123);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testLookupStructFieldWithNameMappingAndCaseSensitivity(boolean caseInsensitive) {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+
+    when(config.schemaCaseInsensitive()).thenReturn(caseInsensitive);
+
+    // Name mapping with alias "II" (same field name but uppercase)
+    NameMapping nameMapping = NameMapping.of(MappedField.of(1, ImmutableList.of("II")));
+    when(table.properties())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)));
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    // Test with exact case match "II"
+    Map<String, Object> upperCaseData = ImmutableMap.of("II", 100);
+    Record upperCaseRecord = converter.convert(upperCaseData);
+    assertThat(upperCaseRecord.getField("ii")).isEqualTo(100);
+
+    // Test with lowercase "ii" - should only work in case-insensitive mode
+    Map<String, Object> lowerCaseData = ImmutableMap.of("ii", 200);
+    Record lowerCaseRecord = converter.convert(lowerCaseData);
+    if (caseInsensitive) {
+      assertThat(lowerCaseRecord.getField("ii")).isEqualTo(200);
+    } else {
+      assertThat(lowerCaseRecord.getField("ii")).isNull();
+    }
   }
 
   @ParameterizedTest
