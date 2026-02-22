@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -191,6 +192,57 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     assertThat(shouldRead(notNaN(extract("variant", "$.measurement", "double"))))
         .as("Should read: variant may contain non-NaN")
         .isTrue();
+  }
+
+  @Test
+  public void testBoundsWithBigEndianByteBuffer() {
+    // Simulate manifest bounds: bytes are little-endian but ByteBuffer has default (big-endian)
+    // order
+    ByteBuffer leLower =
+        VariantTestUtil.variantBuffer(
+            Map.of(
+                "$['event_id']", Variants.of(INT_MIN_VALUE),
+                "$['str']", Variants.of("abc")));
+    ByteBuffer leUpper =
+        VariantTestUtil.variantBuffer(
+            Map.of(
+                "$['event_id']", Variants.of(INT_MAX_VALUE),
+                "$['str']", Variants.of("abe")));
+    byte[] lowerBytes = new byte[leLower.remaining()];
+    leLower.duplicate().get(lowerBytes);
+    byte[] upperBytes = new byte[leUpper.remaining()];
+    leUpper.duplicate().get(upperBytes);
+    ByteBuffer beLower = ByteBuffer.wrap(lowerBytes);
+    ByteBuffer beUpper = ByteBuffer.wrap(upperBytes);
+    assertThat(beLower.order()).isEqualTo(ByteOrder.BIG_ENDIAN);
+
+    DataFile fileWithBigEndianBounds =
+        new TestDataFile(
+            "file.avro",
+            Row.of(),
+            50,
+            ImmutableMap.<Integer, Long>builder()
+                .put(1, 50L)
+                .put(2, 50L)
+                .put(3, 50L)
+                .buildOrThrow(),
+            ImmutableMap.<Integer, Long>builder().put(1, 0L).put(2, 0L).put(3, 50L).buildOrThrow(),
+            null,
+            Map.of(2, beLower),
+            Map.of(2, beUpper));
+
+    // Should not throw; file skipping should work with big-endian buffer (fix applies
+    // LITTLE_ENDIAN)
+    assertThat(
+            shouldRead(
+                greaterThan(extract("variant", "$.event_id", "long"), 50), fileWithBigEndianBounds))
+        .as("Should read: 50 is within [30, 79]")
+        .isTrue();
+    assertThat(
+            shouldRead(
+                lessThan(extract("variant", "$.event_id", "long"), 20), fileWithBigEndianBounds))
+        .as("Should skip: 20 is below min 30")
+        .isFalse();
   }
 
   @Test
