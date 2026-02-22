@@ -25,6 +25,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchIndexException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchPlanIdException;
 import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
@@ -70,6 +71,14 @@ public class ErrorHandlers {
 
   public static Consumer<ErrorResponse> viewCommitHandler() {
     return ViewCommitErrorHandler.INSTANCE;
+  }
+
+  public static Consumer<ErrorResponse> indexErrorHandler() {
+    return IndexErrorHandler.INSTANCE;
+  }
+
+  public static Consumer<ErrorResponse> indexCommitHandler() {
+    return IndexCommitErrorHandler.INSTANCE;
   }
 
   public static Consumer<ErrorResponse> tableCommitHandler() {
@@ -251,6 +260,58 @@ public class ErrorHandlers {
           }
         case 409:
           throw new AlreadyExistsException("%s", error.message());
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** Index level error handler. */
+  private static class IndexErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new IndexErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      switch (error.code()) {
+        case 404:
+          if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
+            throw new NoSuchNamespaceException("%s", error.message());
+          } else if (NoSuchTableException.class.getSimpleName().equals(error.type())) {
+            throw new NoSuchTableException("%s", error.message());
+          } else {
+            throw new NoSuchIndexException("%s", error.message());
+          }
+        case 409:
+          throw new AlreadyExistsException("%s", error.message());
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** Index commit error handler. */
+  private static class IndexCommitErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new IndexCommitErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      switch (error.code()) {
+        case 404:
+          if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
+            throw new NoSuchNamespaceException("%s", error.message());
+          } else if (NoSuchTableException.class.getSimpleName().equals(error.type())) {
+            throw new NoSuchTableException("%s", error.message());
+          } else {
+            throw new NoSuchIndexException("%s", error.message());
+          }
+        case 409:
+          throw new CommitFailedException("Commit failed: %s", error.message());
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          throw new CommitStateUnknownException(
+              new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
       }
 
       super.accept(error);

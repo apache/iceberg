@@ -23,15 +23,18 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
+import org.apache.iceberg.rest.requests.CreateIndexRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
+import org.apache.iceberg.rest.requests.RegisterIndexRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
+import org.apache.iceberg.rest.requests.UpdateIndexRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -39,8 +42,10 @@ import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ListIndexesResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadIndexResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -137,7 +142,27 @@ enum Route {
       FetchScanTasksRequest.class,
       FetchScanTasksResponse.class),
   CANCEL_PLAN_TABLE_SCAN(
-      HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_TABLE_SCAN_PLAN, null, null);
+      HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_TABLE_SCAN_PLAN, null, null),
+  LIST_INDEXES(
+      HTTPRequest.HTTPMethod.GET, ResourcePaths.V1_INDEXES, null, ListIndexesResponse.class),
+  CREATE_INDEX(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_INDEXES,
+      CreateIndexRequest.class,
+      LoadIndexResponse.class),
+  INDEX_EXISTS(HTTPRequest.HTTPMethod.HEAD, ResourcePaths.V1_INDEX),
+  LOAD_INDEX(HTTPRequest.HTTPMethod.GET, ResourcePaths.V1_INDEX, null, LoadIndexResponse.class),
+  UPDATE_INDEX(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_INDEX,
+      UpdateIndexRequest.class,
+      LoadIndexResponse.class),
+  DROP_INDEX(HTTPRequest.HTTPMethod.DELETE, ResourcePaths.V1_INDEX),
+  REGISTER_INDEX(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_INDEX_REGISTER,
+      RegisterIndexRequest.class,
+      LoadIndexResponse.class);
 
   private final HTTPRequest.HTTPMethod method;
   private final int requiredLength;
