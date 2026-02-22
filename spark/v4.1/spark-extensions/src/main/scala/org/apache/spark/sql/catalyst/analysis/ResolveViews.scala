@@ -105,7 +105,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
           // The target might be a view, not a table. Try loading as a view
           // and recursively resolve with the accumulated chain.
           ViewUtil
-            .loadView(catalog, tableIdent)
+            .loadView(catalog, tableIdent, context)
             .map(view => createViewRelation(tableParts, view, Some(viewChain)))
             .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
         case _: Throwable => UnresolvedRelation(tableParts, options, isStreaming)

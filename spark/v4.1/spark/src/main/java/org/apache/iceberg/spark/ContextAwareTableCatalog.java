@@ -20,8 +20,10 @@ package org.apache.iceberg.spark;
 
 import java.util.Map;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
+import org.apache.spark.sql.connector.catalog.View;
 
 public interface ContextAwareTableCatalog {
 
@@ -33,4 +35,7 @@ public interface ContextAwareTableCatalog {
 
   Table loadTable(Identifier identifier, long timestamp, Map<String, Object> loadingContext)
       throws NoSuchTableException;
+
+  View loadView(Identifier identifier, Map<String, Object> loadingContext)
+      throws NoSuchViewException;
 }
