@@ -226,7 +226,8 @@ public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, T
     }
 
     Integer taskToStart =
-        nextTrigger(evaluators, accumulatedChanges, lastTriggerTimes, current, startsFrom);
+        TriggerUtil.nextTrigger(
+            evaluators, accumulatedChanges, lastTriggerTimes, current, startsFrom);
     if (taskToStart == null) {
       // Nothing to execute
       if (!triggered) {
@@ -267,26 +268,6 @@ public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, T
   private void schedule(TimerService timerService, long time) {
     this.nextEvaluationTime = time;
     timerService.registerProcessingTimeTimer(time);
-  }
-
-  private static Integer nextTrigger(
-      List<TriggerEvaluator> evaluators,
-      List<TableChange> changes,
-      List<Long> lastTriggerTimes,
-      long currentTime,
-      int startPos) {
-    int current = startPos;
-    do {
-      if (evaluators
-          .get(current)
-          .check(changes.get(current), lastTriggerTimes.get(current), currentTime)) {
-        return current;
-      }
-
-      current = (current + 1) % evaluators.size();
-    } while (current != startPos);
-
-    return null;
   }
 
   private void init(Collector<Trigger> out, TimerService timerService) throws Exception {
