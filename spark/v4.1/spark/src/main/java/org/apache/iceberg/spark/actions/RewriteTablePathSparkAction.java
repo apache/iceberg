@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -72,6 +73,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.function.ForeachFunction;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.api.java.function.ReduceFunction;
@@ -98,6 +100,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private String endVersionName;
   private String stagingDir;
   private boolean createFileList = true;
+  private ExecutorService executorService;
 
   private final Table table;
   private Broadcast<Table> tableBroadcast = null;
@@ -154,6 +157,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   @Override
   public RewriteTablePath createFileList(boolean createFileListFlag) {
     this.createFileList = createFileListFlag;
+    return this;
+  }
+
+  @Override
+  public RewriteTablePath executeWith(ExecutorService service) {
+    this.executorService = service;
     return this;
   }
 
@@ -285,10 +294,23 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         Sets.difference(snapshotSet(endMetadata), snapshotSet(startMetadata));
 
     // rebuild manifest-list files
-    RewriteResult<ManifestFile> rewriteManifestListResult =
-        validSnapshots.stream()
-            .map(snapshot -> rewriteManifestList(snapshot, endMetadata, manifestsToRewrite))
-            .reduce(new RewriteResult<>(), RewriteResult::append);
+    RewriteResult<ManifestFile> rewriteManifestListResult = new RewriteResult<>();
+    Set<ManifestFile> concurrentToRewrite = Sets.newConcurrentHashSet();
+    Set<Pair<String, String>> concurrentCopyPlan = Sets.newConcurrentHashSet();
+    Tasks.foreach(validSnapshots)
+        .noRetry()
+        .throwFailureWhenFinished()
+        .executeWith(executorService)
+        .run(
+            snapshot -> {
+              RewriteResult<ManifestFile> snapshotResult =
+                  rewriteManifestList(snapshot, endMetadata, manifestsToRewrite);
+              concurrentToRewrite.addAll(snapshotResult.toRewrite());
+              concurrentCopyPlan.addAll(snapshotResult.copyPlan());
+            });
+
+    rewriteManifestListResult.toRewrite().addAll(concurrentToRewrite);
+    rewriteManifestListResult.copyPlan().addAll(concurrentCopyPlan);
 
     // rebuild manifest files
     Set<ManifestFile> metaFiles = rewriteManifestListResult.toRewrite();
@@ -361,6 +383,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     result.copyPlan().addAll(rewriteVersionFile(endMetadata, endVersionName));
 
     List<MetadataLogEntry> versions = endMetadata.previousFiles();
+    List<String> versionFilePaths = Lists.newArrayList();
     for (int i = versions.size() - 1; i >= 0; i--) {
       String versionFilePath = versions.get(i).file();
       if (versionFilePath.equals(startVersionName)) {
@@ -370,12 +393,25 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       Preconditions.checkArgument(
           fileExist(versionFilePath),
           String.format("Version file %s doesn't exist", versionFilePath));
-      TableMetadata tableMetadata =
-          new StaticTableOperations(versionFilePath, table.io()).current();
-
-      result.toRewrite().addAll(tableMetadata.snapshots());
-      result.copyPlan().addAll(rewriteVersionFile(tableMetadata, versionFilePath));
+      versionFilePaths.add(versionFilePath);
     }
+
+    Set<Snapshot> allSnapshots = Sets.newConcurrentHashSet();
+    Set<Pair<String, String>> allCopyPlan = Sets.newConcurrentHashSet();
+    Tasks.foreach(versionFilePaths)
+        .noRetry()
+        .throwFailureWhenFinished()
+        .executeWith(executorService)
+        .run(
+            versionFilePath -> {
+              TableMetadata tableMetadata =
+                  new StaticTableOperations(versionFilePath, table.io()).current();
+              allSnapshots.addAll(tableMetadata.snapshots());
+              allCopyPlan.addAll(rewriteVersionFile(tableMetadata, versionFilePath));
+            });
+
+    result.toRewrite().addAll(allSnapshots);
+    result.copyPlan().addAll(allCopyPlan);
 
     return result;
   }
