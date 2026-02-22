@@ -356,4 +356,13 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
   }
+
+  public boolean identifierFieldsRely() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.IDENTIFIER_FIELDS_RELY)
+        .tableProperty(TableProperties.READ_IDENTIFIER_FIELDS_RELY)
+        .defaultValue(TableProperties.READ_IDENTIFIER_FIELDS_RELY_DEFAULT)
+        .parse();
+  }
 }
