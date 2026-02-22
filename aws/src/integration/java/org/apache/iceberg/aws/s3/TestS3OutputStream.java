@@ -113,39 +113,47 @@ public class TestS3OutputStream {
   }
 
   @Test
-  public void testAbortAfterFailedPartUpload() {
+  public void testAbortAfterFailedPartUpload() throws Exception {
     RuntimeException mockException = new RuntimeException("mock uploadPart failure");
     doThrow(mockException).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
 
+    S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics());
+
     assertThatThrownBy(
             () -> {
-              try (S3OutputStream stream =
-                  new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-                stream.write(randomData(10 * 1024 * 1024));
-              }
+              stream.write(randomData(10 * 1024 * 1024));
+              stream.close();
             })
         .isInstanceOf(mockException.getClass())
         .hasMessageContaining(mockException.getMessage());
+
+    // Verify that staging files and multipart map are cleared after abort
+    assertThat(stream.isStagingFileListCleared()).isTrue();
+    assertThat(stream.isMultiPartMapCleared()).isTrue();
 
     verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
 
   @Test
-  public void testAbortMultipart() {
+  public void testAbortMultipart() throws Exception {
     RuntimeException mockException = new RuntimeException("mock completeMultipartUpload failure");
     doThrow(mockException)
         .when(s3mock)
         .completeMultipartUpload((CompleteMultipartUploadRequest) any());
 
+    S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties, nullMetrics());
+
     assertThatThrownBy(
             () -> {
-              try (S3OutputStream stream =
-                  new S3OutputStream(s3mock, randomURI(), properties, nullMetrics())) {
-                stream.write(randomData(10 * 1024 * 1024));
-              }
+              stream.write(randomData(10 * 1024 * 1024));
+              stream.close();
             })
         .isInstanceOf(mockException.getClass())
         .hasMessageContaining(mockException.getMessage());
+
+    // Verify that staging files and multipart map are cleared after abort
+    assertThat(stream.isStagingFileListCleared()).isTrue();
+    assertThat(stream.isMultiPartMapCleared()).isTrue();
 
     verify(s3mock, times(1)).abortMultipartUpload((AbortMultipartUploadRequest) any());
   }
@@ -333,5 +341,41 @@ public class TestS3OutputStream {
     } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
       // do nothing
     }
+  }
+
+  @Test
+  public void testStagingFilesAndMultipartMapClearedAfterSuccessfulWrite() throws Exception {
+    // Test single-part upload (small file)
+    byte[] smallData = randomData(1024);
+    S3URI uri = randomURI();
+
+    S3OutputStream stream = new S3OutputStream(s3, uri, properties, nullMetrics());
+    stream.write(smallData);
+    stream.close();
+
+    assertThat(stream.isStagingFileListCleared()).isTrue();
+    assertThat(stream.isMultiPartMapCleared()).isTrue();
+
+    // Verify the data was written successfully
+    byte[] actual = readS3Data(uri);
+    assertThat(actual).isEqualTo(smallData);
+  }
+
+  @Test
+  public void testStagingFilesAndMultipartMapClearedAfterMultipartUpload() throws Exception {
+    // Test multipart upload (large file)
+    byte[] largeData = randomData(10 * 1024 * 1024);
+    S3URI uri = randomURI();
+
+    S3OutputStream stream = new S3OutputStream(s3, uri, properties, nullMetrics());
+    stream.write(largeData);
+    stream.close();
+
+    assertThat(stream.isStagingFileListCleared()).isTrue();
+    assertThat(stream.isMultiPartMapCleared()).isTrue();
+
+    // Verify the data was written successfully
+    byte[] actual = readS3Data(uri);
+    assertThat(actual).isEqualTo(largeData);
   }
 }

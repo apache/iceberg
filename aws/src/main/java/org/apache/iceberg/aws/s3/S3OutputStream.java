@@ -407,6 +407,9 @@ class S3OutputStream extends PositionOutputStream {
         .suppressFailureWhenFinished()
         .onFailure((file, thrown) -> LOG.warn("Failed to delete staging file: {}", file, thrown))
         .run(File::delete);
+    // clear staging files and multipart map
+    stagingFiles.clear();
+    multiPartMap.clear();
   }
 
   private void completeUploads() {
@@ -511,5 +514,15 @@ class S3OutputStream extends PositionOutputStream {
     public boolean hasDigest() {
       return digest != null;
     }
+  }
+
+  // package private methods to test clearing of stating file list and multipart map
+
+  boolean isStagingFileListCleared() {
+    return stagingFiles.isEmpty();
+  }
+
+  boolean isMultiPartMapCleared() {
+    return multiPartMap.isEmpty();
   }
 }
