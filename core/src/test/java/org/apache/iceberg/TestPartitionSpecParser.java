@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
@@ -93,6 +94,79 @@ public class TestPartitionSpecParser extends TestBase {
     // should be the field ids in the JSON
     assertThat(spec.fields().get(0).fieldId()).isEqualTo(1001);
     assertThat(spec.fields().get(1).fieldId()).isEqualTo(1000);
+  }
+
+  @TestTemplate
+  public void testFromJsonWithSourceIds() {
+    String specString =
+        "{\n"
+            + "  \"spec-id\" : 1,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"name\" : \"void\",\n"
+            + "    \"transform\" : \"void\",\n"
+            + "    \"source-ids\" : [ 1, 2 ],\n"
+            + "    \"field-id\" : 1001\n"
+            + "  }]\n"
+            + "}";
+
+    PartitionSpec spec = PartitionSpecParser.fromJson(table.schema(), specString);
+
+    assertThat(spec.fields()).hasSize(1);
+    assertThat(spec.fields().get(0).sourceIds()).hasSize(2);
+  }
+
+  @TestTemplate
+  public void testFromJsonWithBothSourceIdAndSourceIds() {
+    String specString =
+        "{\n"
+            + "  \"spec-id\" : 1,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"name\" : \"id_bucket\",\n"
+            + "    \"transform\" : \"bucket[8]\",\n"
+            + "    \"source-id\" : 1,\n"
+            + "    \"source-ids\" : [ 1 ],\n"
+            + "    \"field-id\" : 1001\n"
+            + "  }, {\n"
+            + "    \"name\" : \"data_bucket\",\n"
+            + "    \"transform\" : \"bucket[16]\",\n"
+            + "    \"source-id\" : 2,\n"
+            + "    \"source-ids\" : [ 2 ],\n"
+            + "    \"field-id\" : 1000\n"
+            + "  } ]\n"
+            + "}";
+
+    assertThatThrownBy(
+            () -> {
+              PartitionSpecParser.fromJson(table.schema(), specString);
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot parse partition field, only source-id or source-ids are accepted exclusively, not both");
+  }
+
+  @TestTemplate
+  public void testFromJsonWithoutSourceIdAndSourceIds() {
+    String specString =
+        "{\n"
+            + "  \"spec-id\" : 1,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"name\" : \"id_bucket\",\n"
+            + "    \"transform\" : \"bucket[8]\",\n"
+            + "    \"field-id\" : 1001\n"
+            + "  }, {\n"
+            + "    \"name\" : \"data_bucket\",\n"
+            + "    \"transform\" : \"bucket[16]\",\n"
+            + "    \"field-id\" : 1000\n"
+            + "  } ]\n"
+            + "}";
+
+    assertThatThrownBy(
+            () -> {
+              PartitionSpecParser.fromJson(table.schema(), specString);
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot parse partition field, either source-id or source-ids has to be present");
   }
 
   @TestTemplate

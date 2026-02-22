@@ -334,10 +334,14 @@ public class TestPartitionSpecValidation {
 
   private static Object[][] unsupportedFieldsProvider() {
     return new Object[][] {
-      {7, "variant_partition1", "Cannot partition by non-primitive source field: variant"},
-      {8, "geom_partition1", "Invalid source type geometry for transform: bucket[5]"},
-      {9, "geog_partition1", "Invalid source type geography for transform: bucket[5]"},
-      {10, "unknown_partition1", "Invalid source type unknown for transform: bucket[5]"}
+      {
+        7,
+        "variant_partition1",
+        "Cannot partition by non-primitive source field: 1005: variant_partition1: bucket[5](7) (variant)"
+      },
+      {8, "geom_partition1", "Invalid source type [geometry] for transform: bucket[5]"},
+      {9, "geog_partition1", "Invalid source type [geography] for transform: bucket[5]"},
+      {10, "unknown_partition1", "Invalid source type [unknown] for transform: bucket[5]"}
     };
   }
 

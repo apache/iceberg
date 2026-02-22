@@ -19,9 +19,11 @@
 package org.apache.iceberg.transforms;
 
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
@@ -79,6 +81,12 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
     return type.typeId() == Type.TypeID.DATE
         || type.typeId() == Type.TypeID.TIMESTAMP
         || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
+  }
+
+  @Override
+  public boolean canTransform(List<Type> types) {
+    Preconditions.checkArgument(types.size() == 1, "Only one source type is accepted");
+    return canTransform(types.get(0));
   }
 
   @Override
