@@ -20,6 +20,7 @@ package org.apache.iceberg.azure.adlsv2;
 
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
@@ -42,6 +43,7 @@ import java.time.OffsetDateTime;
 import java.util.Iterator;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
@@ -95,6 +97,18 @@ public class TestADLSFileIO extends AzuriteTestBase {
 
     assertThat(AZURITE_CONTAINER.fileClient(path1).exists()).isFalse();
     assertThat(AZURITE_CONTAINER.fileClient(path2).exists()).isFalse();
+  }
+
+  @Test
+  public void testReadMissingLocation() {
+    String path = "path/to/data.parquet";
+    String location = AZURITE_CONTAINER.location(path);
+    ADLSFileIO io = createFileIO();
+    InputFile inputFile = io.newInputFile(location);
+
+    assertThatThrownBy(() -> inputFile.newStream().read())
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("does not exist");
   }
 
   @Test
