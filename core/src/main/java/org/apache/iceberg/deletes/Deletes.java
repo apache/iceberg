@@ -30,12 +30,17 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
@@ -124,6 +129,19 @@ public class Deletes {
   public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
       CloseableIterable<T> posDeletes) {
     return toPositionIndexes(posDeletes, null /* unknown delete file */);
+  }
+
+  public static PositionDeleteIndex readDV(DeleteFile deleteFile, FileIO fileIO) {
+    Preconditions.checkArgument(
+        ContentFileUtil.isDV(deleteFile),
+        "Cannot read, not a deletion vector: %s",
+        deleteFile.location());
+    InputFile inputFile = fileIO.newInputFile(deleteFile);
+    long offset = deleteFile.contentOffset();
+    int length = deleteFile.contentSizeInBytes().intValue();
+    byte[] bytes = new byte[length];
+    IOUtil.readFully(inputFile, offset, bytes, 0, length);
+    return PositionDeleteIndex.deserialize(bytes, deleteFile);
   }
 
   /**

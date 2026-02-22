@@ -30,13 +30,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
@@ -47,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
@@ -55,6 +59,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,8 +91,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // update data
   private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private Long newDataFilesDataSequenceNumber;
-  private final Map<Integer, DeleteFileSet> newDeleteFilesBySpec = Maps.newHashMap();
-  private final Set<String> newDVRefs = Sets.newHashSet();
+  private final List<DeleteFile> v2Deletes = Lists.newArrayList();
+  private final Map<String, List<DeleteFile>> dvsByReferencedFile = Maps.newLinkedHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
@@ -222,7 +227,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected boolean addsDeleteFiles() {
-    return !newDeleteFilesBySpec.isEmpty();
+    return !v2Deletes.isEmpty()
+        || dvsByReferencedFile.values().stream().anyMatch(dvs -> !dvs.isEmpty());
   }
 
   /** Add a data file to the new snapshot. */
@@ -265,15 +271,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         "Cannot find partition spec %s for delete file: %s",
         file.specId(),
         file.location());
-
-    DeleteFileSet deleteFiles =
-        newDeleteFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DeleteFileSet.create());
-    if (deleteFiles.add(file)) {
-      addedFilesSummary.addedFile(spec, file);
-      hasNewDeleteFiles = true;
-      if (ContentFileUtil.isDV(file)) {
-        newDVRefs.add(file.referencedDataFile());
-      }
+    hasNewDeleteFiles = true;
+    if (ContentFileUtil.isDV(file)) {
+      List<DeleteFile> dvsForReferencedFile =
+          dvsByReferencedFile.computeIfAbsent(
+              file.referencedDataFile(), newFile -> Lists.newArrayList());
+      dvsForReferencedFile.add(file);
+    } else {
+      v2Deletes.add(file);
     }
   }
 
@@ -814,7 +819,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Expression conflictDetectionFilter,
       Snapshot parent) {
     // skip if there is no current table state or this operation doesn't add new DVs
-    if (parent == null || newDVRefs.isEmpty()) {
+    if (parent == null || dvsByReferencedFile.isEmpty()) {
       return;
     }
 
@@ -847,7 +852,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         DeleteFile file = entry.file();
         if (newSnapshotIds.contains(entry.snapshotId()) && ContentFileUtil.isDV(file)) {
           ValidationException.check(
-              !newDVRefs.contains(file.referencedDataFile()),
+              !dvsByReferencedFile.containsKey(file.referencedDataFile()),
               "Found concurrently added DV for %s: %s",
               file.referencedDataFile(),
               ContentFileUtil.dvDesc(file));
@@ -1061,7 +1066,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private Iterable<ManifestFile> prepareDeleteManifests() {
-    if (newDeleteFilesBySpec.isEmpty()) {
+    if (!addsDeleteFiles()) {
       return ImmutableList.of();
     }
 
@@ -1076,20 +1081,59 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // this triggers a rewrite of all delete manifests even if there is only one new delete file
       // if there is a relevant use case in the future, the behavior can be optimized
       cachedNewDeleteManifests.clear();
+      // On cache invalidation of delete files, clear the whole summary.
+      // Since the summary contained both data files and DVs, add back the data files.
+      addedFilesSummary.clear();
+      newDataFilesBySpec.forEach(
+          (specId, dataFiles) ->
+              dataFiles.forEach(file -> addedFilesSummary.addedFile(spec(specId), file)));
     }
 
     if (cachedNewDeleteManifests.isEmpty()) {
+      List<DeleteFile> mergedDVs = mergeDVs();
+      Map<Integer, List<DeleteFile>> newDeleteFilesBySpec =
+          Streams.stream(Iterables.concat(mergedDVs, DeleteFileSet.of(v2Deletes)))
+              .collect(Collectors.groupingBy(ContentFile::specId));
+
       newDeleteFilesBySpec.forEach(
           (specId, deleteFiles) -> {
             PartitionSpec spec = ops().current().spec(specId);
-            List<ManifestFile> newDeleteManifests = writeDeleteManifests(deleteFiles, spec);
-            cachedNewDeleteManifests.addAll(newDeleteManifests);
+            deleteFiles.forEach(file -> addedFilesSummary.addedFile(spec, file));
+            cachedNewDeleteManifests.addAll(writeDeleteManifests(deleteFiles, spec));
           });
 
       this.hasNewDeleteFiles = false;
     }
 
     return cachedNewDeleteManifests;
+  }
+
+  private List<DeleteFile> mergeDVs() {
+    for (Map.Entry<String, List<DeleteFile>> entry : dvsByReferencedFile.entrySet()) {
+      if (entry.getValue().size() > 1) {
+        LOG.warn(
+            "Merging {} duplicate DVs for data file {} in table {}.",
+            entry.getValue().size(),
+            entry.getKey(),
+            tableName);
+      }
+    }
+
+    FileIO fileIO = EncryptingFileIO.combine(ops().io(), ops().encryption());
+    List<DeleteFile> finalDVs =
+        DVUtil.mergeAndWriteDVsIfRequired(
+            dvsByReferencedFile,
+            () -> {
+              String filename = FileFormat.PUFFIN.addExtension(String.valueOf(snapshotId()));
+              return fileIO.newOutputFile(ops().locationProvider().newDataLocation(filename));
+            },
+            fileIO,
+            ops().current().specsById(),
+            ThreadPools.getDeleteWorkerPool());
+
+    return finalDVs.stream()
+        .map(file -> Delegates.pendingDeleteFile(file, file.dataSequenceNumber()))
+        .collect(Collectors.toList());
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
