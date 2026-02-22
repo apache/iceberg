@@ -129,12 +129,11 @@ The value of these properties are not persisted as a part of the table metadata.
 
 ### Informational properties
 
-Informational properties are not used by Iceberg operations, but can be set by engines to provide additional context about a table.
-These properties are persisted in table metadata and can be useful for documentation, discovery, and integration with external tools.
+Informational properties can be set to provide additional context about a table. They can be useful for documentation, discovery, and integration with external tools. They do not affect read/write behavior or query semantics.
 
 | Property | Default    | Description                                                                                                         |
 | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
-| comment  | (not set)  | A human-readable description of the table. Engines like Spark and Flink set this via `COMMENT` in create table DDL. |
+| comment  | (not set)  | A table-level description that documents the business meaning and usage context. |
 
 ### Compatibility flags
 
