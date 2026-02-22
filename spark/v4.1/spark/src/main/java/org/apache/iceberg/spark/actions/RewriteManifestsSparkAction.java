@@ -330,8 +330,9 @@ public class RewriteManifestsSparkAction
   }
 
   private Dataset<Row> repartitionAndSort(Dataset<Row> df, Column col, int numPartitions) {
-    // add file path for range partition to make sure we have enough parallelism
-    return df.repartitionByRange(numPartitions, col, df.col(DATA_FILE_PATH_COLUMN_NAME))
+    // add xxhash64 of file path for range partition to make sure we have enough parallelism
+    return df.repartitionByRange(
+            numPartitions, col, functions.xxhash64(df.col(DATA_FILE_PATH_COLUMN_NAME)))
         .sortWithinPartitions(col);
   }
 
