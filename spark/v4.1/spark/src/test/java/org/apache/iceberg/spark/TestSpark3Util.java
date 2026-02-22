@@ -24,6 +24,7 @@ import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.day;
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.extract;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.hour;
@@ -163,6 +164,21 @@ public class TestSpark3Util extends TestBase {
 
     Expression andExpression = and(refExpression, yearExpression);
     assertThat(Spark3Util.describe(andExpression)).isEqualTo("(id = 1 AND year(ts) > 10)");
+  }
+
+  @Test
+  public void testDescribeExtractExpression() {
+    Expression extractGt = greaterThan(extract("v", "$.city", "string"), "Boston");
+    assertThat(Spark3Util.describe(extractGt))
+        .isEqualTo("variant_get(v, '$.city', 'string') > 'Boston'");
+
+    Expression extractEq = equal(extract("v", "$.event.id", "long"), 42L);
+    assertThat(Spark3Util.describe(extractEq))
+        .isEqualTo("variant_get(v, '$.event.id', 'long') = 42");
+
+    Expression extractIn = in(extract("v", "$.city", "string"), "NYC", "LA");
+    assertThat(Spark3Util.describe(extractIn))
+        .isEqualTo("variant_get(v, '$.city', 'string') IN ('NYC', 'LA')");
   }
 
   private SortOrder buildSortOrder(String transform, Schema schema, int sourceId) {

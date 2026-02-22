@@ -44,6 +44,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Term;
+import org.apache.iceberg.expressions.UnboundExtract;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.expressions.UnboundTransform;
@@ -693,6 +694,15 @@ public class Spark3Util {
       } else if (term instanceof UnboundTransform) {
         UnboundTransform<?, ?> transform = (UnboundTransform<?, ?>) term;
         return transform.transform().toString() + "(" + transform.ref().name() + ")";
+      } else if (term instanceof UnboundExtract) {
+        UnboundExtract<?> extract = (UnboundExtract<?>) term;
+        return "variant_get("
+            + extract.ref().name()
+            + ", '"
+            + extract.path()
+            + "', '"
+            + extract.type().toString()
+            + "')";
       } else {
         throw new UnsupportedOperationException("Cannot convert term to SQL: " + term);
       }
