@@ -20,27 +20,56 @@ package org.apache.iceberg.delta;
 
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.Table;
+import io.delta.kernel.data.ColumnarBatch;
+import io.delta.kernel.data.MapValue;
+import io.delta.kernel.data.Row;
 import io.delta.kernel.defaults.engine.DefaultEngine;
 import io.delta.kernel.engine.Engine;
 import io.delta.kernel.exceptions.TableNotFoundException;
 import io.delta.kernel.internal.DeltaHistoryManager;
+import io.delta.kernel.internal.DeltaLogActionUtils;
 import io.delta.kernel.internal.SnapshotImpl;
+import io.delta.kernel.internal.TableImpl;
+import io.delta.kernel.internal.actions.AddFile;
+import io.delta.kernel.internal.actions.SingleAction;
 import io.delta.kernel.internal.fs.Path;
+import io.delta.kernel.internal.util.VectorUtils;
 import io.delta.kernel.types.StructType;
+import io.delta.kernel.utils.CloseableIterator;
+import io.delta.standalone.actions.Action;
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.shaded.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
@@ -59,7 +88,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
 
   private final String deltaTableLocation;
   private Engine deltaEngine;
-  private Table deltaTable;
+  private TableImpl deltaTable;
 
   private Catalog icebergCatalog;
   private TableIdentifier newTableIdentifier;
@@ -105,7 +134,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   public SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf) {
     deltaEngine = DefaultEngine.create(conf);
     deltaLakeFileIO = new HadoopFileIO(conf);
-    deltaTable = Table.forPath(deltaEngine, deltaTableLocation);
+    deltaTable = (TableImpl) Table.forPath(deltaEngine, deltaTableLocation);
     return this;
   }
 
@@ -144,10 +173,14 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
             newTableLocation,
             buildTablePropertiesWithDelta(initialDeltaSnapshot, deltaTableLocation, icebergSchema));
 
-    long totalDataFiles =
-        convertEachDeltaVersion(initialDeltaVersion, latestDeltaVersion, transaction);
+      long totalDataFiles;
+      try {
+          totalDataFiles = convertEachDeltaVersion(initialDeltaVersion, latestDeltaVersion, transaction);
+      } catch (IOException e) {
+          throw new RuntimeException(e);
+      }
 
-    transaction.commitTransaction();
+      transaction.commitTransaction();
 
     LOG.info(
         "Successfully created Iceberg table {} from Delta Lake table at {}, total data file count: {}",
@@ -164,13 +197,104 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   }
 
   private long convertEachDeltaVersion(
-      long initialDeltaVersion, long latestDeltaVersion, Transaction transaction) {
+      long initialDeltaVersion, long latestDeltaVersion, Transaction transaction) throws IOException {
     LOG.info(
         "Log for compilation {}, {}, {}", initialDeltaVersion, latestDeltaVersion, transaction);
+
+    long dataFiles = 0;
+    try (CloseableIterator<ColumnarBatch> changes = deltaTable.getChanges(deltaEngine, initialDeltaVersion, latestDeltaVersion,
+            Set.of(DeltaLogActionUtils.DeltaAction.values()))) {
+      while (changes.hasNext()) {
+        ColumnarBatch columnarBatch = changes.next();
+
+        dataFiles += commitDeltaColumnarBatchToIcebergTransaction(columnarBatch, transaction);
+      }
+    }
+    return dataFiles;
+  }
+
+  /**
+   * Convert each dela log {@code ColumnarBatch} to Iceberg action
+   * and commit to the given {@code Transaction}.
+   * The complete <a href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md#Actions">spec</a>
+   * of delta actions.
+   * <br/>
+   * Supported:
+   * <li>Add</li>
+   *
+   * @return number of added data files
+   */
+  private long commitDeltaColumnarBatchToIcebergTransaction(ColumnarBatch columnarBatch, Transaction transaction) throws IOException{
     // TODO
-    // 2. Delta log to Iceberg history
+    // 1. initial delta version with all the data files
+    // 1.1 data skipping stats
+    // 1.2 DVs support
+    // 1.3 partitions support
+    // 2. Delta log to Iceberg history 1 by 1
     // 3. Delta versions and Delta tags
-    return 0;
+    // DeltaLogActionUtils.readCommitFiles(engine, commitFiles, readSchema);
+    // DeltaLogFile
+    // io.delta.kernel.internal.util.FileNames.deltaVersion(io.delta.kernel.internal.fs.Path)
+
+    List<DataFile> dataFilesToAdd = new ArrayList<>();
+    try (CloseableIterator<Row> rows = columnarBatch.getRows()) {
+      while (rows.hasNext()) {
+        Row row = rows.next();
+        if (DeltaLakeActionsTranslationUtil.isAdd(row)) {
+          AddFile addFile = new AddFile(row.getStruct(row.getSchema().indexOf("add")));
+
+          DataFile dataFile = buildDataFileFromDeltaAction(addFile, transaction);
+          dataFilesToAdd.add(dataFile);
+        }
+      }
+    }
+
+    //TODO Append only now
+    if (!dataFilesToAdd.isEmpty()) {
+      AppendFiles appendFiles = transaction.newAppend();
+      dataFilesToAdd.forEach(appendFiles::appendFile);
+      appendFiles.commit();
+    }
+
+    //TODO tag current version
+    return dataFilesToAdd.size();
+  }
+
+  //TODO support more actions
+  private DataFile buildDataFileFromDeltaAction(AddFile addFile, Transaction transaction) {
+    String path = addFile.getPath();
+    long dataFileSize = addFile.getSize();
+    Map<String, String> partitionValues = VectorUtils.toJavaMap(addFile.getPartitionValues());
+    String fullFilePath = getFullFilePath(path, deltaTable.getPath(deltaEngine));
+    System.out.println(partitionValues);
+
+    InputFile inputDataFile = deltaLakeFileIO.newInputFile(fullFilePath);
+    if (!inputDataFile.exists()) {
+      throw new NotFoundException(
+              "File %s is referenced in the logs of Delta Lake table at %s, but cannot be found in the storage",
+              fullFilePath, deltaTableLocation);
+    }
+
+    MetricsConfig metricsConfig = MetricsConfig.forTable(transaction.table());
+    String nameMappingString = transaction.table().properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    NameMapping nameMapping =
+            nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+    Metrics metrics = ParquetUtil.fileMetrics(inputDataFile, metricsConfig, nameMapping);
+
+    PartitionSpec partitionSpec = transaction.table().spec();
+    List<String> partitionValueList =
+            partitionSpec.fields().stream()
+                    .map(PartitionField::name)
+                    .map(partitionValues::get)
+                    .collect(Collectors.toList());
+
+    return DataFiles.builder(partitionSpec)
+            .withPath(fullFilePath)
+            .withFormat(FileFormat.PARQUET) //Delta supports only parquet datafiles
+            .withFileSizeInBytes(dataFileSize)
+            .withMetrics(metrics)
+            .withPartitionValues(partitionValueList)
+            .build();
   }
 
   @Nonnull
@@ -242,5 +366,15 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
         String.format(
             "Delta Lake table does not exist at the given location: %s", deltaTableLocation),
         e);
+  }
+
+  private static String getFullFilePath(String path, String tableRoot) {
+    URI dataFileUri = URI.create(path);
+    String decodedPath = URLDecoder.decode(path, StandardCharsets.UTF_8);
+    if (dataFileUri.isAbsolute()) {
+      return decodedPath;
+    } else {
+      return tableRoot + File.separator + decodedPath;
+    }
   }
 }
