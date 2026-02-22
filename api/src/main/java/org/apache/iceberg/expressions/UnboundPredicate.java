@@ -284,6 +284,10 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         return term() + " startsWith \"" + literal() + "\"";
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal() + "\"";
+      case ST_INTERSECTS:
+        return "st_intersects(" + term() + ", " + literal() + ")";
+      case ST_DISJOINT:
+        return "st_disjoint(" + term() + ", " + literal() + ")";
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:

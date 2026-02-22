@@ -26,6 +26,8 @@ import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.BooleanType;
 import org.apache.iceberg.types.Types.DateType;
@@ -189,6 +191,19 @@ public class TestConversions {
     assertConversion(new BigDecimal("0.011"), DecimalType.of(10, 3), new byte[] {11});
     assertThat(Literal.of(new BigDecimal("0.011")).toByteBuffer().array())
         .isEqualTo(new byte[] {11});
+  }
+
+  @Test
+  public void testGeospatialByteBufferConversions() {
+    // geospatial values were kept as-is
+    // this is the WKB representation of POINT (2 3)
+    byte[] wkb = new byte[] {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 8, 64};
+    assertConversion(ByteBuffer.wrap(wkb), Types.GeometryType.crs84(), wkb);
+    assertConversion(ByteBuffer.wrap(wkb), Types.GeographyType.crs84(), wkb);
+    // geospatial bounding boxes are converted to their byte buffer representation
+    BoundingBox bbox =
+        new BoundingBox(GeospatialBound.createXY(10, 20), GeospatialBound.createXY(30, 40));
+    assertThat(Literal.of(bbox).toByteBuffer().array()).isEqualTo(bbox.toByteBuffer().array());
   }
 
   private <T> void assertConversion(T value, Type type, byte[] expectedBinary) {
