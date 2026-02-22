@@ -508,6 +508,7 @@ project(':iceberg-aws') {
     compileOnly("software.amazon.awssdk:dynamodb")
     compileOnly("software.amazon.awssdk:lakeformation")
 
+
     compileOnly(libs.analyticsaccelerator.s3)
 
     compileOnly(libs.hadoop3.common) {
