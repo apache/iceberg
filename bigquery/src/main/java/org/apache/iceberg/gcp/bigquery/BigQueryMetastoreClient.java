@@ -27,6 +27,7 @@ import com.google.api.services.bigquery.model.TableReference;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.gcp.bigquery.util.RetryDetector;
 
 /**
  * A client of Google BigQuery Metastore functions over the BigQuery service. Uses the Google
@@ -95,6 +96,14 @@ interface BigQueryMetastoreClient {
   Table create(Table table);
 
   /**
+   * Creates and returns a new table.
+   *
+   * @param table body of the table to create
+   * @param retryDetector detector to track if retries occurred during the operation
+   */
+  Table create(Table table, RetryDetector retryDetector);
+
+  /**
    * Returns a table.
    *
    * @param tableReference full table reference
@@ -108,6 +117,15 @@ interface BigQueryMetastoreClient {
    * @param table to patch
    */
   Table update(TableReference tableReference, Table table);
+
+  /**
+   * Updates the catalog table options of an Iceberg table and returns the updated table.
+   *
+   * @param tableReference full table reference
+   * @param table to patch
+   * @param retryDetector detector to track if retries occurred during the operation
+   */
+  Table update(TableReference tableReference, Table table, RetryDetector retryDetector);
 
   /**
    * Deletes a table.

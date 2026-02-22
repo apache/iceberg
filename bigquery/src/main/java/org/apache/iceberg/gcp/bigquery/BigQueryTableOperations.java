@@ -22,7 +22,6 @@ import com.google.api.services.bigquery.model.ExternalCatalogTableOptions;
 import com.google.api.services.bigquery.model.Table;
 import com.google.api.services.bigquery.model.TableReference;
 import java.util.Map;
-import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
@@ -31,8 +30,11 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.gcp.bigquery.util.RetryDetector;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -82,48 +84,49 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
   // atomically
   @Override
   public void doCommit(TableMetadata base, TableMetadata metadata) {
-    String newMetadataLocation =
-        base == null && metadata.metadataFileLocation() != null
-            ? metadata.metadataFileLocation()
-            : writeNewMetadata(metadata, currentVersion() + 1);
-    BaseMetastoreOperations.CommitStatus commitStatus =
-        BaseMetastoreOperations.CommitStatus.FAILURE;
+    CommitStatus commitStatus = CommitStatus.FAILURE;
+    RetryDetector retryDetector = new RetryDetector();
+
+    String newMetadataLocation = null;
     try {
-      if (base == null) {
-        createTable(newMetadataLocation, metadata);
+      boolean newTable = base == null;
+      newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
+
+      if (newTable) {
+        createTable(newMetadataLocation, metadata, retryDetector);
       } else {
-        updateTable(newMetadataLocation, metadata);
+        updateTable(newMetadataLocation, metadata, retryDetector);
       }
-      commitStatus = BaseMetastoreOperations.CommitStatus.SUCCESS;
-    } catch (CommitFailedException | CommitStateUnknownException e) {
+      commitStatus = CommitStatus.SUCCESS;
+    } catch (CommitFailedException e) {
       throw e;
     } catch (Throwable e) {
       LOG.error("Exception thrown on commit: ", e);
-      if (e instanceof AlreadyExistsException) {
-        throw e;
+      boolean isAlreadyExistsException = e instanceof AlreadyExistsException;
+      boolean isRuntimeIOException = e instanceof RuntimeIOException;
+
+      // If retries occurred, an earlier attempt may have succeeded. If we got a
+      // RuntimeIOException, we have no way of knowing if the request reached the server.
+      // In either case, check whether the commit actually succeeded.
+      if (isRuntimeIOException || retryDetector.retried()) {
+        LOG.warn(
+            "Received unexpected failure when committing to {}, validating if commit ended up succeeding.",
+            tableName(),
+            e);
+        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
       }
-      commitStatus =
-          BaseMetastoreOperations.CommitStatus.valueOf(
-              checkCommitStatus(newMetadataLocation, metadata).name());
-      if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE) {
+
+      if (commitStatus == CommitStatus.FAILURE) {
+        if (isAlreadyExistsException) {
+          throw new AlreadyExistsException(e, "Table already exists: %s", tableName());
+        }
         throw new CommitFailedException(e, "Failed to commit");
       }
-      if (commitStatus == BaseMetastoreOperations.CommitStatus.UNKNOWN) {
+      if (commitStatus == CommitStatus.UNKNOWN) {
         throw new CommitStateUnknownException(e);
       }
     } finally {
-      try {
-        if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE) {
-          LOG.warn("Failed to commit updates to table {}", tableName());
-          io().deleteFile(newMetadataLocation);
-        }
-      } catch (RuntimeException e) {
-        LOG.error(
-            "Failed to cleanup metadata file at {} for table {}",
-            newMetadataLocation,
-            tableName(),
-            e);
-      }
+      cleanupMetadata(commitStatus, newMetadataLocation);
     }
   }
 
@@ -137,13 +140,14 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
     return fileIO;
   }
 
-  private void createTable(String newMetadataLocation, TableMetadata metadata) {
+  private void createTable(
+      String newMetadataLocation, TableMetadata metadata, RetryDetector retryDetector) {
     LOG.debug("Creating a new Iceberg table: {}", tableName());
     Table tableBuilder = makeNewTable(metadata, newMetadataLocation);
     tableBuilder.setTableReference(tableReference);
     addConnectionIfProvided(tableBuilder, metadata.properties());
 
-    client.create(tableBuilder);
+    client.create(tableBuilder, retryDetector);
   }
 
   private void addConnectionIfProvided(Table tableBuilder, Map<String, String> metadataProperties) {
@@ -155,7 +159,8 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
   }
 
   /** Update table properties with concurrent update detection using etag. */
-  private void updateTable(String newMetadataLocation, TableMetadata metadata) {
+  private void updateTable(
+      String newMetadataLocation, TableMetadata metadata, RetryDetector retryDetector) {
     Preconditions.checkState(
         metastoreTable != null,
         "Table %s must be loaded during refresh before commit",
@@ -171,7 +176,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
     addConnectionIfProvided(metastoreTable, metadata.properties());
 
     options.setParameters(buildTableParameters(newMetadataLocation, metadata));
-    client.update(tableReference, metastoreTable);
+    client.update(tableReference, metastoreTable, retryDetector);
     this.metastoreTable = null;
   }
 
@@ -240,5 +245,20 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
     }
 
     return tableOptions.getParameters().get(METADATA_LOCATION_PROP);
+  }
+
+  @VisibleForTesting
+  void cleanupMetadata(CommitStatus commitStatus, String metadataLocation) {
+    try {
+      if (commitStatus == CommitStatus.FAILURE
+          && metadataLocation != null
+          && !metadataLocation.isEmpty()) {
+        // if anything went wrong, clean up the uncommitted metadata file
+        io().deleteFile(metadataLocation);
+      }
+    } catch (RuntimeException e) {
+      LOG.error(
+          "Failed to cleanup metadata file at {} for table {}", metadataLocation, tableName(), e);
+    }
   }
 }
