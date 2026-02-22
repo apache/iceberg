@@ -113,13 +113,13 @@ public class TestSchemaUtils {
     verify(table).refresh();
     verify(table).updateSchema();
 
-    verify(updateSchema).addColumn(isNull(), eq("s"), isA(StringType.class));
+    verify(updateSchema).addColumn(isNull(), eq("s"), isA(StringType.class), isNull(), isNull());
     verify(updateSchema).updateColumn(eq("f"), isA(DoubleType.class));
     verify(updateSchema).makeColumnOptional(eq("i"));
     verify(updateSchema).commit();
 
     // check that there are no unexpected invocations...
-    verify(updateSchema).addColumn(isNull(), anyString(), any());
+    verify(updateSchema).addColumn(isNull(), anyString(), any(), isNull(), any());
     verify(updateSchema).updateColumn(any(), any());
     verify(updateSchema).makeColumnOptional(any());
   }
@@ -143,13 +143,13 @@ public class TestSchemaUtils {
     verify(table).refresh();
     verify(table).updateSchema();
 
-    verify(updateSchema).addColumn(eq("st"), eq("s"), isA(StringType.class));
+    verify(updateSchema).addColumn(eq("st"), eq("s"), isA(StringType.class), isNull(), isNull());
     verify(updateSchema).updateColumn(eq("st.f"), isA(DoubleType.class));
     verify(updateSchema).makeColumnOptional(eq("st.i"));
     verify(updateSchema).commit();
 
     // check that there are no unexpected invocations...
-    verify(updateSchema).addColumn(anyString(), anyString(), any());
+    verify(updateSchema).addColumn(anyString(), anyString(), any(), isNull(), any());
     verify(updateSchema).updateColumn(any(), any());
     verify(updateSchema).makeColumnOptional(any());
   }
@@ -220,43 +220,79 @@ public class TestSchemaUtils {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.schemaForceOptional()).thenReturn(forceOptional);
 
-    assertThat(SchemaUtils.toIcebergType(Schema.BOOLEAN_SCHEMA, config))
-        .isInstanceOf(BooleanType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.BYTES_SCHEMA, config))
-        .isInstanceOf(BinaryType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.INT8_SCHEMA, config))
-        .isInstanceOf(IntegerType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.INT16_SCHEMA, config))
-        .isInstanceOf(IntegerType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.INT32_SCHEMA, config))
-        .isInstanceOf(IntegerType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.INT64_SCHEMA, config)).isInstanceOf(LongType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.FLOAT32_SCHEMA, config))
-        .isInstanceOf(FloatType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.FLOAT64_SCHEMA, config))
-        .isInstanceOf(DoubleType.class);
-    assertThat(SchemaUtils.toIcebergType(Schema.STRING_SCHEMA, config))
-        .isInstanceOf(StringType.class);
-    assertThat(SchemaUtils.toIcebergType(Date.SCHEMA, config)).isInstanceOf(DateType.class);
-    assertThat(SchemaUtils.toIcebergType(Time.SCHEMA, config)).isInstanceOf(TimeType.class);
+    int formatVersion = 2; // Use format version 2 for basic type conversion tests
 
-    Type timestampType = SchemaUtils.toIcebergType(Timestamp.SCHEMA, config);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.BOOLEAN_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(BooleanType.class);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.BYTES_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(BinaryType.class);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.INT8_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(IntegerType.class);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.INT16_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(IntegerType.class);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.INT32_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(IntegerType.class);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.INT64_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(LongType.class);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.FLOAT32_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(FloatType.class);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.FLOAT64_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(DoubleType.class);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Schema.STRING_SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(StringType.class);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Date.SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(DateType.class);
+    assertThat(
+            SchemaUtils.toIcebergType(
+                Time.SCHEMA, config, SchemaUtils.includeDefaults(formatVersion)))
+        .isInstanceOf(TimeType.class);
+
+    Type timestampType =
+        SchemaUtils.toIcebergType(
+            Timestamp.SCHEMA, config, SchemaUtils.includeDefaults(formatVersion));
     assertThat(timestampType).isInstanceOf(TimestampType.class);
     assertThat(((TimestampType) timestampType).shouldAdjustToUTC()).isTrue();
 
-    Type decimalType = SchemaUtils.toIcebergType(Decimal.schema(4), config);
+    Type decimalType =
+        SchemaUtils.toIcebergType(
+            Decimal.schema(4), config, SchemaUtils.includeDefaults(formatVersion));
     assertThat(decimalType).isInstanceOf(DecimalType.class);
     assertThat(((DecimalType) decimalType).scale()).isEqualTo(4);
 
     Type listType =
-        SchemaUtils.toIcebergType(SchemaBuilder.array(Schema.STRING_SCHEMA).build(), config);
+        SchemaUtils.toIcebergType(
+            SchemaBuilder.array(Schema.STRING_SCHEMA).build(),
+            config,
+            SchemaUtils.includeDefaults(formatVersion));
     assertThat(listType).isInstanceOf(ListType.class);
     assertThat(listType.asListType().elementType()).isInstanceOf(StringType.class);
     assertThat(listType.asListType().isElementOptional()).isEqualTo(forceOptional);
 
     Type mapType =
         SchemaUtils.toIcebergType(
-            SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA).build(), config);
+            SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA).build(),
+            config,
+            SchemaUtils.includeDefaults(formatVersion));
     assertThat(mapType).isInstanceOf(MapType.class);
     assertThat(mapType.asMapType().keyType()).isInstanceOf(StringType.class);
     assertThat(mapType.asMapType().valueType()).isInstanceOf(StringType.class);
@@ -264,7 +300,9 @@ public class TestSchemaUtils {
 
     Type structType =
         SchemaUtils.toIcebergType(
-            SchemaBuilder.struct().field("i", Schema.INT32_SCHEMA).build(), config);
+            SchemaBuilder.struct().field("i", Schema.INT32_SCHEMA).build(),
+            config,
+            SchemaUtils.includeDefaults(formatVersion));
     assertThat(structType).isInstanceOf(StructType.class);
     assertThat(structType.asStructType().fieldType("i")).isInstanceOf(IntegerType.class);
     assertThat(structType.asStructType().field("i").isOptional()).isEqualTo(forceOptional);
@@ -330,5 +368,250 @@ public class TestSchemaUtils {
     // skip infer for object if values are empty objects
     assertThat(SchemaUtils.inferIcebergType(ImmutableMap.of("nested", ImmutableMap.of()), config))
         .isNull();
+  }
+
+  @Test
+  public void testConvertDefaultValuePrimitiveTypes() {
+    // Test boolean
+    org.apache.iceberg.expressions.Literal<?> boolLit =
+        SchemaUtils.convertDefaultValue(true, BooleanType.get());
+    assertThat(boolLit).isNotNull();
+    assertThat(boolLit.value()).isEqualTo(true);
+
+    // Test integer
+    org.apache.iceberg.expressions.Literal<?> intLit =
+        SchemaUtils.convertDefaultValue(42, IntegerType.get());
+    assertThat(intLit).isNotNull();
+    assertThat(intLit.value()).isEqualTo(42);
+
+    // Test long
+    org.apache.iceberg.expressions.Literal<?> longLit =
+        SchemaUtils.convertDefaultValue(1234567890L, LongType.get());
+    assertThat(longLit).isNotNull();
+    assertThat(longLit.value()).isEqualTo(1234567890L);
+
+    // Test float
+    org.apache.iceberg.expressions.Literal<?> floatLit =
+        SchemaUtils.convertDefaultValue(3.14f, FloatType.get());
+    assertThat(floatLit).isNotNull();
+    assertThat(floatLit.value()).isEqualTo(3.14f);
+
+    // Test double
+    org.apache.iceberg.expressions.Literal<?> doubleLit =
+        SchemaUtils.convertDefaultValue(2.71828, DoubleType.get());
+    assertThat(doubleLit).isNotNull();
+    assertThat(doubleLit.value()).isEqualTo(2.71828);
+
+    // Test string
+    org.apache.iceberg.expressions.Literal<?> stringLit =
+        SchemaUtils.convertDefaultValue("default_value", StringType.get());
+    assertThat(stringLit).isNotNull();
+    assertThat(stringLit.value()).isEqualTo("default_value");
+  }
+
+  @Test
+  public void testConvertDefaultValueDecimal() {
+    Schema decimalSchema =
+        Decimal.builder(2).parameter(Decimal.SCALE_FIELD, "2").optional().build();
+    BigDecimal value = new BigDecimal("12.34");
+
+    org.apache.iceberg.expressions.Literal<?> decimalLit =
+        SchemaUtils.convertDefaultValue(value, DecimalType.of(10, 2));
+    assertThat(decimalLit).isNotNull();
+    assertThat(decimalLit.value()).isEqualTo(value);
+  }
+
+  @Test
+  public void testConvertDefaultValueNull() {
+    org.apache.iceberg.expressions.Literal<?> nullLit =
+        SchemaUtils.convertDefaultValue(null, StringType.get());
+    assertThat(nullLit).isNull();
+  }
+
+  @Test
+  public void testConvertDefaultValueNestedTypes() {
+    // Nested types (LIST, MAP, STRUCT) should return null for non-null defaults
+    org.apache.iceberg.expressions.Literal<?> listLit =
+        SchemaUtils.convertDefaultValue(
+            ImmutableList.of("value"), ListType.ofOptional(1, StringType.get()));
+    assertThat(listLit).isNull();
+  }
+
+  @Test
+  public void testConvertDefaultValueWithNumberConversion() {
+    // Test that Number can be converted to different types
+    org.apache.iceberg.expressions.Literal<?> intFromLong =
+        SchemaUtils.convertDefaultValue(100L, IntegerType.get());
+    assertThat(intFromLong).isNotNull();
+    assertThat(intFromLong.value()).isEqualTo(100);
+
+    org.apache.iceberg.expressions.Literal<?> longFromInt =
+        SchemaUtils.convertDefaultValue(50, LongType.get());
+    assertThat(longFromInt).isNotNull();
+    assertThat(longFromInt.value()).isEqualTo(50L);
+
+    org.apache.iceberg.expressions.Literal<?> floatFromDouble =
+        SchemaUtils.convertDefaultValue(1.5, FloatType.get());
+    assertThat(floatFromDouble).isNotNull();
+    assertThat(floatFromDouble.value()).isEqualTo(1.5f);
+  }
+
+  @Test
+  public void testConvertDefaultValueTemporalTypes() {
+    // Test DATE - should convert to days from epoch
+    java.util.Date date = new java.util.Date(0); // Epoch
+    org.apache.iceberg.expressions.Literal<?> dateLit =
+        SchemaUtils.convertDefaultValue(date, DateType.get());
+    assertThat(dateLit).isNotNull();
+    assertThat(dateLit.value()).isEqualTo(0); // Day 0 (1970-01-01)
+
+    // Test DATE from LocalDate
+    LocalDate localDate = LocalDate.of(2024, 1, 1);
+    org.apache.iceberg.expressions.Literal<?> localDateLit =
+        SchemaUtils.convertDefaultValue(localDate, DateType.get());
+    assertThat(localDateLit).isNotNull();
+    assertThat(localDateLit.value()).isEqualTo((int) localDate.toEpochDay());
+
+    // Test TIME - should convert to microseconds from midnight
+    java.util.Date time = new java.util.Date(3600000); // 1 hour in millis
+    org.apache.iceberg.expressions.Literal<?> timeLit =
+        SchemaUtils.convertDefaultValue(time, TimeType.get());
+    assertThat(timeLit).isNotNull();
+    assertThat(timeLit.value()).isEqualTo(3600000L * 1000); // Converted to micros
+
+    // Test TIMESTAMP - should use micros() method
+    java.util.Date timestamp = new java.util.Date(1000); // 1 second
+    org.apache.iceberg.expressions.Literal<?> timestampLit =
+        SchemaUtils.convertDefaultValue(timestamp, TimestampType.withZone());
+    assertThat(timestampLit).isNotNull();
+    // The value should be in microseconds (1000 millis = 1000000 micros)
+    assertThat(timestampLit.value()).isEqualTo(1000L * 1000);
+  }
+
+  @Test
+  public void testSchemaGeneratorExtractsDefaultsV3() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.schemaForceOptional()).thenReturn(false);
+
+    Schema kafkaSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("name", SchemaBuilder.string().defaultValue("unknown").build())
+            .field("age", SchemaBuilder.int32().defaultValue(0).build())
+            .field("active", SchemaBuilder.bool().defaultValue(true).build())
+            .build();
+
+    // Test with format version 3 - should extract defaults
+    Type icebergType =
+        SchemaUtils.toIcebergType(kafkaSchema, config, SchemaUtils.includeDefaults(3));
+    assertThat(icebergType).isInstanceOf(StructType.class);
+
+    StructType structType = (StructType) icebergType;
+    assertThat(structType.fields()).hasSize(4);
+
+    // Fields by name (not index)
+    NestedField idField = structType.field("id");
+    assertThat(idField.name()).isEqualTo("id");
+    assertThat(idField.initialDefault()).isNull();
+    assertThat(idField.writeDefault()).isNull();
+
+    // Field with string default
+    NestedField nameField = structType.field("name");
+    assertThat(nameField.name()).isEqualTo("name");
+    assertThat(nameField.initialDefault()).isEqualTo("unknown");
+    assertThat(nameField.writeDefault()).isEqualTo("unknown");
+
+    // Field with integer default
+    NestedField ageField = structType.field("age");
+    assertThat(ageField.name()).isEqualTo("age");
+    assertThat(ageField.initialDefault()).isEqualTo(0);
+    assertThat(ageField.writeDefault()).isEqualTo(0);
+
+    // Field with boolean default
+    NestedField activeField = structType.field("active");
+    assertThat(activeField.name()).isEqualTo("active");
+    assertThat(activeField.initialDefault()).isEqualTo(true);
+    assertThat(activeField.writeDefault()).isEqualTo(true);
+  }
+
+  @Test
+  public void testSchemaGeneratorIgnoresDefaultsV2() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.schemaForceOptional()).thenReturn(false);
+
+    Schema kafkaSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("name", SchemaBuilder.string().defaultValue("unknown").build())
+            .field("age", SchemaBuilder.int32().defaultValue(0).build())
+            .field("active", SchemaBuilder.bool().defaultValue(true).build())
+            .build();
+
+    // Test with format version 2 - should NOT extract defaults
+    Type icebergType =
+        SchemaUtils.toIcebergType(kafkaSchema, config, SchemaUtils.includeDefaults(2));
+    assertThat(icebergType).isInstanceOf(StructType.class);
+
+    StructType structType = (StructType) icebergType;
+    assertThat(structType.fields()).hasSize(4);
+
+    // All fields should have null defaults when using format version 2
+    for (NestedField field : structType.fields()) {
+      assertThat(field.initialDefault())
+          .as("Field %s should not have initial default in format v2", field.name())
+          .isNull();
+      assertThat(field.writeDefault())
+          .as("Field %s should not have write default in format v2", field.name())
+          .isNull();
+    }
+  }
+
+  @Test
+  public void testSchemaGeneratorWithDifferentFormatVersions() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.schemaForceOptional()).thenReturn(false);
+
+    Schema kafkaSchema =
+        SchemaBuilder.struct()
+            .field("name", SchemaBuilder.string().defaultValue("test").build())
+            .build();
+
+    // Format version 1 - no defaults
+    Type v1Type = SchemaUtils.toIcebergType(kafkaSchema, config, SchemaUtils.includeDefaults(1));
+    assertThat(v1Type.asStructType().field("name").initialDefault()).isNull();
+    assertThat(v1Type.asStructType().field("name").writeDefault()).isNull();
+
+    // Format version 2 - no defaults
+    Type v2Type = SchemaUtils.toIcebergType(kafkaSchema, config, SchemaUtils.includeDefaults(2));
+    assertThat(v2Type.asStructType().field("name").initialDefault()).isNull();
+    assertThat(v2Type.asStructType().field("name").writeDefault()).isNull();
+
+    // Format version 3 - with defaults
+    Type v3Type = SchemaUtils.toIcebergType(kafkaSchema, config, SchemaUtils.includeDefaults(3));
+    assertThat(v3Type.asStructType().field("name").initialDefault()).isEqualTo("test");
+    assertThat(v3Type.asStructType().field("name").writeDefault()).isEqualTo("test");
+  }
+
+  @Test
+  public void testFormatVersionFromTableUsedForSchemaEvolution() {
+    // This test verifies that the table's format version is used, not the config
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.schemaForceOptional()).thenReturn(false);
+
+    Schema kafkaSchemaWithDefaults =
+        SchemaBuilder.struct()
+            .field("newColumn", SchemaBuilder.string().defaultValue("default_value").build())
+            .build();
+
+    // When table is v3, defaults should be included regardless of config
+    Type typeFromV3Table =
+        SchemaUtils.toIcebergType(kafkaSchemaWithDefaults, config, SchemaUtils.includeDefaults(3));
+    assertThat(typeFromV3Table.asStructType().field("newColumn").initialDefault())
+        .isEqualTo("default_value");
+
+    // When table is v2, defaults should NOT be included
+    Type typeFromV2Table =
+        SchemaUtils.toIcebergType(kafkaSchemaWithDefaults, config, SchemaUtils.includeDefaults(2));
+    assertThat(typeFromV2Table.asStructType().field("newColumn").initialDefault()).isNull();
   }
 }
