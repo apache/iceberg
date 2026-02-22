@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Extra, Field
@@ -588,6 +588,26 @@ class StorageCredential(BaseModel):
         description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix (by selecting the longest prefix) if several credentials of the same type are available.',
     )
     config: dict[str, str]
+
+
+class MaskHashSha256(BaseModel):
+    __root__: Any = Field(
+        ...,
+        description='Mask the data of the column by applying SHA-256.\nThe input must be UTF-8 encoded bytes of the column value.\nThe SHA-256 digest is represented as a lowercase hexadecimal string.\nEngines must follow this procedure to ensure consistency:\n1. Convert the column value to a UTF-8 byte array.\n2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.\n3. Convert the resulting 32-byte digest to a 64-character lowercase hexadecimal string.\n',
+    )
+
+
+class ReplaceWithNull(BaseModel):
+    __root__: Any = Field(
+        ..., description='Masks data by replacing it with a NULL value.'
+    )
+
+
+class MaskAlphanumeric(BaseModel):
+    __root__: Any = Field(
+        ...,
+        description="mask all alphabetic characters with 'x' and numeric characters with 'n'",
+    )
 
 
 class LoadCredentialsResponse(BaseModel):
@@ -1163,6 +1183,14 @@ class SetStatisticsUpdate(BaseUpdate):
     statistics: StatisticsFile
 
 
+class ApplyTransform(BaseModel):
+    """
+    Replace the field with the result of a transform expression. Produce the original field name with the transformed values.
+    """
+
+    term: Term | None = None
+
+
 class UnaryExpression(BaseModel):
     type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
         ...,
@@ -1249,6 +1277,27 @@ class SetExpression(BaseModel):
     )
     term: Term
     values: list[PrimitiveTypeValue]
+
+
+class Action(BaseModel):
+    __root__: MaskHashSha256 | ReplaceWithNull | MaskAlphanumeric | ApplyTransform = (
+        Field(
+            ...,
+            description='Defines the specific action to be executed for computing the projection.',
+        )
+    )
+
+
+class Projection(BaseModel):
+    """
+    Defines a projection for a column. If action is not specified, the column is projected as-is.
+
+    """
+
+    field_id: int = Field(
+        ..., alias='field-id', description='field id of the column being projected.'
+    )
+    action: Action | None = None
 
 
 class StructField(BaseModel):
@@ -1451,6 +1500,26 @@ class ViewUpdate(BaseModel):
     )
 
 
+class ReadRestrictions(BaseModel):
+    """
+    Read restrictions for a table, including column projections and row filter expressions.
+    A client MUST enforce the restrictions defined in this object when reading data from the table.
+    These restrictions apply only to the authenticated principal, user, or account associated with the request. They MUST NOT be interpreted as global policy and MUST NOT be applied beyond the entity identified by the Authentication header (or other applicable authentication mechanism).
+
+    """
+
+    required_column_projections: list[Projection] | None = Field(
+        None,
+        alias='required-column-projections',
+        description="A list of columns that require specific projections or transforms to be applied.\nIf this property is absent, a reader MAY access all columns of the table as-is without any mandatory transformations.\nIf this property is present, each listed column MUST have its specified projection or action applied. Columns not listed in required-column-projections MAY be read as-is without any restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader MUST apply\n  the specified action or transform.\n\n2. If a listed column has an action, the reader MUST apply it and replace\n  all references to the underlying column with the transformed value.\n  For example, if the action specifies truncate[4](cc), the reader MUST project it\n  as truncate[4](cc) AS cc, and all references to cc during query evaluation\n  (including in required-row-filter) MUST resolve to this transformed alias.\n\n3. If a listed column has no action specified, the reader MUST project the column as-is\n  (equivalent to an identity transform).\n\n4. Columns not listed in required-column-projections MAY be projected normally\n  by the reader without any mandatory transformations.\n\n5. A column MUST appear at most once in required-column-projections.\n6. If a projected column's action cannot be evaluated by the reader,\n  the reader MUST fail rather than ignore or skip the transform.\n\n7. The data type of a projected column MUST match the data type defined for\n  the transform result or the original column type if no transform is specified.\n",
+    )
+    required_row_filter: Expression | None = Field(
+        None,
+        alias='required-row-filter',
+        description='An expression that filters rows in the table that the authenticated principal does not have access to.\n1. A reader MUST discard any row for which the filter evaluates to false or null, and\n  no information derived from discarded rows MAY be included in the query result.\n\n2. Row filters MUST be evaluated against the original, untransformed column values.\n  Required projections MUST be applied only after row filters are applied.\n\n3. If a client cannot interpret or evaluate a provided filter expression, it MUST fail.\n4. If this property is absent, null, or always true then no mandatory filtering is required.\n',
+    )
+
+
 class LoadTableResult(BaseModel):
     """
     Result used when a table is successfully loaded.
@@ -1496,6 +1565,7 @@ class LoadTableResult(BaseModel):
     storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
     )
+    read_restrictions: ReadRestrictions | None = Field(None, alias='read-restrictions')
 
 
 class ScanTasks(BaseModel):
