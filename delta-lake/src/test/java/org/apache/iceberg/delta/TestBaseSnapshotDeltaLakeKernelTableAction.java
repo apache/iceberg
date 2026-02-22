@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.delta;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -45,11 +42,13 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TestBaseSnapshotDeltaLakeKernelTableAction {
   private static final String DELTA_GOLDEN_TABLES_ROOT = "delta/golden/";
@@ -223,7 +222,6 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
 
   @ParameterizedTest
   @MethodSource("deltaGoldenTableNames")
-  @Disabled
   void goldenDeltaTableConversion(String deltaTableName) throws Exception {
     loadDeltaLakeGoldenTable(deltaTableName);
 
@@ -235,12 +233,6 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
             .tableLocation(newTableLocation);
 
     testAction.execute();
-  }
-
-  @Test
-  // TODO delete this test. It used only for debug
-  void testSingleDeltaTable() throws Exception {
-    goldenDeltaTableConversion("basic-decimal-table");
   }
 
   private void loadDeltaLakeGoldenTable(String goldenTableName) throws Exception {
