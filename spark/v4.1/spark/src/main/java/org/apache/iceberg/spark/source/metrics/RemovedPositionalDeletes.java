@@ -20,9 +20,9 @@ package org.apache.iceberg.spark.source.metrics;
 
 import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-public class SkippedDataFiles extends CustomSumMetric {
+public class RemovedPositionalDeletes extends CustomSumMetric {
 
-  public static final String NAME = "skippedDataFiles";
+  public static final String NAME = "removedPositionalDeletes";
 
   @Override
   public String name() {
@@ -31,6 +31,6 @@ public class SkippedDataFiles extends CustomSumMetric {
 
   @Override
   public String description() {
-    return "number of skipped data files";
+    return "number of removed positional deletes records";
   }
 }

@@ -22,7 +22,7 @@ import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
 public class TotalDataManifests extends CustomSumMetric {
 
-  static final String NAME = "totalDataManifest";
+  public static final String NAME = "totalDataManifest";
 
   @Override
   public String name() {
