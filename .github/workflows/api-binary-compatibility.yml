@@ -21,13 +21,11 @@ name: "API Binary Compatibility Checks"
 on:
   push:
     branches:
-      - 'main'
-      - '0.*'
-      - '1.*'
-      - '2.*'
-    tags:
-      - 'apache-iceberg-**'
-  pull_request:
+      - '**'
+      - '!main'
+      - '!0.*'
+      - '!1.*'
+      - '!2.*'
     paths:
       - '.github/workflows/api-binary-compatibility.yml'
       - '*.gradle'
@@ -37,7 +35,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   revapi:
@@ -45,12 +43,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          # fetch-depth of zero ensures that the tags are pulled in and we're not in a detached HEAD state
-          # revapi depends on the tags, specifically the tag from git describe, to find the relevant override
-          # in the .palantir/revapi.yml file
-          #
-          # See https://github.com/actions/checkout/issues/124
           fetch-depth: 0
+          repository: apache/iceberg
+          ref: main
+      - name: Sync fork branch with upstream main
+        if: github.repository != 'apache/iceberg'
+        run: |
+          git fetch https://github.com/$GITHUB_REPOSITORY.git ${GITHUB_REF##*/}
+          git merge --progress --ff-only FETCH_HEAD
       - uses: actions/setup-java@v5
         with:
           distribution: zulu
