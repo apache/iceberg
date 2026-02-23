@@ -219,8 +219,8 @@ public class TableProperties {
   public static final String SPLIT_SIZE = "read.split.target-size";
   public static final long SPLIT_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
-  public static String ASYNC_READER_ENABLED = "read.async.enabled";
-  public static boolean ASYNC_READER_ENABLED_DEFAULT = false;
+  public static final String ASYNC_READER_ENABLED = "read.async.enabled";
+  public static final boolean ASYNC_READER_ENABLED_DEFAULT = false;
 
   public static final String METADATA_SPLIT_SIZE = "read.split.metadata-target-size";
   public static final long METADATA_SPLIT_SIZE_DEFAULT = 32 * 1024 * 1024; // 32 MB
