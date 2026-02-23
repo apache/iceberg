@@ -19,19 +19,17 @@
 package org.apache.iceberg.delta;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.delta.standalone.types.ArrayType;
-import io.delta.standalone.types.BinaryType;
-import io.delta.standalone.types.BooleanType;
-import io.delta.standalone.types.DoubleType;
-import io.delta.standalone.types.LongType;
-import io.delta.standalone.types.MapType;
-import io.delta.standalone.types.NullType;
-import io.delta.standalone.types.StringType;
-import io.delta.standalone.types.StructType;
+import io.delta.kernel.types.ArrayType;
+import io.delta.kernel.types.BinaryType;
+import io.delta.kernel.types.BooleanType;
+import io.delta.kernel.types.DoubleType;
+import io.delta.kernel.types.LongType;
+import io.delta.kernel.types.MapType;
+import io.delta.kernel.types.StringType;
+import io.delta.kernel.types.StructField;
+import io.delta.kernel.types.StructType;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,30 +42,25 @@ public class TestDeltaLakeTypeToType {
   private static final String STRUCT_ARRAY_TYPE = "testStructArrayType";
   private static final String INNER_ATOMIC_SCHEMA = "testInnerAtomicSchema";
   private static final String STRING_LONG_MAP_TYPE = "testStringLongMap";
-  private static final String NULL_TYPE = "testNullType";
   private StructType deltaAtomicSchema;
   private StructType deltaNestedSchema;
-  private StructType deltaShallowNullTypeSchema;
-  private StructType deltaNullTypeSchema;
 
   @BeforeEach
   public void constructDeltaLakeSchema() {
     deltaAtomicSchema =
         new StructType()
-            .add(OPTIONAL_BOOLEAN_TYPE, new BooleanType())
-            .add(REQUIRED_BINARY_TYPE, new BinaryType(), false);
+            .add(new StructField(OPTIONAL_BOOLEAN_TYPE, BooleanType.BOOLEAN, true))
+            .add(new StructField(REQUIRED_BINARY_TYPE, BinaryType.BINARY, false));
     deltaNestedSchema =
         new StructType()
-            .add(INNER_ATOMIC_SCHEMA, deltaAtomicSchema)
-            .add(DOUBLE_ARRAY_TYPE, new ArrayType(new DoubleType(), true), false)
-            .add(STRUCT_ARRAY_TYPE, new ArrayType(deltaAtomicSchema, true), false)
-            .add(STRING_LONG_MAP_TYPE, new MapType(new StringType(), new LongType(), false), false);
-    deltaNullTypeSchema =
-        new StructType()
-            .add(INNER_ATOMIC_SCHEMA, deltaAtomicSchema)
-            .add(DOUBLE_ARRAY_TYPE, new ArrayType(new DoubleType(), true), false)
-            .add(STRING_LONG_MAP_TYPE, new MapType(new NullType(), new LongType(), false), false);
-    deltaShallowNullTypeSchema = new StructType().add(NULL_TYPE, new NullType(), false);
+            .add(new StructField(INNER_ATOMIC_SCHEMA, deltaAtomicSchema, true))
+            .add(new StructField(DOUBLE_ARRAY_TYPE, new ArrayType(DoubleType.DOUBLE, true), false))
+            .add(new StructField(STRUCT_ARRAY_TYPE, new ArrayType(deltaAtomicSchema, true), false))
+            .add(
+                new StructField(
+                    STRING_LONG_MAP_TYPE,
+                    new MapType(StringType.STRING, LongType.LONG, false),
+                    false));
   }
 
   @Test
@@ -161,22 +154,5 @@ public class TestDeltaLakeTypeToType {
                 .field(REQUIRED_BINARY_TYPE)
                 .isRequired())
         .isTrue();
-  }
-
-  @Test
-  public void testNullTypeConversion() {
-    assertThatThrownBy(
-            () ->
-                DeltaLakeDataTypeVisitor.visit(
-                    deltaNullTypeSchema, new DeltaLakeTypeToType(deltaNullTypeSchema)))
-        .isInstanceOf(ValidationException.class)
-        .hasMessage("Not a supported type: %s", new NullType().getCatalogString());
-    assertThatThrownBy(
-            () ->
-                DeltaLakeDataTypeVisitor.visit(
-                    deltaShallowNullTypeSchema,
-                    new DeltaLakeTypeToType(deltaShallowNullTypeSchema)))
-        .isInstanceOf(ValidationException.class)
-        .hasMessage("Not a supported type: %s", new NullType().getCatalogString());
   }
 }

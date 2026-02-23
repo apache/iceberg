@@ -18,23 +18,24 @@
  */
 package org.apache.iceberg.delta;
 
-import io.delta.standalone.types.ArrayType;
-import io.delta.standalone.types.BinaryType;
-import io.delta.standalone.types.BooleanType;
-import io.delta.standalone.types.ByteType;
-import io.delta.standalone.types.DataType;
-import io.delta.standalone.types.DateType;
-import io.delta.standalone.types.DecimalType;
-import io.delta.standalone.types.DoubleType;
-import io.delta.standalone.types.FloatType;
-import io.delta.standalone.types.IntegerType;
-import io.delta.standalone.types.LongType;
-import io.delta.standalone.types.MapType;
-import io.delta.standalone.types.ShortType;
-import io.delta.standalone.types.StringType;
-import io.delta.standalone.types.StructField;
-import io.delta.standalone.types.StructType;
-import io.delta.standalone.types.TimestampType;
+import io.delta.kernel.types.ArrayType;
+import io.delta.kernel.types.BinaryType;
+import io.delta.kernel.types.BooleanType;
+import io.delta.kernel.types.ByteType;
+import io.delta.kernel.types.DataType;
+import io.delta.kernel.types.DateType;
+import io.delta.kernel.types.DecimalType;
+import io.delta.kernel.types.DoubleType;
+import io.delta.kernel.types.FloatType;
+import io.delta.kernel.types.IntegerType;
+import io.delta.kernel.types.LongType;
+import io.delta.kernel.types.MapType;
+import io.delta.kernel.types.ShortType;
+import io.delta.kernel.types.StringType;
+import io.delta.kernel.types.StructField;
+import io.delta.kernel.types.StructType;
+import io.delta.kernel.types.TimestampNTZType;
+import io.delta.kernel.types.TimestampType;
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -51,7 +52,7 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
 
   DeltaLakeTypeToType(StructType root) {
     this.root = root;
-    this.nextId = root.getFields().length;
+    this.nextId = root.fields().size();
   }
 
   private int getNextId() {
@@ -63,11 +64,11 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
   @Override
   @SuppressWarnings("ReferenceEquality")
   public Type struct(StructType struct, List<Type> types) {
-    StructField[] fields = struct.getFields();
-    List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.length);
+    List<StructField> fields = struct.fields();
+    List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.size());
     boolean isRoot = root == struct;
-    for (int i = 0; i < fields.length; i += 1) {
-      StructField field = fields[i];
+    for (int i = 0; i < fields.size(); i += 1) {
+      StructField field = fields.get(i);
       Type type = types.get(i);
 
       int id;
@@ -109,7 +110,7 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
 
   @Override
   public Type map(MapType map, Type keyType, Type valueType) {
-    if (map.valueContainsNull()) {
+    if (map.isValueContainsNull()) {
       return Types.MapType.ofOptional(getNextId(), getNextId(), keyType, valueType);
     } else {
       return Types.MapType.ofRequired(getNextId(), getNextId(), keyType, valueType);
@@ -145,6 +146,9 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
     } else if (atomic instanceof TimestampType) {
       return Types.TimestampType.withZone();
 
+    } else if (atomic instanceof TimestampNTZType) {
+      return Types.TimestampType.withoutZone();
+
     } else if (atomic instanceof DecimalType) {
       return Types.DecimalType.of(
           ((DecimalType) atomic).getPrecision(), ((DecimalType) atomic).getScale());
@@ -152,6 +156,6 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
       return Types.BinaryType.get();
     }
 
-    throw new ValidationException("Not a supported type: %s", atomic.getCatalogString());
+    throw new ValidationException("Not a supported type: %s", atomic.toString());
   }
 }

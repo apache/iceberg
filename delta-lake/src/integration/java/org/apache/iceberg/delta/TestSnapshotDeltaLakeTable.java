@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.delta;
 
+import static io.delta.kernel.internal.util.Utils.toCloseableIterator;
+import static io.delta.kernel.utils.CloseableIterable.inMemoryIterable;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
@@ -25,30 +27,36 @@ import static org.apache.spark.sql.functions.date_format;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.delta.standalone.DeltaLog;
-import io.delta.standalone.Operation;
-import io.delta.standalone.OptimisticTransaction;
-import io.delta.standalone.VersionLog;
-import io.delta.standalone.actions.Action;
-import io.delta.standalone.actions.AddFile;
-import io.delta.standalone.actions.RemoveFile;
-import io.delta.standalone.exceptions.DeltaConcurrentModificationException;
+import io.delta.kernel.Operation;
+import io.delta.kernel.Scan;
+import io.delta.kernel.Table;
+import io.delta.kernel.Transaction;
+import io.delta.kernel.data.ColumnarBatch;
+import io.delta.kernel.data.FilteredColumnarBatch;
+import io.delta.kernel.data.Row;
+import io.delta.kernel.defaults.engine.DefaultEngine;
+import io.delta.kernel.engine.Engine;
+import io.delta.kernel.internal.DeltaLogActionUtils;
+import io.delta.kernel.internal.TableImpl;
+import io.delta.kernel.internal.actions.AddFile;
+import io.delta.kernel.internal.actions.SingleAction;
+import io.delta.kernel.utils.CloseableIterator;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.sql.Timestamp;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
-import java.util.stream.Collectors;
+import java.util.Set;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.net.URLCodec;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -56,7 +64,6 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
@@ -80,8 +87,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
           "cache-enabled",
               "false" // Spark will delete tables using v1, leaving the cache out of sync
           );
-  private static Dataset<Row> typeTestDataFrame;
-  private static Dataset<Row> nestedDataFrame;
+  private static Dataset<org.apache.spark.sql.Row> typeTestDataFrame;
+  private static Dataset<org.apache.spark.sql.Row> nestedDataFrame;
 
   @TempDir private File tempA;
   @TempDir private File tempB;
@@ -383,24 +390,28 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
       String icebergTableIdentifier,
       SnapshotDeltaLakeTable.Result snapshotReport,
       long firstConstructableVersion) {
-    DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), deltaTableLocation);
+    Configuration hadoopConf = spark.sessionState().newHadoopConf();
+    Engine engine = DefaultEngine.create(hadoopConf);
+    Table deltaTable = Table.forPath(engine, deltaTableLocation);
 
-    List<Row> deltaTableContents =
+    List<org.apache.spark.sql.Row> deltaTableContents =
         spark.sql("SELECT * FROM " + deltaTableIdentifier).collectAsList();
-    List<Row> icebergTableContents =
+    List<org.apache.spark.sql.Row> icebergTableContents =
         spark.sql("SELECT * FROM " + icebergTableIdentifier).collectAsList();
 
     assertThat(deltaTableContents).hasSize(icebergTableContents.size());
     assertThat(snapshotReport.snapshotDataFilesCount())
-        .isEqualTo(countDataFilesInDeltaLakeTable(deltaLog, firstConstructableVersion));
+        .isEqualTo(countDataFilesInDeltaLakeTable(engine, deltaTable, firstConstructableVersion));
     assertThat(icebergTableContents).containsExactlyInAnyOrderElementsOf(deltaTableContents);
   }
 
   private void checkTagContentAndOrder(
       String deltaTableLocation, String icebergTableIdentifier, long firstConstructableVersion) {
-    DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), deltaTableLocation);
-    long currentVersion = deltaLog.snapshot().getVersion();
-    Table icebergTable = getIcebergTable(icebergTableIdentifier);
+    Configuration hadoopConf = spark.sessionState().newHadoopConf();
+    Engine engine = DefaultEngine.create(hadoopConf);
+    Table deltaTable = Table.forPath(engine, deltaTableLocation);
+    long currentVersion = deltaTable.getLatestSnapshot(engine).getVersion();
+    org.apache.iceberg.Table icebergTable = getIcebergTable(icebergTableIdentifier);
     Map<String, SnapshotRef> icebergSnapshotRefs = icebergTable.refs();
     List<Snapshot> icebergSnapshots = Lists.newArrayList(icebergTable.snapshots());
 
@@ -417,9 +428,11 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
       assertThat(icebergSnapshotRefs.get(expectedVersionTag).snapshotId())
           .isEqualTo(currentIcebergSnapshot.snapshotId());
 
-      Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
-      assertThat(deltaVersionTimestamp).isNotNull();
-      String expectedTimestampTag = "delta-ts-" + deltaVersionTimestamp.getTime();
+      io.delta.kernel.Snapshot deltaSnapshot =
+          deltaTable.getSnapshotAsOfVersion(engine, deltaVersion);
+      long deltaVersionTimestamp = deltaSnapshot.getTimestamp(engine);
+      assertThat(deltaVersionTimestamp).isGreaterThan(0);
+      String expectedTimestampTag = "delta-ts-" + deltaVersionTimestamp;
 
       assertThat(icebergSnapshotRefs.get(expectedTimestampTag)).isNotNull();
       assertThat(icebergSnapshotRefs.get(expectedTimestampTag).isTag()).isTrue();
@@ -429,7 +442,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   }
 
   private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLocation) {
-    Table icebergTable = getIcebergTable(icebergTableIdentifier);
+    org.apache.iceberg.Table icebergTable = getIcebergTable(icebergTableIdentifier);
     assertThat(icebergTable.location())
         .isEqualTo(LocationUtil.stripTrailingSlash(expectedLocation));
   }
@@ -438,7 +451,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
       String icebergTableIdentifier,
       Map<String, String> expectedAdditionalProperties,
       String deltaTableLocation) {
-    Table icebergTable = getIcebergTable(icebergTableIdentifier);
+    org.apache.iceberg.Table icebergTable = getIcebergTable(icebergTableIdentifier);
     ImmutableMap.Builder<String, String> expectedPropertiesBuilder = ImmutableMap.builder();
     // The snapshot action will put some fixed properties to the table
     expectedPropertiesBuilder.put(SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE);
@@ -451,14 +464,30 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   private void checkDataFilePathsIntegrity(
       String icebergTableIdentifier, String deltaTableLocation) {
-    Table icebergTable = getIcebergTable(icebergTableIdentifier);
-    DeltaLog deltaLog = DeltaLog.forTable(spark.sessionState().newHadoopConf(), deltaTableLocation);
+    org.apache.iceberg.Table icebergTable = getIcebergTable(icebergTableIdentifier);
+    Configuration hadoopConf = spark.sessionState().newHadoopConf();
+    Engine engine = DefaultEngine.create(hadoopConf);
+    Table deltaTable = Table.forPath(engine, deltaTableLocation);
+    io.delta.kernel.Snapshot deltaSnapshot = deltaTable.getLatestSnapshot(engine);
+
     // checkSnapshotIntegrity already checks the number of data files in the snapshot iceberg table
     // equals that in the original delta lake table
-    List<String> deltaTableDataFilePaths =
-        deltaLog.update().getAllFiles().stream()
-            .map(f -> getFullFilePath(f.getPath(), deltaLog.getPath().toString()))
-            .collect(Collectors.toList());
+    List<String> deltaTableDataFilePaths = Lists.newArrayList();
+    Scan scan = deltaSnapshot.getScanBuilder().build();
+    CloseableIterator<FilteredColumnarBatch> scanFileIter = scan.getScanFiles(engine);
+    while (scanFileIter.hasNext()) {
+      FilteredColumnarBatch batch = scanFileIter.next();
+      CloseableIterator<Row> rows = batch.getRows();
+      while (rows.hasNext()) {
+        Row scanFileRow = rows.next();
+        if (!scanFileRow.isNullAt(scanFileRow.getSchema().indexOf("add"))) {
+          Row addFileRow = scanFileRow.getStruct(scanFileRow.getSchema().indexOf("add"));
+          AddFile addFile = new AddFile(addFileRow);
+          deltaTableDataFilePaths.add(getFullFilePath(addFile.getPath(), deltaTableLocation));
+        }
+      }
+    }
+
     icebergTable
         .currentSnapshot()
         .addedDataFiles(icebergTable.io())
@@ -469,7 +498,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             });
   }
 
-  private Table getIcebergTable(String icebergTableIdentifier) {
+  private org.apache.iceberg.Table getIcebergTable(String icebergTableIdentifier) {
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     Spark3Util.CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(
@@ -487,37 +516,63 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
   /**
    * Add parquet files manually to a delta lake table to mock the situation that some data files are
-   * not in the same location as the delta lake table. The case that {@link AddFile#getPath()} or
-   * {@link RemoveFile#getPath()} returns absolute path.
+   * not in the same location as the delta lake table. This simulates the case where data files have
+   * absolute paths.
    *
-   * <p>The known <a href="https://github.com/delta-io/connectors/issues/380">issue</a> makes it
-   * necessary to manually rebuild the AddFile to avoid deserialization error when committing the
-   * transaction.
+   * <p>Note: This method uses Spark SQL to add external files since Kernel API doesn't support
+   * write operations directly.
    */
   private void addExternalDatafiles(
       String targetDeltaTableLocation, String sourceDeltaTableLocation) {
-    DeltaLog targetLog =
-        DeltaLog.forTable(spark.sessionState().newHadoopConf(), targetDeltaTableLocation);
-    OptimisticTransaction transaction = targetLog.startTransaction();
-    DeltaLog sourceLog =
-        DeltaLog.forTable(spark.sessionState().newHadoopConf(), sourceDeltaTableLocation);
-    List<AddFile> newFiles =
-        sourceLog.update().getAllFiles().stream()
-            .map(
-                f ->
-                    AddFile.builder(
-                            getFullFilePath(f.getPath(), sourceLog.getPath().toString()),
-                            f.getPartitionValues(),
-                            f.getSize(),
-                            System.currentTimeMillis(),
-                            true)
-                        .build())
-            .collect(Collectors.toList());
-    try {
-      transaction.commit(newFiles, new Operation(Operation.Name.UPDATE), "Delta-Lake/2.2.0");
-    } catch (DeltaConcurrentModificationException e) {
-      throw new RuntimeException(e);
+    Configuration hadoopConf = spark.sessionState().newHadoopConf();
+    Engine engine = DefaultEngine.create(hadoopConf);
+    Table targetTable = Table.forPath(engine, targetDeltaTableLocation);
+    Transaction transaction =
+        targetTable
+            .createTransactionBuilder(engine, "Delta-Lake/4.0.0", Operation.MANUAL_UPDATE)
+            .build(engine);
+    Table sourceTable = Table.forPath(engine, sourceDeltaTableLocation);
+    io.delta.kernel.Snapshot sourceSnapshot = sourceTable.getLatestSnapshot(engine);
+    List<Row> addFileActions = Lists.newArrayList();
+    Scan scan = sourceSnapshot.getScanBuilder().build();
+    try (CloseableIterator<FilteredColumnarBatch> batches = scan.getScanFiles(engine)) {
+      while (batches.hasNext()) {
+        FilteredColumnarBatch batch = batches.next();
+        try (CloseableIterator<Row> rows = batch.getRows()) {
+          while (rows.hasNext()) {
+            Row row = rows.next();
+            if (DeltaActionUtils.isAdd(row)) {
+              addFileActions.add(
+                  rebuildAddFile(DeltaActionUtils.getAdd(row), sourceDeltaTableLocation));
+            }
+          }
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to scan source Delta table", e);
     }
+    try {
+      transaction.commit(engine, inMemoryIterable(toCloseableIterator(addFileActions.iterator())));
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to commit external AddFiles", e);
+    }
+  }
+
+  private Row rebuildAddFile(AddFile original, String sourceTableLocation) {
+    String absolutePath = getFullFilePath(original.getPath(), sourceTableLocation);
+    return SingleAction.createAddFileSingleAction(
+        AddFile.createAddFileRow(
+            AddFile.FULL_SCHEMA,
+            absolutePath,
+            original.getPartitionValues(),
+            original.getSize(),
+            original.getModificationTime(),
+            true,
+            Optional.empty(),
+            original.getTags(),
+            original.getBaseRowId(),
+            original.getDefaultRowCommitVersion(),
+            original.getStats()));
   }
 
   private static String getFullFilePath(String path, String tableRoot) {
@@ -535,7 +590,10 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
   }
 
   private void writeDeltaTable(
-      Dataset<Row> df, String identifier, String path, String... partitionColumns) {
+      Dataset<org.apache.spark.sql.Row> df,
+      String identifier,
+      String path,
+      String... partitionColumns) {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", identifier));
     if (partitionColumns.length > 0) {
       df.write()
@@ -549,25 +607,55 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     }
   }
 
-  private long countDataFilesInDeltaLakeTable(DeltaLog deltaLog, long firstConstructableVersion) {
-    long dataFilesCount = 0;
+  private long countDataFilesInDeltaLakeTable(
+      Engine engine, Table deltaTable, long firstConstructableVersion) {
+    long dataFilesCount = 0L;
 
-    List<AddFile> initialDataFiles =
-        deltaLog.getSnapshotForVersionAsOf(firstConstructableVersion).getAllFiles();
-    dataFilesCount += initialDataFiles.size();
+    // Count files in initial snapshot
+    io.delta.kernel.Snapshot initialSnapshot =
+        deltaTable.getSnapshotAsOfVersion(engine, firstConstructableVersion);
+    Scan initialScan = initialSnapshot.getScanBuilder().build();
+    try (CloseableIterator<FilteredColumnarBatch> scanIter = initialScan.getScanFiles(engine)) {
+      while (scanIter.hasNext()) {
+        FilteredColumnarBatch batch = scanIter.next();
+        try (CloseableIterator<Row> rows = batch.getRows()) {
+          while (rows.hasNext()) {
+            Row row = rows.next();
+            if (DeltaActionUtils.isAdd(row)) {
+              dataFilesCount++;
+            }
+          }
+        }
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(
+          "Failed to scan initial Delta snapshot at version " + firstConstructableVersion, e);
+    }
 
-    Iterator<VersionLog> versionLogIterator =
-        deltaLog.getChanges(
-            firstConstructableVersion + 1, false // not throw exception when data loss detected
-            );
-
-    while (versionLogIterator.hasNext()) {
-      VersionLog versionLog = versionLogIterator.next();
-      List<Action> addFiles =
-          versionLog.getActions().stream()
-              .filter(action -> action instanceof AddFile)
-              .collect(Collectors.toList());
-      dataFilesCount += addFiles.size();
+    // Count files in subsequent versions
+    long latestVersion = deltaTable.getLatestSnapshot(engine).getVersion();
+    TableImpl tableImpl = (TableImpl) deltaTable;
+    try {
+      for (long version = firstConstructableVersion + 1; version <= latestVersion; version++) {
+        try (CloseableIterator<ColumnarBatch> changes =
+            tableImpl.getChanges(
+                engine, version, version, Set.of(DeltaLogActionUtils.DeltaAction.ADD))) {
+          while (changes.hasNext()) {
+            ColumnarBatch batch = changes.next();
+            try (CloseableIterator<Row> rows = batch.getRows()) {
+              while (rows.hasNext()) {
+                Row row = rows.next();
+                if (DeltaActionUtils.isAdd(row)) {
+                  dataFilesCount++;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(
+          "Failed to read Delta change logs after version " + firstConstructableVersion, e);
     }
 
     return dataFilesCount;
