@@ -37,13 +37,13 @@ class TestTriggerManagerCoordinator extends TestBaseCoordinator {
   private EventReceivingTasks receivingTasks1;
 
   @BeforeEach
-  public void before() {
+  void before() {
     this.receivingTasks = EventReceivingTasks.createForRunningTasks();
     this.receivingTasks1 = EventReceivingTasks.createForRunningTasks();
   }
 
   @Test
-  public void testEventHandling() throws Exception {
+  void testEventHandling() throws Exception {
     try (TriggerManagerCoordinator triggerManagerCoordinator =
             createCoordinator(OPERATOR_NAME, TEST_OPERATOR_ID);
         TriggerManagerCoordinator triggerManagerCoordinator1 =
@@ -68,7 +68,7 @@ class TestTriggerManagerCoordinator extends TestBaseCoordinator {
   }
 
   @Test
-  public void testEventArriveBeforeRegister() throws Exception {
+  void testEventArriveBeforeRegister() throws Exception {
     try (TriggerManagerCoordinator triggerManagerCoordinator =
         createCoordinator(OPERATOR_NAME, TEST_OPERATOR_ID)) {
 
@@ -87,7 +87,7 @@ class TestTriggerManagerCoordinator extends TestBaseCoordinator {
     }
   }
 
-  protected static TriggerManagerCoordinator createCoordinator(
+  private static TriggerManagerCoordinator createCoordinator(
       String operatorName, OperatorID operatorID) {
     return new TriggerManagerCoordinator(
         operatorName, new MockOperatorCoordinatorContext(operatorID, 1));

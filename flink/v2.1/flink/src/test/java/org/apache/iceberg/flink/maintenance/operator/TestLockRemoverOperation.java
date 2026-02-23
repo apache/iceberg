@@ -52,7 +52,7 @@ class TestLockRemoverOperation extends OperatorTestBase {
   private LockRemoverCoordinator lockRemoverCoordinator;
 
   @BeforeEach
-  public void before() {
+  void before() {
     MetricsReporterFactoryForTests.reset();
     this.lockRemoverCoordinator = createCoordinator();
     try {

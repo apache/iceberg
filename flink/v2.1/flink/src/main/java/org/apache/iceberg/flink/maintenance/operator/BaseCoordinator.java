@@ -134,8 +134,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   }
 
   @Override
-  public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture)
-      throws Exception {
+  public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture) {
     runInCoordinatorThread(
         () -> resultFuture.complete(new byte[0]),
         String.format(Locale.ROOT, "taking checkpoint %d", checkpointId));
@@ -200,11 +199,11 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
             attemptNumber));
   }
 
-  protected String operatorName() {
+  String operatorName() {
     return operatorName;
   }
 
-  protected void runInCoordinatorThread(Runnable runnable, String actionString) {
+  void runInCoordinatorThread(Runnable runnable, String actionString) {
     ensureStarted();
     coordinatorExecutor.execute(
         () -> {
@@ -256,11 +255,11 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   /** Inner class to manage subtask gateways. */
   private record SubtaskGateways(String operatorName, Map<Integer, SubtaskGateway> gateways) {
 
-    static SubtaskGateways create(String operatorName) {
+    private static SubtaskGateways create(String operatorName) {
       return new SubtaskGateways(operatorName, Maps.newHashMap());
     }
 
-    void registerSubtaskGateway(SubtaskGateway gateway) {
+    private void registerSubtaskGateway(SubtaskGateway gateway) {
       int attemptNumber = gateway.getExecution().getAttemptNumber();
       Preconditions.checkState(
           !gateways.containsKey(attemptNumber),
@@ -272,12 +271,12 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
       LOG.debug("Registered gateway for  attempt {}", attemptNumber);
     }
 
-    void unregisterSubtaskGateway(int subtaskIndex, int attemptNumber) {
+    private void unregisterSubtaskGateway(int subtaskIndex, int attemptNumber) {
       gateways.remove(attemptNumber);
       LOG.debug("Unregistered gateway for subtask {} attempt {}", subtaskIndex, attemptNumber);
     }
 
-    SubtaskGateway subtaskGateway() {
+    private SubtaskGateway subtaskGateway() {
       Preconditions.checkState(
           !gateways.isEmpty(),
           "Coordinator of %s is not ready yet to receive events",
@@ -285,7 +284,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
       return Iterables.getOnlyElement(gateways.values());
     }
 
-    void reset() {
+    private void reset() {
       gateways.clear();
     }
   }
@@ -300,11 +299,12 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
 
     private Thread thread;
 
-    CoordinatorExecutorThreadFactory(String coordinatorThreadName, ClassLoader contextClassLoader) {
+    private CoordinatorExecutorThreadFactory(
+        String coordinatorThreadName, ClassLoader contextClassLoader) {
       this(coordinatorThreadName, contextClassLoader, FatalExitExceptionHandler.INSTANCE);
     }
 
-    CoordinatorExecutorThreadFactory(
+    private CoordinatorExecutorThreadFactory(
         String coordinatorThreadName,
         ClassLoader contextClassLoader,
         Thread.UncaughtExceptionHandler errorHandler) {
@@ -326,7 +326,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
       errorHandler.uncaughtException(t, e);
     }
 
-    boolean isCurrentThreadCoordinatorThread() {
+    private boolean isCurrentThreadCoordinatorThread() {
       return Thread.currentThread() == thread;
     }
   }

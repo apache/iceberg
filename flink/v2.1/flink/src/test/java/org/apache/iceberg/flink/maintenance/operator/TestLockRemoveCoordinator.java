@@ -35,12 +35,12 @@ class TestLockRemoveCoordinator extends TestBaseCoordinator {
   private EventReceivingTasks receivingTasks;
 
   @BeforeEach
-  public void before() {
+  void before() {
     this.receivingTasks = EventReceivingTasks.createForRunningTasks();
   }
 
   @Test
-  public void testEventHandling() throws Exception {
+  void testEventHandling() throws Exception {
     try (LockRemoverCoordinator lockRemoverCoordinator =
         new LockRemoverCoordinator(
             OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1))) {
