@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import org.apache.iceberg.io.FileIO;
+
 /** API for configuring a batch scan. */
 public interface BatchScan extends Scan<BatchScan, ScanTask, ScanTaskGroup<ScanTask>> {
   /**
@@ -68,4 +70,14 @@ public interface BatchScan extends Scan<BatchScan, ScanTask, ScanTaskGroup<ScanT
    * @return the Snapshot this scan will use
    */
   Snapshot snapshot();
+
+  /**
+   * The {@link FileIO} instance to use for the scan.
+   *
+   * @return The {@link FileIO} instance to use for the scan.
+   */
+  @Override
+  default FileIO io() {
+    return table().io();
+  }
 }

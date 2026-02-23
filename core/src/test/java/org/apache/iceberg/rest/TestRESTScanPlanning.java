@@ -996,8 +996,13 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
     // make sure remote scan planning is called and FileIO gets the planId
-    assertThat(table.newScan().planFiles()).hasSize(1);
-    assertThat(table.io().properties()).containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    TableScan tableScan = table.newScan();
+    assertThat(tableScan.io().properties())
+        .isSameAs(table.io().properties())
+        .doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    assertThat(tableScan.planFiles()).hasSize(1);
+    assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    assertThat(tableScan.io().properties()).containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
   }
 
   @SuppressWarnings("unchecked")

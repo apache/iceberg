@@ -28,7 +28,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -84,8 +83,9 @@ class RESTTableScan extends DataTableScan {
   private final ParserContext parserContext;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
-  private final AtomicReference<FileIO> ioReference;
+  private final FileIO tableIo;
   private String planId = null;
+  private FileIO fileIOForPlanId = null;
 
   RESTTableScan(
       Table table,
@@ -97,7 +97,7 @@ class RESTTableScan extends DataTableScan {
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
-      AtomicReference<FileIO> ioReference,
+      FileIO tableIo,
       Map<String, String> catalogProperties,
       Object hadoopConf) {
     super(table, schema, context);
@@ -113,7 +113,7 @@ class RESTTableScan extends DataTableScan {
             .add("specsById", table.specs())
             .add("caseSensitive", context().caseSensitive())
             .build();
-    this.ioReference = ioReference;
+    this.tableIo = tableIo;
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
   }
@@ -131,14 +131,14 @@ class RESTTableScan extends DataTableScan {
         tableIdentifier,
         resourcePaths,
         supportedEndpoints,
-        ioReference,
+        io(),
         catalogProperties,
         hadoopConf);
   }
 
   @Override
-  protected FileIO io() {
-    return ioReference.get();
+  public FileIO io() {
+    return null != fileIOForPlanId ? fileIOForPlanId : tableIo;
   }
 
   @Override
@@ -191,8 +191,7 @@ class RESTTableScan extends DataTableScan {
     this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
     if (null != planId && !response.credentials().isEmpty()) {
-      // update FileIO for RESTTable
-      ioReference.set(fileIOForPlanId(response.credentials()));
+      this.fileIOForPlanId = fileIOForPlanId(response.credentials());
     }
 
     switch (planStatus) {
@@ -277,8 +276,7 @@ class RESTTableScan extends DataTableScan {
           planId);
 
       if (!response.credentials().isEmpty()) {
-        // update FileIO for RESTTable
-        ioReference.set(fileIOForPlanId(response.credentials()));
+        this.fileIOForPlanId = fileIOForPlanId(response.credentials());
       }
 
       return scanTasksIterable(response.planTasks(), response.fileScanTasks());
