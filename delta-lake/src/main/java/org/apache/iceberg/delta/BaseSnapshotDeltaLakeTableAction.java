@@ -155,14 +155,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   public SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf) {
     this.deltaEngine = DefaultEngine.create(conf);
     this.deltaLakeFileIO = new HadoopFileIO(conf);
-    try {
-      this.deltaTable = io.delta.kernel.Table.forPath(deltaEngine, deltaTableLocation);
-      // Validate table exists by attempting to load latest snapshot
-      this.deltaTable.getLatestSnapshot(deltaEngine);
-    } catch (TableNotFoundException e) {
-      throw new ValidationException(
-          e, "Delta Lake table does not exist at the given location: %s", deltaTableLocation);
-    }
+    this.deltaTable = io.delta.kernel.Table.forPath(deltaEngine, deltaTableLocation);
 
     return this;
   }
@@ -175,6 +168,15 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     Preconditions.checkArgument(
         deltaTable != null && deltaEngine != null && deltaLakeFileIO != null,
         "Make sure to configure the action with a valid deltaLakeConfiguration");
+    try {
+      // Validate table exists by attempting to load latest snapshot
+      this.deltaTable.getLatestSnapshot(deltaEngine);
+    } catch (TableNotFoundException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Delta Lake table does not exist at the given location: %s", deltaTableLocation),
+          e);
+    }
     // get the earliest recreatable commit version available in the Delta Lake table
     Path logPath = new Path(deltaTableLocation, "_delta_log");
     deltaStartVersion = DeltaHistoryManager.getEarliestRecreatableCommit(deltaEngine, logPath);
