@@ -60,6 +60,7 @@ public class TestFlinkAppenderFactory extends TestAppenderFactory<RowData> {
       RowDataWrapper wrapper = new RowDataWrapper(rowType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
     }
+
     return set;
   }
 }

@@ -135,6 +135,7 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTestBase {
       assertThat(actualIter).as("Actual iterator should have more rows").hasNext();
       assertThat(actualIter.next()).as("Should have same rows.").isEqualTo(expectedIter.next());
     }
+
     assertThat(expectedIter).as("Expected iterator should not have any extra rows.").isExhausted();
     assertThat(actualIter).as("Actual iterator should not have any extra rows.").isExhausted();
   }
@@ -148,6 +149,7 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTestBase {
       assertThat(actualIter).as("Actual iterator should have more rows").hasNext();
       GenericsHelpers.assertEqualsUnsafe(struct, expectedIter.next(), actualIter.next());
     }
+
     assertThat(expectedIter).as("Expected iterator should not have any extra rows.").isExhausted();
     assertThat(actualIter).as("Actual iterator should not have any extra rows.").isExhausted();
   }

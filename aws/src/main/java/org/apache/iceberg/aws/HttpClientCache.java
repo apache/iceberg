@@ -48,6 +48,7 @@ final class HttpClientCache {
         }
       }
     }
+
     return instance;
   }
 
@@ -122,6 +123,7 @@ final class HttpClientCache {
       if (closed) {
         throw new IllegalStateException("Cannot acquire closed HTTP client: " + clientKey);
       }
+
       refCount++;
       LOG.debug("Acquired HTTP client: key={}, refCount={}", clientKey, refCount);
       return this;
@@ -148,6 +150,7 @@ final class HttpClientCache {
             "HTTP client reference count went negative key={}, refCount={}", clientKey, refCount);
         refCount = 0;
       }
+
       return false;
     }
 
@@ -170,8 +173,10 @@ final class HttpClientCache {
         } catch (Exception e) {
           LOG.error("Failed to close HTTP client: key={}", clientKey, e);
         }
+
         return true;
       }
+
       return false;
     }
 

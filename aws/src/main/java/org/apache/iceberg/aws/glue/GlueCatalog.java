@@ -159,6 +159,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
     } else {
       LOG.debug("Using optimistic locking for Glue Data Catalog tables.");
     }
+
     return null;
   }
 
@@ -346,6 +347,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
               e);
         }
       }
+
       glue.deleteTable(
           DeleteTableRequest.builder()
               .catalogId(awsProperties.glueCatalogId())
@@ -359,6 +361,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
         LOG.info("Glue table {} data purged", identifier);
       }
+
       LOG.info("Dropped table: {}", identifier);
       return true;
     } catch (EntityNotFoundException e) {
@@ -384,6 +387,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
       throw new NoSuchNamespaceException(
           "Cannot rename %s to %s because namespace %s does not exist", from, to, to.namespace());
     }
+
     // keep metadata
     Table fromTable;
     String fromTableDbName =
@@ -469,6 +473,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
       if (namespaceExists(namespace)) {
         return Lists.newArrayList();
       }
+
       throw new NoSuchNamespaceException(
           "Glue does not support nested namespace, cannot list namespaces under %s", namespace);
     }

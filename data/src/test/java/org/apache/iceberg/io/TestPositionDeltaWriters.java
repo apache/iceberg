@@ -126,6 +126,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     for (DataFile dataFile : dataFiles) {
       rowDelta.addRows(dataFile);
     }
+
     rowDelta.commit();
 
     List<T> expectedRows = ImmutableList.of(toRow(1, "aaa"));
@@ -182,6 +183,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     for (DeleteFile deleteFile : deleteFiles) {
       rowDelta.addDeletes(deleteFile);
     }
+
     rowDelta.commit();
 
     List<T> expectedRows = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(3, "bbb"));
@@ -240,9 +242,11 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     for (DataFile dataFile : dataFiles) {
       rowDelta.addRows(dataFile);
     }
+
     for (DeleteFile deleteFile : deleteFiles) {
       rowDelta.addDeletes(deleteFile);
     }
+
     rowDelta.commit();
 
     List<T> expectedRows =

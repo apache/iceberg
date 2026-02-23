@@ -247,6 +247,7 @@ public abstract class DeleteFilter<T> {
       eqDeleteRows =
           applyEqDeletes().stream().map(Predicate::negate).reduce(Predicate::and).orElse(t -> true);
     }
+
     return eqDeleteRows;
   }
 

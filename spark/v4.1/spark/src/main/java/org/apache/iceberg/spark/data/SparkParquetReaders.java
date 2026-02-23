@@ -258,6 +258,7 @@ public class SparkParquetReaders {
             } else {
               return new UnboxedReader<>(desc);
             }
+
           case DATE:
           case INT_64:
             return new UnboxedReader<>(desc);
@@ -279,6 +280,7 @@ public class SparkParquetReaders {
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
+
           case BSON:
             return new ParquetValueReaders.ByteArrayReader(desc);
           default:
@@ -293,6 +295,7 @@ public class SparkParquetReaders {
           if (expected != null && expected.typeId() == TypeID.UUID) {
             return new UUIDReader(desc);
           }
+
           return new ParquetValueReaders.ByteArrayReader(desc);
         case INT32:
           if (expected != null && expected.typeId() == TypeID.LONG) {
@@ -300,12 +303,14 @@ public class SparkParquetReaders {
           } else {
             return new UnboxedReader<>(desc);
           }
+
         case FLOAT:
           if (expected != null && expected.typeId() == TypeID.DOUBLE) {
             return new FloatAsDoubleReader(desc);
           } else {
             return new UnboxedReader<>(desc);
           }
+
         case BOOLEAN:
         case INT64:
         case DOUBLE:

@@ -54,6 +54,7 @@ public class IndexParents extends TypeUtil.SchemaVisitor<Map<Integer, Integer>> 
         idToParent.put(field.fieldId(), parentId);
       }
     }
+
     return idToParent;
   }
 

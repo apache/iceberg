@@ -287,6 +287,7 @@ public class StructRowData implements RowData {
 
           index += 1;
         }
+
         return new GenericArrayData(array);
       case MAP:
         Types.MapType mapType = elementType.asMapType();

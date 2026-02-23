@@ -149,6 +149,7 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
           } else if (type instanceof ShortType) {
             return ValueWriters.shorts();
           }
+
           return ValueWriters.ints();
         case LONG:
           return ValueWriters.longs();

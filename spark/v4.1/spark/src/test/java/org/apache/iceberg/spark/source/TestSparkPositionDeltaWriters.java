@@ -64,6 +64,7 @@ public class TestSparkPositionDeltaWriters extends TestPositionDeltaWriters<Inte
       InternalRowWrapper wrapper = new InternalRowWrapper(sparkType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
     }
+
     return set;
   }
 }

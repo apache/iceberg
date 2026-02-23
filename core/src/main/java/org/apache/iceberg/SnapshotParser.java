@@ -60,10 +60,12 @@ public class SnapshotParser {
     if (snapshot.sequenceNumber() > TableMetadata.INITIAL_SEQUENCE_NUMBER) {
       generator.writeNumberField(SEQUENCE_NUMBER, snapshot.sequenceNumber());
     }
+
     generator.writeNumberField(SNAPSHOT_ID, snapshot.snapshotId());
     if (snapshot.parentId() != null) {
       generator.writeNumberField(PARENT_SNAPSHOT_ID, snapshot.parentId());
     }
+
     generator.writeNumberField(TIMESTAMP_MS, snapshot.timestampMillis());
 
     // if there is an operation, write the summary map
@@ -76,9 +78,11 @@ public class SnapshotParser {
           if (OPERATION.equals(entry.getKey())) {
             continue;
           }
+
           generator.writeStringField(entry.getKey(), entry.getValue());
         }
       }
+
       generator.writeEndObject();
     }
 
@@ -129,11 +133,13 @@ public class SnapshotParser {
     if (node.has(SEQUENCE_NUMBER)) {
       sequenceNumber = JsonUtil.getLong(SEQUENCE_NUMBER, node);
     }
+
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     Long parentId = null;
     if (node.has(PARENT_SNAPSHOT_ID)) {
       parentId = JsonUtil.getLong(PARENT_SNAPSHOT_ID, node);
     }
+
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
 
     Map<String, String> summary = null;
@@ -156,6 +162,7 @@ public class SnapshotParser {
             builder.put(field, JsonUtil.getString(field, sNode));
           }
         }
+
         summary = builder.build();
 
         // When the operation is not found, default to overwrite

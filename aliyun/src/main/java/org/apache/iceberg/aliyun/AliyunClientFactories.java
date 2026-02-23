@@ -148,6 +148,7 @@ public class AliyunClientFactories {
                       expirationSeconds =
                           (cred.getExpiration() - System.currentTimeMillis()) / 1000;
                     }
+
                     this.currentCredentials =
                         new BasicCredentials(
                             cred.getAccessKeyId(),

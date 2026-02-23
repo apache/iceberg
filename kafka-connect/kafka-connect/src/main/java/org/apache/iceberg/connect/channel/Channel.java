@@ -102,6 +102,7 @@ abstract class Channel {
           producer.sendOffsetsToTransaction(
               offsetsToCommit, KafkaUtils.consumerGroupMetadata(context));
         }
+
         producer.commitTransaction();
       } catch (Exception e) {
         try {
@@ -109,6 +110,7 @@ abstract class Channel {
         } catch (Exception ex) {
           LOG.warn("Error aborting producer transaction", ex);
         }
+
         throw e;
       }
     }

@@ -62,9 +62,11 @@ public class ThreeColumnRecord {
     if (this == o) {
       return true;
     }
+
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
+
     ThreeColumnRecord that = (ThreeColumnRecord) o;
     return Objects.equals(c1, that.c1)
         && Objects.equals(c2, that.c2)

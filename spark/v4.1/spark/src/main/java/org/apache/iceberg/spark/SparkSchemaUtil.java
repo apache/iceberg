@@ -347,6 +347,7 @@ public class SparkSchemaUtil {
     } catch (ArithmeticException e) {
       result = Long.MAX_VALUE;
     }
+
     return result;
   }
 

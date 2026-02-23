@@ -45,13 +45,16 @@ public class IdentityPartitionConverters {
         } else {
           return DateTimeUtil.timestampFromMicros((Long) value);
         }
+
       case FIXED:
         if (value instanceof GenericData.Fixed) {
           return ((GenericData.Fixed) value).bytes();
         }
+
         return value;
       default:
     }
+
     return value;
   }
 }

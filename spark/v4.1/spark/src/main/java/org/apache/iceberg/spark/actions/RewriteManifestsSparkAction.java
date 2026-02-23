@@ -166,6 +166,7 @@ public class RewriteManifestsSparkAction
     } else {
       LOG.warn("Ignoring provided staging location as new manifests will be committed directly");
     }
+
     return this;
   }
 

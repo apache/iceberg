@@ -171,6 +171,7 @@ public class PuffinWriter implements FileAppender<Blob> {
       for (Flag flag : flagsByByteNumber.getOrDefault(byteNumber, ImmutableList.of())) {
         byteFlag |= 0x1 << flag.bitNumber();
       }
+
       outputStream.write(byteFlag);
     }
   }

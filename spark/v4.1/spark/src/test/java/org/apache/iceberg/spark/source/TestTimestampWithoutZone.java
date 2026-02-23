@@ -174,6 +174,7 @@ public class TestTimestampWithoutZone extends TestBase {
       Types.NestedField field = fields.get(i);
       result.set(i, record.getField(field.name()));
     }
+
     return result;
   }
 
@@ -224,6 +225,7 @@ public class TestTimestampWithoutZone extends TestBase {
     for (int i = 0; i < values.length; i += 1) {
       rec.set(i, values[i]);
     }
+
     return rec;
   }
 }

@@ -421,6 +421,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         // partitioned
         this.currentFile = fileFactory.newOutputFile(partitionKey);
       }
+
       this.currentWriter = newWriter(currentFile, partitionKey);
       this.currentRows = 0;
     }

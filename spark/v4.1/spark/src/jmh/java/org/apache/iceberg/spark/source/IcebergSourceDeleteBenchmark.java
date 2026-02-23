@@ -230,6 +230,7 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
     while (deletedPos.size() < numRows * percentage) {
       deletedPos.add(ThreadLocalRandom.current().nextLong(numRows));
     }
+
     LOG.info("pos delete row count: {}, num of delete files: {}", deletedPos.size(), numDeleteFile);
 
     int partitionSize = (int) (numRows * percentage) / numDeleteFile;
@@ -286,6 +287,7 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
       genericInternalRow.setNullAt(6);
       rows.add(genericInternalRow);
     }
+
     LOG.info("Num of equality deleted rows: {}", rows.size());
 
     writeEqDeletes(rows);

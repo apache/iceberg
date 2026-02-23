@@ -113,6 +113,7 @@ public class Conversions {
         } catch (CharacterCodingException e) {
           throw new RuntimeIOException(e, "Failed to encode value as UTF-8: %s", value);
         }
+
       case UUID:
         return UUIDUtil.convertToByteBuffer((UUID) value);
       case FIXED:
@@ -155,6 +156,7 @@ public class Conversions {
     } else {
       tmp.order(ByteOrder.LITTLE_ENDIAN);
     }
+
     switch (type.typeId()) {
       case BOOLEAN:
         return tmp.get() != 0x00;
@@ -169,6 +171,7 @@ public class Conversions {
           // type was later promoted to long
           return (long) tmp.getInt();
         }
+
         return tmp.getLong();
       case FLOAT:
         return tmp.getFloat();
@@ -177,6 +180,7 @@ public class Conversions {
           // type was later promoted to long
           return (double) tmp.getFloat();
         }
+
         return tmp.getDouble();
       case STRING:
         try {
@@ -184,6 +188,7 @@ public class Conversions {
         } catch (CharacterCodingException e) {
           throw new RuntimeIOException(e, "Failed to decode value as UTF-8: %s", buffer);
         }
+
       case UUID:
         return UUIDUtil.convert(tmp);
       case FIXED:

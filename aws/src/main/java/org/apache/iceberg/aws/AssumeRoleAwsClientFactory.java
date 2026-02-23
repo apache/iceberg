@@ -67,6 +67,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
           .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
           .build();
     }
+
     return S3AsyncClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(awsClientProperties::applyClientRegionConfiguration)
@@ -170,6 +171,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     if (awsProperties.clientAssumeRoleSessionName() != null) {
       return awsProperties.clientAssumeRoleSessionName();
     }
+
     return String.format("iceberg-aws-%s", UUID.randomUUID());
   }
 

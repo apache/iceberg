@@ -97,6 +97,7 @@ public class DynClasses {
         throw new ClassNotFoundException(
             "Cannot find class; alternatives: " + Joiner.on(", ").join(classNames));
       }
+
       return (Class<? extends S>) foundClass;
     }
 
@@ -113,6 +114,7 @@ public class DynClasses {
         throw new RuntimeException(
             "Cannot find class; alternatives: " + Joiner.on(", ").join(classNames));
       }
+
       return (Class<? extends S>) foundClass;
     }
   }

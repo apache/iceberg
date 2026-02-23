@@ -147,6 +147,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       return ParquetMetrics.metrics(
           schema, parquetSchema, metricsConfig, writer.getFooter(), model.metrics());
     }
+
     return EMPTY_METRICS;
   }
 
@@ -186,6 +187,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     if (writer != null) {
       return ParquetUtil.getSplitOffsets(writer.getFooter());
     }
+
     return null;
   }
 
@@ -260,6 +262,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       if (writer != null) {
         writer.end(metadata);
       }
+
       if (compressor != null) {
         compressor.release();
       }

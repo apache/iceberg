@@ -76,6 +76,7 @@ public class TestRemoveSnapshots extends TestBase {
     while (current <= timestampMillis) {
       current = System.currentTimeMillis();
     }
+
     return current;
   }
 

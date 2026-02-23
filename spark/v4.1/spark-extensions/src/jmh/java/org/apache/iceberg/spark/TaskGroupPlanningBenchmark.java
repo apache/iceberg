@@ -118,18 +118,21 @@ public class TaskGroupPlanningBenchmark {
     for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
       rowsCount += taskGroup.estimatedRowsCount();
     }
+
     blackhole.consume(rowsCount);
 
     long filesCount = 0L;
     for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
       filesCount += taskGroup.filesCount();
     }
+
     blackhole.consume(filesCount);
 
     long sizeBytes = 0L;
     for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
       sizeBytes += taskGroup.sizeBytes();
     }
+
     blackhole.consume(sizeBytes);
   }
 
@@ -150,18 +153,21 @@ public class TaskGroupPlanningBenchmark {
     for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
       rowsCount += taskGroup.estimatedRowsCount();
     }
+
     blackhole.consume(rowsCount);
 
     long filesCount = 0L;
     for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
       filesCount += taskGroup.filesCount();
     }
+
     blackhole.consume(filesCount);
 
     long sizeBytes = 0L;
     for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
       sizeBytes += taskGroup.sizeBytes();
     }
+
     blackhole.consume(sizeBytes);
   }
 

@@ -372,18 +372,21 @@ abstract class BaseParquetReaders<T> {
           } else {
             return ParquetValueReaders.byteBuffers(desc);
           }
+
         case INT32:
           if (expected.typeId() == TypeID.LONG) {
             return ParquetValueReaders.intsAsLongs(desc);
           } else {
             return ParquetValueReaders.unboxed(desc);
           }
+
         case FLOAT:
           if (expected.typeId() == TypeID.DOUBLE) {
             return ParquetValueReaders.floatsAsDoubles(desc);
           } else {
             return ParquetValueReaders.unboxed(desc);
           }
+
         case BOOLEAN:
         case INT64:
         case DOUBLE:

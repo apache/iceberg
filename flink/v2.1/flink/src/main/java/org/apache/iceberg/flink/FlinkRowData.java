@@ -41,6 +41,7 @@ public class FlinkRowData {
       if (!fieldType.isNullable() && rowData.isNullAt(fieldPos)) {
         return null;
       }
+
       return flinkFieldGetter.getFieldOrNull(rowData);
     };
   }

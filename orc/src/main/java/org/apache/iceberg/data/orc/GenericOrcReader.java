@@ -161,6 +161,7 @@ public class GenericOrcReader implements OrcRowReader<Record> {
                       "Invalid iceberg type %s corresponding to ORC type %s",
                       iPrimitive, primitive));
           }
+
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);
       }

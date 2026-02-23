@@ -113,18 +113,22 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     if (snapshotId != -1) {
       scan = scan.useSnapshot(snapshotId);
     }
+
     long asOfTime = conf.getLong(InputFormatConfig.AS_OF_TIMESTAMP, -1);
     if (asOfTime != -1) {
       scan = scan.asOfTime(asOfTime);
     }
+
     long splitSize = conf.getLong(InputFormatConfig.SPLIT_SIZE, 0);
     if (splitSize > 0) {
       scan = scan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
     }
+
     String schemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
     if (schemaStr != null) {
       scan.project(SchemaParser.fromJson(schemaStr));
     }
+
     String[] selectedColumns = conf.getStrings(InputFormatConfig.SELECTED_COLUMNS);
     if (selectedColumns != null) {
       scan.select(selectedColumns);

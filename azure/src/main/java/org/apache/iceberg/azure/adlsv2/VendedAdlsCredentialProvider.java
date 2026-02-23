@@ -147,6 +147,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
         }
       }
     }
+
     return this.sasCredentialByAccount;
   }
 

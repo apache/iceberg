@@ -311,6 +311,7 @@ public class RowDataProjection implements RowData {
       if (pos != 0) {
         sb.append(",");
       }
+
       // copied the behavior from Flink GenericRowData
       sb.append(StringUtils.arrayAwareToString(getValue(pos)));
     }

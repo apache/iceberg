@@ -313,6 +313,7 @@ public class TestTables {
       synchronized (METADATA) {
         this.current = METADATA.get(tableName);
       }
+
       return current;
     }
 
@@ -321,6 +322,7 @@ public class TestTables {
       if (base != current) {
         throw new CommitFailedException("Cannot commit changes based on stale metadata");
       }
+
       synchronized (METADATA) {
         refresh();
         if (base == current) {
@@ -328,6 +330,7 @@ public class TestTables {
             this.failCommits -= 1;
             throw new CommitFailedException("Injected failure");
           }
+
           Integer version = VERSIONS.get(tableName);
           // remove changes from the committed metadata
           this.current =

@@ -238,6 +238,7 @@ public class TestBaseReader {
             .as("Iterator should be closed after read exhausion")
             .isTrue();
       }
+
       for (int i = 5; i < 10; i++) {
         assertThat(reader.hasIterator(tasks.get(i)))
             .as("Iterator should not be created eagerly for tasks")
@@ -270,6 +271,7 @@ public class TestBaseReader {
             Parquet.write(localOutput(parquetFile)).schema(tableSchema).build()) {
           writer.addAll(expected);
         }
+
         DataFile file =
             DataFiles.builder(PartitionSpec.unpartitioned())
                 .withFileSizeInBytes(parquetFile.length())
@@ -278,6 +280,7 @@ public class TestBaseReader {
                 .build();
         appendFiles.appendFile(file);
       }
+
       appendFiles.commit();
 
       return StreamSupport.stream(table.newScan().planFiles().spliterator(), false)

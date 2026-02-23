@@ -113,6 +113,7 @@ public class PartitionsTable extends BaseMetadataTable {
           "last_updated_at",
           "last_updated_snapshot_id");
     }
+
     return schema;
   }
 

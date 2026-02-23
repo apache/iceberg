@@ -326,6 +326,7 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
     if (startSnapshot != null) {
       rowDelta.validateFromSnapshot(startSnapshot.snapshotId());
     }
+
     rowDelta.commit();
   }
 
@@ -364,6 +365,7 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
       if (deleteFile == null) {
         return null;
       }
+
       return deleteLoader.loadPositionDeletes(ImmutableList.of(deleteFile), path);
     }
   }

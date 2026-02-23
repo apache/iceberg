@@ -417,9 +417,11 @@ public class SparkPositionDeletesRewrite implements Write {
         if (writerWithRow != null) {
           writerWithRow.close();
         }
+
         if (writerWithoutRow != null) {
           writerWithoutRow.close();
         }
+
         this.closed = true;
       }
     }
@@ -430,6 +432,7 @@ public class SparkPositionDeletesRewrite implements Write {
             new ClusteredPositionDeleteWriter<>(
                 writerFactoryWithRow, deleteFileFactory, io, targetFileSize, deleteGranularity);
       }
+
       return writerWithRow;
     }
 
@@ -439,6 +442,7 @@ public class SparkPositionDeletesRewrite implements Write {
             new ClusteredPositionDeleteWriter<>(
                 writerFactoryWithoutRow, deleteFileFactory, io, targetFileSize, deleteGranularity);
       }
+
       return writerWithoutRow;
     }
 
@@ -447,9 +451,11 @@ public class SparkPositionDeletesRewrite implements Write {
       if (writerWithRow != null) {
         allDeleteFiles.addAll(writerWithRow.result().deleteFiles());
       }
+
       if (writerWithoutRow != null) {
         allDeleteFiles.addAll(writerWithoutRow.result().deleteFiles());
       }
+
       return allDeleteFiles;
     }
   }
@@ -522,6 +528,7 @@ public class SparkPositionDeletesRewrite implements Write {
         if (null != dvWriter) {
           dvWriter.close();
         }
+
         this.closed = true;
       }
     }

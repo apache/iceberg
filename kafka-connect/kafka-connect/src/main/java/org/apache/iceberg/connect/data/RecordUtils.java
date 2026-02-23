@@ -67,9 +67,11 @@ class RecordUtils {
       if (value == null) {
         return null;
       }
+
       Preconditions.checkState(value instanceof Struct, "Expected a struct type");
       struct = (Struct) value;
     }
+
     return fieldValueFromStruct(struct, fields.get(fields.size() - 1));
   }
 
@@ -78,6 +80,7 @@ class RecordUtils {
     if (structField == null) {
       return null;
     }
+
     return struct.get(structField);
   }
 
@@ -89,9 +92,11 @@ class RecordUtils {
       if (value == null) {
         return null;
       }
+
       Preconditions.checkState(value instanceof Map, "Expected a map type");
       map = (Map<String, ?>) value;
     }
+
     return map.get(fields.get(fields.size() - 1));
   }
 
@@ -124,6 +129,7 @@ class RecordUtils {
                     if (field == null) {
                       throw new IllegalArgumentException("ID column not found: " + colName);
                     }
+
                     return field.fieldId();
                   })
               .collect(Collectors.toSet());
@@ -174,6 +180,7 @@ class RecordUtils {
               targetFileSize,
               table.schema());
     }
+
     return writer;
   }
 

@@ -382,6 +382,7 @@ public class TestIcebergSourceFailover {
               countDownLatch.countDown();
               continueProcessing.get();
             }
+
             return record;
           });
     }

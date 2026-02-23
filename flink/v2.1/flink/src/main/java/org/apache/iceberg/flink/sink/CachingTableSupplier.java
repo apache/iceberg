@@ -61,6 +61,7 @@ class CachingTableSupplier implements SerializableSupplier<Table> {
     if (table == null) {
       this.table = initialTable;
     }
+
     return table;
   }
 

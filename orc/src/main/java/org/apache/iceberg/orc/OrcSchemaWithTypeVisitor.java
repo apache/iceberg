@@ -77,6 +77,7 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
       Types.NestedField iField = struct != null ? struct.field(fieldId) : null;
       results.add(visit(iField != null ? iField.type() : null, field, visitor));
     }
+
     return visitor.record(struct, record, names, results);
   }
 

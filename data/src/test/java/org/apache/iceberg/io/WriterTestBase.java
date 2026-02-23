@@ -71,6 +71,7 @@ public abstract class WriterTestBase<T> extends TestBase {
     try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
       reader.forEach(set::add);
     }
+
     return set;
   }
 

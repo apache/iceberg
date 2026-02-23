@@ -61,6 +61,7 @@ public class NessieViewOperations extends BaseViewOperations {
               "Failed to refresh as ref '%s' is no longer valid.", client.getRef().getName()),
           e);
     }
+
     String metadataLocation = null;
     Reference reference = client.getRef().getReference();
     try {
@@ -82,6 +83,7 @@ public class NessieViewOperations extends BaseViewOperations {
         throw new NoSuchViewException("View does not exist: %s in %s", key, reference);
       }
     }
+
     refreshFromMetadataLocation(
         metadataLocation,
         null,

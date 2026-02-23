@@ -153,6 +153,7 @@ public class SortingPositionOnlyDeleteWriter<T>
           positions.merge(previousPositions);
           rewrittenDeleteFiles.addAll(previousPositions.deleteFiles());
         }
+
         positions.forEach(position -> writer.write(positionDelete.set(path, position)));
       }
     } finally {

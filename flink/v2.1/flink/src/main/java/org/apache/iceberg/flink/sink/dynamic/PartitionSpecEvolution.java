@@ -129,6 +129,7 @@ public class PartitionSpecEvolution {
     if (field1 == null || field2 == null) {
       return false;
     }
+
     String firstFieldSourceName = schemaField1.idToName().get(field1.sourceId());
     String secondFieldSourceName = schemaField2.idToName().get(field2.sourceId());
     return firstFieldSourceName.equals(secondFieldSourceName)

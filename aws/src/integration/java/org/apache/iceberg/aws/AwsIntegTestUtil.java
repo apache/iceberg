@@ -161,6 +161,7 @@ public class AwsIntegTestUtil {
                 deleteObjects(s3, bucketName, objectsToDelete);
                 objectsToDelete.clear();
               }
+
               objectsToDelete.add(ObjectIdentifier.builder().key(s3Object.key()).build());
             });
 

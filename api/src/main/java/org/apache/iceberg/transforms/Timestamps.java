@@ -77,6 +77,7 @@ enum Timestamps implements Transform<Long, Integer> {
             default:
               throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
           }
+
         case NANOS:
           switch (granularity) {
             case YEARS:
@@ -90,6 +91,7 @@ enum Timestamps implements Transform<Long, Integer> {
             default:
               throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
           }
+
         default:
           throw new UnsupportedOperationException("Unsupported time unit: " + timestampUnit);
       }
@@ -135,6 +137,7 @@ enum Timestamps implements Transform<Long, Integer> {
     if (granularity == ChronoUnit.DAYS) {
       return Types.DateType.get();
     }
+
     return Types.IntegerType.get();
   }
 

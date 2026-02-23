@@ -140,6 +140,7 @@ public class ParquetAvroWriter {
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
+
           case BSON:
             return ParquetValueWriters.byteBuffers(desc);
           default:

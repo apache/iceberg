@@ -84,6 +84,7 @@ public class AliyunOSSMock {
         if (httpExchange.getRequestMethod().equals("PUT")) {
           putBucket(bucketName, httpExchange);
         }
+
         if (httpExchange.getRequestMethod().equals("DELETE")) {
           deleteBucket(bucketName, httpExchange);
         }
@@ -93,15 +94,19 @@ public class AliyunOSSMock {
         if (objectName.contains("?")) {
           objectName = objectName.substring(0, objectName.indexOf("?"));
         }
+
         if (httpExchange.getRequestMethod().equals("PUT")) {
           putObject(bucketName, objectName, httpExchange);
         }
+
         if (httpExchange.getRequestMethod().equals("DELETE")) {
           deleteObject(bucketName, objectName, httpExchange);
         }
+
         if (httpExchange.getRequestMethod().equals("HEAD")) {
           getObjectMeta(bucketName, objectName, httpExchange);
         }
+
         if (httpExchange.getRequestMethod().equals("GET")) {
           getObject(bucketName, objectName, httpExchange);
         }
@@ -116,6 +121,7 @@ public class AliyunOSSMock {
         handleResponse(httpExchange, 409, errorMessage, "application/xml");
         return;
       }
+
       localStore.createBucket(bucketName);
       handleResponse(httpExchange, 200, "OK", "application/xml");
     }
@@ -130,6 +136,7 @@ public class AliyunOSSMock {
                 OSSErrorCode.BUCKET_NOT_EMPTY, "The bucket you tried to delete is not empty.");
         handleResponse(httpExchange, 409, errorMessage, "application/xml");
       }
+
       handleResponse(httpExchange, 200, "OK", "application/xml");
     }
 
@@ -209,10 +216,12 @@ public class AliyunOSSMock {
         if (!ranges[0].isEmpty()) {
           rangeStart = Long.parseLong(ranges[0]);
         }
+
         long rangeEnd = -1;
         if (ranges.length == 2 && !ranges[1].isEmpty()) {
           rangeEnd = Long.parseLong(ranges[1]);
         }
+
         if (rangeEnd == -1) {
           rangeEnd = Long.MAX_VALUE;
           if (rangeStart == -1) {
@@ -227,9 +236,11 @@ public class AliyunOSSMock {
           bytesToRead = Math.min(fileSize - 1, rangeEnd);
           skipSize = fileSize - rangeEnd;
         }
+
         if (rangeEnd == -1) {
           bytesToRead = fileSize - rangeStart;
         }
+
         if (bytesToRead < 0 || fileSize < rangeStart) {
           httpExchange.sendResponseHeaders(416, 1);
           return;
@@ -381,6 +392,7 @@ public class AliyunOSSMock {
         onMaxLength(maxCount, count);
         return 0;
       }
+
       return in.available();
     }
 
@@ -487,6 +499,7 @@ public class AliyunOSSMock {
         onMaxLength(maxCount, count);
         return -1;
       }
+
       final int result = in.read();
       count++;
       return result;
@@ -519,6 +532,7 @@ public class AliyunOSSMock {
         onMaxLength(maxCount, count);
         return -1;
       }
+
       final long maxRead = maxCount >= 0 ? Math.min(len, maxCount - count) : len;
       final int bytesRead = in.read(b, off, (int) maxRead);
 

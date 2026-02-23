@@ -149,6 +149,7 @@ public class GenericPartitionFieldSummary
     if (fromProjectionPos != null) {
       pos = fromProjectionPos[i];
     }
+
     switch (pos) {
       case 0:
         return containsNull;
@@ -171,6 +172,7 @@ public class GenericPartitionFieldSummary
     if (fromProjectionPos != null) {
       pos = fromProjectionPos[i];
     }
+
     switch (pos) {
       case 0:
         this.containsNull = (Boolean) value;

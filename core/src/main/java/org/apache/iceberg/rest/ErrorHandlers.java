@@ -148,6 +148,7 @@ public class ErrorHandlers {
           } else {
             throw new NoSuchTableException("%s", error.message());
           }
+
         case 409:
           throw new AlreadyExistsException("%s", error.message());
       }
@@ -249,6 +250,7 @@ public class ErrorHandlers {
           } else {
             throw new NoSuchViewException("%s", error.message());
           }
+
         case 409:
           throw new AlreadyExistsException("%s", error.message());
       }
@@ -268,6 +270,7 @@ public class ErrorHandlers {
           if (NamespaceNotEmptyException.class.getSimpleName().equals(error.type())) {
             throw new NamespaceNotEmptyException("%s", error.message());
           }
+
           throw new BadRequestException("Malformed request: %s", error.message());
         case 404:
           throw new NoSuchNamespaceException("%s", error.message());
@@ -309,6 +312,7 @@ public class ErrorHandlers {
       } catch (Exception x) {
         LOG.warn("Unable to parse error response", x);
       }
+
       return ErrorResponse.builder().responseCode(code).withMessage(json).build();
     }
 
@@ -319,6 +323,7 @@ public class ErrorHandlers {
           if (IllegalArgumentException.class.getSimpleName().equals(error.type())) {
             throw new IllegalArgumentException(error.message());
           }
+
           throw new BadRequestException("Malformed request: %s", error.message());
         case 401:
           throw new NotAuthorizedException("Not authorized: %s", error.message());
@@ -349,6 +354,7 @@ public class ErrorHandlers {
       } catch (Exception x) {
         LOG.warn("Unable to parse error response", x);
       }
+
       return ErrorResponse.builder().responseCode(code).withMessage(json).build();
     }
 
@@ -368,6 +374,7 @@ public class ErrorHandlers {
                 "Malformed request: %s: %s", error.type(), error.message());
         }
       }
+
       throw createRESTException(error);
     }
   }

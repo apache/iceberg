@@ -669,6 +669,7 @@ public class TestS3FileIOIntegration {
       write(s3FileIO, String.format("s3://%s/%s/%s", bucketName, prefix, deletionKey));
       paths.add(String.format("s3://%s/%s/%s", bucketName, prefix, deletionKey));
     }
+
     s3FileIO.deleteFiles(paths);
     for (String path : paths) {
       assertThat(s3FileIO.newInputFile(path).exists()).isFalse();

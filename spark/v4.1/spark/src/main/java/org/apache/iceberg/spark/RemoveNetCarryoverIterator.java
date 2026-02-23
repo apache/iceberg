@@ -75,6 +75,7 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
     if (!rowIterator().hasNext()) {
       return cachedRow;
     }
+
     cachedRowCount = 1;
 
     cachedNextRow = rowIterator().next();
@@ -110,6 +111,7 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
     } else {
       currentRow = rowIterator().next();
     }
+
     return currentRow;
   }
 

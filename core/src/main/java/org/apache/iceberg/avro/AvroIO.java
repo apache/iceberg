@@ -65,6 +65,7 @@ class AvroIO {
         return AVRO_FS_INPUT_CTOR.newInstance(wrapped, length);
       }
     }
+
     return new AvroInputStreamAdapter(stream, length);
   }
 

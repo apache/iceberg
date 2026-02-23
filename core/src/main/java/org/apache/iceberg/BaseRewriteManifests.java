@@ -369,6 +369,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
         close();
         writer = newManifestWriter(spec);
       }
+
       writer.existing(entry);
     }
 

@@ -185,6 +185,7 @@ public class AvroSchemaUtil {
         return true;
       }
     }
+
     return false;
   }
 
@@ -276,6 +277,7 @@ public class AvroSchemaUtil {
     if (!"key".equals(keyName)) {
       keyField.addAlias(keyName);
     }
+
     keyField.addProp(FIELD_ID_PROP, keyId);
 
     Schema.Field valueField =
@@ -328,6 +330,7 @@ public class AvroSchemaUtil {
     if (schema.getType() == UNION) {
       return hasProperty(fromOption(schema), propertyName);
     }
+
     return schema.getObjectProp(propertyName) != null;
   }
 
@@ -489,6 +492,7 @@ public class AvroSchemaUtil {
     for (Map.Entry<String, Object> prop : array.getObjectProps().entrySet()) {
       copy.addProp(prop.getKey(), prop.getValue());
     }
+
     return copy;
   }
 
@@ -499,6 +503,7 @@ public class AvroSchemaUtil {
     for (Map.Entry<String, Object> prop : map.getObjectProps().entrySet()) {
       copy.addProp(prop.getKey(), prop.getValue());
     }
+
     return copy;
   }
 
@@ -506,6 +511,7 @@ public class AvroSchemaUtil {
     if (!validAvroName(name)) {
       return sanitize(name);
     }
+
     return name;
   }
 
@@ -523,6 +529,7 @@ public class AvroSchemaUtil {
         return false;
       }
     }
+
     return true;
   }
 
@@ -544,6 +551,7 @@ public class AvroSchemaUtil {
         sb.append(character);
       }
     }
+
     return sb.toString();
   }
 
@@ -551,6 +559,7 @@ public class AvroSchemaUtil {
     if (Character.isDigit(character)) {
       return "_" + character;
     }
+
     return "_x" + Integer.toHexString(character).toUpperCase(Locale.ROOT);
   }
 }

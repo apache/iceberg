@@ -358,6 +358,7 @@ class TestDynamicWriter extends TestFlinkIcebergSinkBase {
     if (dataDir.exists()) {
       return dataDir.listFiles((dir, name) -> !name.startsWith(".")).length;
     }
+
     return 0;
   }
 

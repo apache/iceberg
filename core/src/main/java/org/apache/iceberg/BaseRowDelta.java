@@ -138,6 +138,7 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
             startingSnapshotId,
             parent.snapshotId());
       }
+
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(
             base,

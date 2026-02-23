@@ -386,6 +386,7 @@ public abstract class TestReadProjection {
         stringMap.put(entry.getKey().toString(), entry.getValue());
       }
     }
+
     return stringMap;
   }
 

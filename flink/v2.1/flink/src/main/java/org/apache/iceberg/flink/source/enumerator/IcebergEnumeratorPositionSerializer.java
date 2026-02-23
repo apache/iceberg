@@ -60,10 +60,12 @@ class IcebergEnumeratorPositionSerializer
     if (position.snapshotId() != null) {
       out.writeLong(position.snapshotId());
     }
+
     out.writeBoolean(position.snapshotTimestampMs() != null);
     if (position.snapshotTimestampMs() != null) {
       out.writeLong(position.snapshotTimestampMs());
     }
+
     byte[] result = out.getCopyOfBuffer();
     out.clear();
     return result;

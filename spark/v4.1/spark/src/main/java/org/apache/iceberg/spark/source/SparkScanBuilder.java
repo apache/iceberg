@@ -387,6 +387,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
           || startTimestamp > table().currentSnapshot().timestampMillis()) {
         emptyScan = true;
       }
+
       startSnapshotId = getStartSnapshotId(startTimestamp);
     }
 
@@ -442,6 +443,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         break;
       }
     }
+
     return endSnapshotId;
   }
 

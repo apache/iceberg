@@ -40,6 +40,7 @@ public class Expressions {
     } else if (right == alwaysTrue()) {
       return left;
     }
+
     return new And(left, right);
   }
 
@@ -57,6 +58,7 @@ public class Expressions {
     } else if (right == alwaysFalse()) {
       return left;
     }
+
     return new Or(left, right);
   }
 
@@ -69,6 +71,7 @@ public class Expressions {
     } else if (child instanceof Not) {
       return ((Not) child).child();
     }
+
     return new Not(child);
   }
 

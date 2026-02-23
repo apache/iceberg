@@ -96,6 +96,7 @@ public class PuffinReader implements Closeable {
       ByteBuffer footerJson = PuffinFormat.decompress(footerCompression, footerPayload);
       this.knownFileMetadata = parseFileMetadata(footerJson);
     }
+
     return knownFileMetadata;
   }
 
@@ -113,10 +114,12 @@ public class PuffinReader implements Closeable {
               flag != null, "Unknown flag byte %s and bit %s set", byteNumber, bitNumber);
           flags.add(flag);
         }
+
         flagByte = flagByte >> 1;
         bitNumber++;
       }
     }
+
     return flags;
   }
 
@@ -178,6 +181,7 @@ public class PuffinReader implements Closeable {
               + footerPayloadSize
               + PuffinFormat.FOOTER_STRUCT_LENGTH;
     }
+
     return knownFooterSize;
   }
 
@@ -189,6 +193,7 @@ public class PuffinReader implements Closeable {
       input.seek(offset);
       ByteStreams.readFully(input, data);
     }
+
     return data;
   }
 

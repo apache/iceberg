@@ -83,6 +83,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
       wrapper.set(null); // don't hold a reference to the key.
       return result;
     }
+
     return false;
   }
 
@@ -99,6 +100,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
       wrapper.set(null); // don't hold a reference to the key.
       return value;
     }
+
     return null;
   }
 
@@ -115,6 +117,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
       wrapper.set(null); // don't hold a reference to the key.
       return value;
     }
+
     return null;
   }
 
@@ -129,6 +132,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
     for (StructLikeWrapper wrapper : wrapperMap.keySet()) {
       keySet.add(wrapper.get());
     }
+
     return keySet;
   }
 
@@ -143,6 +147,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
     for (Entry<StructLikeWrapper, T> entry : wrapperMap.entrySet()) {
       entrySet.add(new StructLikeEntry<>(entry));
     }
+
     return entrySet;
   }
 

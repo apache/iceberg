@@ -212,6 +212,7 @@ public class SparkTableUtil {
       } else {
         scalaPartitionFilter = Option.empty();
       }
+
       Seq<CatalogTablePartition> partitions =
           catalog.listPartitions(tableIdent, scalaPartitionFilter).toIndexedSeq();
       return JavaConverters.seqAsJavaListConverter(partitions).asJava().stream()
@@ -280,6 +281,7 @@ public class SparkTableUtil {
       } else {
         resolvedPredicateExpr = predicateExpr;
       }
+
       Seq<Expression> predicates =
           JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(resolvedPredicateExpr))
               .asScala()
@@ -1167,9 +1169,11 @@ public class SparkTableUtil {
       if (this == o) {
         return true;
       }
+
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
+
       SparkPartition that = (SparkPartition) o;
       return Objects.equal(values, that.values)
           && Objects.equal(uri, that.uri)
@@ -1283,6 +1287,7 @@ public class SparkTableUtil {
           }
         }
       }
+
       return service;
     }
   }

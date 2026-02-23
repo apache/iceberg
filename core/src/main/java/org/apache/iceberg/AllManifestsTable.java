@@ -415,6 +415,7 @@ public class AllManifestsTable extends BaseMetadataTable {
             return ROWS_CANNOT_MATCH;
           }
         }
+
         return ROWS_MIGHT_MATCH;
       }
 
@@ -425,6 +426,7 @@ public class AllManifestsTable extends BaseMetadataTable {
             return ROWS_CANNOT_MATCH;
           }
         }
+
         return ROWS_MIGHT_MATCH;
       }
 
@@ -457,6 +459,7 @@ public class AllManifestsTable extends BaseMetadataTable {
             return ROWS_CANNOT_MATCH;
           }
         }
+
         return ROWS_MIGHT_MATCH;
       }
 

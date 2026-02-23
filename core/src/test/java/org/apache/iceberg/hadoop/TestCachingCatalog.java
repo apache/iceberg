@@ -362,6 +362,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
             });
       }
     }
+
     executor.awaitTermination(2, TimeUnit.SECONDS);
     assertThat(cacheGetCount).hasValue(numThreads / 2);
     assertThat(cacheCleanupCount).hasValue(numThreads / 2);

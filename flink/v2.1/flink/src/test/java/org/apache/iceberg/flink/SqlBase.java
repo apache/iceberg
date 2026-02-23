@@ -94,6 +94,7 @@ public abstract class SqlBase {
       if (propCount > 0) {
         builder.append(",");
       }
+
       builder
           .append("'")
           .append(entry.getKey())
@@ -104,6 +105,7 @@ public abstract class SqlBase {
           .append("'");
       propCount++;
     }
+
     builder.append(")");
     return builder.toString();
   }

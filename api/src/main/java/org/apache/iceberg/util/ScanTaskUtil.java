@@ -41,6 +41,7 @@ public class ScanTaskUtil {
     for (ContentFile<?> file : files) {
       size += contentSizeInBytes(file);
     }
+
     return size;
   }
 

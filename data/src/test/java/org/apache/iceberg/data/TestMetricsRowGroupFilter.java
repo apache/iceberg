@@ -153,6 +153,7 @@ public class TestMetricsRowGroupFilter {
     for (int i = 0; i < 200; i += 1) {
       sb.append(UUID.randomUUID());
     }
+
     TOO_LONG_FOR_STATS_PARQUET = sb.toString();
   }
 
@@ -284,6 +285,7 @@ public class TestMetricsRowGroupFilter {
         appender.add(record);
       }
     }
+
     parquetFile.deleteOnExit();
     return parquetFile;
   }
@@ -1027,6 +1029,7 @@ public class TestMetricsRowGroupFilter {
         Variant variant = Variant.of(metadata, obj);
         record.setField("variant_field", variant);
       }
+
       records.add(record);
     }
 

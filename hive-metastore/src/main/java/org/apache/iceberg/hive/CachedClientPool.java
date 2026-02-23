@@ -161,6 +161,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
         }
       }
     }
+
     for (KeyElementType type : types) {
       switch (type) {
         case UGI:
@@ -169,6 +170,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
           } catch (IOException e) {
             throw new UncheckedIOException(e);
           }
+
           break;
         case USER_NAME:
           try {
@@ -176,14 +178,17 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
           } catch (IOException e) {
             throw new UncheckedIOException(e);
           }
+
           break;
         default:
           throw new RuntimeException("Unexpected key element " + type.name());
       }
     }
+
     for (String key : confElements.keySet()) {
       elements.add(ConfElement.of(key, confElements.get(key)));
     }
+
     return Key.of(elements);
   }
 

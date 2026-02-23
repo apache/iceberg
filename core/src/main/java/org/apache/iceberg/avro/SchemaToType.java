@@ -121,6 +121,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
           tagIndex++;
         }
       }
+
       return Types.StructType.of(fields);
     }
   }

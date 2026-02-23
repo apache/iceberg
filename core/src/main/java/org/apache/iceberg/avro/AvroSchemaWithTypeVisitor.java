@@ -89,6 +89,7 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
         options.add(visit(type, branch, visitor));
       }
     }
+
     return visitor.union(type, union, options);
   }
 

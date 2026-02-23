@@ -641,6 +641,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     for (int i = 0; i < 100; i++) {
       df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
     }
+
     sourceTable.refresh();
 
     // each iteration generate 1 version file, 1 manifest list, 1 manifest and 1 data file
@@ -1471,6 +1472,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     for (int i = 0; i < snapshotNumber; i++) {
       sql("insert into hive.%s.%s values (%s, 'AAAAAAAAAA', 'AAAA')", namespace, tableName, i);
     }
+
     return catalog.loadTable(TableIdentifier.of(namespace, tableName));
   }
 
@@ -1529,6 +1531,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     if (lastIndex != -1) {
       filename = path.substring(lastIndex + 1);
     }
+
     return filename;
   }
 
@@ -1551,6 +1554,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     for (int i = 0; i < values.length; i++) {
       nested.set(i, values[i]);
     }
+
     posDelete.set(path, position, nested);
     return posDelete;
   }

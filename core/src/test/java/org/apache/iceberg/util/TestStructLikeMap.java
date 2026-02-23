@@ -98,6 +98,7 @@ public class TestStructLikeMap {
       structLikeSet.add(entry.getKey());
       valueSet.add(entry.getValue());
     }
+
     assertThat(structLikeSet).containsExactlyInAnyOrder(record1, record2, record3);
     assertThat(valueSet).containsExactlyInAnyOrder("1-aaa", "2-bbb", "3-null");
   }

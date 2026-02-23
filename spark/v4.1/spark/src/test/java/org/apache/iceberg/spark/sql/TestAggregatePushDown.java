@@ -651,6 +651,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
     if (explainString1.contains("count(id)")) {
       explainContainsPushDownAggregates1 = true;
     }
+
     assertThat(explainContainsPushDownAggregates1).as("count pushed down").isTrue();
 
     List<Object[]> actual1 =

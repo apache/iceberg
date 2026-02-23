@@ -1012,6 +1012,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     } else {
       additionalFields = new String[] {"pos", "row", "partition", "spec_id"};
     }
+
     return rowsToJava(
         spark
             .read()
@@ -1208,6 +1209,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
                   for (int i = 0; i < partitionValue.size(); i++) {
                     partition.set(i, partitionValue.get(i));
                   }
+
                   return partition;
                 })
             .collect(Collectors.toList());
@@ -1299,9 +1301,11 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
       if (partitionFiles == null) {
         partitionFiles = Lists.newArrayList();
       }
+
       partitionFiles.add(deleteFile);
       result.put(partition, partitionFiles);
     }
+
     return result;
   }
 }

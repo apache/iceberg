@@ -114,24 +114,28 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
               // < 6 is equivalent to <= 5
               return toLong(literal()) == toLong(other.literal()) + 1L;
             }
+
             break;
           case LT_EQ:
             if (other.op() == Operation.LT) {
               // <= 5 is equivalent to < 6
               return toLong(literal()) == toLong(other.literal()) - 1L;
             }
+
             break;
           case GT:
             if (other.op() == Operation.GT_EQ) {
               // > 5 is equivalent to >= 6
               return toLong(literal()) == toLong(other.literal()) - 1L;
             }
+
             break;
           case GT_EQ:
             if (other.op() == Operation.GT) {
               // >= 5 is equivalent to > 4
               return toLong(literal()) == toLong(other.literal()) + 1L;
             }
+
             break;
         }
       }

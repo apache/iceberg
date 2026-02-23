@@ -129,6 +129,7 @@ public class MockS3Client implements S3Client {
     } else {
       this.objectData.put(objectId, data);
     }
+
     return new PutObjectResult();
   }
 

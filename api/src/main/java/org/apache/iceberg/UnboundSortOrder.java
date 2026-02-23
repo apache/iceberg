@@ -48,6 +48,7 @@ public class UnboundSortOrder {
       } else {
         transform = field.transform;
       }
+
       builder.addSortField(transform, field.sourceId, field.direction, field.nullOrder);
     }
 
@@ -108,6 +109,7 @@ public class UnboundSortOrder {
         if (orderId != null && orderId != 0) {
           throw new IllegalArgumentException("Unsorted order ID must be 0");
         }
+
         return UNSORTED_ORDER;
       }
 

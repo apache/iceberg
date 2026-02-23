@@ -91,8 +91,10 @@ public class NameMappingWithAvroSchema extends AvroWithTypeByStructureVisitor<Ma
           index++;
         }
       }
+
       return MappedFields.of(fields);
     }
+
     return null;
   }
 

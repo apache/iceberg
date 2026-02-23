@@ -100,6 +100,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       case DECIMAL:
         return true;
     }
+
     return false;
   }
 
@@ -199,6 +200,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
+
       return null;
     }
 
@@ -218,6 +220,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
+
       return null;
     }
   }
@@ -258,6 +261,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
+
       return null;
     }
 
@@ -274,6 +278,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
+
       return null;
     }
   }
@@ -351,6 +356,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
       }
+
       return null;
     }
 
@@ -390,6 +396,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.NOT_IN) {
         return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
       }
+
       return null;
     }
   }
@@ -432,6 +439,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
+
       return null;
     }
 
@@ -449,6 +457,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
+
       return null;
     }
   }
@@ -494,6 +503,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
+
       return null;
     }
 
@@ -511,6 +521,7 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
       } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
         return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
+
       return null;
     }
   }

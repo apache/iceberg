@@ -67,6 +67,7 @@ public class InMemoryOutputFile implements OutputFile {
     if (exists || (parentFileIO != null && parentFileIO.fileExists(location))) {
       throw new AlreadyExistsException("Already exists");
     }
+
     return createOrOverwrite();
   }
 

@@ -32,6 +32,7 @@ public class Exceptions {
       if (!suppressExceptions) {
         throw new RuntimeIOException(e, "Failed calling close");
       }
+
       // otherwise, ignore the exception
     }
   }
@@ -42,6 +43,7 @@ public class Exceptions {
     } catch (Exception e) {
       alreadyThrown.addSuppressed(e);
     }
+
     return alreadyThrown;
   }
 

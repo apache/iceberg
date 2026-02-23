@@ -217,6 +217,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
           tableName);
       assigner = assignerFactory.createAssigner(enumState.pendingSplits());
     }
+
     if (scanContext.isStreaming()) {
       ContinuousSplitPlanner splitPlanner =
           new ContinuousSplitPlannerImpl(tableLoader, scanContext, planningThreadName());
@@ -360,6 +361,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (newSnapshotId != null) {
         readOptions.put(FlinkReadOptions.SNAPSHOT_ID.key(), Long.toString(newSnapshotId));
       }
+
       return this;
     }
 
@@ -374,6 +376,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
             FlinkReadOptions.START_SNAPSHOT_TIMESTAMP.key(),
             Long.toString(newStartSnapshotTimestamp));
       }
+
       return this;
     }
 
@@ -382,6 +385,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         readOptions.put(
             FlinkReadOptions.START_SNAPSHOT_ID.key(), Long.toString(newStartSnapshotId));
       }
+
       return this;
     }
 
@@ -409,6 +413,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (newEndSnapshotId != null) {
         readOptions.put(FlinkReadOptions.END_SNAPSHOT_ID.key(), Long.toString(newEndSnapshotId));
       }
+
       return this;
     }
 
@@ -416,6 +421,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (newAsOfTimestamp != null) {
         readOptions.put(FlinkReadOptions.AS_OF_TIMESTAMP.key(), Long.toString(newAsOfTimestamp));
       }
+
       return this;
     }
 
@@ -423,6 +429,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (newSplitSize != null) {
         readOptions.put(FlinkReadOptions.SPLIT_SIZE, Long.toString(newSplitSize));
       }
+
       return this;
     }
 
@@ -430,6 +437,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (newSplitLookback != null) {
         readOptions.put(FlinkReadOptions.SPLIT_LOOKBACK, Integer.toString(newSplitLookback));
       }
+
       return this;
     }
 
@@ -450,6 +458,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (newMonitorInterval != null) {
         readOptions.put(FlinkReadOptions.MONITOR_INTERVAL, newMonitorInterval.toNanos() + " ns");
       }
+
       return this;
     }
 
@@ -487,6 +496,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       if (newLimit != null) {
         readOptions.put(FlinkReadOptions.LIMIT, Long.toString(newLimit));
       }
+
       return this;
     }
 

@@ -126,11 +126,13 @@ class HiveSchemaConverter {
                 .equalsIgnoreCase(((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory().name())) {
               return Types.TimestampType.withZone();
             }
+
             throw new IllegalArgumentException(
                 "Unsupported Hive type ("
                     + ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory()
                     + ") for Iceberg tables.");
         }
+
       case STRUCT:
         StructTypeInfo structTypeInfo = (StructTypeInfo) typeInfo;
         List<Types.NestedField> fields =

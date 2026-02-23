@@ -154,6 +154,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       vec.setValueCount(0);
       nullabilityHolder.reset();
     }
+
     if (vectorizedColumnIterator.hasNext()) {
       if (dictEncoded) {
         vectorizedColumnIterator.dictionaryBatchReader().nextBatch(vec, -1, nullabilityHolder);
@@ -208,6 +209,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         }
       }
     }
+
     Preconditions.checkState(
         vec.getValueCount() == numValsToRead,
         "Number of values read, %s, does not equal expected, %s",
@@ -252,6 +254,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         // Use FixedSizeBinaryVector for binary backed decimal
         type = Types.FixedType.ofLength(primitive.getTypeLength());
       }
+
       physicalType = Types.NestedField.from(logicalType).ofType(type).build();
     }
 
@@ -296,6 +299,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           len = ((Types.FixedType) icebergField.type()).length();
           this.readType = ReadType.FIXED_WIDTH_BINARY;
         }
+
         this.vec = arrowField.createVector(rootAlloc);
         vec.setInitialCapacity(batchSize * len);
         vec.allocateNew();
@@ -712,6 +716,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       if (nulls == null || nulls.size() < batchSize) {
         this.nulls = newNullabilityHolder(batchSize);
       }
+
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
     }
 

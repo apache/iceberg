@@ -95,6 +95,7 @@ public class TestOrcMetrics extends TestMetrics {
     try (FileAppender<Record> appender = writer) {
       appender.addAll(Lists.newArrayList(records));
     }
+
     return writer.metrics();
   }
 
@@ -115,6 +116,7 @@ public class TestOrcMetrics extends TestMetrics {
       assertThat(metricsWithStats.metrics().upperBounds()).doesNotContainKey(fieldId);
       return;
     }
+
     super.assertBounds(fieldId, type, lowerBound, upperBound, metricsWithStats);
   }
 }

@@ -91,6 +91,7 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
       LOG.info("No snapshot to compute stats for table {}", table.name());
       return EMPTY_RESULT;
     }
+
     validateColumns();
     JobGroupInfo info = newJobGroupInfo("COMPUTE-TABLE-STATS", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
@@ -138,6 +139,7 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
               .map(Types.NestedField::name)
               .collect(Collectors.toList());
     }
+
     return columns;
   }
 

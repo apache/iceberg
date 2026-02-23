@@ -88,6 +88,7 @@ public class RandomGenericData {
             if (!hasNext()) {
               throw new NoSuchElementException();
             }
+
             ++count;
             return (Record) TypeUtil.visit(schema, generator);
           }
@@ -203,6 +204,7 @@ public class RandomGenericData {
       if (field.isOptional() && isNull()) {
         return null;
       }
+
       return fieldResult.get();
     }
 
@@ -282,6 +284,7 @@ public class RandomGenericData {
           } else {
             return EPOCH.plus((long) result, MICROS).toLocalDateTime();
           }
+
         case TIMESTAMP_NANO:
           Types.TimestampNanoType ts9 = (Types.TimestampNanoType) primitive;
           if (ts9.shouldAdjustToUTC()) {
@@ -289,6 +292,7 @@ public class RandomGenericData {
           } else {
             return EPOCH.plus((long) result, NANOS).toLocalDateTime();
           }
+
         default:
           return result;
       }

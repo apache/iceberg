@@ -393,6 +393,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
         break;
       }
     }
+
     assertThat(hasMetaFile).as("metadata json file exists after delete without purge").isTrue();
   }
 

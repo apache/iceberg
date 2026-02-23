@@ -212,6 +212,7 @@ class DeleteFileIndex {
           dv.dataSequenceNumber(),
           seq);
     }
+
     return dv;
   }
 
@@ -507,6 +508,7 @@ class DeleteFileIndex {
             } else {
               add(posDeletesByPath, posDeletesByPartition, file);
             }
+
             break;
           case EQUALITY_DELETES:
             add(globalDeletes, eqDeletesByPartition, file, fieldLookup);
@@ -514,6 +516,7 @@ class DeleteFileIndex {
           default:
             throw new UnsupportedOperationException("Unsupported content: " + file.content());
         }
+
         ScanMetricsUtil.indexedDeleteFile(scanMetrics, file);
       }
 
@@ -859,6 +862,7 @@ class DeleteFileIndex {
               Preconditions.checkArgument(field != null, "Cannot find field for ID %s", id);
               fields.add(field);
             }
+
             this.equalityFields = fields;
           }
         }

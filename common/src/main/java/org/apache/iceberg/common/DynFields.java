@@ -239,6 +239,7 @@ public class DynFields {
         // not the right implementation
         candidates.add(className + "." + fieldName);
       }
+
       return this;
     }
 
@@ -263,6 +264,7 @@ public class DynFields {
         // not the right implementation
         candidates.add(targetClass.getName() + "." + fieldName);
       }
+
       return this;
     }
 
@@ -288,6 +290,7 @@ public class DynFields {
         // not the right implementation
         candidates.add(className + "." + fieldName);
       }
+
       return this;
     }
 
@@ -315,6 +318,7 @@ public class DynFields {
         // unusable
         candidates.add(targetClass.getName() + "." + fieldName);
       }
+
       return this;
     }
 

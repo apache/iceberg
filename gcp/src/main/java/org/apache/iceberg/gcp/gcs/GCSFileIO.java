@@ -239,6 +239,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     if (blob.getCreateTimeOffsetDateTime() == null) {
       return 0;
     }
+
     return blob.getCreateTimeOffsetDateTime().toInstant().toEpochMilli();
   }
 

@@ -400,6 +400,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 row.put(2, 1L); // data sequence number
                 row.put(3, 1L); // file sequence number
               }
+
               GenericData.Record file = (GenericData.Record) row.get("data_file");
               TestHelpers.asMetadataRecord(file);
               expected.add(row);

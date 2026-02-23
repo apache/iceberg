@@ -117,6 +117,7 @@ public class NessieIcebergClient implements AutoCloseable {
             && getRef().getHash().equals(hash))) {
       return this;
     }
+
     return new NessieIcebergClient(getApi(), requestedRef, hash, catalogOptions);
   }
 
@@ -133,6 +134,7 @@ public class NessieIcebergClient implements AutoCloseable {
           ref = Tag.of(ref.getName(), hash);
         }
       }
+
       return new UpdateableReference(ref, hash != null);
     } catch (NessieNotFoundException ex) {
       if (requestedRef != null) {
@@ -227,6 +229,7 @@ public class NessieIcebergClient implements AutoCloseable {
       if (existing != null) {
         throw namespaceAlreadyExists(key, existing, null);
       }
+
       try {
         commitRetry("create namespace " + key, Operation.Put.of(key, content));
       } catch (NessieReferenceConflictException e) {
@@ -248,6 +251,7 @@ public class NessieIcebergClient implements AutoCloseable {
                   conflict.get().key());
           }
         }
+
         throw new RuntimeException(
             String.format("Cannot create namespace '%s': %s", namespace, e.getMessage()));
       }
@@ -288,6 +292,7 @@ public class NessieIcebergClient implements AutoCloseable {
                 root.getElementCount() + 1,
                 root.name());
       }
+
       List<ContentKey> entries =
           withReference(api.getEntries()).filter(filter).stream()
               .map(EntriesResponse.Entry::getName)
@@ -295,6 +300,7 @@ public class NessieIcebergClient implements AutoCloseable {
       if (entries.isEmpty()) {
         return Collections.emptyList();
       }
+
       GetContentBuilder getContent = withReference(api.getContent());
       entries.forEach(getContent::key);
       return getContent.get().values().stream()
@@ -310,6 +316,7 @@ public class NessieIcebergClient implements AutoCloseable {
             "Cannot list top-level namespaces: ref '%s' is no longer valid.",
             getRef().getName());
       }
+
       throw new NoSuchNamespaceException(
           e,
           "Cannot list child namespaces from '%s': ref '%s' is no longer valid.",
@@ -330,6 +337,7 @@ public class NessieIcebergClient implements AutoCloseable {
         throw new NoSuchNamespaceException(
             "Content object with name '%s' is not a namespace.", namespace);
       }
+
       try {
         commitRetry("drop namespace " + key, Operation.Delete.of(key));
         return true;
@@ -349,6 +357,7 @@ public class NessieIcebergClient implements AutoCloseable {
               throw new NamespaceNotEmptyException(e, "Namespace '%s' is not empty.", namespace);
           }
         }
+
         throw new UncheckedIOException(
             String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()), e);
       }
@@ -362,6 +371,7 @@ public class NessieIcebergClient implements AutoCloseable {
       throw new UncheckedIOException(
           String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()), e);
     }
+
     return false;
   }
 
@@ -431,6 +441,7 @@ public class NessieIcebergClient implements AutoCloseable {
           && conflict.get().conflictType() == Conflict.ConflictType.KEY_DOES_NOT_EXIST) {
         throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
       }
+
       throw new UncheckedIOException(
           String.format(
               "Cannot update properties on namespace '%s': %s", namespace, e.getMessage()),
@@ -497,6 +508,7 @@ public class NessieIcebergClient implements AutoCloseable {
       if (e instanceof NessieConflictException) {
         exception = NessieUtil.handleExceptionsForCommits(e, getRef().getName(), type);
       }
+
       throw exception.orElse(commitFailedException);
     } catch (HttpClientException ex) {
       // Intentionally catch all nessie-client-exceptions here and not just the "timeout" variant
@@ -505,6 +517,7 @@ public class NessieIcebergClient implements AutoCloseable {
       // safe than sorry.
       throw new CommitStateUnknownException(ex);
     }
+
     // Intentionally just "throw through" Nessie's HttpClientException here and do not "special
     // case"
     // just the "timeout" variant to propagate all kinds of network errors (e.g. connection reset).
@@ -592,6 +605,7 @@ public class NessieIcebergClient implements AutoCloseable {
     } catch (BaseNessieClientServerException e) {
       LOG.error("Cannot drop {}: unknown error", contentType, e);
     }
+
     return false;
   }
 
@@ -611,6 +625,7 @@ public class NessieIcebergClient implements AutoCloseable {
     if (isSnapshotOperation(base, metadata)) {
       builder.putProperties("iceberg.operation", snapshot.operation());
     }
+
     CommitMeta commitMeta = NessieUtil.catalogOptions(builder, catalogOptions).build();
 
     ImmutableIcebergTable.Builder newTableBuilder = ImmutableIcebergTable.builder();
@@ -718,6 +733,7 @@ public class NessieIcebergClient implements AutoCloseable {
     } else {
       builder.refName(ref.getName());
     }
+
     return builder;
   }
 
@@ -730,6 +746,7 @@ public class NessieIcebergClient implements AutoCloseable {
     } else if (base == null) {
       return String.format("Iceberg table created/registered with name %s", tableName);
     }
+
     return String.format("Iceberg commit against table %s", tableName);
   }
 
@@ -739,6 +756,7 @@ public class NessieIcebergClient implements AutoCloseable {
       return String.format(
           "Iceberg schema change against view %s for the operation %s", viewName, operation);
     }
+
     return String.format("Iceberg view %sd with name %s", operation, viewName);
   }
 
@@ -785,6 +803,7 @@ public class NessieIcebergClient implements AutoCloseable {
                 if (retryConflicts) {
                   refresh(); // otherwise retrying a conflict doesn't make sense
                 }
+
                 throw e;
               }
             },

@@ -50,6 +50,7 @@ public class TestHashWriter {
     for (int i = 0; i < 300; ++i) {
       icebergTblProperties.put("Property Key " + i, "Property Value " + i);
     }
+
     Schema schema = new Schema(Types.NestedField.required(1, "col1", Types.StringType.get()));
     TableMetadata tableMetadata =
         TableMetadata.newTableMetadata(

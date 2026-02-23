@@ -132,6 +132,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         } else if (boundTerm.type().equals(Types.UnknownType.get())) {
           return Expressions.alwaysTrue();
         }
+
         return new BoundUnaryPredicate<>(Operation.IS_NULL, boundTerm);
       case NOT_NULL:
         if (!boundTerm.producesNull()
@@ -140,6 +141,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         } else if (boundTerm.type().equals(Types.UnknownType.get())) {
           return Expressions.alwaysFalse();
         }
+
         return new BoundUnaryPredicate<>(Operation.NOT_NULL, boundTerm);
       case IS_NAN:
         if (floatingType(boundTerm.type().typeId())) {
@@ -147,12 +149,14 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         } else {
           throw new ValidationException("IsNaN cannot be used with a non-floating-point column");
         }
+
       case NOT_NAN:
         if (floatingType(boundTerm.type().typeId())) {
           return new BoundUnaryPredicate<>(Operation.NOT_NAN, boundTerm);
         } else {
           throw new ValidationException("NotNaN cannot be used with a non-floating-point column");
         }
+
       default:
         throw new ValidationException("Operation must be IS_NULL, NOT_NULL, IS_NAN, or NOT_NAN");
     }

@@ -58,6 +58,7 @@ class Try<T> implements Serializable {
     if (throwable != null) {
       sneakyThrow(throwable);
     }
+
     return value;
   }
 

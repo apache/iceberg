@@ -299,6 +299,7 @@ public class SparkValueReaders {
           && ((GenericInternalRow) reuse).numFields() == numFields) {
         return (InternalRow) reuse;
       }
+
       return new GenericInternalRow(numFields);
     }
 
@@ -332,6 +333,7 @@ public class SparkValueReaders {
           && ((GenericInternalRow) reuse).numFields() == numFields) {
         return (InternalRow) reuse;
       }
+
       return new GenericInternalRow(numFields);
     }
 

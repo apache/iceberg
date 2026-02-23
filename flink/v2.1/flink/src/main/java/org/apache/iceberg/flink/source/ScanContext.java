@@ -141,6 +141,7 @@ public class ScanContext implements Serializable {
             startSnapshotTimestamp == null,
             "Invalid starting snapshot timestamp for SPECIFIC_START_SNAPSHOT_ID strategy: not null");
       }
+
       if (startingStrategy == StreamingStartingStrategy.INCREMENTAL_FROM_SNAPSHOT_TIMESTAMP) {
         Preconditions.checkArgument(
             startSnapshotTimestamp != null,

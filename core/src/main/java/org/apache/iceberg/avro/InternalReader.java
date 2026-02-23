@@ -209,6 +209,7 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
           if (partner != null && partner.second().typeId() == Type.TypeID.LONG) {
             return ValueReaders.intsAsLongs();
           }
+
           return ValueReaders.ints();
         case LONG:
           return ValueReaders.longs();
@@ -216,6 +217,7 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
           if (partner != null && partner.second().typeId() == Type.TypeID.DOUBLE) {
             return ValueReaders.floatsAsDoubles();
           }
+
           return ValueReaders.floats();
         case DOUBLE:
           return ValueReaders.doubles();

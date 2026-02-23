@@ -992,6 +992,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 if (inputRecord.schemaProvided.equals(SimpleDataUtil.SCHEMA2)) {
                   assertThat(actual.get(2)).isEqualTo(inputRecord.rowProvided.getField(2));
                 }
+
                 // There is an additional _pos field which gets added
               });
     }
@@ -1396,6 +1397,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                   updateRow.setField(i, r.getField(i));
                 }
               }
+
               return converter.toInternal(updateRow);
             })
         .collect(Collectors.toList());

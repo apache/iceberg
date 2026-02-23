@@ -221,10 +221,12 @@ public final class Catalogs {
     if (catalogType != null) {
       return CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE.equalsIgnoreCase(catalogType);
     }
+
     catalogType = getCatalogType(conf, ICEBERG_DEFAULT_CATALOG_NAME);
     if (catalogType != null) {
       return CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE.equalsIgnoreCase(catalogType);
     }
+
     return getCatalogProperties(conf, catalogName).get(CatalogProperties.CATALOG_IMPL) == null;
   }
 

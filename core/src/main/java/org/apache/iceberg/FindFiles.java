@@ -180,6 +180,7 @@ public class FindFiles {
               Expressions.and(
                   partFilter, Expressions.equal(field.name(), partitionData.get(i, Object.class)));
         }
+
         partitionSetFilter = Expressions.or(partitionSetFilter, partFilter);
       }
 

@@ -58,6 +58,7 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
       metastore.stop();
       SparkDeltaLakeSnapshotTestBase.metastore = null;
     }
+
     if (spark != null) {
       spark.stop();
       SparkDeltaLakeSnapshotTestBase.spark = null;

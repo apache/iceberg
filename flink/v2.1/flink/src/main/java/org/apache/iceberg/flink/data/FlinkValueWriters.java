@@ -164,6 +164,7 @@ public class FlinkValueWriters {
         encoder.startItem();
         elementWriter.write((T) elementGetter.getElementOrNull(array, i), encoder);
       }
+
       encoder.writeArrayEnd();
     }
   }
@@ -198,6 +199,7 @@ public class FlinkValueWriters {
         keyWriter.write((K) keyGetter.getElementOrNull(keyArray, i), encoder);
         valueWriter.write((V) valueGetter.getElementOrNull(valueArray, i), encoder);
       }
+
       encoder.writeArrayEnd();
     }
   }
@@ -232,6 +234,7 @@ public class FlinkValueWriters {
         keyWriter.write((K) keyGetter.getElementOrNull(keyArray, i), encoder);
         valueWriter.write((V) valueGetter.getElementOrNull(valueArray, i), encoder);
       }
+
       encoder.writeMapEnd();
     }
   }

@@ -491,6 +491,7 @@ public class Spark3Util {
           if (lit.value() > Integer.MAX_VALUE) {
             throw new IllegalArgumentException();
           }
+
           return lit.value().intValue();
         }
       }
@@ -511,6 +512,7 @@ public class Spark3Util {
       peerNames[fieldNames.length - 1] = fieldName;
       return DOT.join(peerNames);
     }
+
     return fieldName;
   }
 
@@ -518,6 +520,7 @@ public class Spark3Util {
     if (fieldNames.length > 1) {
       return DOT.join(Arrays.copyOfRange(fieldNames, 0, fieldNames.length - 1));
     }
+
     return null;
   }
 
@@ -611,6 +614,7 @@ public class Spark3Util {
           Types.DecimalType decimal = (Types.DecimalType) primitive;
           return "decimal(" + decimal.precision() + "," + decimal.scale() + ")";
       }
+
       throw new UnsupportedOperationException("Cannot convert type to SQL: " + primitive);
     }
   }

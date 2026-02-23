@@ -220,6 +220,7 @@ class FlinkOrcReaders {
       for (int c = 0; c < length; ++c) {
         elements.add(elementReader.read(listVector.child, offset + c));
       }
+
       return new GenericArrayData(elements.toArray());
     }
 

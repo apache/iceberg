@@ -74,6 +74,7 @@ class GcsInputStreamWrapper extends SeekableInputStream implements RangeReadable
     if (bytesRead > 0) {
       readBytes.increment(bytesRead);
     }
+
     readOperations.increment();
     return bytesRead;
   }

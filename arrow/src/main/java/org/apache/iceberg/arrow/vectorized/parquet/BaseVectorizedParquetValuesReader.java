@@ -108,6 +108,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
         init(in.read());
       }
     }
+
     if (bitWidth == 0) {
       // 0 bit width, treat this as an RLE run of valueCount number of 0's.
       this.mode = Mode.RLE;
@@ -161,6 +162,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
           int ch1 = inputStream.read();
           return (ch1 << 8) + ch2;
         }
+
       case 3:
         {
           int ch3 = inputStream.read();
@@ -168,11 +170,13 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
           int ch1 = inputStream.read();
           return (ch1 << 16) + (ch2 << 8) + ch3;
         }
+
       case 4:
         {
           return readIntLittleEndian();
         }
     }
+
     throw new RuntimeException("Non-supported bytesWidth: " + bytesWidth);
   }
 
@@ -192,6 +196,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
           if (this.packedValuesBuffer.length < this.currentCount) {
             this.packedValuesBuffer = new int[this.currentCount];
           }
+
           packedValuesBufferIdx = 0;
           int valueIndex = 0;
           while (valueIndex < this.currentCount) {
@@ -201,6 +206,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
                 buffer, buffer.position(), this.packedValuesBuffer, valueIndex);
             valueIndex += 8;
           }
+
           return;
         default:
           throw new ParquetDecodingException("not a valid mode " + this.mode);
@@ -238,6 +244,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
       case PACKED:
         return this.packedValuesBuffer[packedValuesBufferIdx++];
     }
+
     throw new RuntimeException("Unrecognized mode: " + mode);
   }
 }

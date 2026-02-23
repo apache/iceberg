@@ -50,6 +50,7 @@ public class HadoopTableExtension extends HadoopCatalogExtension {
       this.table =
           catalog.createTable(TableIdentifier.of(database, tableName), schema, partitionSpec);
     }
+
     tableLoader.open();
   }
 

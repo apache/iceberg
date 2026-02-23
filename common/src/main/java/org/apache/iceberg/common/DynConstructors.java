@@ -148,6 +148,7 @@ public class DynConstructors {
         // cannot load this implementation
         problems.put(className, e);
       }
+
       return this;
     }
 
@@ -163,6 +164,7 @@ public class DynConstructors {
         // not the right implementation
         problems.put(methodName(targetClass, types), e);
       }
+
       return this;
     }
 
@@ -179,6 +181,7 @@ public class DynConstructors {
         // cannot load this implementation
         problems.put(className, e);
       }
+
       return this;
     }
 
@@ -200,6 +203,7 @@ public class DynConstructors {
         // not the right implementation
         problems.put(methodName(targetClass, types), e);
       }
+
       return this;
     }
 
@@ -208,6 +212,7 @@ public class DynConstructors {
       if (ctor != null) {
         return (Ctor<C>) ctor;
       }
+
       throw buildCheckedException(baseClass, problems);
     }
 
@@ -216,6 +221,7 @@ public class DynConstructors {
       if (ctor != null) {
         return (Ctor<C>) ctor;
       }
+
       throw buildRuntimeException(baseClass, problems);
     }
 
@@ -273,6 +279,7 @@ public class DynConstructors {
       } else {
         sb.append("\n");
       }
+
       sb.append("\tMissing ")
           .append(problem.getKey())
           .append(" [")
@@ -281,6 +288,7 @@ public class DynConstructors {
           .append(problem.getValue().getMessage())
           .append("]");
     }
+
     return sb.toString();
   }
 
@@ -294,8 +302,10 @@ public class DynConstructors {
       } else {
         sb.append(",");
       }
+
       sb.append(type.getName());
     }
+
     sb.append(")");
     return sb.toString();
   }

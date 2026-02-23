@@ -105,6 +105,7 @@ public class TestParallelIterable {
               } catch (InterruptedException e) {
                 // Sleep interrupted, we ignore it!
               }
+
               return number;
             }
           };

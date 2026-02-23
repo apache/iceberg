@@ -67,6 +67,7 @@ class ParquetConversions {
             throw new IllegalArgumentException(
                 "Unsupported primitive type for decimal: " + parquetType.getPrimitiveTypeName());
         }
+
       default:
         throw new IllegalArgumentException("Unsupported primitive type: " + type);
     }
@@ -111,6 +112,7 @@ class ParquetConversions {
               throw new IllegalArgumentException(
                   "Unsupported primitive type for decimal: " + type.getPrimitiveTypeName());
           }
+
         default:
       }
     }

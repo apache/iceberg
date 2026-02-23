@@ -42,11 +42,13 @@ public enum ArrayEncoding {
     if (value == null) {
       return null;
     }
+
     for (ArrayEncoding option : ArrayEncoding.values()) {
       if (option.getValue().equalsIgnoreCase(value.trim())) {
         return option;
       }
     }
+
     return null;
   }
 
@@ -62,6 +64,7 @@ public enum ArrayEncoding {
     if (mode == null && defaultValue != null) {
       mode = parse(defaultValue);
     }
+
     return mode;
   }
 }

@@ -50,6 +50,7 @@ class ADLSInputFile extends BaseADLSFile implements InputFile {
     if (fileSize == null) {
       this.fileSize = fileClient().getProperties().getFileSize();
     }
+
     return fileSize;
   }
 

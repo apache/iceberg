@@ -91,6 +91,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       this.conf = readConf.copy();
       return readConf;
     }
+
     return conf;
   }
 
@@ -135,6 +136,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
+
       if (valuesRead >= nextRowGroupStart) {
         advance();
       }
@@ -146,6 +148,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       } else {
         this.last = model.read(null, numValuesToRead);
       }
+
       valuesRead += numValuesToRead;
 
       return last;
@@ -156,6 +159,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
         nextRowGroup += 1;
         reader.skipNextRowGroup();
       }
+
       PageReadStore pages;
       try {
         pages = reader.readNextRowGroup();

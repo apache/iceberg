@@ -166,6 +166,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
         throw new RuntimeIOException(e, "Failed to get status for file: %s", path);
       }
     }
+
     return stat;
   }
 
@@ -174,6 +175,7 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
     if (length == null) {
       this.length = lazyStat().getLen();
     }
+
     return length;
   }
 

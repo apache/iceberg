@@ -237,6 +237,7 @@ class ProjectionUtil {
       // the bound value must be a T because the transform matches
       return (UnboundPredicate<T>) removeTransform(partitionName, pred);
     }
+
     return null;
   }
 
@@ -249,6 +250,7 @@ class ProjectionUtil {
     } else if (pred.isSetPredicate()) {
       return Expressions.predicate(pred.op(), partitionName, pred.asSetPredicate().literalSet());
     }
+
     throw new UnsupportedOperationException(
         "Cannot replace transform in unknown predicate: " + pred);
   }

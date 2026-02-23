@@ -187,6 +187,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       commitDeltaVersionLogToIcebergTransaction(
           versionLog, icebergTransaction, migratedDataFilesBuilder);
     }
+
     icebergTransaction.commitTransaction();
 
     long totalDataFiles = migratedDataFilesBuilder.build().size();
@@ -217,6 +218,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     for (String partitionName : partitionNames) {
       builder.identity(partitionName);
     }
+
     return builder.build();
   }
 
@@ -308,6 +310,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         throw new ValidationException(
             "The action %s's is unsupported", action.getClass().getSimpleName());
       }
+
       migratedDataFilesBuilder.add(dataFile.location());
     }
 
@@ -413,6 +416,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     if (format == FileFormat.PARQUET) {
       return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
     }
+
     throw new ValidationException("Cannot get metrics from file format: %s", format);
   }
 
@@ -437,6 +441,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       manageSnapshots.createTag(
           DELTA_TIMESTAMP_TAG_PREFIX + deltaVersionTimestamp.getTime(), currentSnapshotId);
     }
+
     manageSnapshots.commit();
   }
 

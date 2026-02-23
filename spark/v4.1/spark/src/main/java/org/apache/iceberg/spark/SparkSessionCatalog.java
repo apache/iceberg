@@ -204,6 +204,7 @@ public class SparkSessionCatalog<
       if (asStagingCatalog != null) {
         return asStagingCatalog.stageCreate(ident, schema, partitions, properties);
       }
+
       catalog = icebergCatalog;
     } else {
       catalog = getSessionCatalog();
@@ -225,6 +226,7 @@ public class SparkSessionCatalog<
       if (asStagingCatalog != null) {
         return asStagingCatalog.stageReplace(ident, schema, partitions, properties);
       }
+
       catalog = icebergCatalog;
     } else {
       catalog = getSessionCatalog();
@@ -257,6 +259,7 @@ public class SparkSessionCatalog<
       if (asStagingCatalog != null) {
         return asStagingCatalog.stageCreateOrReplace(ident, schema, partitions, properties);
       }
+
       catalog = icebergCatalog;
     } else {
       catalog = getSessionCatalog();

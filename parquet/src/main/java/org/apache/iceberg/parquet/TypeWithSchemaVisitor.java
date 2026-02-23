@@ -147,6 +147,7 @@ public class TypeWithSchemaVisitor<T> {
             valueResult = visitField(valueField, keyOrValue, visitor);
             // key result remains null
           }
+
           break;
         default:
           // both results will remain null
@@ -204,6 +205,7 @@ public class TypeWithSchemaVisitor<T> {
       if (field.getId() != null) {
         id = field.getId().intValue();
       }
+
       Types.NestedField iField = (struct != null && id >= 0) ? struct.field(id) : null;
       results.add(visitField(iField, field, visitor));
     }

@@ -58,6 +58,7 @@ public class S3ABlockOutputStream extends OutputStream {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+
     super.close();
   }
 

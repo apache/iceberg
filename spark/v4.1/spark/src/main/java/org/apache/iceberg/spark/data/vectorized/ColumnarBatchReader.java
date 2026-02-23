@@ -88,6 +88,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
         arrowColumnVectors[i] = columnVectorBuilder.build(vectorHolders[i], numRowsInVector);
       }
+
       return arrowColumnVectors;
     }
   }

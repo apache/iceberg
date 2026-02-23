@@ -97,9 +97,11 @@ public class GenericBlobMetadata implements BlobMetadata {
     if (this == o) {
       return true;
     }
+
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
+
     GenericBlobMetadata that = (GenericBlobMetadata) o;
     return sourceSnapshotId == that.sourceSnapshotId
         && sourceSnapshotSequenceNumber == that.sourceSnapshotSequenceNumber

@@ -126,6 +126,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     if (rowFilter != null) {
       return CloseableIterable.filter(iter, rowFilter::filter);
     }
+
     return iter;
   }
 

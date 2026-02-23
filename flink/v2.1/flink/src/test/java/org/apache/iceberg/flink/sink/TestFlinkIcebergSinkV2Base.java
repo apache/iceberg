@@ -405,6 +405,7 @@ class TestFlinkIcebergSinkV2Base {
         validSnapshots.add(snapshot);
       }
     }
+
     return validSnapshots;
   }
 
@@ -419,6 +420,7 @@ class TestFlinkIcebergSinkV2Base {
         IcebergGenerics.read(table).useSnapshot(snapshotId).select(columns).build()) {
       reader.forEach(set::add);
     }
+
     return set;
   }
 }

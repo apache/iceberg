@@ -150,6 +150,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
           || (ioException.getMessage() != null
               && ioException.getMessage().contains("AuthorizationPermissionMismatch"));
     }
+
     return false;
   }
 
@@ -198,6 +199,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
       if (!isDirectory(nsPath)) {
         throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
       }
+
       RemoteIterator<FileStatus> it = fs.listStatusIterator(nsPath);
       while (it.hasNext()) {
         FileStatus status = it.next();
@@ -239,6 +241,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
     for (String level : tableIdentifier.namespace().levels()) {
       sb.append(level).append('/');
     }
+
     sb.append(tableName);
 
     return sb.toString();
@@ -263,6 +266,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
           // so it has to call dropTableData to force delete the data file.
           CatalogUtil.dropTableData(ops.io(), lastMetadata);
         }
+
         return fs.delete(tablePath, true /* recursive */);
       }
     } catch (IOException e) {
@@ -319,6 +323,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog
           namespaces.add(append(namespace, path.getName()));
         }
       }
+
       return namespaces;
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to list namespace under: %s", namespace);

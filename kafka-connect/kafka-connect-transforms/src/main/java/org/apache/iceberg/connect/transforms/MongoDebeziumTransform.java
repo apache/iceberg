@@ -123,6 +123,7 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
     if (beforeRecord.value() != null) {
       beforeBson = BsonDocument.parse(beforeRecord.value().toString());
     }
+
     if (afterRecord.value() == null && updateDescriptionRecord.value() != null) {
       afterBson =
           buildAfterBsonFromPartials(
@@ -185,6 +186,7 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
         initialDocument.keySet().remove(field);
       }
     }
+
     // in a partial update it's possible the updated fields do not include the primary key
     // so bump it from the key.  Note: type may be downcast.
     if (!initialDocument.containsKey("_id")) {
@@ -271,6 +273,7 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
     for (Map.Entry<String, BsonValue> pairsForSchema : pairs) {
       converter.addFieldSchema(pairsForSchema, innerBuilder);
     }
+
     builder.field(fieldName, innerBuilder.optional().build());
   }
 
@@ -280,6 +283,7 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
     for (Map.Entry<String, BsonValue> pairsForSchema : pairs) {
       converter.convertRecord(pairsForSchema, schema, struct);
     }
+
     return struct;
   }
 

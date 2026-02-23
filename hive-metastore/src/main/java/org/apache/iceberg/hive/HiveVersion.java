@@ -60,6 +60,7 @@ public enum HiveVersion {
         } else {
           return NOT_SUPPORTED;
         }
+
       default:
         return NOT_SUPPORTED;
     }

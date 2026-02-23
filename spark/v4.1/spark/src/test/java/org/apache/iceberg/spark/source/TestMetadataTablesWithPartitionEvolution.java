@@ -234,6 +234,7 @@ public class TestMetadataTablesWithPartitionEvolution extends CatalogTestBase {
           tableType,
           "partition.data = 'd2'");
     }
+
     for (MetadataTableType tableType : Arrays.asList(FILES, ALL_DATA_FILES)) {
       assertPartitions(
           ImmutableList.of(row("d2", "c2")),
@@ -261,6 +262,7 @@ public class TestMetadataTablesWithPartitionEvolution extends CatalogTestBase {
           tableType,
           "partition.data = 'd2'");
     }
+
     // new partition shows up from 'category' partition field query
     for (MetadataTableType tableType : Arrays.asList(FILES, ALL_DATA_FILES)) {
       assertPartitions(

@@ -276,6 +276,7 @@ class V1Metadata {
           if (file != null) {
             return fileWrapper.wrap(file);
           }
+
           return null;
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -396,6 +397,7 @@ class V1Metadata {
         case 14:
           return wrapped.sortOrderId();
       }
+
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
 

@@ -154,6 +154,7 @@ public class TestMicroBatchBuilder extends TestBase {
     for (DataFile f : adds) {
       appendFiles.appendFile(f);
     }
+
     appendFiles.commit();
   }
 

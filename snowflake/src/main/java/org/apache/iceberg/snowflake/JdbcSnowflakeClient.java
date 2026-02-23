@@ -88,6 +88,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
           String databaseName = rs.getString("name");
           databases.add(SnowflakeIdentifier.ofDatabase(databaseName));
         }
+
         return databases;
       };
 
@@ -103,6 +104,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
           String schemaName = rs.getString("name");
           schemas.add(SnowflakeIdentifier.ofSchema(databaseName, schemaName));
         }
+
         return schemas;
       };
 
@@ -119,6 +121,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
           String tableName = rs.getString("name");
           tables.add(SnowflakeIdentifier.ofTable(databaseName, schemaName, tableName));
         }
+
         return tables;
       };
 
@@ -169,6 +172,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       if (DATABASE_NOT_FOUND_ERROR_CODES.contains(e.getErrorCode())) {
         return false;
       }
+
       throw new UncheckedSQLException(e, "Failed to check if database '%s' exists", database);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
@@ -200,6 +204,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       if (SCHEMA_NOT_FOUND_ERROR_CODES.contains(e.getErrorCode())) {
         return false;
       }
+
       throw new UncheckedSQLException(e, "Failed to check if schema '%s' exists", schema);
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(
@@ -224,6 +229,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
     } catch (InterruptedException e) {
       throw new UncheckedInterruptedException(e, "Interrupted while listing databases");
     }
+
     databases.forEach(
         db ->
             Preconditions.checkState(
@@ -268,6 +274,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       throw new UncheckedInterruptedException(
           e, "Interrupted while listing schemas for scope '%s'", scope);
     }
+
     schemas.forEach(
         schema ->
             Preconditions.checkState(
@@ -317,6 +324,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       throw new UncheckedInterruptedException(
           e, "Interrupted while listing tables for scope '%s'", scope);
     }
+
     tables.forEach(
         table ->
             Preconditions.checkState(
@@ -353,6 +361,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       throw new UncheckedInterruptedException(
           e, "Interrupted while getting table metadata for '%s'", tableIdentifier);
     }
+
     return tableMeta;
   }
 
@@ -374,6 +383,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
           identifier,
           ex.getMessage());
     }
+
     // NoSuchTable exception for Table cases
     else if (identifier.type() == SnowflakeIdentifier.Type.TABLE
         && TABLE_NOT_FOUND_ERROR_CODES.contains(ex.getErrorCode())) {
@@ -383,6 +393,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
           identifier,
           ex.getMessage());
     }
+
     // Unchecked SQL Exception in all other cases as fall back
     return new UncheckedSQLException(ex, "Exception Message: %s", defaultExceptionMessage);
   }

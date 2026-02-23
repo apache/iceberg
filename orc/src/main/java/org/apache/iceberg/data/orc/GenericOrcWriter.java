@@ -112,6 +112,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
           } else {
             return GenericOrcWriters.timestamp();
           }
+
         case TIMESTAMP_NANO:
           Types.TimestampNanoType timestampNanoType = (Types.TimestampNanoType) iPrimitive;
           if (timestampNanoType.shouldAdjustToUTC()) {
@@ -119,6 +120,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
           } else {
             return GenericOrcWriters.timestampNanos();
           }
+
         case STRING:
           return GenericOrcWriters.strings();
         case UUID:

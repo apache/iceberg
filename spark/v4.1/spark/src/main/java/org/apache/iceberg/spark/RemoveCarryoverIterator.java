@@ -65,6 +65,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
     if (hasCachedDeleteRow() || cachedNextRecord != null) {
       return true;
     }
+
     return rowIterator().hasNext();
   }
 
@@ -81,6 +82,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
       if (deletedRowCount == 0) {
         cachedDeletedRow = null;
       }
+
       return currentRow;
     } else if (cachedNextRecord != null) {
       currentRow = cachedNextRecord;

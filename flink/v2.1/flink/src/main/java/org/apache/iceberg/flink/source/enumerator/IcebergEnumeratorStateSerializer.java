@@ -137,6 +137,7 @@ public class IcebergEnumeratorStateSerializer
       in.read(positionBytes);
       enumeratorPosition = positionSerializer.deserialize(version, positionBytes);
     }
+
     return enumeratorPosition;
   }
 
@@ -168,6 +169,7 @@ public class IcebergEnumeratorStateSerializer
       pendingSplits.add(
           new IcebergSourceSplitState(split, IcebergSourceSplitStatus.valueOf(statusName)));
     }
+
     return pendingSplits;
   }
 

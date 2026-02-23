@@ -98,6 +98,7 @@ class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReade
             String.format("Missing required field: %s", field.name()));
       }
     }
+
     return vectorizedReader(reorderedFields);
   }
 
@@ -112,6 +113,7 @@ class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReade
       throw new UnsupportedOperationException(
           "Vectorized reads are not supported yet for struct fields");
     }
+
     return null;
   }
 
@@ -122,12 +124,14 @@ class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReade
     if (primitive.getId() == null) {
       return null;
     }
+
     int parquetFieldId = primitive.getId().intValue();
     ColumnDescriptor desc = parquetSchema.getColumnDescription(currentPath());
     // Nested types not yet supported for vectorized reads
     if (desc.getMaxRepetitionLevel() > 0) {
       return null;
     }
+
     Types.NestedField icebergField = icebergSchema.findField(parquetFieldId);
     if (icebergField == null) {
       return null;

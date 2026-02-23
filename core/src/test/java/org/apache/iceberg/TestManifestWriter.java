@@ -359,6 +359,7 @@ public class TestManifestWriter extends TestBase {
     if (partition != null) {
       builder.withPartition(partition);
     }
+
     return builder.build();
   }
 

@@ -56,6 +56,7 @@ public abstract class BaseBatchReader<T> implements VectorizedReader<T> {
         if (vectorHolders[i].vector() != null) {
           vectorHolders[i].vector().close();
         }
+
         vectorHolders[i] = null;
       }
     }
@@ -68,6 +69,7 @@ public abstract class BaseBatchReader<T> implements VectorizedReader<T> {
         reader.close();
       }
     }
+
     closeVectors();
   }
 

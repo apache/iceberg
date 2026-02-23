@@ -42,6 +42,7 @@ class UpdateableReference {
     if (!mutable) {
       return false;
     }
+
     Reference oldReference = reference;
     reference = api.getReference().refName(reference.getName()).get();
     return !oldReference.equals(reference);

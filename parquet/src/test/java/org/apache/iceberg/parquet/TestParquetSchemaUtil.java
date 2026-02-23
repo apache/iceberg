@@ -508,6 +508,7 @@ public class TestParquetSchemaUtil {
     if (id != null) {
       builder.id(id);
     }
+
     return builder.named(name);
   }
 
@@ -517,6 +518,7 @@ public class TestParquetSchemaUtil {
     if (id != null) {
       builder.id(id);
     }
+
     return builder.named(name);
   }
 
@@ -526,6 +528,7 @@ public class TestParquetSchemaUtil {
     if (id != null) {
       builder.id(id);
     }
+
     return builder.named(name);
   }
 
@@ -536,6 +539,7 @@ public class TestParquetSchemaUtil {
     if (id != null) {
       builder.id(id);
     }
+
     return builder.named(name);
   }
 
@@ -550,6 +554,7 @@ public class TestParquetSchemaUtil {
     if (id != null) {
       builder.id(id);
     }
+
     return builder.named(name);
   }
 }

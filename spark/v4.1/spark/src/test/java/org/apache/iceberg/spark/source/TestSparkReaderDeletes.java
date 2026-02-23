@@ -122,6 +122,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         parameters.add(new Object[] {FileFormat.AVRO, version, false, PlanningMode.LOCAL});
       }
     }
+
     return parameters.toArray(new Object[0][]);
   }
 
@@ -197,6 +198,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         table.updateProperties().set(batchSize, "4").commit();
       }
     }
+
     return table;
   }
 
@@ -598,9 +600,11 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         Iterable<InternalRow> records = RandomData.generateSpark(SCHEMA, 100, 34 * i + 37);
         writer.addAll(records);
       }
+
       parquetFileWriter.appendFile(
           org.apache.parquet.hadoop.util.HadoopInputFile.fromPath(splitPath, conf));
     }
+
     parquetFileWriter.end(
         ParquetFileWriter.mergeMetadataFiles(fileSplits, conf)
             .getFileMetaData()

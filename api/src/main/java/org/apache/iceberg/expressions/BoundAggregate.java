@@ -93,6 +93,7 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
     if (map == null) {
       return false;
     }
+
     return map.containsKey(key);
   }
 

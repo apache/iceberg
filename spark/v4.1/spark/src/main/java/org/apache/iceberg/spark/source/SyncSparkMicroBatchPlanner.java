@@ -192,12 +192,14 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
                 break;
               }
             }
+
             ++curPos;
           }
         } catch (IOException ioe) {
           LOG.warn("Failed to close task iterable", ioe);
         }
       }
+
       // if the currentSnapShot was also the latestSnapshot then break
       if (curSnapshot.snapshotId() == latestSnapshotId) {
         break;
@@ -210,6 +212,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
           // nextValid implies all the remaining snapshots should be skipped.
           break;
         }
+
         // we found the next available snapshot, continue from there.
         curSnapshot = nextValid;
         startPosOfSnapOffset = -1;

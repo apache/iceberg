@@ -427,6 +427,7 @@ public class TestScanTaskIterable {
             // First call fails
             throw new RuntimeException("First call failed");
           }
+
           return FetchScanTasksResponse.builder()
               .withFileScanTasks(ImmutableList.of(new MockFileScanTask(count * 100)))
               .build();
@@ -534,6 +535,7 @@ public class TestScanTaskIterable {
       // Expected - consumer blows up, does NOT call close()
       assertThat(e.getMessage()).contains("Worker failed");
     }
+
     // Note: iterator.close() is intentionally NOT called
     // Give workers time to see the shutdown flag (set by failing worker) and exit.
     Thread.sleep(500);
@@ -566,6 +568,7 @@ public class TestScanTaskIterable {
                 .withFileScanTasks(fileTasks(500))
                 .build();
           }
+
           return FetchScanTasksResponse.builder().withFileScanTasks(fileTasks(500)).build();
         });
 
@@ -590,6 +593,7 @@ public class TestScanTaskIterable {
       // With 500 tasks per call and queue capacity 1000, we need 3+ calls to overflow.
       assertThat(callCount.get()).isGreaterThanOrEqualTo(3);
     }
+
     // iterator.close() called here by try-with-resources
 
     // Give workers a bit more time to exit after consumer closed

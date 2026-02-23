@@ -109,6 +109,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
       // This field wasn't selected but a subfield was so include that
       return fieldResult;
     }
+
     return null;
   }
 
@@ -131,6 +132,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
     } else if (elementResult != null) {
       return projectList(list, elementResult);
     }
+
     return null;
   }
 
@@ -156,6 +158,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
       // right now, maps can't be selected without values
       return map;
     }
+
     return null;
   }
 

@@ -69,9 +69,11 @@ class IcebergEnumeratorPosition {
     if (this == o) {
       return true;
     }
+
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
+
     IcebergEnumeratorPosition other = (IcebergEnumeratorPosition) o;
     return Objects.equal(snapshotId, other.snapshotId())
         && Objects.equal(snapshotTimestampMs, other.snapshotTimestampMs());

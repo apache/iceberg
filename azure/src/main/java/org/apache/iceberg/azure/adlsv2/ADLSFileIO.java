@@ -137,6 +137,7 @@ public class ADLSFileIO implements DelegateFileIO {
         }
       }
     }
+
     String cacheKey = location.host() + "/" + location.container().orElse("");
     return clientCache.computeIfAbsent(cacheKey, k -> buildClient(location));
   }
@@ -237,6 +238,7 @@ public class ADLSFileIO implements DelegateFileIO {
         if (e.getStatusCode() != 404) {
           throw e;
         }
+
         return Collections.emptyIterator();
       }
     };

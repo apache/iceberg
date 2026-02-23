@@ -121,6 +121,7 @@ class JsonToMapUtils {
         return JSON_NODE_TO_SCHEMA.get(node.getClass());
       }
     }
+
     return null;
   }
 
@@ -259,6 +260,7 @@ class JsonToMapUtils {
         throw new JsonToMapException(
             String.format("Unexpected type %s for field %s", type, fieldName));
     }
+
     return obj;
   }
 
@@ -276,6 +278,7 @@ class JsonToMapUtils {
       throw new JsonToMapException(
           String.format("parsing binary value threw exception for %s", fieldName), e);
     }
+
     return obj;
   }
 
@@ -293,6 +296,7 @@ class JsonToMapUtils {
           .forEachRemaining(
               arrayEntry -> acc.add(extractValue(arrayEntry, schema.type(), fieldName)));
     }
+
     return acc;
   }
 
@@ -301,6 +305,7 @@ class JsonToMapUtils {
       Map.Entry<String, JsonNode> element = it.next();
       map.put(element.getKey(), nodeToText(element.getValue()));
     }
+
     return map;
   }
 

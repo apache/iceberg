@@ -94,6 +94,7 @@ class ProcedureInput {
     if (value != null) {
       value = DateTimeUtil.microsToMillis(value);
     }
+
     return value;
   }
 
@@ -122,6 +123,7 @@ class ProcedureInput {
     for (int i = 0; i < source.length; i++) {
       result[i] = source[i];
     }
+
     return result;
   }
 

@@ -209,6 +209,7 @@ public class TestOrcDeleteWriters {
             .build()) {
       deletedRecords = Lists.newArrayList(reader);
     }
+
     assertThat(deletedRecords)
         .as("Deleted records should match expected")
         .isEqualTo(expectedDeleteRecords);

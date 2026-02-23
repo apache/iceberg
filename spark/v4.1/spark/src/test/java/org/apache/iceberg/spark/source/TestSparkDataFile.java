@@ -201,6 +201,7 @@ public class TestSparkDataFile {
     for (PartitionField field : dataFilesSpec.fields()) {
       updateSpec.removeField(field.name());
     }
+
     updateSpec.commit();
 
     List<DeleteFile> positionDeleteFiles = Lists.newArrayList();

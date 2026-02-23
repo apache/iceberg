@@ -231,6 +231,7 @@ public class SparkParquetWriters {
           case FIXED_LEN_BYTE_ARRAY:
             return Optional.of(decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale()));
         }
+
         return Optional.empty();
       }
 
@@ -246,6 +247,7 @@ public class SparkParquetWriters {
         if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
           return Optional.of(ParquetValueWriters.longs(desc));
         }
+
         return Optional.empty();
       }
 
@@ -255,6 +257,7 @@ public class SparkParquetWriters {
         if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
           return Optional.of(ParquetValueWriters.longs(desc));
         }
+
         return Optional.empty();
       }
 
@@ -320,6 +323,7 @@ public class SparkParquetWriters {
     } else if (type instanceof ShortType) {
       return ParquetValueWriters.shorts(desc);
     }
+
     return ParquetValueWriters.ints(desc);
   }
 

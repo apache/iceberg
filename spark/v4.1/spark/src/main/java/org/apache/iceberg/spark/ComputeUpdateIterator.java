@@ -66,6 +66,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
     if (cachedRow != null) {
       return true;
     }
+
     return rowIterator().hasNext();
   }
 
@@ -110,6 +111,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
       for (int index = 0; index < row.size(); index++) {
         values[index] = row.get(index);
       }
+
       values[valueIndex] = value;
       return RowFactory.create(values);
     }
@@ -135,6 +137,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
         return false;
       }
     }
+
     return true;
   }
 }

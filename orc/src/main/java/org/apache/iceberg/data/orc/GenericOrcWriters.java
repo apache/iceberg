@@ -561,6 +561,7 @@ public class GenericOrcWriters {
         keys.add(entry.getKey());
         values.add(entry.getValue());
       }
+
       MapColumnVector cv = (MapColumnVector) output;
       // record the length and start of the list elements
       cv.lengths[rowId] = map.size();
@@ -649,6 +650,7 @@ public class GenericOrcWriters {
         case 2:
           return delete.row();
       }
+
       throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
     }
 

@@ -387,6 +387,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
               e);
         }
       }
+
       dynamo.deleteItem(
           DeleteItemRequest.builder()
               .tableName(awsProperties.dynamoDbTableName())

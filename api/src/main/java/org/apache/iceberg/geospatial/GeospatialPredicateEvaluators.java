@@ -217,6 +217,7 @@ public class GeospatialPredicateEvaluators {
           "Invalid Z range: %s. zmin cannot be greater than zmax",
           bbox);
     }
+
     if (bbox.min().hasM() && bbox.max().hasM()) {
       Preconditions.checkArgument(
           bbox.min().m() <= bbox.max().m(),

@@ -46,6 +46,7 @@ public class ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT ext
         }
       }
     }
+
     vector.close();
   }
 

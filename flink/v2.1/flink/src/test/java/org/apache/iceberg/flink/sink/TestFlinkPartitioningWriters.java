@@ -71,6 +71,7 @@ public class TestFlinkPartitioningWriters<T> extends TestPartitioningWriters<Row
       RowDataWrapper wrapper = new RowDataWrapper(flinkType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
     }
+
     return set;
   }
 }

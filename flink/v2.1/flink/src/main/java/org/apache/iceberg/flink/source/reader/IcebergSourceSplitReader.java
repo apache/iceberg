@@ -118,6 +118,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
       LOG.info("Add {} splits to reader", splitsChange.splits().size());
       splits.addAll(splitsChange.splits());
     }
+
     metrics.incrementAssignedSplits(splitsChange.splits().size());
     metrics.incrementAssignedBytes(calculateBytes(splitsChange));
   }

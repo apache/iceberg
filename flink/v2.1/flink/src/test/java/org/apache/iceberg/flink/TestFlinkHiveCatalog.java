@@ -60,6 +60,7 @@ public class TestFlinkHiveCatalog extends TestBase {
           HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file://" + warehouseDir.getAbsolutePath());
       newConf.writeXml(fos);
     }
+
     assertThat(hiveSiteXML.toPath()).exists();
 
     // Construct the catalog attributions.

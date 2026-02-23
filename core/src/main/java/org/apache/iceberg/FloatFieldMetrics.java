@@ -57,6 +57,7 @@ public class FloatFieldMetrics extends FieldMetrics<Float> {
         if (Float.compare(value, lowerBound) < 0) {
           this.lowerBound = value;
         }
+
         if (Float.compare(value, upperBound) > 0) {
           this.upperBound = value;
         }

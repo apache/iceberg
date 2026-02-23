@@ -90,6 +90,7 @@ public abstract class TestAppenderFactory<T> extends TestBase {
     } else {
       this.table = create(SCHEMA, PartitionSpec.unpartitioned());
     }
+
     this.partition = createPartitionKey();
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(format).build();
 
@@ -108,6 +109,7 @@ public abstract class TestAppenderFactory<T> extends TestBase {
     try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
       reader.forEach(set::add);
     }
+
     return set;
   }
 

@@ -74,6 +74,7 @@ public class SortOrderParser {
       generator.writeStringField(NULL_ORDER, toJson(field.nullOrder()));
       generator.writeEndObject();
     }
+
     generator.writeEndArray();
   }
 
@@ -105,6 +106,7 @@ public class SortOrderParser {
       generator.writeStringField(NULL_ORDER, toJson(field.nullOrder()));
       generator.writeEndObject();
     }
+
     generator.writeEndArray();
   }
 

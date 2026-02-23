@@ -71,6 +71,7 @@ public class RoaringPositionBitmapBenchmark {
     for (long position : orderedPositions) {
       bitmap.set(position);
     }
+
     blackhole.consume(bitmap);
   }
 
@@ -81,6 +82,7 @@ public class RoaringPositionBitmapBenchmark {
     for (long position : orderedPositions) {
       bitmap.add(position);
     }
+
     blackhole.consume(bitmap);
   }
 
@@ -91,6 +93,7 @@ public class RoaringPositionBitmapBenchmark {
     for (long position : shuffledPositions) {
       bitmap.set(position);
     }
+
     blackhole.consume(bitmap);
   }
 
@@ -101,6 +104,7 @@ public class RoaringPositionBitmapBenchmark {
     for (long position : shuffledPositions) {
       bitmap.add(position);
     }
+
     blackhole.consume(bitmap);
   }
 
@@ -141,6 +145,7 @@ public class RoaringPositionBitmapBenchmark {
     for (int index = 0; index < TOTAL_POSITIONS; index++) {
       positions[index] = index * STEP;
     }
+
     return positions;
   }
 

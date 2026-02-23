@@ -63,6 +63,7 @@ public class PlanTableScanResponseParser {
     if (response.planId() != null) {
       gen.writeStringField(PLAN_ID, response.planId());
     }
+
     if (response.planTasks() != null) {
       JsonUtil.writeStringArray(PLAN_TASKS, response.planTasks(), gen);
     }
@@ -115,6 +116,7 @@ public class PlanTableScanResponseParser {
     if (json.hasNonNull(STORAGE_CREDENTIALS)) {
       builder.withCredentials(LoadCredentialsResponseParser.fromJson(json).credentials());
     }
+
     return builder.build();
   }
 }

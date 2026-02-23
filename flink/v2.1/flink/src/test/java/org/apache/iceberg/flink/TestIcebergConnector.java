@@ -208,6 +208,7 @@ public class TestIcebergConnector extends TestBase {
             settingsBuilder.inBatchMode();
             tEnv = TableEnvironment.create(settingsBuilder.build());
           }
+
           // Set only one parallelism.
           tEnv.getConfig()
               .getConfiguration()
@@ -216,6 +217,7 @@ public class TestIcebergConnector extends TestBase {
         }
       }
     }
+
     return tEnv;
   }
 
@@ -290,6 +292,7 @@ public class TestIcebergConnector extends TestBase {
     } else {
       catalogProps.put("catalog-type", "hadoop");
     }
+
     catalogProps.put(CatalogProperties.WAREHOUSE_LOCATION, createWarehouse());
 
     // Create the table properties
@@ -323,6 +326,7 @@ public class TestIcebergConnector extends TestBase {
     if (isHiveCatalog()) {
       tableProps.put(CatalogProperties.URI, CatalogTestBase.getURI(hiveConf));
     }
+
     return tableProps;
   }
 

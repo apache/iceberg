@@ -125,6 +125,7 @@ public class GcpKeyManagementClient implements KeyManagementClient {
         }
       }
     }
+
     return kmsClient;
   }
 

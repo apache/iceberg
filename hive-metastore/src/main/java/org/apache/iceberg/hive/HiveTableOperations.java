@@ -279,6 +279,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             throw new AlreadyExistsException(
                 "View with same name already exists: %s.%s", database, tableName);
           }
+
           throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
         }
 

@@ -97,6 +97,7 @@ public abstract class SplitAssignerTestBase {
     for (int i = 0; i < splitCount; ++i) {
       assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     }
+
     assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
     assertSnapshot(assigner, 0);
   }

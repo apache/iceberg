@@ -77,6 +77,7 @@ public class JsonUtil {
       if (pretty) {
         generator.useDefaultPrettyPrinter();
       }
+
       toJson.generate(generator);
       generator.flush();
       return writer.toString();
@@ -128,6 +129,7 @@ public class JsonUtil {
     if (!node.hasNonNull(property)) {
       return null;
     }
+
     return getInt(property, node);
   }
 
@@ -135,6 +137,7 @@ public class JsonUtil {
     if (!node.hasNonNull(property)) {
       return null;
     }
+
     return getLong(property, node);
   }
 
@@ -153,6 +156,7 @@ public class JsonUtil {
     if (!node.hasNonNull(property)) {
       return null;
     }
+
     return getBool(property, node);
   }
 
@@ -182,10 +186,12 @@ public class JsonUtil {
     if (!node.has(property)) {
       return null;
     }
+
     JsonNode pNode = node.get(property);
     if (pNode != null && pNode.isNull()) {
       return null;
     }
+
     return getString(property, node);
   }
 
@@ -242,6 +248,7 @@ public class JsonUtil {
       String field = fields.next();
       builder.put(field, getString(field, pNode));
     }
+
     return builder.build();
   }
 
@@ -274,6 +281,7 @@ public class JsonUtil {
     for (int i = 0; i < arr.length; i++) {
       arr[i] = arrayNode.get(i).asText();
     }
+
     return arr;
   }
 
@@ -525,6 +533,7 @@ public class JsonUtil {
     for (Integer item : items) {
       gen.writeNumber(item);
     }
+
     gen.writeEndArray();
   }
 
@@ -534,6 +543,7 @@ public class JsonUtil {
     for (Long item : items) {
       gen.writeNumber(item);
     }
+
     gen.writeEndArray();
   }
 
@@ -543,6 +553,7 @@ public class JsonUtil {
     for (String item : items) {
       gen.writeString(item);
     }
+
     gen.writeEndArray();
   }
 
@@ -552,6 +563,7 @@ public class JsonUtil {
     for (Map.Entry<String, String> pair : map.entrySet()) {
       gen.writeStringField(pair.getKey(), pair.getValue());
     }
+
     gen.writeEndObject();
   }
 }

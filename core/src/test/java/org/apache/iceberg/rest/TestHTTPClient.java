@@ -638,9 +638,11 @@ public class TestHTTPClient {
       if (this == o) {
         return true;
       }
+
       if (o == null || getClass() != o.getClass()) {
         return false;
       }
+
       Item item = (Item) o;
       return Objects.equals(id, item.id) && Objects.equals(data, item.data);
     }

@@ -92,6 +92,7 @@ public class TestSparkParquetReadMetadataColumns {
       } else {
         row.update(0, i);
       }
+
       row.update(1, UTF8String.fromString("str" + i));
       DATA_ROWS.add(row);
     }
@@ -104,6 +105,7 @@ public class TestSparkParquetReadMetadataColumns {
       } else {
         row.update(0, i);
       }
+
       row.update(1, UTF8String.fromString("str" + i));
       row.update(2, i);
       row.update(3, false);
@@ -148,9 +150,11 @@ public class TestSparkParquetReadMetadataColumns {
               .build()) {
         writer.addAll(DATA_ROWS.subList(i * ROWS_PER_SPLIT, (i + 1) * ROWS_PER_SPLIT));
       }
+
       parquetFileWriter.appendFile(
           HadoopInputFile.fromPath(new Path(split.getAbsolutePath()), conf));
     }
+
     parquetFileWriter.end(
         ParquetFileWriter.mergeMetadataFiles(fileSplits, conf)
             .getFileMetaData()

@@ -132,6 +132,7 @@ class SchemaUpdate implements UpdateSchema {
           parentField = nested.asListType().fields().get(0);
         }
       }
+
       Preconditions.checkArgument(
           parentField.type().isNestedType() && parentField.type().asNestedType().isStructType(),
           "Cannot add to non-struct column: %s: %s",
@@ -768,6 +769,7 @@ class SchemaUpdate implements UpdateSchema {
     } else if (moves != null && !moves.isEmpty()) {
       return moveFields(fields, moves);
     }
+
     return null;
   }
 
@@ -830,6 +832,7 @@ class SchemaUpdate implements UpdateSchema {
       if (type != MoveType.FIRST) {
         suffix = " field " + referenceFieldId;
       }
+
       return "Move column " + fieldId + " " + type.toString() + suffix;
     }
 

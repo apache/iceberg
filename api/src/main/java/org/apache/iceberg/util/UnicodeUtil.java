@@ -48,6 +48,7 @@ public class UnicodeUtil {
     if (length >= numUniCodeCharacters) {
       return input;
     }
+
     // Get the offset in the input charSequence where the number of unicode characters = truncate
     // length
     int offsetByCodePoint = sb.offsetByCodePoints(0, length);
@@ -112,6 +113,7 @@ public class UnicodeUtil {
         return truncatedStringBuilder.toString();
       }
     }
+
     return null; // Cannot find a valid upper bound
   }
 

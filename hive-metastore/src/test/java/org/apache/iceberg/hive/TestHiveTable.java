@@ -296,6 +296,7 @@ public class TestHiveTable extends HiveTableTestBase {
           .as("Table manifest files should not exist")
           .doesNotExist();
     }
+
     assertThat(
             new File(
                 ((HasTableOperations) table)

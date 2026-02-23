@@ -165,6 +165,7 @@ public class CatalogHandlers {
                 isFirst.set(true);
                 return IdempotencyEntry.inProgress();
               }
+
               return current;
             });
 
@@ -173,6 +174,7 @@ public class CatalogHandlers {
       if (entry.error != null) {
         throw entry.error;
       }
+
       return (T) entry.responseBody;
     }
 
@@ -182,6 +184,7 @@ public class CatalogHandlers {
       if (entry.error != null) {
         throw entry.error;
       }
+
       return (T) entry.responseBody;
     }
 
@@ -201,6 +204,7 @@ public class CatalogHandlers {
     if (isoDuration == null) {
       return;
     }
+
     try {
       idempotencyLifetimeMillis = Duration.parse(isoDuration).toMillis();
     } catch (Exception e) {
@@ -950,12 +954,15 @@ public class CatalogHandlers {
     if (request.select() != null) {
       configuredScan = configuredScan.select(request.select());
     }
+
     if (request.filter() != null) {
       configuredScan = configuredScan.filter(request.filter());
     }
+
     if (request.statsFields() != null) {
       configuredScan = configuredScan.includeColumnStats(request.statsFields());
     }
+
     configuredScan = configuredScan.caseSensitive(request.caseSensitive());
 
     return configuredScan;
@@ -1000,6 +1007,7 @@ public class CatalogHandlers {
 
         previousPlanTask = planTaskKey;
       }
+
       return Pair.of(initialFileScanTasks, firstPlanTaskKey);
     } catch (IOException e) {
       throw new UncheckedIOException(e);

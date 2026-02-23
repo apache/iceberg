@@ -289,6 +289,7 @@ public class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     } catch (IllegalArgumentException e) {
       return false;
     }
+
     return true;
   }
 

@@ -248,10 +248,12 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
       } catch (NoSuchNamespaceException e) {
         // do nothing we want the same behavior that if the location is not defined
       }
+
       location = SLASH.join(baseLocation, table.name());
     } else {
       location = SLASH.join(warehouseLocation, table.name());
     }
+
     // Different tables with same table name can exist across references in Nessie.
     // To avoid sharing same table path between two tables with same name, use uuid in the table
     // path.
@@ -360,6 +362,7 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
     if (tableReference.hasReference()) {
       return TableIdentifier.of(identifier.namespace(), tableReference.getName());
     }
+
     return identifier;
   }
 

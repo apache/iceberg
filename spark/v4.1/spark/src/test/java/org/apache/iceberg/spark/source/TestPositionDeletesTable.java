@@ -353,6 +353,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     for (int i = 0; i < records; i++) {
       dataRecords.add(record.copy("id", i, "data", String.valueOf(i)));
     }
+
     DataFile dFile =
         FileHelpers.writeDataFile(
             tab,
@@ -365,6 +366,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     for (long i = 0; i < records; i++) {
       deletes.add(positionDelete(tab.schema(), dFile.location(), i, (int) i, String.valueOf(i)));
     }
+
     DeleteFile posDeletes =
         FileHelpers.writePosDeleteFile(
             tab,
@@ -1438,9 +1440,11 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     if (filter != null) {
       df = df.filter(filter);
     }
+
     if (cols != null) {
       df = df.select(cols.get(0), cols.subList(1, cols.size()).toArray(new String[0]));
     }
+
     Table deletesTable =
         MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.POSITION_DELETES);
     Types.StructType projection = deletesTable.schema().asStruct();
@@ -1492,6 +1496,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     for (int i = 0; i < values.length; i++) {
       nested.set(i, values[i]);
     }
+
     posDelete.set(path, position, nested);
     return posDelete;
   }
@@ -1523,6 +1528,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
                   deletesTable.schema(), ImmutableSet.of(MetadataColumns.FILE_PATH_COLUMN_ID))
               .asStruct();
     }
+
     final Types.StructType finalSchema = posDeleteSchema;
     StructLikeSet set = StructLikeSet.create(posDeleteSchema);
     deletes.stream()
@@ -1535,15 +1541,18 @@ public class TestPositionDeletesTable extends CatalogTestBase {
               if (partitionStruct != null) {
                 record.setField("partition", partitionStruct);
               }
+
               record.setField("spec_id", specId);
               if (includeDeleteFilePath) {
                 record.setField("delete_file_path", deleteFile.location());
               }
+
               if (formatVersion >= 3) {
                 record.setField("content_offset", deleteFile.contentOffset());
                 record.setField(
                     "content_size_in_bytes", ScanTaskUtil.contentSizeInBytes(deleteFile));
               }
+
               return record;
             })
         .forEach(set::add);

@@ -324,6 +324,7 @@ public class TestPlannedDataReader {
       for (GenericRecord rec : avroRecords) {
         writer.write(rec, encoder);
       }
+
       encoder.flush();
 
       try (ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray())) {
@@ -333,6 +334,7 @@ public class TestPlannedDataReader {
         }
       }
     }
+
     return results;
   }
 

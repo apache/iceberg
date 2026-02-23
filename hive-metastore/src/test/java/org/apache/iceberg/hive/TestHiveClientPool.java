@@ -96,6 +96,7 @@ public class TestHiveClientPool {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+
     return hiveConf;
   }
 

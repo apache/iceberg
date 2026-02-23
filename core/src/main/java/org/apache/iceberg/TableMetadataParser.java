@@ -73,6 +73,7 @@ public class TableMetadataParser {
       if (fileName.endsWith(".metadata.json.gz")) {
         return Codec.GZIP;
       }
+
       String fileNameWithoutSuffix = fileName.substring(0, fileName.lastIndexOf(".metadata.json"));
       if (fileNameWithoutSuffix.endsWith(Codec.GZIP.extension)) {
         return Codec.GZIP;
@@ -171,6 +172,7 @@ public class TableMetadataParser {
     if (metadata.formatVersion() > 1) {
       generator.writeNumberField(LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
     }
+
     generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
     generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
 
@@ -188,6 +190,7 @@ public class TableMetadataParser {
     for (Schema schema : metadata.schemas()) {
       SchemaParser.toJson(schema, generator);
     }
+
     generator.writeEndArray();
 
     // for older readers, continue writing the default spec as "partition-spec"
@@ -202,6 +205,7 @@ public class TableMetadataParser {
     for (PartitionSpec spec : metadata.specs()) {
       PartitionSpecParser.toJson(spec, generator);
     }
+
     generator.writeEndArray();
 
     generator.writeNumberField(LAST_PARTITION_ID, metadata.lastAssignedPartitionId());
@@ -212,6 +216,7 @@ public class TableMetadataParser {
     for (SortOrder sortOrder : metadata.sortOrders()) {
       SortOrderParser.toJson(sortOrder, generator);
     }
+
     generator.writeEndArray();
 
     // write properties map
@@ -236,6 +241,7 @@ public class TableMetadataParser {
       for (EncryptedKey key : metadata.encryptionKeys()) {
         EncryptedKeyParser.toJson(key, generator);
       }
+
       generator.writeEndArray();
     }
 
@@ -245,18 +251,21 @@ public class TableMetadataParser {
     for (Snapshot snapshot : metadata.snapshots()) {
       SnapshotParser.toJson(snapshot, generator);
     }
+
     generator.writeEndArray();
 
     generator.writeArrayFieldStart(STATISTICS);
     for (StatisticsFile statisticsFile : metadata.statisticsFiles()) {
       StatisticsFileParser.toJson(statisticsFile, generator);
     }
+
     generator.writeEndArray();
 
     generator.writeArrayFieldStart(PARTITION_STATISTICS);
     for (PartitionStatisticsFile partitionStatisticsFile : metadata.partitionStatisticsFiles()) {
       PartitionStatisticsFileParser.toJson(partitionStatisticsFile, generator);
     }
+
     generator.writeEndArray();
 
     generator.writeArrayFieldStart(SNAPSHOT_LOG);
@@ -266,6 +275,7 @@ public class TableMetadataParser {
       generator.writeNumberField(SNAPSHOT_ID, logEntry.snapshotId());
       generator.writeEndObject();
     }
+
     generator.writeEndArray();
 
     generator.writeArrayFieldStart(METADATA_LOG);
@@ -275,6 +285,7 @@ public class TableMetadataParser {
       generator.writeStringField(METADATA_FILE, logEntry.file());
       generator.writeEndObject();
     }
+
     generator.writeEndArray();
 
     generator.writeEndObject();
@@ -287,6 +298,7 @@ public class TableMetadataParser {
       generator.writeFieldName(refEntry.getKey());
       SnapshotRefParser.toJson(refEntry.getValue(), generator);
     }
+
     generator.writeEndObject();
   }
 
@@ -354,6 +366,7 @@ public class TableMetadataParser {
     } else {
       lastSequenceNumber = TableMetadata.INITIAL_SEQUENCE_NUMBER;
     }
+
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
 
     List<Schema> schemas;
@@ -374,6 +387,7 @@ public class TableMetadataParser {
         if (current.schemaId() == currentSchemaId) {
           schema = current;
         }
+
         builder.add(current);
       }
 
@@ -414,6 +428,7 @@ public class TableMetadataParser {
           builder.add(unboundSpec.bindUnchecked(schema));
         }
       }
+
       specs = builder.build();
 
     } else {
@@ -450,6 +465,7 @@ public class TableMetadataParser {
       for (JsonNode sortOrder : sortOrderArray) {
         sortOrdersBuilder.add(SortOrderParser.fromJson(schema, sortOrder, defaultSortOrderId));
       }
+
       sortOrders = sortOrdersBuilder.build();
     } else {
       Preconditions.checkArgument(

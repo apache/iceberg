@@ -38,6 +38,7 @@ public class DefaultMetricsContext implements MetricsContext {
     if (Long.class.equals(type)) {
       return (Counter<T>) new DefaultCounter(unit).asLongCounter();
     }
+
     throw new IllegalArgumentException(
         String.format("Counter for type %s is not supported", type.getName()));
   }

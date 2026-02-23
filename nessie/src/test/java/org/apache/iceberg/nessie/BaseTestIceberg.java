@@ -111,6 +111,7 @@ public abstract class BaseTestIceberg {
       if (r instanceof Branch && !r.getName().equals(defaultBranch.getName())) {
         api.deleteBranch().branch((Branch) r).delete();
       }
+
       if (r instanceof Tag) {
         api.deleteTag().tag((Tag) r).delete();
       }
@@ -164,6 +165,7 @@ public abstract class BaseTestIceberg {
     if (null != hash) {
       options.put("ref.hash", hash);
     }
+
     newCatalog.initialize("nessie", options.buildOrThrow());
     return newCatalog;
   }
@@ -242,6 +244,7 @@ public abstract class BaseTestIceberg {
     for (int i = 0; i < count; i++) {
       fields.add(required(i, "id" + i, Types.LongType.get()));
     }
+
     return new Schema(Types.StructType.of(fields).fields());
   }
 
@@ -267,6 +270,7 @@ public abstract class BaseTestIceberg {
       if (catalog != null) {
         catalog.close();
       }
+
       api.close();
     } finally {
       catalog = null;
@@ -297,6 +301,7 @@ public abstract class BaseTestIceberg {
         writer.add(rec);
       }
     }
+
     return fileLocation;
   }
 

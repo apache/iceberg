@@ -202,6 +202,7 @@ public class TestBaseTaskWriter extends TestBase {
     try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
       reader.forEach(set::add);
     }
+
     return set;
   }
 
@@ -241,6 +242,7 @@ public class TestBaseTaskWriter extends TestBase {
       if (dataWriter != null) {
         dataWriter.close();
       }
+
       if (deleteWriter != null) {
         deleteWriter.close();
       }

@@ -127,6 +127,7 @@ class Literals {
           }
         }
       }
+
       return byteBuffer;
     }
 
@@ -143,9 +144,11 @@ class Literals {
       if (this == other) {
         return true;
       }
+
       if (other == null || getClass() != other.getClass()) {
         return false;
       }
+
       BaseLiteral<T> that = (BaseLiteral<T>) other;
 
       return comparator().compare(value(), that.value()) == 0;
@@ -236,6 +239,7 @@ class Literals {
       if (type.typeId() == Type.TypeID.BOOLEAN) {
         return (Literal<T>) this;
       }
+
       return null;
     }
 
@@ -295,6 +299,7 @@ class Literals {
           } else if ((long) Integer.MIN_VALUE > value()) {
             return belowMin();
           }
+
           return (Literal<T>) new IntegerLiteral(value().intValue());
         case LONG:
           return (Literal<T>) this;
@@ -315,6 +320,7 @@ class Literals {
           } else if ((long) Integer.MIN_VALUE > value()) {
             return belowMin();
           }
+
           return (Literal<T>) new DateLiteral(value().intValue());
         case DECIMAL:
           int scale = ((Types.DecimalType) type).scale();
@@ -377,6 +383,7 @@ class Literals {
             // Float.MIN_VALUE is the smallest non-negative floating point value.
             return belowMin();
           }
+
           return (Literal<T>) new FloatLiteral(value().floatValue());
         case DOUBLE:
           return (Literal<T>) this;
@@ -406,6 +413,7 @@ class Literals {
       if (type.typeId() == Type.TypeID.DATE) {
         return (Literal<T>) this;
       }
+
       return null;
     }
 
@@ -426,6 +434,7 @@ class Literals {
       if (type.typeId() == Type.TypeID.TIME) {
         return (Literal<T>) this;
       }
+
       return null;
     }
 
@@ -452,6 +461,7 @@ class Literals {
           return (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.microsToNanos(value()));
         default:
       }
+
       return null;
     }
 
@@ -478,6 +488,7 @@ class Literals {
           return (Literal<T>) this;
         default:
       }
+
       return null;
     }
 
@@ -598,6 +609,7 @@ class Literals {
             if (buffer.remaining() == fixed.length()) {
               return (Literal<T>) new FixedLiteral(buffer);
             }
+
             return null;
           } catch (IllegalArgumentException e) {
             // Invalid hex string
@@ -647,6 +659,7 @@ class Literals {
       if (type.typeId() == Type.TypeID.UUID) {
         return (Literal<T>) this;
       }
+
       return null;
     }
 
@@ -673,6 +686,7 @@ class Literals {
           if (value().remaining() == fixed.length()) {
             return (Literal<T>) this;
           }
+
           return null;
         case BINARY:
           return (Literal<T>) new BinaryLiteral(value());
@@ -719,6 +733,7 @@ class Literals {
           if (value().remaining() == fixed.length()) {
             return (Literal<T>) new FixedLiteral(value());
           }
+
           return null;
         case BINARY:
           return (Literal<T>) this;

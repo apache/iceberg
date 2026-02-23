@@ -108,6 +108,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       Preconditions.checkNotNull(eqDeleteRowSchema, "Equality delete row schema shouldn't be null");
       this.eqDeleteFlinkSchema = FlinkSchemaUtil.convert(eqDeleteRowSchema);
     }
+
     return eqDeleteFlinkSchema;
   }
 
@@ -116,6 +117,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       Preconditions.checkNotNull(posDeleteRowSchema, "Pos-delete row schema shouldn't be null");
       this.posDeleteFlinkSchema = FlinkSchemaUtil.convert(posDeleteRowSchema);
     }
+
     return this.posDeleteFlinkSchema;
   }
 

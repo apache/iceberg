@@ -156,6 +156,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
             errors.add(
                 readField.name() + " is out of order, before " + fields.get(lastOrdinal).name());
           }
+
           lastOrdinal = ordinal;
         }
       }
@@ -174,6 +175,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
       if (readField.isRequired()) {
         return ImmutableList.of(readField.name() + " is required, but is missing");
       }
+
       // if the field is optional, it will be read as nulls
       return NO_ERRORS;
     }

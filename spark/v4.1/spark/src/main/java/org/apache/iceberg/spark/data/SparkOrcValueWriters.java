@@ -137,6 +137,7 @@ class SparkOrcValueWriters {
         throw new IllegalArgumentException(
             "Expected one (and same) ORC type for list elements, got: " + orcTypes);
       }
+
       this.writer = writer;
       this.fieldGetter =
           (SparkOrcWriter.FieldGetter<T>) SparkOrcWriter.createFieldGetter(orcTypes.get(0));
@@ -178,6 +179,7 @@ class SparkOrcValueWriters {
         throw new IllegalArgumentException(
             "Expected two ORC type descriptions for a map, got: " + orcTypes);
       }
+
       this.keyWriter = keyWriter;
       this.valueWriter = valueWriter;
       this.keyFieldGetter =

@@ -58,6 +58,7 @@ class RowDataRecordFactory implements RecordFactory<RowData> {
     for (int i = 0; i < batchSize; ++i) {
       arr[i] = new GenericRowData(rowType.getFieldCount());
     }
+
     return arr;
   }
 

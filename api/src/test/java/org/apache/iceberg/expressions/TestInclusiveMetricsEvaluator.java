@@ -841,6 +841,7 @@ public class TestInclusiveMetricsEvaluator {
     for (int id = -400; id <= 0; id++) {
       ids.add(id);
     }
+
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("id", ids)).eval(FILE);
     assertThat(shouldRead).as("Should read: large in expression").isTrue();
   }

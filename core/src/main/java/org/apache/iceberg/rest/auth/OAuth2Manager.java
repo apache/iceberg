@@ -100,6 +100,7 @@ public class OAuth2Manager implements AuthManager {
       return OAuth2Util.AuthSession.fromAccessToken(
           initClient, null, config.token(), null, session);
     }
+
     return session;
   }
 
@@ -134,6 +135,7 @@ public class OAuth2Manager implements AuthManager {
       return OAuth2Util.AuthSession.fromTokenResponse(
           refreshClient, refreshExecutor(), response, System.currentTimeMillis(), session);
     }
+
     return session;
   }
 

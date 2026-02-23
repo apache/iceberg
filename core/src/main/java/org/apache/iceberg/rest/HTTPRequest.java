@@ -109,6 +109,7 @@ public interface HTTPRequest {
         throw new RESTException(e, "Failed to encode request body: %s", body);
       }
     }
+
     return null;
   }
 

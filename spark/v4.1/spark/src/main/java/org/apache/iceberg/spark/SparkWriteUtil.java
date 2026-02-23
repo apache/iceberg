@@ -345,6 +345,7 @@ public class SparkWriteUtil {
         addValue(new TotalRecords(), result.totalRecords(), metrics);
       }
     }
+
     return metrics.toArray(new CustomTaskMetric[0]);
   }
 

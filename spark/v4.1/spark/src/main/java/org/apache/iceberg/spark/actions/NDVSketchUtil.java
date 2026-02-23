@@ -58,6 +58,7 @@ public class NDVSketchUtil {
       Sketch sketch = CompactSketch.wrap(Memory.wrap((byte[]) sketches.get(i)));
       blobs.add(toBlob(field, sketch, snapshot));
     }
+
     return blobs;
   }
 

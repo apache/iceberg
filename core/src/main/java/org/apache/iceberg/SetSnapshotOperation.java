@@ -154,6 +154,7 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
         snapshotTimestamp = snapshot.timestampMillis();
       }
     }
+
     return result;
   }
 

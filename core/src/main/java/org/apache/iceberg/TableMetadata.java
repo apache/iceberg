@@ -129,6 +129,7 @@ public class TableMetadata implements Serializable {
       // reassign all partition fields with fresh partition field Ids to ensure consistency
       specBuilder.add(freshSchema.findField(sourceName).fieldId(), field.name(), field.transform());
     }
+
     PartitionSpec freshSpec = specBuilder.build();
 
     // rebuild the sort order using the new column ids
@@ -179,6 +180,7 @@ public class TableMetadata implements Serializable {
       } else if (!(other instanceof SnapshotLogEntry)) {
         return false;
       }
+
       SnapshotLogEntry that = (SnapshotLogEntry) other;
       return timestampMillis == that.timestampMillis && snapshotId == that.snapshotId;
     }
@@ -221,6 +223,7 @@ public class TableMetadata implements Serializable {
       } else if (!(other instanceof MetadataLogEntry)) {
         return false;
       }
+
       MetadataLogEntry that = (MetadataLogEntry) other;
       return timestampMillis == that.timestampMillis && java.util.Objects.equals(file, that.file);
     }
@@ -364,8 +367,10 @@ public class TableMetadata implements Serializable {
             (logEntry.timestampMillis() - last.timestampMillis()) >= -ONE_MINUTE,
             "[BUG] Expected sorted snapshot log entries.");
       }
+
       last = logEntry;
     }
+
     if (last != null) {
       Preconditions.checkArgument(
           // commits can happen concurrently from different machines.
@@ -385,8 +390,10 @@ public class TableMetadata implements Serializable {
             (metadataEntry.timestampMillis() - previous.timestampMillis()) >= -ONE_MINUTE,
             "[BUG] Expected sorted previous metadata log entries.");
       }
+
       previous = metadataEntry;
     }
+
     // Make sure that this update's lastUpdatedMillis is > max(previousFile's timestamp)
     if (previous != null) {
       Preconditions.checkArgument(
@@ -672,6 +679,7 @@ public class TableMetadata implements Serializable {
       for (PartitionField newField : partitionSpec.fields()) {
         newFields.put(Pair.of(newField.sourceId(), newField.transform().toString()), newField);
       }
+
       List<String> newFieldNames =
           newFields.values().stream().map(PartitionField::name).collect(Collectors.toList());
 
@@ -798,6 +806,7 @@ public class TableMetadata implements Serializable {
         // This only happens in V1 tables where the reference is still around as a void transform
         fieldId = field.sourceId();
       }
+
       specBuilder.addField(field.transform().toString(), fieldId, field.fieldId(), field.name());
     }
 
@@ -834,6 +843,7 @@ public class TableMetadata implements Serializable {
           lastSequenceNumber);
       builder.put(snap.snapshotId(), snap);
     }
+
     return builder.build();
   }
 
@@ -842,6 +852,7 @@ public class TableMetadata implements Serializable {
     for (Schema schema : schemas) {
       builder.put(schema.schemaId(), schema);
     }
+
     return builder.build();
   }
 
@@ -850,6 +861,7 @@ public class TableMetadata implements Serializable {
     for (SortOrder sortOrder : sortOrders) {
       builder.put(sortOrder.orderId(), sortOrder);
     }
+
     return builder.build();
   }
 
@@ -1365,6 +1377,7 @@ public class TableMetadata implements Serializable {
       if (statisticsFiles.remove(snapshotId) == null) {
         return this;
       }
+
       changes.add(new MetadataUpdate.RemoveStatistics(snapshotId));
       return this;
     }
@@ -1433,6 +1446,7 @@ public class TableMetadata implements Serializable {
           if (!suppress) {
             changes.add(new MetadataUpdate.RemoveSnapshots(snapshotId));
           }
+
           removeStatistics(snapshotId);
           removePartitionStatistics(snapshotId);
         } else {
@@ -1561,6 +1575,7 @@ public class TableMetadata implements Serializable {
             addPreviousFile(
                 previousFiles, previousFileLocation, base.lastUpdatedMillis(), properties);
       }
+
       List<HistoryEntry> newSnapshotLog =
           updateSnapshotLog(snapshotLog, snapshotsById, currentSnapshotId, changes);
 
@@ -1649,6 +1664,7 @@ public class TableMetadata implements Serializable {
           newSchemaId = schema.schemaId() + 1;
         }
       }
+
       return newSchemaId;
     }
 
@@ -1802,6 +1818,7 @@ public class TableMetadata implements Serializable {
       } else {
         newMetadataLog = Lists.newArrayList(previousFiles);
       }
+
       newMetadataLog.add(new MetadataLogEntry(timestampMillis, previousFileLocation));
 
       return newMetadataLog;

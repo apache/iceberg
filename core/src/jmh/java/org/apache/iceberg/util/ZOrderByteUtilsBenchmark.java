@@ -61,9 +61,11 @@ public class ZOrderByteUtilsBenchmark {
         if (j < 2) {
           twoColumnInput[i][j] = value;
         }
+
         if (j < 3) {
           threeColumnInput[i][j] = value;
         }
+
         fourColumnInput[i][j] = value;
       }
     }

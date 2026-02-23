@@ -276,6 +276,7 @@ public class SparkV2Filters {
               return not(child);
             }
           }
+
           return null;
 
         case AND:
@@ -286,6 +287,7 @@ public class SparkV2Filters {
             if (left != null && right != null) {
               return and(left, right);
             }
+
             return null;
           }
 
@@ -297,6 +299,7 @@ public class SparkV2Filters {
             if (left != null && right != null) {
               return or(left, right);
             }
+
             return null;
           }
 
@@ -382,6 +385,7 @@ public class SparkV2Filters {
     } else if (literal.value() instanceof Decimal) {
       return ((Decimal) literal.value()).toJavaBigDecimal();
     }
+
     return literal.value();
   }
 

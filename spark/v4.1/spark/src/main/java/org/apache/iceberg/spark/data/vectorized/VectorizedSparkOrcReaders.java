@@ -163,6 +163,7 @@ public class VectorizedSparkOrcReaders {
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);
       }
+
       return (columnVector, batchSize, batchOffsetInFile, isSelectedInUse, selected) ->
           new PrimitiveOrcColumnVector(
               iPrimitive, batchSize, columnVector, primitiveValueReader, isSelectedInUse, selected);
@@ -202,6 +203,7 @@ public class VectorizedSparkOrcReaders {
       if (numNulls == null) {
         numNulls = numNullsHelper();
       }
+
       return numNulls;
     }
 
@@ -221,6 +223,7 @@ public class VectorizedSparkOrcReaders {
             count++;
           }
         }
+
         return count;
       }
     }

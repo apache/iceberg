@@ -75,6 +75,7 @@ public class Files {
           throw new RuntimeIOException("Failed to delete: %s", file);
         }
       }
+
       return create();
     }
 
@@ -102,6 +103,7 @@ public class Files {
     if (file.startsWith("file:")) {
       return localInput(new File(file.replaceFirst("file:", "")));
     }
+
     return localInput(new File(file));
   }
 
@@ -204,6 +206,7 @@ public class Files {
       if (isClosed) {
         return file.length();
       }
+
       return stream.getFilePointer();
     }
 

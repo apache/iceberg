@@ -51,6 +51,7 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
     if (pool == null) {
       this.pool = createPoolOfBatches(handoverQueueSize);
     }
+
     return new ArrayPoolBatchIterator(splitId, inputIterator, pool);
   }
 

@@ -76,9 +76,11 @@ public class GenericStatisticsFile implements StatisticsFile {
     if (this == o) {
       return true;
     }
+
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
+
     GenericStatisticsFile that = (GenericStatisticsFile) o;
     return snapshotId == that.snapshotId
         && fileSizeInBytes == that.fileSizeInBytes

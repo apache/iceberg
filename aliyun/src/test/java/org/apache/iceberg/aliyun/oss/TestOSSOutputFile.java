@@ -103,6 +103,7 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
         InputStream is = new ByteArrayInputStream(expect)) {
       ByteStreams.copy(is, os);
     }
+
     assertThat(ossDataLength(uri))
         .as(String.format("Should overwrite object length from %d to %d", dataSize, expectSize))
         .isEqualTo(expectSize);
@@ -141,6 +142,7 @@ public class TestOSSOutputFile extends AliyunOSSTestBase {
     try (InputStream as = in.newStream()) {
       ByteStreams.readFully(as, actual);
     }
+
     assertThat(actual).as("Should have expected content").isEqualTo(data);
   }
 

@@ -57,6 +57,7 @@ public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
           for (Object task : tasks) {
             listBuilder.add((T) task);
           }
+
           this.taskCollection = listBuilder.build();
         }
       }
@@ -71,6 +72,7 @@ public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
     for (Object task : tasks) {
       sizeBytes += ((ScanTask) task).sizeBytes();
     }
+
     return sizeBytes;
   }
 
@@ -80,6 +82,7 @@ public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
     for (Object task : tasks) {
       estimatedRowsCount += ((ScanTask) task).estimatedRowsCount();
     }
+
     return estimatedRowsCount;
   }
 
@@ -89,6 +92,7 @@ public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
     for (Object task : tasks) {
       filesCount += ((ScanTask) task).filesCount();
     }
+
     return filesCount;
   }
 

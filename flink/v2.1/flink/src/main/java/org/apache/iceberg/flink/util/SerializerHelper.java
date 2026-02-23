@@ -107,6 +107,7 @@ public class SerializerHelper implements Serializable {
       if (ch > 127) {
         break;
       }
+
       count++;
       chararr[chararrCount++] = (char) ch;
     }
@@ -133,10 +134,12 @@ public class SerializerHelper implements Serializable {
           if (count > utflen) {
             throw new UTFDataFormatException("malformed input: partial character at end");
           }
+
           char2 = bytearr[count - 1];
           if ((char2 & 0xC0) != 0x80) {
             throw new UTFDataFormatException("malformed input around byte " + count);
           }
+
           chararr[chararrCount++] = (char) (((ch & 0x1F) << 6) | (char2 & 0x3F));
           break;
         case 14:
@@ -145,11 +148,13 @@ public class SerializerHelper implements Serializable {
           if (count > utflen) {
             throw new UTFDataFormatException("malformed input: partial character at end");
           }
+
           char2 = bytearr[count - 2];
           char3 = bytearr[count - 1];
           if (((char2 & 0xC0) != 0x80) || ((char3 & 0xC0) != 0x80)) {
             throw new UTFDataFormatException("malformed input around byte " + (count - 1));
           }
+
           chararr[chararrCount++] =
               (char) (((ch & 0x0F) << 12) | ((char2 & 0x3F) << 6) | (char3 & 0x3F));
           break;
@@ -158,6 +163,7 @@ public class SerializerHelper implements Serializable {
           throw new UTFDataFormatException("malformed input around byte " + count);
       }
     }
+
     // The number of chars produced may be less than utflen
     return new String(chararr, 0, chararrCount);
   }
@@ -187,6 +193,7 @@ public class SerializerHelper implements Serializable {
       if (!((ch >= 0x0001) && (ch <= 0x007F))) {
         break;
       }
+
       bytearr[count++] = (byte) ch;
     }
 

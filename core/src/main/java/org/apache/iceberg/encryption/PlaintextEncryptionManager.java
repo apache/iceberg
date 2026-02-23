@@ -38,6 +38,7 @@ public class PlaintextEncryptionManager implements EncryptionManager {
     if (encrypted.keyMetadata().buffer() != null) {
       LOG.warn("File encryption key metadata is present, but no encryption has been configured.");
     }
+
     return encrypted.encryptedInputFile();
   }
 

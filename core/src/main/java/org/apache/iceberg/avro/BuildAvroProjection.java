@@ -118,6 +118,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         if (!field.name().equals(fieldName)) {
           newField.addProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP, field.name());
         }
+
         updatedFields.add(newField);
         hasChange = true;
       }
@@ -278,12 +279,14 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         if (current.typeId() == Type.TypeID.LONG) {
           return Schema.create(Schema.Type.LONG);
         }
+
         return primitive;
 
       case FLOAT:
         if (current.typeId() == Type.TypeID.DOUBLE) {
           return Schema.create(Schema.Type.DOUBLE);
         }
+
         return primitive;
 
       default:

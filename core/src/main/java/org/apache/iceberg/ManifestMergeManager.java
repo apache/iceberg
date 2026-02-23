@@ -212,6 +212,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
           throw new RuntimeIOException(e, "Failed to close manifest reader");
         }
       }
+
       threw = false;
 
     } finally {

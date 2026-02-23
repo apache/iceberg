@@ -129,6 +129,7 @@ public class TestOrcDataWriter {
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
+
     assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
   }
 
@@ -182,6 +183,7 @@ public class TestOrcDataWriter {
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
+
     assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
   }
 

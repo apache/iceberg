@@ -69,6 +69,7 @@ public interface VariantMetadata {
 
       builder.append(i).append(" => ").append(metadata.get(i));
     }
+
     builder.append("})");
 
     return builder.toString();

@@ -222,6 +222,7 @@ public class TestGenericData extends DataTestBase {
             .build()) {
       rows = Lists.newArrayList(reader);
     }
+
     assertThat(rows)
         .first()
         .satisfies(

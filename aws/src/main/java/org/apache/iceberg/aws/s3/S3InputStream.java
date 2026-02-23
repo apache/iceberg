@@ -272,6 +272,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
           throw e;
         }
       }
+
       stream = null;
     }
   }

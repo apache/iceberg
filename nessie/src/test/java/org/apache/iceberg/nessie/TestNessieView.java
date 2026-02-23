@@ -91,6 +91,7 @@ public class TestNessieView extends BaseTestIceberg {
       try (Stream<Path> walk = Files.walk(Paths.get(viewLocation))) {
         walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
       }
+
       catalog.dropView(VIEW_IDENTIFIER);
     }
 

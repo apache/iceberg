@@ -120,6 +120,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     if (isNullAt(rowId)) {
       return null;
     }
+
     return accessor.getArray(rowId);
   }
 
@@ -133,6 +134,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     if (isNullAt(rowId)) {
       return null;
     }
+
     return accessor.getDecimal(rowId, precision, scale);
   }
 
@@ -141,6 +143,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     if (isNullAt(rowId)) {
       return null;
     }
+
     return accessor.getUTF8String(rowId);
   }
 
@@ -149,6 +152,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
     if (isNullAt(rowId)) {
       return null;
     }
+
     return accessor.getBinary(rowId);
   }
 

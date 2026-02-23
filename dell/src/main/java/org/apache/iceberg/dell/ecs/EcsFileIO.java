@@ -78,6 +78,7 @@ public class EcsFileIO implements FileIO {
         }
       }
     }
+
     return client;
   }
 

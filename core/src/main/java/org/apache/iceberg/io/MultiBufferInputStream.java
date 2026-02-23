@@ -49,6 +49,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
     for (ByteBuffer buffer : buffers) {
       totalLen += buffer.remaining();
     }
+
     this.length = totalLen;
 
     initFromBuffers();
@@ -232,6 +233,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
       if (len < 0) {
         throw new IndexOutOfBoundsException("Read length must be greater than 0: " + len);
       }
+
       return 0;
     }
 
@@ -292,6 +294,7 @@ class MultiBufferInputStream extends ByteBufferInputStream {
     if (mark >= 0) {
       discardMark();
     }
+
     this.mark = position;
     this.markLimit = mark + readlimit + 1;
     if (current != null) {

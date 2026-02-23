@@ -76,6 +76,7 @@ public class FileMetadata {
       if (isPartitioned) {
         partitionData.clear();
       }
+
       this.filePath = null;
       this.format = null;
       this.recordCount = -1L;
@@ -95,6 +96,7 @@ public class FileMetadata {
             specId == toCopy.specId(), "Cannot copy a DeleteFile with a different spec");
         this.partitionData = DataFiles.copyPartitionData(spec, toCopy.partition(), partitionData);
       }
+
       this.content = toCopy.content();
       this.filePath = toCopy.location();
       this.format = toCopy.format();
@@ -170,6 +172,7 @@ public class FileMetadata {
       if (isPartitioned) {
         this.partitionData = DataFiles.copyPartitionData(spec, newPartition, partitionData);
       }
+
       return this;
     }
 
@@ -190,6 +193,7 @@ public class FileMetadata {
       if (!newPartitionPath.isEmpty()) {
         this.partitionData = DataFiles.fillFromPath(spec, newPartitionPath, partitionData);
       }
+
       return this;
     }
 
@@ -212,6 +216,7 @@ public class FileMetadata {
       } else {
         this.splitOffsets = null;
       }
+
       return this;
     }
 
@@ -228,6 +233,7 @@ public class FileMetadata {
       if (newSortOrder != null) {
         this.sortOrderId = newSortOrder.orderId();
       }
+
       return this;
     }
 
@@ -237,6 +243,7 @@ public class FileMetadata {
       } else {
         this.referencedDataFile = null;
       }
+
       return this;
     }
 
@@ -255,6 +262,7 @@ public class FileMetadata {
       if (format == null) {
         this.format = FileFormat.fromFileName(filePath);
       }
+
       Preconditions.checkArgument(content != null, "Delete type is required");
       Preconditions.checkArgument(format != null, "File format is required");
       Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
@@ -280,6 +288,7 @@ public class FileMetadata {
           if (sortOrderId == null) {
             sortOrderId = SortOrder.unsorted().orderId();
           }
+
           break;
         default:
           throw new IllegalStateException("Unknown content type " + content);

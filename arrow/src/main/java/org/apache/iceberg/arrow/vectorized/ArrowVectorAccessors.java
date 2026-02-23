@@ -79,6 +79,7 @@ final class ArrowVectorAccessors {
             byteBuffer.remaining(),
             StandardCharsets.UTF_8);
       }
+
       byte[] bytes = new byte[byteBuffer.remaining()];
       byteBuffer.get(bytes);
       return new String(bytes, StandardCharsets.UTF_8);

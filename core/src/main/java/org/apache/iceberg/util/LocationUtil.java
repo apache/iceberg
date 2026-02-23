@@ -31,6 +31,7 @@ public class LocationUtil {
     while (!result.endsWith("://") && result.endsWith("/")) {
       result = result.substring(0, result.length() - 1);
     }
+
     return result;
   }
 }

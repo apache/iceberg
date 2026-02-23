@@ -166,6 +166,7 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
         && (bytesRead = stream.read(bytes, pos, bytes.length - pos)) > 0) {
       pos += bytesRead;
     }
+
     return pos == bytes.length;
   }
 }

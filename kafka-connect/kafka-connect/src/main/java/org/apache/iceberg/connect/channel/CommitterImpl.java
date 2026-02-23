@@ -69,6 +69,7 @@ public class CommitterImpl implements Committer {
       if (result == 0) {
         result = Integer.compare(o1.partition(), o2.partition());
       }
+
       return result;
     }
   }
@@ -175,6 +176,7 @@ public class CommitterImpl implements Committer {
       startWorker();
       worker.save(sinkRecords);
     }
+
     processControlEvents();
   }
 
@@ -185,6 +187,7 @@ public class CommitterImpl implements Committer {
               "Coordinator unexpectedly terminated on committer %s-%s",
               config.connectorName(), config.taskId()));
     }
+
     if (worker != null) {
       worker.process();
     }

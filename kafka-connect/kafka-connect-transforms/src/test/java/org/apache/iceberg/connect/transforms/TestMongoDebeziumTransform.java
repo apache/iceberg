@@ -155,8 +155,10 @@ public class TestMongoDebeziumTransform {
         if (i == size - 1) {
           return fn.apply(((Struct) target).get(localPath));
         }
+
         target = Requirements.requireStruct(target, "extractFieldAt dive").get(localPath);
       }
+
       throw new Exception(String.format("could not extract field: %s", path));
     } catch (Exception e) {
       if (safe) {
@@ -205,8 +207,10 @@ public class TestMongoDebeziumTransform {
       if (i == size - 1) {
         return target.field(localPath).schema().type();
       }
+
       target = target.field(localPath).schema();
     }
+
     throw new Exception(String.format("could not extract schema at: %s", path));
   }
 

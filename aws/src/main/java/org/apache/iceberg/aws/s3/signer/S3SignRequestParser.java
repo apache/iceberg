@@ -107,8 +107,10 @@ public class S3SignRequestParser {
       for (String val : entry.getValue()) {
         gen.writeString(val);
       }
+
       gen.writeEndArray();
     }
+
     gen.writeEndObject();
   }
 

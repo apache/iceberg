@@ -519,6 +519,7 @@ public class TestCreateActions extends CatalogTestBase {
               "ALTER TABLE %s SET TBLPROPERTIES (\"%s\" = \"%s\")",
               source, keyValue.getKey(), keyValue.getValue()));
     }
+
     assertSnapshotFileCount(
         SparkActions.get().snapshotTable(source).as(dest).tableProperty("dogs", "sundance"),
         source,
@@ -1011,6 +1012,7 @@ public class TestCreateActions extends CatalogTestBase {
               .map(CatalogTablePartition::location)
               .collect(Collectors.toList());
     }
+
     return uris.stream()
         .flatMap(
             uri ->

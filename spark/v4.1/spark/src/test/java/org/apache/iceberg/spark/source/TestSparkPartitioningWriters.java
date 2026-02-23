@@ -64,6 +64,7 @@ public class TestSparkPartitioningWriters extends TestPartitioningWriters<Intern
       InternalRowWrapper wrapper = new InternalRowWrapper(sparkType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
     }
+
     return set;
   }
 }

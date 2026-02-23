@@ -76,6 +76,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
               "Failed to refresh as ref '%s' is no longer valid.", client.getRef().getName()),
           e);
     }
+
     String metadataLocation = null;
     Reference reference = client.getRef().getReference();
     try {
@@ -97,6 +98,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
         throw new NoSuchTableException(ex, "No such table '%s'", key);
       }
     }
+
     refreshFromMetadataLocation(
         metadataLocation,
         null,
@@ -123,6 +125,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       if (ex instanceof NessieConflictException || ex instanceof NessieNotFoundException) {
         failure = true;
       }
+
       NessieUtil.handleExceptionsForCommits(ex, client.refName(), Content.Type.ICEBERG_TABLE)
           .ifPresent(
               exception -> {

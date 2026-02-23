@@ -561,6 +561,7 @@ public class TestTableMetadata {
       for (Snapshot snapshot : metadata.snapshots()) {
         SnapshotParser.toJson(snapshot, generator);
       }
+
       generator.writeEndArray();
       // skip the snapshot log
 
@@ -570,6 +571,7 @@ public class TestTableMetadata {
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to write json for: %s", metadata), e);
     }
+
     return writer.toString();
   }
 

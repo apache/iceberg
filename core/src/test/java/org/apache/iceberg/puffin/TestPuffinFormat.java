@@ -81,6 +81,7 @@ public class TestPuffinFormat {
       checkArgument(0 <= value && value <= 0xFF, "Invalid value: %s", value);
       bytes[i] = (byte) value;
     }
+
     return bytes;
   }
 }

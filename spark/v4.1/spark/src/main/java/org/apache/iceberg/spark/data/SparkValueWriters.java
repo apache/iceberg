@@ -170,6 +170,7 @@ public class SparkValueWriters {
         encoder.startItem();
         elementWriter.write((T) array.get(i, elementType), encoder);
       }
+
       encoder.writeArrayEnd();
     }
   }
@@ -204,6 +205,7 @@ public class SparkValueWriters {
         keyWriter.write((K) keyArray.get(i, keyType), encoder);
         valueWriter.write((V) valueArray.get(i, valueType), encoder);
       }
+
       encoder.writeArrayEnd();
     }
   }
@@ -238,6 +240,7 @@ public class SparkValueWriters {
         keyWriter.write((K) keyArray.get(i, keyType), encoder);
         valueWriter.write((V) valueArray.get(i, valueType), encoder);
       }
+
       encoder.writeMapEnd();
     }
   }

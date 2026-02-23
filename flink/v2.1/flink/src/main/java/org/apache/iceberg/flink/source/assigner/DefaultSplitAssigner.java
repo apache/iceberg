@@ -95,6 +95,7 @@ public class DefaultSplitAssigner implements SplitAssigner {
     if (availableFuture == null) {
       availableFuture = new CompletableFuture<>();
     }
+
     return availableFuture;
   }
 
@@ -114,6 +115,7 @@ public class DefaultSplitAssigner implements SplitAssigner {
     if (availableFuture != null && !pendingSplits.isEmpty()) {
       availableFuture.complete(null);
     }
+
     availableFuture = null;
   }
 }

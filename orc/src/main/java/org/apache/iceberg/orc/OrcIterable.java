@@ -91,6 +91,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
       if (nameMapping == null) {
         nameMapping = MappingUtil.create(schema);
       }
+
       TypeDescription typeWithIds = ORCSchemaUtil.applyNameMapping(fileSchema, nameMapping);
       readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, typeWithIds);
     }
@@ -129,6 +130,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     if (start != null) {
       options.range(start, length);
     }
+
     options.schema(readerSchema);
     options.searchArgument(sarg, new String[] {});
 
@@ -171,6 +173,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
         nextRow = 0;
         this.reader.setBatchContext(nextBatch.second());
       }
+
       // If selected is in use then the row ids should be determined from the selected vector
       int rowId = current.isSelectedInUse() ? current.selected[nextRow] : nextRow;
       nextRow++;

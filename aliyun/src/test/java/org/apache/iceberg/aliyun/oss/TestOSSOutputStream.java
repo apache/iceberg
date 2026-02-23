@@ -122,6 +122,7 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
     for (int i = 0; i < 256; i++) {
       data[i] = (byte) i;
     }
+
     return data;
   }
 

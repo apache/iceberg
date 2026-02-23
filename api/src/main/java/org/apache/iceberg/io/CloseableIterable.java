@@ -157,6 +157,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
                 if (!matches) {
                   skipCounter.increment();
                 }
+
                 return matches;
               }
             },
@@ -299,6 +300,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
           if (null != currentIterable) {
             currentIterable.close();
           }
+
           this.closed = true;
           this.currentIterator = null;
           this.currentIterable = null;

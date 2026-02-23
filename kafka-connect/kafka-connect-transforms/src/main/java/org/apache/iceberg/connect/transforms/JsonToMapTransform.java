@@ -95,6 +95,7 @@ public class JsonToMapTransform<R extends ConnectRecord<R>> implements Transform
     if (startAtRoot) {
       return singleField(record, (ObjectNode) obj);
     }
+
     return structRecord(record, (ObjectNode) obj);
   }
 

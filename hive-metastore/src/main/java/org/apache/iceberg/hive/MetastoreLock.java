@@ -162,6 +162,7 @@ class MetastoreLock implements HiveLock {
           "Failed to heartbeat for hive lock. %s",
           heartbeat.encounteredException.getMessage());
     }
+
     if (!heartbeat.active()) {
       throw new LockException("Hive lock heartbeat thread not active");
     }
@@ -372,6 +373,7 @@ class MetastoreLock implements HiveLock {
     } catch (TException e) {
       throw new LockException(e, "Failed to find lock for table %s.%s", databaseName, tableName);
     }
+
     for (ShowLocksResponseElement lock : response.getLocks()) {
       if (lock.getAgentInfo().equals(agentInfo)) {
         // We found our lock

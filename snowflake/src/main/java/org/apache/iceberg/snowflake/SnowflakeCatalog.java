@@ -213,6 +213,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
                 "loadNamespaceMetadata must be at either DATABASE or SCHEMA level; got %s from namespace %s",
                 id, namespace));
     }
+
     if (namespaceExists) {
       return ImmutableMap.of();
     } else {

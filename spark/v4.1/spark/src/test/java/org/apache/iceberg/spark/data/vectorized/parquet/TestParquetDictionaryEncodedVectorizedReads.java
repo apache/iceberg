@@ -190,6 +190,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
               numRowsRead += batch.numRows();
               TestHelpers.assertEqualsBatchWithRows(schema.asStruct(), expectedIter, batch);
             }
+
             assertThat(numRowsRead).isEqualTo(expectedSize);
           } catch (IOException e) {
             throw new RuntimeException(e);

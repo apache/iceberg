@@ -85,6 +85,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
         throw new RuntimeIOException(e, "Failed to get stream length");
       }
     }
+
     throw new RuntimeIOException("Failed to get stream length: no open stream");
   }
 

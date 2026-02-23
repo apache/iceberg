@@ -114,6 +114,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     if (fileIO == null) {
       fileIO = initializeFileIO(this.tableCatalogProperties, this.hadoopConf);
     }
+
     return fileIO;
   }
 

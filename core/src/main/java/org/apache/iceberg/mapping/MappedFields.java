@@ -94,6 +94,7 @@ public class MappedFields implements Serializable {
     if (nameToId == null) {
       this.nameToId = indexIds(fields);
     }
+
     return nameToId;
   }
 
@@ -101,6 +102,7 @@ public class MappedFields implements Serializable {
     if (idToField == null) {
       this.idToField = indexFields(fields);
     }
+
     return idToField;
   }
 

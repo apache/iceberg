@@ -62,12 +62,14 @@ public final class VectorizedParquetDefinitionLevelReader
         if (currentCount == 0) {
           readNextGroup();
         }
+
         int numValues = Math.min(left, currentCount);
 
         byte[] byteArray = null;
         if (typeWidth > -1) {
           byteArray = new byte[typeWidth];
         }
+
         ArrowBuf validityBuffer = vector.getValidityBuffer();
 
         consumer.apply(mode, idx, numValues, byteArray, validityBuffer);
@@ -198,6 +200,7 @@ public final class VectorizedParquetDefinitionLevelReader
         } else {
           setNull(nullabilityHolder, bufferIdx, validityBuffer);
         }
+
         bufferIdx++;
       }
     }
@@ -246,6 +249,7 @@ public final class VectorizedParquetDefinitionLevelReader
         } else {
           setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
         }
+
         bufferIdx++;
       }
     }
@@ -457,6 +461,7 @@ public final class VectorizedParquetDefinitionLevelReader
         } else {
           setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
         }
+
         bufferIdx++;
       }
     }

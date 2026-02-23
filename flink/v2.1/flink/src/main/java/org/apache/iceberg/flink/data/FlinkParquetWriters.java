@@ -223,6 +223,7 @@ public class FlinkParquetWriters {
               "Unsupported base type for decimal: "
                   + desc.getPrimitiveType().getPrimitiveTypeName());
       }
+
       return Optional.of(writer);
     }
 
@@ -287,6 +288,7 @@ public class FlinkParquetWriters {
     } else if (type instanceof SmallIntType) {
       return ParquetValueWriters.shorts(desc);
     }
+
     return ParquetValueWriters.ints(desc);
   }
 

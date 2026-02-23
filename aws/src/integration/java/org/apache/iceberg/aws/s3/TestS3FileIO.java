@@ -154,6 +154,7 @@ public class TestS3FileIO {
     for (int i = 1; i <= numBucketsForBatchDeletion; i++) {
       createBucket(batchDeletionBucketPrefix + i);
     }
+
     StaticClientFactory.client = s3mock;
   }
 
@@ -249,6 +250,7 @@ public class TestS3FileIO {
             builder -> builder.bucket(bucketName).key(key).build(), RequestBody.empty());
       }
     }
+
     s3FileIO.deleteFiles(paths);
 
     int expectedNumberOfBatchesPerBucket =

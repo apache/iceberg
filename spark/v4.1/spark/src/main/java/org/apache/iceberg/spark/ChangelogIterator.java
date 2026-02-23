@@ -122,6 +122,7 @@ public abstract class ChangelogIterator implements Iterator<Row> {
         j++;
       }
     }
+
     return indices;
   }
 }

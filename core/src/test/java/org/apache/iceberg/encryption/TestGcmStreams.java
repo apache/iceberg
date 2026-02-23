@@ -279,6 +279,7 @@ public class TestGcmStreams {
           if (chunkLen > left) {
             chunkLen = left;
           }
+
           encryptedStream.write(testFileContents, offset, chunkLen);
           offset += chunkLen;
           assertThat(encryptedStream.getPos()).isEqualTo(offset);

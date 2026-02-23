@@ -190,11 +190,13 @@ public class SplitHelpers {
                 ResidualEvaluator.unpartitioned(task.residual()));
         newFileScanTasks.add(baseFileScanTask);
       }
+
       doReturn(newFileScanTasks).when(combinedScanTask).tasks();
       icebergSourceSplitsWithMockDeleteFiles.add(
           IcebergSourceSplit.fromCombinedScanTask(
               combinedScanTask, split.fileOffset(), split.recordOffset()));
     }
+
     return icebergSourceSplitsWithMockDeleteFiles;
   }
 }

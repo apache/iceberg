@@ -58,6 +58,7 @@ public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
         }
       }
     }
+
     return tEnv;
   }
 

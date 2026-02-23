@@ -45,19 +45,23 @@ class SparkFixupTypes extends FixupTypes {
         if (source.typeId() == Type.TypeID.UUID) {
           return true;
         }
+
         break;
       case BINARY:
         if (source.typeId() == Type.TypeID.FIXED) {
           return true;
         }
+
         break;
       case TIMESTAMP:
         if (source.typeId() == Type.TypeID.TIMESTAMP) {
           return true;
         }
+
         break;
       default:
     }
+
     return false;
   }
 }

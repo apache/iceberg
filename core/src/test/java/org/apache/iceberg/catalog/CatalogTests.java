@@ -1667,6 +1667,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (withBranch) {
       table.manageSnapshots().createBranch(branch).commit();
     }
+
     table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
     table.updateSpec().addField("data").commit();
@@ -2024,6 +2025,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .as("Table location should match requested")
           .isEqualTo(baseTableLocation(TABLE));
     }
+
     assertFiles(table, FILE_A);
     assertFilesPartitionSpec(table);
     assertPreviousMetadataFileCount(table, 0);
@@ -2122,6 +2124,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .as("Table location should match requested")
           .isEqualTo(baseTableLocation(TABLE));
     }
+
     assertFiles(table, FILE_A, anotherFile);
     assertFilePartitionSpec(table, FILE_A, initialSpecId);
     assertFilePartitionSpec(table, anotherFile, updateSpecId);

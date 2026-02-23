@@ -71,6 +71,7 @@ class ReachableFileCleanup extends FileCleanupStrategy {
         }
       }
     }
+
     Set<ManifestFile> deletionCandidates = readManifests(expiredSnapshots);
 
     if (!deletionCandidates.isEmpty()) {

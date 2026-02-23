@@ -1662,6 +1662,7 @@ public class TestRewriteManifests extends TestBase {
     for (ManifestFile originalDeleteManifest : originalDeleteManifests) {
       rewriteManifests.deleteManifest(originalDeleteManifest);
     }
+
     rewriteManifests.addManifest(newDeleteManifest);
 
     // the rewrite must fail

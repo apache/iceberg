@@ -112,6 +112,7 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
           } else {
             return FlinkOrcReaders.timestamps();
           }
+
         case STRING:
           return FlinkOrcReaders.strings();
         case UUID:

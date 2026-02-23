@@ -42,11 +42,13 @@ public class FakeSnowflakeClient implements SnowflakeClient {
     if (!databases.containsKey(tableIdentifier.databaseName())) {
       databases.put(tableIdentifier.databaseName(), Maps.newTreeMap());
     }
+
     Map<String, Map<String, SnowflakeTableMetadata>> schemas =
         databases.get(tableIdentifier.databaseName());
     if (!schemas.containsKey(tableIdentifier.schemaName())) {
       schemas.put(tableIdentifier.schemaName(), Maps.newTreeMap());
     }
+
     Map<String, SnowflakeTableMetadata> tables = schemas.get(tableIdentifier.schemaName());
     tables.put(tableIdentifier.tableName(), metadata);
   }
@@ -69,6 +71,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
     for (String databaseName : databases.keySet()) {
       databaseIdentifiers.add(SnowflakeIdentifier.ofDatabase(databaseName));
     }
+
     return databaseIdentifiers;
   }
 
@@ -85,6 +88,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
             schemas.add(SnowflakeIdentifier.ofSchema(db.getKey(), schema));
           }
         }
+
         break;
       case DATABASE:
         String dbName = scope.databaseName();
@@ -95,11 +99,13 @@ public class FakeSnowflakeClient implements SnowflakeClient {
         } else {
           throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
         }
+
         break;
       default:
         throw new IllegalArgumentException(
             String.format("Unsupported scope type for listSchemas: '%s'", scope));
     }
+
     return schemas;
   }
 
@@ -120,8 +126,10 @@ public class FakeSnowflakeClient implements SnowflakeClient {
               }
             }
           }
+
           break;
         }
+
       case DATABASE:
         {
           String dbName = scope.databaseName();
@@ -135,8 +143,10 @@ public class FakeSnowflakeClient implements SnowflakeClient {
           } else {
             throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
           }
+
           break;
         }
+
       case SCHEMA:
         {
           String dbName = scope.databaseName();
@@ -153,12 +163,15 @@ public class FakeSnowflakeClient implements SnowflakeClient {
           } else {
             throw new UncheckedSQLException("Object does not exist: database: '%s'", dbName);
           }
+
           break;
         }
+
       default:
         throw new IllegalArgumentException(
             String.format("Unsupported scope type for listing tables: %s", scope));
     }
+
     return tables;
   }
 
@@ -177,6 +190,7 @@ public class FakeSnowflakeClient implements SnowflakeClient {
         || !databases.get(dbName).get(schemaName).containsKey(tableIdentifier.tableName())) {
       throw new UncheckedSQLException("Object does not exist: object: '%s'", tableIdentifier);
     }
+
     return databases.get(dbName).get(schemaName).get(tableIdentifier.tableName());
   }
 

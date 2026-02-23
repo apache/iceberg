@@ -55,6 +55,7 @@ public class BaseCombinedScanTask implements CombinedScanTask {
     for (FileScanTask task : tasks) {
       sizeBytes += task.sizeBytes();
     }
+
     return sizeBytes;
   }
 
@@ -64,6 +65,7 @@ public class BaseCombinedScanTask implements CombinedScanTask {
     for (FileScanTask task : tasks) {
       estimatedRowsCount += task.estimatedRowsCount();
     }
+
     return estimatedRowsCount;
   }
 
@@ -73,6 +75,7 @@ public class BaseCombinedScanTask implements CombinedScanTask {
     for (FileScanTask task : tasks) {
       filesCount += task.filesCount();
     }
+
     return filesCount;
   }
 

@@ -231,6 +231,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
 
         lastSnapshotId = snapshotId;
       }
+
       LOG.debug(
           "Forwarded {} splits, time elapsed {}ms",
           splits.length,

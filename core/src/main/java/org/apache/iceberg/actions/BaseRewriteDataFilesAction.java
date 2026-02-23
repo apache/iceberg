@@ -254,6 +254,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     if (filteredGroupedTasks.isEmpty()) {
       return RewriteDataFilesActionResult.empty();
     }
+
     // Split and combine tasks under each partition
     List<CombinedScanTask> combinedScanTasks =
         filteredGroupedTasks.values().stream()
@@ -297,6 +298,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     } catch (IOException e) {
       LOG.warn("Failed to close task iterator", e);
     }
+
     return tasksGroupedByPartition.asMap();
   }
 

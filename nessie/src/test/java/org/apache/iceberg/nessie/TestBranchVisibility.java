@@ -85,6 +85,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
         api.deleteBranch().branch((Branch) reference).delete();
       }
     }
+
     testCatalog = null;
   }
 

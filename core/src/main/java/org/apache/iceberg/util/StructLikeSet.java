@@ -62,6 +62,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
       wrapper.set(null); // don't hold a reference to the value
       return result;
     }
+
     return false;
   }
 
@@ -110,6 +111,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
       wrapper.set(null); // don't hold a reference to the value
       return result;
     }
+
     return false;
   }
 
@@ -118,6 +120,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
     if (objects != null) {
       return Iterables.all(objects, this::contains);
     }
+
     return false;
   }
 
@@ -127,6 +130,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
       return Iterables.addAll(
           wrapperSet, Iterables.transform(structs, struct -> wrappers.get().copyFor(struct)));
     }
+
     return false;
   }
 
@@ -143,6 +147,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
         changed |= remove(object);
       }
     }
+
     return changed;
   }
 

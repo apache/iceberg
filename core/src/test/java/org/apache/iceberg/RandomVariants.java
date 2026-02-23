@@ -46,6 +46,7 @@ public class RandomVariants {
       for (int i = 0; i < numFields; i += 1) {
         randomNames.add(RandomUtil.generateString(10, random));
       }
+
       metadata =
           VariantMetadata.from(VariantTestUtil.createMetadata(randomNames, random.nextBoolean()));
     } else {

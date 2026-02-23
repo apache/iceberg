@@ -190,6 +190,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
           return CompletableFuture.supplyAsync(tasks.next(), workerPool);
         }
       }
+
       return null;
     }
 
@@ -232,6 +233,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
+
       return queue.poll();
     }
 

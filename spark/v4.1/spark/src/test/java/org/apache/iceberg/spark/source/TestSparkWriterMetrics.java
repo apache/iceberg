@@ -62,6 +62,7 @@ public class TestSparkWriterMetrics extends TestWriterMetrics<InternalRow> {
     for (int i = 0; i < repeated; i++) {
       row.update(i, value);
     }
+
     return row;
   }
 }

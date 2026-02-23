@@ -176,6 +176,7 @@ public class TestRollbackToSnapshotProcedure extends ExtensionsTestBase {
       quotedNamespaceBuilder.append(level);
       quotedNamespaceBuilder.append("`");
     }
+
     String quotedNamespace = quotedNamespaceBuilder.toString();
 
     List<Object[]> output =

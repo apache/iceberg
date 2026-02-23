@@ -142,6 +142,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
           throw new IllegalArgumentException("Unknown catalog impl");
       }
     }
+
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
   }
 

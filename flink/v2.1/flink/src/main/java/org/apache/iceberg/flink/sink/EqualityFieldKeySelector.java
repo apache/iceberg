@@ -59,6 +59,7 @@ public class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
     if (rowDataWrapper == null) {
       rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     }
+
     return rowDataWrapper;
   }
 
@@ -67,6 +68,7 @@ public class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
     if (structProjection == null) {
       structProjection = StructProjection.create(schema, deleteSchema);
     }
+
     return structProjection;
   }
 
@@ -75,6 +77,7 @@ public class EqualityFieldKeySelector implements KeySelector<RowData, Integer> {
     if (structLikeWrapper == null) {
       structLikeWrapper = StructLikeWrapper.forType(deleteSchema.asStruct());
     }
+
     return structLikeWrapper;
   }
 

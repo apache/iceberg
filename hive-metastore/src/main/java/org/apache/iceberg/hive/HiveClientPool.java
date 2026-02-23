@@ -68,6 +68,7 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
         if (e.getCause() instanceof MetaException) {
           throw (MetaException) e.getCause();
         }
+
         throw e;
       }
     } catch (MetaException e) {
@@ -94,6 +95,7 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
     } catch (MetaException e) {
       throw new RuntimeMetaException(e, "Failed to reconnect to Hive Metastore");
     }
+
     return client;
   }
 

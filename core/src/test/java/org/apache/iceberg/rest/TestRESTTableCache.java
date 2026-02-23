@@ -121,6 +121,7 @@ public class TestRESTTableCache {
     for (int i = 0; i < RESTCatalogProperties.TABLE_CACHE_MAX_ENTRIES_DEFAULT + 10; ++i) {
       cache.put(SESSION_ID, TableIdentifier.of("ns", "tbl" + i), TABLE_SUPPLIER, ETAG);
     }
+
     cache.cache().cleanUp();
 
     assertThat(cache.cache().asMap())

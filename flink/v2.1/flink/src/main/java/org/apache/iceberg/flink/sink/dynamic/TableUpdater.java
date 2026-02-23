@@ -170,6 +170,7 @@ class TableUpdater {
               throw e;
             }
           }
+
         default:
           throw new IllegalArgumentException("Unknown comparison result");
       }
@@ -221,6 +222,7 @@ class TableUpdater {
         throw e;
       }
     }
+
     return cache.spec(identifier, targetSpec);
   }
 }

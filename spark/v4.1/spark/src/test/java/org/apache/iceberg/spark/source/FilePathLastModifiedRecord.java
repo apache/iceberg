@@ -53,9 +53,11 @@ public class FilePathLastModifiedRecord {
     if (this == o) {
       return true;
     }
+
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
+
     FilePathLastModifiedRecord that = (FilePathLastModifiedRecord) o;
     return Objects.equals(filePath, that.filePath)
         && Objects.equals(lastModified, that.lastModified);

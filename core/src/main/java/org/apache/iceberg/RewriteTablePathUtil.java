@@ -220,6 +220,7 @@ public class RewriteTablePathUtil {
               newPath(metadataLog.file(), sourcePrefix, targetPrefix));
       metadataLogEntries.add(newMetadataLog);
     }
+
     return metadataLogEntries;
   }
 
@@ -244,6 +245,7 @@ public class RewriteTablePathUtil {
               snapshot.keyId());
       newSnapshots.add(newSnapshot);
     }
+
     return newSnapshots;
   }
 
@@ -309,6 +311,7 @@ public class RewriteTablePathUtil {
               .add(Pair.of(stagingPath(file.path(), sourcePrefix, stagingDir), newFile.path()));
         }
       }
+
       return result;
     } catch (IOException e) {
       throw new UncheckedIOException(
@@ -324,6 +327,7 @@ public class RewriteTablePathUtil {
     } catch (RuntimeIOException e) {
       LOG.warn("Failed to read manifest list {}", path, e);
     }
+
     return manifestFiles;
   }
 
@@ -435,6 +439,7 @@ public class RewriteTablePathUtil {
     if (entry.isLive() && snapshotIds.contains(entry.snapshotId())) {
       result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
     }
+
     return result;
   }
 
@@ -465,6 +470,7 @@ public class RewriteTablePathUtil {
                       stagingPath(file.location(), sourcePrefix, stagingLocation),
                       posDeleteFile.location()));
         }
+
         result.toRewrite().add(file);
         return result;
       case EQUALITY_DELETES:
@@ -477,6 +483,7 @@ public class RewriteTablePathUtil {
           // No need to rewrite equality delete files as they do not contain absolute file paths.
           result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
         }
+
         return result;
 
       default:
@@ -512,6 +519,7 @@ public class RewriteTablePathUtil {
               + " but was "
               + path);
     }
+
     int[] equalityFieldIds = file.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray();
     String newPath = newPath(path, sourcePrefix, targetPrefix);
     return FileMetadata.deleteFileBuilder(spec)
@@ -722,6 +730,7 @@ public class RewriteTablePathUtil {
               + " but was "
               + oldPath);
     }
+
     String newPath = newPath(oldPath, sourcePrefix, targetPrefix);
     delete.set(newPath, (Long) record.get(1), record.get(2));
     return delete;
@@ -769,6 +778,7 @@ public class RewriteTablePathUtil {
     if (lastIndex != -1) {
       filename = path.substring(lastIndex + 1);
     }
+
     return filename;
   }
 
@@ -794,6 +804,7 @@ public class RewriteTablePathUtil {
       throw new IllegalArgumentException(
           String.format("Path %s does not start with %s", normalizedPath, toRemove));
     }
+
     return normalizedPath.equals(toRemove) ? "" : path.substring(toRemove.length());
   }
 

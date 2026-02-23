@@ -42,6 +42,7 @@ public class FlinkPackage {
       } catch (Exception e) {
         detectedVersion = FLINK_UNKNOWN_VERSION;
       }
+
       VERSION.set(detectedVersion);
     }
 

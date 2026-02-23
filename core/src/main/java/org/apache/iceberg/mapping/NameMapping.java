@@ -84,6 +84,7 @@ public class NameMapping implements Serializable {
     if (fieldsById == null) {
       this.fieldsById = MappingUtil.indexById(mapping);
     }
+
     return fieldsById;
   }
 
@@ -91,6 +92,7 @@ public class NameMapping implements Serializable {
     if (fieldsByName == null) {
       this.fieldsByName = MappingUtil.indexByName(mapping);
     }
+
     return fieldsByName;
   }
 

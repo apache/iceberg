@@ -183,6 +183,7 @@ public class DataGenerators {
       for (int i = 0; i < 7; ++i) {
         binaryBytes[i] = (byte) i;
       }
+
       genericRecord.setField("binary_field", ByteBuffer.wrap(binaryBytes));
 
       genericRecord.setField("decimal_field", BIG_DECIMAL_NEGATIVE);
@@ -245,12 +246,14 @@ public class DataGenerators {
       for (int i = 0; i < 16; ++i) {
         uuidBytes[i] = (byte) i;
       }
+
       genericRecord.put("uuid_field", ByteBuffer.wrap(uuidBytes));
 
       byte[] binaryBytes = new byte[7];
       for (int i = 0; i < 7; ++i) {
         binaryBytes[i] = (byte) i;
       }
+
       genericRecord.put("binary_field", ByteBuffer.wrap(binaryBytes));
 
       BigDecimal bigDecimal = new BigDecimal("-1.50");

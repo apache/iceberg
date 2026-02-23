@@ -46,6 +46,7 @@ public class ParquetCodecFactory extends CodecFactory {
     if (codecClassName == null) {
       return null;
     }
+
     String cacheKey = cacheKey(codecName);
     CompressionCodec codec = CODEC_BY_NAME.get(cacheKey);
     if (codec != null) {
@@ -60,6 +61,7 @@ public class ParquetCodecFactory extends CodecFactory {
         // Try to load the class using the job classloader
         codecClass = configuration.getClassLoader().loadClass(codecClassName);
       }
+
       codec = (CompressionCodec) ReflectionUtils.newInstance(codecClass, configuration);
       CODEC_BY_NAME.put(cacheKey, codec);
       return codec;
@@ -84,10 +86,12 @@ public class ParquetCodecFactory extends CodecFactory {
           // keep "io.compression.codec.zstd.level" for backwards compatibility
           level = configuration.get("io.compression.codec.zstd.level");
         }
+
         break;
       default:
         // compression level is not supported; ignore it
     }
+
     String codecClass = codecName.getHadoopCompressionCodecClassName();
     return level == null ? codecClass : codecClass + ":" + level;
   }

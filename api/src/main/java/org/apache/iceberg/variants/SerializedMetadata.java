@@ -113,6 +113,7 @@ class SerializedMetadata implements VariantMetadata, Serialized {
               metadata, offsetListOffset + (offsetSize * (1 + index)), offsetSize);
       dict[index] = VariantUtil.readString(metadata, dataOffset + offset, next - offset);
     }
+
     return dict[index];
   }
 

@@ -61,6 +61,9 @@ subprojects {
         // so we stick to 1.22.0 to produce consistent result for JDK 17/21
         googleJavaFormat("1.22.0")
         removeUnusedImports()
+        replaceRegex('Blank line required after closing brace',
+            '(?m)(^[ \\t]*\\}[ \\t]*\\n)(?![ \\t]*\\n)(?![ \\t]*\\})(?![ \\t]*\\z)',
+            "\$1\n")
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
 

@@ -49,6 +49,7 @@ public interface PositionDeleteIndex {
     if (!that.deleteFiles().isEmpty()) {
       throw new UnsupportedOperationException(getClass().getName() + " does not support merge");
     }
+
     that.forEach(this::delete);
   }
 

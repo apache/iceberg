@@ -109,6 +109,7 @@ public class ParquetUtil {
     for (BlockMetaData blockMetaData : md.getBlocks()) {
       splitOffsets.add(blockMetaData.getStartingPos());
     }
+
     Collections.sort(splitOffsets);
     return splitOffsets;
   }
@@ -154,6 +155,7 @@ public class ParquetUtil {
         throw new ParquetDecodingException("could not decode the dictionary for " + desc, e);
       }
     }
+
     return null;
   }
 
@@ -169,6 +171,7 @@ public class ParquetUtil {
           return false;
       }
     }
+
     return primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32;
   }
 

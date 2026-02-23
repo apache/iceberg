@@ -82,6 +82,7 @@ public class TestSingleBufferInputStream extends TestByteBufferInputStreams {
     for (; i < 16; i += 1) {
       assertThat(two.get()).as("Should produce correct values").isEqualTo((byte) i);
     }
+
     // three is a copy of part of the 4th buffer
     ByteBuffer three = buffers.get(2);
     assertThat(three.array()).as("Should use the same backing array").isSameAs(DATA.array());

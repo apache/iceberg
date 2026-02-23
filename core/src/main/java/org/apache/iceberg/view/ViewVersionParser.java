@@ -60,6 +60,7 @@ public class ViewVersionParser {
     for (ViewRepresentation representation : version.representations()) {
       ViewRepresentationParser.toJson(representation, generator);
     }
+
     generator.writeEndArray();
 
     generator.writeEndObject();

@@ -116,6 +116,7 @@ class InheritableMetadataFactory {
         throw new IllegalArgumentException(
             "Entries must have explicit snapshot ids if inherited metadata is empty");
       }
+
       return manifestEntry;
     }
   }

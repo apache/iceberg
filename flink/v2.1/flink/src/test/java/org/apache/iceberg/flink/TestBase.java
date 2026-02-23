@@ -86,6 +86,7 @@ public abstract class TestBase extends SqlBase {
         }
       }
     }
+
     return tEnv;
   }
 

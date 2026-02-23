@@ -61,6 +61,7 @@ public class FlinkSplitPlanner {
                 if (exposeLocality) {
                   hostnames = Util.blockLocations(table.io(), task);
                 }
+
                 splits[index] = new FlinkInputSplit(index, task, hostnames);
               });
       return splits;

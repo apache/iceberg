@@ -125,6 +125,7 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
     for (Map.Entry<String, String> entry : map.entrySet()) {
       builder.put(entry.getKey(), Sets.newHashSet(entry.getValue()));
     }
+
     return builder.build();
   }
 }

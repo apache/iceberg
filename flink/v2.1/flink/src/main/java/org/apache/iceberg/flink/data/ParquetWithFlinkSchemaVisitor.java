@@ -137,6 +137,7 @@ public class ParquetWithFlinkSchemaVisitor<T> {
                 valueResult = visitField(valueField, keyOrValue, visitor);
                 // key result remains null
               }
+
               break;
             default:
               // both results will remain null
@@ -148,6 +149,7 @@ public class ParquetWithFlinkSchemaVisitor<T> {
           visitor.fieldNames.pop();
         }
       }
+
       Preconditions.checkArgument(
           sType instanceof RowType, "Invalid struct: %s is not a struct", sType);
       RowType struct = (RowType) sType;

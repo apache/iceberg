@@ -131,6 +131,7 @@ class S3URI {
     if (key.endsWith(PATH_DELIM)) {
       return this;
     }
+
     return new S3URI(String.format("%s://%s/%s/", scheme, bucket, key));
   }
 

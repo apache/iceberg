@@ -624,6 +624,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
     for (int id = -400; id <= 0; id++) {
       ids.add(id);
     }
+
     assertThat(shouldRead(in(extract("variant", "$.event_id", "long"), ids)))
         .as("Should read: large in expression")
         .isTrue();

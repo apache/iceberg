@@ -299,6 +299,7 @@ class StructInternalRow extends InternalRow {
     } else if (dataType instanceof VariantType) {
       return getVariantInternal(ordinal);
     }
+
     return null;
   }
 

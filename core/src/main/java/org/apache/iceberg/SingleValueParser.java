@@ -94,6 +94,7 @@ public class SingleValueParser {
           throw new IllegalArgumentException(
               String.format("Cannot parse default as a %s value: %s", type, defaultValue), e);
         }
+
         Preconditions.checkArgument(
             retDecimal.scale() == ((Types.DecimalType) type).scale(),
             "Cannot parse default as a %s value: %s, the scale doesn't match",
@@ -117,6 +118,7 @@ public class SingleValueParser {
           throw new IllegalArgumentException(
               String.format("Cannot parse default as a %s value: %s", type, defaultValue), e);
         }
+
         return uuid;
       case DATE:
         Preconditions.checkArgument(
@@ -140,6 +142,7 @@ public class SingleValueParser {
         } else {
           return DateTimeUtil.isoTimestampToMicros(defaultValue.textValue());
         }
+
       case TIMESTAMP_NANO:
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
@@ -154,6 +157,7 @@ public class SingleValueParser {
         } else {
           return DateTimeUtil.isoTimestampToNanos(defaultValue.textValue());
         }
+
       case FIXED:
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
@@ -199,6 +203,7 @@ public class SingleValueParser {
         defaultRecord.set(pos, fromJson(field.type(), defaultValue.get(idString)));
       }
     }
+
     return defaultRecord;
   }
 
@@ -302,6 +307,7 @@ public class SingleValueParser {
         } else {
           generator.writeString(DateTimeUtil.microsToIsoTimestamp((Long) defaultValue));
         }
+
         break;
       case TIMESTAMP_NANO:
         Preconditions.checkArgument(
@@ -311,6 +317,7 @@ public class SingleValueParser {
         } else {
           generator.writeString(DateTimeUtil.nanosToIsoTimestamp((Long) defaultValue));
         }
+
         break;
       case STRING:
         Preconditions.checkArgument(
@@ -357,6 +364,7 @@ public class SingleValueParser {
         } else {
           generator.writeString(decimalValue.toString());
         }
+
         break;
       case LIST:
         Preconditions.checkArgument(
@@ -367,6 +375,7 @@ public class SingleValueParser {
         for (Object element : defaultList) {
           toJson(elementType, element, generator);
         }
+
         generator.writeEndArray();
         break;
       case MAP:
@@ -383,11 +392,13 @@ public class SingleValueParser {
           toJson(keyType, entry.getKey(), generator);
           valueList.add(entry.getValue());
         }
+
         generator.writeEndArray();
         generator.writeArrayFieldStart(VALUES);
         for (Object value : valueList) {
           toJson(valueType, value, generator);
         }
+
         generator.writeEndArray();
         generator.writeEndObject();
         break;
@@ -408,6 +419,7 @@ public class SingleValueParser {
             toJson(field.type(), fieldDefaultValue, generator);
           }
         }
+
         generator.writeEndObject();
         break;
       default:

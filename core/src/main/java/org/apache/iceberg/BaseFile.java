@@ -231,6 +231,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.lowerBounds = null;
       this.upperBounds = null;
     }
+
     this.keyMetadata =
         toCopy.keyMetadata == null
             ? null
@@ -304,6 +305,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
     }
+
     return avroSchema;
   }
 

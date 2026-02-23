@@ -130,6 +130,7 @@ public class ParquetTypeVisitor<T> {
           } finally {
             visitor.afterKeyField(keyType);
           }
+
           Type valueType = repeatedKeyValue.getType(1);
           visitor.beforeValueField(valueType);
           try {
@@ -137,6 +138,7 @@ public class ParquetTypeVisitor<T> {
           } finally {
             visitor.afterValueField(valueType);
           }
+
           break;
 
         case 1:
@@ -149,6 +151,7 @@ public class ParquetTypeVisitor<T> {
             } finally {
               visitor.afterKeyField(keyOrValue);
             }
+
             // value result remains null
           } else {
             visitor.beforeValueField(keyOrValue);
@@ -157,8 +160,10 @@ public class ParquetTypeVisitor<T> {
             } finally {
               visitor.afterValueField(keyOrValue);
             }
+
             // key result remains null
           }
+
           break;
 
         default:

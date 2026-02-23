@@ -118,6 +118,7 @@ class CompletedStatistics {
       if (null == keyFrequency()) {
         return false;
       }
+
       if (keyFrequency().values().contains(null)) {
         return false;
       }

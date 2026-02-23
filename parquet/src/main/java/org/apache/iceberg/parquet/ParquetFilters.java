@@ -77,6 +77,7 @@ class ParquetFilters {
       } else if (child == AlwaysFalse.INSTANCE) {
         return AlwaysTrue.INSTANCE;
       }
+
       return FilterApi.not(child);
     }
 
@@ -89,6 +90,7 @@ class ParquetFilters {
       } else if (right == AlwaysTrue.INSTANCE) {
         return left;
       }
+
       return FilterApi.and(left, right);
     }
 
@@ -101,6 +103,7 @@ class ParquetFilters {
       } else if (right == AlwaysFalse.INSTANCE) {
         return left;
       }
+
       return FilterApi.or(left, right);
     }
 
@@ -136,6 +139,7 @@ class ParquetFilters {
             case NOT_EQ:
               return FilterApi.notEq(col, getParquetPrimitive(lit));
           }
+
           break;
         case INTEGER:
         case DATE:
@@ -169,6 +173,7 @@ class ParquetFilters {
       } else if (bound == Expressions.alwaysFalse()) {
         return AlwaysFalse.INSTANCE;
       }
+
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
     }
   }
@@ -189,6 +194,7 @@ class ParquetFilters {
         } else {
           return AlwaysFalse.INSTANCE;
         }
+
       case NOT_NAN:
         if (col.getColumnType().equals(Double.class)) {
           return FilterApi.notEq(col, (C) (Double) Double.NaN);
@@ -197,6 +203,7 @@ class ParquetFilters {
         } else {
           return AlwaysTrue.INSTANCE;
         }
+
       case EQ:
         return FilterApi.eq(col, value);
       case NOT_EQ:
@@ -229,6 +236,7 @@ class ParquetFilters {
     } else if (value instanceof ByteBuffer) {
       return (C) Binary.fromReusedByteBuffer((ByteBuffer) value);
     }
+
     throw new UnsupportedOperationException(
         "Type not supported yet: " + value.getClass().getName());
   }

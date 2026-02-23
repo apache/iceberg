@@ -124,6 +124,7 @@ public class MetricsModes {
       } else if (!(other instanceof Truncate)) {
         return false;
       }
+
       Truncate truncate = (Truncate) other;
       return length == truncate.length;
     }

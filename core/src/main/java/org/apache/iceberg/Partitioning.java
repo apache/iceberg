@@ -156,6 +156,7 @@ public class Partitioning {
         this.highestNumBuckets = numBuckets;
         this.bucketColumn = sourceName;
       }
+
       builder.asc(Expressions.bucket(sourceName, numBuckets));
       return null;
     }

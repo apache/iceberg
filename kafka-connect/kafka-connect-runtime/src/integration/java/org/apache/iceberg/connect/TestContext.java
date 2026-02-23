@@ -54,6 +54,7 @@ public class TestContext {
     if (instance == null) {
       instance = new TestContext();
     }
+
     return instance;
   }
 

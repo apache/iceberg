@@ -193,6 +193,7 @@ public class HadoopTables implements Tables, Configurable {
         // so it has to call dropTableData to force delete the data file.
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
       }
+
       Path tablePath = new Path(location);
       Util.getFs(tablePath, conf).delete(tablePath, true /* recursive */);
       return true;
@@ -318,6 +319,7 @@ public class HadoopTables implements Tables, Configurable {
       if (properties != null) {
         propertiesBuilder.putAll(properties);
       }
+
       return this;
     }
 

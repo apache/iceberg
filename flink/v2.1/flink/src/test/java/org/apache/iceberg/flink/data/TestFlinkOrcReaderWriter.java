@@ -84,6 +84,7 @@ public class TestFlinkOrcReaderWriter extends DataTestBase {
         assertThat(rows).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
+
       assertThat(rows).isExhausted();
     }
 
@@ -112,6 +113,7 @@ public class TestFlinkOrcReaderWriter extends DataTestBase {
         assertThat(records.hasNext()).isTrue();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, records.next(), expected.next());
       }
+
       assertThat(records).isExhausted();
     }
   }

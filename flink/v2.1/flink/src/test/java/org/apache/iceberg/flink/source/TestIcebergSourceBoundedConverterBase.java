@@ -99,6 +99,7 @@ public abstract class TestIcebergSourceBoundedConverterBase<T> {
     for (Record expectedRecord : expectedRecords) {
       expectedRecord.setField("dt", dateStr);
     }
+
     addRecordsToPartitionedTable(table, dateStr, expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
   }
@@ -187,6 +188,7 @@ public abstract class TestIcebergSourceBoundedConverterBase<T> {
     if (useConverter) {
       return createSourceBuilderWithConverter(readSchema, config, table);
     }
+
     return createSourceBuilderWithReaderFunction(table, projectedSchema, filters, config);
   }
 

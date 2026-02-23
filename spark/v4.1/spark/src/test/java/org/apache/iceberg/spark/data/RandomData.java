@@ -84,6 +84,7 @@ public class RandomData {
             if (count >= numRecords) {
               throw new NoSuchElementException();
             }
+
             count += 1;
             return (InternalRow) TypeUtil.visit(schema, generator);
           }
@@ -130,6 +131,7 @@ public class RandomData {
             if (count >= numRecords) {
               throw new NoSuchElementException();
             }
+
             count += 1;
             return (Record) TypeUtil.visit(schema, generator);
           }
@@ -173,6 +175,7 @@ public class RandomData {
       if (field.isOptional() && isNull()) {
         return null;
       }
+
       return fieldResult.get();
     }
 
@@ -285,6 +288,7 @@ public class RandomData {
       if (field.isOptional() && isNull()) {
         return null;
       }
+
       return fieldResult.get();
     }
 

@@ -131,6 +131,7 @@ public class TypeToMessageType {
       } else if (nested.isListType()) {
         return list(nested.asListType(), repetition, id, name);
       }
+
       throw new UnsupportedOperationException("Can't convert unknown type: " + nested);
     }
   }
@@ -228,12 +229,14 @@ public class TypeToMessageType {
         } else {
           return Types.primitive(INT64, repetition).as(TIMESTAMP_MICROS).id(id).named(name);
         }
+
       case TIMESTAMP_NANO:
         if (((TimestampNanoType) primitive).shouldAdjustToUTC()) {
           return Types.primitive(INT64, repetition).as(TIMESTAMPTZ_NANOS).id(id).named(name);
         } else {
           return Types.primitive(INT64, repetition).as(TIMESTAMP_NANOS).id(id).named(name);
         }
+
       case STRING:
         return Types.primitive(BINARY, repetition).as(STRING).id(id).named(name);
       case BINARY:

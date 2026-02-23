@@ -142,6 +142,7 @@ class IncrementalDataTableScan extends DataTableScan {
                 DataOperations.OVERWRITE, fromSnapshotId, toSnapshotId));
       }
     }
+
     return snapshots;
   }
 

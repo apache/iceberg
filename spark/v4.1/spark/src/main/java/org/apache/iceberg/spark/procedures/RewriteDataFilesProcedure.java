@@ -126,6 +126,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
         branchParam = SnapshotRef.MAIN_BRANCH;
       }
     }
+
     String branch = branchParam;
 
     return modifyIcebergTable(
@@ -152,6 +153,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       Expression expression = filterExpression(ident, where);
       return action.filter(expression);
     }
+
     return action;
   }
 
@@ -192,6 +194,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
         return action.sort();
       }
     }
+
     if (strategy.equalsIgnoreCase("binpack")) {
       RewriteDataFilesSparkAction binPackAction = action.binPack();
       if (sortOrderString != null) {
@@ -199,6 +202,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
         // order
         return binPackAction.sort(buildSortOrder(sortOrderFields, schema));
       }
+
       return binPackAction;
     } else {
       throw new IllegalArgumentException(

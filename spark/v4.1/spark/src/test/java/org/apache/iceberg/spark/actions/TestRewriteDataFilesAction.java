@@ -743,6 +743,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     } else {
       deleteFile = writePosDeletesToFile(table, dataFile, 1).get(0);
     }
+
     table.newRowDelta().addDeletes(deleteFile).commit();
 
     // partition evolution
@@ -918,6 +919,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     for (int i = 0; i < 100; i++) {
       records.add(new ThreeColumnRecord(i, String.valueOf(i), String.valueOf(i % 4)));
     }
+
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
     writeDF(df);
 
@@ -2445,6 +2447,7 @@ public class TestRewriteDataFilesAction extends TestBase {
           i ->
               records.add(new ThreeColumnRecord(i.first(), "foo" + i.first(), "bar" + i.second())));
     }
+
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).repartition(files);
     writeDF(df);
   }
@@ -2596,6 +2599,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+
     table.newRowDelta().addDeletes(eqDeleteWriter.toDeleteFile()).commit();
   }
 
@@ -2640,6 +2644,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     for (int i = 0; i < cols.length; i++) {
       restriction = Expressions.and(restriction, Expressions.equal(cols[i], values[i]));
     }
+
     int totalFiles = Iterables.size(table.newScan().planFiles());
     int filteredFiles = Iterables.size(table.newScan().filter(restriction).planFiles());
     return (double) filteredFiles / (double) totalFiles;

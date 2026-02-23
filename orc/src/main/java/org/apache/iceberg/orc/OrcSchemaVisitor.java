@@ -61,6 +61,7 @@ public abstract class OrcSchemaVisitor<T> {
         } finally {
           visitor.afterElementField(element);
         }
+
         return visitor.list(schema, elementResult);
 
       case MAP:
@@ -82,6 +83,7 @@ public abstract class OrcSchemaVisitor<T> {
         } finally {
           visitor.afterValueField(value);
         }
+
         return visitor.map(schema, keyResult, valueResult);
 
       default:
@@ -105,6 +107,7 @@ public abstract class OrcSchemaVisitor<T> {
         visitor.afterField(name, field);
       }
     }
+
     return results;
   }
 

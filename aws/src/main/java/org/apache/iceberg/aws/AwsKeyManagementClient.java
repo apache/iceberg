@@ -125,6 +125,7 @@ public class AwsKeyManagementClient implements KeyManagementClient {
         }
       }
     }
+
     return kmsClient;
   }
 }

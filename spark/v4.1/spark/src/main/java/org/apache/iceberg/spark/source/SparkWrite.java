@@ -606,9 +606,11 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
           lastCommittedEpochId = Long.valueOf(summary.get(EPOCH_ID_PROPERTY));
           break;
         }
+
         Long parentSnapshotId = snapshot.parentId();
         snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
       }
+
       return lastCommittedEpochId;
     }
 
@@ -637,6 +639,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
         append.appendFile(file);
         numFiles++;
       }
+
       commit(
           append,
           epochId,
@@ -659,6 +662,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
         overwriteFiles.addFile(file);
         numFiles++;
       }
+
       commit(
           overwriteFiles,
           epochId,
@@ -848,6 +852,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       } else {
         this.delegate = new ClusteredDataWriter<>(writerFactory, fileFactory, io, targetFileSize);
       }
+
       this.io = io;
       this.spec = spec;
       this.partitionKey = new PartitionKey(spec, dataSchema);

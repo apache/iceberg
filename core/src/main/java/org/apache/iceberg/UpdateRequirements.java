@@ -133,6 +133,7 @@ public class UpdateRequirements {
         if (base != null) {
           require(new UpdateRequirement.AssertLastAssignedFieldId(base.lastColumnId()));
         }
+
         this.addedSchema = true;
       }
     }
@@ -147,6 +148,7 @@ public class UpdateRequirements {
           require(
               new UpdateRequirement.AssertLastAssignedPartitionId(base.lastAssignedPartitionId()));
         }
+
         this.addedSpec = true;
       }
     }
@@ -161,6 +163,7 @@ public class UpdateRequirements {
           // require that the default write order has not changed
           require(new UpdateRequirement.AssertDefaultSortOrderID(base.defaultSortOrderId()));
         }
+
         this.setOrderId = true;
       }
     }
@@ -184,6 +187,7 @@ public class UpdateRequirements {
         if (base != null && !isReplace) {
           require(new UpdateRequirement.AssertDefaultSpecID(base.defaultSpecId()));
         }
+
         this.setSpecId = true;
       }
     }
@@ -193,6 +197,7 @@ public class UpdateRequirements {
         if (base != null && !isReplace) {
           require(new UpdateRequirement.AssertCurrentSchemaID(base.currentSchemaId()));
         }
+
         this.setSchemaId = true;
       }
     }

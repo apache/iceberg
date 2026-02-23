@@ -124,6 +124,7 @@ public class RESTCatalogServer {
     for (Connector connector : httpServer.getConnectors()) {
       ((ServerConnector) connector).setReusePort(true);
     }
+
     httpServer.start();
 
     if (join) {

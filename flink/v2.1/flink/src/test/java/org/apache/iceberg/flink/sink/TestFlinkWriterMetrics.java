@@ -57,6 +57,7 @@ public class TestFlinkWriterMetrics extends TestWriterMetrics<RowData> {
     for (int i = 0; i < repeated; i++) {
       row.setField(i, value);
     }
+
     return row;
   }
 

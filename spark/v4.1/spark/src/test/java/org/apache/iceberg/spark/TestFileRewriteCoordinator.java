@@ -257,6 +257,7 @@ public class TestFileRewriteCoordinator extends CatalogTestBase {
     for (int index = 0; index < numRecords; index++) {
       data.add(new SimpleRecord(index, Integer.toString(index)));
     }
+
     return spark.createDataFrame(data, SimpleRecord.class);
   }
 }

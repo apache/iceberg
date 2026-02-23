@@ -514,8 +514,10 @@ public class ExpressionUtil {
                 sanitizedValues.size() - abbreviatedSize,
                 sanitizedValues.size()));
       }
+
       return abbreviatedList;
     }
+
     return sanitizedValues;
   }
 
@@ -695,6 +697,7 @@ public class ExpressionUtil {
         builder.append(sanitizeSimpleString(fieldValue.toString()));
         break;
     }
+
     return builder.toString();
   }
 

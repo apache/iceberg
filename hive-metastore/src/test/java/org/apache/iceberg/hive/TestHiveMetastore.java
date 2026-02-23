@@ -191,15 +191,19 @@ public class TestHiveMetastore {
     if (clientPool != null) {
       clientPool.close();
     }
+
     if (server != null) {
       server.stop();
     }
+
     if (executorService != null) {
       executorService.shutdown();
     }
+
     if (baseHandler != null) {
       baseHandler.shutdown();
     }
+
     METASTORE_THREADS_SHUTDOWN.invoke();
   }
 

@@ -79,6 +79,7 @@ public class ViewMetadataParser {
     for (Schema schema : metadata.schemas()) {
       SchemaParser.toJson(schema, gen);
     }
+
     gen.writeEndArray();
 
     gen.writeNumberField(CURRENT_VERSION_ID, metadata.currentVersionId());
@@ -86,12 +87,14 @@ public class ViewMetadataParser {
     for (ViewVersion version : metadata.versions()) {
       ViewVersionParser.toJson(version, gen);
     }
+
     gen.writeEndArray();
 
     gen.writeArrayFieldStart(VERSION_LOG);
     for (ViewHistoryEntry viewHistoryEntry : metadata.history()) {
       ViewHistoryEntryParser.toJson(viewHistoryEntry, gen);
     }
+
     gen.writeEndArray();
 
     gen.writeEndObject();

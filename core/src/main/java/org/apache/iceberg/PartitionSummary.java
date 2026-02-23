@@ -93,6 +93,7 @@ class PartitionSummary {
         if (comparator.compare(value, min) < 0) {
           this.min = value;
         }
+
         if (comparator.compare(max, value) < 0) {
           this.max = value;
         }

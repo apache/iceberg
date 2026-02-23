@@ -75,6 +75,7 @@ public class ReachableFileUtil {
       for (MetadataLogEntry metadataLogEntry : metadataLogEntries) {
         metadataFileLocations.add(metadataLogEntry.file());
       }
+
       if (recursive) {
         TableMetadata previousMetadata = findFirstExistentPreviousMetadata(metadataLogEntries, io);
         if (previousMetadata != null) {
@@ -95,6 +96,7 @@ public class ReachableFileUtil {
         LOG.error("Failed to load {}", metadataLogEntry, e);
       }
     }
+
     return metadata;
   }
 
@@ -128,6 +130,7 @@ public class ReachableFileUtil {
         manifestListLocations.add(manifestListLocation);
       }
     }
+
     return manifestListLocations;
   }
 

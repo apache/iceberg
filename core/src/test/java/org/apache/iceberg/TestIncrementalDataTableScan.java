@@ -267,6 +267,7 @@ public class TestIncrementalDataTableScan extends TestBase {
     for (DataFile f : adds) {
       appendFiles.appendFile(f);
     }
+
     appendFiles.commit();
   }
 
@@ -274,6 +275,7 @@ public class TestIncrementalDataTableScan extends TestBase {
     for (DataFile f : deletes) {
       deleteFiles.deleteFile(f);
     }
+
     deleteFiles.commit();
   }
 
@@ -288,9 +290,11 @@ public class TestIncrementalDataTableScan extends TestBase {
     for (DataFile f : adds) {
       overwriteFiles.addFile(f);
     }
+
     for (DataFile f : deletes) {
       overwriteFiles.deleteFile(f);
     }
+
     overwriteFiles.commit();
   }
 

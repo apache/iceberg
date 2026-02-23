@@ -136,6 +136,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   if (file.snapshotId() != null) {
                     return file;
                   }
+
                   return addMetadata(ops, file);
                 });
     this.targetManifestSizeBytes =
@@ -520,6 +521,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         if (cleanupAfterCommit()) {
           cleanUncommitted(Sets.newHashSet(committedSnapshot.allManifests(ops.io())));
         }
+
         // also clean up unused manifest lists created by multiple attempts
         for (String manifestList : manifestLists) {
           if (!committedSnapshot.manifestListLocation().equals(manifestList)) {
@@ -570,6 +572,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     for (String manifestList : manifestLists) {
       deleteFile(manifestList);
     }
+
     manifestLists.clear();
     cleanUncommitted(EMPTY_SET);
   }
@@ -634,6 +637,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         }
       }
     }
+
     return snapshotId;
   }
 
@@ -772,6 +776,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     for (int i = 0; i < results.length(); i++) {
       builder.addAll(results.get(i));
     }
+
     return builder.build();
   }
 
@@ -820,6 +825,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             if (snapshotId == null) {
               snapshotId = entry.snapshotId();
             }
+
             break;
           case EXISTING:
             existingFiles += 1;
@@ -831,6 +837,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             if (snapshotId == null) {
               snapshotId = entry.snapshotId();
             }
+
             break;
         }
 

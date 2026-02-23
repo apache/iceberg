@@ -1073,6 +1073,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       for (ManifestFile cachedNewDeleteManifest : cachedNewDeleteManifests) {
         deleteFile(cachedNewDeleteManifest.path());
       }
+
       // this triggers a rewrite of all delete manifests even if there is only one new delete file
       // if there is a relevant use case in the future, the behavior can be optimized
       cachedNewDeleteManifests.clear();

@@ -246,6 +246,7 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
           .as("Schema ID for current snapshot should match")
           .isEqualTo(expected.currentSnapshot().schemaId());
     }
+
     assertThat(actual.metadataFileLocation())
         .as("Metadata file location should match")
         .isEqualTo(expected.metadataFileLocation());

@@ -279,6 +279,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
         validSnapshots.add(snapshot);
       }
     }
+
     return validSnapshots;
   }
 
@@ -287,6 +288,7 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
     for (int i = 0; i < records.length; i++) {
       records[i] = record((int) rows.get(i).getField(0), (String) rows.get(i).getField(1));
     }
+
     return SimpleDataUtil.expectedRowSet(table, records);
   }
 

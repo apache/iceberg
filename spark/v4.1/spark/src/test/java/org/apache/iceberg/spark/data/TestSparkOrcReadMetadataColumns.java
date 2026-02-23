@@ -176,6 +176,7 @@ public class TestSparkOrcReadMetadataColumns {
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to open file: %s", testFile);
     }
+
     List<Long> splitOffsets =
         reader.getStripes().stream().map(StripeInformation::getOffset).collect(Collectors.toList());
     List<Long> splitLengths =
@@ -239,6 +240,7 @@ public class TestSparkOrcReadMetadataColumns {
         assertThat(actualRows).as("Should have expected number of rows").hasNext();
         TestHelpers.assertEquals(PROJECTION_SCHEMA, expectedRows.next(), actualRows.next());
       }
+
       assertThat(actualRows).as("Should not have extra rows").isExhausted();
     } finally {
       if (reader != null) {

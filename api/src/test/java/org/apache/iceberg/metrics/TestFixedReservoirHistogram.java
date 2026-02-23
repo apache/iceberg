@@ -115,6 +115,7 @@ public class TestFixedReservoirHistogram {
                             for (int i = 1; i <= 100; ++i) {
                               histogram.update((long) threadIndex * samplesPerThread + i);
                             }
+
                             return threadIndex;
                           } catch (Exception e) {
                             throw new RuntimeException(e);

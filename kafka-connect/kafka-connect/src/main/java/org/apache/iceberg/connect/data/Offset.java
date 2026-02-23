@@ -46,9 +46,11 @@ public class Offset implements Comparable<Offset> {
     if (Objects.equals(this.offset, other.offset)) {
       return 0;
     }
+
     if (this.offset == null || (other.offset != null && other.offset > this.offset)) {
       return -1;
     }
+
     return 1;
   }
 }

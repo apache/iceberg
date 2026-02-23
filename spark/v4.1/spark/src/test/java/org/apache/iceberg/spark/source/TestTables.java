@@ -53,6 +53,7 @@ class TestTables {
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
+
     ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), properties));
     return new TestTable(ops, name);
   }
@@ -62,6 +63,7 @@ class TestTables {
     if (ops.current() == null) {
       return null;
     }
+
     return new TestTable(ops, name);
   }
 
@@ -138,6 +140,7 @@ class TestTables {
       synchronized (METADATA) {
         this.current = METADATA.get(tableName);
       }
+
       return current;
     }
 
@@ -146,6 +149,7 @@ class TestTables {
       if (base != current) {
         throw new CommitFailedException("Cannot commit changes based on stale metadata");
       }
+
       synchronized (METADATA) {
         refresh();
         if (base == current) {
@@ -153,6 +157,7 @@ class TestTables {
             this.failCommits -= 1;
             throw new CommitFailedException("Injected failure");
           }
+
           METADATA.put(tableName, metadata);
           this.current = metadata;
         } else {

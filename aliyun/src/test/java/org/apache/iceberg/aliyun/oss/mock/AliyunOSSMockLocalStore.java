@@ -80,12 +80,14 @@ public class AliyunOSSMockLocalStore {
     } catch (NoSuchAlgorithmException e) {
       throw new RuntimeException(e);
     }
+
     byte[] bytes = new byte[1024];
     int numBytes;
 
     while ((numBytes = is.read(bytes)) != -1) {
       md.update(bytes, 0, numBytes);
     }
+
     return Hex.encodeHexString(md.digest(), false);
   }
 

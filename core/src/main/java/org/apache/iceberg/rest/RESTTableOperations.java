@@ -138,6 +138,7 @@ class RESTTableOperations implements TableOperations {
     } else {
       this.current = current;
     }
+
     this.endpoints = endpoints;
   }
 
@@ -257,12 +258,14 @@ class RESTTableOperations implements TableOperations {
         if (addedSnapshotId != null) {
           return null; // multiple snapshot adds -> not safe
         }
+
         addedSnapshotId = ((MetadataUpdate.AddSnapshot) update).snapshot().snapshotId();
       } else if (update instanceof MetadataUpdate.SetSnapshotRef) {
         MetadataUpdate.SetSnapshotRef setRef = (MetadataUpdate.SetSnapshotRef) update;
         if (!SnapshotRef.MAIN_BRANCH.equals(setRef.name())) {
           return null; // only allow main ref update
         }
+
         mainRefSnapshotId = setRef.snapshotId();
       } else {
         // any other update type makes this not a pure snapshot-add

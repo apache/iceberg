@@ -156,6 +156,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
       // Generate records where the timestamps are out of order, but still between 0-5 minutes
       batch.add(generateRecord(4 - i % 5, "file_2-recordTs_" + i));
     }
+
     expectedRecords.addAll(batch);
     dataAppender.appendToTable(batch);
 

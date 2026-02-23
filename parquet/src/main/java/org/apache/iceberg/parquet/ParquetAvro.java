@@ -97,6 +97,7 @@ class ParquetAvro {
         default:
           throw new IllegalArgumentException("Invalid base type for decimal: " + schema);
       }
+
       Preconditions.checkArgument(scale >= 0, "Scale %s cannot be negative", scale);
       Preconditions.checkArgument(
           scale <= precision, "Scale %s cannot be less than precision %s", scale, precision);
@@ -221,6 +222,7 @@ class ParquetAvro {
           } else if ("uuid".equals(logicalType.getName())) {
             return (Conversion<T>) uuidConversion;
           }
+
           return super.getConversionByClass(datumClass, logicalType);
         }
 
@@ -243,6 +245,7 @@ class ParquetAvro {
           } else if ("uuid".equals(logicalType.getName())) {
             return (Conversion<Object>) uuidConversion;
           }
+
           return super.getConversionFor(logicalType);
         }
       };
@@ -282,6 +285,7 @@ class ParquetAvro {
       if (!isIdentical(union.getTypes(), options)) {
         return Schema.createUnion(options);
       }
+
       return union;
     }
 
@@ -290,6 +294,7 @@ class ParquetAvro {
       if (!Objects.equal(array.getElementType(), element)) {
         return Schema.createArray(element);
       }
+
       return array;
     }
 
@@ -298,6 +303,7 @@ class ParquetAvro {
       if (!Objects.equal(map.getValueType(), value)) {
         return Schema.createMap(value);
       }
+
       return map;
     }
 

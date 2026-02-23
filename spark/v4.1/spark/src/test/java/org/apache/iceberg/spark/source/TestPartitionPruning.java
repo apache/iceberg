@@ -250,6 +250,7 @@ public class TestPartitionPruning {
     } else {
       filterCond = "timestamp >= '2020-02-03T01:00:00'";
     }
+
     Predicate<Row> partCondition =
         (Row r) -> {
           int hourValue = r.getInt(4);

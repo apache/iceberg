@@ -60,6 +60,7 @@ public class ParquetIterable<T> extends CloseableGroup implements CloseableItera
       if (needsAdvance) {
         this.next = advance();
       }
+
       return hasNext;
     }
 

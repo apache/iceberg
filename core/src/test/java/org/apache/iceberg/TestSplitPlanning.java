@@ -258,12 +258,14 @@ public class TestSplitPlanning extends TestBase {
           if (previousOffset != -1) {
             assertThat(previousOffset).isEqualTo(splitPosDelTask.start());
           }
+
           previousOffset = splitPosDelTask.start() + splitPosDelTask.length();
         }
 
         assertThat(tasksPerGroup).isEqualTo(1);
         totalTaskGroups++;
       }
+
       // we expect 8 bins since split size is 64MB
       assertThat(totalTaskGroups).isEqualTo(8);
     } catch (IOException e) {
@@ -295,6 +297,7 @@ public class TestSplitPlanning extends TestBase {
     for (int fileNum = 0; fileNum < numFiles; fileNum++) {
       files.add(newFile(sizeInBytes, fileFormat, numOffset));
     }
+
     return files;
   }
 
@@ -339,6 +342,7 @@ public class TestSplitPlanning extends TestBase {
     for (int fileNum = 0; fileNum < numFiles; fileNum++) {
       files.add(newDeleteFile(sizeInBytes, fileFormat, numOffsets));
     }
+
     return files;
   }
 

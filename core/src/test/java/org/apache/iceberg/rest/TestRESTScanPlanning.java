@@ -93,6 +93,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
                           ImmutableMap.of(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true"))
                       .build());
             }
+
             Object body = roundTripSerialize(request.body(), "request");
             HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
             T response = super.execute(req, responseType, errorHandler, responseHeaders);
@@ -122,6 +123,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
         if (parserContext != null && !parserContext.isEmpty()) {
           reader = reader.with(parserContext.toInjectableValues());
         }
+
         return reader.readValue(MAPPER.writeValueAsString(message));
       } else {
         // use Map so that Jackson doesn't try to instantiate ImmutableMap from payload.getClass()
@@ -840,6 +842,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
                   return castResponse(
                       responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
                 }
+
                 return super.execute(request, responseType, errorHandler, responseHeaders);
               }
             });

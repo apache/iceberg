@@ -105,6 +105,7 @@ public class SparkFilters {
           converted != null, "Cannot convert filter to Iceberg: %s", filter);
       expression = Expressions.and(expression, converted);
     }
+
     return expression;
   }
 
@@ -191,6 +192,7 @@ public class SparkFilters {
               return not(child);
             }
           }
+
           return null;
 
         case AND:
@@ -201,6 +203,7 @@ public class SparkFilters {
             if (left != null && right != null) {
               return and(left, right);
             }
+
             return null;
           }
 
@@ -212,6 +215,7 @@ public class SparkFilters {
             if (left != null && right != null) {
               return or(left, right);
             }
+
             return null;
           }
 
@@ -238,6 +242,7 @@ public class SparkFilters {
     } else if (value instanceof LocalDate) {
       return DateTimeUtils.localDateToDays((LocalDate) value);
     }
+
     return value;
   }
 

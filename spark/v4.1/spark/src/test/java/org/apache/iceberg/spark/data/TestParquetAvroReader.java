@@ -131,6 +131,7 @@ public class TestParquetAvroReader {
           val ^= (Long) record.get(0);
           count += 1;
         }
+
         long end = System.currentTimeMillis();
         long duration = end - start;
 
@@ -165,6 +166,7 @@ public class TestParquetAvroReader {
           val ^= (Long) record.get(0);
           count += 1;
         }
+
         long end = System.currentTimeMillis();
       }
 
@@ -185,6 +187,7 @@ public class TestParquetAvroReader {
           val ^= (Long) record.get(0);
           count += 1;
         }
+
         long end = System.currentTimeMillis();
       }
     }

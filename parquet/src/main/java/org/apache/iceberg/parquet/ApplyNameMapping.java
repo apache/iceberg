@@ -75,6 +75,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     } else {
       listBuilder.repeatedGroup().addFields(elementType).named(list.getFieldName(0));
     }
+
     Type listType = listBuilder.named(list.getName());
 
     return field == null ? listType : listType.withId(field.id());

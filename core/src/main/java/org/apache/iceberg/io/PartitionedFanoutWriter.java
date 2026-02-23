@@ -79,6 +79,7 @@ public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
       for (PartitionKey key : writers.keySet()) {
         writers.get(key).close();
       }
+
       writers.clear();
     }
   }

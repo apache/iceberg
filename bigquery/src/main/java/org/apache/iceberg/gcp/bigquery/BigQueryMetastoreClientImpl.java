@@ -162,6 +162,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
       handleBigQueryRetryException(e);
     }
+
     return response;
   }
 
@@ -298,6 +299,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     } catch (BigQueryRetryHelper.BigQueryRetryHelperException e) {
       handleBigQueryRetryException(e);
     }
+
     return true;
   }
 
@@ -486,6 +488,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
         if (pageResponse.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
           throw new NoSuchNamespaceException("%s", pageResponse.getStatusMessage());
         }
+
         TableList result = convertExceptionIfUnsuccessful(pageResponse).parseAs(TableList.class);
         nextPageToken = result.getNextPageToken();
         List<Tables> tablesPage = result.getTables();
@@ -646,6 +649,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
             }
           }
         }
+
         throw new BadRequestException("%s", errorMessage);
       case HttpStatusCodes.STATUS_CODE_FORBIDDEN:
         throw new ForbiddenException("%s", errorMessage);

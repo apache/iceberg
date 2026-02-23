@@ -53,6 +53,7 @@ public class TestFlinkScanSql extends TestFlinkSource {
         }
       }
     }
+
     return tEnv;
   }
 

@@ -83,6 +83,7 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
       throw new IllegalArgumentException(
           String.format("Cannot use non-v1 table '%s' as a source", sourceTableIdent), e);
     }
+
     validateSourceTable();
 
     this.sourceTableLocation =

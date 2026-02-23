@@ -116,6 +116,7 @@ public class ManifestReadBenchmark {
       try (Stream<Path> walk = Files.walk(Paths.get(baseDir))) {
         walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
       }
+
       baseDir = null;
     }
 

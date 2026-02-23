@@ -89,6 +89,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
       if (catalog != null) {
         catalog.close();
       }
+
       api.close();
     } finally {
       catalog = null;
@@ -103,10 +104,12 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
       if (r instanceof Branch && !r.getName().equals(defaultBranch.getName())) {
         api.deleteBranch().branch((Branch) r).delete();
       }
+
       if (r instanceof Tag) {
         api.deleteTag().tag((Tag) r).delete();
       }
     }
+
     api.assignBranch()
         .assignTo(Branch.of(defaultBranch.getName(), initialHashOfDefaultBranch))
         .branch(defaultBranch)

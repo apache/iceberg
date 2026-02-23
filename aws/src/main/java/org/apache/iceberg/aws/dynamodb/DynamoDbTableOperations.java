@@ -217,6 +217,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
         attributeValues.put(
             attributeValue, AttributeValue.builder().s(property.getValue()).build());
       }
+
       DynamoDbCatalog.updateCatalogEntryMetadata(updateParts, attributeValues);
       String updateExpression = "SET " + DynamoDbCatalog.COMMA.join(updateParts);
       attributeValues.put(":v", table.item().get(DynamoDbCatalog.COL_VERSION));

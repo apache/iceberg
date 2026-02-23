@@ -324,6 +324,7 @@ public class TestPositionDeletesReader extends TestBase {
     for (int i = 0; i < projection.columns().size(); i++) {
       values[i] = row.get(i, SparkSchemaUtil.convert(projection.columns().get(i).type()));
     }
+
     return values;
   }
 }

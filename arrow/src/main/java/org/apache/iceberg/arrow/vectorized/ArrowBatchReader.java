@@ -53,6 +53,7 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
       // Handle null vector for constant case
       columnVectors[i] = new ColumnVector(vectorHolders[i]);
     }
+
     return new ColumnarBatch(numRowsToRead, columnVectors);
   }
 }

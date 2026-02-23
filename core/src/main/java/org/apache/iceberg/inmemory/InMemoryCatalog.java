@@ -438,6 +438,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
                         + "because it has been concurrently modified to %s",
                     tableIdentifier, oldLocation, newLocation, existingLocation);
               }
+
               return newLocation;
             });
       }

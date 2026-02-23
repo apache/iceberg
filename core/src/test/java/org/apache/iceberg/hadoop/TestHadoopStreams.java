@@ -44,6 +44,7 @@ class TestHadoopStreams {
               } catch (InterruptedException e) {
                 throw new RuntimeException(e);
               }
+
               s3ABlockOutputStream.interruptClose();
             });
 

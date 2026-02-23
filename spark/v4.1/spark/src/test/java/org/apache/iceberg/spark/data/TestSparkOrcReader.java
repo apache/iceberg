@@ -85,6 +85,7 @@ public class TestSparkOrcReader extends AvroDataTestBase {
         assertThat(actualRows).as("Should have expected number of rows").hasNext();
         assertEquals(schema, expectedRows.next(), actualRows.next());
       }
+
       assertThat(actualRows).as("Should not have extra rows").isExhausted();
     }
 
@@ -101,6 +102,7 @@ public class TestSparkOrcReader extends AvroDataTestBase {
         assertThat(actualRows).as("Should have expected number of rows").hasNext();
         assertEquals(schema, expectedRows.next(), actualRows.next());
       }
+
       assertThat(actualRows).as("Should not have extra rows").isExhausted();
     }
   }

@@ -298,6 +298,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       } else {
         commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
       }
+
       continuousEmptyCheckpoints = 0;
     } else {
       LOG.info("Skip commit for checkpoint {} due to no data files or delete files.", checkpointId);
@@ -344,6 +345,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
             "Should have no referenced data files for append.");
         Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
       }
+
       commitOperation(appendFiles, summary, "append", newFlinkJobId, operatorId, checkpointId);
     } else {
       // To be compatible with iceberg format V2.

@@ -74,6 +74,7 @@ public class IcebergSinkTask extends SinkTask {
           LOG.warn("An error occurred closing catalog instance, ignoring...", e);
         }
       }
+
       catalog = null;
     }
   }

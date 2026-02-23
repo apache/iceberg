@@ -64,6 +64,7 @@ public class TestSparkFileWriterFactory extends TestFileWriterFactory<InternalRo
       InternalRowWrapper wrapper = new InternalRowWrapper(sparkType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
     }
+
     return set;
   }
 }

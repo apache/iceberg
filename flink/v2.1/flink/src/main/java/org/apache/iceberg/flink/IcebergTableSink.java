@@ -178,6 +178,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     for (RowKind kind : requestedMode.getContainedKinds()) {
       builder.addContainedKind(kind);
     }
+
     return builder.build();
   }
 

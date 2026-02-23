@@ -766,6 +766,7 @@ final class JdbcUtil {
       if (i != 0) {
         sqlStatement.append(", ");
       }
+
       sqlStatement.append(JdbcUtil.INSERT_PROPERTIES_VALUES_BASE);
     }
 

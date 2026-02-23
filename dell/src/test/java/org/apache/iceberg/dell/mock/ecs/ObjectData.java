@@ -78,6 +78,7 @@ public class ObjectData {
     } catch (NoSuchAlgorithmException e) {
       throw new RuntimeException(e);
     }
+
     md.update(content);
     byte[] digest = md.digest();
     metadata.setETag(bytesToHex(digest));
@@ -93,6 +94,7 @@ public class ObjectData {
       hexChars[j * 2] = HEX_ARRAY[accum >>> 4];
       hexChars[j * 2 + 1] = HEX_ARRAY[accum & 0x0F];
     }
+
     return new String(hexChars);
   }
 }

@@ -90,6 +90,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
       Namespace baseNamespace = Namespace.of("default");
       parameters.add(new Object[] {catalogName, baseNamespace, isPartition});
     }
+
     return parameters;
   }
 
@@ -781,6 +782,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
         }
       }
     }
+
     return expected;
   }
 
@@ -794,6 +796,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     if (partValue == null) {
       return true;
     }
+
     GenericData.Record partition = (GenericData.Record) file.get(4);
     return partValue.equals(partition.get(0).toString());
   }
@@ -807,6 +810,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     for (Snapshot snapshot : table.snapshots()) {
       manifests.addAll(snapshot.dataManifests(table.io()));
     }
+
     return manifests;
   }
 

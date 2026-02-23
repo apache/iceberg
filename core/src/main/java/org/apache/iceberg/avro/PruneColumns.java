@@ -135,6 +135,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       if (!Objects.equals(pruned, AvroSchemaUtil.fromOption(union))) {
         return AvroSchemaUtil.toOption(pruned);
       }
+
       return union;
     }
 
@@ -154,6 +155,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
         if (keyId != null || valueId != null) {
           LOG.warn("Map schema {} should have both key and value ids set or both unset", array);
         }
+
         return null;
       }
 
@@ -194,6 +196,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
           // the element must be a projection
           return arrayWithId(Schema.createArray(element), elementId);
         }
+
         return arrayWithId(array, elementId);
       }
     }
@@ -209,6 +212,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       if (keyId != null || valueId != null) {
         LOG.warn("Map schema {} should have both key and value ids set or both unset", map);
       }
+
       return null;
     }
 
@@ -222,6 +226,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
         // the value must be a projection
         return mapWithIds(Schema.createMap(value), keyId, valueId);
       }
+
       return map;
     }
 
@@ -234,6 +239,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       result.addProp(AvroSchemaUtil.ELEMENT_ID_PROP, elementId);
       return result;
     }
+
     return array;
   }
 
@@ -245,6 +251,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
           keyId, keyValue.getField("key").schema(),
           valueId, keyValue.getField("value").schema());
     }
+
     return map;
   }
 
@@ -256,6 +263,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       result.addProp(AvroSchemaUtil.VALUE_ID_PROP, valueId);
       return result;
     }
+
     return map;
   }
 
@@ -318,6 +326,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     } else {
       newSchemaReordered = newSchema;
     }
+
     // do not copy over default values as the file is expected to have values for fields already in
     // the file schema
     Schema.Field copy =
