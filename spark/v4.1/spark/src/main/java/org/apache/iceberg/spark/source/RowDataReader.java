@@ -48,7 +48,7 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
     this(
         partition.table(),
         partition.taskGroup(),
-        partition.expectedSchema(),
+        partition.projection(),
         partition.isCaseSensitive(),
         partition.cacheDeleteFilesOnExecutors());
   }

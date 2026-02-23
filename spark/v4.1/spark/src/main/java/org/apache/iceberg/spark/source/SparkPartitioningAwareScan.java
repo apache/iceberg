@@ -76,10 +76,10 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       Table table,
       Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
       SparkReadConf readConf,
-      Schema expectedSchema,
+      Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, readConf, expectedSchema, filters, scanReportSupplier);
+    super(spark, table, readConf, projection, filters, scanReportSupplier);
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
@@ -129,7 +129,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   }
 
   private StructType computeGroupingKeyType() {
-    return org.apache.iceberg.Partitioning.groupingKeyType(expectedSchema(), specs());
+    return org.apache.iceberg.Partitioning.groupingKeyType(projection(), specs());
   }
 
   private Transform[] groupingKeyTransforms() {

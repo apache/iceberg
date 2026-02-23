@@ -38,37 +38,37 @@ interface VectorizedValuesReader {
 
   /** Read a single boolean */
   default boolean readBoolean() {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readBoolean is not supported");
   }
 
   /** Read a single byte */
   default byte readByte() {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readByte is not supported");
   }
 
   /** Read a single short */
   default short readShort() {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readShort is not supported");
   }
 
   /** Read a single integer */
   default int readInteger() {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readInteger is not supported");
   }
 
   /** Read a single long */
   default long readLong() {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readLong is not supported");
   }
 
   /** Read a single float */
   default float readFloat() {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readFloat is not supported");
   }
 
   /** Read a single double */
   default double readDouble() {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readDouble is not supported");
   }
 
   /**
@@ -77,27 +77,27 @@ interface VectorizedValuesReader {
    * @param len The number of bytes to read
    */
   default Binary readBinary(int len) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readBinary is not supported");
   }
 
   /** Read `total` integers into `vec` starting at `vec[rowId]` */
   default void readIntegers(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readIntegers is not supported");
   }
 
   /** Read `total` longs into `vec` starting at `vec[rowId]` */
   default void readLongs(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readLongs is not supported");
   }
 
   /** Read `total` floats into `vec` starting at `vec[rowId]` */
   default void readFloats(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readFloats is not supported");
   }
 
   /** Read `total` doubles into `vec` starting at `vec[rowId]` */
   default void readDoubles(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("readDoubles is not supported");
   }
 
   /**

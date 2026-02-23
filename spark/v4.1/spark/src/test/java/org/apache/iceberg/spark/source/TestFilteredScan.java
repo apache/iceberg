@@ -223,8 +223,7 @@ public class TestFilteredScan {
 
       for (int i = 0; i < 10; i += 1) {
         SparkScanBuilder builder =
-            new SparkScanBuilder(spark, TABLES.load(options.get("path")), options)
-                .caseSensitive(false);
+            new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
         pushFilters(
             builder,

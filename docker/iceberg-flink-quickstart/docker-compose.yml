@@ -35,8 +35,6 @@ services:
         condition: service_healthy
     networks:
       iceberg_net:
-    ports:
-      - "8081:8081"
     command: jobmanager
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/overview"]
@@ -85,8 +83,6 @@ services:
         condition: service_completed_successfully
     networks:
       iceberg_net:
-    ports:
-      - "8181:8181"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8181/v1/config"]
       interval: 5s
@@ -112,9 +108,6 @@ services:
       iceberg_net:
         aliases:
           - warehouse.minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]

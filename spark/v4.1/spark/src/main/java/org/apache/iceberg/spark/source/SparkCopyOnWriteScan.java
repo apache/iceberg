@@ -37,7 +37,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsRuntimeFiltering;
@@ -58,10 +57,10 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
       SparkSession spark,
       Table table,
       SparkReadConf readConf,
-      Schema expectedSchema,
+      Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    this(spark, table, null, null, readConf, expectedSchema, filters, scanReportSupplier);
+    this(spark, table, null, null, readConf, projection, filters, scanReportSupplier);
   }
 
   SparkCopyOnWriteScan(
@@ -70,10 +69,10 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
       BatchScan scan,
       Snapshot snapshot,
       SparkReadConf readConf,
-      Schema expectedSchema,
+      Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, scan, readConf, expectedSchema, filters, scanReportSupplier);
+    super(spark, table, scan, readConf, projection, filters, scanReportSupplier);
 
     this.snapshot = snapshot;
 
@@ -98,8 +97,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
   @Override
   public NamedReference[] filterAttributes() {
-    NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
-    return new NamedReference[] {file};
+    return new NamedReference[] {SparkMetadataColumns.FILE_PATH.asRef()};
   }
 
   @Override
@@ -161,6 +159,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
 
     SparkCopyOnWriteScan that = (SparkCopyOnWriteScan) o;
     return table().name().equals(that.table().name())
+        && Objects.equals(table().uuid(), that.table().uuid())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
         && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(snapshotId(), that.snapshotId())
@@ -170,7 +169,12 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(), readSchema(), filtersDesc(), snapshotId(), filteredLocations);
+        table().name(),
+        table().uuid(),
+        readSchema(),
+        filtersDesc(),
+        snapshotId(),
+        filteredLocations);
   }
 
   @Override

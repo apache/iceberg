@@ -53,7 +53,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     this(
         partition.table(),
         partition.taskGroup(),
-        partition.expectedSchema(),
+        partition.projection(),
         partition.isCaseSensitive(),
         parquetBatchReadConf,
         orcBatchReadConf,

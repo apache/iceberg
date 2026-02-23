@@ -21,6 +21,8 @@
 
 A pre-configured Apache Flink image with Apache Iceberg dependencies for quickly getting started with Iceberg on Flink.
 
+See the [Flink quickstart documentation](https://iceberg.apache.org/flink-quickstart/) for details.
+
 ## Overview
 
 This Docker image extends the official Apache Flink image to include:
@@ -60,17 +62,30 @@ docker build \
 
 ## Usage
 
-The easiest way to get started is using the quickstart docker-compose file from the repository root:
+See the [Flink quickstart documentation](https://iceberg.apache.org/flink-quickstart/) for details.
 
-```bash
+
+## Test Script
+
+A test script (`test.sql`) is provided to validate the Iceberg-Flink integration and future changes to the Docker image. 
+
+Start up the Docker containers:
+
+```sh
 docker compose -f docker/iceberg-flink-quickstart/docker-compose.yml up -d --build
 ```
 
-Then connect to Flink SQL client:
+Execute the test script directly from the host:
 
 ```bash
-docker exec -it jobmanager ./bin/sql-client.sh
+docker exec -i jobmanager ./bin/sql-client.sh < docker/iceberg-flink-quickstart/test.sql
 ```
+
+**Expected behavior:**
+- Exit code: 0 (success)
+- Creates: 1 catalog (`iceberg_catalog`), 1 database (`nyc`), 1 table (`taxis`)
+- Inserts: 4 records
+- Final state: Table `iceberg_catalog.nyc.taxis` contains 4 rows
 
 To stop the stack:
 

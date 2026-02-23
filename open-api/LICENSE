@@ -547,7 +547,7 @@ License (from POM): The Apache License, Version 2.0 - https://www.apache.org/lic
 
 --------------------------------------------------------------------------------
 
-Group: org.roaringbitmap  Name: RoaringBitmap  Version: 1.6.0
+Group: org.roaringbitmap  Name: RoaringBitmap  Version: 1.3.0
 Project URL (from POM): https://github.com/RoaringBitmap/RoaringBitmap
 License (from POM): Apache 2 - http://www.apache.org/licenses/LICENSE-2.0.txt
 

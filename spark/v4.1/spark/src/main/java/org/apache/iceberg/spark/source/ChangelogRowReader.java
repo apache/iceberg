@@ -51,7 +51,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     this(
         partition.table(),
         partition.taskGroup(),
-        partition.expectedSchema(),
+        partition.projection(),
         partition.isCaseSensitive(),
         partition.cacheDeleteFilesOnExecutors());
   }

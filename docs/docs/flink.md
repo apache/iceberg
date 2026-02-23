@@ -1,5 +1,5 @@
 ---
-title: "Flink Getting Started"
+title: "Getting Started"
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -18,7 +18,8 @@ title: "Flink Getting Started"
  - limitations under the License.
  -->
 
-# Flink
+!!!tip
+    For an overview of using Iceberg with Flink, see the [Flink Quickstart](/flink-quickstart)
 
 Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. See the [Multi-Engine Support](../../multi-engine-support.md#apache-flink) page for the integration of Apache Flink.
 
