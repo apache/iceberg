@@ -298,8 +298,7 @@ public class SparkTable
 
     if (readConf.identifierFieldsRely() && !identifierFieldNames.isEmpty()) {
       constraints.add(
-          Constraint.primaryKey(
-                  "iceberg_pk", Spark3Util.toNamedReferences(identifierFieldNames))
+          Constraint.primaryKey("iceberg_pk", Spark3Util.toNamedReferences(identifierFieldNames))
               .enforced(false)
               .validationStatus(ValidationStatus.UNVALIDATED)
               .rely(true)
