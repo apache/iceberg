@@ -21,6 +21,8 @@ package org.apache.iceberg.hadoop;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -223,6 +225,38 @@ public class TestSchemaUndelete extends HadoopTableTestBase {
     Types.NestedField restored = table.schema().findField("MixedCase");
     assertThat(restored).isNotNull();
     assertThat(restored.fieldId()).isEqualTo(originalId);
+  }
+
+  @Test
+  public void testUndeletePreservesDefaults() {
+    // Upgrade to v3 to support non-null defaults
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    // Add a column with initialDefault and writeDefault
+    table
+        .updateSchema()
+        .addColumn("count", Types.IntegerType.get(), "a count column", Literal.of(42))
+        .commit();
+
+    Types.NestedField originalField = table.schema().findField("count");
+    assertThat(originalField.initialDefault()).isEqualTo(42);
+    assertThat(originalField.writeDefault()).isEqualTo(42);
+
+    // Delete the column
+    table.updateSchema().deleteColumn("count").commit();
+    assertThat(table.schema().findField("count")).isNull();
+
+    // Undelete the column
+    table.updateSchema().undeleteColumn("count").commit();
+
+    Types.NestedField restoredField = table.schema().findField("count");
+    assertThat(restoredField).isNotNull();
+    assertThat(restoredField.initialDefault())
+        .as("initialDefault should be preserved after undelete")
+        .isEqualTo(42);
+    assertThat(restoredField.writeDefault())
+        .as("writeDefault should be preserved after undelete")
+        .isEqualTo(42);
   }
 
   @Test

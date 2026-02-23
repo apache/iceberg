@@ -212,12 +212,7 @@ class SchemaUpdate implements UpdateSchema {
     Types.NestedField originalField = deletedInfo.field();
 
     // undeleted columns are always optional since new data may not have values
-    Types.NestedField field =
-        Types.NestedField.optional(
-            originalField.fieldId(),
-            originalField.name(),
-            originalField.type(),
-            originalField.doc());
+    Types.NestedField field = originalField.asOptional();
 
     if (parentId != TABLE_ROOT_ID) {
       idToParent.put(field.fieldId(), parentId);
