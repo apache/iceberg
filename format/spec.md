@@ -1485,7 +1485,7 @@ Older versions of the reference implementation can read tables with transforms u
 
 ### Sort Orders
 
-Sort orders are serialized as a list of JSON object, each of which contains the following fields:
+Sort orders are serialized as a list of JSON objects, each of which contains the following fields:
 
 |Field|JSON representation|Example|
 |--- |--- |--- |

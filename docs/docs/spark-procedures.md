@@ -401,7 +401,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `max-concurrent-file-group-rewrites` | 5 | Maximum number of file groups to be simultaneously rewritten |
 | `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
 | `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
-| `partial-progress.max-failed-commits` | value of `partital-progress.max-commits` | Maximum amount of failed commits allowed before job failure, if partial progress is enabled |
+| `partial-progress.max-failed-commits` | value of `partial-progress.max-commits` | Maximum amount of failed commits allowed before job failure, if partial progress is enabled |
 | `use-starting-sequence-number` | true | Use the sequence number of the snapshot at compaction start time instead of that of the newly produced snapshot |
 | `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
 | `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
