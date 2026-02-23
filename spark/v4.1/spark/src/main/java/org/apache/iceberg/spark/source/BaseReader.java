@@ -56,6 +56,7 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -101,8 +102,11 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     this.counter = new DeleteCounter();
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
-    this.isAsyncEnabled = true;
-
+    this.isAsyncEnabled =
+        PropertyUtil.propertyAsBoolean(
+            table.properties(),
+            TableProperties.ASYNC_READER_ENABLED,
+            TableProperties.ASYNC_READER_ENABLED_DEFAULT);
     if (isAsyncEnabled) {
       List<TaskT> allTasks = Lists.newArrayList();
       taskGroup.tasks().forEach(task -> allTasks.add((TaskT) task));
