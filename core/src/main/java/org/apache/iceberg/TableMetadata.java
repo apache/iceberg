@@ -1266,7 +1266,7 @@ public class TableMetadata implements Serializable {
       if (formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE) {
         ValidationException.check(
             snapshot.firstRowId() != null, "Cannot add a snapshot: first-row-id is null");
-        ValidationException.check(
+        RetryableValidationException.check(
             snapshot.firstRowId() != null && snapshot.firstRowId() >= nextRowId,
             "Cannot add a snapshot, first-row-id is behind table next-row-id: %s < %s",
             snapshot.firstRowId(),

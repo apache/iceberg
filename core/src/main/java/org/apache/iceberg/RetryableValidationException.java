@@ -22,11 +22,11 @@ import com.google.errorprone.annotations.FormatMethod;
 import org.apache.iceberg.exceptions.ValidationException;
 
 /**
- * A {@link ValidationException} that indicates the client can retry with refreshed metadata.
+ * A {@link ValidationException} that indicates a validation failure that can be fixed and retried.
  *
- * <p>This is used for validation failures caused by concurrent commits, such as sequence number
- * conflicts. Server-side retry won't help since the conflict is in the request itself, but the
- * client can retry after refreshing its metadata.
+ * <p>This is specifically not a conflict. This is used when a validation failed because the commit
+ * includes stale values, such as a sequence number or first-row-id that is behind the current table
+ * state. Retrying the commit with refreshed metadata can resolve the failure.
  */
 public class RetryableValidationException extends ValidationException {
   @FormatMethod

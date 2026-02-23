@@ -638,12 +638,13 @@ public class CatalogHandlers {
                 try {
                   request.updates().forEach(update -> update.applyTo(metadataBuilder));
                 } catch (RetryableValidationException e) {
-                  // Sequence number conflicts from concurrent commits are retryable by the client,
-                  // but server-side retry won't help since the sequence number is in the request.
-                  // Wrap in ValidationFailureException to skip server retry, return to client as
-                  // CommitFailedException so the client can retry with refreshed metadata.
+                  // Validation failed because the commit includes stale values (e.g. sequence
+                  // number or first-row-id behind the current table state). This is not a conflict.
+                  // Server-side retry won't help since the stale values are in the request itself.
+                  // Wrap as CommitFailedException so the client can retry with refreshed metadata.
                   throw new ValidationFailureException(
-                      new CommitFailedException(e, "Commit conflict: %s", e.getMessage()));
+                      new CommitFailedException(
+                          e, "Validation failed, please retry: %s", e.getMessage()));
                 }
 
                 TableMetadata updated = metadataBuilder.build();
