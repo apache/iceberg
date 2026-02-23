@@ -1,7 +1,7 @@
 ---
 date: 2026-02-20
 title: Introducing the Apache Iceberg File Format API
-slug: apache-iceberg-file-format-api-finalization
+slug: apache-iceberg-file-format-api
 authors:
   - iceberg-pmc
 categories:
@@ -31,7 +31,7 @@ The Apache Iceberg community is excited to announce the finalization of the File
 
 For years, Iceberg has delivered high‑quality support for **Parquet**, **Avro**, and **ORC**, but the data landscape has evolved dramatically. New formats now emphasize extremely fast random access, GPU‑native encodings, flexible file layouts, and built‑in indexing structures. Opening up the possibility of integrating such formats required a new foundation.
 
-The File Format API introduces a unified, extensible layer that engines can rely on when reading and writing Iceberg data files in any supported format.
+The File Format API introduces a unified, extensible layer that engines can rely on when reading and writing Iceberg data files in any supported format. It will ship in the upcoming Apache Iceberg 1.11.0 release, making it available to all engines that use the Iceberg Java readers and writers.
 
 ## Why a New File Format API Was Needed
 
@@ -118,14 +118,17 @@ The Technology Compatibility Kit (TCK) is one of the most important next steps. 
 
 ## Next Steps
 
-### **1. Vortex Integration**
-A full Vortex integration will demonstrate the power of the new File Format API.
+### **1. Comet format model**
+The Spark Comet reader could be migrated to the new Format Model API to cleanly separate out the [Comet](https://github.com/apache/iceberg/pull/13786) related classes. After this the code could be moved to the comet repository, and the Comet format could be registered in the FormatModelRegistry.
 
-### **2. Completing the TCK**
-Essential for ensuring stable, long‑term compatibility.
+### **2. Vortex Integration**
+A full [Vortex](https://github.com/apache/iceberg/issues/15416) integration will demonstrate the power of the new File Format API.
 
-### **3. Column Families**
-We expect that implementing Column Families will illustrate how vertically split layouts can be implemented cleanly using the new API.
+### **3. Completing the TCK**
+Providing a [Technology Compatibility Kit](https://github.com/apache/iceberg/issues/15415) is essential for ensuring stable, long‑term compatibility.
+
+### **4. Column Families**
+We expect that implementing [Column Families](https://docs.google.com/document/d/1OHuZ6RyzZvCOQ6UQoV84GzwVp3UPiu_cfXClsOi03ww) / [Efficient Column Updates](https://docs.google.com/document/u/1/d/1Bd7JVzgajA8-DozzeEE24mID_GLuz6iwj0g4TlcVJcs/edit) proposal will illustrate how vertically split layouts can be implemented cleanly using the new API.
 
 ## Getting Involved
 
@@ -133,4 +136,4 @@ The community welcomes all contributors. You can help by testing integrations, p
 
 ## Conclusion
 
-Finalizing the File Format API marks a major milestone for Apache Iceberg. It enables clean extensibility, encourages innovation across file formats, and prepares Iceberg for the next generation of analytics and AI workloads. Work on the TCK and Vortex integration is already underway, and we are excited to see what the community builds next.
+Finalizing the File Format API marks a major milestone for Apache Iceberg. It enables clean extensibility, encourages innovation across file formats, and prepares Iceberg for the next generation of analytics and AI workloads. Work on the [TCK](https://github.com/apache/iceberg/issues/15415) and [Vortex](https://github.com/apache/iceberg/issues/15416) integration is already underway, and we are excited to see what the community builds next. For a deeper dive into the design and motivations behind the API, you can also watch our talk on YouTube: https://www.youtube.com/watch?v=aERM4rjBDhY.
