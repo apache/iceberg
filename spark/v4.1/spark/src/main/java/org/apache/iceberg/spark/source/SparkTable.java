@@ -72,8 +72,7 @@ import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.catalog.constraints.Constraint;
-import org.apache.spark.sql.connector.expressions.FieldReference;
-import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.catalog.constraints.Constraint.ValidationStatus;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -298,13 +297,11 @@ public class SparkTable
     Set<String> identifierFieldNames = icebergTable.schema().identifierFieldNames();
 
     if (readConf.identifierFieldsRely() && !identifierFieldNames.isEmpty()) {
-      NamedReference[] columns =
-          identifierFieldNames.stream().map(FieldReference::apply).toArray(NamedReference[]::new);
-
       constraints.add(
-          Constraint.primaryKey("iceberg_pk", columns)
+          Constraint.primaryKey(
+                  "iceberg_pk", Spark3Util.toNamedReferences(identifierFieldNames))
               .enforced(false)
-              .validationStatus(Constraint.ValidationStatus.UNVALIDATED)
+              .validationStatus(ValidationStatus.UNVALIDATED)
               .rely(true)
               .build());
     }
