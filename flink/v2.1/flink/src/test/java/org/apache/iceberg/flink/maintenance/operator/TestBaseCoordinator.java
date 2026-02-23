@@ -18,11 +18,8 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
-import org.apache.flink.util.ExceptionUtils;
 import org.junit.jupiter.api.Timeout;
 
 @Timeout(value = 10)
@@ -41,24 +38,6 @@ class TestBaseCoordinator extends OperatorTestBase {
       BaseCoordinator baseCoordinator, EventReceivingTasks receivingTasks) {
     for (int i = 0; i < NUM_SUBTASKS; i++) {
       baseCoordinator.executionAttemptReady(i, 0, receivingTasks.createGatewayForSubtask(i, 0));
-    }
-  }
-
-  protected static void waitForCoordinatorToProcessActions(BaseCoordinator coordinator) {
-    CompletableFuture<Void> future = new CompletableFuture<>();
-    coordinator.callInCoordinatorThread(
-        () -> {
-          future.complete(null);
-          return null;
-        },
-        "Coordinator fails to process action");
-
-    try {
-      future.get();
-    } catch (InterruptedException e) {
-      throw new AssertionError("test interrupted");
-    } catch (ExecutionException e) {
-      ExceptionUtils.rethrow(ExceptionUtils.stripExecutionException(e));
     }
   }
 }

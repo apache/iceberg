@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.concurrent.ExecutionException;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
@@ -56,12 +57,10 @@ class TestTriggerManagerCoordinator extends TestBaseCoordinator {
       setAllTasksReady(triggerManagerCoordinator1, receivingTasks1);
 
       triggerManagerCoordinator.handleEventFromOperator(0, 0, LOCK_REGISTER_EVENT);
-      waitForCoordinatorToProcessActions(triggerManagerCoordinator);
       assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(0);
 
       // release lock from coordinator1 and get one event from coordinator
       triggerManagerCoordinator1.handleReleaseLock(LOCK_RELEASE_EVENT);
-      waitForCoordinatorToProcessActions(triggerManagerCoordinator1);
       assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(1);
       assertThat(receivingTasks1.getSentEventsForSubtask(0).size()).isEqualTo(0);
     }
@@ -80,7 +79,6 @@ class TestTriggerManagerCoordinator extends TestBaseCoordinator {
       assertThat(triggerManagerCoordinator.pendingReleaseEvents()).hasSize(1);
 
       triggerManagerCoordinator.handleEventFromOperator(0, 0, LOCK_REGISTER_EVENT);
-      waitForCoordinatorToProcessActions(triggerManagerCoordinator);
       assertThat(receivingTasks.getSentEventsForSubtask(0).size()).isEqualTo(1);
 
       assertThat(triggerManagerCoordinator.pendingReleaseEvents()).hasSize(0);
@@ -90,6 +88,15 @@ class TestTriggerManagerCoordinator extends TestBaseCoordinator {
   private static TriggerManagerCoordinator createCoordinator(
       String operatorName, OperatorID operatorID) {
     return new TriggerManagerCoordinator(
-        operatorName, new MockOperatorCoordinatorContext(operatorID, 1));
+        operatorName, new MockOperatorCoordinatorContext(operatorID, 1)) {
+      @Override
+      protected void runInCoordinatorThread(Runnable runnable, String actionString) {
+        try {
+          coordinatorExecutor().submit(runnable).get();
+        } catch (InterruptedException | ExecutionException e) {
+          throw new RuntimeException(actionString, e);
+        }
+      }
+    };
   }
 }

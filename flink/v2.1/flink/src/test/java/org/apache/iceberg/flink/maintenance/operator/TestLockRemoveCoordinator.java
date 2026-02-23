@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.concurrent.ExecutionException;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,17 +42,28 @@ class TestLockRemoveCoordinator extends TestBaseCoordinator {
 
   @Test
   void testEventHandling() throws Exception {
-    try (LockRemoverCoordinator lockRemoverCoordinator =
-        new LockRemoverCoordinator(
-            OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1))) {
+    try (LockRemoverCoordinator lockRemoverCoordinator = createCoordinator()) {
 
       lockRemoverCoordinator.start();
 
       setAllTasksReady(lockRemoverCoordinator, receivingTasks);
 
       lockRemoverCoordinator.handleReleaseLock(LOCK_RELEASE_EVENT);
-      waitForCoordinatorToProcessActions(lockRemoverCoordinator);
       assertThat(lockRemoverCoordinator.pendingReleaseEvents()).hasSize(1);
     }
+  }
+
+  private LockRemoverCoordinator createCoordinator() {
+    return new LockRemoverCoordinator(
+        OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1)) {
+      @Override
+      protected void runInCoordinatorThread(Runnable runnable, String actionString) {
+        try {
+          coordinatorExecutor().submit(runnable).get();
+        } catch (InterruptedException | ExecutionException e) {
+          throw new RuntimeException(actionString, e);
+        }
+      }
+    };
   }
 }

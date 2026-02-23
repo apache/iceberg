@@ -21,9 +21,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -32,9 +30,7 @@ import javax.annotation.Nonnull;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
-import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FatalExitExceptionHandler;
-import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -203,7 +199,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
     return operatorName;
   }
 
-  void runInCoordinatorThread(Runnable runnable, String actionString) {
+  protected void runInCoordinatorThread(Runnable runnable, String actionString) {
     ensureStarted();
     coordinatorExecutor.execute(
         () -> {
@@ -215,37 +211,6 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
             context.failJob(t);
           }
         });
-  }
-
-  @VisibleForTesting
-  void callInCoordinatorThread(Callable<Void> callable, String errorMessage) {
-    ensureStarted();
-    // Ensure the task is done by the coordinator executor.
-    if (!coordinatorThreadFactory.isCurrentThreadCoordinatorThread()) {
-      try {
-        Callable<Void> guardedCallable =
-            () -> {
-              try {
-                return callable.call();
-              } catch (Throwable t) {
-                LOG.error("Uncaught Exception in coordinator {} executor", operatorName, t);
-                ExceptionUtils.rethrowException(t);
-                return null;
-              }
-            };
-
-        coordinatorExecutor.submit(guardedCallable).get();
-      } catch (InterruptedException | ExecutionException e) {
-        throw new FlinkRuntimeException(errorMessage, e);
-      }
-    } else {
-      try {
-        callable.call();
-      } catch (Throwable t) {
-        LOG.error("Uncaught Exception in coordinator {} executor", operatorName, t);
-        throw new FlinkRuntimeException(errorMessage, t);
-      }
-    }
   }
 
   private void ensureStarted() {
@@ -334,5 +299,10 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
   @VisibleForTesting
   List<LockReleaseEvent> pendingReleaseEvents() {
     return PENDING_RELEASE_EVENTS;
+  }
+
+  @VisibleForTesting
+  ExecutorService coordinatorExecutor() {
+    return coordinatorExecutor;
   }
 }
