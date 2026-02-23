@@ -21,6 +21,7 @@ package org.apache.iceberg.hadoop;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -35,9 +36,11 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -65,7 +68,7 @@ public class TestHadoopFileIO {
   }
 
   @Test
-  public void testListPrefix() {
+  public void testListPrefix() throws IOException {
     Path parent = new Path(tempDir.toURI());
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
@@ -82,8 +85,33 @@ public class TestHadoopFileIO {
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertThat(Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count())
-        .isEqualTo(totalFiles);
+    final Iterable<FileInfo> listing = hadoopFileIO.listPrefix(parent.toUri().toString());
+    assertThat(Streams.stream(listing).count()).isEqualTo(totalFiles);
+    // the iterator from listPrefix is closeable, so close it.
+    // a no-op with most filesystems iterators.
+    assertThat(listing)
+        .describedAs("Listing iterator %s", listing)
+        .isInstanceOf(Closeable.class);
+    ((Closeable) listing).close();
+  }
+
+  /**
+   * Dir deletion doesn't actually surface until the iterator() call.
+   */
+  @Test
+  public void testListDirDeletedBeforeListing() {
+    tempDir.delete();
+    final Iterable<FileInfo> listing = hadoopFileIO.listPrefix(tempDir.toURI().toString());
+    assertThatThrownBy(() -> listing.iterator())
+        .isInstanceOf(NotFoundException.class);
+  }
+
+  @Test
+  public void testListEmptyDir() {
+    final String prefix = tempDir.toURI().toString();
+    final Iterable<FileInfo> listing = hadoopFileIO.listPrefix(prefix);
+    assertThat(listing.iterator()).describedAs("Listing iterator %s", listing)
+        .matches(c -> !c.hasNext());
   }
 
   @Test

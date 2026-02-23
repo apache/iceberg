@@ -25,10 +25,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FutureDataInputStreamBuilder;
@@ -193,14 +191,13 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
         builder.withFileStatus(stat);
       }
       if (length != null) {
-        // optLong() isn't in Hadoop 3.3.5, so use the string option.
+        // Use the string option for consistent interpretation across versions.
         builder.opt(Options.OpenFileOptions.FS_OPTION_OPENFILE_LENGTH, length.toString());
       }
       // read policy controls how read() calls are mapped to GET ranges.
       builder.opt(
           Options.OpenFileOptions.FS_OPTION_OPENFILE_READ_POLICY, determineReadPolicy(path));
-      final CompletableFuture<FSDataInputStream> future = builder.build();
-      return HadoopStreams.wrap(await(future));
+      return HadoopStreams.wrap(await(builder.build()));
     } catch (FileNotFoundException e) {
       throw new NotFoundException(e, "Failed to open input stream for file: %s", path);
     } catch (IOException e) {

@@ -146,19 +146,30 @@ public class Util {
     return new Path(uri).toString();
   }
 
-  public static final String RANDOMIO_READS = "random, adaptive";
-  /**
-   * Read chain for recent parquet/orc libraries.
-   */
-  public static final String VECTOR_READS = "vector, " + RANDOMIO_READS;
+  /** Random IO policy chain: {@value}. */
+  public static final String RANDOM_READS = "random, adaptive";
+
+  /** Read chain for recent parquet/orc libraries: {@value}.*/
+  public static final String VECTOR_READS = "vector, " + RANDOM_READS;
+
+  /** Adaptive reads: inefficient compared to declaring the read strategy. */
   public static final String ADAPTIVE_READS = "adaptive";
-  /** Sequential read from start of split to end. */
+
+  /** Sequential read from start of split to end: {@value}. */
   public static final String SEQUENTIAL_READS = "sequential";
-  /** Sequential read of the whole file. */
+
+  /** Sequential read of the whole file: {@value}. */
   public static final String WHOLE_FILE_READS = "whole-file";
+
+  /** Parquet files: {@value}. */
   public static final String PARQUET_READS = "parquet," + VECTOR_READS;
+  /** ORC files: {@value}. */
   public static final String ORC_READS = "orc," + VECTOR_READS;
+
+  /** JSON reads: {@value}. */
   public static final String JSON_READS = "json," + WHOLE_FILE_READS;
+
+  /** AVRO reads: {@value}. */
   public static final String AVRO_READS = "avro," + SEQUENTIAL_READS;
 
   /**
@@ -176,7 +187,7 @@ public class Util {
     if (format != null) {
       policy =
           switch (format) {
-            case PUFFIN -> RANDOMIO_READS;
+            case PUFFIN -> RANDOM_READS;
             case ORC -> ORC_READS;
             case PARQUET -> PARQUET_READS;
             case AVRO -> AVRO_READS;
