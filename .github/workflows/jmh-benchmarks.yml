@@ -35,6 +35,9 @@ on:
         description: 'A list of comma-separated double-quoted Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark"'
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   matrix:
     runs-on: ubuntu-24.04

@@ -25,6 +25,9 @@ on:
     # we're running benchmarks every Sunday at 00:00 UTC
     - cron:  '0 0 * * 0'
 
+permissions:
+  contents: read
+
 jobs:
   run-benchmark:
     if: github.repository_owner == 'apache'
