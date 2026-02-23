@@ -292,7 +292,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         snapshots.stream()
             .filter(
                 snapshot ->
-                    SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs())
+                    SnapshotUtil.addedDataFiles(table, snapshot)
                         .iterator()
                         .hasNext())
             .collect(Collectors.toList());
@@ -342,7 +342,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         snapshots.stream()
             .filter(
                 snapshot ->
-                    SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs())
+                    SnapshotUtil.addedDataFiles(table, snapshot)
                         .iterator()
                         .hasNext())
             .collect(Collectors.toList());
@@ -392,7 +392,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         snapshots.stream()
             .filter(
                 snapshot ->
-                    SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs())
+                    SnapshotUtil.addedDataFiles(table, snapshot)
                         .iterator()
                         .hasNext())
             .collect(Collectors.toList());
@@ -411,7 +411,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
             Lists.newArrayList(
-                SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator());
+                SnapshotUtil.addedDataFiles(table, snapshot).iterator());
         // up to 26 partitions
         assertThat(addedDataFiles).hasSizeLessThanOrEqualTo(26);
       }
@@ -419,7 +419,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
             Lists.newArrayList(
-                SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator());
+                SnapshotUtil.addedDataFiles(table, snapshot).iterator());
         // each writer task should only write one file for non-partition sort column
         assertThat(addedDataFiles).hasSize(writeParallelism);
         // verify there is no overlap in min-max stats range
@@ -470,7 +470,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         snapshots.stream()
             .filter(
                 snapshot ->
-                    SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs())
+                    SnapshotUtil.addedDataFiles(table, snapshot)
                         .iterator()
                         .hasNext())
             .collect(Collectors.toList());
@@ -491,7 +491,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
     for (Snapshot snapshot : rangePartitionedCycles) {
       List<DataFile> addedDataFiles =
           Lists.newArrayList(
-              SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator());
+              SnapshotUtil.addedDataFiles(table, snapshot).iterator());
       // each writer task should only write one file for non-partition sort column
       assertThat(addedDataFiles).hasSize(writeParallelism);
       // verify there is no overlap in min-max stats range
@@ -555,7 +555,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
         snapshots.stream()
             .filter(
                 snapshot ->
-                    SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs())
+                    SnapshotUtil.addedDataFiles(table, snapshot)
                         .iterator()
                         .hasNext())
             .collect(Collectors.toList());
@@ -576,7 +576,7 @@ public class TestFlinkIcebergSinkV2DistributionMode extends TestFlinkIcebergSink
     for (Snapshot snapshot : rangePartitionedCycles) {
       List<DataFile> addedDataFiles =
           Lists.newArrayList(
-              SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator());
+              SnapshotUtil.addedDataFiles(table, snapshot).iterator());
       // each writer task should only write one file for non-partition sort column
       // sometimes
       assertThat(addedDataFiles).hasSize(writeParallelism);

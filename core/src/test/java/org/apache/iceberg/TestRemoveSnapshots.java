@@ -794,7 +794,7 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletes.add(snapshotA.manifestListLocation());
 
     // Files should be deleted of dangling staged snapshot
-    SnapshotUtil.addedDataFiles(snapshotB, table.io(), table.specs())
+    SnapshotUtil.addedDataFiles(table, snapshotB)
         .forEach(
             i -> {
               expectedDeletes.add(i.location());
@@ -883,7 +883,7 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB, snapshotC, snapshotD)
         .forEach(
             i -> {
-              SnapshotUtil.addedDataFiles(i, table.io(), table.specs())
+              SnapshotUtil.addedDataFiles(table, i)
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -929,7 +929,7 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB)
         .forEach(
             i -> {
-              SnapshotUtil.addedDataFiles(i, table.io(), table.specs())
+              SnapshotUtil.addedDataFiles(table, i)
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());
@@ -946,7 +946,7 @@ public class TestRemoveSnapshots extends TestBase {
     Lists.newArrayList(snapshotB, snapshotD)
         .forEach(
             i -> {
-              SnapshotUtil.addedDataFiles(i, table.io(), table.specs())
+              SnapshotUtil.addedDataFiles(table, i)
                   .forEach(
                       item -> {
                         assertThat(deletedFiles).doesNotContain(item.location());

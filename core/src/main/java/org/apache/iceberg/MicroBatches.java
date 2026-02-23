@@ -31,7 +31,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -207,7 +206,8 @@ public class MicroBatches {
     public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
       return generate(
           startFileIndex,
-          Iterables.size(SnapshotUtil.addedDataFiles(snapshot, io, specsById)),
+          Iterables.size(
+              SnapshotChanges.builderFor(snapshot, io, specsById).build().addedDataFiles()),
           targetSizeInBytes,
           scanAllFiles);
     }

@@ -19,26 +19,27 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.ExecutorService;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
-import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.ThreadPools;
 
 /**
  * Helper class for retrieving file changes in a snapshot with caching.
  *
  * <p>This class caches the results of file change detection operations, making it efficient to
- * query multiple file change types for the same snapshot. By default, manifests are read
- * sequentially. Use {@link Builder#executeWith(ExecutorService)} to enable parallel reading.
+ * query multiple file change types for the same snapshot. By default, manifests are read in
+ * parallel using the worker pool. Use {@link Builder#executeWith(ExecutorService)} to provide a
+ * custom executor.
  */
 public class SnapshotChanges {
   private final Snapshot snapshot;
@@ -66,16 +67,21 @@ public class SnapshotChanges {
   }
 
   /**
-   * Create a builder for SnapshotChanges.
+   * Create a builder for SnapshotChanges using the table's current snapshot.
    *
-   * @param snapshot the snapshot to detect file changes for
-   * @param io a {@link FileIO} instance used for reading files from storage
-   * @param specsById a map of partition spec IDs to partition specs
+   * @param table the table to detect file changes for
    * @return a new Builder
    */
-  public static Builder builder(
-      Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
+  public static Builder builderFor(Table table) {
+    return new Builder(table.currentSnapshot(), table.io(), table.specs());
+  }
+
+  static Builder builderFor(Snapshot snapshot, FileIO io, Map<Integer, PartitionSpec> specsById) {
     return new Builder(snapshot, io, specsById);
+  }
+
+  private ExecutorService workerPool() {
+    return executorService != null ? executorService : ThreadPools.getWorkerPool();
   }
 
   /** Returns all data files added to the table in this snapshot */
@@ -83,6 +89,7 @@ public class SnapshotChanges {
     if (addedDataFiles == null) {
       cacheDataFileChanges();
     }
+
     return addedDataFiles;
   }
 
@@ -91,6 +98,7 @@ public class SnapshotChanges {
     if (removedDataFiles == null) {
       cacheDataFileChanges();
     }
+
     return removedDataFiles;
   }
 
@@ -99,6 +107,7 @@ public class SnapshotChanges {
     if (addedDeleteFiles == null) {
       cacheDeleteFileChanges();
     }
+
     return addedDeleteFiles;
   }
 
@@ -107,134 +116,114 @@ public class SnapshotChanges {
     if (removedDeleteFiles == null) {
       cacheDeleteFileChanges();
     }
+
     return removedDeleteFiles;
   }
 
   private void cacheDataFileChanges() {
-    List<ManifestFile> changedManifests =
-        Lists.newArrayList(
-            Iterables.filter(
-                Iterables.filter(
-                    snapshot.allManifests(io),
-                    manifest -> manifest.content() == ManifestContent.DATA),
-                manifest -> Objects.equals(manifest.snapshotId(), snapshot.snapshotId())));
-
-    Queue<DataFileChanges> fileChangesByManifest = Queues.newConcurrentLinkedQueue();
-    Tasks.foreach(changedManifests)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(executorService)
-        .run(manifest -> fileChangesByManifest.add(readDataFileChanges(manifest)));
-
     ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
-    for (DataFileChanges changes : fileChangesByManifest) {
-      adds.addAll(changes.added);
-      deletes.addAll(changes.removed);
+
+    Iterable<ManifestFile> relevantDataManifests =
+        Iterables.filter(
+            snapshot.dataManifests(io),
+            manifest -> Objects.equals(manifest.snapshotId(), snapshot.snapshotId()));
+
+    Iterable<CloseableIterable<Pair<ManifestEntry.Status, DataFile>>> manifestReadTasks =
+        Iterables.transform(relevantDataManifests, this::readDataManifest);
+
+    try (CloseableIterable<Pair<ManifestEntry.Status, DataFile>> changedDataFiles =
+        new ParallelIterable<>(manifestReadTasks, workerPool())) {
+      for (Pair<ManifestEntry.Status, DataFile> pair : changedDataFiles) {
+        switch (pair.first()) {
+          case ADDED:
+            adds.add(pair.second());
+            break;
+          case DELETED:
+            deletes.add(pair.second());
+            break;
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close manifest reader", e);
     }
 
     this.addedDataFiles = adds.build();
     this.removedDataFiles = deletes.build();
   }
 
-  private DataFileChanges readDataFileChanges(ManifestFile manifest) {
-    List<DataFile> adds = Lists.newArrayList();
-    List<DataFile> deletes = Lists.newArrayList();
+  private CloseableIterable<Pair<ManifestEntry.Status, DataFile>> readDataManifest(
+      ManifestFile manifest) {
+    CloseableIterable<ManifestEntry<DataFile>> entries =
+        ManifestFiles.read(manifest, io, specsById).entries();
 
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById)) {
-      for (ManifestEntry<DataFile> entry : reader.entries()) {
-        switch (entry.status()) {
-          case ADDED:
-            adds.add(entry.file().copy());
-            break;
-          case DELETED:
-            deletes.add(entry.file().copyWithoutStats());
-            break;
-          default:
-            // ignore existing
-        }
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close manifest reader");
-    }
+    CloseableIterable<ManifestEntry<DataFile>> relevant =
+        CloseableIterable.filter(entries, e -> e.status() != ManifestEntry.Status.EXISTING);
 
-    return new DataFileChanges(adds, deletes);
+    return CloseableIterable.transform(
+        relevant,
+        entry -> {
+          if (entry.status() == ManifestEntry.Status.ADDED) {
+            return Pair.of(ManifestEntry.Status.ADDED, entry.file().copy());
+          } else {
+            return Pair.of(ManifestEntry.Status.DELETED, entry.file().copyWithoutStats());
+          }
+        });
   }
 
   private void cacheDeleteFileChanges() {
-    List<ManifestFile> changedManifests =
-        Lists.newArrayList(
-            Iterables.filter(
-                Iterables.filter(
-                    snapshot.allManifests(io),
-                    manifest -> manifest.content() == ManifestContent.DELETES),
-                manifest -> Objects.equals(manifest.snapshotId(), snapshot.snapshotId())));
-
-    Queue<DeleteFileChanges> fileChangesByManifest = Queues.newConcurrentLinkedQueue();
-    Tasks.foreach(changedManifests)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(executorService)
-        .run(manifest -> fileChangesByManifest.add(readDeleteFileChanges(manifest)));
-
     ImmutableList.Builder<DeleteFile> adds = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> deletes = ImmutableList.builder();
-    for (DeleteFileChanges changes : fileChangesByManifest) {
-      adds.addAll(changes.added);
-      deletes.addAll(changes.removed);
+
+    Iterable<ManifestFile> relevantDeleteManifests =
+        Iterables.filter(
+            snapshot.deleteManifests(io),
+            manifest -> Objects.equals(manifest.snapshotId(), snapshot.snapshotId()));
+
+    Iterable<CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>>> manifestReadTasks =
+        Iterables.transform(relevantDeleteManifests, this::readDeleteManifest);
+
+    try (CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> changedDeleteFiles =
+        new ParallelIterable<>(manifestReadTasks, workerPool())) {
+      for (Pair<ManifestEntry.Status, DeleteFile> pair : changedDeleteFiles) {
+        switch (pair.first()) {
+          case ADDED:
+            adds.add(pair.second());
+            break;
+          case DELETED:
+            deletes.add(pair.second());
+            break;
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close manifest reader", e);
     }
 
     this.addedDeleteFiles = adds.build();
     this.removedDeleteFiles = deletes.build();
   }
 
-  private DeleteFileChanges readDeleteFileChanges(ManifestFile manifest) {
-    List<DeleteFile> adds = Lists.newArrayList();
-    List<DeleteFile> deletes = Lists.newArrayList();
+  private CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> readDeleteManifest(
+      ManifestFile manifest) {
+    CloseableIterable<ManifestEntry<DeleteFile>> entries =
+        ManifestFiles.readDeleteManifest(manifest, io, specsById).entries();
 
-    try (ManifestReader<DeleteFile> reader =
-        ManifestFiles.readDeleteManifest(manifest, io, specsById)) {
-      for (ManifestEntry<DeleteFile> entry : reader.entries()) {
-        switch (entry.status()) {
-          case ADDED:
-            adds.add(entry.file().copy());
-            break;
-          case DELETED:
-            deletes.add(entry.file().copyWithoutStats());
-            break;
-          default:
-            // ignore existing
-        }
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close manifest reader");
-    }
+    CloseableIterable<ManifestEntry<DeleteFile>> relevant =
+        CloseableIterable.filter(entries, e -> e.status() != ManifestEntry.Status.EXISTING);
 
-    return new DeleteFileChanges(adds, deletes);
-  }
-
-  private static class DataFileChanges {
-    private final List<DataFile> added;
-    private final List<DataFile> removed;
-
-    DataFileChanges(List<DataFile> added, List<DataFile> removed) {
-      this.added = added;
-      this.removed = removed;
-    }
-  }
-
-  private static class DeleteFileChanges {
-    private final List<DeleteFile> added;
-    private final List<DeleteFile> removed;
-
-    DeleteFileChanges(List<DeleteFile> added, List<DeleteFile> removed) {
-      this.added = added;
-      this.removed = removed;
-    }
+    return CloseableIterable.transform(
+        relevant,
+        entry -> {
+          if (entry.status() == ManifestEntry.Status.ADDED) {
+            return Pair.of(ManifestEntry.Status.ADDED, entry.file().copy());
+          } else {
+            return Pair.of(ManifestEntry.Status.DELETED, entry.file().copyWithoutStats());
+          }
+        });
   }
 
   public static class Builder {
-    private final Snapshot snapshot;
+    private Snapshot snapshot;
     private final FileIO io;
     private final Map<Integer, PartitionSpec> specsById;
     private ExecutorService executorService = null;
@@ -243,6 +232,17 @@ public class SnapshotChanges {
       this.snapshot = snapshot;
       this.io = io;
       this.specsById = specsById;
+    }
+
+    /**
+     * Set the snapshot to detect file changes for, overriding the default.
+     *
+     * @param snapshotOverride the snapshot to use
+     * @return this builder for method chaining
+     */
+    public Builder snapshot(Snapshot snapshotOverride) {
+      this.snapshot = snapshotOverride;
+      return this;
     }
 
     /**

@@ -66,7 +66,7 @@ public class TestSnapshotChanges {
 
     // Test using SnapshotChanges object directly
     SnapshotChanges changes =
-        SnapshotChanges.builder(snapshotWithAddedFile, table.io(), table.specs()).build();
+        SnapshotChanges.builderFor(table).snapshot(snapshotWithAddedFile).build();
     Iterable<DataFile> filesFromChanges = changes.addedDataFiles();
     assertThat(filesFromChanges).hasSize(1);
 
@@ -101,7 +101,7 @@ public class TestSnapshotChanges {
 
     // Test using SnapshotChanges object directly (for caching multiple calls)
     SnapshotChanges changes =
-        SnapshotChanges.builder(snapshotAfterDelete, table.io(), table.specs()).build();
+        SnapshotChanges.builderFor(table).snapshot(snapshotAfterDelete).build();
     Iterable<DataFile> filesFromChangesFirstCall = changes.removedDataFiles();
     Iterable<DataFile> filesFromChangesSecondCall = changes.removedDataFiles();
     assertThat(filesFromChangesFirstCall).isSameAs(filesFromChangesSecondCall);
@@ -133,7 +133,7 @@ public class TestSnapshotChanges {
     Snapshot snapshotAfterDelete = table.currentSnapshot();
 
     SnapshotChanges changes =
-        SnapshotChanges.builder(snapshotAfterDelete, table.io(), table.specs()).build();
+        SnapshotChanges.builderFor(table).snapshot(snapshotAfterDelete).build();
 
     // First call should cache the data file changes
     Iterable<DataFile> firstCallResult = changes.removedDataFiles();

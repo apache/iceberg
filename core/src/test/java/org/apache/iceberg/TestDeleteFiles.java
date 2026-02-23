@@ -443,7 +443,7 @@ public class TestDeleteFiles extends TestBase {
 
     Snapshot delete2 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
     assertThat(delete2.allManifests(FILE_IO)).isEmpty();
-    assertThat(SnapshotUtil.removedDataFiles(delete2, FILE_IO, table.specs())).isEmpty();
+    assertThat(SnapshotUtil.removedDataFiles(table, delete2)).isEmpty();
   }
 
   @Test

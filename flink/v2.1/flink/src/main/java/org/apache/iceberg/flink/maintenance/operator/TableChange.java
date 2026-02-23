@@ -56,7 +56,7 @@ public class TableChange {
   }
 
   TableChange(Snapshot snapshot, Table table) {
-    this(SnapshotChanges.builder(snapshot, table.io(), table.specs()).build());
+    this(SnapshotChanges.builderFor(table).snapshot(snapshot).build());
   }
 
   private TableChange(SnapshotChanges changes) {

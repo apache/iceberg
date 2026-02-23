@@ -205,7 +205,7 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
           snapshots.stream()
               .filter(
                   snapshot ->
-                      SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs())
+                      SnapshotUtil.addedDataFiles(table, snapshot)
                           .iterator()
                           .hasNext())
               .collect(Collectors.toList());
@@ -223,7 +223,7 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
             Lists.newArrayList(
-                SnapshotUtil.addedDataFiles(snapshot, table.io(), table.specs()).iterator());
+                SnapshotUtil.addedDataFiles(table, snapshot).iterator());
         assertThat(addedDataFiles)
             .hasSizeLessThanOrEqualTo(maxAddedDataFilesPerCheckpoint(parallelism));
       }
