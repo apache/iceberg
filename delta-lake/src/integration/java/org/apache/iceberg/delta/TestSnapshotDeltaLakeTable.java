@@ -635,27 +635,24 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     // Count files in subsequent versions
     long latestVersion = deltaTable.getLatestSnapshot(engine).getVersion();
     TableImpl tableImpl = (TableImpl) deltaTable;
-    try {
-      for (long version = firstConstructableVersion + 1; version <= latestVersion; version++) {
-        try (CloseableIterator<ColumnarBatch> changes =
-            tableImpl.getChanges(
-                engine, version, version, Set.of(DeltaLogActionUtils.DeltaAction.ADD))) {
-          while (changes.hasNext()) {
-            ColumnarBatch batch = changes.next();
-            try (CloseableIterator<Row> rows = batch.getRows()) {
-              while (rows.hasNext()) {
-                Row row = rows.next();
-                if (DeltaActionUtils.isAdd(row)) {
-                  dataFilesCount++;
-                }
+    for (long version = firstConstructableVersion + 1; version <= latestVersion; version++) {
+      try (CloseableIterator<ColumnarBatch> changes =
+          tableImpl.getChanges(
+              engine, version, version, Set.of(DeltaLogActionUtils.DeltaAction.ADD))) {
+        while (changes.hasNext()) {
+          ColumnarBatch batch = changes.next();
+          try (CloseableIterator<Row> rows = batch.getRows()) {
+            while (rows.hasNext()) {
+              Row row = rows.next();
+              if (DeltaActionUtils.isAdd(row)) {
+                dataFilesCount++;
               }
             }
           }
         }
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to read Delta change logs at version " + version, e);
       }
-    } catch (IOException e) {
-      throw new RuntimeException(
-          "Failed to read Delta change logs after version " + firstConstructableVersion, e);
     }
 
     return dataFilesCount;
