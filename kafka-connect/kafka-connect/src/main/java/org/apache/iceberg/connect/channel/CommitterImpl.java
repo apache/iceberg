@@ -81,6 +81,17 @@ public class CommitterImpl implements Committer {
     }
 
     Collection<MemberDescription> members = groupDesc.members();
+
+    // During a rebalance, members may temporarily have no partition assignments.
+    // Check if any member has partitions assigned before determining the leader.
+    boolean anyAssigned =
+        members.stream()
+            .anyMatch(m -> !m.assignment().topicPartitions().isEmpty());
+    if (!anyAssigned) {
+      LOG.warn("No partitions assigned to any member yet (rebalance in progress), deferring leader election");
+      return false;
+    }
+
     if (containsFirstPartition(members, currentAssignedPartitions)) {
       membersWhenWorkerIsCoordinator = members;
       return true;

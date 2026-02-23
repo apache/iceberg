@@ -128,17 +128,13 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation 'software.amazon.awssdk:dynamodb'
     implementation 'software.amazon.awssdk:lakeformation'
 
-    implementation project(':iceberg-gcp')
-    implementation project(':iceberg-bigquery')
-    implementation platform(libs.google.libraries.bom)
-    implementation 'com.google.cloud:google-cloud-storage'
-    implementation 'com.google.cloud:google-cloud-bigquery'
-    implementation 'com.google.cloud:google-cloud-core'
+    // Confluent Schema Registry converters (Protobuf, Avro, JSON Schema)
+    // NOTE: Must come after AWS deps and before any GCP deps to avoid protobuf 4.x conflict
+    implementation 'io.confluent:kafka-connect-protobuf-converter:7.9.0'
 
-    implementation project(':iceberg-azure')
-    implementation platform(libs.azuresdk.bom)
-    implementation 'com.azure:azure-storage-file-datalake'
-    implementation 'com.azure:azure-identity'
+    // GCP and Azure removed — only AWS catalog (Glue) is needed.
+    // GCP's google-libraries-bom pulls protobuf-java 4.x which is binary-incompatible
+    // with Confluent's protobuf converter (compiled against protobuf 3.x).
 
     hive project(':iceberg-hive-metastore')
     hive(libs.hive2.metastore) {

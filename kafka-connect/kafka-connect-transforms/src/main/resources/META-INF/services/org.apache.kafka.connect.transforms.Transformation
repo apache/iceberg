@@ -15,6 +15,7 @@
 
 org.apache.iceberg.connect.transforms.CopyValue
 org.apache.iceberg.connect.transforms.DebeziumTransform
+org.apache.iceberg.connect.transforms.EnvelopeTransform
 org.apache.iceberg.connect.transforms.DmsTransform
 org.apache.iceberg.connect.transforms.JsonToMapTransform
 org.apache.iceberg.connect.transforms.KafkaMetadataTransform
