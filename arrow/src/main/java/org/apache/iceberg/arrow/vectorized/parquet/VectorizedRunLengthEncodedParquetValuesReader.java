@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.arrow.vectorized.parquet;
 
-import org.apache.arrow.vector.FieldVector;
-import org.apache.parquet.io.api.Binary;
-
 /**
  * A {@link VectorizedValuesReader} implementation for the encoding type Run Length Encoding / RLE.
  *
@@ -47,65 +44,5 @@ public class VectorizedRunLengthEncodedParquetValuesReader extends BaseVectorize
         IRRELEVANT_MAX_DEFINITION_LEVEL,
         ALWAYS_READ_LENGTH,
         setArrowValidityVector);
-  }
-
-  /** RLE only supports BOOLEAN as a data page encoding */
-  @Override
-  public byte readByte() {
-    throw new UnsupportedOperationException("readByte is not supported");
-  }
-
-  /** RLE only supports BOOLEAN as a data page encoding */
-  @Override
-  public short readShort() {
-    throw new UnsupportedOperationException("readShort is not supported");
-  }
-
-  /** RLE only supports BOOLEAN as a data page encoding */
-  @Override
-  public long readLong() {
-    throw new UnsupportedOperationException("readLong is not supported");
-  }
-
-  /** RLE only supports BOOLEAN as a data page encoding */
-  @Override
-  public float readFloat() {
-    throw new UnsupportedOperationException("readFloat is not supported");
-  }
-
-  /** RLE only supports BOOLEAN as a data page encoding */
-  @Override
-  public double readDouble() {
-    throw new UnsupportedOperationException("readDouble is not supported");
-  }
-
-  /** RLE only supports BOOLEAN as a data page encoding */
-  @Override
-  public Binary readBinary(int len) {
-    throw new UnsupportedOperationException("readBinary is not supported");
-  }
-
-  /** RLE only supports BOOLEAN as a data page encoding */
-  @Override
-  public void readIntegers(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readIntegers is not supported");
-  }
-
-  /** RLE only supports BOOLEAN as a data page encoding */
-  @Override
-  public void readLongs(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readLongs is not supported");
-  }
-
-  /** RLE only supports BOOLEAN as a data page encoding */
-  @Override
-  public void readFloats(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readFloats is not supported");
-  }
-
-  /** RLE only supports BOOLEAN as a data page encoding */
-  @Override
-  public void readDoubles(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readDoubles is not supported");
   }
 }
