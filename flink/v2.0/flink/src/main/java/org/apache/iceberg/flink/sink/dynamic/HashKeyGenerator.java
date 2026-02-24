@@ -97,7 +97,7 @@ class HashKeyGenerator {
                     MoreObjects.firstNonNull(tableSchema, dynamicRecord.schema()),
                     MoreObjects.firstNonNull(tableSpec, dynamicRecord.spec()),
                     MoreObjects.firstNonNull(
-                        dynamicRecord.distributionMode(), DistributionMode.NONE),
+                        dynamicRecord.distributionMode(), DistributionMode.ROUND_ROBIN),
                     MoreObjects.firstNonNull(
                         dynamicRecord.equalityFields(), Collections.emptySet()),
                     Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism)));
@@ -120,6 +120,12 @@ class HashKeyGenerator {
         "Creating new KeySelector for table '{}' with distribution mode '{}'", tableName, mode);
     switch (mode) {
       case NONE:
+        return row -> {
+          throw new IllegalStateException(
+              "Records with DistributionMode.NONE are routed via the forward path. They should not reach the key generator.");
+        };
+
+      case ROUND_ROBIN:
         if (equalityFields.isEmpty()) {
           return tableKeySelector(tableName, writeParallelism, maxWriteParallelism);
         } else {

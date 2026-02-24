@@ -26,16 +26,20 @@ import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.flink.CatalogLoader;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 @Internal
 class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal>
     implements Collector<DynamicRecord> {
   @VisibleForTesting
   static final String DYNAMIC_TABLE_UPDATE_STREAM = "dynamic-table-update-stream";
+
+  @VisibleForTesting static final String DYNAMIC_FORWARD_STREAM = "dynamic-forward-stream";
 
   private final DynamicRecordGenerator<T> generator;
   private final CatalogLoader catalogLoader;
@@ -51,6 +55,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private transient HashKeyGenerator hashKeyGenerator;
   private transient TableUpdater updater;
   private transient OutputTag<DynamicRecordInternal> updateStream;
+  private transient OutputTag<DynamicRecordInternal> forwardStream;
   private transient Collector<DynamicRecordInternal> collector;
   private transient Context context;
 
@@ -90,9 +95,14 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     this.hashKeyGenerator =
         new HashKeyGenerator(
             cacheMaximumSize, getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks());
-    if (immediateUpdate) {
-      updater = new TableUpdater(tableCache, catalog, caseSensitive, dropUnusedColumns);
-    } else {
+    // Always create updater — needed for forced immediate updates on NONE records
+    this.updater = new TableUpdater(tableCache, catalog, caseSensitive, dropUnusedColumns);
+    // Always create forward stream tag for NONE distribution records
+    this.forwardStream =
+        new OutputTag<>(
+            DYNAMIC_FORWARD_STREAM,
+            new DynamicRecordInternalType(catalogLoader, true, cacheMaximumSize)) {};
+    if (!immediateUpdate) {
       updateStream =
           new OutputTag<>(
               DYNAMIC_TABLE_UPDATE_STREAM,
@@ -112,6 +122,10 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
   @Override
   public void collect(DynamicRecord data) {
+    DistributionMode mode =
+        MoreObjects.firstNonNull(data.distributionMode(), DistributionMode.ROUND_ROBIN);
+    boolean isForward = (mode == DistributionMode.NONE);
+
     boolean exists = tableCache.exists(data.tableIdentifier()).f0;
     String foundBranch = exists ? tableCache.branch(data.tableIdentifier(), data.branch()) : null;
 
@@ -122,21 +136,26 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
     PartitionSpec foundSpec = exists ? tableCache.spec(data.tableIdentifier(), data.spec()) : null;
 
-    if (!exists
-        || foundBranch == null
-        || foundSpec == null
-        || foundSchema.compareResult() == CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED) {
-      if (immediateUpdate) {
+    boolean needsUpdate =
+        !exists
+            || foundBranch == null
+            || foundSpec == null
+            || foundSchema.compareResult() == CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED;
+
+    if (needsUpdate) {
+      if (isForward || immediateUpdate) {
+        // NONE records always force immediate update; non-NONE with immediateUpdate=true also
         Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> newData =
             updater.update(
                 data.tableIdentifier(), data.branch(), data.schema(), data.spec(), tableCreator);
         emit(
-            collector,
             data,
             newData.f0.resolvedTableSchema(),
             newData.f0.recordConverter(),
-            newData.f1);
+            newData.f1,
+            isForward);
       } else {
+        // Non-NONE records with immediateUpdate=false go to update side output
         int writerKey =
             hashKeyGenerator.generateKey(
                 data,
@@ -159,33 +178,47 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       }
     } else {
       emit(
-          collector,
           data,
           foundSchema.resolvedTableSchema(),
           foundSchema.recordConverter(),
-          foundSpec);
+          foundSpec,
+          isForward);
     }
   }
 
   private void emit(
-      Collector<DynamicRecordInternal> out,
       DynamicRecord data,
       Schema schema,
       DataConverter recordConverter,
-      PartitionSpec spec) {
+      PartitionSpec spec,
+      boolean forward) {
     RowData rowData = (RowData) recordConverter.convert(data.rowData());
-    int writerKey = hashKeyGenerator.generateKey(data, schema, spec, rowData);
     String tableName = data.tableIdentifier().toString();
-    out.collect(
-        new DynamicRecordInternal(
-            tableName,
-            data.branch(),
-            schema,
-            rowData,
-            spec,
-            writerKey,
-            data.upsertMode(),
-            DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), schema)));
+    if (forward) {
+      DynamicRecordInternal record =
+          new DynamicRecordInternal(
+              tableName,
+              data.branch(),
+              schema,
+              rowData,
+              spec,
+              0,
+              data.upsertMode(),
+              DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), schema));
+      context.output(forwardStream, record);
+    } else {
+      int writerKey = hashKeyGenerator.generateKey(data, schema, spec, rowData);
+      collector.collect(
+          new DynamicRecordInternal(
+              tableName,
+              data.branch(),
+              schema,
+              rowData,
+              spec,
+              writerKey,
+              data.upsertMode(),
+              DynamicSinkUtil.getEqualityFieldIds(data.equalityFields(), schema)));
+    }
   }
 
   @Override

@@ -39,7 +39,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public enum DistributionMode {
   NONE("none"),
   HASH("hash"),
-  RANGE("range");
+  RANGE("range"),
+  ROUND_ROBIN("round-robin");
 
   private final String modeName;
 
@@ -54,7 +55,7 @@ public enum DistributionMode {
   public static DistributionMode fromName(String modeName) {
     Preconditions.checkArgument(null != modeName, "Invalid distribution mode: null");
     try {
-      return DistributionMode.valueOf(modeName.toUpperCase(Locale.ENGLISH));
+      return DistributionMode.valueOf(modeName.toUpperCase(Locale.ENGLISH).replace('-', '_'));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(String.format("Invalid distribution mode: %s", modeName));
     }

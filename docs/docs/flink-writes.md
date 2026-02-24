@@ -483,7 +483,7 @@ We need the following information (DynamicRecord) for every record:
 | `Schema`           | The schema of the record.                                                                 |
 | `Spec`             | The expected partitioning specification for the record.                                   |
 | `RowData`          | The actual row data to be written.                                                        |
-| `DistributionMode` | The distribution mode for writing the record (currently supports NONE or HASH).           |
+| `DistributionMode` | The distribution mode for writing the record (supports NONE, ROUND_ROBIN, or HASH). See [Distribution Modes](#distribution-modes-1) below. |
 | `Parallelism`      | The maximum number of parallel writers for a given table/branch/schema/spec (WriteTarget). |
 | `UpsertMode`       | Overrides this table's write.upsert.enabled (optional).                                   |
 | `EqualityFields`   | The equality fields for the table(optional).                                                        |
@@ -546,6 +546,18 @@ The Dynamic Iceberg Flink Sink is configured using the Builder pattern. Here are
 | `setAll(Map<String, String> properties)`             | Set multiple properties at once                                                                                                                                         |
 | `tableCreator(TableCreator creator)` | When DynamicIcebergSink creates new Iceberg tables, allows overriding how tables are created - setting custom table properties and location based on the table name. |
 | `dropUnusedColumns(boolean enabled)`                 | When enabled, drops all columns from the current table schema which are not contained in the input schema (see the caveats above on dropping columns).                  |
+
+### Distribution Modes
+
+The `DistributionMode` set on each `DynamicRecord` controls how that record is routed from the processor to the writer:
+
+| Mode | Behavior |
+|------|----------|
+| `NONE` | True forward/no-redistribution. Records are sent directly from the processor to the writer using a forward edge, which enables Flink operator chaining. This avoids serialization and network shuffle overhead. Table metadata updates are always performed immediately inside the processor (regardless of `immediateTableUpdate` setting). Best for high-throughput pipelines where each subtask writes independently. |
+| `ROUND_ROBIN` | Records are distributed across writer subtasks in a round-robin fashion (or by equality fields if set). This is the default when no distribution mode is set on the `DynamicRecord`. |
+| `HASH` | Records are distributed by partition key (partitioned tables) or equality fields (unpartitioned tables). Ensures that records for the same partition are handled by the same writer subtask. |
+
+Records with different distribution modes can be mixed in the same pipeline. The sink internally maintains two write paths: a forward path for `NONE` records (chainable, no shuffle) and a shuffle path for `ROUND_ROBIN`/`HASH` records (keyed by writer key).
 
 ### Notes
 

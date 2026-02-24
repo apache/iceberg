@@ -76,6 +76,9 @@ public class SparkWriteUtil {
   private static Distribution writeDistribution(Table table, DistributionMode mode) {
     switch (mode) {
       case NONE:
+        // Spark's connector API has no round-robin distribution concept, so treat it the same
+        // as unspecified and let Spark distribute data across tasks as it sees fit
+      case ROUND_ROBIN:
         return Distributions.unspecified();
 
       case HASH:
@@ -107,6 +110,7 @@ public class SparkWriteUtil {
 
     switch (mode) {
       case NONE:
+      case ROUND_ROBIN:
         return Distributions.unspecified();
 
       case HASH:
@@ -148,6 +152,7 @@ public class SparkWriteUtil {
 
     switch (mode) {
       case NONE:
+      case ROUND_ROBIN:
         return Distributions.unspecified();
 
       case HASH:
@@ -180,6 +185,7 @@ public class SparkWriteUtil {
   private static Distribution positionDeltaDeleteDistribution(Table table, DistributionMode mode) {
     switch (mode) {
       case NONE:
+      case ROUND_ROBIN:
         return Distributions.unspecified();
 
       case HASH:
