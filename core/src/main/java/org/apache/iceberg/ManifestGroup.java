@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -222,22 +223,40 @@ class ManifestGroup {
   /**
    * Returns an iterable for manifest entries in the set of manifests.
    *
-   * <p>When parallel execution is enabled via {@link #planWith(ExecutorService)}, entries are
-   * defensively copied since the underlying {@link ManifestReader} reuses entry objects during
-   * iteration. Otherwise, entries are not copied and it is the caller's responsibility to make
-   * defensive copies if adding these entries to a collection.
+   * <p>Entries are not copied and it is the caller's responsibility to make defensive copies if
+   * adding these entries to a collection.
    *
    * @return a CloseableIterable of manifest entries.
    */
   public CloseableIterable<ManifestEntry<DataFile>> entries() {
+    return CloseableIterable.concat(entries((manifest, entries) -> entries));
+  }
+
+  /**
+   * Returns a transformed iterable over manifest entries in the set of manifests.
+   *
+   * <p>The provided function is applied to the entries of each manifest to produce the output
+   * elements. When parallel execution is enabled via {@link #planWith(ExecutorService)}, manifests
+   * are scanned in parallel and the function is invoked in worker threads.
+   *
+   * <p>Since the underlying {@link ManifestReader} reuses entry objects during iteration, the
+   * provided function must make defensive copies of any entry data it needs to retain beyond the
+   * current iteration step.
+   *
+   * @param entryTransform a function that transforms each manifest's entries into the desired
+   *     output
+   * @param <T> the output element type
+   * @return a {@link CloseableIterable} of transformed elements
+   */
+  public <T> CloseableIterable<T> entries(
+      Function<CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryTransform) {
+    Iterable<CloseableIterable<T>> iterables =
+        entries((manifest, entries) -> entryTransform.apply(entries));
+
     if (executorService != null) {
-      // copy entries to avoid object reuse issues when scanning manifests in parallel,
-      // as ManifestReader reuses entry objects during iteration
-      Iterable<CloseableIterable<ManifestEntry<DataFile>>> entryIterables =
-          entries((manifest, entries) -> CloseableIterable.transform(entries, ManifestEntry::copy));
-      return new ParallelIterable<>(entryIterables, executorService);
+      return new ParallelIterable<>(iterables, executorService);
     } else {
-      return CloseableIterable.concat(entries((manifest, entries) -> entries));
+      return CloseableIterable.concat(iterables);
     }
   }
 
