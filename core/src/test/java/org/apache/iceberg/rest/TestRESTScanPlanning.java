@@ -42,8 +42,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.ContentFile;
-import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
@@ -971,20 +969,17 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   @Test
   public void serverDoesNotSupportPlanningEndpoint() throws IOException {
-    // Server doesn't support scan planning at all - should fall back to client-side planning
+    // Server requires server-side planning but doesn't support the endpoint - should fail
     CatalogWithAdapter catalogWithAdapter = catalogWithEndpoints(baseCatalogEndpoints(), null);
     RESTCatalog catalog = catalogWithAdapter.catalog;
-    Table table = createTableWithScanPlanning(catalog, "no_planning_support");
-    assertThat(table).isNotInstanceOf(RESTTable.class);
-    table.newAppend().appendFile(FILE_A).commit();
 
-    // Should fall back to client-side planning when endpoint is not supported
-    assertThat(table.newScan().planFiles())
-        .hasSize(1)
-        .first()
-        .extracting(ContentScanTask::file)
-        .extracting(ContentFile::location)
-        .isEqualTo(FILE_A.location());
+    catalog.createNamespace(NS);
+    assertThatThrownBy(
+            () ->
+                catalog.buildTable(TableIdentifier.of(NS, "no_planning_support"), SCHEMA).create())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Server requires server-side scan planning")
+        .hasMessageContaining(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN.toString());
   }
 
   @Test

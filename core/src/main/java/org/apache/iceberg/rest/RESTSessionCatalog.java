@@ -615,8 +615,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             ? RESTCatalogProperties.ScanPlanningMode.fromString(effectiveModeConfig)
             : RESTCatalogProperties.ScanPlanningMode.CLIENT;
 
-    if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.SERVER
-        && endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN)) {
+    if (effectiveMode == RESTCatalogProperties.ScanPlanningMode.SERVER) {
+      Preconditions.checkState(
+          endpoints.contains(Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN),
+          "Server requires server-side scan planning for table %s but does not support endpoint %s",
+          finalIdentifier,
+          Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN);
+
       return new RESTTable(
           ops,
           fullTableName(finalIdentifier),
