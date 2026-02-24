@@ -104,3 +104,56 @@ jobs:
         name: test logs
         path: |
           **/build/testlogs
+
+  vulnerability-scan:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-java@v5
+      with:
+        distribution: zulu
+        java-version: 21
+    - uses: actions/cache@v5
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: ${{ runner.os }}-gradle-
+    - name: Build Kafka Connect distribution
+      run: |
+        ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions=3 \
+          :iceberg-kafka-connect:iceberg-kafka-connect-runtime:distZip \
+          -Pquick=true -x test -x javadoc
+    - name: Unpack distribution for scanning
+      run: |
+        mkdir -p /tmp/kafka-connect-scan
+        unzip kafka-connect/kafka-connect-runtime/build/distributions/iceberg-kafka-connect-runtime-*.zip \
+          -d /tmp/kafka-connect-scan
+    - name: Run Trivy vulnerability scan
+      uses: aquasecurity/trivy-action@0.34.1
+      with:
+        scan-type: 'fs'
+        scan-ref: '/tmp/kafka-connect-scan'
+        scanners: 'vuln'
+        severity: 'CRITICAL,HIGH'
+        ignore-unfixed: true
+    - name: Run Trivy vulnerability scan (SARIF)
+      uses: aquasecurity/trivy-action@0.34.1
+      if: github.event_name == 'push'
+      with:
+        scan-type: 'fs'
+        scan-ref: '/tmp/kafka-connect-scan'
+        scanners: 'vuln'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH'
+        ignore-unfixed: true
+    - name: Upload Trivy results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: github.event_name == 'push'
+      with:
+        sarif_file: 'trivy-results.sarif'
