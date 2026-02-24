@@ -37,7 +37,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.ThreadPools;
-import org.assertj.core.api.Assertions;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -212,10 +211,10 @@ public class TestS3RestSigner {
    * @param misses expected misses
    */
   private void assertCacheHitsAndMisses(int hits, int misses) {
-    Assertions.assertThat(S3V4RestSignerClient.cacheHits())
+    assertThat(S3V4RestSignerClient.cacheHits())
         .describedAs("Cache hits")
         .isEqualTo(hits);
-    Assertions.assertThat(S3V4RestSignerClient.cacheMisses())
+    assertThat(S3V4RestSignerClient.cacheMisses())
         .describedAs("Cache misses")
         .isEqualTo(misses);
   }
