@@ -63,6 +63,19 @@ val df = spark.readStream
 !!! info
     Note: In addition to limiting micro-batch sizes on queries that use the default trigger (i.e. `Trigger.ProcessingTime`), rate limiting options can be applied to queries that use `Trigger.AvailableNow` to split one-time processing of all available source data into multiple micro-batches for better query scalability. Rate limiting options will be ignored when using the deprecated `Trigger.Once` trigger.
 
+### Checkpoint storage mode
+
+By default, Iceberg uses the table's FileIO implementation for storing streaming checkpoint files. However, you can configure Iceberg to use Hadoop FileSystem instead by setting the `streaming-checkpoint-use-hadoop` option to `true`:
+
+```scala
+val df = spark.readStream
+    .format("iceberg")
+    .option("streaming-checkpoint-use-hadoop", "true")
+    .load("database.table_name")
+```
+
+This is useful when you want to write checkpoints to a different storage from the one the table uses.
+
 ## Streaming Writes
 
 To write values from streaming query to Iceberg table, use `DataStreamWriter`:

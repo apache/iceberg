@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -54,7 +55,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
-  private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
@@ -96,8 +96,21 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
     InitialOffsetStore initialOffsetStore =
-        new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
+        createInitialOffsetStore(table, checkpointLocation, fromTimestamp, sparkContext, readConf);
     this.initialOffset = initialOffsetStore.initialOffset();
+  }
+
+  private static InitialOffsetStore createInitialOffsetStore(
+      Table table,
+      String checkpointLocation,
+      long fromTimestamp,
+      JavaSparkContext sparkContext,
+      SparkReadConf readConf) {
+    FileIO io =
+        readConf.streamingCheckpointUseHadoop()
+            ? new HadoopFileIO(sparkContext.hadoopConfiguration())
+            : table.io();
+    return new InitialOffsetStore(table, checkpointLocation, fromTimestamp, io);
   }
 
   @Override
@@ -248,14 +261,16 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   }
 
   private static class InitialOffsetStore {
+    private static final Joiner SLASH = Joiner.on("/");
+
     private final Table table;
     private final FileIO io;
     private final String initialOffsetLocation;
-    private final Long fromTimestamp;
+    private final long fromTimestamp;
 
-    InitialOffsetStore(Table table, String checkpointLocation, Long fromTimestamp) {
+    InitialOffsetStore(Table table, String checkpointLocation, long fromTimestamp, FileIO io) {
       this.table = table;
-      this.io = table.io();
+      this.io = io;
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
       this.fromTimestamp = fromTimestamp;
     }

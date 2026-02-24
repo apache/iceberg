@@ -84,6 +84,10 @@ public class SparkReadOptions {
   public static final String STREAMING_MAX_ROWS_PER_MICRO_BATCH =
       "streaming-max-rows-per-micro-batch";
 
+  // Controls whether to use Hadoop FileSystem for streaming checkpoint operations
+  public static final String STREAMING_CHECKPOINT_USE_HADOOP = "streaming-checkpoint-use-hadoop";
+  public static final boolean STREAMING_CHECKPOINT_USE_HADOOP_DEFAULT = false;
+
   // Table path
   public static final String PATH = "path";
 

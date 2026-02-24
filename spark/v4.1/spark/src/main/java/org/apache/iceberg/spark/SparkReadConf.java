@@ -239,6 +239,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean streamingCheckpointUseHadoop() {
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.STREAMING_CHECKPOINT_USE_HADOOP)
+        .defaultValue(SparkReadOptions.STREAMING_CHECKPOINT_USE_HADOOP_DEFAULT)
+        .parse();
+  }
+
   public boolean preserveDataGrouping() {
     return confParser
         .booleanConf()
