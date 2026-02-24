@@ -20,11 +20,11 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.List;
 
-public class TriggerUtil {
+class TriggerUtil {
 
   private TriggerUtil() {}
 
-  public static Integer nextTrigger(
+  static Integer nextTrigger(
       List<TriggerEvaluator> evaluators,
       List<TableChange> changes,
       List<Long> lastTriggerTimes,
