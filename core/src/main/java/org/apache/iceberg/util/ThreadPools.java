@@ -215,7 +215,7 @@ public class ThreadPools {
    * #newExitingWorkerPool(String, int)}.
    */
   @SuppressWarnings("ShutdownHook")
-  private static void initShutdownHook() {
+  private static synchronized void initShutdownHook() {
     if (shutdownHook == null) {
       shutdownHook =
           Executors.defaultThreadFactory()
@@ -249,7 +249,7 @@ public class ThreadPools {
    * <p>Thread pools can still be stopped manually via the {@link #shutdownThreadPools()} method.
    */
   @SuppressWarnings("ShutdownHook")
-  public static void removeShutdownHook() {
+  public static synchronized void removeShutdownHook() {
     if (shutdownHook != null) {
       try {
         Runtime.getRuntime().removeShutdownHook(shutdownHook);
