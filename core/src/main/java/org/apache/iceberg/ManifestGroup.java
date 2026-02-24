@@ -222,13 +222,23 @@ class ManifestGroup {
   /**
    * Returns an iterable for manifest entries in the set of manifests.
    *
-   * <p>Entries are not copied and it is the caller's responsibility to make defensive copies if
-   * adding these entries to a collection.
+   * <p>When parallel execution is enabled via {@link #planWith(ExecutorService)}, entries are
+   * defensively copied since the underlying {@link ManifestReader} reuses entry objects during
+   * iteration. Otherwise, entries are not copied and it is the caller's responsibility to make
+   * defensive copies if adding these entries to a collection.
    *
    * @return a CloseableIterable of manifest entries.
    */
   public CloseableIterable<ManifestEntry<DataFile>> entries() {
-    return CloseableIterable.concat(entries((manifest, entries) -> entries));
+    if (executorService != null) {
+      // copy entries to avoid object reuse issues when scanning manifests in parallel,
+      // as ManifestReader reuses entry objects during iteration
+      Iterable<CloseableIterable<ManifestEntry<DataFile>>> entryIterables =
+          entries((manifest, entries) -> CloseableIterable.transform(entries, ManifestEntry::copy));
+      return new ParallelIterable<>(entryIterables, executorService);
+    } else {
+      return CloseableIterable.concat(entries((manifest, entries) -> entries));
+    }
   }
 
   /**

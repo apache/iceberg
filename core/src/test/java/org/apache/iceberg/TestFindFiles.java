@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -209,15 +210,20 @@ public class TestFindFiles extends TestBase {
 
   @TestTemplate
   public void testPlanWith() {
-    table
-        .newAppend()
-        .appendFile(FILE_A)
-        .appendFile(FILE_B)
-        .appendFile(FILE_C)
-        .appendFile(FILE_D)
-        .commit();
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
+    assertThat(table.currentSnapshot().dataManifests(table.io())).hasSize(2);
 
-    ExecutorService executorService = Executors.newFixedThreadPool(2);
+    AtomicInteger planThreadsIndex = new AtomicInteger(0);
+    ExecutorService executorService =
+        Executors.newFixedThreadPool(
+            2,
+            runnable -> {
+              Thread thread = new Thread(runnable);
+              thread.setName("plan-" + planThreadsIndex.getAndIncrement());
+              thread.setDaemon(true);
+              return thread;
+            });
     try {
       Iterable<DataFile> files =
           FindFiles.in(table)
@@ -226,6 +232,9 @@ public class TestFindFiles extends TestBase {
               .collect();
 
       assertThat(pathSet(files)).isEqualTo(pathSet(FILE_A, FILE_B, FILE_C, FILE_D));
+      assertThat(planThreadsIndex.get())
+          .as("Thread should be created in provided pool")
+          .isGreaterThan(0);
     } finally {
       executorService.shutdown();
     }
