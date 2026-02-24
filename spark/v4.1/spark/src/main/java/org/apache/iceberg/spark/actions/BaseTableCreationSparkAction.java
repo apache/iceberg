@@ -134,6 +134,11 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
     Preconditions.checkArgument(
         !sourceCatalogTable.storage().locationUri().isEmpty(),
         "Cannot create an Iceberg table from a source without an explicit location");
+    if (sourceCatalogTable.bucketSpec().isDefined()) {
+      throw new IllegalArgumentException(
+          "Cannot create an Iceberg table from a bucketed source table: "
+              + sourceCatalogTable.bucketSpec().get());
+    }
   }
 
   protected StagingTableCatalog checkDestinationCatalog(CatalogPlugin catalog) {
