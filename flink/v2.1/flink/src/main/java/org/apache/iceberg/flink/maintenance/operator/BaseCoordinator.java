@@ -27,7 +27,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.util.FatalExitExceptionHandler;
@@ -42,23 +41,22 @@ import org.slf4j.LoggerFactory;
  * Base coordinator for table maintenance operators. Provides common functionality for thread
  * management, subtask gateway management, and checkpoint handling.
  */
-@Internal
-public abstract class BaseCoordinator implements OperatorCoordinator {
+abstract class BaseCoordinator implements OperatorCoordinator {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseCoordinator.class);
-
-  private final String operatorName;
-  private final Context context;
-
-  private final ExecutorService coordinatorExecutor;
-  private boolean started;
-  private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
-  private final SubtaskGateways subtaskGateways;
   private static final Map<String, Consumer<LockReleaseEvent>> LOCK_RELEASE_CONSUMERS =
       Maps.newConcurrentMap();
   private static final List<LockReleaseEvent> PENDING_RELEASE_EVENTS = Lists.newArrayList();
 
-  protected BaseCoordinator(String operatorName, Context context) {
+  private final String operatorName;
+  private final Context context;
+  private final ExecutorService coordinatorExecutor;
+  private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
+  private final SubtaskGateways subtaskGateways;
+
+  private boolean started;
+
+  BaseCoordinator(String operatorName, Context context) {
     this.operatorName = operatorName;
     this.context = context;
 
@@ -199,7 +197,7 @@ public abstract class BaseCoordinator implements OperatorCoordinator {
     return operatorName;
   }
 
-  protected void runInCoordinatorThread(Runnable runnable, String actionString) {
+  void runInCoordinatorThread(Runnable runnable, String actionString) {
     ensureStarted();
     coordinatorExecutor.execute(
         () -> {

@@ -69,7 +69,7 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
   @TempDir private File checkpointDir;
 
   @BeforeEach
-  public void beforeEach() throws IOException {
+  void beforeEach() throws IOException {
     Configuration config = new Configuration();
     config.set(CheckpointingOptions.CHECKPOINT_STORAGE, "filesystem");
     config.set(CheckpointingOptions.CHECKPOINTS_DIRECTORY, "file://" + checkpointDir.getPath());
@@ -322,13 +322,8 @@ class TestTableMaintenanceCoordinationLock extends OperatorTestBase {
     }
   }
 
-  private static class DummyMaintenanceTask
+  private record DummyMaintenanceTask(boolean success)
       implements MapFunction<Trigger, TaskResult>, ResultTypeQueryable<TaskResult>, Serializable {
-    private final boolean success;
-
-    private DummyMaintenanceTask(boolean success) {
-      this.success = success;
-    }
 
     @Override
     public TaskResult map(Trigger trigger) {

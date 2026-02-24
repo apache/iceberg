@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import java.io.Serial;
 import java.util.List;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.operators.ProcessingTimeService.ProcessingTimeCallback;
 import org.apache.flink.api.common.state.ListState;
@@ -50,27 +50,30 @@ import org.slf4j.LoggerFactory;
  * coordinator. When a task finishes, it sends a signal from downstream to the coordinator to
  * trigger this callback, allowing the TriggerManagerOperator to release the lock.
  */
-@Internal
-public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
+class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
     implements OneInputStreamOperator<TableChange, Trigger>,
         OperatorEventHandler,
         ProcessingTimeCallback {
+
+  @Serial private static final long serialVersionUID = 1L;
   private static final Logger LOG = LoggerFactory.getLogger(TriggerManagerOperator.class);
 
+  private final OperatorEventGateway operatorEventGateway;
   private final List<String> maintenanceTaskNames;
   private final List<TriggerEvaluator> evaluators;
-  private transient Long nextEvaluationTime;
   private final long minFireDelayMs;
-  private final OperatorEventGateway operatorEventGateway;
-  private transient List<TableChange> accumulatedChanges;
-  private transient ListState<Long> nextEvaluationTimeState;
-  private transient ListState<TableChange> accumulatedChangesState;
-  private transient ListState<Long> lastTriggerTimesState;
+  private final long lockCheckDelayMs;
+  private final String tableName;
+
   private transient Counter rateLimiterTriggeredCounter;
   private transient Counter concurrentRunThrottledCounter;
   private transient Counter nothingToTriggerCounter;
   private transient List<Counter> triggerCounters;
-  private final long lockCheckDelayMs;
+  private transient ListState<Long> nextEvaluationTimeState;
+  private transient ListState<TableChange> accumulatedChangesState;
+  private transient ListState<Long> lastTriggerTimesState;
+  private transient Long nextEvaluationTime;
+  private transient List<TableChange> accumulatedChanges;
   private transient List<Long> lastTriggerTimes;
   // To keep the task scheduling fair we keep the last triggered task position in memory.
   // If we find a task to trigger, then we run it, but after it is finished, we start from the given
@@ -79,11 +82,10 @@ public class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
   // be important (RewriteDataFiles first, and then RewriteManifestFiles later)
   private transient int startsFrom = 0;
   private transient boolean triggered = false;
-  private final String tableName;
   private transient Long lockTime;
   private transient boolean shouldRestoreTasks = false;
 
-  public TriggerManagerOperator(
+  TriggerManagerOperator(
       StreamOperatorParameters<Trigger> parameters,
       OperatorEventGateway operatorEventGateway,
       List<String> maintenanceTaskNames,

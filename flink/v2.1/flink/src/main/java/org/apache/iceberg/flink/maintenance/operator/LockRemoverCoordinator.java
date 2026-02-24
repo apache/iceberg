@@ -19,18 +19,16 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.Locale;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Coordinator for LockRemoverOperator. Handles lock release events from downstream operators. */
-@Internal
-public class LockRemoverCoordinator extends BaseCoordinator {
+class LockRemoverCoordinator extends BaseCoordinator {
 
   private static final Logger LOG = LoggerFactory.getLogger(LockRemoverCoordinator.class);
 
-  public LockRemoverCoordinator(String operatorName, Context context) {
+  LockRemoverCoordinator(String operatorName, Context context) {
     super(operatorName, context);
     LOG.info("Created LockRemoverCoordinator: {}", operatorName);
   }

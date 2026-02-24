@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
@@ -26,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * handler. This handler will be used to forward lock release events back to the operator when
  * triggered by downstream operators.
  */
+@Internal
 public class LockRegisterEvent implements OperatorEvent {
 
   private final String lockId;

@@ -68,11 +68,12 @@ public class LockRemoverOperatorFactory extends AbstractStreamOperatorFactory<Vo
     return LockRemoverOperator.class;
   }
 
-  static class LockRemoverCoordinatorProvider extends RecreateOnResetOperatorCoordinator.Provider {
+  private static class LockRemoverCoordinatorProvider
+      extends RecreateOnResetOperatorCoordinator.Provider {
 
     private final String operatorName;
 
-    LockRemoverCoordinatorProvider(String operatorName, OperatorID operatorID) {
+    private LockRemoverCoordinatorProvider(String operatorName, OperatorID operatorID) {
       super(operatorID);
       this.operatorName = operatorName;
     }

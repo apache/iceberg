@@ -31,7 +31,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 
 @Timeout(value = 10)
 @Execution(ExecutionMode.SAME_THREAD)
-class TestLockRemoveCoordinator extends TestBaseCoordinator {
+class TestLockRemoveCoordinator extends CoordinatorTestBase {
 
   private EventReceivingTasks receivingTasks;
 
@@ -57,7 +57,7 @@ class TestLockRemoveCoordinator extends TestBaseCoordinator {
     return new LockRemoverCoordinator(
         OPERATOR_NAME, new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, 1)) {
       @Override
-      protected void runInCoordinatorThread(Runnable runnable, String actionString) {
+      void runInCoordinatorThread(Runnable runnable, String actionString) {
         try {
           coordinatorExecutor().submit(runnable).get();
         } catch (InterruptedException | ExecutionException e) {

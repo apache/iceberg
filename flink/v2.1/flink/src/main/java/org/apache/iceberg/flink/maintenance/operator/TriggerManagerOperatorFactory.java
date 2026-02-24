@@ -92,12 +92,12 @@ public class TriggerManagerOperatorFactory extends AbstractStreamOperatorFactory
     return TriggerManagerOperator.class;
   }
 
-  static class TriggerManagerCoordinatorProvider
+  private static class TriggerManagerCoordinatorProvider
       extends RecreateOnResetOperatorCoordinator.Provider {
 
     private final String operatorName;
 
-    TriggerManagerCoordinatorProvider(String operatorName, OperatorID operatorID) {
+    private TriggerManagerCoordinatorProvider(String operatorName, OperatorID operatorID) {
       super(operatorID);
       this.operatorName = operatorName;
     }

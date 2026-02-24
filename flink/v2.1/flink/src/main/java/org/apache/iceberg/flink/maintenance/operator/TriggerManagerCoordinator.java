@@ -19,17 +19,15 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.Locale;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Internal
-public class TriggerManagerCoordinator extends BaseCoordinator {
+class TriggerManagerCoordinator extends BaseCoordinator {
 
   private static final Logger LOG = LoggerFactory.getLogger(TriggerManagerCoordinator.class);
 
-  public TriggerManagerCoordinator(String operatorName, Context context) {
+  TriggerManagerCoordinator(String operatorName, Context context) {
     super(operatorName, context);
     LOG.info("Created TriggerManagerCoordinator: {}", operatorName);
   }

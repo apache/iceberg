@@ -18,10 +18,9 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import java.io.Serial;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import org.apache.flink.annotation.Experimental;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -37,13 +36,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Experimental
-@Internal
-public class LockRemoverOperator extends AbstractStreamOperator<Void>
+class LockRemoverOperator extends AbstractStreamOperator<Void>
     implements OneInputStreamOperator<TaskResult, Void>, OperatorEventHandler {
-  private static final Logger LOG = LoggerFactory.getLogger(LockRemoverOperator.class);
 
-  private static final long serialVersionUID = 1L;
+  @Serial private static final long serialVersionUID = 1L;
+  private static final Logger LOG = LoggerFactory.getLogger(LockRemoverOperator.class);
 
   private final String tableName;
   private final OperatorEventGateway operatorEventGateway;

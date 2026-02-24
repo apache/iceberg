@@ -32,7 +32,7 @@ import org.junit.jupiter.api.parallel.ExecutionMode;
 
 @Timeout(value = 10)
 @Execution(ExecutionMode.SAME_THREAD)
-class TestTriggerManagerCoordinator extends TestBaseCoordinator {
+class TestTriggerManagerCoordinator extends CoordinatorTestBase {
 
   private EventReceivingTasks receivingTasks;
   private EventReceivingTasks receivingTasks1;
@@ -90,7 +90,7 @@ class TestTriggerManagerCoordinator extends TestBaseCoordinator {
     return new TriggerManagerCoordinator(
         operatorName, new MockOperatorCoordinatorContext(operatorID, 1)) {
       @Override
-      protected void runInCoordinatorThread(Runnable runnable, String actionString) {
+      void runInCoordinatorThread(Runnable runnable, String actionString) {
         try {
           coordinatorExecutor().submit(runnable).get();
         } catch (InterruptedException | ExecutionException e) {

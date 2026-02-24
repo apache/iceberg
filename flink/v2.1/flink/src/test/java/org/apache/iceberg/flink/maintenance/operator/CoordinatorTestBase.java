@@ -23,7 +23,7 @@ import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.junit.jupiter.api.Timeout;
 
 @Timeout(value = 10)
-class TestBaseCoordinator extends OperatorTestBase {
+class CoordinatorTestBase extends OperatorTestBase {
   protected static final String OPERATOR_NAME = "TestCoordinator";
   protected static final String OPERATOR_NAME_1 = "TestCoordinator_1";
   protected static final OperatorID TEST_OPERATOR_ID = new OperatorID(1234L, 5678L);
