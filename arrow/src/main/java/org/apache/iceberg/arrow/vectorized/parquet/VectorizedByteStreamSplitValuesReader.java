@@ -122,11 +122,11 @@ public class VectorizedByteStreamSplitValuesReader extends ValuesReader
 
   private void ensureDecoded() {
     if (decodedDataStream == null) {
-      this.decodedDataStream = decode(totalBytesInStream / elementSizeInBytes, elementSizeInBytes);
+      this.decodedDataStream = decode(totalBytesInStream / elementSizeInBytes);
     }
   }
 
-  private ByteBuffer decode(int valuesCount, int elementSizeInBytes) {
+  private ByteBuffer decode(int valuesCount) {
     ByteBuffer encoded;
     try {
       encoded = dataStream.slice(totalBytesInStream).slice();
