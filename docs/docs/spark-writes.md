@@ -104,6 +104,9 @@ WHEN NOT MATCHED BY SOURCE THEN UPDATE SET status = 'invalid'
 
 After a `MERGE INTO` commit, the [snapshot summary](../../spec.md#optional-snapshot-summary-fields) may include the following fields. Each value is the string form of a non-negative count. A field is omitted when the value is unknown (e.g., not reported by Spark).
 
+!!! info
+    Only available in Spark 4.1 and higher.
+
 | Field                                                                 | Description                                                                 |
 |-----------------------------------------------------------------------|-----------------------------------------------------------------------------|
 | **`spark.merge-into.num-target-rows-copied`**                         | Number of target rows copied unmodified because they did not match any action |
