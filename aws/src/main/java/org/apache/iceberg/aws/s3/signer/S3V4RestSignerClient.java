@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -74,6 +75,9 @@ public abstract class S3V4RestSignerClient
 
   private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
+
+  private static final AtomicInteger CACHE_HITS = new AtomicInteger();
+  private static final AtomicInteger CACHE_MISSES = new AtomicInteger();
 
   private static final String SCOPE = "sign";
 
@@ -169,6 +173,14 @@ public abstract class S3V4RestSignerClient
     return httpClient;
   }
 
+  public static int cacheHits() {
+    return CACHE_HITS.get();
+  }
+
+  public static int cacheMisses() {
+    return CACHE_MISSES.get();
+  }
+
   @VisibleForTesting
   AuthSession authSession() {
     ImmutableMap.Builder<String, String> properties =
@@ -256,8 +268,10 @@ public abstract class S3V4RestSignerClient
     SignedComponent signedComponent;
 
     if (null != cachedSignedComponent) {
+      CACHE_HITS.incrementAndGet();
       signedComponent = cachedSignedComponent;
     } else {
+      CACHE_MISSES.incrementAndGet();
       Map<String, String> responseHeaders = Maps.newHashMap();
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
       S3SignResponse s3SignResponse =

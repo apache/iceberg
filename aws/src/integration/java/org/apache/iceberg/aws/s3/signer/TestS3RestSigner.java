@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.ThreadPools;
+import org.assertj.core.api.Assertions;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -70,6 +71,8 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -202,11 +205,52 @@ public class TestS3RestSigner {
     return server;
   }
 
+  /**
+   * Assert the cache hits and misses match the values.
+   *
+   * @param hits expected hits
+   * @param misses expected misses
+   */
+  private void assertCacheHitsAndMisses(int hits, int misses) {
+    Assertions.assertThat(S3V4RestSignerClient.cacheHits())
+        .describedAs("Cache hits")
+        .isEqualTo(hits);
+    Assertions.assertThat(S3V4RestSignerClient.cacheMisses())
+        .describedAs("Cache misses")
+        .isEqualTo(misses);
+  }
+
   @Test
   public void validateGetObject() {
+    int hits = S3V4RestSignerClient.cacheHits();
+    int misses = S3V4RestSignerClient.cacheMisses();
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").build());
-    // signer caching should kick in when repeating the same request
-    s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").build());
+    assertCacheHitsAndMisses(hits, misses + 1);
+
+    // signer caching should kick in when repeating the same request with a range
+    s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").range("0-10").build());
+    assertCacheHitsAndMisses(hits + 1, misses + 1);
+  }
+
+  @Test
+  public void validateHeadObjectUnsignedHeaders() {
+    int hits = S3V4RestSignerClient.cacheHits();
+    int misses = S3V4RestSignerClient.cacheMisses();
+    final HeadObjectResponse response =
+        s3.headObject(HeadObjectRequest.builder().bucket(BUCKET).key("random/key").build());
+    assertCacheHitsAndMisses(hits, misses + 1);
+    response.eTag();
+
+    // the etag is passed in: the same object is returned and the same cached signature is retained.
+    // if the ifMatch header was cached, this would have resulted in a failure as there would
+    // be a signature mismatch.
+    s3.headObject(
+        HeadObjectRequest.builder()
+            .bucket(BUCKET)
+            .key("random/key")
+            .ifMatch(response.eTag())
+            .build());
+    assertCacheHitsAndMisses(hits + 1, misses + 1);
   }
 
   @Test

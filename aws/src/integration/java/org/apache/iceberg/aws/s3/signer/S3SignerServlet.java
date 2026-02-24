@@ -32,7 +32,6 @@ import java.io.Reader;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,7 +45,6 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
@@ -70,9 +68,25 @@ public class S3SignerServlet extends HttpServlet {
   private static final Logger LOG = LoggerFactory.getLogger(S3SignerServlet.class);
 
   static final Clock SIGNING_CLOCK = Clock.fixed(Instant.now(), ZoneId.of("UTC"));
+
+  /**
+   * All headers which are harmess (aws-sdk-*), noise (referrer, UA) or which change the semantics
+   * of a HEAD/GET request (the if-* headers) must be unsigned, as they will not be used in cache
+   * key and hence lookup in the signer.
+   */
   static final Set<String> UNSIGNED_HEADERS =
-      Sets.newHashSet(
-          Arrays.asList("range", "x-amz-date", "amz-sdk-invocation-id", "amz-sdk-retry"));
+      Set.of(
+          "range",
+          "x-amz-date",
+          "amz-sdk-invocation-id",
+          "amz-sdk-retry",
+          "referer",
+          "user-agent",
+          "if-modified-since",
+          "if-none-match",
+          "if-unmodified-since",
+          "if-match");
+
   private static final String POST = "POST";
 
   private static final Set<SdkHttpMethod> CACHEABLE_METHODS =
