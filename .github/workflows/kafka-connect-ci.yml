@@ -134,7 +134,7 @@ jobs:
         unzip kafka-connect/kafka-connect-runtime/build/distributions/iceberg-kafka-connect-runtime-*.zip \
           -d /tmp/kafka-connect-scan
     - name: Run Trivy vulnerability scan
-      uses: aquasecurity/trivy-action@0.34.1
+      uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # v0.34.1
       with:
         scan-type: 'fs'
         scan-ref: '/tmp/kafka-connect-scan'
@@ -142,7 +142,7 @@ jobs:
         severity: 'CRITICAL,HIGH'
         ignore-unfixed: true
     - name: Run Trivy vulnerability scan (SARIF)
-      uses: aquasecurity/trivy-action@0.34.1
+      uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # v0.34.1
       if: github.event_name == 'push'
       with:
         scan-type: 'fs'
@@ -153,7 +153,7 @@ jobs:
         severity: 'CRITICAL,HIGH'
         ignore-unfixed: true
     - name: Upload Trivy results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@c4a7bc332abaec03596ff2803dd7f3ca3a238975 # v3
       if: github.event_name == 'push'
       with:
         sarif_file: 'trivy-results.sarif'
