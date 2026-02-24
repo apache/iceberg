@@ -145,12 +145,12 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
 
   @Override
   public int size() {
-    return 7;
+    return 8;
   }
 
   @Override
   public <X> X get(int pos, Class<X> javaClass) {
-    return switch (FieldStatistic.fromOffset(pos)) {
+    return switch (FieldStatistic.fromPosition(pos)) {
       case VALUE_COUNT -> javaClass.cast(valueCount);
       case NULL_VALUE_COUNT -> javaClass.cast(nullValueCount);
       case NAN_VALUE_COUNT -> javaClass.cast(nanValueCount);
