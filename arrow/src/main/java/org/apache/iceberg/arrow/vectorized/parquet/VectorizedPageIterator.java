@@ -34,6 +34,7 @@ import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.values.RequiresPreviousReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.ParquetDecodingException;
+import org.apache.parquet.schema.PrimitiveType;
 
 public class VectorizedPageIterator extends BasePageIterator {
   private final boolean setArrowValidityVector;
@@ -107,7 +108,9 @@ public class VectorizedPageIterator extends BasePageIterator {
           valuesReader = new VectorizedDeltaByteArrayValuesReader();
           break;
         case BYTE_STREAM_SPLIT:
-          valuesReader = new VectorizedByteStreamSplitValuesReader();
+          valuesReader =
+              new VectorizedByteStreamSplitValuesReader(
+                  byteStreamSplitElementSize(desc.getPrimitiveType()));
           break;
         default:
           throw new UnsupportedOperationException(
@@ -377,6 +380,22 @@ public class VectorizedPageIterator extends BasePageIterator {
               holder,
               dictionaryEncodedValuesReader,
               dictionary);
+    }
+  }
+
+  private static int byteStreamSplitElementSize(PrimitiveType type) {
+    switch (type.getPrimitiveTypeName()) {
+      case INT32:
+      case FLOAT:
+        return VectorizedValuesReader.INT_SIZE;
+      case INT64:
+      case DOUBLE:
+        return VectorizedValuesReader.LONG_SIZE;
+      case FIXED_LEN_BYTE_ARRAY:
+        return type.getTypeLength();
+      default:
+        throw new UnsupportedOperationException(
+            "Byte stream split encoding is not supported for type " + type.getPrimitiveTypeName());
     }
   }
 

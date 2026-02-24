@@ -97,6 +97,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
           .put("int64", Types.LongType.get())
           .put("binary", Types.BinaryType.get())
           .put("boolean", Types.BooleanType.get())
+          .put("uuid", Types.UUIDType.get())
           .buildOrThrow();
 
   static final Function<Record, Record> IDENTITY = record -> record;

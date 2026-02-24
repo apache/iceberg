@@ -25,6 +25,7 @@ import java.nio.ByteOrder;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.column.values.ValuesReader;
+import org.apache.parquet.io.api.Binary;
 
 /**
  * A {@link VectorizedValuesReader} implementation for the encoding type BYTE_STREAM_SPLIT. This is
@@ -37,11 +38,14 @@ import org.apache.parquet.column.values.ValuesReader;
 public class VectorizedByteStreamSplitValuesReader extends ValuesReader
     implements VectorizedValuesReader {
 
+  private final int elementSizeInBytes;
   private int totalBytesInStream;
   private ByteBufferInputStream dataStream;
   private ByteBuffer decodedDataStream;
 
-  public VectorizedByteStreamSplitValuesReader() {}
+  public VectorizedByteStreamSplitValuesReader(int elementSizeInBytes) {
+    this.elementSizeInBytes = elementSizeInBytes;
+  }
 
   @Override
   public void initFromPage(int ignoredValueCount, ByteBufferInputStream in) {
@@ -50,25 +54,55 @@ public class VectorizedByteStreamSplitValuesReader extends ValuesReader
   }
 
   @Override
+  public int readInteger() {
+    ensureDecoded();
+    return decodedDataStream.getInt();
+  }
+
+  @Override
+  public long readLong() {
+    ensureDecoded();
+    return decodedDataStream.getLong();
+  }
+
+  @Override
   public float readFloat() {
-    ensureDecoded(FLOAT_SIZE);
+    ensureDecoded();
     return decodedDataStream.getFloat();
   }
 
   @Override
   public double readDouble() {
-    ensureDecoded(DOUBLE_SIZE);
+    ensureDecoded();
     return decodedDataStream.getDouble();
   }
 
   @Override
+  public Binary readBinary(int len) {
+    ensureDecoded();
+    byte[] bytes = new byte[len];
+    decodedDataStream.get(bytes);
+    return Binary.fromConstantByteArray(bytes);
+  }
+
+  @Override
+  public void readIntegers(int total, FieldVector vec, int rowId) {
+    readBatch(total, vec, rowId);
+  }
+
+  @Override
+  public void readLongs(int total, FieldVector vec, int rowId) {
+    readBatch(total, vec, rowId);
+  }
+
+  @Override
   public void readFloats(int total, FieldVector vec, int rowId) {
-    readBatch(FLOAT_SIZE, total, vec, rowId);
+    readBatch(total, vec, rowId);
   }
 
   @Override
   public void readDoubles(int total, FieldVector vec, int rowId) {
-    readBatch(DOUBLE_SIZE, total, vec, rowId);
+    readBatch(total, vec, rowId);
   }
 
   @Override
@@ -76,17 +110,17 @@ public class VectorizedByteStreamSplitValuesReader extends ValuesReader
     throw new UnsupportedOperationException("skip is not supported");
   }
 
-  private void readBatch(int typeWidth, int total, FieldVector vec, int rowId) {
-    ensureDecoded(typeWidth);
-    int bytesToRead = total * typeWidth;
-    long destOffset = (long) rowId * typeWidth;
+  private void readBatch(int total, FieldVector vec, int rowId) {
+    ensureDecoded();
+    int bytesToRead = total * elementSizeInBytes;
+    long destOffset = (long) rowId * elementSizeInBytes;
     ByteBuffer slice = decodedDataStream.slice();
     slice.limit(bytesToRead);
     vec.getDataBuffer().setBytes(destOffset, slice);
     decodedDataStream.position(decodedDataStream.position() + bytesToRead);
   }
 
-  private void ensureDecoded(int elementSizeInBytes) {
+  private void ensureDecoded() {
     if (decodedDataStream == null) {
       this.decodedDataStream = decode(totalBytesInStream / elementSizeInBytes, elementSizeInBytes);
     }
