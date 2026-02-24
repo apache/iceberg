@@ -21,15 +21,14 @@ package org.apache.iceberg.aws.s3.signer;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.HttpMethod;
 import org.apache.iceberg.rest.RemoteSignerServlet;
 import org.apache.iceberg.rest.requests.RemoteSignRequest;
@@ -50,8 +49,29 @@ public class S3SignerServlet extends RemoteSignerServlet {
 
   static final Clock SIGNING_CLOCK = Clock.fixed(Instant.now(), ZoneId.of("UTC"));
   static final Set<String> UNSIGNED_HEADERS =
-      Sets.newHashSet(
-          Arrays.asList("range", "x-amz-date", "amz-sdk-invocation-id", "amz-sdk-retry"));
+      // Note: only Host and x-amz-* headers are required to be signed. Other headers are optional.
+      // Also see
+      // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html#create-canonical-request
+      // for guidelines about headers that are safe to exclude from signing.
+      Set.of(
+          "connection",
+          "expect",
+          "if-match",
+          "if-modified-since",
+          "if-none-match",
+          "if-unmodified-since",
+          "keep-alive",
+          "proxy-authenticate",
+          "proxy-authorization",
+          "range",
+          "referer",
+          "te",
+          "trailer",
+          "transfer-encoding",
+          "upgrade",
+          "user-agent",
+          "x-amzn-trace-id",
+          "x-forwarded-for");
 
   /** A fake remote signing endpoint for testing purposes. */
   static final String S3_SIGNER_ENDPOINT = "v1/namespaces/ns1/tables/t1/sign";
@@ -75,6 +95,15 @@ public class S3SignerServlet extends RemoteSignerServlet {
     }
   }
 
+  static final Predicate<Map.Entry<String, List<String>>> UNSIGNED_HEADERS_PREDICATE =
+      e -> {
+        String name = e.getKey().toLowerCase(Locale.ROOT);
+        return name.startsWith("amz-sdk-") || UNSIGNED_HEADERS.contains(name);
+      };
+
+  static final Predicate<Map.Entry<String, List<String>>> SIGNED_HEADERS_PREDICATE =
+      UNSIGNED_HEADERS_PREDICATE.negate();
+
   @Override
   protected RemoteSignResponse signRequest(RemoteSignRequest request) {
     AwsS3V4SignerParams signingParams =
@@ -91,12 +120,12 @@ public class S3SignerServlet extends RemoteSignerServlet {
 
     Map<String, List<String>> unsignedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
+            .filter(UNSIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     Map<String, List<String>> signedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> !UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
+            .filter(SIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     SdkHttpFullRequest sign =
