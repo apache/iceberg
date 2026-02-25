@@ -77,12 +77,12 @@ class DeltaLakeToIcebergMigrationSparkIntegration {
         spark != null, "The SparkSession cannot be null, please provide a valid SparkSession");
     Preconditions.checkArgument(
         newTableIdentifier != null,
-        "The table identifier cannot be null, please provide a valid table identifier for the new iceberg table");
+        "The table identifier cannot be null, please provide a valid table identifier for the new Iceberg table");
     Preconditions.checkArgument(
         deltaTableLocation != null,
-        "The delta lake table location cannot be null, please provide a valid location of the delta lake table to be snapshot");
+        "The  Delta Lake table location cannot be null, please provide a valid location of the Delta Lake table to be snapshot");
 
-    String ctx = "delta lake snapshot target";
+    String ctx = " Delta Lake snapshot target";
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     Spark3Util.CatalogAndIdentifier catalogAndIdent =
         Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
