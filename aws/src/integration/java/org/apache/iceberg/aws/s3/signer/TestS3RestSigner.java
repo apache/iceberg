@@ -211,12 +211,8 @@ public class TestS3RestSigner {
    * @param misses expected misses
    */
   private void assertCacheHitsAndMisses(int hits, int misses) {
-    assertThat(S3V4RestSignerClient.cacheHits())
-        .describedAs("Cache hits")
-        .isEqualTo(hits);
-    assertThat(S3V4RestSignerClient.cacheMisses())
-        .describedAs("Cache misses")
-        .isEqualTo(misses);
+    assertThat(S3V4RestSignerClient.cacheHits()).describedAs("Cache hits").isEqualTo(hits);
+    assertThat(S3V4RestSignerClient.cacheMisses()).describedAs("Cache misses").isEqualTo(misses);
   }
 
   @Test
