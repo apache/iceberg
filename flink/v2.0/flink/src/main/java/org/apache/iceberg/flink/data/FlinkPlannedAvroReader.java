@@ -138,12 +138,15 @@ public class FlinkPlannedAvroReader implements DatumReader<RowData>, SupportsRow
             return FlinkValueReaders.timeMicros();
 
           case "timestamp-millis":
+          case "local-timestamp-millis":
             return FlinkValueReaders.timestampMills();
 
           case "timestamp-micros":
+          case "local-timestamp-micros":
             return FlinkValueReaders.timestampMicros();
 
           case "timestamp-nanos":
+          case "local-timestamp-nanos":
             return FlinkValueReaders.timestampNanos();
 
           case "decimal":

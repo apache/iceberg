@@ -23,10 +23,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import org.apache.avro.LogicalType;
+import org.apache.avro.LogicalTypes;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.DataTestBase;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
@@ -37,7 +43,11 @@ import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.junit.jupiter.api.Test;
 
 public class TestFlinkAvroReaderWriter extends DataTestBase {
 
@@ -131,6 +141,65 @@ public class TestFlinkAvroReaderWriter extends DataTestBase {
             expectedSchema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
       assertThat(rows).isExhausted();
+    }
+  }
+
+  private static org.apache.avro.Schema.Field localTimestampField(
+      String name, int id, LogicalType logicalType) {
+    org.apache.avro.Schema type =
+        logicalType.addToSchema(org.apache.avro.Schema.create(org.apache.avro.Schema.Type.LONG));
+    org.apache.avro.Schema.Field field = new org.apache.avro.Schema.Field(name, type);
+    field.addProp(AvroSchemaUtil.FIELD_ID_PROP, id);
+    return field;
+  }
+
+  @Test
+  public void testReadLocalTimestampType() throws IOException {
+    org.apache.avro.Schema avroSchema =
+        org.apache.avro.Schema.createRecord(
+            "r1",
+            null,
+            null,
+            false,
+            List.of(
+                localTimestampField("ts_millis", 1, LogicalTypes.localTimestampMillis()),
+                localTimestampField("ts_micros", 2, LogicalTypes.localTimestampMicros()),
+                localTimestampField("ts_nanos", 3, LogicalTypes.localTimestampNanos())));
+
+    Schema readSchema =
+        new Schema(
+            Types.NestedField.optional(1, "ts_millis", Types.TimestampType.withoutZone()),
+            Types.NestedField.optional(2, "ts_micros", Types.TimestampType.withoutZone()),
+            Types.NestedField.optional(3, "ts_nanos", Types.TimestampNanoType.withoutZone()));
+
+    long millisValue = 1_234_567_890L;
+    long microsValue = 1_234_567_890_000L;
+    long nanosValue = 1_234_567_890_000_000L;
+
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("ts_millis", millisValue);
+    record.put("ts_micros", microsValue);
+    record.put("ts_nanos", nanosValue);
+
+    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    try (DataFileWriter<GenericData.Record> writer =
+        new DataFileWriter<>(new GenericDatumWriter<>(avroSchema))) {
+      writer.create(avroSchema, outputFile.createOrOverwrite());
+      writer.append(record);
+    }
+
+    try (CloseableIterable<RowData> reader =
+        Avro.read(outputFile.toInputFile())
+            .project(readSchema)
+            .createResolvingReader(FlinkPlannedAvroReader::create)
+            .build()) {
+      RowData row = Iterables.getOnlyElement(reader);
+      assertThat(row.getTimestamp(0, 3).toLocalDateTime())
+          .isEqualTo(DateTimeUtil.timestampFromMillis(millisValue));
+      assertThat(row.getTimestamp(1, 6).toLocalDateTime())
+          .isEqualTo(DateTimeUtil.timestampFromMicros(microsValue));
+      assertThat(row.getTimestamp(2, 9).toLocalDateTime())
+          .isEqualTo(DateTimeUtil.timestampFromNanos(nanosValue));
     }
   }
 }
