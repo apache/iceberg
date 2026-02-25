@@ -236,7 +236,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   }
 
   /**
-   * Convert each dela log {@code ColumnarBatch} to Iceberg action and commit to the given {@code
+   * Convert each delta log {@code ColumnarBatch} to Iceberg action and commit to the given {@code
    * Transaction}. The complete <a
    * href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md#Actions">spec</a> of delta
    * actions. <br>
