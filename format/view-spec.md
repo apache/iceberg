@@ -214,7 +214,7 @@ When evaluating freshness, consumers:
 
 Producers should provide the necessary information in the [refresh state](#refresh-state) such that consumers can verify the logical equivalence of the precomputed data with the query definition.
 Different producers may have different freshness interpretations, based on how much of the refresh state's dependency graph should be evaluated.
-Some producers expect the entire dependency graph to be evaluated and therefore include nested MV dependencies. Other producers may only expect dependencies in the MV's SQL to be evaluated and therefore do not include dependencies within nested MVs.
+Some producers expect the entire dependency graph to be evaluated and therefore include source MV dependencies. Other producers may only expect dependencies in the MV's SQL to be evaluated and therefore do not include dependencies of source MVs.
 
 When writing the refresh state, producers:
 - Should provide a sufficient list of source states such that consumers can determine freshness according to the producer's interpretation.
@@ -236,7 +236,7 @@ The refresh state has the following fields:
 
 #### Source state
 
-Source state records capture the state of objects referenced by a materialized view including objects referenced by nested materialized views.
+Source state records capture the state of objects referenced by a materialized view including objects referenced by source materialized views.
 Each record has a `type` field that determines its form:
 
 | Type    | Description |
@@ -283,6 +283,8 @@ When processing a `CREATE MATERIALIZED VIEW` statement, query engines must:
 2. Create the materialized view metadata with a `storage-table` reference pointing to the created storage table.
 
 The storage table must exist and be accessible before the materialized view metadata is committed.
+
+A storage table that has not yet been refreshed has no snapshots. After a refresh, even if the query result is empty, the storage table will contain a snapshot with the `refresh-state` property in its summary. Consumers can use the presence of a snapshot with `refresh-state` to distinguish a never-refreshed storage table from one that was refreshed with an empty result.
 
 Materialized view storage tables support all standard Iceberg table configurations such as partitioning, sort order, and compression.
 These configurations are stored as part of the storage table metadata, just as they are for regular Iceberg tables.
