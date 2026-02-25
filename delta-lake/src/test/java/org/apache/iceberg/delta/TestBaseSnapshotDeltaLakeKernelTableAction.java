@@ -21,6 +21,16 @@ package org.apache.iceberg.delta;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.delta.kernel.Operation;
+import io.delta.kernel.Table;
+import io.delta.kernel.Transaction;
+import io.delta.kernel.TransactionBuilder;
+import io.delta.kernel.defaults.engine.DefaultEngine;
+import io.delta.kernel.engine.Engine;
+import io.delta.kernel.types.IntegerType;
+import io.delta.kernel.types.StringType;
+import io.delta.kernel.types.StructType;
+import io.delta.kernel.utils.CloseableIterable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -113,6 +123,38 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
     assertThatThrownBy(testAction::execute)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Make sure to configure the action with a valid deltaLakeConfiguration");
+  }
+
+  @Test
+  public void testDeltaTableColumnMappingFeatureDisabled() throws Exception {
+    Engine engine = DefaultEngine.create(testHadoopConf);
+    StructType schema =
+        new StructType().add("id", IntegerType.INTEGER).add("status", StringType.STRING);
+
+    Table table = Table.forPath(engine, sourceTableLocation);
+
+    TransactionBuilder txnBuilder =
+        table.createTransactionBuilder(
+            engine, "Delta-Iceberg-Converter-Tests", Operation.CREATE_TABLE);
+
+    Transaction txn =
+        txnBuilder
+            .withSchema(engine, schema)
+            .withTableProperties(engine, Map.of("delta.columnMapping.mode", "name"))
+            .build(engine);
+    txn.commit(engine, CloseableIterable.emptyIterable());
+
+    SnapshotDeltaLakeTable testAction =
+        new BaseSnapshotDeltaLakeKernelTableAction(sourceTableLocation)
+            .as(TableIdentifier.of("iceberg_table"))
+            .deltaLakeConfiguration(testHadoopConf)
+            .icebergCatalog(testCatalog)
+            .tableLocation(newTableLocation);
+
+    // Act & check
+    assertThatThrownBy(testAction::execute)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Conversion of Delta Lake tables with columnMapping feature is not supported.");
   }
 
   @Test

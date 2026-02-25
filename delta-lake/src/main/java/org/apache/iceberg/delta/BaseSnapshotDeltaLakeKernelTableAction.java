@@ -147,6 +147,8 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     Preconditions.checkArgument(
         deltaTable != null && deltaLakeFileIO != null,
         "Make sure to configure the action with a valid deltaLakeConfiguration");
+    assertDeltaColumnMappingDisabled(
+        "Conversion of Delta Lake tables with columnMapping feature is not supported.");
 
     long latestDeltaVersion = getLatestDeltaSnapshot().getVersion();
     long initialDeltaVersion = getEarliestDeltaLog();
@@ -191,6 +193,19 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
         deltaTableLocation,
         totalDataFiles);
     return () -> totalDataFiles;
+  }
+
+  /**
+   * Current implementation uses the schema conversion mapping based on the logical names. Delta
+   * Lake supports three column mapping modes: none, name, id. So, the renames with columnMapping
+   * feature can lead to data corruption.
+   */
+  private void assertDeltaColumnMappingDisabled(String errorMessage) {
+    Map<String, String> configuration = getLatestDeltaSnapshot().getMetadata().getConfiguration();
+    String columnMappingMode = configuration.getOrDefault("delta.columnMapping.mode", "none");
+    if (!"none".equals(columnMappingMode)) {
+      throw new UnsupportedOperationException(errorMessage);
+    }
   }
 
   private static void setDefaultNamingMapping(Transaction transaction) {
