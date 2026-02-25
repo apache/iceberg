@@ -212,8 +212,6 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   private long convertEachDeltaVersion(
       long initialDeltaVersion, long latestDeltaVersion, Transaction transaction)
       throws IOException {
-    LOG.info(
-        "Log for compilation {}, {}, {}", initialDeltaVersion, latestDeltaVersion, transaction);
 
     long dataFiles = 0;
     for (long currDeltaVersion = initialDeltaVersion;
