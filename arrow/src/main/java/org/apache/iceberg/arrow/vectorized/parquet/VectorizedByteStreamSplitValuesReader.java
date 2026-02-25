@@ -23,6 +23,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.api.Binary;
@@ -122,6 +123,11 @@ public class VectorizedByteStreamSplitValuesReader extends ValuesReader
 
   private void ensureDecoded() {
     if (decodedDataStream == null) {
+      Preconditions.checkState(
+          totalBytesInStream % elementSizeInBytes == 0,
+          "Stream size %s is not a multiple of element size %s",
+          totalBytesInStream,
+          elementSizeInBytes);
       this.decodedDataStream = decode(totalBytesInStream / elementSizeInBytes);
     }
   }
