@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.data;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -882,12 +883,11 @@ public class FlinkParquetReaders {
       org.apache.iceberg.variants.Variant icebergVariant = super.readFromDelegate(null);
 
       byte[] metadataBytes = new byte[icebergVariant.metadata().sizeInBytes()];
-      ByteBuffer metadataBuffer =
-          ByteBuffer.wrap(metadataBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
       icebergVariant.metadata().writeTo(metadataBuffer, 0);
 
       byte[] valueBytes = new byte[icebergVariant.value().sizeInBytes()];
-      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
       icebergVariant.value().writeTo(valueBuffer, 0);
 
       return new BinaryVariant(valueBytes, metadataBytes);

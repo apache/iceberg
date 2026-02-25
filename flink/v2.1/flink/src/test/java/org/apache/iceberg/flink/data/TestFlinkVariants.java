@@ -24,9 +24,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Path;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.VariantType;
 import org.apache.flink.types.variant.BinaryVariant;
 import org.apache.flink.types.variant.VariantTypeException;
@@ -36,6 +36,7 @@ import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.variants.Variant;
@@ -45,13 +46,10 @@ import org.apache.iceberg.variants.VariantTestHelper;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
 public class TestFlinkVariants {
-
-  @TempDir private Path temp;
 
   @Test
   public void testIcebergVariantTypeToFlinkVariantType() {
@@ -59,14 +57,13 @@ public class TestFlinkVariants {
     Types.VariantType icebergVariantType = Types.VariantType.get();
     LogicalType flinkVariantType = FlinkSchemaUtil.convert(icebergVariantType);
 
-    assertThat(flinkVariantType)
-        .isInstanceOf(org.apache.flink.table.types.logical.VariantType.class);
+    assertThat(flinkVariantType).isInstanceOf(VariantType.class);
   }
 
   @Test
   public void testFlinkVariantTypeToIcebergVariantType() {
     VariantType flinkVariantType = new VariantType(false);
-    org.apache.iceberg.types.Type icebergType = FlinkSchemaUtil.convert(flinkVariantType);
+    Type icebergType = FlinkSchemaUtil.convert(flinkVariantType);
 
     assertThat(icebergType).isInstanceOf(Types.VariantType.class);
     assertThat(icebergType).isEqualTo(Types.VariantType.get());
@@ -110,7 +107,7 @@ public class TestFlinkVariants {
   }
 
   @Test
-  public void testVariantWriteAndRead() throws IOException {
+  public void testVariantWriteAndRead() {
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -119,9 +116,8 @@ public class TestFlinkVariants {
     LogicalType logicalType = FlinkSchemaUtil.convert(schema);
     assertThat(logicalType).isNotNull();
 
-    assertThat(logicalType).isInstanceOf(org.apache.flink.table.types.logical.RowType.class);
-    assertThat(logicalType.getChildren().get(1))
-        .isInstanceOf(org.apache.flink.table.types.logical.VariantType.class);
+    assertThat(logicalType).isInstanceOf(RowType.class);
+    assertThat(logicalType.getChildren().get(1)).isInstanceOf(VariantType.class);
   }
 
   @Test
@@ -131,7 +127,7 @@ public class TestFlinkVariants {
     LogicalType logicalType = FlinkSchemaUtil.convert(schema);
     assertThat(logicalType).isNotNull();
 
-    assertThat(logicalType).isInstanceOf(org.apache.flink.table.types.logical.RowType.class);
+    assertThat(logicalType).isInstanceOf(RowType.class);
   }
 
   @Test

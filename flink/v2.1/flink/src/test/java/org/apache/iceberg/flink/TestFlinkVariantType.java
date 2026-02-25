@@ -82,8 +82,8 @@ class TestFlinkVariantType extends CatalogTestBase {
     List<Record> records = SimpleDataUtil.tableRecords(icebergTable);
     assertThat(records).hasSize(1);
     Object field = records.get(0).getField("data");
-    assertThat(field).isInstanceOf(org.apache.iceberg.variants.Variant.class);
-    org.apache.iceberg.variants.Variant variant = (org.apache.iceberg.variants.Variant) field;
+    assertThat(field).isInstanceOf(Variant.class);
+    Variant variant = (Variant) field;
     assertThat(variant.metadata().get(0)).isEqualTo("KeyA");
     assertThat(((VariantPrimitive<String>) variant.value().asObject().get("KeyA")).get())
         .isEqualTo("city");

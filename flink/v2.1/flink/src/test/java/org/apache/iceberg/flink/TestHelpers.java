@@ -73,6 +73,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 
 public class TestHelpers {
   private TestHelpers() {}
@@ -399,8 +401,8 @@ public class TestHelpers {
   private static void compareVariants(
       org.apache.iceberg.variants.Variant icebergVariant, Variant flinkVariant) {
 
-    org.apache.iceberg.variants.VariantValue icebergValue = icebergVariant.value();
-    org.apache.iceberg.variants.VariantMetadata icebergMetadata = icebergVariant.metadata();
+    VariantValue icebergValue = icebergVariant.value();
+    VariantMetadata icebergMetadata = icebergVariant.metadata();
 
     assertThat(flinkVariant)
         .as("Flink variant should be a BinaryVariant")

@@ -46,6 +46,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
 
 public class RowDataConverter {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
@@ -129,8 +130,7 @@ public class RowDataConverter {
         }
         return new GenericMapData(convertedMap);
       case VARIANT:
-        org.apache.iceberg.variants.Variant icebergVariant =
-            (org.apache.iceberg.variants.Variant) object;
+        Variant icebergVariant = (Variant) object;
 
         byte[] metadataBytes = new byte[icebergVariant.metadata().sizeInBytes()];
         ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
