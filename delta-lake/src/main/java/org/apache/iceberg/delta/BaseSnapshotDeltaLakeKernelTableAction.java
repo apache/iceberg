@@ -393,6 +393,9 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
 
   private void tagCurrentSnapshot(
       long deltaVersion, Long deltaVersionTimestamp, Transaction transaction) {
+    if (transaction.table().currentSnapshot() == null) {
+      return; // Empty table doesn't have Iceberg snapshot yet
+    }
     long currentSnapshotId = transaction.table().currentSnapshot().snapshotId();
 
     ManageSnapshots manageSnapshots = transaction.manageSnapshots();

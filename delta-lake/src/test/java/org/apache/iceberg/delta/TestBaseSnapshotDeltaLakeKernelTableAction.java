@@ -128,18 +128,8 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
   @Test
   public void testDeltaTableColumnMappingFeatureDisabled() throws Exception {
     Engine engine = DefaultEngine.create(testHadoopConf);
-    StructType schema =
-        new StructType().add("id", IntegerType.INTEGER).add("status", StringType.STRING);
-
-    Table table = Table.forPath(engine, sourceTableLocation);
-
-    TransactionBuilder txnBuilder =
-        table.createTransactionBuilder(
-            engine, "Delta-Iceberg-Converter-Tests", Operation.CREATE_TABLE);
-
     Transaction txn =
-        txnBuilder
-            .withSchema(engine, schema)
+        createEmptyDeltaTableTransaction(engine)
             .withTableProperties(engine, Map.of("delta.columnMapping.mode", "name"))
             .build(engine);
     txn.commit(engine, CloseableIterable.emptyIterable());
@@ -155,6 +145,28 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
     assertThatThrownBy(testAction::execute)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Conversion of Delta Lake tables with columnMapping feature is not supported.");
+  }
+
+  @Test
+  public void testEmptyTableConversion() {
+    Engine engine = DefaultEngine.create(testHadoopConf);
+    createEmptyDeltaTableTransaction(engine)
+        .build(engine)
+        .commit(engine, CloseableIterable.emptyIterable());
+
+    TableIdentifier icebergTable = TableIdentifier.of("iceberg_table");
+    SnapshotDeltaLakeTable testAction =
+        new BaseSnapshotDeltaLakeKernelTableAction(sourceTableLocation)
+            .as(icebergTable)
+            .deltaLakeConfiguration(testHadoopConf)
+            .icebergCatalog(testCatalog)
+            .tableLocation(newTableLocation);
+
+    assertThat(testCatalog.tableExists(icebergTable)).isFalse();
+
+    testAction.execute();
+
+    assertThat(testCatalog.tableExists(icebergTable)).isTrue();
   }
 
   @Test
@@ -275,6 +287,16 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
             .tableLocation(newTableLocation);
 
     testAction.execute();
+  }
+
+  private TransactionBuilder createEmptyDeltaTableTransaction(Engine engine) {
+    StructType schema =
+        new StructType().add("id", IntegerType.INTEGER).add("status", StringType.STRING);
+    Table table = Table.forPath(engine, sourceTableLocation);
+
+    return table
+        .createTransactionBuilder(engine, "Delta-Iceberg-Converter-Tests", Operation.CREATE_TABLE)
+        .withSchema(engine, schema);
   }
 
   private void loadDeltaLakeGoldenTable(String goldenTableName) throws Exception {
