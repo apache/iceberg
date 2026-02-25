@@ -18,8 +18,13 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.List;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.iceberg.InternalTestHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RandomInternalData;
@@ -29,9 +34,34 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestInternalAvro extends DataTestBase {
+  @ParameterizedTest(name = "{index} {0}")
+  @MethodSource("org.apache.iceberg.avro.RandomAvroData#localTimestampRecords")
+  public void testReadLocalTimestampType(
+      GenericData.Record avroRecord, Schema readSchema, long expectedValue) throws IOException {
+    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    try (PositionOutputStream out = outputFile.createOrOverwrite();
+        DataFileWriter<GenericData.Record> writer =
+            new DataFileWriter<>(new GenericDatumWriter<>(avroRecord.getSchema()))) {
+      writer.create(avroRecord.getSchema(), out);
+      writer.append(avroRecord);
+    }
+
+    try (AvroIterable<Record> reader =
+        Avro.read(outputFile.toInputFile())
+            .project(readSchema)
+            .createResolvingReader(InternalReader::create)
+            .build()) {
+      assertThat(Iterables.getOnlyElement(reader).getField("ts")).isEqualTo(expectedValue);
+    }
+  }
+
   @Override
   protected boolean supportsDefaultValues() {
     return true;

@@ -192,22 +192,38 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       return Types.TimeType.get();
 
     } else if (logical instanceof LogicalTypes.TimestampMillis
-        || logical instanceof LogicalTypes.TimestampMicros) {
-      if (AvroSchemaUtil.isTimestamptz(primitive)) {
-        return Types.TimestampType.withZone();
-      } else {
-        return Types.TimestampType.withoutZone();
-      }
-
-    } else if (logical instanceof LogicalTypes.TimestampNanos) {
-      if (AvroSchemaUtil.isTimestamptz(primitive)) {
-        return Types.TimestampNanoType.withZone();
-      } else {
-        return Types.TimestampNanoType.withoutZone();
-      }
+        || logical instanceof LogicalTypes.TimestampMicros
+        || logical instanceof LogicalTypes.TimestampNanos
+        || logical instanceof LogicalTypes.LocalTimestampMillis
+        || logical instanceof LogicalTypes.LocalTimestampMicros
+        || logical instanceof LogicalTypes.LocalTimestampNanos) {
+      return timestampType(primitive, logical);
 
     } else if (LogicalTypes.uuid().getName().equals(name)) {
       return Types.UUIDType.get();
+    }
+
+    return null;
+  }
+
+  private Type timestampType(Schema primitive, LogicalType logical) {
+    if (logical instanceof LogicalTypes.LocalTimestampMillis
+        || logical instanceof LogicalTypes.LocalTimestampMicros) {
+      return Types.TimestampType.withoutZone();
+
+    } else if (logical instanceof LogicalTypes.LocalTimestampNanos) {
+      return Types.TimestampNanoType.withoutZone();
+
+    } else if (logical instanceof LogicalTypes.TimestampNanos) {
+      return AvroSchemaUtil.isTimestamptz(primitive)
+          ? Types.TimestampNanoType.withZone()
+          : Types.TimestampNanoType.withoutZone();
+
+    } else if (logical instanceof LogicalTypes.TimestampMillis
+        || logical instanceof LogicalTypes.TimestampMicros) {
+      return AvroSchemaUtil.isTimestamptz(primitive)
+          ? Types.TimestampType.withZone()
+          : Types.TimestampType.withoutZone();
     }
 
     return null;
