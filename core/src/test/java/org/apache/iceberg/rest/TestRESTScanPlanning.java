@@ -995,14 +995,29 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     setParserContext(table);
 
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
-    // make sure remote scan planning is called and FileIO gets the planId
+
     TableScan tableScan = table.newScan();
     assertThat(tableScan.io().properties())
         .isSameAs(table.io().properties())
         .doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    // make sure remote scan planning is called and FileIO gets the planId
     assertThat(tableScan.planFiles()).hasSize(1);
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
     assertThat(tableScan.io().properties()).containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    String planId = tableScan.io().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+
+    TableScan newScan = table.newScan();
+    assertThat(newScan.io().properties())
+        .isSameAs(table.io().properties())
+        .doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    // make sure remote scan planning is called and FileIO gets the planId
+    assertThat(newScan.planFiles()).hasSize(1);
+    assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+
+    // make sure planIds are different for each scan
+    assertThat(newScan.io().properties()).containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    assertThat(newScan.io().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID))
+        .isNotEqualTo(planId);
   }
 
   @SuppressWarnings("unchecked")

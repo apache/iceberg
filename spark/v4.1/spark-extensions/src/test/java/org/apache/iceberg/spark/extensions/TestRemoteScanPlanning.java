@@ -82,7 +82,8 @@ public class TestRemoteScanPlanning extends TestSelect {
         assertThat(batch)
             .extracting("table")
             .isInstanceOf(TableWithIO.class)
-            .extracting("io")
+            .asInstanceOf(InstanceOfAssertFactories.type(TableWithIO.class))
+            .extracting(TableWithIO::io)
             .asInstanceOf(InstanceOfAssertFactories.type(FileIO.class))
             .actual();
     assertThat(fileIOForScan.properties()).containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);

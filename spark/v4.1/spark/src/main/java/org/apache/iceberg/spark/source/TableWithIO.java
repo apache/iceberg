@@ -57,17 +57,22 @@ import org.apache.iceberg.UpdateStatistics;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * This is a wrapper around {@link Table} and {@link FileIO} where the {@link FileIO} instance might
  * have more specific storage credentials and should be used for a table scan
- *
- * @param table The table instance
- * @param fileIOForScan The {@link FileIO} instance that might have more specific storage
- *     credentials for a table scan
  */
-public record TableWithIO(Table table, Supplier<FileIO> fileIOForScan)
-    implements Table, HasTableOperations {
+public class TableWithIO implements Table, HasTableOperations {
+  private final Table table;
+  private final Supplier<FileIO> fileIOForScan;
+
+  public TableWithIO(Table table, Supplier<FileIO> fileIOForScan) {
+    Preconditions.checkArgument(null != table, "Invalid table: null");
+    Preconditions.checkArgument(null != fileIOForScan, "Invalid FileIO supplier: null");
+    this.table = table;
+    this.fileIOForScan = fileIOForScan;
+  }
 
   @Override
   public FileIO io() {
@@ -77,6 +82,11 @@ public record TableWithIO(Table table, Supplier<FileIO> fileIOForScan)
   @Override
   public void refresh() {
     table.refresh();
+  }
+
+  @Override
+  public String name() {
+    return table.name();
   }
 
   @Override
