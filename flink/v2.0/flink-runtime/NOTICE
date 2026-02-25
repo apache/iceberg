@@ -1,15 +1,13 @@
 
 Apache Iceberg
-Copyright 2017-2025 The Apache Software Foundation
+Copyright 2017-2026 The Apache Software Foundation
 
 This product includes software developed at
 The Apache Software Foundation (http://www.apache.org/).
 
 --------------------------------------------------------------------------------
 
-This binary artifact includes Airlift Aircompressor with the following in its
-NOTICE file:
-
+This product bundles Airlift Aircompressor with the following in its NOTICE file:
 | Snappy Copyright Notices
 | =========================
 |
@@ -50,9 +48,7 @@ NOTICE file:
 
 --------------------------------------------------------------------------------
 
-This binary artifact includes Project Nessie with the following in its NOTICE
-file:
-
+This product bundles Project Nessie with the following in its NOTICE file:
 | Nessie
 | Copyright 2015-2025 Dremio Corporation
 | 
@@ -337,8 +333,7 @@ file:
 
 --------------------------------------------------------------------------------
 
-This binary artifact includes Eclipse Microprofile OpenAPI with the following in its NOTICE file:
-
+This producct bundles Eclipse Microprofile OpenAPI with the following in its NOTICE file:
 | =========================================================================
 | ==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
 | ==  Version 2.0, in this case for MicroProfile OpenAPI                 ==

@@ -203,7 +203,7 @@
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Avro.
+This product bundles Apache Avro.
 
 Copyright: Copyright 2010-2019 The Apache Software Foundation
 Home page: https://avro.apache.org/
@@ -211,7 +211,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains the Jackson JSON processor.
+This product bundles Jackson JSON processor.
 
 Copyright: 2007-2019 Tatu Saloranta and other contributors
 Home page: http://jackson.codehaus.org/
@@ -219,7 +219,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Parquet.
+This product bundles Apache Parquet.
 
 Copyright: 2014-2024 The Apache Software Foundation
 Home page: https://parquet.apache.org/
@@ -227,7 +227,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Thrift.
+This product bundles Apache Thrift.
 
 Copyright: 2006-2017 The Apache Software Foundation.
 Home page: https://thrift.apache.org/
@@ -235,7 +235,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains code from Daniel Lemire's JavaFastPFOR project.
+This product includes code from Daniel Lemire's JavaFastPFOR project.
 
 Copyright: 2013 Daniel Lemire
 Home page: https://github.com/lemire/JavaFastPFOR
@@ -243,7 +243,7 @@ License: Apache License Version 2.0 http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains fastutil.
+This product bundles fastutil.
 
 Copyright: 2002-2014 Sebastiano Vigna
 Home page: http://fastutil.di.unimi.it/
@@ -251,7 +251,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0.html
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache ORC.
+This product bundles Apache ORC.
 
 Copyright: 2013 and onwards The Apache Software Foundation.
 Home page: https://orc.apache.org/
@@ -259,7 +259,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Hive's storage API via ORC.
+This product bundles Apache Hive.
 
 Copyright: 2008-2020 The Apache Software Foundation
 Home page: https://hive.apache.org/
@@ -267,14 +267,11 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google protobuf via ORC.
+This product bundles Google protobuf.
 
 Copyright: 2008 Google Inc.
 Home page: https://developers.google.com/protocol-buffers
-License: https://github.com/protocolbuffers/protobuf/blob/master/LICENSE (BSD)
-
-License text:
-
+License: BSD 3-Clause
 | Copyright 2008 Google Inc.  All rights reserved.
 |
 | Redistribution and use in source and binary forms, with or without
@@ -310,7 +307,7 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Airlift Aircompressor.
+This product bundles Airlift Aircompressor.
 
 Copyright: 2011-2019 Aircompressor authors.
 Home page: https://github.com/airlift/aircompressor
@@ -318,7 +315,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains code from Cloudera Kite.
+This product includes code from Cloudera Kite.
 
 Copyright: 2013-2017 Cloudera Inc.
 Home page: https://kitesdk.org/
@@ -326,7 +323,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains code from Presto.
+This product includes code from Presto.
 
 Copyright: 2016 Facebook and contributors
 Home page: https://prestodb.io/
@@ -334,7 +331,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google Guava.
+This product bundles Google Guava.
 
 Copyright: 2006-2019 The Guava Authors
 Home page: https://github.com/google/guava
@@ -342,7 +339,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google Error Prone Annotations.
+This product bundles Google Error Prone Annotations.
 
 Copyright: Copyright 2011-2019 The Error Prone Authors
 Home page: https://github.com/google/error-prone
@@ -350,13 +347,11 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains checkerframework checker-qual Annotations.
+This product bundles checkerframework checker-qual Annotations.
 
 Copyright: 2004-2019 the Checker Framework developers
 Home page: https://github.com/typetools/checker-framework
-License: https://github.com/typetools/checker-framework/blob/master/LICENSE.txt (MIT license)
-
-License text:
+License: MIT license
 | The annotations are licensed under the MIT License.  (The text of this
 | license appears below.)  More specifically, all the parts of the Checker
 | Framework that you might want to include with your own program use the
@@ -387,7 +382,7 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Caffeine by Ben Manes.
+This product bundles Caffeine by Ben Manes.
 
 Copyright: 2014-2019 Ben Manes and contributors
 Home page: https://github.com/ben-manes/caffeine
@@ -395,7 +390,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Arrow.
+This product bundles Apache Arrow.
 
 Copyright: 2016-2019 The Apache Software Foundation.
 Home page: https://arrow.apache.org/
@@ -403,7 +398,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Netty's buffer library.
+This product bundles Netty.
 
 Copyright: 2014-2020 The Netty Project
 Home page: https://netty.io/
@@ -411,7 +406,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google FlatBuffers.
+This product bundles Google FlatBuffers.
 
 Copyright: 2013-2020 Google Inc.
 Home page: https://google.github.io/flatbuffers/
@@ -419,14 +414,11 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains ThreeTen.
+This product bundles ThreeTen Extra.
 
 Copyright: 2007-present, Stephen Colebourne & Michael Nascimento Santos.
 Home page: https://www.threeten.org/threeten-extra/
-License: https://github.com/ThreeTen/threeten-extra/blob/master/LICENSE.txt (BSD 3-clause)
-
-License text:
-
+License: BSD 3-Clause
 | All rights reserved.
 |
 | * Redistribution and use in source and binary forms, with or without
@@ -457,7 +449,7 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains code from Project Nessie.
+This product bundles Project Nessie.
 
 Copyright: 2015-2025 Dremio Corporation.
 Home page: https://projectnessie.org/
@@ -488,7 +480,7 @@ License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary includes code from Apache Commons.
+This product includes code from Apache Commons.
 
 * Core ArrayUtil.
 
@@ -498,7 +490,7 @@ License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache HttpComponents Client.
+This product bundles Apache HttpComponents (client and core).
 
 Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://hc.apache.org/
@@ -516,7 +508,7 @@ License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains failsafe.
+This product bundles failsafe.
 
 Copyright: Jonathan Halterman and friends
 Home page: https://failsafe.dev/
@@ -524,7 +516,7 @@ License: https://www.apache.org/licenses/LICENSE-2.0.html
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Eclipse MicroProfile OpenAPI.
+This product bundles Eclipse MicroProfile OpenAPI.
 
 Home page: https://github.com/microprofile/microprofile-open-api
 License: https://www.apache.org/licenses/LICENSE-2.0

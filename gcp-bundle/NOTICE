@@ -1,36 +1,35 @@
 
 Apache Iceberg
-Copyright 2017-2025 The Apache Software Foundation
+Copyright 2017-2026 The Apache Software Foundation
 
 This product includes software developed at
 The Apache Software Foundation (http://www.apache.org/).
 
 --------------------------------------------------------------------------------
 
-NOTICE for Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.18.2
-
-# Jackson JSON processor
-
-Jackson is a high-performance, Free/Open Source JSON processing library.
-It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
-been in development since 2007.
-It is currently developed by a community of developers.
-
-## Licensing
-
-Jackson 2.x core and extension components are licensed under Apache License 2.0
-To find the details that apply to this artifact see the accompanying LICENSE file.
-
-## Credits
-
-A list of contributors may be found from CREDITS(-2.x) file, which is included
-in some artifacts (usually source distributions); but is always available
-from the source code management (SCM) system project uses.
+This product bundles Jackson JSON Processor with the following in its NOTICE file:
+| # Jackson JSON processor
+| 
+| Jackson is a high-performance, Free/Open Source JSON processing library.
+| It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+| been in development since 2007.
+| It is currently developed by a community of developers.
+| 
+| ## Licensing
+| 
+| Jackson 2.x core and extension components are licensed under Apache License 2.0
+| To find the details that apply to this artifact see the accompanying LICENSE file.
+| 
+| ## Credits
+| 
+| A list of contributors may be found from CREDITS(-2.x) file, which is included
+| in some artifacts (usually source distributions); but is always available
+| from the source code management (SCM) system project uses.
 
 --------------------------------------------------------------------------------
 
-NOTICE for Group: io.grpc  Name: grpc-netty-shaded  Version: 1.76.2
-
+This product bundles Netty with the following in its NOTICE file:
+|
 |                           The Netty Project
 |                           =================
 | 
@@ -85,20 +84,7 @@ NOTICE for Group: io.grpc  Name: grpc-netty-shaded  Version: 1.76.2
 
 --------------------------------------------------------------------------------
 
-NOTICE for Group: io.grpc  Name: grpc-alts  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-api  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-auth  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-context  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-core  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-googleapis  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-grpclb  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-protobuf  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-protobuf-lite  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-rls  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-services  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-stub  Version: 1.71.0
-NOTICE for Group: io.grpc  Name: grpc-xds  Version: 1.71.0
-
+This product bundles gRPC with the following in its NOTICE file:
 | Copyright 2014 The gRPC Authors
 | 
 | Licensed under the Apache License, Version 2.0 (the "License");
@@ -164,8 +150,7 @@ NOTICE for Group: io.grpc  Name: grpc-xds  Version: 1.71.0
 
 --------------------------------------------------------------------------------
 
-NOTICE for Group: io.perfmark  Name: perfmark-api  Version: 0.27.0
-
+This product bundles Perfmark with the following in its NOTICE file:
 | Copyright 2019 Google LLC
 | 
 | Licensed under the Apache License, Version 2.0 (the "License");
@@ -209,8 +194,7 @@ NOTICE for Group: io.perfmark  Name: perfmark-api  Version: 0.27.0
 
 --------------------------------------------------------------------------------
 
-NOTICE for Group: org.conscrypt  Name: conscrypt-openjdk-uber  Version: 2.5.2
-
+This product bundles Conscrypt (openjdk-uber) with the following in its NOTICE file:
 | Copyright 2016 The Android Open Source Project
 | 
 | Licensed under the Apache License, Version 2.0 (the "License");
@@ -243,55 +227,7 @@ NOTICE for Group: org.conscrypt  Name: conscrypt-openjdk-uber  Version: 2.5.2
 |     * https://harmony.apache.org/
 --------------------------------------------------------------------------------
 
-NOTICE for Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.18.2
-
-| # Jackson JSON processor
-|
-| Jackson is a high-performance, Free/Open Source JSON processing library.
-| It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
-| been in development since 2007.
-| It is currently developed by a community of developers.
-| ## Licensing
-|
-| Jackson components are licensed under Apache (Software) License, version 2.0,
-| as per accompanying LICENSE file.
-| ## Credits
-|
-| A list of contributors may be found from CREDITS file, which is included
-| in some artifacts (usually source distributions);
-| but is always available
-| from the source code management (SCM) system project uses.
-
---------------------------------------------------------------------------------
-
-NOTICE for Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.18.2
-NOTICE for Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.18.2
-
-| # Jackson JSON processor
-|
-| Jackson is a high-performance, Free/Open Source JSON processing library.
-| It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
-| been in development since 2007.
-| It is currently developed by a community of developers.
-| ## Copyright
-|
-| Copyright 2007-, Tatu Saloranta (tatu.saloranta@iki.fi)
-|
-| ## Licensing
-|
-| Jackson 2.x core and extension components are licensed under Apache License 2.0
-| To find the details that apply to this artifact see the accompanying LICENSE file.
-| ## Credits
-|
-| A list of contributors may be found from CREDITS(-2.x) file, which is included
-| in some artifacts (usually source distributions);
-| but is always available
-| from the source code management (SCM) system project uses.
-
---------------------------------------------------------------------------------
-
-NOTICE for Group: com.google.cloud.gcs.analytics  Name: gcs-analytics-core  Version: 1.1.2
-
+This product bundles GCS Analytics Core with the following in its NOTICE file:
 | # GCS Analytics Core
 |
 | GCS Analytics Core is a Java library designed to optimize analytics workloads on
@@ -313,8 +249,7 @@ NOTICE for Group: com.google.cloud.gcs.analytics  Name: gcs-analytics-core  Vers
 
 --------------------------------------------------------------------------------
 
-NOTICE for Group: com.google.escapevelocity Name: escapevelocity Version: 0.9
-
+This product bundles Google EscapeVelocity with the following in its NOTICE file:
 | Apache Velocity
 |
 | Copyright (C) 2000-2007 The Apache Software Foundation
