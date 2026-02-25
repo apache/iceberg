@@ -161,10 +161,12 @@ public class TestHadoopFileIO {
         .hasMessageContaining("java.io.FileNotFoundException");
   }
 
-  @Test
-  public void testDeleteFiles() {
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testDeleteFiles(boolean bulkDelete) {
+    resetBinding(bulkDelete);
     Path parent = new Path(tempDir.toURI());
-    List<Path> filesCreated = createRandomFiles(parent, 10);
+    List<Path> filesCreated = createRandomFiles(parent, 100);
     hadoopFileIO.deleteFiles(
         filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
     filesCreated.forEach(
@@ -181,18 +183,23 @@ public class TestHadoopFileIO {
         .isEqualTo(bulkDelete);
     Path parent = new Path(tempDir.toURI());
 
-    List<String> filesCreated =
+    List<String> filesToDelete =
         random.ints(2).mapToObj(x -> "fakefsnotreal://file-" + x).collect(Collectors.toList());
     // one file in the local FS which doesn't actually exist but whose scheme is valid
     // this MUST NOT be recorded as a failure
-    filesCreated.add(new Path(parent, "file-not-exist").toUri().toString());
-    assertThatThrownBy(() -> hadoopFileIO.deleteFiles(filesCreated))
+    final String localButMissing = new Path(parent, "file-not-exist").toUri().toString();
+    filesToDelete.add(localButMissing);
+    final String exists = touch(new Path(parent, "exists")).toString();
+    filesToDelete.add(exists);
+    assertThatThrownBy(() -> hadoopFileIO.deleteFiles(filesToDelete))
         .describedAs("Exception raised by deleteFiles()")
         .isInstanceOf(BulkDeletionFailureException.class)
         .hasMessage("Failed to delete 2 files")
         .matches(
             (e) -> ((BulkDeletionFailureException) e).numberFailedObjects() == 2,
             "Wrong number of failures");
+    assertPathDoesNotExist(localButMissing);
+    assertPathDoesNotExist(exists);
   }
 
   @ParameterizedTest
@@ -270,19 +277,7 @@ public class TestHadoopFileIO {
 
   private List<Path> createRandomFiles(Path parent, int count) {
     Vector<Path> paths = new Vector<>();
-    random
-        .ints(count)
-        .parallel()
-        .forEach(
-            i -> {
-              try {
-                Path path = new Path(parent, "file-" + i);
-                paths.add(path);
-                fs.createNewFile(path);
-              } catch (IOException e) {
-                throw new UncheckedIOException(e);
-              }
-            });
+    random.ints(count).parallel().forEach(i -> paths.add(touch(new Path(parent, "file-" + i))));
     return paths;
   }
 
@@ -291,9 +286,10 @@ public class TestHadoopFileIO {
    *
    * @param path path of file.
    */
-  private void touch(Path path) {
+  private Path touch(Path path) {
     try {
       fs.create(path, true).close();
+      return path;
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
