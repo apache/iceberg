@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.data;
+package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
@@ -24,18 +24,25 @@ import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestBase;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.TestBaseFormatModel;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.InternalRow;
 
-public class TestGenericFormatModels extends TestBaseFormatModel<Record, Record> {
+public class TestSparkReadModel extends TestBaseFormatModel<Record, InternalRow> {
+
   @Override
   protected Class<Record> writeType() {
     return Record.class;
   }
 
   @Override
-  protected Class<Record> readType() {
-    return Record.class;
+  protected Class<InternalRow> readType() {
+    return InternalRow.class;
   }
 
   @Override
@@ -45,7 +52,7 @@ public class TestGenericFormatModels extends TestBaseFormatModel<Record, Record>
 
   @Override
   protected Object readEngineSchema(Schema schema) {
-    return null;
+    return SparkSchemaUtil.convert(schema);
   }
 
   @Override
@@ -54,8 +61,11 @@ public class TestGenericFormatModels extends TestBaseFormatModel<Record, Record>
   }
 
   @Override
-  protected void assertEquals(Types.StructType struct, List<Record> expected, List<Record> actual) {
-    DataTestHelpers.assertEquals(struct, expected, actual);
+  protected void assertEquals(
+      Types.StructType struct, List<Record> expected, List<InternalRow> actual) {
+    for (int i = 0; i < expected.size(); i++) {
+      GenericsHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
+    }
   }
 
   @Override
