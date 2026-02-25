@@ -257,7 +257,7 @@ A source table record captures the state of a source table (including source MV'
 | _required_  | `namespace`    | A list of strings for namespace levels |
 | _optional_  | `catalog`      | An optional name of the catalog. If set to `null` the catalog is the same as the materialized views' |
 | _required_  | `uuid`         | The uuid of the source table |
-| _required_  | `snapshot-id`  | Snapshot-id of when the last refresh operation was performed |
+| _required_  | `snapshot-id`  | The snapshot-id of the source table that was read during the refresh operation |
 | _optional_  | `ref`          | Branch name of the source table being referenced in the view query |
 
 When `ref` is `null` or not set, it defaults to "main".
@@ -273,7 +273,7 @@ A source view record captures the state of a source view at the time of the last
 | _required_  | `namespace`    | A list of strings for namespace levels |
 | _optional_  | `catalog`      | An optional name of the catalog. If set to `null` the catalog is the same as the materialized views' |
 | _required_  | `uuid`         | The uuid of the source view |
-| _required_  | `version-id`   | Version-id of when the last refresh operation was performed |
+| _required_  | `version-id`   | The version-id of the source view that was read during the refresh operation |
 
 #### Storage table creation and configuration
 
@@ -287,7 +287,9 @@ The storage table must exist and be accessible before the materialized view meta
 Materialized view storage tables support all standard Iceberg table configurations such as partitioning, sort order, and compression.
 These configurations are stored as part of the storage table metadata, just as they are for regular Iceberg tables.
 
-## Appendix A: An Example
+## Appendix A: Examples
+
+### View Example
 
 The JSON metadata file format is described using an example below.
 
@@ -446,6 +448,99 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
   }, {
     "timestamp-ms" : 1573518981593,
     "version-id" : 2
+  } ]
+}
+```
+
+### Materialized View Example
+
+Imagine the following operation, which creates a materialized view that precomputes daily event counts:
+
+```sql
+USE prod.default
+```
+```sql
+CREATE MATERIALIZED VIEW event_agg_mv (
+    event_count COMMENT 'Count of events',
+    event_date)
+COMMENT 'Precomputed daily event counts'
+AS
+SELECT
+    COUNT(1), CAST(event_ts AS DATE)
+FROM events
+GROUP BY 2
+```
+
+The materialized view metadata JSON file looks as follows:
+
+```
+s3://bucket/warehouse/default.db/event_agg_mv/metadata/00001-(uuid).metadata.json
+```
+```
+{
+  "view-uuid": "b2a12651-3038-4a72-8a31-5027ab84da35",
+  "format-version" : 1,
+  "location" : "s3://bucket/warehouse/default.db/event_agg_mv",
+  "current-version-id" : 1,
+  "properties" : {
+    "comment" : "Precomputed daily event counts"
+  },
+  "versions" : [ {
+    "version-id" : 1,
+    "timestamp-ms" : 1573518431292,
+    "schema-id" : 1,
+    "default-catalog" : "prod",
+    "default-namespace" : [ "default" ],
+    "summary" : {
+      "engine-name" : "Spark",
+      "engine-version" : "3.4.1"
+    },
+    "representations" : [ {
+      "type" : "sql",
+      "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2",
+      "dialect" : "spark"
+    } ],
+    "storage-table" : {
+      "namespace" : [ "default" ],
+      "name" : "event_agg_mv__storage"
+    }
+  } ],
+  "schemas": [ {
+    "schema-id": 1,
+    "type" : "struct",
+    "fields" : [ {
+      "id" : 1,
+      "name" : "event_count",
+      "required" : false,
+      "type" : "int",
+      "doc" : "Count of events"
+    }, {
+      "id" : 2,
+      "name" : "event_date",
+      "required" : false,
+      "type" : "date"
+    } ]
+  } ],
+  "version-log" : [ {
+    "timestamp-ms" : 1573518431292,
+    "version-id" : 1
+  } ]
+}
+```
+
+After a refresh operation, the storage table's snapshot summary contains the `refresh-state` property.
+The following is an example of the `refresh-state` JSON value stored in the snapshot summary of the storage table:
+
+```json
+{
+  "view-version-id" : 1,
+  "refresh-start-timestamp-ms" : 1573518435000,
+  "source-states" : [ {
+    "type" : "table",
+    "namespace" : [ "default" ],
+    "name" : "events",
+    "uuid" : "d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2d",
+    "snapshot-id" : 6148331192489823102
   } ]
 }
 ```
