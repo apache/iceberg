@@ -763,10 +763,25 @@ class ListNamespacesResponse(BaseModel):
 
 
 class LoadFunctionResult(BaseModel):
-    spec: dict[str, Any] = Field(
+    """
+    Result used when a function is successfully loaded.
+
+
+    The function metadata JSON is returned in the `metadata` field. The corresponding location of
+    function metadata should be returned in the `metadata-location` field.
+
+
+    The `config` map returns function-specific configuration for accessing the function's resources,
+    including any required credentials or client configuration overrides.
+
+    """
+
+    metadata_location: str = Field(..., alias='metadata-location')
+    metadata: dict[str, Any] = Field(
         ...,
-        description="The function's full spec document, returned inline as JSON.\n\nThe structure of this JSON document is defined by the Iceberg function spec version negotiated between the client and the server.\n",
+        description="The function's full spec/metadata document, returned inline as JSON.\n\nThe structure of this JSON document is defined by the Iceberg function spec version negotiated between the client and the server.\n",
     )
+    config: dict[str, str] | None = None
 
 
 class UpdateNamespacePropertiesResponse(BaseModel):

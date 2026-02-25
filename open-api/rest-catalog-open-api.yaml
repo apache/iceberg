@@ -670,7 +670,7 @@ paths:
         Load a function from the catalog.
 
 
-        The response contains the function's full spec document in the `spec` field.
+        The response contains the function's full metadata document in the `metadata` field.
       operationId: loadFunction
       responses:
         200:
@@ -4254,19 +4254,36 @@ components:
             $ref: '#/components/schemas/Namespace'
 
     LoadFunctionResult:
+      description: |
+        Result used when a function is successfully loaded.
+
+
+        The function metadata JSON is returned in the `metadata` field. The corresponding location of
+        function metadata should be returned in the `metadata-location` field.
+
+
+        The `config` map returns function-specific configuration for accessing the function's resources,
+        including any required credentials or client configuration overrides.
       type: object
       required:
-        - spec
+        - metadata-location
+        - metadata
       properties:
-        spec:
+        metadata-location:
+          type: string
+        metadata:
           type: object
           description: >
-            The function's full spec document, returned inline as JSON.
+            The function's full spec/metadata document, returned inline as JSON.
 
 
             The structure of this JSON document is defined by the Iceberg function spec version
             negotiated between the client and the server.
           additionalProperties: true
+        config:
+          type: object
+          additionalProperties:
+            type: string
 
     UpdateNamespacePropertiesResponse:
       type: object
@@ -5042,7 +5059,7 @@ components:
           $ref: '#/components/parameters/etag'
 
     LoadFunctionResponse:
-      description: Function spec result when loading a function
+      description: Function metadata result when loading a function
       content:
         application/json:
           schema:
