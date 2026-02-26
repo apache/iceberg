@@ -32,6 +32,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BulkDelete;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -45,6 +46,8 @@ import org.slf4j.LoggerFactory;
 final class BulkDeleter {
 
   private static final Logger LOG = LoggerFactory.getLogger(BulkDeleter.class);
+  static final String BULK_DELETE_CLASS = "org/apache/hadoop/fs/BulkDelete.class";
+  private static String resourceToScanFor = BULK_DELETE_CLASS;
   private final ExecutorService executorService;
   private final Configuration conf;
 
@@ -60,8 +63,18 @@ final class BulkDeleter {
    * @return true if the bulk delete interface class is on the classpath.
    */
   public static boolean apiAvailable() {
-    return BulkDeleter.class.getClassLoader().getResource("org/apache/hadoop/fs/BulkDelete.class")
-        != null;
+    return BulkDeleter.class.getClassLoader().getResource(resourceToScanFor) != null;
+  }
+
+  /**
+   * Force set the name of the API resource to scan for in {@link #apiAvailable()}. This is purlely
+   * to allow tests to inject failures by requesting a nonexistent resource.
+   *
+   * @param resource name of the resource to look for.
+   */
+  @VisibleForTesting
+  static void setApiResource(String resource) {
+    resourceToScanFor = resource;
   }
 
   /**
@@ -204,7 +217,7 @@ final class BulkDeleter {
       try {
         bulkDelete.close();
       } catch (IOException ignored) {
-
+        LOG.debug("Failed to close bulk delete", ignored);
       }
     }
 

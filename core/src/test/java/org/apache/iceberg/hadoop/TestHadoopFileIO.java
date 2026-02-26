@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.apache.iceberg.hadoop.BulkDeleter.BULK_DELETE_CLASS;
 import static org.apache.iceberg.hadoop.HadoopFileIO.BULK_DELETE_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -107,8 +108,7 @@ public class TestHadoopFileIO {
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
     final String parentString = parent.toUri().toString();
-    final List<FileInfo> files =
-        Streams.stream(hadoopFileIO.listPrefix(parentString)).toList();
+    final List<FileInfo> files = Streams.stream(hadoopFileIO.listPrefix(parentString)).toList();
     assertThat(files.size())
         .describedAs("Files found under %s", parentString)
         .isEqualTo(totalFiles);
@@ -200,6 +200,45 @@ public class TestHadoopFileIO {
             "Wrong number of failures");
     assertPathDoesNotExist(localButMissing);
     assertPathDoesNotExist(exists);
+  }
+
+  /**
+   * Force the API resource to probe for to a missing class, then expect a delete with bulk delete
+   * enabled to fail.
+   */
+  @Test
+  public void testDeleteFailureuWhenClassNotFound() {
+    try {
+      resetFileIOBinding(true);
+      BulkDeleter.setApiResource("no/such/class");
+      assertThatThrownBy(() -> hadoopFileIO.deleteFiles(List.of(tempDir.toURI().toString())))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining(BULK_DELETE_ENABLED);
+    } finally {
+      // change the resource to probe for to be that of the BulkDelete class.
+      BulkDeleter.setApiResource(BULK_DELETE_CLASS);
+    }
+  }
+
+  /**
+   * With bulk delete disabled, deleteFiles() works even when the BulkDeleter believes the feature
+   * is unavailable. This shows the standard invocation path is used.
+   */
+  @Test
+  public void testDeleteFilesWithBulkDeleteNotFound() {
+    try {
+      Path parent = new Path(tempDir.toURI());
+      BulkDeleter.setApiResource("no/such/class");
+      assertThat(BulkDeleter.apiAvailable()).isFalse();
+
+      List<Path> filesCreated = createRandomFiles(parent, 5);
+      hadoopFileIO.deleteFiles(filesCreated.stream().map(Path::toString).toList());
+      filesCreated.forEach(
+          file -> assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
+    } finally {
+      // change the resource to probe for to be that of the BulkDelete class.
+      BulkDeleter.setApiResource(BULK_DELETE_CLASS);
+    }
   }
 
   @ParameterizedTest
