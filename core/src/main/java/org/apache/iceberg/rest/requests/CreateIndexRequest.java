@@ -32,6 +32,7 @@ import org.apache.iceberg.rest.RESTRequest;
 /** A REST request to create a new index on a table. */
 public class CreateIndexRequest implements RESTRequest {
 
+  private String tableUuid;
   private String name;
   private IndexType type;
   private List<Integer> indexColumnIds;
@@ -47,6 +48,7 @@ public class CreateIndexRequest implements RESTRequest {
   }
 
   private CreateIndexRequest(
+      String tableUuid,
       String name,
       IndexType type,
       List<Integer> indexColumnIds,
@@ -56,6 +58,7 @@ public class CreateIndexRequest implements RESTRequest {
       Long tableSnapshotId,
       Long indexSnapshotId,
       Map<String, String> snapshotProperties) {
+    this.tableUuid = tableUuid;
     this.name = name;
     this.type = type;
     this.indexColumnIds = indexColumnIds;
@@ -71,11 +74,17 @@ public class CreateIndexRequest implements RESTRequest {
   @Override
   public void validate() {
     Preconditions.checkArgument(
+        tableUuid != null && !tableUuid.isEmpty(), "Invalid table uuid: null or empty");
+    Preconditions.checkArgument(
         name != null && !name.isEmpty(), "Invalid index name: null or empty");
     Preconditions.checkArgument(type != null, "Invalid index type: null");
     Preconditions.checkArgument(
         indexColumnIds != null && !indexColumnIds.isEmpty(),
         "Invalid index column IDs: null or empty");
+  }
+
+  public String tableUuid() {
+    return tableUuid;
   }
 
   public String name() {
@@ -117,6 +126,7 @@ public class CreateIndexRequest implements RESTRequest {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
+        .add("tableUuid", tableUuid)
         .add("name", name)
         .add("type", type)
         .add("indexColumnIds", indexColumnIds)
@@ -134,6 +144,7 @@ public class CreateIndexRequest implements RESTRequest {
   }
 
   public static class Builder {
+    private String tableUuid;
     private String name;
     private IndexType type;
     private final List<Integer> indexColumnIds = Lists.newArrayList();
@@ -145,6 +156,11 @@ public class CreateIndexRequest implements RESTRequest {
     private final Map<String, String> snapshotProperties = Maps.newHashMap();
 
     private Builder() {}
+
+    public Builder withTableUuid(String uuid) {
+      this.tableUuid = uuid;
+      return this;
+    }
 
     public Builder withName(String indexName) {
       this.name = indexName;
@@ -215,6 +231,7 @@ public class CreateIndexRequest implements RESTRequest {
 
     public CreateIndexRequest build() {
       return new CreateIndexRequest(
+          tableUuid,
           name,
           type,
           ImmutableList.copyOf(indexColumnIds),

@@ -41,6 +41,7 @@ import org.apache.iceberg.util.JsonUtil;
 public class IndexMetadataParser {
 
   static final String INDEX_UUID = "index-uuid";
+  static final String TABLE_UUID = "table-uuid";
   static final String FORMAT_VERSION = "format-version";
   static final String INDEX_TYPE = "index-type";
   static final String INDEX_COLUMN_IDS = "index-column-ids";
@@ -67,6 +68,7 @@ public class IndexMetadataParser {
     gen.writeStartObject();
 
     gen.writeStringField(INDEX_UUID, metadata.uuid());
+    gen.writeStringField(TABLE_UUID, metadata.tableUuid());
     gen.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     gen.writeStringField(INDEX_TYPE, metadata.type().typeName());
     JsonUtil.writeIntegerArray(INDEX_COLUMN_IDS, metadata.indexColumnIds(), gen);
@@ -115,6 +117,7 @@ public class IndexMetadataParser {
         json.isObject(), "Cannot parse index metadata from non-object: %s", json);
 
     String uuid = JsonUtil.getString(INDEX_UUID, json);
+    String tableUuid = JsonUtil.getString(TABLE_UUID, json);
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, json);
     IndexType type = IndexType.fromString(JsonUtil.getString(INDEX_TYPE, json));
     List<Integer> indexColumnIds = JsonUtil.getIntegerList(INDEX_COLUMN_IDS, json);
@@ -150,6 +153,7 @@ public class IndexMetadataParser {
 
     return ImmutableIndexMetadata.of(
         uuid,
+        tableUuid,
         formatVersion,
         type,
         indexColumnIds,

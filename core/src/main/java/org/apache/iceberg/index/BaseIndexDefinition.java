@@ -34,7 +34,7 @@ import org.immutables.value.Value;
     typeImmutable = "ImmutableIndexSummary",
     visibilityString = "PUBLIC",
     builderVisibilityString = "PUBLIC")
-interface BaseIndexSummary extends IndexSummary {
+interface BaseIndexDefinition extends IndexDefinition {
 
   @Override
   IndexIdentifier id();

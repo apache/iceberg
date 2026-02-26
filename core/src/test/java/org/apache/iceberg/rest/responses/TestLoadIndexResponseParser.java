@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 
 public class TestLoadIndexResponseParser {
 
+  private static final String TABLE_UUID = "test-table-uuid";
   private static final String TEST_LOCATION = "s3://bucket/test/location";
   private static final String TEST_METADATA_LOCATION = "s3://bucket/test/metadata/v1.metadata.json";
   private static final List<Integer> INDEX_COLUMN_IDS = ImmutableList.of(1, 2);
@@ -47,6 +48,7 @@ public class TestLoadIndexResponseParser {
             .build();
 
     return IndexMetadata.builder()
+        .setTableUuid(TABLE_UUID)
         .setLocation(TEST_LOCATION)
         .setType(IndexType.BTREE)
         .setIndexColumnIds(INDEX_COLUMN_IDS)
@@ -196,6 +198,7 @@ public class TestLoadIndexResponseParser {
 
     IndexMetadata metadata =
         IndexMetadata.builder()
+            .setTableUuid(TABLE_UUID)
             .setLocation(TEST_LOCATION)
             .setType(IndexType.BTREE)
             .setIndexColumnIds(INDEX_COLUMN_IDS)
@@ -218,6 +221,7 @@ public class TestLoadIndexResponseParser {
           "metadata-location": "s3://bucket/test/metadata/v1.metadata.json",
           "metadata": {
             "index-uuid": "%s",
+            "table-uuid": "test-table-uuid",
             "format-version": 1,
             "index-type": "btree",
             "index-column-ids": [1, 2],

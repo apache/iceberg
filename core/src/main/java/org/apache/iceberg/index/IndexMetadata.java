@@ -65,6 +65,15 @@ public interface IndexMetadata extends Serializable {
   String uuid();
 
   /**
+   * Return the UUID of the table that this index is associated with.
+   *
+   * <p>Set when the index is created and must not be changed afterward.
+   *
+   * @return the table UUID as a string
+   */
+  String tableUuid();
+
+  /**
    * Return the format version for this index.
    *
    * <p>An integer version number for the index metadata format; format-version is 1 for current
@@ -282,6 +291,7 @@ public interface IndexMetadata extends Serializable {
     private int currentVersionId = 0;
     private String location;
     private String uuid;
+    private String tableUuid;
     private String metadataLocation;
     private IndexType type;
     private List<Integer> indexColumnIds;
@@ -320,6 +330,7 @@ public interface IndexMetadata extends Serializable {
       this.currentVersionId = base.currentVersionId();
       this.location = base.location();
       this.uuid = base.uuid();
+      this.tableUuid = base.tableUuid();
       this.type = base.type();
       this.indexColumnIds = ImmutableList.copyOf(base.indexColumnIds());
       this.optimizedColumnIds = ImmutableList.copyOf(base.optimizedColumnIds());
@@ -355,6 +366,12 @@ public interface IndexMetadata extends Serializable {
     public Builder setType(IndexType newType) {
       Preconditions.checkArgument(null != newType, "Invalid index type: null");
       this.type = newType;
+      return this;
+    }
+
+    public Builder setTableUuid(String newTableUuid) {
+      Preconditions.checkArgument(null != newTableUuid, "Invalid table UUID: null");
+      this.tableUuid = newTableUuid;
       return this;
     }
 
@@ -475,6 +492,7 @@ public interface IndexMetadata extends Serializable {
 
     public IndexMetadata build() {
       Preconditions.checkArgument(null != location, "Invalid location: null");
+      Preconditions.checkArgument(null != tableUuid, "Invalid table uuid: null");
       Preconditions.checkArgument(
           !versions.isEmpty() || !newVersions.isEmpty(), "Invalid index: no versions were added");
       Preconditions.checkArgument(null != type, "Invalid index type: null");
@@ -538,6 +556,7 @@ public interface IndexMetadata extends Serializable {
 
       return ImmutableIndexMetadata.of(
           null == uuid ? UUID.randomUUID().toString() : uuid,
+          tableUuid,
           formatVersion,
           type,
           indexColumnIds,

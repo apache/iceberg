@@ -79,9 +79,9 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.index.BaseIndex;
 import org.apache.iceberg.index.Index;
 import org.apache.iceberg.index.IndexBuilder;
+import org.apache.iceberg.index.IndexDefinition;
 import org.apache.iceberg.index.IndexMetadata;
 import org.apache.iceberg.index.IndexOperations;
-import org.apache.iceberg.index.IndexSummary;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -812,7 +812,7 @@ public class CatalogHandlers {
       IndexCatalog catalog, TableIdentifier tableIdentifier) {
     List<IndexIdentifier> identifiers =
         catalog.listIndexes(tableIdentifier).stream()
-            .map(IndexSummary::id)
+            .map(IndexDefinition::id)
             .collect(Collectors.toList());
     return ListIndexesResponse.builder().addAll(identifiers).build();
   }
@@ -830,7 +830,7 @@ public class CatalogHandlers {
       IndexCatalog catalog, TableIdentifier tableIdentifier, String pageToken, String pageSize) {
     List<IndexIdentifier> identifiers =
         catalog.listIndexes(tableIdentifier).stream()
-            .map(IndexSummary::id)
+            .map(IndexDefinition::id)
             .collect(Collectors.toList());
 
     Pair<List<IndexIdentifier>, String> page =
@@ -855,6 +855,7 @@ public class CatalogHandlers {
     IndexBuilder builder =
         catalog
             .buildIndex(indexIdentifier)
+            .withTableUuid(UUID.fromString(request.tableUuid()))
             .withType(request.type())
             .withIndexColumnIds(request.indexColumnIds())
             .withOptimizedColumnIds(request.optimizedColumnIds())

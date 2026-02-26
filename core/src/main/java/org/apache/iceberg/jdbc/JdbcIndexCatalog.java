@@ -41,10 +41,10 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchIndexException;
 import org.apache.iceberg.index.BaseIndexCatalog;
 import org.apache.iceberg.index.ImmutableIndexSummary;
+import org.apache.iceberg.index.IndexDefinition;
 import org.apache.iceberg.index.IndexMetadata;
 import org.apache.iceberg.index.IndexOperations;
 import org.apache.iceberg.index.IndexSnapshot;
-import org.apache.iceberg.index.IndexSummary;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -203,7 +203,7 @@ public class JdbcIndexCatalog extends BaseIndexCatalog implements Closeable {
   }
 
   @Override
-  protected List<IndexSummary> doListIndexes(TableIdentifier tableIdentifier) {
+  protected List<IndexDefinition> doListIndexes(TableIdentifier tableIdentifier) {
     List<IndexIdentifier> indexIdentifiers = listIndexIdentifiers(tableIdentifier);
     return indexIdentifiers.stream()
         .sorted(Comparator.comparing(IndexIdentifier::toString))
@@ -240,7 +240,7 @@ public class JdbcIndexCatalog extends BaseIndexCatalog implements Closeable {
     }
   }
 
-  private IndexSummary loadIndexSummary(IndexIdentifier identifier) {
+  private IndexDefinition loadIndexSummary(IndexIdentifier identifier) {
     IndexOperations ops = newIndexOps(identifier);
     IndexMetadata metadata = ops.current();
     if (metadata == null) {

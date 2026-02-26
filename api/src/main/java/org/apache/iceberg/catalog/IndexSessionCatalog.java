@@ -25,7 +25,7 @@ import org.apache.iceberg.exceptions.NoSuchIndexException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.index.Index;
 import org.apache.iceberg.index.IndexBuilder;
-import org.apache.iceberg.index.IndexSummary;
+import org.apache.iceberg.index.IndexDefinition;
 import org.apache.iceberg.index.IndexType;
 
 /**
@@ -57,7 +57,7 @@ public interface IndexSessionCatalog {
    * @return a list of index summaries matching the criteria
    * @throws NoSuchTableException if the table does not exist
    */
-  List<IndexSummary> listIndexes(
+  List<IndexDefinition> listIndexes(
       SessionCatalog.SessionContext context, TableIdentifier tableIdentifier, IndexType... types);
 
   /**

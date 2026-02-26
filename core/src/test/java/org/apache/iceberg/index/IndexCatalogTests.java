@@ -26,7 +26,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.IndexCatalog;
 import org.apache.iceberg.catalog.IndexIdentifier;
@@ -116,7 +118,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -124,6 +126,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -153,7 +156,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -164,6 +167,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3, 4)
             .withOptimizedColumnIds(3)
@@ -203,19 +207,30 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
 
     // type is required
-    assertThatThrownBy(() -> catalog().buildIndex(indexIdentifier).withIndexColumnIds(3).create())
+    assertThatThrownBy(
+            () ->
+                catalog()
+                    .buildIndex(indexIdentifier)
+                    .withTableUuid(table.uuid())
+                    .withIndexColumnIds(3)
+                    .create())
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Cannot create index without specifying a type");
 
     // index column ids are required
     assertThatThrownBy(
-            () -> catalog().buildIndex(indexIdentifier).withType(IndexType.BTREE).create())
+            () ->
+                catalog()
+                    .buildIndex(indexIdentifier)
+                    .withTableUuid(table.uuid())
+                    .withType(IndexType.BTREE)
+                    .create())
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Cannot create index without specifying index column ids");
   }
@@ -229,7 +244,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -237,6 +252,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -249,6 +265,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
             () ->
                 catalog()
                     .buildIndex(indexIdentifier)
+                    .withTableUuid(table.uuid())
                     .withType(IndexType.TERM)
                     .withIndexColumnIds(4)
                     .withOptimizedColumnIds(4)
@@ -272,6 +289,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
             () ->
                 catalog()
                     .buildIndex(indexIdentifier)
+                    .withTableUuid(UUID.randomUUID())
                     .withType(IndexType.BTREE)
                     .withIndexColumnIds(3)
                     .create())
@@ -287,7 +305,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().listIndexes(tableIdentifier)).isEmpty();
@@ -295,12 +313,13 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     IndexIdentifier index1Identifier = IndexIdentifier.of(tableIdentifier, "index1");
     catalog()
         .buildIndex(index1Identifier)
+        .withTableUuid(table.uuid())
         .withType(IndexType.BTREE)
         .withIndexColumnIds(3)
         .withOptimizedColumnIds(3)
         .create();
 
-    List<IndexSummary> indexes = catalog().listIndexes(tableIdentifier);
+    List<IndexDefinition> indexes = catalog().listIndexes(tableIdentifier);
     assertThat(indexes).hasSize(1);
     assertThat(indexes.get(0).id()).isEqualTo(index1Identifier);
     assertThat(indexes.get(0).type()).isEqualTo(IndexType.BTREE);
@@ -308,6 +327,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     IndexIdentifier index2Identifier = IndexIdentifier.of(tableIdentifier, "index2");
     catalog()
         .buildIndex(index2Identifier)
+        .withTableUuid(table.uuid())
         .withType(IndexType.TERM)
         .withIndexColumnIds(4)
         .withOptimizedColumnIds(4)
@@ -333,12 +353,13 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     IndexIdentifier btreeIndexIdentifier = IndexIdentifier.of(tableIdentifier, "btree_index");
     catalog()
         .buildIndex(btreeIndexIdentifier)
+        .withTableUuid(table.uuid())
         .withType(IndexType.BTREE)
         .withIndexColumnIds(3)
         .withOptimizedColumnIds(3)
@@ -347,33 +368,34 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     IndexIdentifier termIndexIdentifier = IndexIdentifier.of(tableIdentifier, "term_index");
     catalog()
         .buildIndex(termIndexIdentifier)
+        .withTableUuid(table.uuid())
         .withType(IndexType.TERM)
         .withIndexColumnIds(4)
         .withOptimizedColumnIds(4)
         .create();
 
     // list all indexes
-    List<IndexSummary> allIndexes = catalog().listIndexes(tableIdentifier);
+    List<IndexDefinition> allIndexes = catalog().listIndexes(tableIdentifier);
     assertThat(allIndexes).hasSize(2);
 
     // list only BTREE indexes
-    List<IndexSummary> btreeIndexes = catalog().listIndexes(tableIdentifier, IndexType.BTREE);
+    List<IndexDefinition> btreeIndexes = catalog().listIndexes(tableIdentifier, IndexType.BTREE);
     assertThat(btreeIndexes).hasSize(1);
     assertThat(btreeIndexes.get(0).id()).isEqualTo(btreeIndexIdentifier);
     assertThat(btreeIndexes.get(0).type()).isEqualTo(IndexType.BTREE);
 
     // list only TERM indexes
-    List<IndexSummary> termIndexes = catalog().listIndexes(tableIdentifier, IndexType.TERM);
+    List<IndexDefinition> termIndexes = catalog().listIndexes(tableIdentifier, IndexType.TERM);
     assertThat(termIndexes).hasSize(1);
     assertThat(termIndexes.get(0).id()).isEqualTo(termIndexIdentifier);
     assertThat(termIndexes.get(0).type()).isEqualTo(IndexType.TERM);
 
     // list IVF indexes (should be empty)
-    List<IndexSummary> ivfIndexes = catalog().listIndexes(tableIdentifier, IndexType.IVF);
+    List<IndexDefinition> ivfIndexes = catalog().listIndexes(tableIdentifier, IndexType.IVF);
     assertThat(ivfIndexes).isEmpty();
 
     // list BTREE and TERM indexes
-    List<IndexSummary> multiTypeIndexes =
+    List<IndexDefinition> multiTypeIndexes =
         catalog().listIndexes(tableIdentifier, IndexType.BTREE, IndexType.TERM);
     assertThat(multiTypeIndexes).hasSize(2);
   }
@@ -403,7 +425,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -411,6 +433,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     IndexBuilder indexBuilder =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -450,13 +473,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
 
     catalog()
         .buildIndex(indexIdentifier)
+        .withTableUuid(table.uuid())
         .withType(IndexType.BTREE)
         .withIndexColumnIds(3)
         .withOptimizedColumnIds(3)
@@ -500,7 +524,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -508,6 +532,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -536,13 +561,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
 
     catalog()
         .buildIndex(indexIdentifier)
+        .withTableUuid(table.uuid())
         .withType(IndexType.BTREE)
         .withIndexColumnIds(3)
         .withOptimizedColumnIds(3)
@@ -580,7 +606,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -588,6 +614,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -614,7 +641,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -622,6 +649,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
 
     catalog()
         .buildIndex(indexIdentifier)
+        .withTableUuid(table.uuid())
         .withType(IndexType.BTREE)
         .withIndexColumnIds(3)
         .withOptimizedColumnIds(3)
@@ -633,6 +661,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     assertThatThrownBy(
             () ->
                 indexBuilder
+                    .withTableUuid(table.uuid())
                     .withType(IndexType.TERM)
                     .withIndexColumnIds(4)
                     .withOptimizedColumnIds(4)
@@ -650,13 +679,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
 
     catalog()
         .buildIndex(indexIdentifier)
+        .withTableUuid(table.uuid())
         .withType(IndexType.BTREE)
         .withIndexColumnIds(3)
         .withOptimizedColumnIds(3)
@@ -672,6 +702,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     assertThatThrownBy(
             () ->
                 indexBuilder
+                    .withTableUuid(table.uuid())
                     .withType(IndexType.BTREE)
                     .withIndexColumnIds(3, 4)
                     .withOptimizedColumnIds(3, 4)
@@ -689,7 +720,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -700,6 +731,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -736,7 +768,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -747,6 +779,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -789,7 +822,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -797,6 +830,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -845,13 +879,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
 
     catalog()
         .buildIndex(indexIdentifier)
+        .withTableUuid(table.uuid())
         .withType(IndexType.BTREE)
         .withIndexColumnIds(3)
         .withOptimizedColumnIds(3)
@@ -878,7 +913,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     // Create different types of indexes on the same table
@@ -886,6 +921,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index btreeIndex =
         catalog()
             .buildIndex(btreeIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -895,6 +931,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index termIndex =
         catalog()
             .buildIndex(termIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.TERM)
             .withIndexColumnIds(4)
             .withOptimizedColumnIds(4)
@@ -904,6 +941,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index ivfIndex =
         catalog()
             .buildIndex(ivfIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.IVF)
             .withIndexColumnIds(3, 4)
             .withOptimizedColumnIds(3)
@@ -913,7 +951,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     assertThat(termIndex.type()).isEqualTo(IndexType.TERM);
     assertThat(ivfIndex.type()).isEqualTo(IndexType.IVF);
 
-    List<IndexSummary> allIndexes = catalog().listIndexes(tableIdentifier);
+    List<IndexDefinition> allIndexes = catalog().listIndexes(tableIdentifier);
     assertThat(allIndexes).hasSize(3);
 
     // Clean up
@@ -931,7 +969,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -939,6 +977,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -972,13 +1011,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     // Create index without snapshot
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -1014,13 +1054,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     // Create index with a snapshot
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -1055,13 +1096,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     // Create index with first snapshot
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -1076,6 +1118,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withTableSnapshotId(200L)
             .withIndexSnapshotId(2L)
             .replace();
@@ -1086,6 +1129,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withTableSnapshotId(300L)
             .withIndexSnapshotId(3L)
             .replace();
@@ -1116,13 +1160,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     // Create index with a snapshot
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -1152,13 +1197,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     // Create index with a snapshot
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -1195,7 +1241,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -1203,6 +1249,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -1280,7 +1327,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -1288,6 +1335,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -1349,13 +1397,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     // Create a source index to get its metadata file location
     Index sourceIndex =
         catalog()
             .buildIndex(sourceIndexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -1408,13 +1457,14 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     // Create the index first
     Index existingIndex =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -1451,6 +1501,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index sourceIndex =
         catalog()
             .buildIndex(sourceIndexIdentifier)
+            .withTableUuid(UUID.randomUUID())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)
@@ -1504,7 +1555,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
       catalog().createNamespace(tableIdentifier.namespace());
     }
 
-    tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
+    Table table = tableCatalog().buildTable(tableIdentifier, SCHEMA).create();
     assertThat(tableCatalog().tableExists(tableIdentifier)).as("Table should exist").isTrue();
 
     assertThat(catalog().indexExists(indexIdentifier)).as("Index should not exist").isFalse();
@@ -1512,6 +1563,7 @@ public abstract class IndexCatalogTests<C extends IndexCatalog & SupportsNamespa
     Index index =
         catalog()
             .buildIndex(indexIdentifier)
+            .withTableUuid(table.uuid())
             .withType(IndexType.BTREE)
             .withIndexColumnIds(3)
             .withOptimizedColumnIds(3)

@@ -33,7 +33,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
  * <p>To access complete index metadata, load the full {@link Index} instance using {@link
  * IndexCatalog#loadIndex(IndexIdentifier)}.
  */
-public interface IndexSummary {
+public interface IndexDefinition {
 
   /** Returns the unique identifier for this index instance. */
   IndexIdentifier id();
