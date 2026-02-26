@@ -123,6 +123,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
+
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
     SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, projection);
     this.spark = spark;

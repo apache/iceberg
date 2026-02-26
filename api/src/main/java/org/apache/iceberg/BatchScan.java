@@ -71,6 +71,11 @@ public interface BatchScan extends Scan<BatchScan, ScanTask, ScanTaskGroup<ScanT
    */
   Snapshot snapshot();
 
+  /**
+   * The {@link FileIO} instance to use when reading data.
+   *
+   * @return the {@link FileIO} instance to use when reading data
+   */
   @Override
   default FileIO io() {
     return table().io();
