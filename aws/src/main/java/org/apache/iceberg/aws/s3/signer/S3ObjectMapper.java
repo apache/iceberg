@@ -40,6 +40,10 @@ import org.apache.iceberg.rest.RESTSerializers.OAuthTokenResponseSerializer;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 
+/**
+ * @deprecated since 1.11.0, will be removed in 1.12.0; use {@code RESTObjectMapper} instead.
+ */
+@Deprecated
 public class S3ObjectMapper {
 
   private static final JsonFactory FACTORY = new JsonFactory();
