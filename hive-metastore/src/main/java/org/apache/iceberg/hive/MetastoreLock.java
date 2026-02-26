@@ -43,7 +43,6 @@ import org.apache.hadoop.hive.metastore.api.ShowLocksResponse;
 import org.apache.hadoop.hive.metastore.api.ShowLocksResponseElement;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -190,7 +189,7 @@ class MetastoreLock implements HiveLock {
     TException thriftError = null;
 
     try {
-      if (lockInfo.lockState.equals(LockState.WAITING)) {
+      if (lockInfo.getLockState().equals(LockState.WAITING)) {
         // Retry count is the typical "upper bound of retries" for Tasks.run() function. In fact,
         // the maximum number of
         // attempts the Tasks.run() would try is `retries + 1`. Here, for checking locks, we use
@@ -201,7 +200,7 @@ class MetastoreLock implements HiveLock {
         // Integer.MIN_VALUE. Hence,
         // the retry is set conservatively as `Integer.MAX_VALUE - 100` so it doesn't hit any
         // boundary issues.
-        Tasks.foreach(lockInfo.lockId)
+        Tasks.foreach(lockInfo.getLockId())
             .retry(Integer.MAX_VALUE - 100)
             .exponentialBackoff(lockCheckMinWaitTime, lockCheckMaxWaitTime, lockAcquireTimeout, 1.5)
             .throwFailureWhenFinished()
@@ -211,7 +210,7 @@ class MetastoreLock implements HiveLock {
                   try {
                     LockResponse response = metaClients.run(client -> client.checkLock(id));
                     LockState newState = response.getState();
-                    lockInfo.lockState = newState;
+                    lockInfo.setLockState(newState);
                     if (newState.equals(LockState.WAITING)) {
                       throw new WaitingForLockException(
                           String.format(
@@ -234,12 +233,12 @@ class MetastoreLock implements HiveLock {
     } catch (TException e) {
       thriftError = e;
     } finally {
-      if (!lockInfo.lockState.equals(LockState.ACQUIRED)) {
-        unlock(Optional.of(lockInfo.lockId));
+      if (!lockInfo.getLockState().equals(LockState.ACQUIRED)) {
+        unlock(Optional.of(lockInfo.getLockId()));
       }
     }
 
-    if (!lockInfo.lockState.equals(LockState.ACQUIRED)) {
+    if (!lockInfo.getLockState().equals(LockState.ACQUIRED)) {
       if (timeout) {
         throw new LockException(
             "Timed out after %s ms waiting for lock on %s.%s", duration, databaseName, tableName);
@@ -253,9 +252,9 @@ class MetastoreLock implements HiveLock {
       // Just for safety. We should not get here.
       throw new LockException(
           "Could not acquire the lock on %s.%s, lock request ended in state %s",
-          databaseName, tableName, lockInfo.lockState);
+          databaseName, tableName, lockInfo.getLockState());
     } else {
-      return lockInfo.lockId;
+      return lockInfo.getLockId();
     }
   }
 
@@ -303,8 +302,8 @@ class MetastoreLock implements HiveLock {
             request -> {
               try {
                 LockResponse lockResponse = metaClients.run(client -> client.lock(request));
-                lockInfo.lockId = lockResponse.getLockid();
-                lockInfo.lockState = lockResponse.getState();
+                lockInfo.setLockId(lockResponse.getLockid());
+                lockInfo.setLockState(lockResponse.getState());
               } catch (TException te) {
                 LOG.warn("Failed to create lock {}", request, te);
                 try {
@@ -313,8 +312,8 @@ class MetastoreLock implements HiveLock {
                   if (HiveVersion.min(HiveVersion.HIVE_2)) {
                     LockInfo lockFound = findLock();
                     if (lockFound != null) {
-                      lockInfo.lockId = lockFound.lockId;
-                      lockInfo.lockState = lockFound.lockState;
+                      lockInfo.setLockId(lockFound.getLockId());
+                      lockInfo.setLockState(lockFound.getLockState());
                       LOG.info("Found lock {} by agentInfo {}", lockInfo, agentInfo);
                       return;
                     }
@@ -359,7 +358,8 @@ class MetastoreLock implements HiveLock {
    *
    * @return The {@link LockInfo} for the found lock, or <code>null</code> if nothing found
    */
-  private LockInfo findLock() throws LockException, InterruptedException {
+  @Override
+  public LockInfo findLock() throws LockException, InterruptedException {
     Preconditions.checkArgument(
         HiveVersion.min(HiveVersion.HIVE_2),
         "Minimally Hive 2 HMS client is needed to find the Lock using the showLocks API call");
@@ -383,6 +383,11 @@ class MetastoreLock implements HiveLock {
     return null;
   }
 
+  @Override
+  public Optional<Long> getHmsLockId() {
+    return hmsLockId;
+  }
+
   private void unlock(Optional<Long> lockId) {
     Long id = null;
     try {
@@ -396,7 +401,7 @@ class MetastoreLock implements HiveLock {
             return;
           }
 
-          id = lockInfo.lockId;
+          id = lockInfo.getLockId();
         } else {
           LOG.warn("Could not find lock with HMSClient {}", HiveVersion.current());
           return;
@@ -506,29 +511,6 @@ class MetastoreLock implements HiveLock {
       if (future != null) {
         future.cancel(false);
       }
-    }
-  }
-
-  private static class LockInfo {
-    private long lockId;
-    private LockState lockState;
-
-    private LockInfo() {
-      this.lockId = -1;
-      this.lockState = null;
-    }
-
-    private LockInfo(long lockId, LockState lockState) {
-      this.lockId = lockId;
-      this.lockState = lockState;
-    }
-
-    @Override
-    public String toString() {
-      return MoreObjects.toStringHelper(this)
-          .add("lockId", lockId)
-          .add("lockState", lockState)
-          .toString();
     }
   }
 

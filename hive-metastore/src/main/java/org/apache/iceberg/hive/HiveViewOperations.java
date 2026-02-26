@@ -187,9 +187,9 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
       lock.ensureActive();
 
       try {
-        persistTable(tbl, updateHiveView, hiveLockEnabled(conf) ? null : baseMetadataLocation);
+        persistTable(
+            tbl, updateHiveView, hiveLockEnabled(conf) ? null : baseMetadataLocation, lock);
         lock.ensureActive();
-
         commitStatus = CommitStatus.SUCCESS;
       } catch (LockException le) {
         commitStatus = CommitStatus.UNKNOWN;

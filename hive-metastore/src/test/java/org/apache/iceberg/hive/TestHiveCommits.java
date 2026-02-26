@@ -347,7 +347,7 @@ public class TestHiveCommits extends HiveTableTestBase {
             new RuntimeException(
                 "MetaException(message:The table has been modified. The parameter value for key 'metadata_location' is"))
         .when(spyOps)
-        .persistTable(any(), anyBoolean(), any());
+        .persistTable(any(), anyBoolean(), any(), any());
 
     // Should throw a CommitFailedException so the commit could be retried
     assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
@@ -385,11 +385,11 @@ public class TestHiveCommits extends HiveTableTestBase {
               org.apache.hadoop.hive.metastore.api.Table tbl =
                   i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
               String location = i.getArgument(2, String.class);
-              ops.persistTable(tbl, true, location);
+              ops.persistTable(tbl, true, location, any());
               throw new LockException("Datacenter on fire");
             })
         .when(spyOps)
-        .persistTable(any(), anyBoolean(), any());
+        .persistTable(any(), anyBoolean(), any(), any());
 
     assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .hasMessageContaining("Failed to heartbeat for hive lock while")
@@ -428,11 +428,11 @@ public class TestHiveCommits extends HiveTableTestBase {
               org.apache.hadoop.hive.metastore.api.Table tbl =
                   i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
               String location = i.getArgument(2, String.class);
-              ops.persistTable(tbl, true, location);
+              ops.persistTable(tbl, true, location, any());
               throw new UnknownError();
             })
         .when(spyOps)
-        .persistTable(any(), anyBoolean(), any());
+        .persistTable(any(), anyBoolean(), any(), any());
     try {
       ReflectionSupport.invokeMethod(
           ops.getClass()
@@ -470,7 +470,7 @@ public class TestHiveCommits extends HiveTableTestBase {
     ops.refresh();
 
     HiveTableOperations spyOps = spy(ops);
-    doThrow(new RuntimeException()).when(spyOps).persistTable(any(), anyBoolean(), any());
+    doThrow(new RuntimeException()).when(spyOps).persistTable(any(), anyBoolean(), any(), any());
 
     assertThatThrownBy(() -> spyOps.commit(ops.current(), metadataV1))
         .isInstanceOf(CommitStateUnknownException.class)
@@ -566,11 +566,11 @@ public class TestHiveCommits extends HiveTableTestBase {
               org.apache.hadoop.hive.metastore.api.Table tbl =
                   i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
               String location = i.getArgument(2, String.class);
-              realOperations.persistTable(tbl, true, location);
+              realOperations.persistTable(tbl, true, location, any());
               throw new TException("Datacenter on fire");
             })
         .when(spyOperations)
-        .persistTable(any(), anyBoolean(), any());
+        .persistTable(any(), anyBoolean(), any(), any());
   }
 
   private void concurrentCommitAndThrowException(
@@ -585,7 +585,7 @@ public class TestHiveCommits extends HiveTableTestBase {
               org.apache.hadoop.hive.metastore.api.Table tbl =
                   i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
               String location = i.getArgument(2, String.class);
-              realOperations.persistTable(tbl, true, location);
+              realOperations.persistTable(tbl, true, location, any());
               // Simulate lock expiration or removal
               lock.get().unlock();
               table.refresh();
@@ -593,14 +593,14 @@ public class TestHiveCommits extends HiveTableTestBase {
               throw new TException("Datacenter on fire");
             })
         .when(spyOperations)
-        .persistTable(any(), anyBoolean(), any());
+        .persistTable(any(), anyBoolean(), any(), any());
   }
 
   private void failCommitAndThrowException(HiveTableOperations spyOperations)
       throws TException, InterruptedException {
     doThrow(new TException("Datacenter on fire"))
         .when(spyOperations)
-        .persistTable(any(), anyBoolean(), any());
+        .persistTable(any(), anyBoolean(), any(), any());
   }
 
   private void breakFallbackCatalogCommitCheck(HiveTableOperations spyOperations) {

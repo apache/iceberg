@@ -30,6 +30,7 @@ import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -139,12 +140,15 @@ interface HiveOperationsBase {
     }
   }
 
-  default void persistTable(Table hmsTable, boolean updateHiveTable, String metadataLocation)
+  default void persistTable(
+      Table hmsTable, boolean updateHiveTable, String metadataLocation, HiveLock lock)
       throws TException, InterruptedException {
     if (updateHiveTable) {
       metaClients()
           .run(
               client -> {
+                // Before we actually update the table, confirm again whether the lock exists.
+                validateLock(lock);
                 MetastoreUtil.alterTable(
                     client, database(), table(), hmsTable, hmsEnvContext(metadataLocation));
                 return null;
@@ -156,6 +160,36 @@ interface HiveOperationsBase {
                 client.createTable(hmsTable);
                 return null;
               });
+    }
+  }
+
+  /**
+   * Verify the legitimacy of the lock: 1. The existence of the lock can be found on the Metastore
+   * end; 2. The ID of the lock must be the same as that of the original lock.
+   *
+   * @param lock: metastore lock information
+   */
+  default void validateLock(HiveLock lock) {
+    long expectedLockId = lock.getHmsLockId().orElse(-1L);
+
+    LockInfo lockInfo;
+    try {
+      lockInfo = lock.findLock();
+    } catch (InterruptedException e) {
+      throw new CommitStateUnknownException("Interrupted while checking HMS lock state", e);
+    }
+
+    if (lockInfo == null) {
+      throw new CommitStateUnknownException(
+          "Confirmed HMS lock does not exist. Aborting commit.", new RuntimeException());
+    }
+
+    long actualLockId = lockInfo.getLockId();
+    if (actualLockId != expectedLockId) {
+      throw new CommitStateUnknownException(
+          String.format(
+              "HMS lock id mismatch. expected: %s, actual: %s", expectedLockId, actualLockId),
+          new RuntimeException());
     }
   }
 
