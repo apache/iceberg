@@ -22,14 +22,11 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
-import org.apache.iceberg.util.SerializableSupplier;
 
 /**
  * A read-only serializable table that can be sent to other nodes in a cluster.
@@ -83,7 +80,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     Map<Integer, PartitionSpec> specs = table.specs();
     specs.forEach((specId, spec) -> specAsJsonMap.put(specId, PartitionSpecParser.toJson(spec)));
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
-    this.io = SerializableTable.copyOf(table.io());
+    this.io = SerializableFileIO.copyOf(table.io());
     this.encryption = table.encryption();
     this.locationProviderTry = Try.of(table::locationProvider);
     this.refs = SerializableMap.copyOf(table.refs());
@@ -122,14 +119,6 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     } else {
       return null;
     }
-  }
-
-  public static FileIO copyOf(FileIO fileIO) {
-    if (fileIO instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) fileIO).serializeConfWith(SerializableConfSupplier::new);
-    }
-
-    return fileIO;
   }
 
   private Table lazyTable() {
@@ -451,33 +440,6 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
     public MetadataTableType type() {
       return type;
-    }
-  }
-
-  // captures the current state of a Hadoop configuration in a serializable manner
-  private static class SerializableConfSupplier implements SerializableSupplier<Configuration> {
-
-    private final Map<String, String> confAsMap;
-    private transient volatile Configuration conf = null;
-
-    SerializableConfSupplier(Configuration conf) {
-      this.confAsMap = Maps.newHashMapWithExpectedSize(conf.size());
-      conf.forEach(entry -> confAsMap.put(entry.getKey(), entry.getValue()));
-    }
-
-    @Override
-    public Configuration get() {
-      if (conf == null) {
-        synchronized (this) {
-          if (conf == null) {
-            Configuration newConf = new Configuration(false);
-            confAsMap.forEach(newConf::set);
-            this.conf = newConf;
-          }
-        }
-      }
-
-      return conf;
     }
   }
 }

@@ -89,7 +89,7 @@ class SparkBatch implements Batch {
     Broadcast<Table> tableBroadcast =
         sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     Broadcast<FileIO> fileIOBroadcast =
-        sparkContext.broadcast(SerializableTableWithSize.copyOf(fileIO.get()));
+        sparkContext.broadcast(SerializableFileIOWithSize.copyOf(fileIO.get()));
     String projectionString = SchemaParser.toJson(projection);
     String[][] locations = computePreferredLocations();
 
