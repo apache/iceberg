@@ -18,62 +18,50 @@
  */
 package org.apache.iceberg.spark.data;
 
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestBase;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.TestBaseFormatModel;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class TestSparkReadModel extends TestBaseFormatModel<Record, InternalRow> {
+public class TestSparkFormatModel extends TestBaseFormatModel<InternalRow> {
 
   @Override
-  protected Class<Record> writeType() {
-    return Record.class;
-  }
-
-  @Override
-  protected Class<InternalRow> readType() {
+  protected Class<InternalRow> engineType() {
     return InternalRow.class;
   }
 
   @Override
-  protected Object writeEngineSchema(Schema schema) {
-    return null;
-  }
-
-  @Override
-  protected Object readEngineSchema(Schema schema) {
+  protected Object engineSchema(Schema schema) {
     return SparkSchemaUtil.convert(schema);
   }
 
   @Override
-  protected List<Record> testRecords() {
-    return RandomGenericData.generate(TestBase.SCHEMA, 10, 1L);
+  protected List<InternalRow> engineTestRecords() {
+    return Lists.newArrayList(RandomData.generateSpark(TestBase.SCHEMA, 10, 1L));
   }
 
   @Override
-  protected void assertEquals(
-      Types.StructType struct, List<Record> expected, List<InternalRow> actual) {
+  protected void assertEqualsEngineToGeneric(
+      Types.StructType struct, List<InternalRow> expected, List<Record> actual) {
+    assertThat(actual).hasSameSizeAs(expected);
     for (int i = 0; i < expected.size(); i++) {
-      GenericsHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
+      GenericsHelpers.assertEqualsUnsafe(struct, actual.get(i), expected.get(i));
     }
   }
 
   @Override
-  protected List<Record> expectedPositionDeletes(Schema schema) {
-    return ImmutableList.of(
-        GenericRecord.create(schema)
-            .copy(DELETE_FILE_PATH.name(), "data-file-1.parquet", DELETE_FILE_POS.name(), 0L),
-        GenericRecord.create(schema)
-            .copy(DELETE_FILE_PATH.name(), "data-file-1.parquet", DELETE_FILE_POS.name(), 1L));
+  protected void assertEqualsGenericToEngine(
+      Types.StructType struct, List<Record> expected, List<InternalRow> actual) {
+    assertThat(actual).hasSameSizeAs(expected);
+    for (int i = 0; i < expected.size(); i++) {
+      GenericsHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
+    }
   }
 }
