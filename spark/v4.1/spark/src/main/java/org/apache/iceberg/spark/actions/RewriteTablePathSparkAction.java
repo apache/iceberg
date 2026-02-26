@@ -294,28 +294,23 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         Sets.difference(snapshotSet(endMetadata), snapshotSet(startMetadata));
 
     // rebuild manifest-list files
-    RewriteResult<ManifestFile> rewriteManifestListResult = new RewriteResult<>();
-    Set<ManifestFile> concurrentToRewrite = Sets.newConcurrentHashSet();
-    Set<Pair<String, String>> concurrentCopyPlan = Sets.newConcurrentHashSet();
+    Set<RewriteResult<ManifestFile>> manifestListResults = Sets.newConcurrentHashSet();
     Tasks.foreach(validSnapshots)
         .noRetry()
         .throwFailureWhenFinished()
         .executeWith(executorService)
         .run(
-            snapshot -> {
-              RewriteResult<ManifestFile> snapshotResult =
-                  rewriteManifestList(snapshot, endMetadata, manifestsToRewrite);
-              concurrentToRewrite.addAll(snapshotResult.toRewrite());
-              concurrentCopyPlan.addAll(snapshotResult.copyPlan());
-            });
+            snapshot ->
+                manifestListResults.add(
+                    rewriteManifestList(snapshot, endMetadata, manifestsToRewrite)));
 
-    rewriteManifestListResult.toRewrite().addAll(concurrentToRewrite);
-    rewriteManifestListResult.copyPlan().addAll(concurrentCopyPlan);
+    RewriteResult<ManifestFile> rewriteManifestListResult = new RewriteResult<>();
+    manifestListResults.forEach(rewriteManifestListResult::append);
 
     // rebuild manifest files
     Set<ManifestFile> metaFiles = rewriteManifestListResult.toRewrite();
     RewriteContentFileResult rewriteManifestResult =
-        rewriteManifests(deltaSnapshots, endMetadata, rewriteManifestListResult.toRewrite());
+        rewriteManifests(deltaSnapshots, endMetadata, metaFiles);
 
     // rebuild position delete files
     Set<DeleteFile> deleteFiles =
