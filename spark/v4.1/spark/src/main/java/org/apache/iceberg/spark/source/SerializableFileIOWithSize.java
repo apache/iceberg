@@ -18,21 +18,30 @@
  */
 package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.SerializableFileIO;
+import java.util.Map;
+import java.util.function.Function;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.spark.util.KnownSizeEstimation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SerializableFileIOWithSize extends SerializableFileIO
-    implements KnownSizeEstimation, AutoCloseable {
+public class SerializableFileIOWithSize
+    implements FileIO, HadoopConfigurable, KnownSizeEstimation, AutoCloseable {
   private static final Logger LOG = LoggerFactory.getLogger(SerializableFileIOWithSize.class);
   private static final long SIZE_ESTIMATE = 32_768L;
 
   private final transient Object serializationMarker;
 
-  protected SerializableFileIOWithSize(FileIO fileIO) {
-    super(fileIO);
+  private final FileIO delegate;
+
+  private SerializableFileIOWithSize(FileIO fileIO) {
+    this.delegate = fileIO;
     this.serializationMarker = new Object();
   }
 
@@ -42,14 +51,66 @@ public class SerializableFileIOWithSize extends SerializableFileIO
   }
 
   public static FileIO copyOf(FileIO fileIO) {
-    return new SerializableFileIOWithSize(SerializableFileIO.copyOf(fileIO));
+    return new SerializableFileIOWithSize(SerializableTable.copyOf(fileIO));
   }
 
   @Override
   public void close() {
-    if (serializationMarker == null) {
-      LOG.info("Releasing resources");
-      io().close();
+    if (null == serializationMarker) {
+      LOG.info("Closing FileIO");
+      delegate.close();
     }
+  }
+
+  protected FileIO io() {
+    return delegate;
+  }
+
+  @Override
+  public InputFile newInputFile(String path) {
+    return delegate.newInputFile(path);
+  }
+
+  @Override
+  public OutputFile newOutputFile(String path) {
+    return delegate.newOutputFile(path);
+  }
+
+  @Override
+  public void deleteFile(String path) {
+    delegate.deleteFile(path);
+  }
+
+  @Override
+  public void initialize(Map<String, String> properties) {
+    delegate.initialize(properties);
+  }
+
+  @Override
+  public Map<String, String> properties() {
+    return delegate.properties();
+  }
+
+  @Override
+  public void serializeConfWith(
+      Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
+    if (delegate instanceof HadoopConfigurable hadoopConfigurable) {
+      hadoopConfigurable.serializeConfWith(confSerializer);
+    }
+  }
+
+  @Override
+  public void setConf(Configuration conf) {
+    if (delegate instanceof HadoopConfigurable hadoopConfigurable) {
+      hadoopConfigurable.setConf(conf);
+    }
+  }
+
+  @Override
+  public Configuration getConf() {
+    if (delegate instanceof HadoopConfigurable hadoopConfigurable) {
+      return hadoopConfigurable.getConf();
+    }
+    return null;
   }
 }
