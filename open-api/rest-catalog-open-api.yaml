@@ -3320,6 +3320,7 @@ components:
         - name
         - type
         - location
+        - table-uuid
         - index-column-ids
         - optimized-column-ids
         - current-version-id
@@ -3340,6 +3341,10 @@ components:
         location:
           type: string
           description: Base location for index files
+        table-uuid:
+          type: string
+          format: uuid
+          description: Unique UUID for the table this index is associated with
         index-column-ids:
           type: array
           description: IDs of columns stored losslessly in the index
@@ -3517,6 +3522,7 @@ components:
       required:
         - name
         - type
+        - table-uuid
         - index-column-ids
       properties:
         name:
@@ -3525,6 +3531,10 @@ components:
           example: "customer_id_btree_idx"
         type:
           $ref: '#/components/schemas/IndexType'
+        table-uuid:
+          type: string
+          format: uuid
+          description: The UUID of the table to index
         index-column-ids:
           type: array
           description: IDs of columns to store losslessly in the index

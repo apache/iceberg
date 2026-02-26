@@ -46,7 +46,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.index.Index;
 import org.apache.iceberg.index.IndexBuilder;
-import org.apache.iceberg.index.IndexSummary;
+import org.apache.iceberg.index.IndexDefinition;
 import org.apache.iceberg.index.IndexType;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -397,7 +397,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   // IndexCatalog delegate methods
 
   @Override
-  public List<IndexSummary> listIndexes(TableIdentifier tableIdentifier, IndexType... types) {
+  public List<IndexDefinition> listIndexes(TableIdentifier tableIdentifier, IndexType... types) {
     return indexCatalog.listIndexes(tableIdentifier, types);
   }
 

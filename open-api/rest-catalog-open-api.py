@@ -420,6 +420,11 @@ class IndexMetadata(BaseModel):
     name: str = Field(..., description='The name of the index')
     type: IndexType
     location: str = Field(..., description='Base location for index files')
+    table_uuid: UUID = Field(
+        ...,
+        alias='table-uuid',
+        description='Unique UUID for the table this index is associated with',
+    )
     index_column_ids: list[int] = Field(
         ...,
         alias='index-column-ids',
@@ -536,6 +541,9 @@ class CreateIndexRequest(BaseModel):
         ..., description='The name for the new index', example='customer_id_btree_idx'
     )
     type: IndexType
+    table_uuid: UUID = Field(
+        ..., alias='table-uuid', description='The UUID of the table to index'
+    )
     index_column_ids: list[int] = Field(
         ...,
         alias='index-column-ids',

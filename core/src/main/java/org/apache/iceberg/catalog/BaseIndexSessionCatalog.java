@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.index.Index;
 import org.apache.iceberg.index.IndexBuilder;
-import org.apache.iceberg.index.IndexSummary;
+import org.apache.iceberg.index.IndexDefinition;
 import org.apache.iceberg.index.IndexType;
 
 public abstract class BaseIndexSessionCatalog extends BaseViewSessionCatalog
@@ -51,7 +51,7 @@ public abstract class BaseIndexSessionCatalog extends BaseViewSessionCatalog
     }
 
     @Override
-    public List<IndexSummary> listIndexes(TableIdentifier tableIdentifier, IndexType... types) {
+    public List<IndexDefinition> listIndexes(TableIdentifier tableIdentifier, IndexType... types) {
       return BaseIndexSessionCatalog.this.listIndexes(context, tableIdentifier, types);
     }
 

@@ -54,6 +54,11 @@ public class BaseIndex implements Index, Serializable {
   }
 
   @Override
+  public String tableUuid() {
+    return operations().current().tableUuid();
+  }
+
+  @Override
   public int formatVersion() {
     return operations().current().formatVersion();
   }

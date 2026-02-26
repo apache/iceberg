@@ -29,6 +29,8 @@ import org.junit.jupiter.api.Test;
 
 public class TestCreateIndexRequest {
 
+  private static final String TABLE_UUID = "test-table-uuid";
+
   @Test
   public void nullAndEmptyCheck() {
     assertThatThrownBy(() -> CreateIndexRequestParser.toJson(null))
@@ -44,9 +46,14 @@ public class TestCreateIndexRequest {
   public void missingRequiredFields() {
     assertThatThrownBy(() -> CreateIndexRequestParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: table-uuid");
+
+    String missingName = "{\"table-uuid\":\"test-table-uuid\"}";
+    assertThatThrownBy(() -> CreateIndexRequestParser.fromJson(missingName))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: name");
 
-    String missingType = "{\"name\":\"my_index\"}";
+    String missingType = "{\"table-uuid\":\"test-table-uuid\",\"name\":\"my_index\"}";
     assertThatThrownBy(() -> CreateIndexRequestParser.fromJson(missingType))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: type");
@@ -54,6 +61,7 @@ public class TestCreateIndexRequest {
     String missingColumnIds =
         """
         {
+          "table-uuid": "test-table-uuid",
           "name": "my_index",
           "type": "btree"
         }"""
@@ -67,6 +75,7 @@ public class TestCreateIndexRequest {
   public void roundTripSerde() {
     CreateIndexRequest request =
         CreateIndexRequest.builder()
+            .withTableUuid(TABLE_UUID)
             .withName("customer_id_idx")
             .withType(IndexType.BTREE)
             .withIndexColumnIds(ImmutableList.of(1, 2))
@@ -78,6 +87,7 @@ public class TestCreateIndexRequest {
     String json = CreateIndexRequestParser.toJson(request);
     CreateIndexRequest parsed = CreateIndexRequestParser.fromJson(json);
 
+    assertThat(parsed.tableUuid()).isEqualTo(TABLE_UUID);
     assertThat(parsed.name()).isEqualTo("customer_id_idx");
     assertThat(parsed.type()).isEqualTo(IndexType.BTREE);
     assertThat(parsed.indexColumnIds()).containsExactly(1, 2);
@@ -90,6 +100,7 @@ public class TestCreateIndexRequest {
   public void roundTripSerdeMinimal() {
     CreateIndexRequest request =
         CreateIndexRequest.builder()
+            .withTableUuid(TABLE_UUID)
             .withName("simple_idx")
             .withType(IndexType.BLOOM)
             .withIndexColumnIds(ImmutableList.of(5))
@@ -110,6 +121,7 @@ public class TestCreateIndexRequest {
   public void testToJsonWithExpectedString() {
     CreateIndexRequest request =
         CreateIndexRequest.builder()
+            .withTableUuid(TABLE_UUID)
             .withName("customer_id_btree_idx")
             .withType(IndexType.BTREE)
             .withIndexColumnIds(ImmutableList.of(1, 2))
@@ -121,6 +133,7 @@ public class TestCreateIndexRequest {
     String expectedJson =
         """
         {
+          "table-uuid": "test-table-uuid",
           "name": "customer_id_btree_idx",
           "type": "btree",
           "index-column-ids": [1, 2],
@@ -150,6 +163,7 @@ public class TestCreateIndexRequest {
   public void testToJsonMinimalWithExpectedString() {
     CreateIndexRequest request =
         CreateIndexRequest.builder()
+            .withTableUuid(TABLE_UUID)
             .withName("term_idx")
             .withType(IndexType.TERM)
             .withIndexColumnIds(ImmutableList.of(3))
@@ -158,6 +172,7 @@ public class TestCreateIndexRequest {
     String expectedJson =
         """
         {
+          "table-uuid": "test-table-uuid",
           "name": "term_idx",
           "type": "term",
           "index-column-ids": [3]
@@ -173,14 +188,24 @@ public class TestCreateIndexRequest {
   public void testBuilderValidation() {
     assertThatThrownBy(() -> CreateIndexRequest.builder().build())
         .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table uuid: null or empty");
+
+    assertThatThrownBy(() -> CreateIndexRequest.builder().withTableUuid(TABLE_UUID).build())
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid index name: null or empty");
 
-    assertThatThrownBy(() -> CreateIndexRequest.builder().withName("test").build())
+    assertThatThrownBy(
+            () -> CreateIndexRequest.builder().withTableUuid(TABLE_UUID).withName("test").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid index type: null");
 
     assertThatThrownBy(
-            () -> CreateIndexRequest.builder().withName("test").withType(IndexType.BTREE).build())
+            () ->
+                CreateIndexRequest.builder()
+                    .withTableUuid(TABLE_UUID)
+                    .withName("test")
+                    .withType(IndexType.BTREE)
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid index column IDs: null or empty");
   }
@@ -190,6 +215,7 @@ public class TestCreateIndexRequest {
     for (IndexType indexType : IndexType.values()) {
       CreateIndexRequest request =
           CreateIndexRequest.builder()
+              .withTableUuid(TABLE_UUID)
               .withName("idx_" + indexType.typeName())
               .withType(indexType)
               .withIndexColumnIds(ImmutableList.of(1))
@@ -206,6 +232,7 @@ public class TestCreateIndexRequest {
   public void testAddMethods() {
     CreateIndexRequest request =
         CreateIndexRequest.builder()
+            .withTableUuid(TABLE_UUID)
             .withName("test_idx")
             .withType(IndexType.IVF)
             .addIndexColumnId(1)
@@ -225,6 +252,7 @@ public class TestCreateIndexRequest {
   public void testSetProperties() {
     CreateIndexRequest request =
         CreateIndexRequest.builder()
+            .withTableUuid(TABLE_UUID)
             .withName("test_idx")
             .withType(IndexType.BTREE)
             .withIndexColumnIds(ImmutableList.of(1))
@@ -240,6 +268,7 @@ public class TestCreateIndexRequest {
     String jsonWithInvalidType =
         """
         {
+          "table-uuid": "test-table-uuid",
           "name": "test_idx",
           "type": "invalid_type",
           "index-column-ids": [1]

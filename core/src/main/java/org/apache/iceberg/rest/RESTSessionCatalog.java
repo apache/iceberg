@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -64,10 +65,10 @@ import org.apache.iceberg.index.ImmutableIndexSummary;
 import org.apache.iceberg.index.ImmutableIndexVersion;
 import org.apache.iceberg.index.Index;
 import org.apache.iceberg.index.IndexBuilder;
+import org.apache.iceberg.index.IndexDefinition;
 import org.apache.iceberg.index.IndexMetadata;
 import org.apache.iceberg.index.IndexRequirements;
 import org.apache.iceberg.index.IndexSnapshot;
-import org.apache.iceberg.index.IndexSummary;
 import org.apache.iceberg.index.IndexType;
 import org.apache.iceberg.index.IndexVersion;
 import org.apache.iceberg.io.CloseableGroup;
@@ -1793,7 +1794,7 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
   }
 
   @Override
-  public List<IndexSummary> listIndexes(
+  public List<IndexDefinition> listIndexes(
       SessionContext context, TableIdentifier tableIdentifier, IndexType... types) {
     if (!endpoints.contains(Endpoint.V1_LIST_INDEXES)) {
       return ImmutableList.of();
@@ -1801,7 +1802,7 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
 
     checkIdentifierIsValid(tableIdentifier);
     Map<String, String> queryParams = Maps.newHashMap();
-    ImmutableList.Builder<IndexSummary> indexes = ImmutableList.builder();
+    ImmutableList.Builder<IndexDefinition> indexes = ImmutableList.builder();
     String pageToken = "";
     if (pageSize != null) {
       queryParams.put("pageSize", String.valueOf(pageSize));
@@ -1834,7 +1835,7 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
                       ErrorHandlers.indexErrorHandler());
 
           IndexMetadata metadata = indexResponse.metadata();
-          IndexSummary summary =
+          IndexDefinition summary =
               ImmutableIndexSummary.builder()
                   .id(indexId)
                   .type(metadata.type())
@@ -1855,7 +1856,7 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
       }
     } while (pageToken != null);
 
-    List<IndexSummary> allIndexes = indexes.build();
+    List<IndexDefinition> allIndexes = indexes.build();
 
     // Filter by types if specified
     if (types == null || types.length == 0) {
@@ -2036,6 +2037,7 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
     private final IndexIdentifier identifier;
     private Map<String, String> properties = null;
     private Map<String, String> snapshotProperties = null;
+    private UUID tableUuid = null;
     private Set<Long> snapshotIdsToRemove = null;
     private IndexType type = null;
     private List<Integer> indexColumnIds = null;
@@ -2048,6 +2050,12 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
     private RESTIndexBuilder(SessionContext context, IndexIdentifier identifier) {
       this.context = context;
       this.identifier = identifier;
+    }
+
+    @Override
+    public IndexBuilder withTableUuid(UUID uuid) {
+      this.tableUuid = uuid;
+      return this;
     }
 
     @Override
@@ -2176,6 +2184,7 @@ public class RESTSessionCatalog extends BaseIndexSessionCatalog
 
       CreateIndexRequest request =
           CreateIndexRequest.builder()
+              .withTableUuid(tableUuid.toString())
               .withName(identifier.name())
               .withType(type)
               .withIndexColumnIds(indexColumnIds)

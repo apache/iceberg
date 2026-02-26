@@ -68,6 +68,7 @@ public class TestIndexMetadataParser {
     IndexMetadata expectedMetadata =
         ImmutableIndexMetadata.of(
             "fa6506c3-7681-40c8-86dc-e36561f83385",
+            "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
             1,
             IndexType.BTREE,
             ImmutableList.of(1, 2),
@@ -84,6 +85,7 @@ public class TestIndexMetadataParser {
     IndexMetadata actual = IndexMetadataParser.fromJson(json);
 
     assertThat(actual.uuid()).isEqualTo(expectedMetadata.uuid());
+    assertThat(actual.tableUuid()).isEqualTo(expectedMetadata.tableUuid());
     assertThat(actual.formatVersion()).isEqualTo(expectedMetadata.formatVersion());
     assertThat(actual.type()).isEqualTo(expectedMetadata.type());
     assertThat(actual.indexColumnIds()).isEqualTo(expectedMetadata.indexColumnIds());
@@ -101,6 +103,7 @@ public class TestIndexMetadataParser {
         """
         {
           "format-version": 1,
+          "table-uuid": "table-uuid",
           "index-type": "btree",
           "index-column-ids": [1],
           "optimized-column-ids": [1],
@@ -118,11 +121,35 @@ public class TestIndexMetadataParser {
   }
 
   @Test
+  public void testFailReadingIndexMetadataMissingTableUuid() {
+    String json =
+        """
+                {
+                  "format-version": 1,
+                  "index-uuid": "uuid",
+                  "index-type": "btree",
+                  "index-column-ids": [1],
+                  "optimized-column-ids": [1],
+                  "location": "s3://bucket/test",
+                  "current-version-id": 1,
+                  "versions": [],
+                  "version-log": [],
+                  "snapshots": []
+                }
+                """;
+
+    assertThatThrownBy(() -> IndexMetadataParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: table-uuid");
+  }
+
+  @Test
   public void testFailReadingIndexMetadataMissingFormatVersion() {
     String json =
         """
         {
           "index-uuid": "uuid",
+          "table-uuid": "table-uuid",
           "index-type": "btree",
           "index-column-ids": [1],
           "optimized-column-ids": [1],
@@ -145,6 +172,7 @@ public class TestIndexMetadataParser {
         """
         {
           "index-uuid": "uuid",
+          "table-uuid": "table-uuid",
           "format-version": 1,
           "index-column-ids": [1],
           "optimized-column-ids": [1],
@@ -167,6 +195,7 @@ public class TestIndexMetadataParser {
         """
         {
           "index-uuid": "uuid",
+          "table-uuid": "table-uuid",
           "format-version": 1,
           "index-type": "btree",
           "index-column-ids": [1],
@@ -189,6 +218,7 @@ public class TestIndexMetadataParser {
         """
         {
           "index-uuid": "uuid",
+          "table-uuid": "table-uuid",
           "format-version": 1,
           "index-type": "invalid-type",
           "index-column-ids": [1],
@@ -215,6 +245,7 @@ public class TestIndexMetadataParser {
     IndexMetadata metadata =
         ImmutableIndexMetadata.of(
             "test-uuid",
+            "test-table-uuid",
             1,
             indexType,
             ImmutableList.of(1),
@@ -272,6 +303,7 @@ public class TestIndexMetadataParser {
     IndexMetadata metadata =
         ImmutableIndexMetadata.of(
             "multi-version-uuid",
+            "test-table-uuid",
             1,
             IndexType.TERM,
             ImmutableList.of(1, 2, 3),
@@ -303,6 +335,7 @@ public class TestIndexMetadataParser {
     IndexMetadata metadata =
         ImmutableIndexMetadata.of(
             "pretty-uuid",
+            "test-table-uuid",
             1,
             IndexType.IVF,
             ImmutableList.of(1),
@@ -339,6 +372,7 @@ public class TestIndexMetadataParser {
     IndexMetadata metadata =
         ImmutableIndexMetadata.of(
             "test-uuid",
+            "test-table-uuid",
             1,
             IndexType.BTREE,
             ImmutableList.of(1),
@@ -379,6 +413,7 @@ public class TestIndexMetadataParser {
     IndexMetadata metadata =
         ImmutableIndexMetadata.of(
             "fa6506c3-7681-40c8-86dc-e36561f83385",
+            "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
             1,
             IndexType.BTREE,
             ImmutableList.of(1, 2),
@@ -395,6 +430,7 @@ public class TestIndexMetadataParser {
         """
         {
           "index-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
+          "table-uuid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
           "format-version": 1,
           "index-type": "btree",
           "index-column-ids": [1, 2],
@@ -436,6 +472,7 @@ public class TestIndexMetadataParser {
     // Also verify round-trip
     IndexMetadata parsed = IndexMetadataParser.fromJson(actualJson);
     assertThat(parsed.uuid()).isEqualTo("fa6506c3-7681-40c8-86dc-e36561f83385");
+    assertThat(parsed.tableUuid()).isEqualTo("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
     assertThat(parsed.formatVersion()).isEqualTo(1);
     assertThat(parsed.type()).isEqualTo(IndexType.BTREE);
     assertThat(parsed.indexColumnIds()).containsExactly(1, 2);

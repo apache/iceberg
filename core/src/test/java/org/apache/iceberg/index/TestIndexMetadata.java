@@ -31,6 +31,8 @@ import org.junit.jupiter.api.Test;
 
 public class TestIndexMetadata {
 
+  private static final String TABLE_UUID = "test-table-uuid";
+
   private IndexVersion newIndexVersion(int id) {
     return newIndexVersion(id, System.currentTimeMillis());
   }
@@ -111,6 +113,11 @@ public class TestIndexMetadata {
 
     assertThatThrownBy(() -> IndexMetadata.builder().setLocation("location").build())
         .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table uuid: null");
+
+    assertThatThrownBy(
+            () -> IndexMetadata.builder().setTableUuid(TABLE_UUID).setLocation("location").build())
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid index: no versions were added");
   }
 
@@ -121,6 +128,7 @@ public class TestIndexMetadata {
             () ->
                 IndexMetadata.builder()
                     .upgradeFormatVersion(23)
+                    .setTableUuid(TABLE_UUID)
                     .setLocation("location")
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
@@ -135,6 +143,7 @@ public class TestIndexMetadata {
             () ->
                 IndexMetadata.builder()
                     .upgradeFormatVersion(0)
+                    .setTableUuid(TABLE_UUID)
                     .setLocation("location")
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
@@ -151,6 +160,7 @@ public class TestIndexMetadata {
     assertThatThrownBy(
             () ->
                 IndexMetadata.builder()
+                    .setTableUuid(TABLE_UUID)
                     .setLocation("location")
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
@@ -168,6 +178,7 @@ public class TestIndexMetadata {
             () ->
                 IndexMetadata.builder()
                     .upgradeFormatVersion(1)
+                    .setTableUuid(TABLE_UUID)
                     .setLocation("location")
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
@@ -195,6 +206,7 @@ public class TestIndexMetadata {
     IndexMetadata originalIndexMetadata =
         IndexMetadata.builder()
             .upgradeFormatVersion(1)
+            .setTableUuid(TABLE_UUID)
             .setLocation("location")
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
@@ -285,6 +297,7 @@ public class TestIndexMetadata {
     IndexMetadata originalIndexMetadata =
         IndexMetadata.builder()
             .upgradeFormatVersion(1)
+            .setTableUuid(TABLE_UUID)
             .setLocation("location")
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
@@ -362,6 +375,7 @@ public class TestIndexMetadata {
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
             .upgradeFormatVersion(1)
+            .setTableUuid(TABLE_UUID)
             .setLocation("location")
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
@@ -441,6 +455,7 @@ public class TestIndexMetadata {
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
             .upgradeFormatVersion(1)
+            .setTableUuid(TABLE_UUID)
             .setLocation("custom-location")
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1, 2))
@@ -528,6 +543,7 @@ public class TestIndexMetadata {
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
             .upgradeFormatVersion(1)
+            .setTableUuid(TABLE_UUID)
             .setLocation("custom-location")
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
@@ -581,6 +597,7 @@ public class TestIndexMetadata {
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
             .upgradeFormatVersion(1)
+            .setTableUuid(TABLE_UUID)
             .setLocation("custom-location")
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
@@ -630,6 +647,7 @@ public class TestIndexMetadata {
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
             .upgradeFormatVersion(1)
+            .setTableUuid(TABLE_UUID)
             .setLocation("custom-location")
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
@@ -661,6 +679,7 @@ public class TestIndexMetadata {
             () ->
                 IndexMetadata.builder()
                     .upgradeFormatVersion(1)
+                    .setTableUuid(TABLE_UUID)
                     .setLocation("custom-location")
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
@@ -693,6 +712,7 @@ public class TestIndexMetadata {
             () ->
                 IndexMetadata.builder()
                     .upgradeFormatVersion(1)
+                    .setTableUuid(TABLE_UUID)
                     .setLocation("custom-location")
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))
@@ -726,6 +746,7 @@ public class TestIndexMetadata {
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
             .upgradeFormatVersion(1)
+            .setTableUuid(TABLE_UUID)
             .setLocation("custom-location")
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
@@ -756,6 +777,7 @@ public class TestIndexMetadata {
     IndexMetadata indexMetadata =
         IndexMetadata.builder()
             .upgradeFormatVersion(1)
+            .setTableUuid(TABLE_UUID)
             .setLocation("custom-location")
             .setType(IndexType.BTREE)
             .setIndexColumnIds(ImmutableList.of(1))
@@ -778,6 +800,7 @@ public class TestIndexMetadata {
             () ->
                 IndexMetadata.builder()
                     .upgradeFormatVersion(1)
+                    .setTableUuid(TABLE_UUID)
                     .setLocation("location")
                     .setIndexColumnIds(ImmutableList.of(1))
                     .setOptimizedColumnIds(ImmutableList.of(1))
@@ -795,6 +818,7 @@ public class TestIndexMetadata {
             () ->
                 IndexMetadata.builder()
                     .upgradeFormatVersion(1)
+                    .setTableUuid(TABLE_UUID)
                     .setLocation("location")
                     .setType(IndexType.BTREE)
                     .setOptimizedColumnIds(ImmutableList.of(1))
@@ -812,6 +836,7 @@ public class TestIndexMetadata {
             () ->
                 IndexMetadata.builder()
                     .upgradeFormatVersion(1)
+                    .setTableUuid(TABLE_UUID)
                     .setLocation("location")
                     .setType(IndexType.BTREE)
                     .setIndexColumnIds(ImmutableList.of(1))

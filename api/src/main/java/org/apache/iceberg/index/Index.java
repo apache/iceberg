@@ -49,6 +49,15 @@ public interface Index {
   UUID uuid();
 
   /**
+   * Return the UUID of the table that this index is associated with.
+   *
+   * <p>Set when the index is created and must not be changed afterward.
+   *
+   * @return the table UUID
+   */
+  String tableUuid();
+
+  /**
    * Return the format version for this index.
    *
    * <p>An integer version number for the index metadata format.

@@ -27,6 +27,7 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class CreateIndexRequestParser {
 
+  private static final String TABLE_UUID = "table-uuid";
   private static final String NAME = "name";
   private static final String TYPE = "type";
   private static final String INDEX_COLUMN_IDS = "index-column-ids";
@@ -52,6 +53,7 @@ public class CreateIndexRequestParser {
 
     gen.writeStartObject();
 
+    gen.writeStringField(TABLE_UUID, request.tableUuid());
     gen.writeStringField(NAME, request.name());
     gen.writeStringField(TYPE, request.type().typeName());
     JsonUtil.writeIntegerArray(INDEX_COLUMN_IDS, request.indexColumnIds(), gen);
@@ -90,11 +92,13 @@ public class CreateIndexRequestParser {
   public static CreateIndexRequest fromJson(JsonNode json) {
     Preconditions.checkArgument(null != json, "Cannot parse create index request from null object");
 
+    String tableUuid = JsonUtil.getString(TABLE_UUID, json);
     String name = JsonUtil.getString(NAME, json);
     IndexType type = IndexType.fromString(JsonUtil.getString(TYPE, json));
 
     CreateIndexRequest.Builder builder =
         CreateIndexRequest.builder()
+            .withTableUuid(tableUuid)
             .withName(name)
             .withType(type)
             .withIndexColumnIds(JsonUtil.getIntegerList(INDEX_COLUMN_IDS, json));

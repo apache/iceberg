@@ -19,6 +19,7 @@
 package org.apache.iceberg.index;
 
 import java.util.List;
+import java.util.UUID;
 import org.apache.iceberg.catalog.IndexCatalog;
 import org.apache.iceberg.catalog.IndexIdentifier;
 
@@ -66,6 +67,15 @@ public interface IndexBuilder
    * @param columnIds the IDs of columns the index is optimized for retrieval
    */
   IndexBuilder withOptimizedColumnIds(int... columnIds);
+
+  /**
+   * Set the UUID of the table that this index is associated with.
+   *
+   * <p>Must be set during index creation and cannot be changed afterward.
+   *
+   * @param tableUuid the table UUID
+   */
+  IndexBuilder withTableUuid(UUID tableUuid);
 
   /**
    * Sets a location for the index.

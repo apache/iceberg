@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.IndexCatalog;
@@ -133,7 +134,7 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
   }
 
   @Override
-  public List<IndexSummary> listIndexes(TableIdentifier tableIdentifier, IndexType... types) {
+  public List<IndexDefinition> listIndexes(TableIdentifier tableIdentifier, IndexType... types) {
     if (!tableExists(tableIdentifier)) {
       throw new NoSuchTableException("Table does not exist: %s", tableIdentifier);
     }
@@ -147,7 +148,7 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
    * @param tableIdentifier the table identifier
    * @return a list of index summaries
    */
-  protected abstract List<IndexSummary> doListIndexes(TableIdentifier tableIdentifier);
+  protected abstract List<IndexDefinition> doListIndexes(TableIdentifier tableIdentifier);
 
   /**
    * List all indexes for a table. Subclasses could implement this method for efficient filtering.
@@ -156,8 +157,9 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
    * @param types the index types to filter by
    * @return a list of index summaries
    */
-  protected List<IndexSummary> doListIndexes(TableIdentifier tableIdentifier, IndexType[] types) {
-    List<IndexSummary> allIndexes = doListIndexes(tableIdentifier);
+  protected List<IndexDefinition> doListIndexes(
+      TableIdentifier tableIdentifier, IndexType[] types) {
+    List<IndexDefinition> allIndexes = doListIndexes(tableIdentifier);
 
     if (types == null || types.length == 0) {
       return allIndexes;
@@ -233,6 +235,7 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
   /** Base implementation of {@link IndexBuilder}. */
   protected class BaseIndexBuilder implements IndexBuilder {
     private final IndexIdentifier identifier;
+    private UUID tableUuid = null;
     private Map<String, String> properties = null;
     private Map<String, String> snapshotProperties = null;
     private Set<Long> snapshotIdsToRemove = null;
@@ -275,6 +278,12 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
           "Index properties enforced at catalog level through catalog properties: {}",
           indexOverrideProperties);
       return indexOverrideProperties;
+    }
+
+    @Override
+    public IndexBuilder withTableUuid(UUID uuid) {
+      this.tableUuid = uuid;
+      return this;
     }
 
     @Override
@@ -420,6 +429,8 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
         throw new NoSuchTableException("Table does not exist: %s", identifier.tableIdentifier());
       }
 
+      Preconditions.checkState(
+          tableUuid != null, "Cannot create index without specifying a table UUID");
       Preconditions.checkState(null != type, "Cannot create index without specifying a type");
       Preconditions.checkState(
           indexColumnIds != null && !indexColumnIds.isEmpty(),
@@ -431,6 +442,7 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
       IndexVersion indexVersion = indexVersion(1);
       IndexMetadata.Builder builder =
           IndexMetadata.builder()
+              .setTableUuid(tableUuid.toString())
               .setType(type)
               .setIndexColumnIds(indexColumnIds)
               .setOptimizedColumnIds(optimizedColumnIds)
