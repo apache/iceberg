@@ -153,17 +153,17 @@ public class TestStatsUtil {
                 "content_stats",
                 Types.StructType.of(
                     optional(
-                        10000, "0", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10001)),
+                        10000, "0", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10000)),
                     optional(
-                        10400, "2", FieldStatistic.fieldStatsFor(Types.FloatType.get(), 10401)),
+                        10400, "2", FieldStatistic.fieldStatsFor(Types.FloatType.get(), 10400)),
                     optional(
-                        10800, "4", FieldStatistic.fieldStatsFor(Types.StringType.get(), 10801)),
+                        10800, "4", FieldStatistic.fieldStatsFor(Types.StringType.get(), 10800)),
                     optional(
-                        11200, "6", FieldStatistic.fieldStatsFor(Types.BooleanType.get(), 11201)),
+                        11200, "6", FieldStatistic.fieldStatsFor(Types.BooleanType.get(), 11200)),
                     optional(
                         200010000,
                         "1000000",
-                        FieldStatistic.fieldStatsFor(Types.UUIDType.get(), 200010001)))));
+                        FieldStatistic.fieldStatsFor(Types.UUIDType.get(), 200010000)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
   }
@@ -193,21 +193,21 @@ public class TestStatsUtil {
                 "content_stats",
                 Types.StructType.of(
                     optional(
-                        10000, "0", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10001)),
+                        10000, "0", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10000)),
                     optional(
-                        10600, "3", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10601)),
+                        10600, "3", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 10600)),
                     optional(
-                        11400, "7", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 11401)),
+                        11400, "7", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 11400)),
                     optional(
-                        11600, "8", FieldStatistic.fieldStatsFor(Types.StringType.get(), 11601)),
+                        11600, "8", FieldStatistic.fieldStatsFor(Types.StringType.get(), 11600)),
                     optional(
-                        14400, "22", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 14401)),
+                        14400, "22", FieldStatistic.fieldStatsFor(Types.IntegerType.get(), 14400)),
                     optional(
-                        14800, "24", FieldStatistic.fieldStatsFor(Types.StringType.get(), 14801)),
+                        14800, "24", FieldStatistic.fieldStatsFor(Types.StringType.get(), 14800)),
                     optional(
                         20010000,
                         "100000",
-                        FieldStatistic.fieldStatsFor(Types.UUIDType.get(), 20010001)))));
+                        FieldStatistic.fieldStatsFor(Types.UUIDType.get(), 20010000)))));
     Schema statsSchema = new Schema(StatsUtil.contentStatsFor(schema));
     assertThat(statsSchema.asStruct()).isEqualTo(expectedStatsSchema.asStruct());
   }
