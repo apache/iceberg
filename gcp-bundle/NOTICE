@@ -249,10 +249,8 @@ This product bundles GCS Analytics Core with the following in its NOTICE file:
 
 --------------------------------------------------------------------------------
 
-This product bundles Google EscapeVelocity with the following in its NOTICE file:
-| Apache Velocity
-|
-| Copyright (C) 2000-2007 The Apache Software Foundation
-|
-| This product includes software developed at
-| The Apache Software Foundation (http://www.apache.org/).
+This product bundles Envoy with the following in its NOTICE file:
+| Envoy
+| Copyright The Envoy Project Authors
+| 
+| Licensed under Apache License 2.0.  See LICENSE for terms.
