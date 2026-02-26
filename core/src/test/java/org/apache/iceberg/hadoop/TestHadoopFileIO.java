@@ -64,7 +64,7 @@ public class TestHadoopFileIO {
 
   @BeforeEach
   public void before() throws Exception {
-    resetBinding(false);
+    resetFileIOBinding(false);
   }
 
   /**
@@ -75,7 +75,7 @@ public class TestHadoopFileIO {
    * @param bulkDelete use bulk delete
    * @throws UncheckedIOException on failures to create a new FS.
    */
-  private void resetBinding(boolean bulkDelete) {
+  private void resetFileIOBinding(boolean bulkDelete) {
     Configuration conf = new Configuration();
     conf.setBoolean(BULK_DELETE_ENABLED, bulkDelete);
     try {
@@ -89,7 +89,7 @@ public class TestHadoopFileIO {
 
   @Test
   public void testListPrefixAndDeleteFiles() {
-    resetBinding(true);
+    resetFileIOBinding(true);
     Path parent = new Path(tempDir.toURI());
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
@@ -108,7 +108,7 @@ public class TestHadoopFileIO {
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
     final String parentString = parent.toUri().toString();
     final List<FileInfo> files =
-        Streams.stream(hadoopFileIO.listPrefix(parentString)).collect(Collectors.toList());
+        Streams.stream(hadoopFileIO.listPrefix(parentString)).toList();
     assertThat(files.size())
         .describedAs("Files found under %s", parentString)
         .isEqualTo(totalFiles);
@@ -125,12 +125,13 @@ public class TestHadoopFileIO {
     fs.createNewFile(randomFilePath);
 
     // check existence of the created file
-    assertThat(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isTrue();
+    final String path = randomFilePath.toUri().toString();
+    assertThat(hadoopFileIO.newInputFile(path).exists()).isTrue();
     fs.delete(randomFilePath, false);
-    assertThat(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isFalse();
-    assertThatThrownBy(
-            () -> hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).getLength())
-        .isInstanceOf(NotFoundException.class);
+    assertThat(hadoopFileIO.newInputFile(path).exists()).isFalse();
+    assertThatThrownBy(() -> hadoopFileIO.newInputFile(path).getLength())
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(path);
   }
 
   @Test
@@ -164,11 +165,10 @@ public class TestHadoopFileIO {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void testDeleteFiles(boolean bulkDelete) {
-    resetBinding(bulkDelete);
+    resetFileIOBinding(bulkDelete);
     Path parent = new Path(tempDir.toURI());
     List<Path> filesCreated = createRandomFiles(parent, 100);
-    hadoopFileIO.deleteFiles(
-        filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
+    hadoopFileIO.deleteFiles(filesCreated.stream().map(Path::toString).toList());
     filesCreated.forEach(
         file -> assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
   }
@@ -176,9 +176,9 @@ public class TestHadoopFileIO {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void testDeleteFilesErrorHandling(boolean bulkDelete) {
-    resetBinding(bulkDelete);
+    resetFileIOBinding(bulkDelete);
     hadoopFileIO = new HadoopFileIO(fs.getConf());
-    assertThat(hadoopFileIO.bulkDeleteAvailable())
+    assertThat(hadoopFileIO.useBulkDeleteApi())
         .describedAs("Bulk Delete API use")
         .isEqualTo(bulkDelete);
     Path parent = new Path(tempDir.toURI());

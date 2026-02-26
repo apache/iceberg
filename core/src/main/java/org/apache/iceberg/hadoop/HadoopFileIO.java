@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.hadoop;
 
-import static org.apache.iceberg.hadoop.BulkDeleter.apiAvailable;
-
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -57,7 +55,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   /** Is bulk delete enabled on hadoop runtimes with API support: {@value}. */
   public static final String BULK_DELETE_ENABLED = "iceberg.hadoop.bulk.delete.enabled";
 
-  public static final boolean DEFAULT_BULK_DELETE_ENABLED = true;
+  public static final boolean DEFAULT_BULK_DELETE_ENABLED = false;
   private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
   private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
@@ -188,11 +186,12 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   /**
-   * Initialize the wrapped IO class if configured to do so.
+   * Is HadoopFileIO configured to use the Hadoop bulk delete API?
    *
-   * @return true if bulk delete should be used.
+   * @return true if the Bulkdeleter should be used.
    */
-  private boolean useBulkDeleteApi() {
+  @VisibleForTesting
+  boolean useBulkDeleteApi() {
     if (useBulkDelete == null) {
       useBulkDelete = conf().getBoolean(BULK_DELETE_ENABLED, DEFAULT_BULK_DELETE_ENABLED);
     }
@@ -200,30 +199,22 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   /**
-   * Is bulk delete available? This will trigger an attempt to load the classes if required.
-   *
-   * @return true if bulk delete is enabled and active.
-   */
-  @VisibleForTesting
-  boolean bulkDeleteAvailable() {
-    return useBulkDeleteApi() && apiAvailable();
-  }
-
-  /**
    * Delete files.
    *
-   * <p>If the Hadoop bulk deletion API is available and enabled, this API is used through {@link
-   * BulkDeleter}. Otherwise, each file is deleted individually in the thread pool.
+   * <p>If the Hadoop bulk deletion API is enabled, this API is used through {@link BulkDeleter}.
+   * Otherwise, each file is deleted individually in the thread pool.
    *
    * @param pathsToDelete The paths to delete
    * @throws BulkDeletionFailureException failure to delete one or more files.
+   * @throws IllegalStateException if bulk delete is enabled but the hadoop runtime does not support
+   *     it
    */
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
     if (useBulkDeleteApi()) {
       // bulk delete.
       Preconditions.checkState(
-          apiAvailable(),
+          BulkDeleter.apiAvailable(),
           "Bulk delete has been enabled but is not present within the current hadoop library. "
               + "Review the value of "
               + BULK_DELETE_ENABLED);
