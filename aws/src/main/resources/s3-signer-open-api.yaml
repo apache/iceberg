@@ -17,19 +17,22 @@
 # under the License.
 #
 
+# ⚠️ WARNING: this API is deprecated since 1.11.0, and will be removed in 1.12.0.
+# Use the new remote signing endpoint instead, see open-api/rest-catalog-open-api.yaml.
+
 ---
 openapi: 3.0.3
 info:
-  title: Apache Iceberg S3 Signer API
+  title: "[DEPRECATED] Apache Iceberg S3 Signer API"
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
   version: 0.0.1
   description:
-    Defines the specification for the S3 Signer API.
+    "[DEPRECATED] Defines the specification for the S3 Signer API."
 servers:
   - url: "{scheme}://{host}/{basePath}"
-    description: Server URL when the port can be inferred from the scheme
+    description: "[DEPRECATED] Server URL when the port can be inferred from the scheme"
     variables:
       scheme:
         description: The scheme of the URI, either http or https.
@@ -41,7 +44,7 @@ servers:
         description: Optional prefix to be prepended to all routes
         default: ""
   - url: "{scheme}://{host}:{port}/{basePath}"
-    description: Generic base server URL, with all parts configurable
+    description: "[DEPRECATED] Generic base server URL, with all parts configurable"
     variables:
       scheme:
         description: The scheme of the URI, either http or https.
@@ -61,9 +64,10 @@ paths:
   /v1/aws/s3/sign:
 
     post:
+      deprecated: true
       tags:
         - S3 Signer API
-      summary: Remotely signs S3 requests
+      summary: "[DEPRECATED] Remotely signs S3 requests"
       operationId: signS3Request
       requestBody:
         description: The request containing the headers to be signed
@@ -95,6 +99,7 @@ components:
   schemas:
 
     S3Headers:
+      deprecated: true
       type: object
       additionalProperties:
         type: array
@@ -102,6 +107,7 @@ components:
           type: string
 
     S3SignRequest:
+      deprecated: true
       required:
         - region
         - uri
@@ -133,7 +139,8 @@ components:
   responses:
 
     S3SignResponse:
-      description: The response containing signed & unsigned headers. The server will also send
+      description: >
+        [DEPRECATED] The response containing signed & unsigned headers. The server will also send
         a Cache-Control header, indicating whether the response can be cached (Cache-Control = ["private"])
         or not (Cache-Control = ["no-cache"]).
       content:
