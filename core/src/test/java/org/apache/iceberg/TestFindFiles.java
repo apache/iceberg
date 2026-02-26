@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ParallelIterable;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -231,6 +232,7 @@ public class TestFindFiles extends TestBase {
               .withMetadataMatching(Expressions.startsWith("file_path", "/path/to/data"))
               .collect();
 
+      assertThat(files).isInstanceOf(ParallelIterable.class);
       assertThat(pathSet(files)).isEqualTo(pathSet(FILE_A, FILE_B, FILE_C, FILE_D));
       assertThat(planThreadsIndex.get())
           .as("Thread should be created in provided pool")
