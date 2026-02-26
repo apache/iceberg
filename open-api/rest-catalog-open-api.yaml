@@ -666,11 +666,17 @@ paths:
       tags:
         - Catalog API
       summary: Load a function from the catalog
-      description: >
+      description:
         Load a function from the catalog.
 
 
-        The response contains the function's full metadata document in the `metadata` field.
+        The response contains both configuration and function metadata. The configuration, if non-empty is used
+        as additional configuration that overrides catalog configuration.
+
+
+        The response also contains the function's full UDF metadata JSON, matching the function metadata JSON file.
+
+
       operationId: loadFunction
       responses:
         200:
@@ -4255,11 +4261,11 @@ components:
 
     LoadFunctionResult:
       description: |
-        Result used when a function is successfully loaded.
+        Result returned when a function is loaded from the catalog.
 
 
-        The function metadata JSON is returned in the `metadata` field. The corresponding location of
-        function metadata should be returned in the `metadata-location` field.
+        The function metadata JSON is returned in the `metadata` field. The location of the metadata
+        file is returned in the `metadata-location` field.
 
 
         The `config` map returns function-specific configuration for accessing the function's resources,
@@ -4277,8 +4283,8 @@ components:
             The function's full spec/metadata document, returned inline as JSON.
 
 
-            The structure of this JSON document is defined by the Iceberg function spec version
-            negotiated between the client and the server.
+            The structure of this JSON document is defined by the Iceberg UDF spec.
+            The spec format version is identified by the `format-version` field in the returned metadata.
           additionalProperties: true
         config:
           type: object

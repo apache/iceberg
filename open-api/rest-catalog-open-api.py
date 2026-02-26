@@ -764,11 +764,11 @@ class ListNamespacesResponse(BaseModel):
 
 class LoadFunctionResult(BaseModel):
     """
-    Result used when a function is successfully loaded.
+    Result returned when a function is loaded from the catalog.
 
 
     The function metadata JSON is returned in the `metadata` field. The corresponding location of
-    function metadata should be returned in the `metadata-location` field.
+    function metadata file is returned in the `metadata-location` field.
 
 
     The `config` map returns function-specific configuration for accessing the function's resources,
@@ -779,7 +779,7 @@ class LoadFunctionResult(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: dict[str, Any] = Field(
         ...,
-        description="The function's full spec/metadata document, returned inline as JSON.\n\nThe structure of this JSON document is defined by the Iceberg function spec version negotiated between the client and the server.\n",
+        description="The function's full spec/metadata document, returned inline as JSON.\n\nThe structure of this JSON document is defined by the Iceberg UDF spec. The spec format version is identified by the `format-version` field in the returned metadata.\n",
     )
     config: dict[str, str] | None = None
 
