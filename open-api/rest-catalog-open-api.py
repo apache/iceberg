@@ -767,8 +767,8 @@ class LoadFunctionResult(BaseModel):
     Result returned when a function is loaded from the catalog.
 
 
-    The function metadata JSON is returned in the `metadata` field. The corresponding location of
-    function metadata file is returned in the `metadata-location` field.
+    The function metadata JSON is returned in the `metadata` field. The location of the metadata
+    file is returned in the `metadata-location` field.
 
 
     The `config` map returns function-specific configuration for accessing the function's resources,
