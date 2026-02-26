@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
@@ -37,16 +38,20 @@ import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningDVWriter;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.PositionDeletesRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkWriteConf;
+import org.apache.iceberg.spark.SparkWriteUtil;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
@@ -70,22 +75,24 @@ public class SparkPositionDeletesRewrite implements Write {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final String fileSetId;
   private final String queryId;
   private final FileFormat format;
   private final long targetFileSize;
   private final DeleteGranularity deleteGranularity;
   private final Schema writeSchema;
   private final StructType dsSchema;
-  private final String fileSetId;
   private final int specId;
   private final StructLike partition;
   private final Map<String, String> writeProperties;
+  private InMemoryMetricsReporter metricsReporter;
 
   /**
    * Constructs a {@link SparkPositionDeletesRewrite}.
    *
    * @param spark Spark session
    * @param table instance of {@link PositionDeletesTable}
+   * @param fileSetId file set ID
    * @param writeConf Spark write config
    * @param writeInfo Spark write info
    * @param writeSchema Iceberg output schema
@@ -96,6 +103,7 @@ public class SparkPositionDeletesRewrite implements Write {
   SparkPositionDeletesRewrite(
       SparkSession spark,
       Table table,
+      String fileSetId,
       SparkWriteConf writeConf,
       LogicalWriteInfo writeInfo,
       Schema writeSchema,
@@ -104,21 +112,36 @@ public class SparkPositionDeletesRewrite implements Write {
       StructLike partition) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.fileSetId = fileSetId;
     this.queryId = writeInfo.queryId();
     this.format = writeConf.deleteFileFormat();
     this.targetFileSize = writeConf.targetDeleteFileSize();
     this.deleteGranularity = writeConf.deleteGranularity();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
-    this.fileSetId = writeConf.rewrittenFileSetId();
     this.specId = specId;
     this.partition = partition;
     this.writeProperties = writeConf.writeProperties();
+
+    if (this.table instanceof BaseTable) {
+      this.metricsReporter = new InMemoryMetricsReporter();
+      ((BaseTable) this.table).combineMetricsReporter(metricsReporter);
+    }
   }
 
   @Override
   public BatchWrite toBatch() {
     return new PositionDeleteBatchWrite();
+  }
+
+  @Override
+  public CustomTaskMetric[] reportDriverMetrics() {
+    return SparkWriteUtil.customTaskMetrics(metricsReporter);
+  }
+
+  @Override
+  public CustomMetric[] supportedCustomMetrics() {
+    return SparkWriteUtil.supportedCustomMetrics();
   }
 
   /** {@link BatchWrite} class for rewriting position deletes files from Spark */

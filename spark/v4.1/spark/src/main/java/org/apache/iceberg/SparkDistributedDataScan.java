@@ -26,6 +26,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
@@ -166,6 +167,7 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
     scanMetrics().skippedDeleteFiles().increment(skippedFilesCount);
 
     return DeleteFileIndex.builderFor(deleteFiles)
+        .schemasById(schemas())
         .specsById(table().specs())
         .caseSensitive(isCaseSensitive())
         .scanMetrics(scanMetrics())
@@ -253,7 +255,7 @@ public class SparkDistributedDataScan extends BaseDistributedDataScan {
 
     ReadDeleteManifest(Broadcast<Table> table, TableScanContext context) {
       this.table = table;
-      this.filter = context.rowFilter();
+      this.filter = context.ignoreResiduals() ? Expressions.alwaysTrue() : context.rowFilter();
       this.isCaseSensitive = context.caseSensitive();
     }
 

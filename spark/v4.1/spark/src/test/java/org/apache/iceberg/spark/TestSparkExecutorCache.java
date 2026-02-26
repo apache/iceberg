@@ -191,7 +191,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
             SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
             SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "false"),
         () -> {
-          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          SparkReadConf readConf = new SparkReadConf(spark, table);
           assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
         });
 
@@ -200,7 +200,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
             SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "true",
             SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
         () -> {
-          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          SparkReadConf readConf = new SparkReadConf(spark, table);
           assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
         });
 
@@ -209,7 +209,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
             SparkSQLProperties.EXECUTOR_CACHE_ENABLED, "false",
             SparkSQLProperties.EXECUTOR_CACHE_DELETE_FILES_ENABLED, "true"),
         () -> {
-          SparkReadConf readConf = new SparkReadConf(spark, table, Collections.emptyMap());
+          SparkReadConf readConf = new SparkReadConf(spark, table);
           assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
         });
   }

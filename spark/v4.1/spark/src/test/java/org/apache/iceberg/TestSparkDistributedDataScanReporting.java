@@ -23,7 +23,6 @@ import static org.apache.iceberg.PlanningMode.LOCAL;
 
 import java.util.Arrays;
 import java.util.List;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
@@ -80,7 +79,7 @@ public class TestSparkDistributedDataScanReporting
         .set(TableProperties.DATA_PLANNING_MODE, dataMode.modeName())
         .set(TableProperties.DELETE_PLANNING_MODE, deleteMode.modeName())
         .commit();
-    SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+    SparkReadConf readConf = new SparkReadConf(spark, table);
     return new SparkDistributedDataScan(spark, table, readConf);
   }
 }

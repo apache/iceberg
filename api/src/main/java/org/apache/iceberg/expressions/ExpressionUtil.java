@@ -209,6 +209,10 @@ public class ExpressionUtil {
    */
   public static boolean selectsPartitions(
       Expression expr, PartitionSpec spec, boolean caseSensitive) {
+    if (spec.isUnpartitioned()) {
+      return false;
+    }
+
     return equivalent(
         Projections.inclusive(spec, caseSensitive).project(expr),
         Projections.strict(spec, caseSensitive).project(expr),

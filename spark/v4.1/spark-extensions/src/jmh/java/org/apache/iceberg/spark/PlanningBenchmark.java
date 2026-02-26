@@ -398,7 +398,7 @@ public class PlanningBenchmark {
         .set(TableProperties.DATA_PLANNING_MODE, dataMode.modeName())
         .set(TableProperties.DELETE_PLANNING_MODE, deleteMode.modeName())
         .commit();
-    SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+    SparkReadConf readConf = new SparkReadConf(spark, table);
     return new SparkDistributedDataScan(spark, table, readConf);
   }
 

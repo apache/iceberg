@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.StructLikeSet;
@@ -75,10 +76,10 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       Table table,
       Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
       SparkReadConf readConf,
-      Schema expectedSchema,
+      Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, readConf, expectedSchema, filters, scanReportSupplier);
+    super(spark, table, readConf, projection, filters, scanReportSupplier);
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
@@ -128,7 +129,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   }
 
   private StructType computeGroupingKeyType() {
-    return org.apache.iceberg.Partitioning.groupingKeyType(expectedSchema(), specs());
+    return org.apache.iceberg.Partitioning.groupingKeyType(projection(), specs());
   }
 
   private Transform[] groupingKeyTransforms() {
@@ -249,5 +250,11 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     }
 
     return keys;
+  }
+
+  protected String groupingKeyDesc() {
+    return groupingKeyType().fields().stream()
+        .map(NestedField::name)
+        .collect(Collectors.joining(", "));
   }
 }

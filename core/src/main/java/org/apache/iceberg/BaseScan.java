@@ -110,6 +110,10 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return schema;
   }
 
+  protected Map<Integer, Schema> schemas() {
+    return table.schemas();
+  }
+
   protected TableScanContext context() {
     return context;
   }

@@ -67,6 +67,7 @@ import org.apache.spark.sql.connector.expressions.filter.Not;
 import org.apache.spark.sql.connector.expressions.filter.Or;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Batch;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
@@ -1020,6 +1021,50 @@ public class TestSparkScan extends TestBaseWithCatalog {
     scan = builder.build().toBatch();
 
     assertThat(scan.planInputPartitions()).hasSize(4);
+  }
+
+  @TestTemplate
+  public void testBatchQueryScanDescription() throws Exception {
+    createPartitionedTable(spark, tableName, "data");
+    SparkScanBuilder builder = scanBuilder();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true"),
+        () -> {
+          Predicate predicate1 = new Predicate("=", expressions(fieldRef("id"), intLit(1)));
+          Predicate predicate2 = new Predicate(">", expressions(fieldRef("id"), intLit(0)));
+          pushFilters(builder, predicate1, predicate2);
+
+          Scan scan = builder.build();
+          String description = scan.description();
+
+          assertThat(description).contains("IcebergScan");
+          assertThat(description).contains(tableName);
+          assertThat(description).contains("filters=id = 1, id > 0");
+          assertThat(description).contains("groupedBy=data");
+        });
+  }
+
+  @TestTemplate
+  public void testCopyOnWriteScanDescription() throws Exception {
+    createPartitionedTable(spark, tableName, "data");
+    SparkScanBuilder builder = scanBuilder();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.PRESERVE_DATA_GROUPING, "true"),
+        () -> {
+          Predicate predicate1 = new Predicate("=", expressions(fieldRef("id"), intLit(2)));
+          Predicate predicate2 = new Predicate("<", expressions(fieldRef("id"), intLit(10)));
+          pushFilters(builder, predicate1, predicate2);
+
+          Scan scan = builder.buildCopyOnWriteScan();
+          String description = scan.description();
+
+          assertThat(description).contains("IcebergCopyOnWriteScan");
+          assertThat(description).contains(tableName);
+          assertThat(description).contains("filters=id = 2, id < 10");
+          assertThat(description).contains("groupedBy=data");
+        });
   }
 
   private SparkScanBuilder scanBuilder() throws Exception {

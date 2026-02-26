@@ -63,6 +63,9 @@ on:
     - '**/NOTICE'
     - 'doap.rdf'
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -71,6 +74,7 @@ jobs:
   spark-tests:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 15
       matrix:
         jvm: [17, 21]
         spark: ['3.4', '3.5', '4.0', '4.1']

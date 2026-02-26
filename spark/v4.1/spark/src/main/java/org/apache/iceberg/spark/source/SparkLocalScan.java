@@ -22,7 +22,6 @@ import java.util.List;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.LocalScan;
 import org.apache.spark.sql.types.StructType;
@@ -54,13 +53,12 @@ class SparkLocalScan implements LocalScan {
 
   @Override
   public String description() {
-    return String.format("%s [filters=%s]", table, Spark3Util.describe(filterExpressions));
+    String filtersDesc = Spark3Util.describe(filterExpressions);
+    return String.format("IcebergLocalScan(table=%s, filters=%s)", table, filtersDesc);
   }
 
   @Override
   public String toString() {
-    return String.format(
-        "IcebergLocalScan(table=%s, type=%s, filters=%s)",
-        table, SparkSchemaUtil.convert(readSchema).asStruct(), filterExpressions);
+    return description();
   }
 }

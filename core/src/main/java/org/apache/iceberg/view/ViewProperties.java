@@ -26,10 +26,7 @@ public class ViewProperties {
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "gzip";
 
-  /**
-   * @deprecated will be removed in 2.0.0, use {@link ViewBuilder#withLocation} instead.
-   */
-  @Deprecated public static final String WRITE_METADATA_LOCATION = "write.metadata.path";
+  public static final String WRITE_METADATA_LOCATION = "write.metadata.path";
 
   public static final String COMMENT = "comment";
   public static final String REPLACE_DROP_DIALECT_ALLOWED = "replace.drop-dialect.allowed";

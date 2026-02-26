@@ -305,6 +305,9 @@ public class ValueReaders {
     Types.NestedField field = expected.field(fieldId);
 
     if (constant != null) {
+      if (fieldId == MetadataColumns.ROW_ID.fieldId()) {
+        return ValueReaders.rowIds((Long) constant, null);
+      }
       return ValueReaders.constant(constant);
     } else if (field.initialDefault() != null) {
       return ValueReaders.constant(convert.apply(field.type(), field.initialDefault()));

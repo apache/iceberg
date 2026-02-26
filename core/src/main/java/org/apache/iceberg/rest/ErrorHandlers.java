@@ -96,6 +96,20 @@ public class ErrorHandlers {
     return OAuthErrorHandler.INSTANCE;
   }
 
+  /**
+   * Creates a RESTException from an ErrorResponse with a standardized message format.
+   *
+   * <p>The exception message includes the error code, type, and message in a consistent format:
+   * "Unable to process (code: &lt;code&gt;, type: &lt;type&gt;): &lt;message&gt;"
+   *
+   * @param error the error response
+   * @return a RESTException with formatted message including code, type, and message
+   */
+  private static RESTException createRESTException(ErrorResponse error) {
+    return new RESTException(
+        "Unable to process (code: %s, type: %s): %s", error.code(), error.type(), error.message());
+  }
+
   /** Table commit error handler. */
   private static class CommitErrorHandler extends DefaultErrorHandler {
     private static final ErrorHandler INSTANCE = new CommitErrorHandler();
@@ -260,7 +274,7 @@ public class ErrorHandlers {
         case 409:
           throw new AlreadyExistsException("%s", error.message());
         case 422:
-          throw new RESTException("Unable to process: %s", error.message());
+          throw createRESTException(error);
       }
 
       super.accept(error);
@@ -321,7 +335,7 @@ public class ErrorHandlers {
           throw new ServiceUnavailableException("Service unavailable: %s", error.message());
       }
 
-      throw new RESTException("Unable to process: %s", error.message());
+      throw createRESTException(error);
     }
   }
 
@@ -354,7 +368,7 @@ public class ErrorHandlers {
                 "Malformed request: %s: %s", error.type(), error.message());
         }
       }
-      throw new RESTException("Unable to process: %s", error.message());
+      throw createRESTException(error);
     }
   }
 }

@@ -29,7 +29,6 @@ import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.column.values.bitpacking.BytePackerForLong;
 import org.apache.parquet.column.values.bitpacking.Packer;
 import org.apache.parquet.io.ParquetDecodingException;
-import org.apache.parquet.io.api.Binary;
 
 /**
  * A {@link VectorizedValuesReader} implementation for the encoding type DELTA_BINARY_PACKED. This
@@ -91,18 +90,6 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     firstValue = BytesUtils.readZigZagVarLong(this.inputStream);
   }
 
-  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
-  @Override
-  public byte readByte() {
-    throw new UnsupportedOperationException("readByte is not supported");
-  }
-
-  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
-  @Override
-  public short readShort() {
-    throw new UnsupportedOperationException("readShort is not supported");
-  }
-
   @Override
   public int readInteger() {
     readValues(1, null, 0, INT_SIZE, (f, i, v) -> intVal = (int) v);
@@ -121,10 +108,8 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     throw new UnsupportedOperationException("skip is not supported");
   }
 
-  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
-  @Override
-  public Binary readBinary(int len) {
-    throw new UnsupportedOperationException("readBinary is not supported");
+  int totalValueCount() {
+    return totalValueCount;
   }
 
   @Override
@@ -132,21 +117,20 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     readValues(total, vec, rowId, INT_SIZE, (f, i, v) -> f.getDataBuffer().setInt(i, (int) v));
   }
 
+  int[] readIntegers(int total, int rowId) {
+    int[] result = new int[total];
+    readValues(
+        total,
+        null,
+        rowId,
+        INT_SIZE,
+        (vec, idx, val) -> result[(int) (idx / INT_SIZE)] = (int) val);
+    return result;
+  }
+
   @Override
   public void readLongs(int total, FieldVector vec, int rowId) {
     readValues(total, vec, rowId, LONG_SIZE, (f, i, v) -> f.getDataBuffer().setLong(i, v));
-  }
-
-  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
-  @Override
-  public void readFloats(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readFloats is not supported");
-  }
-
-  /** DELTA_BINARY_PACKED only supports INT32 and INT64 */
-  @Override
-  public void readDoubles(int total, FieldVector vec, int rowId) {
-    throw new UnsupportedOperationException("readDoubles is not supported");
   }
 
   private void readValues(

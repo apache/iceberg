@@ -223,8 +223,7 @@ public class TestFilteredScan {
 
       for (int i = 0; i < 10; i += 1) {
         SparkScanBuilder builder =
-            new SparkScanBuilder(spark, TABLES.load(options.get("path")), options)
-                .caseSensitive(false);
+            new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
         pushFilters(
             builder,
@@ -302,12 +301,12 @@ public class TestFilteredScan {
         .isEqualTo(limit);
 
     // verify CoW scan
-    assertThat(builder.buildCopyOnWriteScan())
-        .extracting("scan")
-        .extracting("scan")
-        .extracting("context")
-        .extracting("minRowsRequested")
-        .isEqualTo(limit);
+    scanAssert = assertThat(builder.buildCopyOnWriteScan()).extracting("scan");
+    if (LOCAL == planningMode) {
+      scanAssert = scanAssert.extracting("scan");
+    }
+
+    scanAssert.extracting("context").extracting("minRowsRequested").isEqualTo(limit);
 
     // verify MoR scan
     scanAssert = assertThat(builder.buildMergeOnReadScan()).extracting("scan");

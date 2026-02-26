@@ -330,7 +330,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
     for (CombinedScanTask task : tasks) {
       try (EqualityDeleteRowReader reader =
-          new EqualityDeleteRowReader(task, table, null, table.schema(), false, true)) {
+          new EqualityDeleteRowReader(task, table, table.schema(), false, true)) {
         while (reader.next()) {
           actualRowSet.add(
               new InternalRowWrapper(
@@ -679,14 +679,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
       try (BatchDataReader reader =
           new BatchDataReader(
               // expected column is id, while the equality filter column is dt
-              dateTable,
-              task,
-              dateTable.schema(),
-              dateTable.schema().select("id"),
-              false,
-              conf,
-              null,
-              true)) {
+              dateTable, task, dateTable.schema().select("id"), false, conf, null, true)) {
         while (reader.next()) {
           ColumnarBatch columnarBatch = reader.get();
           int numOfCols = columnarBatch.numCols();
@@ -695,6 +688,54 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         }
       }
     }
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteWithSchemaEvolution() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
+
+    // add column `status`
+    table.updateSchema().addColumn("status", Types.StringType.get()).commit();
+
+    // add data with `status` column
+    GenericRecord recordWithStatus = GenericRecord.create(table.schema());
+    List<Record> recordsWithStatus =
+        Lists.newArrayList(
+            recordWithStatus.copy("id", 200, "data", "h", "status", "ACTIVE"),
+            recordWithStatus.copy("id", 201, "data", "i", "status", "INACTIVE"),
+            recordWithStatus.copy("id", 202, "data", "j", "status", "ACTIVE"));
+    DataFile dataFileWithStatus =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(temp.resolve("junit-v2-" + System.nanoTime()).toFile()),
+            TestHelpers.Row.of(0),
+            recordsWithStatus);
+    table.newAppend().appendFile(dataFileWithStatus).commit();
+
+    // issue equality delete on `status` column
+    Schema deleteSchema = table.schema().select("status");
+    Record deleteRecordWithStatus = GenericRecord.create(deleteSchema);
+    List<Record> deleteRecordsWithStatus =
+        Lists.newArrayList(deleteRecordWithStatus.copy("status", "INACTIVE"));
+    DeleteFile eqDeleteFileWithStatus =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.resolve("junit-deletes-" + System.nanoTime()).toFile()),
+            TestHelpers.Row.of(0),
+            deleteRecordsWithStatus,
+            deleteSchema);
+    table.newRowDelta().addDeletes(eqDeleteFileWithStatus).commit();
+
+    // drop `status` column
+    table.updateSchema().deleteColumn("status").commit();
+
+    // verify reading of equality deletes even though schema doesn't contain `status` column
+    // only 1 of 3 records with status got removed
+    StructLikeSet actual = rowSet(tableName, table, "id", "data");
+    int expectedRecordCount = records.size() + 2;
+    assertThat(actual).hasSize(expectedRecordCount);
   }
 
   private static final Schema PROJECTION_SCHEMA =

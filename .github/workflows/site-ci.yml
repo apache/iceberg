@@ -26,9 +26,15 @@ on:
       - site/**
       - format/**
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6

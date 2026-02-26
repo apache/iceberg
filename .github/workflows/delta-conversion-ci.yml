@@ -63,6 +63,9 @@ on:
       - '**/NOTICE'
       - 'doap.rdf'
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -71,6 +74,7 @@ jobs:
   delta-conversion-scala-2-12-tests:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 15
       matrix:
         jvm: [17, 21]
     env:
@@ -100,6 +104,7 @@ jobs:
   delta-conversion-scala-2-13-tests:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 15
       matrix:
         jvm: [17, 21]
     env:

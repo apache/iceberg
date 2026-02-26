@@ -79,10 +79,10 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       Table table,
       Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
       SparkReadConf readConf,
-      Schema expectedSchema,
+      Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, scan, readConf, expectedSchema, filters, scanReportSupplier);
+    super(spark, table, scan, readConf, projection, filters, scanReportSupplier);
 
     this.snapshotId = readConf.snapshotId();
     this.startSnapshotId = readConf.startSnapshotId();
@@ -111,14 +111,14 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       }
     }
 
-    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(expectedSchema());
+    Map<Integer, String> quotedNameById = SparkSchemaUtil.indexQuotedNameById(projection());
 
     // the optimizer will look for an equality condition with filter attributes in a join
     // as the scan has been already planned, filtering can only be done on projected attributes
     // that's why only partition source fields that are part of the read schema can be reported
 
     return partitionFieldSourceIds.stream()
-        .filter(fieldId -> expectedSchema().findField(fieldId) != null)
+        .filter(fieldId -> projection().findField(fieldId) != null)
         .map(fieldId -> Spark3Util.toNamedReference(quotedNameById.get(fieldId)))
         .toArray(NamedReference[]::new);
   }
@@ -199,7 +199,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       Expression expr = SparkV2Filters.convert(predicate);
       if (expr != null) {
         try {
-          Binder.bind(expectedSchema().asStruct(), expr, caseSensitive());
+          Binder.bind(projection().asStruct(), expr, caseSensitive());
           runtimeFilterExpr = Expressions.and(runtimeFilterExpr, expr);
         } catch (ValidationException e) {
           LOG.warn("Failed to bind {} to expected schema, skipping runtime filter", expr, e);
@@ -253,10 +253,11 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
 
     SparkBatchQueryScan that = (SparkBatchQueryScan) o;
     return table().name().equals(that.table().name())
+        && Objects.equals(table().uuid(), that.table().uuid())
         && Objects.equals(branch(), that.branch())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filterExpressions().toString().equals(that.filterExpressions().toString())
-        && runtimeFilterExpressions.toString().equals(that.runtimeFilterExpressions.toString())
+        && filtersDesc().equals(that.filtersDesc())
+        && runtimeFiltersDesc().equals(that.runtimeFiltersDesc())
         && Objects.equals(snapshotId, that.snapshotId)
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId)
@@ -268,10 +269,11 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   public int hashCode() {
     return Objects.hash(
         table().name(),
+        table().uuid(),
         branch(),
         readSchema(),
-        filterExpressions().toString(),
-        runtimeFilterExpressions.toString(),
+        filtersDesc(),
+        runtimeFiltersDesc(),
         snapshotId,
         startSnapshotId,
         endSnapshotId,
@@ -280,14 +282,13 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   }
 
   @Override
-  public String toString() {
+  public String description() {
     return String.format(
-        "IcebergScan(table=%s, branch=%s, type=%s, filters=%s, runtimeFilters=%s, caseSensitive=%s)",
-        table(),
-        branch(),
-        expectedSchema().asStruct(),
-        filterExpressions(),
-        runtimeFilterExpressions,
-        caseSensitive());
+        "IcebergScan(table=%s, branch=%s, filters=%s, runtimeFilters=%s, groupedBy=%s)",
+        table(), branch(), filtersDesc(), runtimeFiltersDesc(), groupingKeyDesc());
+  }
+
+  private String runtimeFiltersDesc() {
+    return Spark3Util.describe(runtimeFilterExpressions);
   }
 }
