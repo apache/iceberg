@@ -347,7 +347,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This product bundles checkerframework checker-qual Annotations.
+This product bundles checkerframework checker-qual.
 
 Copyright: 2004-2019 the Checker Framework developers
 Home page: https://github.com/typetools/checker-framework

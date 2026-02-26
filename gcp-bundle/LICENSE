@@ -219,7 +219,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 This product bundles Google API Common.
 
-License: BSD-3-Clause
+License: BSD 3-Clause
 | Copyright 2016, Google Inc.
 | Redistribution and use in source and binary forms, with or without
 | modification, are permitted provided that the following conditions are
@@ -293,6 +293,13 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 This product bundles Google API gRPC.
 
 Project URL: https://github.com/googleapis/java-bigquerystorage/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Google APIs.
+
+Project URL: https://github.com/googleapis/googleapis
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -593,7 +600,7 @@ License: CDDL - https://github.com/javaee/javax.annotation/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
-This product bundles checkerframework checker-qual Annotations.
+This product bundles checkerframework checker-qual.
 
 Project URL: https://checkerframework.org/
 License: MIT
