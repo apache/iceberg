@@ -77,6 +77,7 @@ class TestFlinkVariantType extends CatalogTestBase {
   }
 
   @TestTemplate
+  @SuppressWarnings("unchecked")
   public void testInsertVariantFromFlink() throws Exception {
     sql("INSERT INTO %s VALUES (1, PARSE_JSON('%s'))", TABLE_NAME, "{\"KeyA\":\"city\"}");
     List<Record> records = SimpleDataUtil.tableRecords(icebergTable);
@@ -104,14 +105,17 @@ class TestFlinkVariantType extends CatalogTestBase {
     icebergTable.refresh();
 
     List<GenericRowData> genericRowData = Lists.newArrayList();
-    CloseableIterable<CombinedScanTask> combinedScanTasks = icebergTable.newScan().planTasks();
-    for (CombinedScanTask combinedScanTask : combinedScanTasks) {
-      DataIterator<RowData> dataIterator =
-          ReaderUtil.createDataIterator(
-              combinedScanTask, icebergTable.schema(), icebergTable.schema());
-      while (dataIterator.hasNext()) {
-        GenericRowData rowData = (GenericRowData) dataIterator.next();
-        genericRowData.add(rowData);
+    try (CloseableIterable<CombinedScanTask> combinedScanTasks =
+        icebergTable.newScan().planTasks()) {
+      for (CombinedScanTask combinedScanTask : combinedScanTasks) {
+        try (DataIterator<RowData> dataIterator =
+            ReaderUtil.createDataIterator(
+                combinedScanTask, icebergTable.schema(), icebergTable.schema())) {
+          while (dataIterator.hasNext()) {
+            GenericRowData rowData = (GenericRowData) dataIterator.next();
+            genericRowData.add(rowData);
+          }
+        }
       }
     }
 
