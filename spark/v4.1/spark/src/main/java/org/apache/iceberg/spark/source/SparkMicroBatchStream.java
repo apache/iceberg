@@ -92,7 +92,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.projection = SchemaParser.toJson(projection);
     this.localityPreferred = readConf.localityEnabled();
     this.tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-    this.fileIOBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(fileIO.get()));
+    this.fileIOBroadcast = sparkContext.broadcast(SerializableFileIOWithSize.copyOf(fileIO.get()));
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
