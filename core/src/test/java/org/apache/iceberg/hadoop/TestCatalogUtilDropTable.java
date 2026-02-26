@@ -39,6 +39,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -50,7 +51,6 @@ import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
@@ -228,7 +228,12 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .flatMap(
             snapshot ->
                 StreamSupport.stream(
-                    SnapshotUtil.addedDataFiles(table, snapshot).spliterator(), false))
+                    SnapshotChanges.builderFor(table)
+                        .snapshot(snapshot)
+                        .build()
+                        .addedDataFiles()
+                        .spliterator(),
+                    false))
         .map(DataFile::location)
         .collect(Collectors.toSet());
   }

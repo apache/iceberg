@@ -61,7 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.SnapshotChanges;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -359,7 +359,7 @@ public class TestFlinkTableSinkExtended extends SqlBase {
           snapshots.stream()
               .filter(
                   snapshot ->
-                      SnapshotUtil.addedDataFiles(table, snapshot)
+                      SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles()
                           .iterator()
                           .hasNext())
               .collect(Collectors.toList());
@@ -377,7 +377,7 @@ public class TestFlinkTableSinkExtended extends SqlBase {
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
             Lists.newArrayList(
-                SnapshotUtil.addedDataFiles(table, snapshot).iterator());
+                SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles().iterator());
         // range partition results in each partition only assigned to one writer task
         // maybe less than 26 partitions as BoundedSource doesn't always precisely
         // control the checkpoint boundary.

@@ -50,6 +50,7 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
@@ -61,7 +62,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -357,7 +357,14 @@ public class TestFlinkTableSinkExtended extends SqlBase {
       // only keep the snapshots with added data files
       snapshots =
           snapshots.stream()
-              .filter(snapshot -> SnapshotUtil.addedDataFiles(table, snapshot).iterator().hasNext())
+              .filter(
+                  snapshot ->
+                      SnapshotChanges.builderFor(table)
+                          .snapshot(snapshot)
+                          .build()
+                          .addedDataFiles()
+                          .iterator()
+                          .hasNext())
               .collect(Collectors.toList());
 
       // Sometimes we will have more checkpoints than the bounded source if we pass the
@@ -372,7 +379,12 @@ public class TestFlinkTableSinkExtended extends SqlBase {
 
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
-            Lists.newArrayList(SnapshotUtil.addedDataFiles(table, snapshot).iterator());
+            Lists.newArrayList(
+                SnapshotChanges.builderFor(table)
+                    .snapshot(snapshot)
+                    .build()
+                    .addedDataFiles()
+                    .iterator());
         // range partition results in each partition only assigned to one writer task
         // maybe less than 26 partitions as BoundedSource doesn't always precisely
         // control the checkpoint boundary.

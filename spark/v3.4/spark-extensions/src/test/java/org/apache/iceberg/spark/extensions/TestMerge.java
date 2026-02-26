@@ -62,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
@@ -352,7 +353,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
     withUnavailableFiles(
-        SnapshotUtil.addedDataFiles(table, snapshot),
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles(),
         () -> {
           // disable dynamic pruning and rely only on static predicate pushdown
           withSQLConf(

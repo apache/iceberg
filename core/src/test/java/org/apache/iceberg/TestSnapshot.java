@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -36,7 +35,7 @@ public class TestSnapshot extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     // collect data files from deserialization
-    Iterable<DataFile> filesToAdd = SnapshotUtil.addedDataFiles(table, table.currentSnapshot());
+    Iterable<DataFile> filesToAdd = SnapshotChanges.builderFor(table).build().addedDataFiles();
 
     table.newDelete().deleteFile(FILE_A).deleteFile(FILE_B).commit();
 
@@ -175,7 +174,8 @@ public class TestSnapshot extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> addedDataFiles = SnapshotUtil.addedDataFiles(table, snapshot);
+    Iterable<DataFile> addedDataFiles =
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles();
 
     assertThat(snapshot.sequenceNumber())
         .as("Sequence number mismatch in Snapshot")
@@ -221,7 +221,8 @@ public class TestSnapshot extends TestBase {
     table.newDelete().deleteFile(fileToRemove).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DataFile> removedDataFiles = SnapshotUtil.removedDataFiles(table, snapshot);
+    Iterable<DataFile> removedDataFiles =
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().removedDataFiles();
     assertThat(removedDataFiles).as("Must have 1 removed data file").hasSize(1);
 
     DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
@@ -253,7 +254,8 @@ public class TestSnapshot extends TestBase {
     table.newRowDelta().addDeletes(deleteFileToAdd).commit();
 
     Snapshot snapshot = table.currentSnapshot();
-    Iterable<DeleteFile> addedDeleteFiles = SnapshotUtil.addedDeleteFiles(table, snapshot);
+    Iterable<DeleteFile> addedDeleteFiles =
+        SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDeleteFiles();
     assertThat(addedDeleteFiles).as("Must have 1 added delete file").hasSize(1);
 
     DeleteFile addedDeleteFile = Iterables.getOnlyElement(addedDeleteFiles);

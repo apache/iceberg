@@ -24,11 +24,9 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -537,49 +535,5 @@ public class SnapshotUtil {
     }
 
     return metadata.snapshot(ref.snapshotId());
-  }
-
-  /**
-   * Return all data files added to the table in the given snapshot.
-   *
-   * @param table the table to detect changes for
-   * @param snapshot the snapshot to detect changes for
-   * @return all data files added to the table in this snapshot
-   */
-  public static Iterable<DataFile> addedDataFiles(Table table, Snapshot snapshot) {
-    return SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles();
-  }
-
-  /**
-   * Return all data files removed from the table in the given snapshot.
-   *
-   * @param table the table to detect changes for
-   * @param snapshot the snapshot to detect changes for
-   * @return all data files removed from the table in this snapshot
-   */
-  public static Iterable<DataFile> removedDataFiles(Table table, Snapshot snapshot) {
-    return SnapshotChanges.builderFor(table).snapshot(snapshot).build().removedDataFiles();
-  }
-
-  /**
-   * Return all delete files added to the table in the given snapshot.
-   *
-   * @param table the table to detect changes for
-   * @param snapshot the snapshot to detect changes for
-   * @return all delete files added to the table in this snapshot
-   */
-  public static Iterable<DeleteFile> addedDeleteFiles(Table table, Snapshot snapshot) {
-    return SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDeleteFiles();
-  }
-
-  /**
-   * Return all delete files removed from the table in the given snapshot.
-   *
-   * @param table the table to detect changes for
-   * @param snapshot the snapshot to detect changes for
-   * @return all delete files removed from the table in this snapshot
-   */
-  public static Iterable<DeleteFile> removedDeleteFiles(Table table, Snapshot snapshot) {
-    return SnapshotChanges.builderFor(table).snapshot(snapshot).build().removedDeleteFiles();
   }
 }
