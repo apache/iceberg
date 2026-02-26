@@ -19,65 +19,48 @@
 package org.apache.iceberg.flink.data;
 
 import java.util.List;
-import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestBase;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.TestBaseFormatModel;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
-public class TestFlinkFormatModels extends TestBaseFormatModel<RowData, RowData> {
+public class TestFlinkFormatModel extends TestBaseFormatModel<RowData> {
 
   @Override
-  protected Class<RowData> writeType() {
+  protected Class<RowData> engineType() {
     return RowData.class;
   }
 
   @Override
-  protected Class<RowData> readType() {
-    return RowData.class;
-  }
-
-  @Override
-  protected Object writeEngineSchema(Schema schema) {
+  protected Object engineSchema(Schema schema) {
     return FlinkSchemaUtil.convert(schema);
   }
 
   @Override
-  protected Object readEngineSchema(Schema schema) {
-    return FlinkSchemaUtil.convert(schema);
-  }
-
-  @Override
-  protected List<RowData> testRecords() {
+  protected List<RowData> engineTestRecords() {
     return Lists.newArrayList(RandomRowData.generate(TestBase.SCHEMA, 10, 1L));
   }
 
   @Override
-  protected void assertEquals(
-      Types.StructType struct, List<RowData> expected, List<RowData> actual) {
+  protected void assertEqualsEngineToGeneric(
+      Types.StructType struct, List<RowData> expected, List<Record> actual) {
     Schema schema = new Schema(struct.fields());
-    RowType rowType = FlinkSchemaUtil.convert(schema);
-    TestHelpers.assertRows(actual, expected, rowType);
+    for (int i = 0; i < expected.size(); i++) {
+      TestHelpers.assertRowData(schema, actual.get(i), expected.get(i));
+    }
   }
 
   @Override
-  protected List<RowData> expectedPositionDeletes(Schema schema) {
-    return ImmutableList.of(
-        toPositionDeleteRow("data-file-1.parquet", 0L),
-        toPositionDeleteRow("data-file-1.parquet", 1L));
-  }
-
-  private static RowData toPositionDeleteRow(String filePath, long pos) {
-    GenericRowData row = new GenericRowData(2);
-    row.setField(0, StringData.fromString(filePath));
-    row.setField(1, pos);
-    return row;
+  protected void assertEqualsGenericToEngine(
+      Types.StructType struct, List<Record> expected, List<RowData> actual) {
+    Schema schema = new Schema(struct.fields());
+    for (int i = 0; i < expected.size(); i++) {
+      TestHelpers.assertRowData(schema, expected.get(i), actual.get(i));
+    }
   }
 }
