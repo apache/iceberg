@@ -221,6 +221,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private void validateAndSetStartVersion() {
+    Preconditions.checkArgument(
+        startVersionName == null || targetTable == null,
+        "Cannot set both startVersion and targetTable.");
+
     TableMetadata tableMetadata = ((HasTableOperations) table).operations().current();
 
     if (targetTable != null) {
@@ -231,9 +235,6 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private String resolveStartVersionFromTargetTable(TableMetadata sourceMetadata) {
-    Preconditions.checkArgument(
-        startVersionName == null, "Cannot set both startVersion and targetTable.");
-
     if (targetTable.currentSnapshot() == null) {
       LOG.info("Target table has no snapshots. Doing a full copy.");
       return null;
