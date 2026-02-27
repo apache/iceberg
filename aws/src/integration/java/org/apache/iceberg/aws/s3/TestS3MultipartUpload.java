@@ -160,29 +160,16 @@ public class TestS3MultipartUpload {
             Boolean.toString(chunkedEncodingEnabled)));
 
     int parts = 10;
+    long partSize = S3FileIOProperties.MULTIPART_SIZE_MIN;
+    String suffix = chunkedEncodingEnabled ? "-chunked-enabled" : "-chunked-disabled";
 
-    // Verify write and read with int
-    int expectedInt = 42;
-    String intObjectUri =
-        objectUri + (chunkedEncodingEnabled ? "-chunked-enabled" : "-chunked-disabled") + "-int";
-    writeInts(
-        testIo, intObjectUri, parts, S3FileIOProperties.MULTIPART_SIZE_MIN, () -> expectedInt);
+    String intObjectUri = objectUri + suffix + "-int";
+    writeDistinctPartsWithInts(testIo, intObjectUri, parts, partSize);
+    verifyDistinctPartsWithInts(testIo, intObjectUri, parts, partSize);
 
-    assertThat(testIo.newInputFile(intObjectUri).getLength())
-        .isEqualTo(parts * (long) S3FileIOProperties.MULTIPART_SIZE_MIN);
-    verifyInts(testIo, intObjectUri, () -> expectedInt);
-
-    // Verify write and read with bytes
-    byte expectedByte = 42;
-    String bytesObjectUri =
-        objectUri + (chunkedEncodingEnabled ? "-chunked-enabled" : "-chunked-disabled") + "-bytes";
-    byte[] expectedBytes = new byte[S3FileIOProperties.MULTIPART_SIZE_MIN];
-    Arrays.fill(expectedBytes, expectedByte);
-    writeBytes(testIo, bytesObjectUri, parts, () -> expectedBytes);
-
-    assertThat(testIo.newInputFile(bytesObjectUri).getLength())
-        .isEqualTo(parts * (long) S3FileIOProperties.MULTIPART_SIZE_MIN);
-    verifyBytes(testIo, bytesObjectUri, () -> expectedByte);
+    String bytesObjectUri = objectUri + suffix + "-bytes";
+    writeDistinctPartsWithBytes(testIo, bytesObjectUri, parts, partSize);
+    verifyDistinctPartsWithBytes(testIo, bytesObjectUri, parts, partSize);
   }
 
   private void writeInts(String fileUri, int parts, Supplier<Integer> writer) {
@@ -190,12 +177,7 @@ public class TestS3MultipartUpload {
   }
 
   private void writeInts(String fileUri, int parts, long partSize, Supplier<Integer> writer) {
-    writeInts(io, fileUri, parts, partSize, writer);
-  }
-
-  private void writeInts(
-      S3FileIO fileIO, String fileUri, int parts, long partSize, Supplier<Integer> writer) {
-    try (PositionOutputStream outputStream = fileIO.newOutputFile(fileUri).create()) {
+    try (PositionOutputStream outputStream = io.newOutputFile(fileUri).create()) {
       for (int i = 0; i < parts; i++) {
         for (long j = 0; j < partSize; j++) {
           outputStream.write(writer.get());
@@ -207,11 +189,7 @@ public class TestS3MultipartUpload {
   }
 
   private void verifyInts(String fileUri, Supplier<Integer> verifier) {
-    verifyInts(io, fileUri, verifier);
-  }
-
-  private void verifyInts(S3FileIO fileIO, String fileUri, Supplier<Integer> verifier) {
-    try (SeekableInputStream inputStream = fileIO.newInputFile(fileUri).newStream()) {
+    try (SeekableInputStream inputStream = io.newInputFile(fileUri).newStream()) {
       int cur;
       while ((cur = inputStream.read()) != -1) {
         assertThat(cur).isEqualTo(verifier.get());
@@ -222,11 +200,7 @@ public class TestS3MultipartUpload {
   }
 
   private void writeBytes(String fileUri, int parts, Supplier<byte[]> writer) {
-    writeBytes(io, fileUri, parts, writer);
-  }
-
-  private void writeBytes(S3FileIO fileIO, String fileUri, int parts, Supplier<byte[]> writer) {
-    try (PositionOutputStream outputStream = fileIO.newOutputFile(fileUri).create()) {
+    try (PositionOutputStream outputStream = io.newOutputFile(fileUri).create()) {
       for (int i = 0; i < parts; i++) {
         outputStream.write(writer.get());
       }
@@ -235,21 +209,60 @@ public class TestS3MultipartUpload {
     }
   }
 
-  private void verifyBytes(String fileUri, Supplier<Byte> verifier) {
-    verifyBytes(io, fileUri, verifier);
-  }
-
-  private void verifyBytes(S3FileIO fileIO, String fileUri, Supplier<Byte> verifier) {
-    try (SeekableInputStream inputStream = fileIO.newInputFile(fileUri).newStream()) {
-      byte[] readBuffer = new byte[S3FileIOProperties.MULTIPART_SIZE_MIN];
-      int bytesRead;
-      while ((bytesRead = inputStream.read(readBuffer)) != -1) {
-        for (int i = 0; i < bytesRead; i++) {
-          assertThat(readBuffer[i]).isEqualTo(verifier.get());
+  private void writeDistinctPartsWithInts(S3FileIO fileIO, String fileUri, int parts, long partSize)
+      throws IOException {
+    try (PositionOutputStream outputStream = fileIO.newOutputFile(fileUri).create()) {
+      for (int part = 0; part < parts; part++) {
+        int partByte = part + 1;
+        for (long j = 0; j < partSize; j++) {
+          outputStream.write(partByte);
         }
       }
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+    }
+
+    assertThat(fileIO.newInputFile(fileUri).getLength()).isEqualTo(parts * partSize);
+  }
+
+  private void verifyDistinctPartsWithInts(
+      S3FileIO fileIO, String fileUri, int parts, long partSize) throws IOException {
+    try (SeekableInputStream inputStream = fileIO.newInputFile(fileUri).newStream()) {
+      for (int part = 0; part < parts; part++) {
+        int expectedValue = part + 1;
+        for (long j = 0; j < partSize; j++) {
+          int actual = inputStream.read();
+          assertThat(actual).as("part %d, offset %d", part, j).isEqualTo(expectedValue);
+        }
+      }
+      assertThat(inputStream.read()).as("expected end of stream").isEqualTo(-1);
+    }
+  }
+
+  private void writeDistinctPartsWithBytes(
+      S3FileIO fileIO, String fileUri, int parts, long partSize) throws IOException {
+    try (PositionOutputStream outputStream = fileIO.newOutputFile(fileUri).create()) {
+      for (int part = 0; part < parts; part++) {
+        byte[] partBytes = new byte[(int) partSize];
+        Arrays.fill(partBytes, (byte) (part + 1));
+        outputStream.write(partBytes);
+      }
+    }
+
+    assertThat(fileIO.newInputFile(fileUri).getLength()).isEqualTo(parts * partSize);
+  }
+
+  private void verifyDistinctPartsWithBytes(
+      S3FileIO fileIO, String fileUri, int parts, long partSize) throws IOException {
+    try (SeekableInputStream inputStream = fileIO.newInputFile(fileUri).newStream()) {
+      byte[] readBuffer = new byte[(int) partSize];
+      for (int part = 0; part < parts; part++) {
+        byte expectedByte = (byte) (part + 1);
+        int bytesRead = inputStream.read(readBuffer);
+        assertThat(bytesRead).isEqualTo((int) partSize);
+        for (int i = 0; i < bytesRead; i++) {
+          assertThat(readBuffer[i]).as("part %d, offset %d", part, i).isEqualTo(expectedByte);
+        }
+      }
+      assertThat(inputStream.read()).as("expected end of stream").isEqualTo(-1);
     }
   }
 }
