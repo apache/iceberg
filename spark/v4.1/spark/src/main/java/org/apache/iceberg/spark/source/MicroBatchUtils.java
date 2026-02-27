@@ -25,15 +25,25 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.StartingOffset;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class MicroBatchUtils {
+
+  private static final Logger LOG = LoggerFactory.getLogger(MicroBatchUtils.class);
 
   private MicroBatchUtils() {}
 
   static StreamingOffset determineStartingOffset(
-      Table table, long fromTimestamp, StartingOffset startingOffsets) {
+      Table table, long fromTimestamp, StartingOffset startFrom) {
     if (table.currentSnapshot() == null) {
       return StreamingOffset.START_OFFSET;
+    }
+
+    if (fromTimestamp != Long.MIN_VALUE && startFrom != StartingOffset.EARLIEST) {
+      LOG.warn(
+          "Both stream-from-timestamp and streaming-start-from are set; "
+              + "stream-from-timestamp takes precedence and streaming-start-from is ignored");
     }
 
     Snapshot startSnapshot;
@@ -53,15 +63,17 @@ class MicroBatchUtils {
         // could not determine the first snapshot after the timestamp; use the oldest ancestor
         startSnapshot = SnapshotUtil.oldestAncestor(table);
       }
-    } else if (startingOffsets.useLatest()) {
+    } else if (startFrom.useLatest()) {
       startSnapshot = table.currentSnapshot();
     } else {
       startSnapshot = SnapshotUtil.oldestAncestor(table);
     }
 
-    // For LATEST mode: skip past all existing files so the stream only sees new data
+    // When scanAllFiles=false (LATEST mode), the stream iterates only addedDataFiles() for
+    // the starting snapshot. Setting position = addedFilesCount skips all of them, so
+    // processing begins only from the next snapshot's added files.
     long position = 0;
-    if (startingOffsets == StartingOffset.LATEST) {
+    if (startFrom == StartingOffset.LATEST) {
       long addedFiles =
           PropertyUtil.propertyAsLong(
               startSnapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1L);
@@ -69,8 +81,7 @@ class MicroBatchUtils {
           addedFiles == -1L ? Iterables.size(startSnapshot.addedDataFiles(table.io())) : addedFiles;
     }
 
-    return new StreamingOffset(
-        startSnapshot.snapshotId(), position, startingOffsets.scanAllFiles());
+    return new StreamingOffset(startSnapshot.snapshotId(), position, startFrom.scanAllFiles());
   }
 
   static long addedFilesCount(Table table, Snapshot snapshot) {

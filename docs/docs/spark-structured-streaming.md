@@ -38,20 +38,20 @@ val df = spark.readStream
 
 ### Starting offsets
 
-The `streaming-starting-offsets` option controls where a stream begins reading when there is **no existing checkpoint**. Once a checkpoint exists the option is ignored and the stream resumes from where it left off.
+The `streaming-start-from` option controls where a stream begins reading when there is **no existing checkpoint**. Once a checkpoint exists the option is ignored and the stream resumes from where it left off.
 
 | Value | Behaviour |
 |-------|-----------|
 | `earliest` (default) | Start from the oldest snapshot, streaming files added by each snapshot incrementally. |
 | `latest` | Skip all existing data. Only snapshots appended **after** the stream starts are processed. |
-| `earliest-with-snapshot` | Read **all** files in the oldest snapshot as the first micro-batch, then switch to incremental (added-files-only) processing. |
-| `latest-with-snapshot` | Read **all** files in the current snapshot as the first micro-batch, then switch to incremental (added-files-only) processing. |
+| `earliest-snapshot` | Read **all** files in the oldest snapshot as the first micro-batch, then switch to incremental (added-files-only) processing. |
+| `latest-snapshot` | Read **all** files in the current snapshot as the first micro-batch, then switch to incremental (added-files-only) processing. |
 
 ```scala
 // Only process new data; skip everything already in the table
 val df = spark.readStream
     .format("iceberg")
-    .option("streaming-starting-offsets", "latest")
+    .option("streaming-start-from", "latest")
     .load("database.table_name")
 ```
 
@@ -59,12 +59,12 @@ val df = spark.readStream
 // Bootstrap from a full table scan of the current snapshot, then go incremental
 val df = spark.readStream
     .format("iceberg")
-    .option("streaming-starting-offsets", "latest-with-snapshot")
+    .option("streaming-start-from", "latest-snapshot")
     .load("database.table_name")
 ```
 
 !!! note
-    `streaming-starting-offsets` and `stream-from-timestamp` are mutually exclusive in intent: when `stream-from-timestamp` is set it always takes precedence and `streaming-starting-offsets` is ignored.
+    `streaming-start-from` and `stream-from-timestamp` are mutually exclusive in intent: when `stream-from-timestamp` is set it always takes precedence and `streaming-start-from` is ignored.
 
 ### Limit input rate
 To control the size of micro-batches in the DataFrame API, Iceberg supports two read options:
@@ -113,7 +113,7 @@ data.writeStream
     .format("iceberg")
     .outputMode("append")
     .trigger(Trigger.ProcessingTime(1, TimeUnit.MINUTES))
-    .option("path", "hdfs://nn:8020/path/to/table") 
+    .option("path", "hdfs://nn:8020/path/to/table")
     .option("checkpointLocation", checkpointPath)
     .start()
 ```

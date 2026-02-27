@@ -70,7 +70,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final long fromTimestamp;
-  private final StartingOffset startingOffsets;
+  private final StartingOffset startFrom;
   private final int maxFilesPerMicroBatch;
   private final int maxRecordsPerMicroBatch;
   private final boolean cacheDeleteFilesOnExecutors;
@@ -93,13 +93,13 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
     this.fromTimestamp = readConf.streamFromTimestamp();
-    this.startingOffsets = readConf.streamingStartingOffsets();
+    this.startFrom = readConf.streamingStartFrom();
     this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
     InitialOffsetStore initialOffsetStore =
-        new InitialOffsetStore(table, checkpointLocation, fromTimestamp, startingOffsets);
+        new InitialOffsetStore(table, checkpointLocation, fromTimestamp, startFrom);
     this.initialOffset = initialOffsetStore.initialOffset();
   }
 
@@ -255,18 +255,15 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     private final FileIO io;
     private final String initialOffsetLocation;
     private final long fromTimestamp;
-    private final StartingOffset startingOffsets;
+    private final StartingOffset startFrom;
 
     InitialOffsetStore(
-        Table table,
-        String checkpointLocation,
-        long fromTimestamp,
-        StartingOffset startingOffsets) {
+        Table table, String checkpointLocation, long fromTimestamp, StartingOffset startFrom) {
       this.table = table;
       this.io = table.io();
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
       this.fromTimestamp = fromTimestamp;
-      this.startingOffsets = startingOffsets;
+      this.startFrom = startFrom;
     }
 
     public StreamingOffset initialOffset() {
@@ -277,7 +274,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
 
       table.refresh();
       StreamingOffset offset =
-          MicroBatchUtils.determineStartingOffset(table, fromTimestamp, startingOffsets);
+          MicroBatchUtils.determineStartingOffset(table, fromTimestamp, startFrom);
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
       writeOffset(offset, outputFile);
