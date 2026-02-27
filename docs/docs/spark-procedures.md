@@ -491,6 +491,7 @@ Data files in manifests are sorted by fields in the partition spec. This procedu
 | `table`       | ✔️  | string | Name of the table to update                                   |
 | `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to false). Enabling caching can increase memory footprint on executors. |
 | `spec_id`     | ️   | int | Spec id of the manifests to rewrite (defaults to current spec id) |
+| `sort_by`     | ️   | array<string> | List of partition field names to cluster manifests by. Choosing frequently queried partition fields can reduce planning time by skipping unnecessary manifests. If not set, manifests will be sorted by all partition fields in spec order. |
 
 #### Output
 
@@ -509,6 +510,12 @@ CALL catalog_name.system.rewrite_manifests('db.sample');
 Rewrite the manifests on the partition spec `1` in table `db.sample`.
 ```sql
 CALL catalog_name.system.rewrite_manifests(table => 'db.sample', spec_id => 1);
+```
+
+Rewrite the manifests in table `db.sample` and cluster manifest entries by partition field `category`.
+This can improve scan planning performance when queries frequently filter on `category`.
+```sql
+CALL catalog_name.system.rewrite_manifests(table => 'db.sample', sort_by => array('category'));
 ```
 
 ### `rewrite_position_delete_files`
