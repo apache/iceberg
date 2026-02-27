@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.actions;
 
+import javax.annotation.Nullable;
 import org.immutables.value.Value;
 
 @Value.Enclosing
@@ -30,9 +31,11 @@ interface BaseRewriteTablePath extends RewriteTablePath {
 
   @Value.Immutable
   interface Result extends RewriteTablePath.Result {
+    @Nullable
     @Override
     String dataFileListLocation();
 
+    @Nullable
     @Override
     String metadataFileListLocation();
 
