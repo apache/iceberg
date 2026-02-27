@@ -43,7 +43,6 @@ public final class RESTCatalogProperties {
   // Configure scan planning mode
   // Can be set by server in LoadTableResponse.config() for table-level override
   public static final String SCAN_PLANNING_MODE = "scan-planning-mode";
-  public static final String SCAN_PLANNING_MODE_DEFAULT = ScanPlanningMode.CLIENT.modeName();
 
   public static final String REST_SCAN_PLAN_ID = "rest-scan-plan-id";
 
