@@ -36,7 +36,7 @@ val df = spark.readStream
 !!! warning
     Iceberg only supports reading data from append snapshots. Overwrite snapshots cannot be processed and will cause an exception by default. Overwrites may be ignored by setting `streaming-skip-overwrite-snapshots=true`. Similarly, delete snapshots will cause an exception by default, and deletes may be ignored by setting `streaming-skip-delete-snapshots=true`.
 
-### Starting offsets
+### Starting offset
 
 The `streaming-starting-offset` option controls where a stream begins reading when there is **no existing checkpoint**. Once a checkpoint exists the option is ignored and the stream resumes from where it left off.
 

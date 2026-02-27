@@ -218,7 +218,7 @@ spark.read
 | vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                                                                                                     |
 | batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                                                                                                  |
 | stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used                                                             |
-| streaming-starting-offset | `earliest` | Controls where the stream begins when there is no checkpoint. See [Starting offsets](spark-structured-streaming.md#starting-offsets) for accepted values. |
+| streaming-starting-offset | `earliest` | Controls where the stream begins when there is no checkpoint. See [Starting offset](spark-structured-streaming.md#starting-offset) for accepted values. |
 | streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch                                                                                                                                        |
 | streaming-max-rows-per-micro-batch  | INT_MAX | "Soft maximum" number of rows per microbatch; always includes all rows in next unprocessed file, excludes additional files if their inclusion would exceed the soft max limit |
 
