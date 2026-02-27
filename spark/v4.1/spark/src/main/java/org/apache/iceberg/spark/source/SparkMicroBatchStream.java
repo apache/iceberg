@@ -95,22 +95,13 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
-    InitialOffsetStore initialOffsetStore =
-        createInitialOffsetStore(table, checkpointLocation, fromTimestamp, sparkContext, readConf);
-    this.initialOffset = initialOffsetStore.initialOffset();
-  }
-
-  private static InitialOffsetStore createInitialOffsetStore(
-      Table table,
-      String checkpointLocation,
-      long fromTimestamp,
-      JavaSparkContext sparkContext,
-      SparkReadConf readConf) {
     FileIO io =
         readConf.streamingCheckpointUseHadoop()
             ? new HadoopFileIO(sparkContext.hadoopConfiguration())
             : table.io();
-    return new InitialOffsetStore(table, checkpointLocation, fromTimestamp, io);
+    InitialOffsetStore initialOffsetStore =
+        new InitialOffsetStore(table, checkpointLocation, fromTimestamp, io);
+    this.initialOffset = initialOffsetStore.initialOffset();
   }
 
   @Override
