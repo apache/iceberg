@@ -252,7 +252,10 @@ class TriggerManagerOperator extends AbstractStreamOperator<Trigger>
 
   @VisibleForTesting
   void handleLockRelease(LockReleaseEvent event) {
-    Preconditions.checkArgument(lockTime != null, "Lock time is null, Can't release lock");
+    if (lockTime == null) {
+      LOG.warn("Lock time is null, Can't release lock");
+      return;
+    }
 
     if (event.timestamp() >= lockTime) {
       this.lockTime = null;
