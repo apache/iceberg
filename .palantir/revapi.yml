@@ -1422,6 +1422,13 @@ acceptedBreaks:
         \ java.lang.String, java.lang.String) throws java.io.IOException"
         justification: "Position delete files are now rewritten inline during manifest writing to fix file_size_in_bytes"
       - code: "java.method.removed"
+        old: "method org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile>\
+        \ org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile,\
+        \ java.util.Set<java.lang.Long>, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO,\
+        \ int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>, java.lang.String,\
+        \ java.lang.String, java.lang.String) throws java.io.IOException"
+        justification: "Position delete files are now rewritten inline during manifest writing to fix file_size_in_bytes"
+      - code: "java.method.removed"
         old: "method org.apache.iceberg.Schema org.apache.iceberg.PartitionStatsHandler::schema(org.apache.iceberg.types.Types.StructType)"
         justification: "Removing deprecated code for 1.11.0"
       - code: "java.method.removed"
