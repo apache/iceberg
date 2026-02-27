@@ -88,8 +88,8 @@ public class SparkReadOptions {
       "streaming-max-rows-per-micro-batch";
 
   // Controls where a streaming query starts when there is no checkpoint
-  public static final String STREAMING_START_FROM = "streaming-start-from";
-  public static final String STREAMING_START_FROM_DEFAULT = "earliest";
+  public static final String STREAMING_STARTING_OFFSET = "streaming-starting-offset";
+  public static final String STREAMING_STARTING_OFFSET_DEFAULT = "earliest";
 
   // Table path
   public static final String PATH = "path";

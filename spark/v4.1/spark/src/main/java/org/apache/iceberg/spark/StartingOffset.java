@@ -55,7 +55,7 @@ public enum StartingOffset {
     }
 
     throw new IllegalArgumentException(
-        "Invalid streaming-start-from value: "
+        "Invalid streaming-starting-offset value: "
             + name
             + ". Expected one of: earliest, latest, earliest-snapshot, latest-snapshot");
   }

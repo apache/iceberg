@@ -43,7 +43,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
   private final boolean caseSensitive;
   private final long fromTimestamp;
-  private final StartingOffset startFrom;
+  private final StartingOffset startingOffset;
   private final StreamingOffset lastOffsetForTriggerAvailableNow;
 
   SyncSparkMicroBatchPlanner(
@@ -51,7 +51,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     super(table, readConf);
     this.caseSensitive = readConf().caseSensitive();
     this.fromTimestamp = readConf().streamFromTimestamp();
-    this.startFrom = readConf().streamingStartFrom();
+    this.startingOffset = readConf().streamingStartingOffset();
     this.lastOffsetForTriggerAvailableNow = lastOffsetForTriggerAvailableNow;
   }
 
@@ -60,7 +60,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset =
         StreamingOffset.START_OFFSET.equals(startOffset)
-            ? MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, startFrom)
+            ? MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, startingOffset)
             : startOffset;
 
     StreamingOffset currentOffset = null;
@@ -129,7 +129,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     StreamingOffset effectiveStart = startOffset;
 
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      effectiveStart = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, startFrom);
+      effectiveStart = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, startingOffset);
     }
 
     Snapshot curSnapshot = table().snapshot(effectiveStart.snapshotId());

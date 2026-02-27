@@ -103,7 +103,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
     appendData(batch1);
     appendData(batch2);
 
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_START_FROM, "earliest");
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_STARTING_OFFSET, "earliest");
 
     assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(batch1, batch2));
@@ -119,7 +119,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
         Lists.newArrayList(new SimpleRecord(1, "one"), new SimpleRecord(2, "two"));
     appendData(existing);
 
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_START_FROM, "latest");
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_STARTING_OFFSET, "latest");
 
     // pre-existing data must be invisible
     assertThat(rowsAvailable(query)).isEmpty();
@@ -132,7 +132,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
 
   @TestTemplate
   public void testLatestOnEmptyTablePicksUpNewData() throws Exception {
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_START_FROM, "latest");
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_STARTING_OFFSET, "latest");
     assertThat(rowsAvailable(query)).isEmpty();
 
     List<SimpleRecord> data = Lists.newArrayList(new SimpleRecord(1, "one"));
@@ -156,7 +156,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
     appendData(batch1);
     appendData(batch2);
 
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_START_FROM, "latest-snapshot");
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_STARTING_OFFSET, "latest-snapshot");
 
     assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(batch1, batch2));
@@ -168,7 +168,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
         Lists.newArrayList(new SimpleRecord(1, "one"), new SimpleRecord(2, "two"));
     appendData(batch1);
 
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_START_FROM, "latest-snapshot");
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_STARTING_OFFSET, "latest-snapshot");
     assertThat(rowsAvailable(query)).containsExactlyInAnyOrderElementsOf(batch1);
 
     // after the bootstrap batch, only newly added files are returned
@@ -180,7 +180,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
 
   @TestTemplate
   public void testLatestWithSnapshotOnEmptyTable() throws Exception {
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_START_FROM, "latest-snapshot");
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_STARTING_OFFSET, "latest-snapshot");
     assertThat(rowsAvailable(query)).isEmpty();
 
     List<SimpleRecord> data = Lists.newArrayList(new SimpleRecord(1, "one"));
@@ -200,7 +200,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
     appendData(batch1);
     appendData(batch2);
 
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_START_FROM, "earliest-snapshot");
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_STARTING_OFFSET, "earliest-snapshot");
 
     assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(batch1, batch2));
@@ -208,7 +208,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
 
   @TestTemplate
   public void testEarliestWithSnapshotOnEmptyTable() throws Exception {
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_START_FROM, "earliest-snapshot");
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_STARTING_OFFSET, "earliest-snapshot");
     assertThat(rowsAvailable(query)).isEmpty();
   }
 
@@ -218,7 +218,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
 
   @TestTemplate
   public void testInvalidOptionThrows() throws TimeoutException {
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_START_FROM, "invalid-value");
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_STARTING_OFFSET, "invalid-value");
     assertThatThrownBy(query::processAllAvailable)
         .satisfies(
             e -> {
@@ -229,7 +229,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
               }
               assertThat(root)
                   .isInstanceOf(IllegalArgumentException.class)
-                  .hasMessageContaining("Invalid streaming-start-from value: invalid-value");
+                  .hasMessageContaining("Invalid streaming-starting-offset value: invalid-value");
             });
   }
 
@@ -239,7 +239,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
     appendData(existing);
 
     // "LATEST" must be accepted and behave identically to "latest"
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_START_FROM, "LATEST");
+    StreamingQuery query = startStream(SparkReadOptions.STREAMING_STARTING_OFFSET, "LATEST");
     assertThat(rowsAvailable(query)).isEmpty();
   }
 
@@ -261,7 +261,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
             spark
                 .readStream()
                 .format("iceberg")
-                .option(SparkReadOptions.STREAMING_START_FROM, "latest-snapshot")
+                .option(SparkReadOptions.STREAMING_STARTING_OFFSET, "latest-snapshot")
                 .load(tableName)
                 .writeStream()
                 .format("parquet")
@@ -282,7 +282,7 @@ public class TestStreamingStartingOffsets extends CatalogTestBase {
             spark
                 .readStream()
                 .format("iceberg")
-                .option(SparkReadOptions.STREAMING_START_FROM, "earliest")
+                .option(SparkReadOptions.STREAMING_STARTING_OFFSET, "earliest")
                 .load(tableName)
                 .writeStream()
                 .format("parquet")

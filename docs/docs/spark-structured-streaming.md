@@ -38,7 +38,7 @@ val df = spark.readStream
 
 ### Starting offsets
 
-The `streaming-start-from` option controls where a stream begins reading when there is **no existing checkpoint**. Once a checkpoint exists the option is ignored and the stream resumes from where it left off.
+The `streaming-starting-offset` option controls where a stream begins reading when there is **no existing checkpoint**. Once a checkpoint exists the option is ignored and the stream resumes from where it left off.
 
 | Value | Behaviour |
 |-------|-----------|
@@ -51,7 +51,7 @@ The `streaming-start-from` option controls where a stream begins reading when th
 // Only process new data; skip everything already in the table
 val df = spark.readStream
     .format("iceberg")
-    .option("streaming-start-from", "latest")
+    .option("streaming-starting-offset", "latest")
     .load("database.table_name")
 ```
 
@@ -59,12 +59,12 @@ val df = spark.readStream
 // Bootstrap from a full table scan of the current snapshot, then go incremental
 val df = spark.readStream
     .format("iceberg")
-    .option("streaming-start-from", "latest-snapshot")
+    .option("streaming-starting-offset", "latest-snapshot")
     .load("database.table_name")
 ```
 
 !!! note
-    `streaming-start-from` and `stream-from-timestamp` are mutually exclusive in intent: when `stream-from-timestamp` is set it always takes precedence and `streaming-start-from` is ignored.
+    `streaming-starting-offset` and `stream-from-timestamp` are mutually exclusive in intent: when `stream-from-timestamp` is set it always takes precedence and `streaming-starting-offset` is ignored.
 
 ### Limit input rate
 To control the size of micro-batches in the DataFrame API, Iceberg supports two read options:
