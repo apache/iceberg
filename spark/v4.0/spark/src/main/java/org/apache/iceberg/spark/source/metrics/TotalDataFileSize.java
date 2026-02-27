@@ -22,7 +22,7 @@ import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
 public class TotalDataFileSize extends CustomSumMetric {
 
-  static final String NAME = "totalDataFileSize";
+  public static final String NAME = "totalDataFileSize";
 
   @Override
   public String name() {
