@@ -110,7 +110,7 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    * @return this for method chaining
    */
   default RewriteTablePath targetTable(Table targetTable) {
-    return this;
+    throw new UnsupportedOperationException("This method is not implemented.");
   }
 
   /** The action result that contains a summary of the execution. */
