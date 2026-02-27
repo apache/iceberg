@@ -34,6 +34,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -48,21 +51,36 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
 
   private Map<String, String> flinkConf;
+
+  @Parameter(index = 0)
+  private String lockType;
+
+  @Parameters(name = "lockType = {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {{LockConfig.JdbcLockConfig.JDBC}, {""}};
+  }
 
   @BeforeEach
   void before() throws IOException {
     this.flinkConf = Maps.newHashMap();
     flinkConf.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), "true");
-    flinkConf.put(LockConfig.LOCK_TYPE_OPTION.key(), LockConfig.JdbcLockConfig.JDBC);
-    flinkConf.put(
-        LockConfig.JdbcLockConfig.JDBC_URI_OPTION.key(),
-        "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
-    flinkConf.put(LockConfig.LOCK_ID_OPTION.key(), "test-lock-id");
+    if (lockType.equals(LockConfig.JdbcLockConfig.JDBC)) {
+      flinkConf.put(LockConfig.LOCK_TYPE_OPTION.key(), LockConfig.JdbcLockConfig.JDBC);
+      flinkConf.put(
+          LockConfig.JdbcLockConfig.JDBC_URI_OPTION.key(),
+          "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
+      flinkConf.put(LockConfig.LOCK_ID_OPTION.key(), "test-lock-id");
+    } else {
+      flinkConf.put(LockConfig.LOCK_TYPE_OPTION.key(), "");
+    }
+
     flinkConf.put(RewriteDataFilesConfig.SCHEDULE_ON_DATA_FILE_SIZE, "1");
 
     flinkConf.put(LockConfig.JdbcLockConfig.JDBC_INIT_LOCK_TABLE_OPTION.key(), "true");
@@ -85,7 +103,7 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
     tableLoader = CATALOG_EXTENSION.tableLoader();
   }
 
-  @Test
+  @TestTemplate
   public void testCompactFileE2e() throws Exception {
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
     DataStream<RowData> dataStream =
@@ -122,7 +140,7 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
     return dataFiles;
   }
 
-  @Test
+  @TestTemplate
   public void testTableMaintenanceOperatorAdded() {
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
     DataStream<RowData> dataStream =

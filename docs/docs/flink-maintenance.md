@@ -124,6 +124,10 @@ TriggerLockFactory lockFactory = new ZkLockFactory(
 );
 ```
 
+#### Coordinator Lock
+
+Maintain the lock within Flink itself, and use the Coordinator to communicate lock acquisition and release.
+
 ### Quick Start
 
 The following example demonstrates the implementation of automated maintenance for an Iceberg table within a Flink environment.
@@ -148,6 +152,36 @@ TriggerLockFactory lockFactory = new JdbcLockFactory(
 );
 
 TableMaintenance.forTable(env, tableLoader, lockFactory)
+    .uidSuffix("my-maintenance-job")
+    .rateLimit(Duration.ofMinutes(10))
+    .lockCheckDelay(Duration.ofSeconds(10))
+    .add(ExpireSnapshots.builder()
+        .scheduleOnCommitCount(10)
+        .maxSnapshotAge(Duration.ofMinutes(10))
+        .retainLast(5)
+        .deleteBatchSize(5)
+        .parallelism(8))
+    .add(RewriteDataFiles.builder()
+        .scheduleOnDataFileCount(10)
+        .targetFileSizeBytes(128 * 1024 * 1024)
+        .partialProgressEnabled(true)
+        .partialProgressMaxCommits(10))
+    .append();
+
+env.execute("Table Maintenance Job");
+```
+
+Use Coordinator Lock
+
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+TableLoader tableLoader = TableLoader.fromCatalog(
+    CatalogLoader.hive("my_catalog", configuration, properties),  
+    TableIdentifier.of("database", "table")
+);
+
+TableMaintenance.forTable(env, tableLoader)
     .uidSuffix("my-maintenance-job")
     .rateLimit(Duration.ofMinutes(10))
     .lockCheckDelay(Duration.ofSeconds(10))
@@ -380,6 +414,12 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 | `flink-maintenance.lock.zookeeper.base-sleep-ms` | Base sleep between retries (ms) | `3000` |
 | `flink-maintenance.lock.zookeeper.max-sleep-ms`          | Maximum sleep time (ms) between retries. Caps the exponential backoff delay.  | `10000` |
 | `flink-maintenance.lock.zookeeper.retry-policy`          | Retry policy name for ZooKeeper client. Supported values include: ONE_TIME, N_TIME, BOUNDED_EXPONENTIAL_BACKOFF, UNTIL_ELAPSED, EXPONENTIAL_BACKOFF.  | `EXPONENTIAL_BACKOFF` |
+
+- COORDINATOR LOCK
+
+| Key | Description          | Default |
+|-----|----------------------|---------|
+| `flink-maintenance.lock.type` | Set to `` or not set |  |
 
 ### Best Practices
 

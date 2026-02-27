@@ -39,6 +39,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -51,7 +52,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkTableSinkCompaction extends CatalogTestBase {
 
   private static final TypeInformation<Row> ROW_TYPE_INFO =
@@ -75,15 +78,25 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
           + "'flink-maintenance.rewrite.rewrite-all'='true',"
           + "'flink-maintenance.rewrite.schedule.data-file-size'='1',"
           + "'flink-maintenance.lock-check-delay-seconds'='60'";
+  private static final String TABLE_PROPERTIES_COORDINATOR =
+      "'flink-maintenance.lock.jdbc.init-lock-table'='true',"
+          + "'flink-maintenance.rewrite.rewrite-all'='true',"
+          + "'flink-maintenance.rewrite.schedule.data-file-size'='1',"
+          + "'flink-maintenance.lock-check-delay-seconds'='60'";
 
   @Parameter(index = 2)
   private boolean userSqlHint;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, userSqlHint={2}")
+  @Parameter(index = 3)
+  private String lockType;
+
+  @Parameters(name = "catalogName={0}, baseNamespace={1}, userSqlHint={2}, lockType={3}")
   public static List<Object[]> parameters() {
     return Arrays.asList(
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), true},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), false});
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), true, "jdbc"},
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), false, "jdbc"},
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), true, ""},
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), false, ""});
   }
 
   @Override
@@ -118,7 +131,13 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
     if (userSqlHint) {
       sql("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
     } else {
-      sql("CREATE TABLE %s (id int, data varchar) with (%s)", TABLE_NAME, TABLE_PROPERTIES);
+      if (lockType.equals("jdbc")) {
+        sql("CREATE TABLE %s (id int, data varchar) with (%s)", TABLE_NAME, TABLE_PROPERTIES);
+      } else {
+        sql(
+            "CREATE TABLE %s (id int, data varchar) with (%s)",
+            TABLE_NAME, TABLE_PROPERTIES_COORDINATOR);
+      }
     }
 
     icebergTable = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
@@ -144,9 +163,15 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
 
     // Redirect the records from source table to destination table.
     if (userSqlHint) {
-      sql(
-          "INSERT INTO %s /*+ OPTIONS(%s) */ SELECT id,data from sourceTable",
-          TABLE_NAME, TABLE_PROPERTIES);
+      if (lockType.equals("jdbc")) {
+        sql(
+            "INSERT INTO %s /*+ OPTIONS(%s) */ SELECT id,data from sourceTable",
+            TABLE_NAME, TABLE_PROPERTIES);
+      } else {
+        sql(
+            "INSERT INTO %s /*+ OPTIONS(%s) */ SELECT id,data from sourceTable",
+            TABLE_NAME, TABLE_PROPERTIES_COORDINATOR);
+      }
     } else {
       sql("INSERT INTO %s SELECT id,data from sourceTable", TABLE_NAME);
     }
