@@ -614,21 +614,19 @@ final class JdbcUtil {
             sql.setString(1, catalogName);
             sql.setString(2, namespaceToString(identifier.namespace()));
             sql.setString(3, identifier.name());
-            ResultSet rs = sql.executeQuery();
-
-            if (rs.next()) {
-              tableOrView.put(CATALOG_NAME, rs.getString(CATALOG_NAME));
-              tableOrView.put(TABLE_NAMESPACE, rs.getString(TABLE_NAMESPACE));
-              tableOrView.put(TABLE_NAME, rs.getString(TABLE_NAME));
-              tableOrView.put(
-                  BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
-                  rs.getString(BaseMetastoreTableOperations.METADATA_LOCATION_PROP));
-              tableOrView.put(
-                  BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP,
-                  rs.getString(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP));
+            try (ResultSet rs = sql.executeQuery()) {
+              if (rs.next()) {
+                tableOrView.put(CATALOG_NAME, rs.getString(CATALOG_NAME));
+                tableOrView.put(TABLE_NAMESPACE, rs.getString(TABLE_NAMESPACE));
+                tableOrView.put(TABLE_NAME, rs.getString(TABLE_NAME));
+                tableOrView.put(
+                    BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
+                    rs.getString(BaseMetastoreTableOperations.METADATA_LOCATION_PROP));
+                tableOrView.put(
+                    BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP,
+                    rs.getString(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP));
+              }
             }
-
-            rs.close();
           }
 
           return tableOrView;
