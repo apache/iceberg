@@ -106,7 +106,6 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     return new SparkBatch(
         sparkContext,
         table,
-        scan::io,
         readConf,
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),

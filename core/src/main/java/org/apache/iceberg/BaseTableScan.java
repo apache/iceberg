@@ -45,6 +45,6 @@ abstract class BaseTableScan extends SnapshotScan<TableScan, FileScanTask, Combi
     CloseableIterable<FileScanTask> splitFiles =
         TableScanUtil.splitFiles(fileScanTasks, targetSplitSize());
     return TableScanUtil.planTasks(
-        splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
+        splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost(), io());
   }
 }

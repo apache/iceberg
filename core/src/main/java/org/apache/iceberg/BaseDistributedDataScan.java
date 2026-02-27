@@ -190,7 +190,7 @@ abstract class BaseDistributedDataScan
   @Override
   public CloseableIterable<ScanTaskGroup<ScanTask>> planTasks() {
     return TableScanUtil.planTaskGroups(
-        planFiles(), targetSplitSize(), splitLookback(), splitOpenFileCost());
+        planFiles(), targetSplitSize(), splitLookback(), splitOpenFileCost(), io());
   }
 
   private List<ManifestFile> findMatchingDataManifests(Snapshot snapshot) {

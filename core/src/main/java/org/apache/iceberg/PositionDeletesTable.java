@@ -223,7 +223,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<ScanTaskGroup<ScanTask>> planTasks() {
       return TableScanUtil.planTaskGroups(
-          planFiles(), targetSplitSize(), splitLookback(), splitOpenFileCost());
+          planFiles(), targetSplitSize(), splitLookback(), splitOpenFileCost(), io());
     }
 
     @Override

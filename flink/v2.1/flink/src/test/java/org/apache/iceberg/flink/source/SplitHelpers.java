@@ -128,7 +128,7 @@ public class SplitHelpers {
                 List<List<FileScanTask>> filesList =
                     Lists.partition(Lists.newArrayList(split.task().files()), filesPerSplit);
                 return filesList.stream()
-                    .map(files -> new BaseCombinedScanTask(files))
+                    .map(files -> new BaseCombinedScanTask(files, table.io()))
                     .map(
                         combinedScanTask ->
                             IcebergSourceSplit.fromCombinedScanTask(combinedScanTask));

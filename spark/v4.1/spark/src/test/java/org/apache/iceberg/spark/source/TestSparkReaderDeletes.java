@@ -326,11 +326,12 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             table.newScan().planFiles(),
             TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
             TableProperties.SPLIT_LOOKBACK_DEFAULT,
-            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT,
+            table.io());
 
     for (CombinedScanTask task : tasks) {
       try (EqualityDeleteRowReader reader =
-          new EqualityDeleteRowReader(task, table, table.io(), table.schema(), false, true)) {
+          new EqualityDeleteRowReader(task, table, table.schema(), false, true)) {
         while (reader.next()) {
           actualRowSet.add(
               new InternalRowWrapper(
@@ -667,7 +668,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             dateTable.newScan().planFiles(),
             TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
             TableProperties.SPLIT_LOOKBACK_DEFAULT,
-            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT,
+            table.io());
 
     ParquetBatchReadConf conf =
         ImmutableParquetBatchReadConf.builder()
@@ -679,14 +681,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
       try (BatchDataReader reader =
           new BatchDataReader(
               // expected column is id, while the equality filter column is dt
-              dateTable,
-              dateTable.io(),
-              task,
-              dateTable.schema().select("id"),
-              false,
-              conf,
-              null,
-              true)) {
+              dateTable, task, dateTable.schema().select("id"), false, conf, null, true)) {
         while (reader.next()) {
           ColumnarBatch columnarBatch = reader.get();
           int numOfCols = columnarBatch.numCols();

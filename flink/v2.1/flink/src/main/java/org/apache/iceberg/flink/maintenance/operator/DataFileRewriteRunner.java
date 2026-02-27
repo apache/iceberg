@@ -216,7 +216,7 @@ public class DataFileRewriteRunner
             Collections.emptyList());
     return new DataIterator<>(
         reader,
-        new BaseCombinedScanTask(value.group().fileScanTasks()),
+        new BaseCombinedScanTask(value.group().fileScanTasks(), value.table().io()),
         value.table().io(),
         value.table().encryption());
   }

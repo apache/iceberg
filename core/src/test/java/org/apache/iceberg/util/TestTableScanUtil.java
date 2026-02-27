@@ -48,6 +48,7 @@ import org.apache.iceberg.TestBase;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -55,6 +56,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 public class TestTableScanUtil {
+  private final FileIO io = Mockito.mock(FileIO.class);
 
   private List<FileScanTask> tasksWithDataAndDeleteSizes(List<Pair<Long, Long[]>> sizePairs) {
     return sizePairs.stream()
@@ -114,13 +116,13 @@ public class TestTableScanUtil {
 
     List<CombinedScanTask> combinedScanTasks =
         Lists.newArrayList(
-            TableScanUtil.planTasks(CloseableIterable.withNoopClose(testFiles), 300L, 3, 50L));
+            TableScanUtil.planTasks(CloseableIterable.withNoopClose(testFiles), 300L, 3, 50L, io));
 
     List<CombinedScanTask> expectedCombinedTasks =
         Arrays.asList(
-            new BaseCombinedScanTask(Collections.singletonList(testFiles.get(0))),
-            new BaseCombinedScanTask(Arrays.asList(testFiles.get(1), testFiles.get(2))),
-            new BaseCombinedScanTask(Arrays.asList(testFiles.get(3), testFiles.get(4))));
+            new BaseCombinedScanTask(Collections.singletonList(testFiles.get(0)), io),
+            new BaseCombinedScanTask(Arrays.asList(testFiles.get(1), testFiles.get(2)), io),
+            new BaseCombinedScanTask(Arrays.asList(testFiles.get(3), testFiles.get(4)), io));
 
     assertThat(combinedScanTasks)
         .as("Should plan 3 Combined tasks since there is delete files to be considered")
@@ -145,7 +147,7 @@ public class TestTableScanUtil {
             new ChildTask3(32));
 
     CloseableIterable<ScanTaskGroup<ParentTask>> taskGroups =
-        TableScanUtil.planTaskGroups(CloseableIterable.withNoopClose(tasks), 128, 10, 4);
+        TableScanUtil.planTaskGroups(CloseableIterable.withNoopClose(tasks), 128, 10, 4, io);
     assertThat(taskGroups).as("Must have 3 task groups").hasSize(3);
   }
 
@@ -176,7 +178,8 @@ public class TestTableScanUtil {
 
     int taskCount = 0;
     for (ScanTaskGroup<BaseFileScanTask> task :
-        TableScanUtil.planTaskGroups(CloseableIterable.withNoopClose(baseFileScanTasks), 1, 1, 0)) {
+        TableScanUtil.planTaskGroups(
+            CloseableIterable.withNoopClose(baseFileScanTasks), 1, 1, 0, io)) {
       for (FileScanTask fileScanTask : task.tasks()) {
         DataFile taskDataFile = fileScanTask.file();
         assertThat(taskDataFile.splitOffsets()).isNull();
@@ -230,7 +233,7 @@ public class TestTableScanUtil {
 
     int count = 0;
     for (ScanTaskGroup<PartitionScanTask> task :
-        TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType())) {
+        TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType(), io)) {
       assertThat(task.filesCount()).isEqualTo(4);
       assertThat(task.sizeBytes()).isEqualTo(64 + 128 + 64 + 128);
       count += 1;
@@ -248,7 +251,7 @@ public class TestTableScanUtil {
 
     count = 0;
     for (ScanTaskGroup<PartitionScanTask> task :
-        TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType())) {
+        TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType(), io)) {
       assertThat(task.filesCount()).isEqualTo(2);
       assertThat(task.sizeBytes()).isEqualTo(64 + 128);
       count += 1;
@@ -265,7 +268,7 @@ public class TestTableScanUtil {
 
     count = 0;
     for (ScanTaskGroup<PartitionScanTask> task :
-        TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType())) {
+        TableScanUtil.planTaskGroups(tasks, 512, 10, 4, SPEC1.partitionType(), io)) {
       assertThat(task.filesCount()).isEqualTo(2);
       assertThat(task.sizeBytes()).isEqualTo(64 + 128);
       count += 1;
@@ -283,7 +286,7 @@ public class TestTableScanUtil {
 
     count = 0;
     for (ScanTaskGroup<PartitionScanTask> task :
-        TableScanUtil.planTaskGroups(tasks, 128, 10, 4, SPEC1.partitionType())) {
+        TableScanUtil.planTaskGroups(tasks, 128, 10, 4, SPEC1.partitionType(), io)) {
       assertThat(task.filesCount()).isOne();
       assertThat(task.sizeBytes()).isEqualTo(128);
       count += 1;
@@ -297,7 +300,7 @@ public class TestTableScanUtil {
             taskWithPartition(SPEC1, PARTITION1, 128), taskWithPartition(SPEC2, PARTITION2, 128));
 
     assertThatThrownBy(
-            () -> TableScanUtil.planTaskGroups(tasks2, 128, 10, 4, SPEC2.partitionType()))
+            () -> TableScanUtil.planTaskGroups(tasks2, 128, 10, 4, SPEC2.partitionType(), io))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot find field");
   }

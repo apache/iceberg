@@ -65,7 +65,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final boolean caseSensitive;
   private final String projection;
   private final Broadcast<Table> tableBroadcast;
-  private final Broadcast<FileIO> fileIOBroadcast;
   private final long splitSize;
   private final int splitLookback;
   private final long splitOpenFileCost;
@@ -92,7 +91,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.projection = SchemaParser.toJson(projection);
     this.localityPreferred = readConf.localityEnabled();
     this.tableBroadcast = sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
-    this.fileIOBroadcast = sparkContext.broadcast(SerializableFileIOWithSize.copyOf(fileIO.get()));
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
@@ -150,7 +148,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         TableScanUtil.splitFiles(CloseableIterable.withNoopClose(fileScanTasks), splitSize);
     List<CombinedScanTask> combinedScanTasks =
         Lists.newArrayList(
-            TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
+            TableScanUtil.planTasks(
+                splitTasks, splitSize, splitLookback, splitOpenFileCost, fileIO.get()));
     String[][] locations = computePreferredLocations(combinedScanTasks);
 
     InputPartition[] partitions = new InputPartition[combinedScanTasks.size()];
@@ -161,7 +160,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
               EMPTY_GROUPING_KEY_TYPE,
               combinedScanTasks.get(index),
               tableBroadcast,
-              fileIOBroadcast,
               projection,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
@@ -172,9 +170,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   }
 
   private String[][] computePreferredLocations(List<CombinedScanTask> taskGroups) {
-    return localityPreferred
-        ? SparkPlanningUtil.fetchBlockLocations(fileIO.get(), taskGroups)
-        : null;
+    return localityPreferred ? SparkPlanningUtil.fetchBlockLocations(taskGroups) : null;
   }
 
   @Override

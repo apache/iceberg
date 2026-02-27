@@ -20,13 +20,12 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.RESTCatalogProperties;
@@ -78,15 +77,14 @@ public class TestRemoteScanPlanning extends TestSelect {
   }
 
   private void verifyFileIOHasPlanId(Batch batch, Table table) {
-    FileIO fileIOForScan =
-        (FileIO)
-            assertThat(batch)
-                .extracting("fileIO")
-                .isInstanceOf(Supplier.class)
-                .asInstanceOf(InstanceOfAssertFactories.type(Supplier.class))
-                .actual()
-                .get();
-    assertThat(fileIOForScan.properties()).containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    assertThat(batch)
+        .extracting("taskGroups")
+        .asInstanceOf(InstanceOfAssertFactories.list(ScanTaskGroup.class))
+        .allSatisfy(
+            group ->
+                assertThat(group.io().properties())
+                    .containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID));
+
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
   }
 }

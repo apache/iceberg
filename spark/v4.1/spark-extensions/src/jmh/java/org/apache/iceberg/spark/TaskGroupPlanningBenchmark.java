@@ -112,7 +112,8 @@ public class TaskGroupPlanningBenchmark {
             fileTasks,
             readConf.splitSize(),
             readConf.splitLookback(),
-            readConf.splitOpenFileCost());
+            readConf.splitOpenFileCost(),
+            table.io());
 
     long rowsCount = 0L;
     for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {
@@ -144,7 +145,8 @@ public class TaskGroupPlanningBenchmark {
             readConf.splitSize(),
             readConf.splitLookback(),
             readConf.splitOpenFileCost(),
-            Partitioning.groupingKeyType(table.schema(), table.specs().values()));
+            Partitioning.groupingKeyType(table.schema(), table.specs().values()),
+            table.io());
 
     long rowsCount = 0L;
     for (ScanTaskGroup<FileScanTask> taskGroup : taskGroups) {

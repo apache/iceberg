@@ -263,7 +263,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
                       TableScanUtil.splitFiles(
                           CloseableIterable.withNoopClose(scanTasks), targetSizeInBytes);
                   return TableScanUtil.planTasks(
-                      splitTasks, targetSizeInBytes, splitLookback, splitOpenFileCost);
+                      splitTasks, targetSizeInBytes, splitLookback, splitOpenFileCost, fileIO);
                 })
             .flatMap(Streams::stream)
             .filter(task -> task.files().size() > 1 || isPartialFileScan(task))

@@ -90,7 +90,7 @@ public class TestBaseReader {
     private final Map<String, CloseableIntegerRange> tracker = Maps.newHashMap();
 
     ClosureTrackingReader(Table table, List<FileScanTask> tasks) {
-      super(table, table.io(), new BaseCombinedScanTask(tasks), null, false, true);
+      super(table, new BaseCombinedScanTask(tasks, table.io()), null, false, true);
     }
 
     @Override

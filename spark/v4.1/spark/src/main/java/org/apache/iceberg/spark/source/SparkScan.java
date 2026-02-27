@@ -125,6 +125,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       Supplier<ScanReport> scanReportSupplier) {
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
     SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, projection);
+
     this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
@@ -174,14 +175,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public Batch toBatch() {
     return new SparkBatch(
-        sparkContext,
-        table,
-        fileIO,
-        readConf,
-        groupingKeyType(),
-        taskGroups(),
-        projection,
-        hashCode());
+        sparkContext, table, readConf, groupingKeyType(), taskGroups(), projection, hashCode());
   }
 
   @Override

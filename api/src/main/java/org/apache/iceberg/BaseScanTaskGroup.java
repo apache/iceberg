@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.Collections;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -29,16 +30,36 @@ public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
   private final StructLike groupingKey;
   private final Object[] tasks;
   private transient volatile Collection<T> taskCollection;
+  private final FileIO fileIO;
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     BaseScanTaskGroup#BaseScanTaskGroup(StructLike, Collection, FileIO)} instead.
+   */
+  @Deprecated
   public BaseScanTaskGroup(StructLike groupingKey, Collection<T> tasks) {
+    this(groupingKey, tasks, null);
+  }
+
+  public BaseScanTaskGroup(StructLike groupingKey, Collection<T> tasks, FileIO fileIO) {
     Preconditions.checkNotNull(tasks, "tasks cannot be null");
     this.groupingKey = groupingKey;
     this.tasks = tasks.toArray();
     this.taskCollection = Collections.unmodifiableCollection(tasks);
+    this.fileIO = fileIO;
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     BaseScanTaskGroup#BaseScanTaskGroup(Collection, FileIO)} instead.
+   */
+  @Deprecated
   public BaseScanTaskGroup(Collection<T> tasks) {
-    this(EmptyStructLike.get(), tasks);
+    this(EmptyStructLike.get(), tasks, null);
+  }
+
+  public BaseScanTaskGroup(Collection<T> tasks, FileIO fileIO) {
+    this(EmptyStructLike.get(), tasks, fileIO);
   }
 
   @Override
@@ -95,5 +116,10 @@ public class BaseScanTaskGroup<T extends ScanTask> implements ScanTaskGroup<T> {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this).add("tasks", Joiner.on(", ").join(tasks)).toString();
+  }
+
+  @Override
+  public FileIO io() {
+    return fileIO;
   }
 }

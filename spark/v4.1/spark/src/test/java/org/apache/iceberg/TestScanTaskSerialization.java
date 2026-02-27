@@ -156,13 +156,13 @@ public class TestScanTaskSerialization extends TestBase {
   private BaseCombinedScanTask prepareBaseCombinedScanTaskForSerDeTest() {
     Table table = initTable();
     CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    return new BaseCombinedScanTask(Lists.newArrayList(tasks));
+    return new BaseCombinedScanTask(Lists.newArrayList(tasks), table.io());
   }
 
   private BaseScanTaskGroup<FileScanTask> prepareBaseScanTaskGroupForSerDeTest() {
     Table table = initTable();
     CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    return new BaseScanTaskGroup<>(ImmutableList.copyOf(tasks));
+    return new BaseScanTaskGroup<>(ImmutableList.copyOf(tasks), table.io());
   }
 
   private Table initTable() {

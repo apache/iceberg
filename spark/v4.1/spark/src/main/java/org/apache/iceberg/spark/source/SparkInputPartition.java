@@ -24,7 +24,6 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -35,7 +34,6 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
   private final Types.StructType groupingKeyType;
   private final ScanTaskGroup<?> taskGroup;
   private final Broadcast<Table> tableBroadcast;
-  private final Broadcast<FileIO> fileIOBroadcast;
   private final String projectionString;
   private final boolean caseSensitive;
   private final transient String[] preferredLocations;
@@ -47,7 +45,6 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
       Types.StructType groupingKeyType,
       ScanTaskGroup<?> taskGroup,
       Broadcast<Table> tableBroadcast,
-      Broadcast<FileIO> fileIOBroadcast,
       String projectionString,
       boolean caseSensitive,
       String[] preferredLocations,
@@ -55,7 +52,6 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
-    this.fileIOBroadcast = fileIOBroadcast;
     this.projectionString = projectionString;
     this.caseSensitive = caseSensitive;
     this.preferredLocations = preferredLocations;
@@ -83,10 +79,6 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
 
   public Table table() {
     return tableBroadcast.value();
-  }
-
-  public FileIO io() {
-    return fileIOBroadcast.value();
   }
 
   public boolean isCaseSensitive() {
