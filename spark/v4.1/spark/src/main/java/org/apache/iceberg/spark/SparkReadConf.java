@@ -239,6 +239,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public StartingOffset streamingStartingOffset() {
+    return confParser
+        .enumConf(StartingOffset::fromName)
+        .option(SparkReadOptions.STREAMING_STARTING_OFFSET)
+        .defaultValue(SparkReadOptions.STREAMING_STARTING_OFFSET_DEFAULT)
+        .parse();
+  }
+
   public boolean preserveDataGrouping() {
     return confParser
         .booleanConf()

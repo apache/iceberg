@@ -22,39 +22,69 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.StartingOffset;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class MicroBatchUtils {
 
+  private static final Logger LOG = LoggerFactory.getLogger(MicroBatchUtils.class);
+
   private MicroBatchUtils() {}
 
-  static StreamingOffset determineStartingOffset(Table table, long fromTimestamp) {
+  static StreamingOffset determineStartingOffset(
+      Table table, long fromTimestamp, StartingOffset startingOffset) {
     if (table.currentSnapshot() == null) {
       return StreamingOffset.START_OFFSET;
     }
 
-    if (fromTimestamp == Long.MIN_VALUE) {
-      // start from the oldest snapshot, since default value is MIN_VALUE
-      // avoids looping to find first snapshot
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
+    if (fromTimestamp != Long.MIN_VALUE && startingOffset != StartingOffset.EARLIEST) {
+      LOG.warn(
+          "Both stream-from-timestamp and streaming-starting-offset are set; "
+              + "stream-from-timestamp takes precedence and streaming-starting-offset is ignored");
     }
 
-    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
-      return StreamingOffset.START_OFFSET;
-    }
+    Snapshot startSnapshot;
 
-    try {
-      Snapshot snapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
-      if (snapshot != null) {
-        return new StreamingOffset(snapshot.snapshotId(), 0, false);
-      } else {
+    if (fromTimestamp != Long.MIN_VALUE) {
+      // stream-from-timestamp takes full precedence; streaming-starting-offset is entirely ignored
+      if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
         return StreamingOffset.START_OFFSET;
       }
-    } catch (IllegalStateException e) {
-      // could not determine the first snapshot after the timestamp. use the oldest ancestor instead
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
+
+      Snapshot tsSnapshot;
+      try {
+        tsSnapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
+        if (tsSnapshot == null) {
+          return StreamingOffset.START_OFFSET;
+        }
+      } catch (IllegalStateException e) {
+        // could not determine the first snapshot after the timestamp; use the oldest ancestor
+        tsSnapshot = SnapshotUtil.oldestAncestor(table);
+      }
+
+      return new StreamingOffset(tsSnapshot.snapshotId(), 0, false);
+    } else if (startingOffset.useLatest()) {
+      startSnapshot = table.currentSnapshot();
+    } else {
+      startSnapshot = SnapshotUtil.oldestAncestor(table);
     }
+
+    // When scanAllFiles=false (LATEST mode), the stream iterates only addedDataFiles() for
+    // the starting snapshot. Setting position = addedFilesCount skips all of them, so
+    // processing begins only from the next snapshot's added files.
+    long position = 0;
+    if (startingOffset == StartingOffset.LATEST) {
+      long addedFiles =
+          PropertyUtil.propertyAsLong(
+              startSnapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1L);
+      position =
+          addedFiles == -1L ? Iterables.size(startSnapshot.addedDataFiles(table.io())) : addedFiles;
+    }
+
+    return new StreamingOffset(startSnapshot.snapshotId(), position, startingOffset.scanAllFiles());
   }
 
   static long addedFilesCount(Table table, Snapshot snapshot) {
