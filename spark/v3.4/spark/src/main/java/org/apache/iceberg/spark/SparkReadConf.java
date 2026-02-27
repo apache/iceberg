@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.PlanningMode.LOCAL;
 
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.SupportsDistributedScanPlanning;
@@ -263,6 +264,30 @@ public class SparkReadConf {
         .option(SparkReadOptions.STREAMING_MAX_ROWS_PER_MICRO_BATCH)
         .defaultValue(Integer.MAX_VALUE)
         .parse();
+  }
+
+  public StartingOffset streamingStartingOffsets() {
+    String value =
+        confParser
+            .stringConf()
+            .option(SparkReadOptions.STREAMING_STARTING_OFFSETS)
+            .defaultValue(SparkReadOptions.STREAMING_STARTING_OFFSETS_DEFAULT)
+            .parse();
+    switch (value.toLowerCase(Locale.ROOT)) {
+      case "earliest":
+        return StartingOffset.EARLIEST;
+      case "latest":
+        return StartingOffset.LATEST;
+      case "earliest-with-snapshot":
+        return StartingOffset.EARLIEST_WITH_SNAPSHOT;
+      case "latest-with-snapshot":
+        return StartingOffset.LATEST_WITH_SNAPSHOT;
+      default:
+        throw new IllegalArgumentException(
+            "Invalid streaming-starting-offsets value: "
+                + value
+                + ". Expected one of: earliest, latest, earliest-with-snapshot, latest-with-snapshot");
+    }
   }
 
   public boolean preserveDataGrouping() {

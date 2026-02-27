@@ -74,11 +74,6 @@ public class SparkReadOptions {
       "streaming-skip-overwrite-snapshots";
   public static final boolean STREAMING_SKIP_OVERWRITE_SNAPSHOTS_DEFAULT = false;
 
-  // Controls whether to allow reading timestamps without zone info
-  @Deprecated
-  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
-      "handle-timestamp-without-timezone";
-
   // Controls whether to report locality information to Spark while allocating input partitions
   public static final String LOCALITY = "locality";
 
@@ -91,6 +86,10 @@ public class SparkReadOptions {
   // maximum rows per micro_batch
   public static final String STREAMING_MAX_ROWS_PER_MICRO_BATCH =
       "streaming-max-rows-per-micro-batch";
+
+  // Controls where a streaming query starts when there is no checkpoint
+  public static final String STREAMING_STARTING_OFFSETS = "streaming-starting-offsets";
+  public static final String STREAMING_STARTING_OFFSETS_DEFAULT = "earliest";
 
   // Table path
   public static final String PATH = "path";

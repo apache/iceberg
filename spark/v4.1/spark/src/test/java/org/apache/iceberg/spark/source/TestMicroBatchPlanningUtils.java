@@ -24,6 +24,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.spark.CatalogTestBase;
+import org.apache.iceberg.spark.StartingOffset;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -78,7 +79,8 @@ public class TestMicroBatchPlanningUtils extends CatalogTestBase {
     table.refresh();
     long snapshot2Id = table.currentSnapshot().snapshotId();
 
-    StreamingOffset offset = MicroBatchUtils.determineStartingOffset(table, snapshot1Time + 1);
+    StreamingOffset offset =
+        MicroBatchUtils.determineStartingOffset(table, snapshot1Time + 1, StartingOffset.EARLIEST);
 
     assertThat(offset.snapshotId()).isEqualTo(snapshot2Id);
     assertThat(offset.position()).isEqualTo(0L);
