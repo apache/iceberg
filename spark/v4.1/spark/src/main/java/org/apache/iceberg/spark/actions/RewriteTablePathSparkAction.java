@@ -241,31 +241,26 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     }
 
     String targetVersionFullPath = currentMetadataPath(targetTable);
-    String targetVersionName = RewriteTablePathUtil.fileName(targetVersionFullPath);
-    String sourceVersionFullPath = findVersion(targetVersionName, sourceMetadata);
+    String sourceVersionFullPath = findVersion(targetVersionFullPath, sourceMetadata);
 
     Preconditions.checkState(
         sourceVersionFullPath != null,
         "The current version of the target table (\"%s\") does not exist in the source table.",
-        targetVersionName);
-
-    Preconditions.checkState(
-        isSameSnapshot(sourceVersionFullPath, targetVersionFullPath),
-        "The snapshot ids found in source and target table version \"%s\" are not identical.",
-        targetVersionName);
+        RewriteTablePathUtil.fileName(targetVersionFullPath));
 
     checkVersionAndAllFilesExistsOrThrow(targetVersionFullPath, targetTable);
     return sourceVersionFullPath;
   }
 
   private String findVersion(String version, TableMetadata sourceMetadata) {
-    String currentSourceMetadataFile = currentMetadataPath(table);
-    if (currentSourceMetadataFile.endsWith(version)) {
+    String currentSourceMetadataFile = sourceMetadata.metadataFileLocation();
+
+    if (isSameSnapshot(currentSourceMetadataFile, version)) {
       return currentSourceMetadataFile;
     }
 
     for (MetadataLogEntry entry : sourceMetadata.previousFiles()) {
-      if (entry.file().endsWith(version)) {
+      if (isSameSnapshot(entry.file(), version)) {
         return entry.file();
       }
     }

@@ -1559,7 +1559,8 @@ public class TestRewriteTablePathsAction extends TestBase {
                     .rewriteLocationPrefix(sourceLocation, targetLocation)
                     .execute())
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("are not identical");
+        .hasMessageContaining(
+            "The current version of the target table (\"v5.metadata.json\") does not exist in the source table.");
   }
 
   protected void checkFileNum(
