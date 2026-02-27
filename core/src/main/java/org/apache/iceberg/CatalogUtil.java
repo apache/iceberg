@@ -587,10 +587,17 @@ public class CatalogUtil {
       // be removed
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
       if (io instanceof SupportsBulkOperations) {
-        ((SupportsBulkOperations) io)
-            .deleteFiles(
-                Iterables.transform(
-                    removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
+        try {
+          ((SupportsBulkOperations) io)
+              .deleteFiles(
+                  Iterables.transform(
+                      removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
+        } catch (Exception e) {
+          LOG.warn(
+              "Failed to bulk delete {} previous metadata files",
+              removedPreviousMetadataFiles.size(),
+              e);
+        }
       } else {
         Tasks.foreach(removedPreviousMetadataFiles)
             .noRetry()
