@@ -31,16 +31,10 @@ interface BaseRewriteTablePath extends RewriteTablePath {
   @Value.Immutable
   interface Result extends RewriteTablePath.Result {
     @Override
-    @Value.Default
-    default String dataFileListLocation() {
-      return RewriteTablePath.Result.super.dataFileListLocation();
-    }
+    String dataFileListLocation();
 
     @Override
-    @Value.Default
-    default String metadataFileListLocation() {
-      return RewriteTablePath.Result.super.metadataFileListLocation();
-    }
+    String metadataFileListLocation();
 
     @Override
     @Value.Default
