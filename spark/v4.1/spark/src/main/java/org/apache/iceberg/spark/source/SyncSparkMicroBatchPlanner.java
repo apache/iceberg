@@ -126,14 +126,14 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     }
 
     // end offset can expand to multiple snapshots
-    StreamingOffset startingOffset = startOffset;
+    StreamingOffset effectiveStart = startOffset;
 
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, startFrom);
+      effectiveStart = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, startFrom);
     }
 
-    Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
-    validateCurrentSnapshotExists(curSnapshot, startingOffset);
+    Snapshot curSnapshot = table().snapshot(effectiveStart.snapshotId());
+    validateCurrentSnapshotExists(curSnapshot, effectiveStart);
 
     // Use the pre-computed snapshotId when Trigger.AvailableNow is enabled.
     long latestSnapshotId =
@@ -141,9 +141,9 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
             ? lastOffsetForTriggerAvailableNow.snapshotId()
             : table().currentSnapshot().snapshotId();
 
-    int startPosOfSnapOffset = (int) startingOffset.position();
+    int startPosOfSnapOffset = (int) effectiveStart.position();
 
-    boolean scanAllFiles = startingOffset.shouldScanAllFiles();
+    boolean scanAllFiles = effectiveStart.shouldScanAllFiles();
 
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
@@ -225,7 +225,7 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
         new StreamingOffset(curSnapshot.snapshotId(), curPos, scanAllFiles);
 
     // if no new data arrived, then return null.
-    return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
+    return latestStreamingOffset.equals(effectiveStart) ? null : latestStreamingOffset;
   }
 
   @Override

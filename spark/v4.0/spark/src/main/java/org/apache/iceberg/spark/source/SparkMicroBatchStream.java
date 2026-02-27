@@ -307,20 +307,23 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     Snapshot startSnapshot;
 
     if (fromTimestamp != Long.MIN_VALUE) {
-      // stream-from-timestamp overrides earliest/latest selection
+      // stream-from-timestamp takes full precedence; streaming-start-from is entirely ignored
       if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
         return StreamingOffset.START_OFFSET;
       }
 
+      Snapshot tsSnapshot;
       try {
-        startSnapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
-        if (startSnapshot == null) {
+        tsSnapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
+        if (tsSnapshot == null) {
           return StreamingOffset.START_OFFSET;
         }
       } catch (IllegalStateException e) {
         // could not determine the first snapshot after the timestamp; use the oldest ancestor
-        startSnapshot = SnapshotUtil.oldestAncestor(table);
+        tsSnapshot = SnapshotUtil.oldestAncestor(table);
       }
+
+      return new StreamingOffset(tsSnapshot.snapshotId(), 0, false);
     } else if (startFrom.useLatest()) {
       startSnapshot = table.currentSnapshot();
     } else {
@@ -402,14 +405,14 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     }
 
     // end offset can expand to multiple snapshots
-    StreamingOffset startingOffset = (StreamingOffset) startOffset;
+    StreamingOffset effectiveStart = (StreamingOffset) startOffset;
 
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = determineStartingOffset(table, fromTimestamp, startFrom);
+      effectiveStart = determineStartingOffset(table, fromTimestamp, startFrom);
     }
 
-    Snapshot curSnapshot = table.snapshot(startingOffset.snapshotId());
-    validateCurrentSnapshotExists(curSnapshot, startingOffset);
+    Snapshot curSnapshot = table.snapshot(effectiveStart.snapshotId());
+    validateCurrentSnapshotExists(curSnapshot, effectiveStart);
 
     // Use the pre-computed snapshotId when Trigger.AvailableNow is enabled.
     long latestSnapshotId =
@@ -417,9 +420,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
             ? lastOffsetForTriggerAvailableNow.snapshotId()
             : table.currentSnapshot().snapshotId();
 
-    int startPosOfSnapOffset = (int) startingOffset.position();
+    int startPosOfSnapOffset = (int) effectiveStart.position();
 
-    boolean scanAllFiles = startingOffset.shouldScanAllFiles();
+    boolean scanAllFiles = effectiveStart.shouldScanAllFiles();
 
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
@@ -496,7 +499,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         new StreamingOffset(curSnapshot.snapshotId(), curPos, scanAllFiles);
 
     // if no new data arrived, then return null.
-    return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
+    return latestStreamingOffset.equals(effectiveStart) ? null : latestStreamingOffset;
   }
 
   /**

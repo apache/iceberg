@@ -49,20 +49,23 @@ class MicroBatchUtils {
     Snapshot startSnapshot;
 
     if (fromTimestamp != Long.MIN_VALUE) {
-      // stream-from-timestamp overrides earliest/latest selection
+      // stream-from-timestamp takes full precedence; streaming-start-from is entirely ignored
       if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
         return StreamingOffset.START_OFFSET;
       }
 
+      Snapshot tsSnapshot;
       try {
-        startSnapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
-        if (startSnapshot == null) {
+        tsSnapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
+        if (tsSnapshot == null) {
           return StreamingOffset.START_OFFSET;
         }
       } catch (IllegalStateException e) {
         // could not determine the first snapshot after the timestamp; use the oldest ancestor
-        startSnapshot = SnapshotUtil.oldestAncestor(table);
+        tsSnapshot = SnapshotUtil.oldestAncestor(table);
       }
+
+      return new StreamingOffset(tsSnapshot.snapshotId(), 0, false);
     } else if (startFrom.useLatest()) {
       startSnapshot = table.currentSnapshot();
     } else {
