@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
@@ -87,6 +88,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestFilterManager<DataFile> filterManager;
   private final ManifestMergeManager<DeleteFile> deleteMergeManager;
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
+  private final AtomicInteger dvMergeAttempt = new AtomicInteger(0);
 
   // update data
   private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
@@ -95,7 +97,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final Map<String, List<DeleteFile>> dvsByReferencedFile = Maps.newLinkedHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
-  private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
+  private final SnapshotSummary.Builder addedDataFilesSummary = SnapshotSummary.builder();
+  private final SnapshotSummary.Builder addedDeleteFilesSummary = SnapshotSummary.builder();
+
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
 
@@ -244,7 +248,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     DataFileSet dataFiles =
         newDataFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DataFileSet.create());
     if (dataFiles.add(Delegates.suppressFirstRowId(file))) {
-      addedFilesSummary.addedFile(spec, file);
+      addedDataFilesSummary.addedFile(spec, file);
       hasNewDataFiles = true;
     }
   }
@@ -958,7 +962,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     // update the snapshot summary
     summaryBuilder.clear();
-    summaryBuilder.merge(addedFilesSummary);
+    summaryBuilder.merge(addedDataFilesSummary);
+    summaryBuilder.merge(addedDeleteFilesSummary);
     summaryBuilder.merge(appendedManifestsSummary);
     summaryBuilder.merge(filterManager.buildSummary(filtered));
     summaryBuilder.merge(deleteFilterManager.buildSummary(filteredDeletes));
@@ -1067,12 +1072,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // this triggers a rewrite of all delete manifests even if there is only one new delete file
       // if there is a relevant use case in the future, the behavior can be optimized
       cachedNewDeleteManifests.clear();
-      // On cache invalidation of delete files, clear the whole summary.
-      // Since the summary contained both data files and DVs, add back the data files.
-      addedFilesSummary.clear();
-      newDataFilesBySpec.forEach(
-          (specId, dataFiles) ->
-              dataFiles.forEach(file -> addedFilesSummary.addedFile(spec(specId), file)));
+      // On cache invalidation of delete files, clear the summary.
+      addedDeleteFilesSummary.clear();
     }
 
     if (cachedNewDeleteManifests.isEmpty()) {
@@ -1084,7 +1085,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       newDeleteFilesBySpec.forEach(
           (specId, deleteFiles) -> {
             PartitionSpec spec = ops().current().spec(specId);
-            deleteFiles.forEach(file -> addedFilesSummary.addedFile(spec, file));
+            deleteFiles.forEach(file -> addedDeleteFilesSummary.addedFile(spec, file));
             List<ManifestFile> newDeleteManifests = writeDeleteManifests(deleteFiles, spec);
             cachedNewDeleteManifests.addAll(newDeleteManifests);
           });
@@ -1107,20 +1108,21 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     FileIO fileIO = EncryptingFileIO.combine(ops().io(), ops().encryption());
-    List<DeleteFile> finalDVs =
-        DVUtil.mergeAndWriteDVsIfRequired(
-            dvsByReferencedFile,
-            () -> {
-              String filename = FileFormat.PUFFIN.addExtension(String.valueOf(snapshotId()));
-              return fileIO.newOutputFile(ops().locationProvider().newDataLocation(filename));
-            },
-            fileIO,
-            ops().current().specsById(),
-            ThreadPools.getDeleteWorkerPool());
 
-    return finalDVs.stream()
-        .map(file -> Delegates.pendingDeleteFile(file, file.dataSequenceNumber()))
-        .collect(Collectors.toList());
+    String dvOutputLocation =
+        ops()
+            .locationProvider()
+            .newDataLocation(
+                FileFormat.PUFFIN.addExtension(
+                    String.format(
+                        "merged-dvs-%s-%s", snapshotId(), dvMergeAttempt.incrementAndGet())));
+
+    return DVUtil.mergeAndWriteDVsIfRequired(
+        dvsByReferencedFile,
+        dvOutputLocation,
+        fileIO,
+        ops().current().specsById(),
+        ThreadPools.getDeleteWorkerPool());
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
