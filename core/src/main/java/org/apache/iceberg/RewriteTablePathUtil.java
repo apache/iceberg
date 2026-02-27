@@ -366,6 +366,9 @@ public class RewriteTablePathUtil {
   /**
    * Rewrite a delete manifest, replacing path references.
    *
+   * <p>Position delete files are rewritten inline so that the manifest records the actual file size
+   * after path rewriting.
+   *
    * @param manifestFile source delete manifest to rewrite
    * @param snapshotIds snapshot ids for filtering returned delete manifest entries
    * @param outputFile output file to rewrite manifest file to
@@ -374,8 +377,8 @@ public class RewriteTablePathUtil {
    * @param specsById map of partition specs by id
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
-   * @param stagingLocation staging location for rewritten files (referred delete file will be
-   *     rewritten here)
+   * @param stagingLocation staging location for rewritten position delete files
+   * @param posDeleteReaderWriter reader/writer for position delete files
    * @return a copy plan of content files in the manifest that was rewritten
    */
   public static RewriteResult<DeleteFile> rewriteDeleteManifest(
@@ -387,7 +390,8 @@ public class RewriteTablePathUtil {
       Map<Integer, PartitionSpec> specsById,
       String sourcePrefix,
       String targetPrefix,
-      String stagingLocation)
+      String stagingLocation,
+      PositionDeleteReaderWriter posDeleteReaderWriter)
       throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
     try (ManifestWriter<DeleteFile> writer =
@@ -405,7 +409,9 @@ public class RewriteTablePathUtil {
                       sourcePrefix,
                       targetPrefix,
                       stagingLocation,
-                      writer))
+                      writer,
+                      io,
+                      posDeleteReaderWriter))
           .reduce(new RewriteResult<>(), RewriteResult::append);
     }
   }
@@ -445,25 +451,36 @@ public class RewriteTablePathUtil {
       String sourcePrefix,
       String targetPrefix,
       String stagingLocation,
-      ManifestWriter<DeleteFile> writer) {
+      ManifestWriter<DeleteFile> writer,
+      FileIO io,
+      PositionDeleteReaderWriter posDeleteReaderWriter) {
 
     DeleteFile file = entry.file();
     RewriteResult<DeleteFile> result = new RewriteResult<>();
 
     switch (file.content()) {
       case POSITION_DELETES:
-        DeleteFile posDeleteFile = newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix);
+        // Rewrite inline so the manifest records the actual file size, which changes because
+        // embedded data file paths are rewritten. The staging path is deterministic, so
+        // duplicates across manifests simply overwrite with identical content.
+        String staging = stagingPath(file.location(), sourcePrefix, stagingLocation);
+        OutputFile outputFile = io.newOutputFile(staging);
+        try {
+          rewritePositionDeleteFile(
+              file, outputFile, io, spec, sourcePrefix, targetPrefix, posDeleteReaderWriter);
+        } catch (IOException e) {
+          throw new UncheckedIOException(
+              "Failed to rewrite position delete file " + file.location(), e);
+        }
+        long actualSize = io.newInputFile(staging).getLength();
+        DeleteFile posDeleteFile =
+            newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix, actualSize);
         appendEntryWithFile(entry, writer, posDeleteFile);
         // keep the following entries in metadata but exclude them from copyPlan
         // 1) deleted position delete files
         // 2) entries not changed by snapshotIds
         if (entry.isLive() && snapshotIds.contains(entry.snapshotId())) {
-          result
-              .copyPlan()
-              .add(
-                  Pair.of(
-                      stagingPath(file.location(), sourcePrefix, stagingLocation),
-                      posDeleteFile.location()));
+          result.copyPlan().add(Pair.of(staging, posDeleteFile.location()));
         }
         result.toRewrite().add(file);
         return result;
@@ -523,7 +540,11 @@ public class RewriteTablePathUtil {
   }
 
   private static DeleteFile newPositionDeleteEntry(
-      DeleteFile file, PartitionSpec spec, String sourcePrefix, String targetPrefix) {
+      DeleteFile file,
+      PartitionSpec spec,
+      String sourcePrefix,
+      String targetPrefix,
+      long fileSizeInBytes) {
     String path = file.location();
     Preconditions.checkArgument(
         path.startsWith(sourcePrefix),
@@ -535,6 +556,7 @@ public class RewriteTablePathUtil {
         FileMetadata.deleteFileBuilder(spec)
             .copy(file)
             .withPath(newPath(path, sourcePrefix, targetPrefix))
+            .withFileSizeInBytes(fileSizeInBytes)
             .withMetrics(ContentFileUtil.replacePathBounds(file, sourcePrefix, targetPrefix));
 
     // Update referencedDataFile for DV files
