@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.s3;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -158,22 +159,30 @@ public class TestS3MultipartUpload {
             S3FileIOProperties.CHUNKED_ENCODING_ENABLED,
             Boolean.toString(chunkedEncodingEnabled)));
 
-    String testObjectUri =
-        objectUri + (chunkedEncodingEnabled ? "-chunked-enabled" : "-chunked-disabled");
     int parts = 10;
 
-    // Write data with specified chunked encoding setting
-    try (PositionOutputStream outputStream = testIo.newOutputFile(testObjectUri).create()) {
-      for (int i = 0; i < parts; i++) {
-        for (long j = 0; j < S3FileIOProperties.MULTIPART_SIZE_MIN; j++) {
-          outputStream.write(random.nextInt());
-        }
-      }
-    }
+    // Verify write and read with int
+    int expectedInt = 42;
+    String intObjectUri =
+        objectUri + (chunkedEncodingEnabled ? "-chunked-enabled" : "-chunked-disabled") + "-int";
+    writeInts(
+        testIo, intObjectUri, parts, S3FileIOProperties.MULTIPART_SIZE_MIN, () -> expectedInt);
 
-    // Verify the file was uploaded successfully
-    assertThat(testIo.newInputFile(testObjectUri).getLength())
+    assertThat(testIo.newInputFile(intObjectUri).getLength())
         .isEqualTo(parts * (long) S3FileIOProperties.MULTIPART_SIZE_MIN);
+    verifyInts(testIo, intObjectUri, () -> expectedInt);
+
+    // Verify write and read with bytes
+    byte expectedByte = 42;
+    String bytesObjectUri =
+        objectUri + (chunkedEncodingEnabled ? "-chunked-enabled" : "-chunked-disabled") + "-bytes";
+    byte[] expectedBytes = new byte[S3FileIOProperties.MULTIPART_SIZE_MIN];
+    Arrays.fill(expectedBytes, expectedByte);
+    writeBytes(testIo, bytesObjectUri, parts, () -> expectedBytes);
+
+    assertThat(testIo.newInputFile(bytesObjectUri).getLength())
+        .isEqualTo(parts * (long) S3FileIOProperties.MULTIPART_SIZE_MIN);
+    verifyBytes(testIo, bytesObjectUri, () -> expectedByte);
   }
 
   private void writeInts(String fileUri, int parts, Supplier<Integer> writer) {
@@ -181,7 +190,12 @@ public class TestS3MultipartUpload {
   }
 
   private void writeInts(String fileUri, int parts, long partSize, Supplier<Integer> writer) {
-    try (PositionOutputStream outputStream = io.newOutputFile(fileUri).create()) {
+    writeInts(io, fileUri, parts, partSize, writer);
+  }
+
+  private void writeInts(
+      S3FileIO fileIO, String fileUri, int parts, long partSize, Supplier<Integer> writer) {
+    try (PositionOutputStream outputStream = fileIO.newOutputFile(fileUri).create()) {
       for (int i = 0; i < parts; i++) {
         for (long j = 0; j < partSize; j++) {
           outputStream.write(writer.get());
@@ -193,7 +207,11 @@ public class TestS3MultipartUpload {
   }
 
   private void verifyInts(String fileUri, Supplier<Integer> verifier) {
-    try (SeekableInputStream inputStream = io.newInputFile(fileUri).newStream()) {
+    verifyInts(io, fileUri, verifier);
+  }
+
+  private void verifyInts(S3FileIO fileIO, String fileUri, Supplier<Integer> verifier) {
+    try (SeekableInputStream inputStream = fileIO.newInputFile(fileUri).newStream()) {
       int cur;
       while ((cur = inputStream.read()) != -1) {
         assertThat(cur).isEqualTo(verifier.get());
@@ -204,9 +222,31 @@ public class TestS3MultipartUpload {
   }
 
   private void writeBytes(String fileUri, int parts, Supplier<byte[]> writer) {
-    try (PositionOutputStream outputStream = io.newOutputFile(fileUri).create()) {
+    writeBytes(io, fileUri, parts, writer);
+  }
+
+  private void writeBytes(S3FileIO fileIO, String fileUri, int parts, Supplier<byte[]> writer) {
+    try (PositionOutputStream outputStream = fileIO.newOutputFile(fileUri).create()) {
       for (int i = 0; i < parts; i++) {
         outputStream.write(writer.get());
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private void verifyBytes(String fileUri, Supplier<Byte> verifier) {
+    verifyBytes(io, fileUri, verifier);
+  }
+
+  private void verifyBytes(S3FileIO fileIO, String fileUri, Supplier<Byte> verifier) {
+    try (SeekableInputStream inputStream = fileIO.newInputFile(fileUri).newStream()) {
+      byte[] readBuffer = new byte[S3FileIOProperties.MULTIPART_SIZE_MIN];
+      int bytesRead;
+      while ((bytesRead = inputStream.read(readBuffer)) != -1) {
+        for (int i = 0; i < bytesRead; i++) {
+          assertThat(readBuffer[i]).isEqualTo(verifier.get());
+        }
       }
     } catch (IOException e) {
       throw new RuntimeException(e);
