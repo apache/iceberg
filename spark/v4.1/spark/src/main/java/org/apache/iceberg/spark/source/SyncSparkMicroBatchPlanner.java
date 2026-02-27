@@ -129,7 +129,8 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     StreamingOffset effectiveStart = startOffset;
 
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      effectiveStart = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, startingOffset);
+      effectiveStart =
+          MicroBatchUtils.determineStartingOffset(table(), fromTimestamp, startingOffset);
     }
 
     Snapshot curSnapshot = table().snapshot(effectiveStart.snapshotId());
