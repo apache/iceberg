@@ -42,6 +42,9 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -629,12 +632,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     // in a new manifest, which will cause duplicate DeleteFile objects when processing
     tableWithPosDeletes.newRowDelta().addDeletes(positionDeletes).commit();
 
-    // This should NOT throw AlreadyExistsException - the fix uses DeleteFileSet to deduplicate
-    // Without the fix (using Collectors.toSet()), this would fail because:
-    // 1. Both manifests contain entries for the same delete file
-    // 2. Processing returns two different DeleteFile objects for the same file
-    // 3. HashSet doesn't deduplicate them (DeleteFile doesn't override equals())
-    // 4. rewritePositionDeletes tries to write the same file twice -> AlreadyExistsException
+    // This should NOT throw AlreadyExistsException
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(tableWithPosDeletes)
@@ -642,11 +640,53 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
             .execute();
 
-    // Verify the rewrite completed successfully - should have rewritten exactly 1 delete file
-    // (the duplicate should be deduplicated by DeleteFileSet)
     assertThat(result.rewrittenDeleteFilePathsCount())
         .as("Should have rewritten exactly 1 delete file after deduplication")
         .isEqualTo(1);
+  }
+
+  // Regression test: rewriting delete file paths changes the file size (since the
+  // embedded data file paths may differ in length), but file_size_in_bytes in the rewritten
+  // manifest was not updated. Readers that use file_size_in_bytes to elide a stat() call may
+  // fail.
+  @TestTemplate
+  public void testDeleteFileSizeInBytesAfterRewrite() throws Exception {
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(
+                table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
+                0L));
+
+    File file = new File(removePrefix(table.location() + "/data/deeply/nested/deletes.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                table, table.io().newOutputFile(file.toURI().toString()), deletes, formatVersion)
+            .first();
+    table.newRowDelta().addDeletes(positionDeletes).commit();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(table)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(table.location(), targetTableLocation())
+            .execute();
+    copyTableFiles(result);
+
+    Table targetTable = TABLES.load(targetTableLocation());
+    for (ManifestFile manifest : targetTable.currentSnapshot().deleteManifests(targetTable.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, targetTable.io(), targetTable.specs())) {
+        for (DeleteFile df : reader) {
+          long manifestSize = df.fileSizeInBytes();
+          long actualSize = targetTable.io().newInputFile(df.location()).getLength();
+          assertThat(manifestSize)
+              .as(
+                  "file_size_in_bytes in rewritten manifest should match actual file size for %s",
+                  df.location())
+              .isEqualTo(actualSize);
+        }
+      }
+    }
   }
 
   @TestTemplate
