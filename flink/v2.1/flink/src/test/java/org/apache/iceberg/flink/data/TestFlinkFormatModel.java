@@ -21,15 +21,14 @@ package org.apache.iceberg.flink.data;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TestBase;
+import org.apache.iceberg.data.BaseFormatModelTests;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.TestBaseFormatModel;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
-public class TestFlinkFormatModel extends TestBaseFormatModel<RowData> {
+public class TestFlinkFormatModel extends BaseFormatModelTests<RowData> {
 
   @Override
   protected Class<RowData> engineType() {
@@ -42,8 +41,8 @@ public class TestFlinkFormatModel extends TestBaseFormatModel<RowData> {
   }
 
   @Override
-  protected List<RowData> engineTestRecords() {
-    return Lists.newArrayList(RandomRowData.generate(TestBase.SCHEMA, 10, 1L));
+  protected RowData convertToEngine(Record record, Schema schema) {
+    return RowDataConverter.convert(schema, record);
   }
 
   @Override

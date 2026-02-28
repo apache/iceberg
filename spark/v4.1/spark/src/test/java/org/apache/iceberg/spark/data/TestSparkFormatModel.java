@@ -22,15 +22,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TestBase;
+import org.apache.iceberg.data.BaseFormatModelTests;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.TestBaseFormatModel;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class TestSparkFormatModel extends TestBaseFormatModel<InternalRow> {
+public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
 
   @Override
   protected Class<InternalRow> engineType() {
@@ -43,8 +41,8 @@ public class TestSparkFormatModel extends TestBaseFormatModel<InternalRow> {
   }
 
   @Override
-  protected List<InternalRow> engineTestRecords() {
-    return Lists.newArrayList(RandomData.generateSpark(TestBase.SCHEMA, 10, 1L));
+  protected InternalRow convertToEngine(Record record, Schema schema) {
+    return InternalRowConverter.convert(schema, record);
   }
 
   @Override
