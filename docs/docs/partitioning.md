@@ -116,4 +116,3 @@ If a query unexpectedly returns no results:
 - Inspect the table’s partition values using metadata tables or engine‑specific commands.
 - Check for leading or trailing whitespace in string partition columns.
 - Ensure ingestion pipelines produce canonicalized partition values.
-- 
