@@ -44,6 +44,9 @@
     <!-- Generated code should not be subjected to checkstyle. -->
     <suppress files="[/\\].*[/\\]generated.*[/\\]" checks="." />
 
+    <!-- Suppress imported Flink avro classes -->
+    <suppress files=".*[/\\]org[/\\]apache[/\\]flink[/\\]formats[/\\]avro[/\\].*" checks="." />
+
     <suppress files="org.apache.iceberg.hive.ScriptRunner.java" checks="RegexpHeader"/>
 
     <!-- Referencing guava classes should be allowed in classes within bundled-guava module -->
