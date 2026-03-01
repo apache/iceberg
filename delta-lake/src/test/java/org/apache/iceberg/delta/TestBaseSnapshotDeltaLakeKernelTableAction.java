@@ -148,6 +148,29 @@ public class TestBaseSnapshotDeltaLakeKernelTableAction {
   }
 
   @Test
+  public void testDeltaTableDVDisabled() throws Exception {
+    Engine engine = DefaultEngine.create(testHadoopConf);
+    Transaction txn =
+        createEmptyDeltaTableTransaction(engine)
+            .withTableProperties(engine, Map.of("delta.enableDeletionVectors", "true"))
+            .build(engine);
+    txn.commit(engine, CloseableIterable.emptyIterable());
+
+    SnapshotDeltaLakeTable testAction =
+        new BaseSnapshotDeltaLakeKernelTableAction(sourceTableLocation)
+            .as(TableIdentifier.of("iceberg_table"))
+            .deltaLakeConfiguration(testHadoopConf)
+            .icebergCatalog(testCatalog)
+            .tableLocation(newTableLocation);
+
+    // Act & check
+    assertThatThrownBy(testAction::execute)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "Conversion of Delta Lake tables with deletionVectors feature is not supported yet.");
+  }
+
+  @Test
   public void testEmptyTableConversion() {
     Engine engine = DefaultEngine.create(testHadoopConf);
     createEmptyDeltaTableTransaction(engine)

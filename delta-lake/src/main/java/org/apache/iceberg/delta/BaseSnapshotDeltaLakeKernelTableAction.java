@@ -30,6 +30,7 @@ import io.delta.kernel.internal.DeltaLogActionUtils;
 import io.delta.kernel.internal.SnapshotImpl;
 import io.delta.kernel.internal.TableImpl;
 import io.delta.kernel.internal.actions.AddFile;
+import io.delta.kernel.internal.actions.RemoveFile;
 import io.delta.kernel.internal.fs.Path;
 import io.delta.kernel.internal.util.VectorUtils;
 import io.delta.kernel.types.StructType;
@@ -42,6 +43,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
@@ -49,10 +51,12 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManageSnapshots;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -149,6 +153,8 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
         "Make sure to configure the action with a valid deltaLakeConfiguration");
     assertDeltaColumnMappingDisabled(
         "Conversion of Delta Lake tables with columnMapping feature is not supported.");
+    assertDeltaDeletionVectorsDisabled(
+        "Conversion of Delta Lake tables with deletionVectors feature is not supported yet.");
 
     long latestDeltaVersion = getLatestDeltaSnapshot().getVersion();
     long initialDeltaVersion = getEarliestDeltaLog();
@@ -204,6 +210,15 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
     Map<String, String> configuration = getLatestDeltaSnapshot().getMetadata().getConfiguration();
     String columnMappingMode = configuration.getOrDefault("delta.columnMapping.mode", "none");
     if (!"none".equals(columnMappingMode)) {
+      throw new UnsupportedOperationException(errorMessage);
+    }
+  }
+
+  /** Current conversion implementation doesn't support DV conversion yet. */
+  private void assertDeltaDeletionVectorsDisabled(String errorMessage) {
+    Map<String, String> configuration = getLatestDeltaSnapshot().getMetadata().getConfiguration();
+    String columnMappingMode = configuration.getOrDefault("delta.enableDeletionVectors", "false");
+    if ("true".equals(columnMappingMode)) {
       throw new UnsupportedOperationException(errorMessage);
     }
   }
@@ -274,35 +289,64 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
 
     Long commitTimestamp = null;
     List<DataFile> dataFilesToAdd = Lists.newArrayList();
+    List<DataFile> dataFilesToRemove = Lists.newArrayList();
     try (CloseableIterator<Row> rows = columnarBatch.getRows()) {
       while (rows.hasNext()) {
         Row row = rows.next();
-        if (DeltaLakeActionsTranslationUtil.isAdd(row)) {
-          AddFile addFile = DeltaLakeActionsTranslationUtil.toAdd(row);
-
-          DataFile dataFile = buildDataFileFromDeltaAction(addFile, transaction);
-          dataFilesToAdd.add(dataFile);
-        } else if (DeltaLakeActionsTranslationUtil.isCommitInfo(row)) {
+        if (DeltaLakeActionsTranslationUtil.isCommitInfo(row)) {
           Row commitInfo = row.getStruct(row.getSchema().indexOf("commitInfo"));
           commitTimestamp = commitInfo.getLong(commitInfo.getSchema().indexOf("timestamp"));
+        } else if (DeltaLakeActionsTranslationUtil.isAdd(row)) {
+          AddFile addFile = DeltaLakeActionsTranslationUtil.toAdd(row);
+
+          DataFile dataFile = buildDataFileFromAddDeltaAction(addFile, transaction);
+          dataFilesToAdd.add(dataFile);
+        } else if (DeltaLakeActionsTranslationUtil.isRemove(row)) {
+          RemoveFile remove = DeltaLakeActionsTranslationUtil.toRemove(row);
+
+          DataFile dataFile = buildDataFileFromRemoveDeltaAction(remove, transaction);
+          dataFilesToRemove.add(dataFile);
         }
       }
     }
 
-    // TODO Append only now
-    if (!dataFilesToAdd.isEmpty()) {
-      AppendFiles appendFiles = transaction.newAppend();
-      dataFilesToAdd.forEach(appendFiles::appendFile);
-      appendFiles.commit();
-    }
-
+    // TODO support more actions
+    dataFilesToIcebergTransaction(transaction, dataFilesToAdd, dataFilesToRemove);
     tagCurrentSnapshot(deltaVersion, commitTimestamp, transaction);
 
+    // TODO fix number. Removed files not counted
     return dataFilesToAdd.size();
   }
 
-  // TODO support more actions
-  private DataFile buildDataFileFromDeltaAction(AddFile addFile, Transaction transaction) {
+  /**
+   * CASES: 1. Append only 2. Delete only 3. Append and Delete => overwrite 4. No Append, No Delete
+   * => No data changes, append tag or snapshot
+   */
+  private static void dataFilesToIcebergTransaction(
+      Transaction transaction, List<DataFile> dataFilesToAdd, List<DataFile> dataFilesToRemove) {
+    if (!dataFilesToAdd.isEmpty() && dataFilesToRemove.isEmpty()) {
+      // Append only
+      AppendFiles appendFiles = transaction.newAppend();
+      dataFilesToAdd.forEach(appendFiles::appendFile);
+      appendFiles.commit();
+    } else if (dataFilesToAdd.isEmpty() && !dataFilesToRemove.isEmpty()) {
+      // Delete only
+      DeleteFiles deleteFiles = transaction.newDelete();
+      dataFilesToRemove.forEach(deleteFiles::deleteFile);
+      deleteFiles.commit();
+    } else if (!dataFilesToAdd.isEmpty() && !dataFilesToRemove.isEmpty()) {
+      // Overwrite
+      OverwriteFiles overwriteFiles = transaction.newOverwrite();
+      dataFilesToAdd.forEach(overwriteFiles::addFile);
+      dataFilesToRemove.forEach(overwriteFiles::deleteFile);
+      overwriteFiles.commit();
+    } else {
+      // Tag case
+      transaction.newAppend().commit();
+    }
+  }
+
+  private DataFile buildDataFileFromAddDeltaAction(AddFile addFile, Transaction transaction) {
     String path = addFile.getPath();
     long dataFileSize = addFile.getSize();
     String fullFilePath = getFullFilePath(path, deltaTable.getPath(deltaEngine));
@@ -334,6 +378,44 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
         .withFormat(FileFormat.PARQUET) // Delta supports only parquet datafiles
         .withFileSizeInBytes(dataFileSize)
         .withMetrics(metrics)
+        .withPartitionValues(partitionValueList)
+        .build();
+  }
+
+  private DataFile buildDataFileFromRemoveDeltaAction(
+      RemoveFile removeFile, Transaction transaction) {
+    String path = removeFile.getPath();
+    String fullFilePath = getFullFilePath(path, deltaTable.getPath(deltaEngine));
+
+    InputFile inputDataFile = deltaLakeFileIO.newInputFile(fullFilePath);
+    if (!inputDataFile.exists()) {
+      throw new NotFoundException(
+          "File %s is referenced in the logs of Delta Lake table at %s, but cannot be found in the storage",
+          fullFilePath, deltaTableLocation);
+    }
+
+    MetricsConfig metricsConfig = MetricsConfig.forTable(transaction.table());
+    String nameMappingString =
+        transaction.table().properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    NameMapping nameMapping =
+        nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+    Metrics metrics = ParquetUtil.fileMetrics(inputDataFile, metricsConfig, nameMapping);
+
+    Optional<Map<String, String>> partitionMap =
+        removeFile.getPartitionValues().map(VectorUtils::toJavaMap);
+    Map<String, String> partitionValues = partitionMap.orElseGet(Map::of);
+    PartitionSpec partitionSpec = transaction.table().spec();
+    List<String> partitionValueList =
+        partitionSpec.fields().stream()
+            .map(PartitionField::name)
+            .map(partitionValues::get)
+            .collect(Collectors.toList());
+
+    return DataFiles.builder(partitionSpec)
+        .withPath(fullFilePath)
+        .withFormat(FileFormat.PARQUET) // Delta supports only parquet datafiles
+        .withMetrics(metrics)
+        .withFileSizeInBytes(inputDataFile.getLength())
         .withPartitionValues(partitionValueList)
         .build();
   }

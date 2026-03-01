@@ -43,7 +43,6 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -85,6 +84,7 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
   public void testBasicPartitionedInsertsOnly() {
     String sourceTable = toFullTableName(DEFAULT_SPARK_CATALOG, "partitioned_table");
     String sourceTableLocation = sourceLocation.toURI().toString();
+    System.out.println("temp dir is: " + sourceTableLocation);
 
     Dataset<Row> df = spark.range(0, 5, 1, 5).withColumn("dateCol", date_add(current_date(), 1));
     writeDeltaTable(df, sourceTable, sourceTableLocation, "id");
@@ -107,9 +107,8 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
   }
 
   @Test
-  @Disabled("Not implemented yet")
   public void testInsertUpdateDeleteSqls() {
-    String sourceTable = toFullTableName(DEFAULT_SPARK_CATALOG, "partitioned_table");
+    String sourceTable = toFullTableName(DEFAULT_SPARK_CATALOG, "crud_table");
     String sourceTableLocation = sourceLocation.toURI().toString();
 
     Dataset<Row> df = spark.range(0, 5, 1, 5).withColumn("dateCol", date_add(current_date(), 1));
@@ -119,7 +118,7 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
     spark.sql("UPDATE " + sourceTable + " SET id=3 WHERE id=1;");
     spark.sql("INSERT INTO " + sourceTable + " VALUES (11, current_date());");
 
-    String newTableIdentifier = toFullTableName(ICEBERG_CATALOG_NAME, "iceberg_partitioned_table");
+    String newTableIdentifier = toFullTableName(ICEBERG_CATALOG_NAME, "iceberg_crud_table");
 
     // Act
     SnapshotDeltaLakeTable conversionAction =

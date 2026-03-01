@@ -20,6 +20,7 @@ package org.apache.iceberg.delta;
 
 import io.delta.kernel.data.Row;
 import io.delta.kernel.internal.actions.AddFile;
+import io.delta.kernel.internal.actions.RemoveFile;
 
 /**
  * Util class helps to handle json operations for <a
@@ -38,6 +39,10 @@ public class DeltaLakeActionsTranslationUtil {
 
   public static boolean isRemove(Row row) {
     return !row.isNullAt(getOrdinal(row, "remove"));
+  }
+
+  public static RemoveFile toRemove(Row row) {
+    return new RemoveFile(row.getStruct(row.getSchema().indexOf("remove")));
   }
 
   public static boolean isMetaData(Row row) {
