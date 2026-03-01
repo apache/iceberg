@@ -1974,11 +1974,6 @@ public class TestViews extends ExtensionsTestBase {
         viewName, ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, tableName);
 
     View view = viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName));
-    assertThat(view.currentVersion().representations())
-        .hasSize(1)
-        .first()
-        .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
-        .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build());
 
     // trino view should show up in the view versions & history
     assertThat(view.history()).hasSize(2);
@@ -1996,10 +1991,10 @@ public class TestViews extends ExtensionsTestBase {
         .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("trino").sql(sql).build());
 
     assertThat(Lists.newArrayList(view.versions()).get(1).representations())
-        .hasSize(1)
-        .first()
-        .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
-        .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build());
+        .hasSize(2)
+        .containsExactlyInAnyOrder(
+            ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build(),
+            ImmutableSQLViewRepresentation.builder().dialect("trino").sql(sql).build());
   }
 
   @TestTemplate

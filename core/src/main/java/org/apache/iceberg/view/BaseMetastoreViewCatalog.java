@@ -241,6 +241,28 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .max(Integer::compareTo)
               .orElseGet(metadata::currentVersionId);
 
+      if (PropertyUtil.propertyAsBoolean(
+          properties,
+          ViewProperties.REPLACE_DROP_DIALECT_ALLOWED,
+          ViewProperties.REPLACE_DROP_DIALECT_ALLOWED_DEFAULT)) {
+        Map<String, ViewRepresentation> representationsMap = Maps.newHashMap();
+        for (ViewRepresentation representation : representations) {
+          if (representation instanceof SQLViewRepresentation) {
+            representationsMap.put(
+                ((SQLViewRepresentation) representation).dialect(), representation);
+          }
+        }
+
+        for (ViewRepresentation representation : ops.current().currentVersion().representations()) {
+          if (representation instanceof SQLViewRepresentation) {
+            String dialect = ((SQLViewRepresentation) representation).dialect();
+            if (!representationsMap.containsKey(dialect)) {
+              representations.add(representation);
+            }
+          }
+        }
+      }
+
       ViewVersion viewVersion =
           ImmutableViewVersion.builder()
               .versionId(maxVersionId + 1)
