@@ -99,7 +99,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedDataFilesSummary = SnapshotSummary.builder();
   private final SnapshotSummary.Builder addedDeleteFilesSummary = SnapshotSummary.builder();
-
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
 
@@ -1072,7 +1071,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // this triggers a rewrite of all delete manifests even if there is only one new delete file
       // if there is a relevant use case in the future, the behavior can be optimized
       cachedNewDeleteManifests.clear();
-      // On cache invalidation of delete files, clear the summary.
+      // On cache invalidation of delete files, clear the summary because any new DV could require a
+      // merge,
+      // and the summary cannot be generated until after merging is complete.
       addedDeleteFilesSummary.clear();
     }
 

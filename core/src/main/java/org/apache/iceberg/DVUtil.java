@@ -28,9 +28,10 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
-import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -39,11 +40,29 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 
 class DVUtil {
   private DVUtil() {}
+
+  static PositionDeleteIndex readDV(DeleteFile deleteFile, FileIO fileIO) {
+    Preconditions.checkArgument(
+        ContentFileUtil.isDV(deleteFile),
+        "Cannot read, not a deletion vector: %s",
+        deleteFile.location());
+    InputFile inputFile = fileIO.newInputFile(deleteFile);
+    long offset = deleteFile.contentOffset();
+    int length = deleteFile.contentSizeInBytes().intValue();
+    byte[] bytes = new byte[length];
+    try {
+      IOUtil.readFully(inputFile, offset, bytes, 0, length);
+      return PositionDeleteIndex.deserialize(bytes, deleteFile);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
 
   /**
    * Merges duplicate DVs for the same data file and writes the merged DV Puffin files. If there is
@@ -147,7 +166,7 @@ class DVUtil {
         .executeWith(pool)
         .stopOnFailure()
         .throwFailureWhenFinished()
-        .run(i -> duplicatedDVPositions[i] = Deletes.readDV(duplicateDVs[i], io));
+        .run(i -> duplicatedDVPositions[i] = readDV(duplicateDVs[i], io));
 
     Map<String, PositionDeleteIndex> mergedDVs = Maps.newHashMap();
     for (int i = 0; i < duplicatedDVPositions.length; i++) {

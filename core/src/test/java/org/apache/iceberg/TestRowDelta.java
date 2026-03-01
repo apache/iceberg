@@ -43,7 +43,6 @@ import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
-import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -2229,6 +2228,103 @@ public class TestRowDelta extends TestBase {
     }
   }
 
+  @TestTemplate
+  public void testCannotMergeDVsMismatchedSequenceNumbers() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile), branch);
+
+    DeleteFile dv1 =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withFormat(FileFormat.PUFFIN)
+            .withPath("/tmp/dv-1.puffin")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withPartition(dataFile.partition())
+            .withReferencedDataFile(dataFile.location())
+            .withContentOffset(0)
+            .withContentSizeInBytes(10)
+            .build();
+    DeleteFile dv2 =
+        FileMetadata.deleteFileBuilder(table.spec()).copy(dv1).withPath("/tmp/dv-2.puffin").build();
+
+    // Use protected add(DeleteFile, long) to assign different data sequence numbers
+    MergingSnapshotProducer<?> rowDelta = (MergingSnapshotProducer<?>) table.newRowDelta();
+    rowDelta.add(dv1, 1L);
+    rowDelta.add(dv2, 2L);
+
+    assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot merge DVs, mismatched sequence numbers");
+  }
+
+  @TestTemplate
+  public void testCannotMergeDVsMismatchedPartitionSpecs() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile), branch);
+
+    // Evolve the spec so we have two distinct spec IDs
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    PartitionSpec originalSpec = table.specs().get(0);
+    PartitionSpec evolvedSpec = table.specs().get(1);
+
+    DeleteFile dv1 =
+        FileMetadata.deleteFileBuilder(originalSpec)
+            .ofPositionDeletes()
+            .withFormat(FileFormat.PUFFIN)
+            .withPath("/tmp/dv-1.puffin")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withPartition(dataFile.partition())
+            .withReferencedDataFile(dataFile.location())
+            .withContentOffset(0)
+            .withContentSizeInBytes(10)
+            .build();
+    DeleteFile dv2 =
+        FileMetadata.deleteFileBuilder(evolvedSpec).copy(dv1).withPath("/tmp/dv-2.puffin").build();
+
+    assertThatThrownBy(
+            () -> commit(table, table.newRowDelta().addDeletes(dv1).addDeletes(dv2), branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot merge DVs, mismatched partition specs");
+  }
+
+  @TestTemplate
+  public void testCannotMergeDVsMismatchedPartitionTuples() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile), branch);
+
+    DeleteFile dv1 =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withFormat(FileFormat.PUFFIN)
+            .withPath("/tmp/dv-1.puffin")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withPartitionPath("data_bucket=0")
+            .withReferencedDataFile(dataFile.location())
+            .withContentOffset(0)
+            .withContentSizeInBytes(10)
+            .build();
+    DeleteFile dv2 =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(dv1)
+            .withPath("/tmp/dv-2.puffin")
+            .withPartitionPath("data_bucket=1")
+            .build();
+
+    assertThatThrownBy(
+            () -> commit(table, table.newRowDelta().addDeletes(dv1).addDeletes(dv2), branch))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot merge DVs, mismatched partition tuples");
+  }
+
   private DeleteFile dvWithPositions(
       DataFile dataFile, OutputFileFactory fileFactory, int fromInclusive, int toExclusive)
       throws IOException {
@@ -2243,7 +2339,7 @@ public class TestRowDelta extends TestBase {
 
   private void assertDVHasDeletedPositions(DeleteFile dv, Iterable<Long> positions) {
     assertThat(dv).isNotNull();
-    PositionDeleteIndex index = Deletes.readDV(dv, table.io());
+    PositionDeleteIndex index = DVUtil.readDV(dv, table.io());
     assertThat(positions)
         .allSatisfy(
             pos ->
