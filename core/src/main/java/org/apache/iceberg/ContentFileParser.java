@@ -124,9 +124,7 @@ public class ContentFileParser {
 
     JsonUtil.writeLongFieldIfPresent(FIRST_ROW_ID, contentFile.firstRowId(), generator);
 
-    if (contentFile instanceof DeleteFile) {
-      DeleteFile deleteFile = (DeleteFile) contentFile;
-
+    if (contentFile instanceof DeleteFile deleteFile) {
       if (deleteFile.referencedDataFile() != null) {
         generator.writeStringField(REFERENCED_DATA_FILE, deleteFile.referencedDataFile());
       }
@@ -355,21 +353,19 @@ public class ContentFileParser {
   }
 
   private static FileContent fileContentFromJson(String content) {
-    switch (content) {
-      case CONTENT_DATA:
-        return FileContent.DATA;
-      case CONTENT_POSITION_DELETES:
-        return FileContent.POSITION_DELETES;
-      case CONTENT_EQUALITY_DELETES:
-        return FileContent.EQUALITY_DELETES;
-      default:
+    return switch (content) {
+      case CONTENT_DATA -> FileContent.DATA;
+      case CONTENT_POSITION_DELETES -> FileContent.POSITION_DELETES;
+      case CONTENT_EQUALITY_DELETES -> FileContent.EQUALITY_DELETES;
         // In 1.10 and before, file content is serialized as the FileContent enum value
+      default -> {
         try {
-          return FileContent.valueOf(content);
+          yield FileContent.valueOf(content);
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException(
               String.format("Invalid file content value: '%s'", content), e);
         }
-    }
+      }
+    };
   }
 }

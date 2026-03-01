@@ -97,44 +97,35 @@ public class UpdateRequirementParser {
     generator.writeStringField(TYPE, requirementType);
 
     switch (requirementType) {
-      case ASSERT_TABLE_DOES_NOT_EXIST:
         // No fields beyond the requirement itself
-        break;
-      case ASSERT_TABLE_UUID:
-        writeAssertTableUUID((UpdateRequirement.AssertTableUUID) updateRequirement, generator);
-        break;
-      case ASSERT_VIEW_UUID:
-        writeAssertViewUUID((UpdateRequirement.AssertViewUUID) updateRequirement, generator);
-        break;
-      case ASSERT_REF_SNAPSHOT_ID:
-        writeAssertRefSnapshotId(
-            (UpdateRequirement.AssertRefSnapshotID) updateRequirement, generator);
-        break;
-      case ASSERT_LAST_ASSIGNED_FIELD_ID:
-        writeAssertLastAssignedFieldId(
-            (UpdateRequirement.AssertLastAssignedFieldId) updateRequirement, generator);
-        break;
-      case ASSERT_LAST_ASSIGNED_PARTITION_ID:
-        writeAssertLastAssignedPartitionId(
-            (UpdateRequirement.AssertLastAssignedPartitionId) updateRequirement, generator);
-        break;
-      case ASSERT_CURRENT_SCHEMA_ID:
-        writeAssertCurrentSchemaId(
-            (UpdateRequirement.AssertCurrentSchemaID) updateRequirement, generator);
-        break;
-      case ASSERT_DEFAULT_SPEC_ID:
-        writeAssertDefaultSpecId(
-            (UpdateRequirement.AssertDefaultSpecID) updateRequirement, generator);
-        break;
-      case ASSERT_DEFAULT_SORT_ORDER_ID:
-        writeAssertDefaultSortOrderId(
-            (UpdateRequirement.AssertDefaultSortOrderID) updateRequirement, generator);
-        break;
-      default:
-        throw new IllegalArgumentException(
-            String.format(
-                "Cannot convert update requirement to json. Unrecognized type: %s",
-                requirementType));
+      case ASSERT_TABLE_DOES_NOT_EXIST -> {}
+      case ASSERT_TABLE_UUID ->
+          writeAssertTableUUID((UpdateRequirement.AssertTableUUID) updateRequirement, generator);
+      case ASSERT_VIEW_UUID ->
+          writeAssertViewUUID((UpdateRequirement.AssertViewUUID) updateRequirement, generator);
+      case ASSERT_REF_SNAPSHOT_ID ->
+          writeAssertRefSnapshotId(
+              (UpdateRequirement.AssertRefSnapshotID) updateRequirement, generator);
+      case ASSERT_LAST_ASSIGNED_FIELD_ID ->
+          writeAssertLastAssignedFieldId(
+              (UpdateRequirement.AssertLastAssignedFieldId) updateRequirement, generator);
+      case ASSERT_LAST_ASSIGNED_PARTITION_ID ->
+          writeAssertLastAssignedPartitionId(
+              (UpdateRequirement.AssertLastAssignedPartitionId) updateRequirement, generator);
+      case ASSERT_CURRENT_SCHEMA_ID ->
+          writeAssertCurrentSchemaId(
+              (UpdateRequirement.AssertCurrentSchemaID) updateRequirement, generator);
+      case ASSERT_DEFAULT_SPEC_ID ->
+          writeAssertDefaultSpecId(
+              (UpdateRequirement.AssertDefaultSpecID) updateRequirement, generator);
+      case ASSERT_DEFAULT_SORT_ORDER_ID ->
+          writeAssertDefaultSortOrderId(
+              (UpdateRequirement.AssertDefaultSortOrderID) updateRequirement, generator);
+      default ->
+          throw new IllegalArgumentException(
+              String.format(
+                  "Cannot convert update requirement to json. Unrecognized type: %s",
+                  requirementType));
     }
 
     generator.writeEndObject();
@@ -159,29 +150,20 @@ public class UpdateRequirementParser {
         jsonNode.hasNonNull(TYPE), "Cannot parse update requirement. Missing field: type");
     String type = JsonUtil.getString(TYPE, jsonNode).toLowerCase(Locale.ROOT);
 
-    switch (type) {
-      case ASSERT_TABLE_DOES_NOT_EXIST:
-        return readAssertTableDoesNotExist(jsonNode);
-      case ASSERT_TABLE_UUID:
-        return readAssertTableUUID(jsonNode);
-      case ASSERT_VIEW_UUID:
-        return readAssertViewUUID(jsonNode);
-      case ASSERT_REF_SNAPSHOT_ID:
-        return readAssertRefSnapshotId(jsonNode);
-      case ASSERT_LAST_ASSIGNED_FIELD_ID:
-        return readAssertLastAssignedFieldId(jsonNode);
-      case ASSERT_LAST_ASSIGNED_PARTITION_ID:
-        return readAssertLastAssignedPartitionId(jsonNode);
-      case ASSERT_CURRENT_SCHEMA_ID:
-        return readAssertCurrentSchemaId(jsonNode);
-      case ASSERT_DEFAULT_SPEC_ID:
-        return readAssertDefaultSpecId(jsonNode);
-      case ASSERT_DEFAULT_SORT_ORDER_ID:
-        return readAssertDefaultSortOrderId(jsonNode);
-      default:
-        throw new UnsupportedOperationException(
-            String.format("Unrecognized update requirement. Cannot convert to json: %s", type));
-    }
+    return switch (type) {
+      case ASSERT_TABLE_DOES_NOT_EXIST -> readAssertTableDoesNotExist(jsonNode);
+      case ASSERT_TABLE_UUID -> readAssertTableUUID(jsonNode);
+      case ASSERT_VIEW_UUID -> readAssertViewUUID(jsonNode);
+      case ASSERT_REF_SNAPSHOT_ID -> readAssertRefSnapshotId(jsonNode);
+      case ASSERT_LAST_ASSIGNED_FIELD_ID -> readAssertLastAssignedFieldId(jsonNode);
+      case ASSERT_LAST_ASSIGNED_PARTITION_ID -> readAssertLastAssignedPartitionId(jsonNode);
+      case ASSERT_CURRENT_SCHEMA_ID -> readAssertCurrentSchemaId(jsonNode);
+      case ASSERT_DEFAULT_SPEC_ID -> readAssertDefaultSpecId(jsonNode);
+      case ASSERT_DEFAULT_SORT_ORDER_ID -> readAssertDefaultSortOrderId(jsonNode);
+      default ->
+          throw new UnsupportedOperationException(
+              String.format("Unrecognized update requirement. Cannot convert to json: %s", type));
+    };
   }
 
   private static void writeAssertTableUUID(

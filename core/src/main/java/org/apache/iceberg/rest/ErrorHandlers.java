@@ -117,16 +117,13 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
-        case 404:
-          throw new NoSuchTableException("%s", error.message());
-        case 409:
-          throw new CommitFailedException("Commit failed: %s", error.message());
-        case 500:
-        case 502:
-        case 503:
-        case 504:
-          throw new CommitStateUnknownException(
-              new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
+        case 404 -> throw new NoSuchTableException("%s", error.message());
+        case 409 -> throw new CommitFailedException("Commit failed: %s", error.message());
+        case 500, 502, 503, 504 ->
+            throw new CommitStateUnknownException(
+                new ServiceFailureException(
+                    "Service failed: %s: %s", error.code(), error.message()));
+        default -> {}
       }
 
       super.accept(error);
@@ -140,7 +137,7 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
-        case 404:
+        case 404 -> {
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
             throw new NoSuchNamespaceException("%s", error.message());
           } else if (NotFoundException.class.getSimpleName().equals(error.type())) {
@@ -148,8 +145,9 @@ public class ErrorHandlers {
           } else {
             throw new NoSuchTableException("%s", error.message());
           }
-        case 409:
-          throw new AlreadyExistsException("%s", error.message());
+        }
+        case 409 -> throw new AlreadyExistsException("%s", error.message());
+        default -> {}
       }
 
       super.accept(error);
@@ -163,10 +161,9 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
-        case 404:
-          throw new NoSuchNamespaceException("%s", error.message());
-        case 409:
-          throw new AlreadyExistsException("%s", error.message());
+        case 404 -> throw new NoSuchNamespaceException("%s", error.message());
+        case 409 -> throw new AlreadyExistsException("%s", error.message());
+        default -> {}
       }
 
       super.accept(error);
@@ -220,16 +217,13 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
-        case 404:
-          throw new NoSuchViewException("%s", error.message());
-        case 409:
-          throw new CommitFailedException("Commit failed: %s", error.message());
-        case 500:
-        case 502:
-        case 503:
-        case 504:
-          throw new CommitStateUnknownException(
-              new ServiceFailureException("Service failed: %s: %s", error.code(), error.message()));
+        case 404 -> throw new NoSuchViewException("%s", error.message());
+        case 409 -> throw new CommitFailedException("Commit failed: %s", error.message());
+        case 500, 502, 503, 504 ->
+            throw new CommitStateUnknownException(
+                new ServiceFailureException(
+                    "Service failed: %s: %s", error.code(), error.message()));
+        default -> {}
       }
 
       super.accept(error);
@@ -243,14 +237,15 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
-        case 404:
+        case 404 -> {
           if (NoSuchNamespaceException.class.getSimpleName().equals(error.type())) {
             throw new NoSuchNamespaceException("%s", error.message());
           } else {
             throw new NoSuchViewException("%s", error.message());
           }
-        case 409:
-          throw new AlreadyExistsException("%s", error.message());
+        }
+        case 409 -> throw new AlreadyExistsException("%s", error.message());
+        default -> {}
       }
 
       super.accept(error);
@@ -264,17 +259,16 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
-        case 400:
+        case 400 -> {
           if (NamespaceNotEmptyException.class.getSimpleName().equals(error.type())) {
             throw new NamespaceNotEmptyException("%s", error.message());
           }
           throw new BadRequestException("Malformed request: %s", error.message());
-        case 404:
-          throw new NoSuchNamespaceException("%s", error.message());
-        case 409:
-          throw new AlreadyExistsException("%s", error.message());
-        case 422:
-          throw createRESTException(error);
+        }
+        case 404 -> throw new NoSuchNamespaceException("%s", error.message());
+        case 409 -> throw new AlreadyExistsException("%s", error.message());
+        case 422 -> throw createRESTException(error);
+        default -> {}
       }
 
       super.accept(error);
@@ -315,24 +309,22 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
-        case 400:
+        case 400 -> {
           if (IllegalArgumentException.class.getSimpleName().equals(error.type())) {
             throw new IllegalArgumentException(error.message());
           }
           throw new BadRequestException("Malformed request: %s", error.message());
-        case 401:
-          throw new NotAuthorizedException("Not authorized: %s", error.message());
-        case 403:
-          throw new ForbiddenException("Forbidden: %s", error.message());
-        case 405:
-        case 406:
-          break;
-        case 500:
-          throw new ServiceFailureException("Server error: %s: %s", error.type(), error.message());
-        case 501:
-          throw new UnsupportedOperationException(error.message());
-        case 503:
-          throw new ServiceUnavailableException("Service unavailable: %s", error.message());
+        }
+        case 401 -> throw new NotAuthorizedException("Not authorized: %s", error.message());
+        case 403 -> throw new ForbiddenException("Forbidden: %s", error.message());
+        case 405, 406 -> {}
+        case 500 ->
+            throw new ServiceFailureException(
+                "Server error: %s: %s", error.type(), error.message());
+        case 501 -> throw new UnsupportedOperationException(error.message());
+        case 503 ->
+            throw new ServiceUnavailableException("Service unavailable: %s", error.message());
+        default -> {}
       }
 
       throw createRESTException(error);
@@ -356,16 +348,17 @@ public class ErrorHandlers {
     public void accept(ErrorResponse error) {
       if (error.type() != null) {
         switch (error.type()) {
-          case OAuth2Properties.INVALID_CLIENT_ERROR:
-            throw new NotAuthorizedException(
-                "Not authorized: %s: %s", error.type(), error.message());
-          case OAuth2Properties.INVALID_REQUEST_ERROR:
-          case OAuth2Properties.INVALID_GRANT_ERROR:
-          case OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR:
-          case OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR:
-          case OAuth2Properties.INVALID_SCOPE_ERROR:
-            throw new BadRequestException(
-                "Malformed request: %s: %s", error.type(), error.message());
+          case OAuth2Properties.INVALID_CLIENT_ERROR ->
+              throw new NotAuthorizedException(
+                  "Not authorized: %s: %s", error.type(), error.message());
+          case OAuth2Properties.INVALID_REQUEST_ERROR,
+                  OAuth2Properties.INVALID_GRANT_ERROR,
+                  OAuth2Properties.UNAUTHORIZED_CLIENT_ERROR,
+                  OAuth2Properties.UNSUPPORTED_GRANT_TYPE_ERROR,
+                  OAuth2Properties.INVALID_SCOPE_ERROR ->
+              throw new BadRequestException(
+                  "Malformed request: %s: %s", error.type(), error.message());
+          default -> {}
         }
       }
       throw createRESTException(error);

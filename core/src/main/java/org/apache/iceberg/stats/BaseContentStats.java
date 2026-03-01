@@ -181,11 +181,10 @@ public class BaseContentStats implements ContentStats, Serializable {
 
   @Override
   public boolean equals(Object o) {
-    if (!(o instanceof BaseContentStats)) {
+    if (!(o instanceof BaseContentStats that)) {
       return false;
     }
 
-    BaseContentStats that = (BaseContentStats) o;
     return Objects.equals(fieldStats, that.fieldStats)
         && Objects.equals(statsStruct, that.statsStruct);
   }

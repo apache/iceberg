@@ -211,73 +211,54 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
   @Override
   public Schema primitive(Type.PrimitiveType primitive) {
-    Schema primitiveSchema;
-    switch (primitive.typeId()) {
-      case UNKNOWN:
-        primitiveSchema = NULL_SCHEMA;
-        break;
-      case BOOLEAN:
-        primitiveSchema = BOOLEAN_SCHEMA;
-        break;
-      case INTEGER:
-        primitiveSchema = INTEGER_SCHEMA;
-        break;
-      case LONG:
-        primitiveSchema = LONG_SCHEMA;
-        break;
-      case FLOAT:
-        primitiveSchema = FLOAT_SCHEMA;
-        break;
-      case DOUBLE:
-        primitiveSchema = DOUBLE_SCHEMA;
-        break;
-      case DATE:
-        primitiveSchema = DATE_SCHEMA;
-        break;
-      case TIME:
-        primitiveSchema = TIME_SCHEMA;
-        break;
-      case TIMESTAMP:
-        if (((Types.TimestampType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = TIMESTAMPTZ_SCHEMA;
-        } else {
-          primitiveSchema = TIMESTAMP_SCHEMA;
-        }
-        break;
-      case TIMESTAMP_NANO:
-        if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
-          primitiveSchema = TIMESTAMPTZ_NANO_SCHEMA;
-        } else {
-          primitiveSchema = TIMESTAMP_NANO_SCHEMA;
-        }
-        break;
-      case STRING:
-        primitiveSchema = STRING_SCHEMA;
-        break;
-      case UUID:
-        primitiveSchema = UUID_SCHEMA;
-        break;
-      case FIXED:
-        Types.FixedType fixed = (Types.FixedType) primitive;
-        primitiveSchema = Schema.createFixed("fixed_" + fixed.length(), null, null, fixed.length());
-        break;
-      case BINARY:
-        primitiveSchema = BINARY_SCHEMA;
-        break;
-      case DECIMAL:
-        Types.DecimalType decimal = (Types.DecimalType) primitive;
-        primitiveSchema =
-            LogicalTypes.decimal(decimal.precision(), decimal.scale())
+    Schema primitiveSchema =
+        switch (primitive.typeId()) {
+          case UNKNOWN -> NULL_SCHEMA;
+          case BOOLEAN -> BOOLEAN_SCHEMA;
+          case INTEGER -> INTEGER_SCHEMA;
+          case LONG -> LONG_SCHEMA;
+          case FLOAT -> FLOAT_SCHEMA;
+          case DOUBLE -> DOUBLE_SCHEMA;
+          case DATE -> DATE_SCHEMA;
+          case TIME -> TIME_SCHEMA;
+          case TIMESTAMP -> {
+            if (((Types.TimestampType) primitive).shouldAdjustToUTC()) {
+              yield TIMESTAMPTZ_SCHEMA;
+            } else {
+              yield TIMESTAMP_SCHEMA;
+            }
+          }
+
+          case TIMESTAMP_NANO -> {
+            if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
+              yield TIMESTAMPTZ_NANO_SCHEMA;
+            } else {
+              yield TIMESTAMP_NANO_SCHEMA;
+            }
+          }
+
+          case STRING -> STRING_SCHEMA;
+          case UUID -> UUID_SCHEMA;
+          case FIXED -> {
+            Types.FixedType fixed = (Types.FixedType) primitive;
+            yield Schema.createFixed("fixed_" + fixed.length(), null, null, fixed.length());
+          }
+
+          case BINARY -> BINARY_SCHEMA;
+          case DECIMAL -> {
+            Types.DecimalType decimal = (Types.DecimalType) primitive;
+            yield LogicalTypes.decimal(decimal.precision(), decimal.scale())
                 .addToSchema(
                     Schema.createFixed(
                         "decimal_" + decimal.precision() + "_" + decimal.scale(),
                         null,
                         null,
                         TypeUtil.decimalRequiredBytes(decimal.precision())));
-        break;
-      default:
-        throw new UnsupportedOperationException("Unsupported type ID: " + primitive.typeId());
-    }
+          }
+
+          default ->
+              throw new UnsupportedOperationException("Unsupported type ID: " + primitive.typeId());
+        };
 
     cacheSchema(primitive, primitiveSchema);
 

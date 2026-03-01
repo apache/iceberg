@@ -33,24 +33,29 @@ public class IdentityPartitionConverters {
     }
 
     switch (type.typeId()) {
-      case STRING:
+      case STRING -> {
         return value.toString();
-      case TIME:
+      }
+      case TIME -> {
         return DateTimeUtil.timeFromMicros((Long) value);
-      case DATE:
+      }
+      case DATE -> {
         return DateTimeUtil.dateFromDays((Integer) value);
-      case TIMESTAMP:
+      }
+      case TIMESTAMP -> {
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
           return DateTimeUtil.timestamptzFromMicros((Long) value);
         } else {
           return DateTimeUtil.timestampFromMicros((Long) value);
         }
-      case FIXED:
-        if (value instanceof GenericData.Fixed) {
-          return ((GenericData.Fixed) value).bytes();
+      }
+      case FIXED -> {
+        if (value instanceof GenericData.Fixed fixed) {
+          return fixed.bytes();
         }
         return value;
-      default:
+      }
+      default -> {}
     }
     return value;
   }

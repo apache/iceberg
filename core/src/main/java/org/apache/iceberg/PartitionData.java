@@ -203,21 +203,15 @@ public class PartitionData
       } else {
         Types.NestedField field = fields.get(i);
         switch (field.type().typeId()) {
-          case STRUCT:
-          case LIST:
-          case MAP:
-            throw new IllegalArgumentException("Unsupported type in partition data: " + type);
-          case BINARY:
-          case FIXED:
+          case STRUCT, LIST, MAP ->
+              throw new IllegalArgumentException("Unsupported type in partition data: " + type);
+          case BINARY, FIXED -> {
             byte[] buffer = (byte[]) data[i];
             copy[i] = Arrays.copyOf(buffer, buffer.length);
-            break;
-          case STRING:
-            copy[i] = data[i].toString();
-            break;
-          default:
+          }
+          case STRING -> copy[i] = data[i].toString();
             // no need to copy the object
-            copy[i] = data[i];
+          default -> copy[i] = data[i];
         }
       }
     }
@@ -242,9 +236,8 @@ public class PartitionData
     if (value instanceof Utf8) {
       // Utf8 is not Serializable
       return value.toString();
-    } else if (value instanceof ByteBuffer) {
+    } else if (value instanceof ByteBuffer buffer) {
       // ByteBuffer is not Serializable
-      ByteBuffer buffer = (ByteBuffer) value;
       byte[] bytes = new byte[buffer.remaining()];
       buffer.duplicate().get(bytes);
       return bytes;

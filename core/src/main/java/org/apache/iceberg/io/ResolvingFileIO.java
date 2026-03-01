@@ -167,18 +167,19 @@ public class ResolvingFileIO
     String impl = implFromLocation(location);
     DelegateFileIO io = ioInstances.get(impl);
     if (io != null) {
-      if (io instanceof HadoopConfigurable && ((HadoopConfigurable) io).getConf() == null) {
+      if (io instanceof HadoopConfigurable hadoopConfigurable
+          && hadoopConfigurable.getConf() == null) {
         synchronized (io) {
-          if (((HadoopConfigurable) io).getConf() == null) {
+          if (hadoopConfigurable.getConf() == null) {
             // re-apply the config in case it's null after Kryo serialization
-            ((HadoopConfigurable) io).setConf(getConf());
+            hadoopConfigurable.setConf(getConf());
           }
         }
       }
 
-      if (io instanceof SupportsStorageCredentials
-          && !((SupportsStorageCredentials) io).credentials().equals(storageCredentials)) {
-        ((SupportsStorageCredentials) io).setCredentials(storageCredentials);
+      if (io instanceof SupportsStorageCredentials supportsStorageCredentials
+          && !supportsStorageCredentials.credentials().equals(storageCredentials)) {
+        supportsStorageCredentials.setCredentials(storageCredentials);
       }
 
       return io;

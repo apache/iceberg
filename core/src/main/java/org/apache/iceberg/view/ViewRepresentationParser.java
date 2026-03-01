@@ -34,14 +34,12 @@ class ViewRepresentationParser {
       throws IOException {
     Preconditions.checkArgument(representation != null, "Invalid view representation: null");
     switch (representation.type().toLowerCase(Locale.ENGLISH)) {
-      case ViewRepresentation.Type.SQL:
-        SQLViewRepresentationParser.toJson((SQLViewRepresentation) representation, generator);
-        break;
-
-      default:
-        throw new UnsupportedOperationException(
-            String.format(
-                "Cannot serialize unsupported view representation: %s", representation.type()));
+      case ViewRepresentation.Type.SQL ->
+          SQLViewRepresentationParser.toJson((SQLViewRepresentation) representation, generator);
+      default ->
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Cannot serialize unsupported view representation: %s", representation.type()));
     }
   }
 
@@ -58,12 +56,9 @@ class ViewRepresentationParser {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse view representation from non-object: %s", node);
     String type = JsonUtil.getString(TYPE, node).toLowerCase(Locale.ENGLISH);
-    switch (type) {
-      case ViewRepresentation.Type.SQL:
-        return SQLViewRepresentationParser.fromJson(node);
-
-      default:
-        return ImmutableUnknownViewRepresentation.builder().type(type).build();
-    }
+    return switch (type) {
+      case ViewRepresentation.Type.SQL -> SQLViewRepresentationParser.fromJson(node);
+      default -> ImmutableUnknownViewRepresentation.builder().type(type).build();
+    };
   }
 }

@@ -306,8 +306,7 @@ public interface ViewMetadata extends Serializable {
 
       Set<String> dialects = Sets.newHashSet();
       for (ViewRepresentation repr : version.representations()) {
-        if (repr instanceof SQLViewRepresentation) {
-          SQLViewRepresentation sql = (SQLViewRepresentation) repr;
+        if (repr instanceof SQLViewRepresentation sql) {
           Preconditions.checkArgument(
               dialects.add(sql.dialect().toLowerCase(Locale.ROOT)),
               "Invalid view version: Cannot add multiple queries for dialect %s",
@@ -568,8 +567,7 @@ public interface ViewMetadata extends Serializable {
     private Set<String> sqlDialectsFor(ViewVersion viewVersion) {
       Set<String> dialects = Sets.newHashSet();
       for (ViewRepresentation repr : viewVersion.representations()) {
-        if (repr instanceof SQLViewRepresentation) {
-          SQLViewRepresentation sql = (SQLViewRepresentation) repr;
+        if (repr instanceof SQLViewRepresentation sql) {
           dialects.add(sql.dialect().toLowerCase(Locale.ROOT));
         }
       }

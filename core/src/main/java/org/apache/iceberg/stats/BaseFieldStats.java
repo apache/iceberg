@@ -102,9 +102,9 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
     if (bound instanceof CharBuffer) {
       // CharBuffer is not serializable, use String instead
       return (T) bound.toString();
-    } else if (bound instanceof ByteBuffer) {
+    } else if (bound instanceof ByteBuffer byteBuffer) {
       // ByteBuffer is not serializable, use byte[] instead
-      return (T) ByteBuffers.toByteArray((ByteBuffer) bound);
+      return (T) ByteBuffers.toByteArray(byteBuffer);
     }
 
     return bound;
@@ -115,10 +115,10 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   public T lowerBound() {
     if (null != type
         && type.typeId().javaClass().equals(ByteBuffer.class)
-        && lowerBound instanceof byte[]) {
+        && lowerBound instanceof byte[] lowerBytes) {
       // for serializability we store binary types as byte[] and must convert back to
       // ByteBuffer
-      return (T) ByteBuffer.wrap((byte[]) lowerBound);
+      return (T) ByteBuffer.wrap(lowerBytes);
     } else {
       return lowerBound;
     }
@@ -129,10 +129,10 @@ public class BaseFieldStats<T> implements FieldStats<T>, Serializable {
   public T upperBound() {
     if (null != type
         && type.typeId().javaClass().equals(ByteBuffer.class)
-        && upperBound instanceof byte[]) {
+        && upperBound instanceof byte[] upperBytes) {
       // for serializability we store binary types as byte[] and must convert back to
       // ByteBuffer
-      return (T) ByteBuffer.wrap((byte[]) upperBound);
+      return (T) ByteBuffer.wrap(upperBytes);
     } else {
       return upperBound;
     }

@@ -243,10 +243,10 @@ public class ValueWriters {
       // use getBytes because it may return the backing byte array if available.
       // otherwise, it copies to a new byte array, which is still cheaper than Avro
       // calling toString, which incurs encoding costs
-      if (s instanceof Utf8) {
-        encoder.writeString((Utf8) s);
-      } else if (s instanceof String) {
-        encoder.writeString(new Utf8((String) s));
+      if (s instanceof Utf8 utf8) {
+        encoder.writeString(utf8);
+      } else if (s instanceof String str) {
+        encoder.writeString(new Utf8(str));
       } else if (s == null) {
         throw new IllegalArgumentException("Cannot write null to required string column");
       } else {
@@ -392,8 +392,8 @@ public class ValueWriters {
 
     @Override
     public void write(T datum, Encoder encoder) throws IOException {
-      if (datum instanceof Serialized) {
-        encoder.writeBytes(((Serialized) datum).buffer());
+      if (datum instanceof Serialized serialized) {
+        encoder.writeBytes(serialized.buffer());
       } else {
         encoder.writeBytes(serialize(datum));
       }

@@ -81,18 +81,18 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   void addEntry(ManifestEntry<F> entry) {
     switch (entry.status()) {
-      case ADDED:
+      case ADDED -> {
         addedFiles += 1;
         addedRows += entry.file().recordCount();
-        break;
-      case EXISTING:
+      }
+      case EXISTING -> {
         existingFiles += 1;
         existingRows += entry.file().recordCount();
-        break;
-      case DELETED:
+      }
+      case DELETED -> {
         deletedFiles += 1;
         deletedRows += entry.file().recordCount();
-        break;
+      }
     }
 
     stats.update(entry.file().partition());
@@ -196,10 +196,9 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
 
     ByteBuffer keyMetadataBuffer;
-    if (keyMetadata instanceof NativeEncryptionKeyMetadata) {
+    if (keyMetadata instanceof NativeEncryptionKeyMetadata nativeKeyMetadata) {
       // File length is required by AES GCM Stream encryption, to prevent file truncation attacks
-      keyMetadataBuffer =
-          ((NativeEncryptionKeyMetadata) keyMetadata).copyWithLength(length()).buffer();
+      keyMetadataBuffer = nativeKeyMetadata.copyWithLength(length()).buffer();
     } else if (keyMetadata != null) {
       keyMetadataBuffer = keyMetadata.buffer();
     } else {

@@ -27,14 +27,11 @@ public class TableUtil {
   public static int formatVersion(Table table) {
     Preconditions.checkArgument(null != table, "Invalid table: null");
 
-    if (table instanceof SerializableTable) {
-      SerializableTable serializableTable = (SerializableTable) table;
+    if (table instanceof SerializableTable serializableTable) {
       return serializableTable.formatVersion();
-    } else if (table instanceof HasTableOperations) {
-      HasTableOperations ops = (HasTableOperations) table;
+    } else if (table instanceof HasTableOperations ops) {
       return ops.operations().current().formatVersion();
-    } else if (table instanceof BaseMetadataTable) {
-      BaseMetadataTable metadataTable = (BaseMetadataTable) table;
+    } else if (table instanceof BaseMetadataTable metadataTable) {
       return metadataTable.table().operations().current().formatVersion();
     } else {
       throw new IllegalArgumentException(
@@ -46,14 +43,12 @@ public class TableUtil {
   public static String metadataFileLocation(Table table) {
     Preconditions.checkArgument(null != table, "Invalid table: null");
 
-    if (table instanceof SerializableTable) {
-      SerializableTable serializableTable = (SerializableTable) table;
+    if (table instanceof SerializableTable serializableTable) {
       return serializableTable.metadataFileLocation();
-    } else if (table instanceof HasTableOperations) {
-      HasTableOperations ops = (HasTableOperations) table;
+    } else if (table instanceof HasTableOperations ops) {
       return ops.operations().current().metadataFileLocation();
-    } else if (table instanceof BaseMetadataTable) {
-      return ((BaseMetadataTable) table).table().operations().current().metadataFileLocation();
+    } else if (table instanceof BaseMetadataTable metadataTable) {
+      return metadataTable.table().operations().current().metadataFileLocation();
     } else {
       throw new IllegalArgumentException(
           String.format(

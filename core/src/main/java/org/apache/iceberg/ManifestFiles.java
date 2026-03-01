@@ -208,17 +208,22 @@ public class ManifestFiles {
       Long snapshotId,
       Long firstRowId) {
     switch (formatVersion) {
-      case 1:
+      case 1 -> {
         return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId);
-      case 2:
+      }
+      case 2 -> {
         return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId);
-      case 3:
+      }
+      case 3 -> {
         return new ManifestWriter.V3Writer(spec, encryptedOutputFile, snapshotId, firstRowId);
-      case 4:
+      }
+      case 4 -> {
         return new ManifestWriter.V4Writer(spec, encryptedOutputFile, snapshotId, firstRowId);
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Cannot write manifest for table version: " + formatVersion);
     }
-    throw new UnsupportedOperationException(
-        "Cannot write manifest for table version: " + formatVersion);
   }
 
   /**
@@ -268,17 +273,20 @@ public class ManifestFiles {
   public static ManifestWriter<DeleteFile> writeDeleteManifest(
       int formatVersion, PartitionSpec spec, EncryptedOutputFile outputFile, Long snapshotId) {
     switch (formatVersion) {
-      case 1:
-        throw new IllegalArgumentException("Cannot write delete files in a v1 table");
-      case 2:
+      case 1 -> throw new IllegalArgumentException("Cannot write delete files in a v1 table");
+      case 2 -> {
         return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId);
-      case 3:
+      }
+      case 3 -> {
         return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId);
-      case 4:
+      }
+      case 4 -> {
         return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId);
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Cannot write manifest for table version: " + formatVersion);
     }
-    throw new UnsupportedOperationException(
-        "Cannot write manifest for table version: " + formatVersion);
   }
 
   /**
@@ -313,13 +321,16 @@ public class ManifestFiles {
   static ManifestReader<?> open(
       ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
     switch (manifest.content()) {
-      case DATA:
+      case DATA -> {
         return ManifestFiles.read(manifest, io, specsById);
-      case DELETES:
+      }
+      case DELETES -> {
         return ManifestFiles.readDeleteManifest(manifest, io, specsById);
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Cannot read unknown manifest type: " + manifest.content());
     }
-    throw new UnsupportedOperationException(
-        "Cannot read unknown manifest type: " + manifest.content());
   }
 
   static ManifestFile copyAppendManifest(
@@ -397,17 +408,15 @@ public class ManifestFiles {
             entry.status(),
             allowedEntryStatus);
         switch (entry.status()) {
-          case ADDED:
+          case ADDED -> {
             summaryBuilder.addedFile(reader.spec(), entry.file());
             writer.add(entry);
-            break;
-          case EXISTING:
-            writer.existing(entry);
-            break;
-          case DELETED:
+          }
+          case EXISTING -> writer.existing(entry);
+          case DELETED -> {
             summaryBuilder.deletedFile(reader.spec(), entry.file());
             writer.delete(entry);
-            break;
+          }
         }
       }
 

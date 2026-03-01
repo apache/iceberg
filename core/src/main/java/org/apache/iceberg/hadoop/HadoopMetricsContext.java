@@ -67,22 +67,26 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   @SuppressWarnings("unchecked")
   public <T extends Number> Counter<T> counter(String name, Class<T> type, Unit unit) {
     switch (name) {
-      case READ_BYTES:
+      case READ_BYTES -> {
         ValidationException.check(type == Long.class, "'%s' requires Long type", READ_BYTES);
         return (Counter<T>) longCounter(statistics()::incrementBytesRead);
-      case READ_OPERATIONS:
+      }
+      case READ_OPERATIONS -> {
         ValidationException.check(
             type == Integer.class, "'%s' requires Integer type", READ_OPERATIONS);
         return (Counter<T>) integerCounter(statistics()::incrementReadOps);
-      case WRITE_BYTES:
+      }
+      case WRITE_BYTES -> {
         ValidationException.check(type == Long.class, "'%s' requires Long type", WRITE_BYTES);
         return (Counter<T>) longCounter(statistics()::incrementBytesWritten);
-      case WRITE_OPERATIONS:
+      }
+      case WRITE_OPERATIONS -> {
         ValidationException.check(
             type == Integer.class, "'%s' requires Integer type", WRITE_OPERATIONS);
         return (Counter<T>) integerCounter(statistics()::incrementWriteOps);
-      default:
-        throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
+      }
+      default ->
+          throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
     }
   }
 
@@ -126,17 +130,21 @@ public class HadoopMetricsContext implements FileIOMetricsContext {
   @Override
   public org.apache.iceberg.metrics.Counter counter(String name, Unit unit) {
     switch (name) {
-      case READ_BYTES:
+      case READ_BYTES -> {
         return counter(statistics()::incrementBytesRead, statistics()::getBytesRead);
-      case READ_OPERATIONS:
+      }
+      case READ_OPERATIONS -> {
         return counter((long x) -> statistics.incrementReadOps((int) x), statistics()::getReadOps);
-      case WRITE_BYTES:
+      }
+      case WRITE_BYTES -> {
         return counter(statistics()::incrementBytesWritten, statistics()::getBytesWritten);
-      case WRITE_OPERATIONS:
+      }
+      case WRITE_OPERATIONS -> {
         return counter(
             (long x) -> statistics.incrementWriteOps((int) x), statistics()::getWriteOps);
-      default:
-        throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
+      }
+      default ->
+          throw new IllegalArgumentException(String.format("Unsupported counter: '%s'", name));
     }
   }
 

@@ -111,26 +111,26 @@ public class PartitionStats implements StructLike {
     Preconditions.checkArgument(specId == file.specId(), "Spec IDs must match");
 
     switch (file.content()) {
-      case DATA:
+      case DATA -> {
         this.dataRecordCount += file.recordCount();
         this.dataFileCount += 1;
         this.totalDataFileSizeInBytes += file.fileSizeInBytes();
-        break;
-      case POSITION_DELETES:
+      }
+      case POSITION_DELETES -> {
         this.positionDeleteRecordCount += file.recordCount();
         if (file.format() == FileFormat.PUFFIN) {
           this.dvCount += 1;
         } else {
           this.positionDeleteFileCount += 1;
         }
-
-        break;
-      case EQUALITY_DELETES:
+      }
+      case EQUALITY_DELETES -> {
         this.equalityDeleteRecordCount += file.recordCount();
         this.equalityDeleteFileCount += 1;
-        break;
-      default:
-        throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported file content type: " + file.content());
     }
 
     if (snapshot != null) {
@@ -161,26 +161,26 @@ public class PartitionStats implements StructLike {
     Preconditions.checkArgument(specId == file.specId(), "Spec IDs must match");
 
     switch (file.content()) {
-      case DATA:
+      case DATA -> {
         this.dataRecordCount -= file.recordCount();
         this.dataFileCount -= 1;
         this.totalDataFileSizeInBytes -= file.fileSizeInBytes();
-        break;
-      case POSITION_DELETES:
+      }
+      case POSITION_DELETES -> {
         this.positionDeleteRecordCount -= file.recordCount();
         if (file.format() == FileFormat.PUFFIN) {
           this.dvCount -= 1;
         } else {
           this.positionDeleteFileCount -= 1;
         }
-
-        break;
-      case EQUALITY_DELETES:
+      }
+      case EQUALITY_DELETES -> {
         this.equalityDeleteRecordCount -= file.recordCount();
         this.equalityDeleteFileCount -= 1;
-        break;
-      default:
-        throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported file content type: " + file.content());
     }
 
     if (snapshot != null) {
@@ -233,85 +233,77 @@ public class PartitionStats implements StructLike {
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
     switch (pos) {
-      case 0:
+      case 0 -> {
         return javaClass.cast(partition);
-      case 1:
+      }
+      case 1 -> {
         return javaClass.cast(specId);
-      case 2:
+      }
+      case 2 -> {
         return javaClass.cast(dataRecordCount);
-      case 3:
+      }
+      case 3 -> {
         return javaClass.cast(dataFileCount);
-      case 4:
+      }
+      case 4 -> {
         return javaClass.cast(totalDataFileSizeInBytes);
-      case 5:
+      }
+      case 5 -> {
         return javaClass.cast(positionDeleteRecordCount);
-      case 6:
+      }
+      case 6 -> {
         return javaClass.cast(positionDeleteFileCount);
-      case 7:
+      }
+      case 7 -> {
         return javaClass.cast(equalityDeleteRecordCount);
-      case 8:
+      }
+      case 8 -> {
         return javaClass.cast(equalityDeleteFileCount);
-      case 9:
+      }
+      case 9 -> {
         return javaClass.cast(totalRecordCount);
-      case 10:
+      }
+      case 10 -> {
         return javaClass.cast(lastUpdatedAt);
-      case 11:
+      }
+      case 11 -> {
         return javaClass.cast(lastUpdatedSnapshotId);
-      case 12:
+      }
+      case 12 -> {
         return javaClass.cast(dvCount);
-      default:
-        throw new UnsupportedOperationException("Unknown position: " + pos);
+      }
+      default -> throw new UnsupportedOperationException("Unknown position: " + pos);
     }
   }
 
   @Override
   public <T> void set(int pos, T value) {
     switch (pos) {
-      case 0:
-        this.partition = (StructLike) value;
-        break;
-      case 1:
-        this.specId = (int) value;
-        break;
-      case 2:
-        this.dataRecordCount = (long) value;
-        break;
-      case 3:
-        this.dataFileCount = (int) value;
-        break;
-      case 4:
-        this.totalDataFileSizeInBytes = (long) value;
-        break;
-      case 5:
-        // optional field as per spec, implementation initialize to 0 for counters
-        this.positionDeleteRecordCount = value == null ? 0L : (long) value;
-        break;
-      case 6:
-        // optional field as per spec, implementation initialize to 0 for counters
-        this.positionDeleteFileCount = value == null ? 0 : (int) value;
-        break;
-      case 7:
-        // optional field as per spec, implementation initialize to 0 for counters
-        this.equalityDeleteRecordCount = value == null ? 0L : (long) value;
-        break;
-      case 8:
-        // optional field as per spec, implementation initialize to 0 for counters
-        this.equalityDeleteFileCount = value == null ? 0 : (int) value;
-        break;
-      case 9:
-        this.totalRecordCount = (Long) value;
-        break;
-      case 10:
-        this.lastUpdatedAt = (Long) value;
-        break;
-      case 11:
-        this.lastUpdatedSnapshotId = (Long) value;
-        break;
-      case 12:
-        this.dvCount = value == null ? 0 : (int) value;
-        break;
-      default:
-        throw new UnsupportedOperationException("Unknown position: " + pos);
+      case 0 -> this.partition = (StructLike) value;
+      case 1 -> this.specId = (int) value;
+      case 2 -> this.dataRecordCount = (long) value;
+      case 3 -> this.dataFileCount = (int) value;
+      case 4 -> this.totalDataFileSizeInBytes = (long) value;
+      case 5 ->
+          // optional field as per spec, implementation initialize to 0 for counters
+          this.positionDeleteRecordCount = value == null ? 0L : (long) value;
+      case 6 ->
+          // optional field as per spec, implementation initialize to 0 for counters
+          this.positionDeleteFileCount = value == null ? 0 : (int) value;
+
+      case 7 ->
+          // optional field as per spec, implementation initialize to 0 for counters
+          this.equalityDeleteRecordCount = value == null ? 0L : (long) value;
+
+      case 8 ->
+          // optional field as per spec, implementation initialize to 0 for counters
+          this.equalityDeleteFileCount = value == null ? 0 : (int) value;
+
+      case 9 -> this.totalRecordCount = (Long) value;
+      case 10 -> this.lastUpdatedAt = (Long) value;
+      case 11 -> this.lastUpdatedSnapshotId = (Long) value;
+      case 12 -> this.dvCount = value == null ? 0 : (int) value;
+      default -> throw new UnsupportedOperationException("Unknown position: " + pos);
     }
   }
 }

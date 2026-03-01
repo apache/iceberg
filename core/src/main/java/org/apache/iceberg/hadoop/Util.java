@@ -90,8 +90,8 @@ public class Util {
   public static boolean mayHaveBlockLocations(FileIO io, String location) {
     if (usesHadoopFileIO(io, location)) {
       InputFile inputFile = io.newInputFile(location);
-      if (inputFile instanceof HadoopInputFile) {
-        String scheme = ((HadoopInputFile) inputFile).getFileSystem().getScheme();
+      if (inputFile instanceof HadoopInputFile hadoopInputFile) {
+        String scheme = hadoopInputFile.getFileSystem().getScheme();
         return LOCALITY_WHITELIST_FS.contains(scheme);
 
       } else {
@@ -106,8 +106,8 @@ public class Util {
     String location = task.file().location();
     if (usesHadoopFileIO(io, location)) {
       InputFile inputFile = io.newInputFile(location);
-      if (inputFile instanceof HadoopInputFile) {
-        return ((HadoopInputFile) inputFile).getBlockLocations(task.start(), task.length());
+      if (inputFile instanceof HadoopInputFile hadoopInputFile) {
+        return hadoopInputFile.getBlockLocations(task.start(), task.length());
 
       } else {
         return HadoopInputFile.NO_LOCATION_PREFERENCE;
@@ -121,8 +121,7 @@ public class Util {
     if (io instanceof HadoopFileIO) {
       return true;
 
-    } else if (io instanceof ResolvingFileIO) {
-      ResolvingFileIO resolvingFileIO = (ResolvingFileIO) io;
+    } else if (io instanceof ResolvingFileIO resolvingFileIO) {
       return HadoopFileIO.class.isAssignableFrom(resolvingFileIO.ioClass(location));
 
     } else {

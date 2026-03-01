@@ -32,7 +32,7 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
 
   public static <T, F> T visit(Schema schema, AvroCustomOrderSchemaVisitor<T, F> visitor) {
     switch (schema.getType()) {
-      case RECORD:
+      case RECORD -> {
         // check to make sure this hasn't been visited before
         String name = schema.getFullName();
         Preconditions.checkState(
@@ -60,23 +60,29 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
           visitor.recordLevels.pop();
           return visitor.record(schema, names, Iterables.transform(results, Supplier::get));
         }
+      }
 
-      case UNION:
+      case UNION -> {
         List<Schema> types = schema.getTypes();
         List<Supplier<T>> options = Lists.newArrayListWithExpectedSize(types.size());
         for (Schema type : types) {
           options.add(new VisitFuture<>(type, visitor));
         }
+
         return visitor.union(schema, Iterables.transform(options, Supplier::get));
+      }
 
-      case ARRAY:
+      case ARRAY -> {
         return visitor.array(schema, new VisitFuture<>(schema.getElementType(), visitor));
+      }
 
-      case MAP:
+      case MAP -> {
         return visitor.map(schema, new VisitFuture<>(schema.getValueType(), visitor));
+      }
 
-      default:
+      default -> {
         return visitor.primitive(schema);
+      }
     }
   }
 

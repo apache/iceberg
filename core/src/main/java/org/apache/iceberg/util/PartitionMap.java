@@ -200,11 +200,11 @@ public class PartitionMap<V> extends AbstractMap<Pair<Integer, StructLike>, V> {
   }
 
   private <R> R execute(Object key, BiFunction<Integer, StructLike, R> action, R defaultValue) {
-    if (key instanceof Pair) {
-      Object first = ((Pair<?, ?>) key).first();
-      Object second = ((Pair<?, ?>) key).second();
-      if (first instanceof Integer && (second == null || second instanceof StructLike)) {
-        return action.apply((Integer) first, (StructLike) second);
+    if (key instanceof Pair<?, ?> pair) {
+      Object first = pair.first();
+      Object second = pair.second();
+      if (first instanceof Integer specId && (second == null || second instanceof StructLike)) {
+        return action.apply(specId, (StructLike) second);
       }
     } else if (key == null) {
       throw new NullPointerException(getClass().getName() + " does not support null keys");

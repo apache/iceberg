@@ -136,8 +136,8 @@ public class FileMetadata {
     }
 
     public Builder withInputFile(InputFile file) {
-      if (file instanceof HadoopInputFile) {
-        return withStatus(((HadoopInputFile) file).getStat());
+      if (file instanceof HadoopInputFile hadoopInputFile) {
+        return withStatus(hadoopInputFile.getStat());
       }
 
       this.filePath = file.location();
@@ -272,17 +272,15 @@ public class FileMetadata {
       }
 
       switch (content) {
-        case POSITION_DELETES:
-          Preconditions.checkArgument(
-              sortOrderId == null, "Position delete file should not have sort order");
-          break;
-        case EQUALITY_DELETES:
+        case POSITION_DELETES ->
+            Preconditions.checkArgument(
+                sortOrderId == null, "Position delete file should not have sort order");
+        case EQUALITY_DELETES -> {
           if (sortOrderId == null) {
             sortOrderId = SortOrder.unsorted().orderId();
           }
-          break;
-        default:
-          throw new IllegalStateException("Unknown content type " + content);
+        }
+        default -> throw new IllegalStateException("Unknown content type " + content);
       }
 
       return new GenericDeleteFile(

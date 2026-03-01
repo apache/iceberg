@@ -154,8 +154,8 @@ public class CachingCatalog implements Catalog {
 
       // Share TableOperations instance of origin table for all metadata tables, so that metadata
       // table instances are refreshed as well when origin table instance is refreshed.
-      if (originTable instanceof HasTableOperations) {
-        TableOperations ops = ((HasTableOperations) originTable).operations();
+      if (originTable instanceof HasTableOperations hasTableOperations) {
+        TableOperations ops = hasTableOperations.operations();
         MetadataTableType type = MetadataTableType.from(canonicalized.name());
 
         Table metadataTable =

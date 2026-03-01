@@ -28,9 +28,9 @@ class Delegates {
 
   @SuppressWarnings("unchecked")
   static <F extends ContentFile<F>> F suppressFirstRowId(F file) {
-    if (file instanceof DataFile && null != file.firstRowId()) {
+    if (file instanceof DataFile dataFile && null != file.firstRowId()) {
       return (F)
-          new DelegatingDataFile((DataFile) file) {
+          new DelegatingDataFile(dataFile) {
             @Override
             public Long firstRowId() {
               return null;

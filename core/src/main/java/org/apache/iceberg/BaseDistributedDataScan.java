@@ -241,19 +241,18 @@ abstract class BaseDistributedDataScan
     }
 
     switch (mode) {
-      case LOCAL:
+      case LOCAL -> {
         return true;
-
-      case DISTRIBUTED:
+      }
+      case DISTRIBUTED -> {
         return manifests.isEmpty();
-
-      case AUTO:
+      }
+      case AUTO -> {
         return remoteParallelism() <= localParallelism
             || manifests.size() <= 2 * localParallelism
             || totalSize(manifests) <= localPlanningSizeThreshold;
-
-      default:
-        throw new IllegalArgumentException("Unknown planning mode: " + mode);
+      }
+      default -> throw new IllegalArgumentException("Unknown planning mode: " + mode);
     }
   }
 

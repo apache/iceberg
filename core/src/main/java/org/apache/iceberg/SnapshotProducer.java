@@ -546,9 +546,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       if (event != null) {
         Listeners.notifyAll(event);
 
-        if (event instanceof CreateSnapshotEvent) {
-          CreateSnapshotEvent createSnapshotEvent = (CreateSnapshotEvent) event;
-
+        if (event instanceof CreateSnapshotEvent createSnapshotEvent) {
           reporter.report(
               ImmutableCommitReport.builder()
                   .tableName(createSnapshotEvent.tableName())
@@ -811,24 +809,24 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         }
 
         switch (entry.status()) {
-          case ADDED:
+          case ADDED -> {
             addedFiles += 1;
             addedRows += entry.file().recordCount();
             if (snapshotId == null) {
               snapshotId = entry.snapshotId();
             }
-            break;
-          case EXISTING:
+          }
+          case EXISTING -> {
             existingFiles += 1;
             existingRows += entry.file().recordCount();
-            break;
-          case DELETED:
+          }
+          case DELETED -> {
             deletedFiles += 1;
             deletedRows += entry.file().recordCount();
             if (snapshotId == null) {
               snapshotId = entry.snapshotId();
             }
-            break;
+          }
         }
 
         stats.update(entry.file().partition());

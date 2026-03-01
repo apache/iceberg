@@ -32,12 +32,9 @@ public class MetadataTableUtils {
   public static Table createMetadataTableInstance(Table table, MetadataTableType type) {
     if (table instanceof BaseTable) {
       return createMetadataTableInstance(table, metadataTableName(table.name(), type), type);
-    } else if (table instanceof HasTableOperations) {
+    } else if (table instanceof HasTableOperations hasTableOps) {
       return createMetadataTableInstance(
-          ((HasTableOperations) table).operations(),
-          table.name(),
-          metadataTableName(table.name(), type),
-          type);
+          hasTableOps.operations(), table.name(), metadataTableName(table.name(), type), type);
     } else {
       throw new IllegalArgumentException(
           String.format(
@@ -56,41 +53,57 @@ public class MetadataTableUtils {
   private static Table createMetadataTableInstance(
       Table baseTable, String metadataTableName, MetadataTableType type) {
     switch (type) {
-      case ENTRIES:
+      case ENTRIES -> {
         return new ManifestEntriesTable(baseTable, metadataTableName);
-      case FILES:
+      }
+      case FILES -> {
         return new FilesTable(baseTable, metadataTableName);
-      case DATA_FILES:
+      }
+      case DATA_FILES -> {
         return new DataFilesTable(baseTable, metadataTableName);
-      case DELETE_FILES:
+      }
+      case DELETE_FILES -> {
         return new DeleteFilesTable(baseTable, metadataTableName);
-      case HISTORY:
+      }
+      case HISTORY -> {
         return new HistoryTable(baseTable, metadataTableName);
-      case SNAPSHOTS:
+      }
+      case SNAPSHOTS -> {
         return new SnapshotsTable(baseTable, metadataTableName);
-      case METADATA_LOG_ENTRIES:
+      }
+      case METADATA_LOG_ENTRIES -> {
         return new MetadataLogEntriesTable(baseTable, metadataTableName);
-      case REFS:
+      }
+      case REFS -> {
         return new RefsTable(baseTable, metadataTableName);
-      case MANIFESTS:
+      }
+      case MANIFESTS -> {
         return new ManifestsTable(baseTable, metadataTableName);
-      case PARTITIONS:
+      }
+      case PARTITIONS -> {
         return new PartitionsTable(baseTable, metadataTableName);
-      case ALL_DATA_FILES:
+      }
+      case ALL_DATA_FILES -> {
         return new AllDataFilesTable(baseTable, metadataTableName);
-      case ALL_DELETE_FILES:
+      }
+      case ALL_DELETE_FILES -> {
         return new AllDeleteFilesTable(baseTable, metadataTableName);
-      case ALL_FILES:
+      }
+      case ALL_FILES -> {
         return new AllFilesTable(baseTable, metadataTableName);
-      case ALL_MANIFESTS:
+      }
+      case ALL_MANIFESTS -> {
         return new AllManifestsTable(baseTable, metadataTableName);
-      case ALL_ENTRIES:
+      }
+      case ALL_ENTRIES -> {
         return new AllEntriesTable(baseTable, metadataTableName);
-      case POSITION_DELETES:
+      }
+      case POSITION_DELETES -> {
         return new PositionDeletesTable(baseTable, metadataTableName);
-      default:
-        throw new NoSuchTableException(
-            "Unknown metadata table type: %s for %s", type, metadataTableName);
+      }
+      default ->
+          throw new NoSuchTableException(
+              "Unknown metadata table type: %s for %s", type, metadataTableName);
     }
   }
 

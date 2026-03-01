@@ -177,8 +177,8 @@ class GenericReaders {
 
     @Override
     protected Record reuseOrCreate(Object reuse) {
-      if (reuse instanceof Record) {
-        return (Record) reuse;
+      if (reuse instanceof Record record) {
+        return record;
       } else {
         return GenericRecord.create(structType);
       }
@@ -206,8 +206,8 @@ class GenericReaders {
 
     @Override
     protected Record reuseOrCreate(Object reuse) {
-      if (reuse instanceof Record) {
-        return (Record) reuse;
+      if (reuse instanceof Record record) {
+        return record;
       } else {
         return GenericRecord.create(structType);
       }

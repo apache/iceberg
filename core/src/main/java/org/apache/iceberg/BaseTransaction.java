@@ -127,12 +127,12 @@ public class BaseTransaction implements Transaction {
   protected final <T extends PendingUpdate> T appendUpdate(T update) {
     checkLastOperationCommitted(update.getClass());
 
-    if (update instanceof SnapshotUpdate) {
-      ((SnapshotUpdate) update).deleteWith(enqueueDelete);
+    if (update instanceof SnapshotUpdate snapshotUpdate) {
+      snapshotUpdate.deleteWith(enqueueDelete);
     }
 
-    if (update instanceof SnapshotProducer) {
-      ((SnapshotProducer) update).reportWith(reporter);
+    if (update instanceof SnapshotProducer snapshotProducer) {
+      snapshotProducer.reportWith(reporter);
     }
 
     this.updates.add(update);
@@ -256,21 +256,10 @@ public class BaseTransaction implements Transaction {
         hasLastOpCommitted, "Cannot commit transaction: last operation has not committed");
 
     switch (type) {
-      case CREATE_TABLE:
-        commitCreateTransaction();
-        break;
-
-      case REPLACE_TABLE:
-        commitReplaceTransaction(false);
-        break;
-
-      case CREATE_OR_REPLACE_TABLE:
-        commitReplaceTransaction(true);
-        break;
-
-      case SIMPLE:
-        commitSimpleTransaction();
-        break;
+      case CREATE_TABLE -> commitCreateTransaction();
+      case REPLACE_TABLE -> commitReplaceTransaction(false);
+      case CREATE_OR_REPLACE_TABLE -> commitReplaceTransaction(true);
+      case SIMPLE -> commitSimpleTransaction();
     }
   }
 
@@ -433,8 +422,8 @@ public class BaseTransaction implements Transaction {
         .suppressFailureWhenFinished()
         .run(
             update -> {
-              if (update instanceof SnapshotProducer) {
-                ((SnapshotProducer) update).cleanAll();
+              if (update instanceof SnapshotProducer snapshotProducer) {
+                snapshotProducer.cleanAll();
               }
             });
   }

@@ -125,8 +125,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
       }
     }
 
-    if (request instanceof CancellableDependency
-        && ((CancellableDependency) request).isCancelled()) {
+    if (request instanceof CancellableDependency cancellable && cancellable.isCancelled()) {
       return false;
     }
 
@@ -137,7 +136,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
   @Override
   public boolean retryRequest(HttpResponse response, int execCount, HttpContext context) {
     HttpRequest request =
-        context instanceof HttpCoreContext ? ((HttpCoreContext) context).getRequest() : null;
+        context instanceof HttpCoreContext httpCoreContext ? httpCoreContext.getRequest() : null;
 
     boolean is503Retryable =
         response.getCode() == HttpStatus.SC_SERVICE_UNAVAILABLE

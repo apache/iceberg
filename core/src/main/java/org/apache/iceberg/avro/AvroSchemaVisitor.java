@@ -30,7 +30,7 @@ public abstract class AvroSchemaVisitor<T> {
 
   public static <T> T visit(Schema schema, AvroSchemaVisitor<T> visitor) {
     switch (schema.getType()) {
-      case RECORD:
+      case RECORD -> {
         // check to make sure this hasn't been visited before
         String name = schema.getFullName();
         Preconditions.checkState(
@@ -59,27 +59,33 @@ public abstract class AvroSchemaVisitor<T> {
           visitor.recordLevels.pop();
           return visitor.record(schema, names, results);
         }
+      }
 
-      case UNION:
+      case UNION -> {
         List<Schema> types = schema.getTypes();
         List<T> options = Lists.newArrayListWithExpectedSize(types.size());
         for (Schema type : types) {
           options.add(visit(type, visitor));
         }
-        return visitor.union(schema, options);
 
-      case ARRAY:
+        return visitor.union(schema, options);
+      }
+
+      case ARRAY -> {
         if (schema.getLogicalType() instanceof LogicalMap) {
           return visitor.array(schema, visit(schema.getElementType(), visitor));
         } else {
           return visitor.array(schema, visitWithName("element", schema.getElementType(), visitor));
         }
+      }
 
-      case MAP:
+      case MAP -> {
         return visitor.map(schema, visitWithName("value", schema.getValueType(), visitor));
+      }
 
-      default:
+      default -> {
         return visitor.primitive(schema);
+      }
     }
   }
 

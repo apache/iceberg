@@ -129,10 +129,8 @@ public class ScanSummary {
         removeTimeFilters(expressions, and.right());
         return;
 
-      } else if (expression instanceof UnboundPredicate) {
-        UnboundPredicate pred = (UnboundPredicate) expression;
-        if (pred.term() instanceof NamedReference) {
-          NamedReference<?> ref = (NamedReference<?>) pred.term();
+      } else if (expression instanceof UnboundPredicate pred) {
+        if (pred.term() instanceof NamedReference<?> ref) {
           Literal<?> lit = pred.literal();
           if (TIMESTAMP_NAMES.contains(ref.name())) {
             Literal<Long> tsLiteral = lit.to(Types.TimestampType.withoutZone());
@@ -388,37 +386,37 @@ public class ScanSummary {
     for (UnboundPredicate<Long> pred : timeFilters) {
       long value = pred.literal().value();
       switch (pred.op()) {
-        case LT:
+        case LT -> {
           if (value - 1 < maxTimestamp) {
             maxTimestamp = value - 1;
           }
-          break;
-        case LT_EQ:
+        }
+        case LT_EQ -> {
           if (value < maxTimestamp) {
             maxTimestamp = value;
           }
-          break;
-        case GT:
+        }
+        case GT -> {
           if (value + 1 > minTimestamp) {
             minTimestamp = value + 1;
           }
-          break;
-        case GT_EQ:
+        }
+        case GT_EQ -> {
           if (value > minTimestamp) {
             minTimestamp = value;
           }
-          break;
-        case EQ:
+        }
+        case EQ -> {
           if (value < maxTimestamp) {
             maxTimestamp = value;
           }
           if (value > minTimestamp) {
             minTimestamp = value;
           }
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot filter timestamps using predicate: " + pred);
+        }
+        default ->
+            throw new UnsupportedOperationException(
+                "Cannot filter timestamps using predicate: " + pred);
       }
     }
 

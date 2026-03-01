@@ -40,14 +40,14 @@ public class MetricsReporters {
 
     Set<MetricsReporter> reporters = Sets.newIdentityHashSet();
 
-    if (first instanceof CompositeMetricsReporter) {
-      reporters.addAll(((CompositeMetricsReporter) first).reporters());
+    if (first instanceof CompositeMetricsReporter compositeFirst) {
+      reporters.addAll(compositeFirst.reporters());
     } else {
       reporters.add(first);
     }
 
-    if (second instanceof CompositeMetricsReporter) {
-      reporters.addAll(((CompositeMetricsReporter) second).reporters());
+    if (second instanceof CompositeMetricsReporter compositeSecond) {
+      reporters.addAll(compositeSecond.reporters());
     } else {
       reporters.add(second);
     }

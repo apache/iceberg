@@ -72,11 +72,9 @@ public class PuffinReader implements Closeable {
       PuffinCompressionCodec footerCompression = PuffinCompressionCodec.NONE;
       for (Flag flag : decodeFlags(footer, footerStructOffset)) {
         switch (flag) {
-          case FOOTER_PAYLOAD_COMPRESSED:
-            footerCompression = PuffinFormat.FOOTER_COMPRESSION_CODEC;
-            break;
-          default:
-            throw new IllegalStateException("Unsupported flag: " + flag);
+          case FOOTER_PAYLOAD_COMPRESSED ->
+              footerCompression = PuffinFormat.FOOTER_COMPRESSION_CODEC;
+          default -> throw new IllegalStateException("Unsupported flag: " + flag);
         }
       }
 
@@ -183,8 +181,8 @@ public class PuffinReader implements Closeable {
 
   private byte[] readInput(long offset, int length) throws IOException {
     byte[] data = new byte[length];
-    if (input instanceof RangeReadable) {
-      ((RangeReadable) input).readFully(offset, data);
+    if (input instanceof RangeReadable rangeReadable) {
+      rangeReadable.readFully(offset, data);
     } else {
       input.seek(offset);
       ByteStreams.readFully(input, data);

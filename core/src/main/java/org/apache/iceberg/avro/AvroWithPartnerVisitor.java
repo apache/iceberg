@@ -103,20 +103,23 @@ public class AvroWithPartnerVisitor<P, R> {
       AvroWithPartnerVisitor<P, R> visitor,
       PartnerAccessors<P> accessors) {
     switch (schema.getType()) {
-      case RECORD:
+      case RECORD -> {
         if (schema.getLogicalType() instanceof VariantLogicalType) {
           return visitVariant(partner, schema, visitor, accessors);
         } else {
           return visitRecord(partner, schema, visitor, accessors);
         }
+      }
 
-      case UNION:
+      case UNION -> {
         return visitUnion(partner, schema, visitor, accessors);
+      }
 
-      case ARRAY:
+      case ARRAY -> {
         return visitArray(partner, schema, visitor, accessors);
+      }
 
-      case MAP:
+      case MAP -> {
         return visitor.map(
             partner,
             schema,
@@ -125,9 +128,11 @@ public class AvroWithPartnerVisitor<P, R> {
                 schema.getValueType(),
                 visitor,
                 accessors));
+      }
 
-      default:
+      default -> {
         return visitor.primitive(partner, schema);
+      }
     }
   }
 

@@ -500,11 +500,11 @@ public class Tasks {
 
           } catch (ExecutionException e) {
             Throwable cause = e.getCause();
-            if (cause instanceof Error) {
+            if (cause instanceof Error error) {
               for (Throwable t : uncaught) {
                 cause.addSuppressed(t);
               }
-              throw (Error) cause;
+              throw error;
             }
 
             if (cause != null) {

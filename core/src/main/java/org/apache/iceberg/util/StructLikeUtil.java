@@ -41,8 +41,8 @@ public class StructLikeUtil {
       for (int i = 0; i < values.length; i += 1) {
         Object value = toCopy.get(i, Object.class);
 
-        if (value instanceof StructLike) {
-          values[i] = copy((StructLike) value);
+        if (value instanceof StructLike structLike) {
+          values[i] = copy(structLike);
         } else {
           values[i] = value;
         }

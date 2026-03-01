@@ -59,8 +59,8 @@ public class NameMappingDatumReader<D> implements DatumReader<D>, SupportsRowPos
 
   @Override
   public void setRowPositionSupplier(Supplier<Long> posSupplier) {
-    if (wrapped instanceof SupportsRowPosition) {
-      ((SupportsRowPosition) wrapped).setRowPositionSupplier(posSupplier);
+    if (wrapped instanceof SupportsRowPosition supportsRowPosition) {
+      supportsRowPosition.setRowPositionSupplier(posSupplier);
     }
   }
 }

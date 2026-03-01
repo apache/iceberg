@@ -90,8 +90,8 @@ class InternalReaders {
 
     @Override
     protected GenericRecord reuseOrCreate(Object reuse) {
-      if (reuse instanceof GenericRecord) {
-        return (GenericRecord) reuse;
+      if (reuse instanceof GenericRecord genericRecord) {
+        return genericRecord;
       } else {
         return GenericRecord.create(structType);
       }
