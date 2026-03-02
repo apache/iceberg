@@ -252,9 +252,9 @@ public class TableProperties {
    * query engines for optimization purposes (e.g. eliminating redundant joins or distinct). This is
    * not enforced at write time and does not validate existing data.
    */
-  public static final String READ_IDENTIFIER_FIELDS_RELY = "read.identifier-fields.rely";
+  public static final String IDENTIFIER_FIELDS_RELY = "identifier-fields.rely";
 
-  public static final boolean READ_IDENTIFIER_FIELDS_RELY_DEFAULT = false;
+  public static final boolean IDENTIFIER_FIELDS_RELY_DEFAULT = false;
 
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
