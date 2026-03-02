@@ -108,12 +108,9 @@ public class PartitionUtil {
       Types.StructType partitionType, PartitionSpec spec, StructLike partition) {
     StructProjection projection =
         StructProjection.createAllowMissing(spec.partitionType(), partitionType);
-    if (partition instanceof PartitionData) {
-      projection.wrap(partition, partition.toString());
-    } else {
-      projection.wrap(partition);
-    }
-    return projection;
+    return partition instanceof PartitionData
+        ? projection.wrap(partition, partition.toString())
+        : projection.wrap(partition);
   }
 
   public static Map<Integer, PartitionSpec> indexSpecs(List<PartitionSpec> specs) {

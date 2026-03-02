@@ -379,9 +379,7 @@ public class RewritePositionDeleteFilesSparkAction
     }
   }
 
-  private String partitionDescription(StructLike partition) {
-    return partition instanceof StructProjection
-        ? ((StructProjection) partition).description()
-        : "";
+  private String partitionDescription(StructLike struct) {
+    return struct instanceof StructProjection partition ? partition.description() : "";
   }
 }
