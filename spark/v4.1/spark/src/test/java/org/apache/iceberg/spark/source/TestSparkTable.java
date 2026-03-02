@@ -74,7 +74,7 @@ public class TestSparkTable extends CatalogTestBase {
     // enabling rely without identifier fields still produces no primary key
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
-        tableName, TableProperties.READ_IDENTIFIER_FIELDS_RELY);
+        tableName, TableProperties.IDENTIFIER_FIELDS_RELY);
     sparkTable = loadSparkTable();
     assertThat(primaryKeys(sparkTable)).isEmpty();
   }
@@ -91,7 +91,7 @@ public class TestSparkTable extends CatalogTestBase {
 
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
-        tableName, TableProperties.READ_IDENTIFIER_FIELDS_RELY);
+        tableName, TableProperties.IDENTIFIER_FIELDS_RELY);
 
     sparkTable = loadSparkTable();
     List<PrimaryKey> pks = primaryKeys(sparkTable);
@@ -110,7 +110,7 @@ public class TestSparkTable extends CatalogTestBase {
     // disabling rely removes the primary key
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'false')",
-        tableName, TableProperties.READ_IDENTIFIER_FIELDS_RELY);
+        tableName, TableProperties.IDENTIFIER_FIELDS_RELY);
     sparkTable = loadSparkTable();
     assertThat(primaryKeys(sparkTable)).isEmpty();
   }
@@ -137,7 +137,7 @@ public class TestSparkTable extends CatalogTestBase {
     // session conf rely=false overrides table property rely=true
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
-        tableName, TableProperties.READ_IDENTIFIER_FIELDS_RELY);
+        tableName, TableProperties.IDENTIFIER_FIELDS_RELY);
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.IDENTIFIER_FIELDS_RELY, "false"),
         () -> assertThat(primaryKeys(loadSparkTable())).isEmpty());

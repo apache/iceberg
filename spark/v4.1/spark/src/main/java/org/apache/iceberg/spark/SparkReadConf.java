@@ -361,8 +361,8 @@ public class SparkReadConf {
     return confParser
         .booleanConf()
         .sessionConf(SparkSQLProperties.IDENTIFIER_FIELDS_RELY)
-        .tableProperty(TableProperties.READ_IDENTIFIER_FIELDS_RELY)
-        .defaultValue(TableProperties.READ_IDENTIFIER_FIELDS_RELY_DEFAULT)
+        .tableProperty(TableProperties.IDENTIFIER_FIELDS_RELY)
+        .defaultValue(TableProperties.IDENTIFIER_FIELDS_RELY_DEFAULT)
         .parse();
   }
 }
