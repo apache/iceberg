@@ -293,7 +293,7 @@ public class TestCatalogUtil {
   }
 
   @Test
-  public void testDeleteRemovedMetadataFilesBulkDeletionFailure() {
+  public void noFailureWhenBulkDeletingMetadataFiles() {
     FileIO mockIO =
         mock(FileIO.class, withSettings().extraInterfaces(SupportsBulkOperations.class));
 
