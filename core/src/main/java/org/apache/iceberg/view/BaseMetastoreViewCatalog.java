@@ -241,7 +241,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .max(Integer::compareTo)
               .orElseGet(metadata::currentVersionId);
 
-      if (PropertyUtil.propertyAsBoolean(
+      if (!PropertyUtil.propertyAsBoolean(
           properties,
           ViewProperties.REPLACE_DROP_DIALECT_ALLOWED,
           ViewProperties.REPLACE_DROP_DIALECT_ALLOWED_DEFAULT)) {

@@ -1911,7 +1911,7 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void replacingTrinoViewShouldFail() {
+  public void replacingTrinoView() {
     String viewName = viewName("trinoView");
     String sql = String.format("SELECT id FROM %s", tableName);
 
@@ -1925,16 +1925,21 @@ public class TestViews extends ExtensionsTestBase {
         .withSchema(schema(sql))
         .create();
 
-    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewName, sql))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):\n"
-                + "Previous dialects: [trino]\n"
-                + "New dialects: [spark]");
+    sql("CREATE OR REPLACE VIEW %s AS %s", viewName, sql + " limit 10");
+
+    View view = viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.currentVersion().representations())
+        .hasSize(2)
+        .containsExactlyInAnyOrder(
+            ImmutableSQLViewRepresentation.builder().dialect("trino").sql(sql).build(),
+            ImmutableSQLViewRepresentation.builder()
+                .dialect("spark")
+                .sql(sql + " limit 10")
+                .build());
   }
 
   @TestTemplate
-  public void replacingTrinoAndSparkViewShouldFail() {
+  public void replacingTrinoAndSparkView() {
     String viewName = viewName("trinoAndSparkView");
     String sql = String.format("SELECT id FROM %s", tableName);
 
@@ -1949,12 +1954,17 @@ public class TestViews extends ExtensionsTestBase {
         .withSchema(schema(sql))
         .create();
 
-    assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS %s", viewName, sql))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):\n"
-                + "Previous dialects: [trino, spark]\n"
-                + "New dialects: [spark]");
+    sql("CREATE OR REPLACE VIEW %s AS %s", viewName, sql + " limit 10");
+
+    View view = viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.currentVersion().representations())
+        .hasSize(2)
+        .containsExactlyInAnyOrder(
+            ImmutableSQLViewRepresentation.builder()
+                .dialect("spark")
+                .sql(sql + " limit 10")
+                .build(),
+            ImmutableSQLViewRepresentation.builder().dialect("trino").sql(sql).build());
   }
 
   @TestTemplate
@@ -1978,6 +1988,11 @@ public class TestViews extends ExtensionsTestBase {
         viewName, ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, tableName);
 
     View view = viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName));
+    assertThat(view.currentVersion().representations())
+        .hasSize(1)
+        .first()
+        .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
+        .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build());
 
     // trino view should show up in the view versions & history
     assertThat(view.history()).hasSize(2);
@@ -1995,10 +2010,10 @@ public class TestViews extends ExtensionsTestBase {
         .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("trino").sql(sql).build());
 
     assertThat(Lists.newArrayList(view.versions()).get(1).representations())
-        .hasSize(2)
-        .containsExactlyInAnyOrder(
-            ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build(),
-            ImmutableSQLViewRepresentation.builder().dialect("trino").sql(sql).build());
+        .hasSize(1)
+        .first()
+        .asInstanceOf(InstanceOfAssertFactories.type(SQLViewRepresentation.class))
+        .isEqualTo(ImmutableSQLViewRepresentation.builder().dialect("spark").sql(sql).build());
   }
 
   @TestTemplate

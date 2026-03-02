@@ -905,7 +905,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
         .withSchema(SCHEMA)
         .withDefaultNamespace(tableIdentifier.namespace())
         .withQuery("trino", "select * from ns.tbl limit 10")
-        .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
         .replace();
 
     assertThat(catalog().viewExists(tableIdentifier)).as("View should exist").isTrue();
@@ -1134,14 +1133,10 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(replacedViewVersion.schemaId()).isEqualTo(1);
     assertThat(replacedViewVersion.operation()).isEqualTo("replace");
     assertThat(replacedViewVersion.representations())
-        .containsExactlyInAnyOrder(
+        .containsExactly(
             ImmutableSQLViewRepresentation.builder()
                 .sql("select count(*) from ns.tbl")
                 .dialect("trino")
-                .build(),
-            ImmutableSQLViewRepresentation.builder()
-                .sql("select * from ns.tbl")
-                .dialect("spark")
                 .build());
 
     assertThat(catalog().dropView(identifier)).isTrue();
