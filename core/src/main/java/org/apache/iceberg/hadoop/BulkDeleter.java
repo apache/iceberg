@@ -33,6 +33,7 @@ import org.apache.hadoop.fs.BulkDelete;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -40,18 +41,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Contains ALL references to the hadoop bulk delete API; It will not be available on older hadoop
- * (pre 3.4.0) runtimes.
+ * Contains references to the hadoop bulk delete API; It will not be available on hadoop 3.3.x
+ * runtimes.
  */
 final class BulkDeleter {
 
   private static final Logger LOG = LoggerFactory.getLogger(BulkDeleter.class);
+
+  /** Resource looked for as an availability probe: {@value}. */
+  @VisibleForTesting
   static final String BULK_DELETE_CLASS = "org/apache/hadoop/fs/BulkDelete.class";
+
   private static String resourceToScanFor = BULK_DELETE_CLASS;
+
+  /** Thread pool for deletions. */
   private final ExecutorService executorService;
+
+  /** Configuration for filesystems retrieved. */
   private final Configuration conf;
 
-  /** */
   BulkDeleter(ExecutorService executorService, Configuration conf) {
     this.executorService = executorService;
     this.conf = conf;
@@ -67,8 +75,9 @@ final class BulkDeleter {
   }
 
   /**
-   * Force set the name of the API resource to scan for in {@link #apiAvailable()}. This is purlely
-   * to allow tests to inject failures by requesting a nonexistent resource.
+   * Force set the name of the API resource to scan for in {@link #apiAvailable()}. This is to allow
+   * tests to generate failures by requesting a nonexistent resource, so validate failure behavior
+   * on older Hadoop runtimes.
    *
    * @param resource name of the resource to look for.
    */
@@ -81,9 +90,8 @@ final class BulkDeleter {
    * Bulk delete files.
    *
    * <p>When implemented in the hadoop filesystem APIs, all filesystems support a bulk delete of a
-   * page size of 1 or more. On S3 a larger bulk delete operation is supported, with the page size
-   * set by {@code fs.s3a.bulk.delete.page.size}. Note: some third party S3 stores do not support
-   * bulk delete, in which case the page size is 1).
+   * page size of at least one. On S3 a larger bulk delete operation is supported, with the page
+   * size set by {@code fs.s3a.bulk.delete.page.size}.
    *
    * <p>A page of paths to delete is built up for each filesystem; when the page size is reached a
    * bulk delete is submitted for execution in a separate thread.
@@ -119,27 +127,25 @@ final class BulkDeleter {
         }
         // build root path of the filesystem,
         Path fsRoot = fs.makeQualified(new Path("/"));
-        DeleteContext deleteContext = deletionMap.get(fsRoot);
-        if (deleteContext == null) {
+        if (deletionMap.get(fsRoot) == null) {
           // fs root is not in the map, so create the bulk delete operation for
-          // for that FS and store within a new delete context.
-          deleteContext = new DeleteContext(fs.createBulkDelete(fsRoot));
-          deletionMap.put(fsRoot, deleteContext);
+          // that FS and store within a new delete context.
+          deletionMap.put(fsRoot, new DeleteContext(fs.createBulkDelete(fsRoot)));
         }
+
+        DeleteContext deleteContext = deletionMap.get(fsRoot);
 
         // add the deletion target.
         deleteContext.add(target);
 
         if (deleteContext.pageIsComplete()) {
           // the page size has been reached.
-
           // get the live path list, which MUST be done outside the async
-          // submitted closure.
+          // submitted closure. This also resets the context list to prepare
+          // for more entries.
           final Collection<Path> paths = deleteContext.snapshotDeletedFiles();
-          final BulkDelete bulkDeleter = deleteContext.bulkDeleter();
-          // execute the bulk delete in a new thread then prepare the delete path set for new
-          // entries.
-          deletionTasks.add(executorService.submit(() -> deleteBatch(bulkDeleter, paths)));
+          // execute the bulk delete in a new thread.
+          deletionTasks.add(executorService.submit(() -> deleteContext.deleteBatch(paths)));
         }
       }
 
@@ -147,10 +153,10 @@ final class BulkDeleter {
       // entries in the map which haven't yet reached their page size
       deletionMap.values().stream()
           .filter(sd -> sd.size() > 0)
-          .map(sd -> executorService.submit(() -> deleteBatch(sd.bulkDeleter(), sd.deletedFiles)))
+          .map(sd -> executorService.submit(() -> sd.deleteBatch(sd.deletedFiles())))
           .forEach(deletionTasks::add);
 
-      // Wait for all deletion tasks to complete and count the failures.
+      // Wait for all deletion tasks to complete and report any failures.
       LOG.debug("Waiting for {} deletion tasks to complete", deletionTasks.size());
 
       for (Future<List<Map.Entry<Path, String>>> deletionTask : deletionTasks) {
@@ -179,75 +185,118 @@ final class BulkDeleter {
   }
 
   /**
-   * Delete a single batch of paths.
-   *
-   * @param bulkDeleter deleter
-   * @param paths paths to delete.
-   * @return the list of paths which couldn't be deleted.
-   * @throws UncheckedIOException if an IOE was raised in the invoked methods.
+   * Delete context for a single filesystem. Tracks files to delete, the callback to invoke, knows
+   * when the page size is reached and is how bulkDelete() is finally invoked.
    */
-  private List<Map.Entry<Path, String>> deleteBatch(
-      BulkDelete bulkDeleter, Collection<Path> paths) {
-
-    LOG.debug("Deleting batch of {} paths", paths.size());
-    try {
-      return bulkDeleter.bulkDelete(paths);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
-  /** Ongoing store deletion; built up i */
-  private static final class DeleteContext implements AutoCloseable {
+  static final class DeleteContext implements AutoCloseable {
+    // bulk deleter for a filesystem.
     private final BulkDelete bulkDelete;
+    // page size.
     private final int pageSize;
+    // set of deleted files; demand created.
     private Set<Path> deletedFiles;
 
-    private DeleteContext(BulkDelete bulkDelete) {
+    /**
+     * Bind to a bulk delete instance. Acquires and stores the page size from it.
+     *
+     * @param bulkDelete bulk delete operation.
+     */
+    DeleteContext(BulkDelete bulkDelete) {
       this.bulkDelete = bulkDelete;
       this.pageSize = bulkDelete.pageSize();
+      Preconditions.checkArgument(pageSize > 0, "Page size must be greater than zero");
     }
 
-    /**
-     * This is a very quiet close, for use in cleanup.Up to Hadoop 3.5.0 the bulk delete objects
-     * always have no-op close calls. This is due diligence.
-     */
+    /** This is a very quiet close, for use in cleanup. This is due diligence. */
     @Override
     public void close() {
       try {
         bulkDelete.close();
-      } catch (IOException ignored) {
-        LOG.debug("Failed to close bulk delete", ignored);
+      } catch (IOException e) {
+        LOG.debug("Failed to close bulk delete", e);
       }
     }
 
-    private void add(Path path) {
+    /**
+     * Add a path, creating the path set on demand.
+     *
+     * @param path path to add.
+     */
+    void add(Path path) {
       if (deletedFiles == null) {
         deletedFiles = Sets.newHashSet();
       }
       deletedFiles.add(path);
+      Preconditions.checkState(
+          deletedFiles.size() <= pageSize, "Number of queued items to delete exceeds page size");
     }
 
     public BulkDelete bulkDeleter() {
       return bulkDelete;
     }
 
-    private int size() {
+    /**
+     * Live view of deleted files.
+     *
+     * @return the ongoing list being built up.
+     */
+    public Set<Path> deletedFiles() {
+      return deletedFiles;
+    }
+
+    /**
+     * Number of files to delete.
+     *
+     * @return current number of files to delete.
+     */
+    int size() {
       return deletedFiles == null ? 0 : deletedFiles.size();
     }
 
-    public int pageSize() {
+    /**
+     * Cached page size of the BulkDelete instance.
+     *
+     * @return a positive integer.
+     */
+    int pageSize() {
       return pageSize;
     }
 
-    public boolean pageIsComplete() {
+    /**
+     * Is the page size complete?
+     *
+     * @return true if the set of deleted files matches the page size.
+     */
+    boolean pageIsComplete() {
       return size() == pageSize();
     }
 
-    private Set<Path> snapshotDeletedFiles() {
+    /**
+     * Take a snapshot of the deleted files for passing to an asynchronous deletion operation. The
+     * {@link #deletedFiles} field is reset.
+     *
+     * @return the set of unique filenames passed in for deletion.
+     */
+    Set<Path> snapshotDeletedFiles() {
       final Set<Path> paths = deletedFiles == null ? Collections.emptySet() : deletedFiles;
       deletedFiles = null;
       return paths;
+    }
+
+    /**
+     * Delete a single batch of paths.
+     *
+     * @param paths paths to delete.
+     * @return the list of paths which couldn't be deleted.
+     * @throws UncheckedIOException if an IOE was raised in the invoked methods.
+     */
+    List<Map.Entry<Path, String>> deleteBatch(Collection<Path> paths) {
+      LOG.debug("Deleting batch of {} paths", paths.size());
+      try {
+        return bulkDelete.bulkDelete(paths);
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
     }
   }
 }

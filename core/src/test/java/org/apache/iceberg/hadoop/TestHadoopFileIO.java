@@ -27,13 +27,18 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BulkDelete;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -47,6 +52,7 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -167,7 +173,7 @@ public class TestHadoopFileIO {
   public void testDeleteFiles(boolean bulkDelete) {
     resetFileIOBinding(bulkDelete);
     Path parent = new Path(tempDir.toURI());
-    List<Path> filesCreated = createRandomFiles(parent, 100);
+    List<Path> filesCreated = createRandomFiles(parent, 10);
     hadoopFileIO.deleteFiles(filesCreated.stream().map(Path::toString).toList());
     filesCreated.forEach(
         file -> assertThat(hadoopFileIO.newInputFile(file.toString()).exists()).isFalse());
@@ -221,8 +227,34 @@ public class TestHadoopFileIO {
   }
 
   /**
-   * With bulk delete disabled, deleteFiles() works even when the BulkDeleter believes the feature
-   * is unavailable. This shows the standard invocation path is used.
+   * Local FS will let you delete an empty dir on a non-recursive delete, but not one with a child.
+   * Create a dir with a child, expect a failure, but also expect the file path provided to have
+   * been deleted.
+   */
+  @Test
+  public void testBulkDeleteNonEmptyDirectory() {
+    resetFileIOBinding(true);
+    Path parent = new Path(tempDir.toURI());
+    final String file = touch(new Path(parent, "file")).toString();
+    final File directory = new File(tempDir, "dir");
+    directory.mkdirs();
+    touch(new Path(parent, "dir/child"));
+
+    final String dirString = directory.toURI().toString();
+    assertPathExists(dirString);
+    // directory delete resulted in the whole operation reported as a failure.
+    assertThatThrownBy(() -> hadoopFileIO.deleteFiles(List.of(dirString, file)))
+        .isInstanceOf(BulkDeletionFailureException.class)
+        .hasMessageContaining("Failed to delete 1 files");
+
+    // directory is still there
+    assertPathExists(dirString);
+    // the file has been deleted
+    assertPathDoesNotExist(file);
+  }
+
+  /**
+   * With bulk delete disabled, deleteFiles() works. This shows the classic invocation path is used.
    */
   @Test
   public void testDeleteFilesWithBulkDeleteNotFound() {
@@ -239,6 +271,96 @@ public class TestHadoopFileIO {
       // change the resource to probe for to be that of the BulkDelete class.
       BulkDeleter.setApiResource(BULK_DELETE_CLASS);
     }
+  }
+
+  /**
+   * A stub BulkDelete implementation allows for a page size greater than 1 to be tested, through
+   * the DeleteContext class along with reporting of partial failures.
+   */
+  @Test
+  public void testDeleteContext() {
+
+    // stub delete with page size of two, path #3 will be rejected on a delete
+    final StubBulkDelete stubBulkDelete = new StubBulkDelete(2, 3);
+    final BulkDeleter.DeleteContext context = new BulkDeleter.DeleteContext(stubBulkDelete);
+    assertThat(context.pageSize()).isEqualTo(2);
+    assertThat(context.size()).isEqualTo(0);
+    assertThat(context.pageIsComplete()).isFalse();
+    // add one path, assert state changes
+    final Path p1 = new Path("/p1");
+    context.add(p1);
+    assertThat(context.size()).isEqualTo(1);
+    assertThat(context.pageIsComplete()).isFalse();
+    // add a second path, the page is now complete
+    final Path p2 = new Path("/p2");
+    context.add(p2);
+    assertThat(context.pageIsComplete()).isTrue();
+    // take a snapshot, it has the expected size and the context is reset
+    final Set<Path> snapshot = context.snapshotDeletedFiles();
+    assertThat(snapshot).hasSize(2);
+    assertThat(context.size()).isEqualTo(0);
+    assertThat(context.pageIsComplete()).isFalse();
+    // perform the delete
+    assertThat(context.deleteBatch(snapshot)).isEmpty();
+    final Path p3 = new Path("/p3");
+    context.add(p3);
+    final Path p4 = new Path("/p4");
+    context.add(p4);
+    assertThat(context.pageIsComplete()).isTrue();
+    // delete all without a snapshot (as is done at the end of deleteFiles());
+    // this is going report a failure.
+    assertThat(context.deleteBatch(context.deletedFiles()))
+        .hasSize(1)
+        .allSatisfy(
+            r -> {
+              assertThat(r.getKey()).isEqualTo(p3);
+              assertThat(r.getValue()).isEqualTo("simulated failure");
+            });
+    // still deleted everything
+    assertThat(stubBulkDelete.deleteCount).isEqualTo(4);
+    assertThat(stubBulkDelete.deletedFiles).containsExactlyInAnyOrder(p1, p2, p4);
+    context.close();
+  }
+
+  /** Stub implementation of BulkDelete to verify invocation and failure handling. */
+  private static final class StubBulkDelete implements BulkDelete {
+    private final int pageSize;
+    private final int failOnDeleteCount;
+    private final Set<Path> deletedFiles = Sets.newHashSet();
+    private int deleteCount;
+
+    StubBulkDelete(int pageSize, int failOnDeleteCount) {
+      this.pageSize = pageSize;
+      this.failOnDeleteCount = failOnDeleteCount;
+    }
+
+    @Override
+    public int pageSize() {
+      return pageSize;
+    }
+
+    @Override
+    public Path basePath() {
+      return new Path("/");
+    }
+
+    @Override
+    public List<Map.Entry<Path, String>> bulkDelete(Collection<Path> paths)
+        throws IOException, IllegalArgumentException {
+      List<Map.Entry<Path, String>> entries = Lists.newArrayList();
+      for (Path path : paths) {
+        deleteCount++;
+        if (deleteCount == failOnDeleteCount) {
+          entries.add(new AbstractMap.SimpleEntry<>(path, "simulated failure"));
+        } else {
+          deletedFiles.add(path);
+        }
+      }
+      return entries;
+    }
+
+    @Override
+    public void close() throws IOException {}
   }
 
   @ParameterizedTest
