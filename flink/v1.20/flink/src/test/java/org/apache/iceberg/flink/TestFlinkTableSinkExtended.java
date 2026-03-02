@@ -50,6 +50,7 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
@@ -61,7 +62,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.SnapshotChanges;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -359,7 +359,10 @@ public class TestFlinkTableSinkExtended extends SqlBase {
           snapshots.stream()
               .filter(
                   snapshot ->
-                      SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles()
+                      SnapshotChanges.builderFor(table)
+                          .snapshot(snapshot)
+                          .build()
+                          .addedDataFiles()
                           .iterator()
                           .hasNext())
               .collect(Collectors.toList());
@@ -377,7 +380,11 @@ public class TestFlinkTableSinkExtended extends SqlBase {
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
             Lists.newArrayList(
-                SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles().iterator());
+                SnapshotChanges.builderFor(table)
+                    .snapshot(snapshot)
+                    .build()
+                    .addedDataFiles()
+                    .iterator());
         // range partition results in each partition only assigned to one writer task
         // maybe less than 26 partitions as BoundedSource doesn't always precisely
         // control the checkpoint boundary.

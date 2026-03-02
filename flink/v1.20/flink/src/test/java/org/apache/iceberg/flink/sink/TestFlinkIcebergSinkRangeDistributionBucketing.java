@@ -47,6 +47,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -58,7 +59,6 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.SnapshotChanges;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -205,7 +205,10 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
           snapshots.stream()
               .filter(
                   snapshot ->
-                      SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles()
+                      SnapshotChanges.builderFor(table)
+                          .snapshot(snapshot)
+                          .build()
+                          .addedDataFiles()
                           .iterator()
                           .hasNext())
               .collect(Collectors.toList());
@@ -223,7 +226,11 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
             Lists.newArrayList(
-                SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles().iterator());
+                SnapshotChanges.builderFor(table)
+                    .snapshot(snapshot)
+                    .build()
+                    .addedDataFiles()
+                    .iterator());
         assertThat(addedDataFiles)
             .hasSizeLessThanOrEqualTo(maxAddedDataFilesPerCheckpoint(parallelism));
       }
