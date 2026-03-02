@@ -33,7 +33,7 @@ permissions:
 jobs:
   analyze:
     name: Analyze Actions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: read
       security-events: write
