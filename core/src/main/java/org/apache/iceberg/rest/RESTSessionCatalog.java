@@ -1725,8 +1725,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           }
         }
 
-        for (ViewRepresentation representation :
-            response.metadata().currentVersion().representations()) {
+        for (ViewRepresentation representation : metadata.currentVersion().representations()) {
           if (representation instanceof SQLViewRepresentation) {
             String dialect = ((SQLViewRepresentation) representation).dialect();
             if (!representationsMap.containsKey(dialect)) {

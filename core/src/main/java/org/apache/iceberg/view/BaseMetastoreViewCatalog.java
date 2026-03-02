@@ -253,7 +253,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
           }
         }
 
-        for (ViewRepresentation representation : ops.current().currentVersion().representations()) {
+        for (ViewRepresentation representation : metadata.currentVersion().representations()) {
           if (representation instanceof SQLViewRepresentation) {
             String dialect = ((SQLViewRepresentation) representation).dialect();
             if (!representationsMap.containsKey(dialect)) {
