@@ -369,6 +369,10 @@ public class Spark3Util {
     return Expressions.column(name);
   }
 
+  public static NamedReference[] toNamedReferences(Set<String> names) {
+    return names.stream().map(Spark3Util::toNamedReference).toArray(NamedReference[]::new);
+  }
+
   public static Term toIcebergTerm(Expression expr) {
     if (expr instanceof Transform) {
       Transform transform = (Transform) expr;
