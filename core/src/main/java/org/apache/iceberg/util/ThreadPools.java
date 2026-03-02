@@ -25,9 +25,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.SystemConfigs;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 public class ThreadPools {
@@ -98,7 +96,7 @@ public class ThreadPools {
   private static class AuthRefreshPoolHolder {
     private static final ScheduledExecutorService INSTANCE =
         ThreadPools.newExitingScheduledPool(
-            "auth-session-refresh", AUTH_REFRESH_THREAD_POOL_SIZE, Duration.ZERO);
+            "auth-session-refresh", AUTH_REFRESH_THREAD_POOL_SIZE, Duration.ofSeconds(10));
   }
 
   /**
@@ -149,8 +147,9 @@ public class ThreadPools {
    * that should be automatically cleaned up on JVM shutdown.
    */
   public static ExecutorService newExitingWorkerPool(String namePrefix, int poolSize) {
-    return MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) newFixedThreadPool(namePrefix, poolSize));
+    ThreadPoolExecutor executor = (ThreadPoolExecutor) newFixedThreadPool(namePrefix, poolSize);
+    ManagedThreadPools.add(executor, Duration.ofSeconds(10));
+    return executor;
   }
 
   /** Creates a fixed-size thread pool that uses daemon threads. */
@@ -182,10 +181,10 @@ public class ThreadPools {
    */
   public static ScheduledExecutorService newExitingScheduledPool(
       String namePrefix, int poolSize, Duration terminationTimeout) {
-    return MoreExecutors.getExitingScheduledExecutorService(
-        (ScheduledThreadPoolExecutor) newScheduledPool(namePrefix, poolSize),
-        terminationTimeout.toMillis(),
-        TimeUnit.MILLISECONDS);
+    ScheduledThreadPoolExecutor executor =
+        (ScheduledThreadPoolExecutor) newScheduledPool(namePrefix, poolSize);
+    ManagedThreadPools.add(executor, terminationTimeout);
+    return executor;
   }
 
   private static ThreadFactory newDaemonThreadFactory(String namePrefix) {

@@ -23,6 +23,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
 import java.time.Duration;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -87,5 +88,13 @@ class TestAuthSessionCache {
     Mockito.verify(session1).close();
 
     cache.close();
+  }
+
+  @Test
+  void testClose() {
+    ExecutorService executor = Mockito.mock(ExecutorService.class);
+    AuthSessionCache cache = new AuthSessionCache(Duration.ofHours(1), executor, System::nanoTime);
+    cache.close();
+    Mockito.verify(executor).shutdown();
   }
 }
