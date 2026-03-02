@@ -42,8 +42,7 @@ public class MinAggregate<T> extends ValueAggregate<T> {
   protected boolean hasValue(DataFile file) {
     // If nanValueCounts > 0 , it could be -NaN or NaN and hence we cant conclude the min value is
     // -NaN
-    Long nanCount = safeGet(file.nanValueCounts(), fieldId);
-    if (nanCount != null && nanCount > 0) {
+    if (containsNan(file, fieldId)) {
       return false;
     }
     boolean hasBound = safeContainsKey(file.lowerBounds(), fieldId);
