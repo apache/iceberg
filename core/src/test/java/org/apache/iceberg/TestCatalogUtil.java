@@ -294,11 +294,10 @@ public class TestCatalogUtil {
 
   @Test
   public void noFailureWhenBulkDeletingMetadataFiles() {
-    FileIO mockIO =
-        mock(FileIO.class, withSettings().extraInterfaces(SupportsBulkOperations.class));
+    FileIO io = mock(FileIO.class, withSettings().extraInterfaces(SupportsBulkOperations.class));
 
     doThrow(new RuntimeException("Simulated bulk delete failure"))
-        .when((SupportsBulkOperations) mockIO)
+        .when((SupportsBulkOperations) io)
         .deleteFiles(any());
 
     TableMetadata.MetadataLogEntry entry1 =
@@ -317,7 +316,7 @@ public class TestCatalogUtil {
     when(base.previousFiles()).thenReturn(ImmutableList.of(entry1, entry2));
     when(metadata.previousFiles()).thenReturn(ImmutableList.of());
 
-    assertThatCode(() -> CatalogUtil.deleteRemovedMetadataFiles(mockIO, base, metadata))
+    assertThatCode(() -> CatalogUtil.deleteRemovedMetadataFiles(io, base, metadata))
         .doesNotThrowAnyException();
   }
 
