@@ -165,8 +165,7 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
 
     @Override
     public boolean canMerge(ScanTask other) {
-      if (other instanceof SplitScanTask) {
-        SplitScanTask that = (SplitScanTask) other;
+      if (other instanceof SplitScanTask that) {
         return file().equals(that.file()) && offset + len == that.start();
       } else {
         return false;

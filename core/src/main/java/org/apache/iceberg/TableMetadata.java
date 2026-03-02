@@ -1826,12 +1826,10 @@ public class TableMetadata implements Serializable {
       Set<Long> addedSnapshotIds = Sets.newHashSet();
       Set<Long> intermediateSnapshotIds = Sets.newHashSet();
       for (MetadataUpdate update : changes) {
-        if (update instanceof MetadataUpdate.AddSnapshot) {
+        if (update instanceof MetadataUpdate.AddSnapshot addSnapshot) {
           // adds must always come before set current snapshot
-          MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) update;
           addedSnapshotIds.add(addSnapshot.snapshot().snapshotId());
-        } else if (update instanceof MetadataUpdate.SetSnapshotRef) {
-          MetadataUpdate.SetSnapshotRef setRef = (MetadataUpdate.SetSnapshotRef) update;
+        } else if (update instanceof MetadataUpdate.SetSnapshotRef setRef) {
           long snapshotId = setRef.snapshotId();
           if (addedSnapshotIds.contains(snapshotId)
               && SnapshotRef.MAIN_BRANCH.equals(setRef.name())

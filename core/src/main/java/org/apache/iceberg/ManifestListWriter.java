@@ -39,9 +39,9 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
   private ManifestListWriter(
       OutputFile file, EncryptionManager encryptionManager, Map<String, String> meta) {
-    if (encryptionManager instanceof StandardEncryptionManager) {
+    if (encryptionManager instanceof StandardEncryptionManager stdEncryptionManager) {
       // ability to encrypt the manifest list key is introduced for standard encryption.
-      this.standardEncryptionManager = (StandardEncryptionManager) encryptionManager;
+      this.standardEncryptionManager = stdEncryptionManager;
       EncryptedOutputFile encryptedFile = this.standardEncryptionManager.encrypt(file);
       this.outputFile = encryptedFile.encryptingOutputFile();
       this.manifestListKeyMetadata = (NativeEncryptionKeyMetadata) encryptedFile.keyMetadata();

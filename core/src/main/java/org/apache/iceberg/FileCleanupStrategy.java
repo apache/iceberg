@@ -100,9 +100,9 @@ abstract class FileCleanupStrategy {
   }
 
   protected void deleteFiles(Set<String> pathsToDelete, String fileType) {
-    if (deleteFunc == null && fileIO instanceof SupportsBulkOperations) {
+    if (deleteFunc == null && fileIO instanceof SupportsBulkOperations bulkOps) {
       try {
-        ((SupportsBulkOperations) fileIO).deleteFiles(pathsToDelete);
+        bulkOps.deleteFiles(pathsToDelete);
       } catch (BulkDeletionFailureException e) {
         LOG.warn(
             "Bulk deletion failed for {} of {} {} file(s)",

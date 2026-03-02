@@ -136,71 +136,85 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
-          case "date":
+          case "date" -> {
             return GenericReaders.dates();
+          }
 
-          case "time-micros":
+          case "time-micros" -> {
             return GenericReaders.times();
+          }
 
-          case "timestamp-micros":
+          case "timestamp-micros" -> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptz();
             }
             return GenericReaders.timestamps();
+          }
 
-          case "timestamp-nanos":
+          case "timestamp-nanos" -> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptzNanos();
             }
             return GenericReaders.timestampNanos();
+          }
 
-          case "timestamp-millis":
+          case "timestamp-millis" -> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptzMillis();
             }
             return GenericReaders.timestampMillis();
+          }
 
-          case "decimal":
+          case "decimal" -> {
             return ValueReaders.decimal(
                 ValueReaders.decimalBytesReader(primitive),
                 ((LogicalTypes.Decimal) logicalType).getScale());
+          }
 
-          case "uuid":
+          case "uuid" -> {
             return ValueReaders.uuids();
+          }
 
-          default:
-            throw new IllegalArgumentException("Unknown logical type: " + logicalType);
+          default -> throw new IllegalArgumentException("Unknown logical type: " + logicalType);
         }
       }
 
       switch (primitive.getType()) {
-        case NULL:
+        case NULL -> {
           return ValueReaders.nulls();
-        case BOOLEAN:
+        }
+        case BOOLEAN -> {
           return ValueReaders.booleans();
-        case INT:
+        }
+        case INT -> {
           if (partner != null && partner.typeId() == Type.TypeID.LONG) {
             return ValueReaders.intsAsLongs();
           }
           return ValueReaders.ints();
-        case LONG:
+        }
+        case LONG -> {
           return ValueReaders.longs();
-        case FLOAT:
+        }
+        case FLOAT -> {
           if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
             return ValueReaders.floatsAsDoubles();
           }
           return ValueReaders.floats();
-        case DOUBLE:
+        }
+        case DOUBLE -> {
           return ValueReaders.doubles();
-        case STRING:
+        }
           // might want to use a binary-backed container like Utf8
+        case STRING -> {
           return ValueReaders.strings();
-        case FIXED:
+        }
+        case FIXED -> {
           return ValueReaders.fixed(primitive.getFixedSize());
-        case BYTES:
+        }
+        case BYTES -> {
           return ValueReaders.byteBuffers();
-        default:
-          throw new IllegalArgumentException("Unsupported type: " + primitive);
+        }
+        default -> throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
     }
   }

@@ -164,11 +164,10 @@ public class Endpoint {
       return true;
     }
 
-    if (!(o instanceof Endpoint)) {
+    if (!(o instanceof Endpoint endpoint)) {
       return false;
     }
 
-    Endpoint endpoint = (Endpoint) o;
     return Objects.equals(httpMethod, endpoint.httpMethod) && Objects.equals(path, endpoint.path);
   }
 

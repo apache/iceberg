@@ -315,75 +315,37 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   @Override
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
-      case 0:
-        this.content = value != null ? FILE_CONTENT_VALUES[(Integer) value] : FileContent.DATA;
-        return;
-      case 1:
+      case 0 ->
+          this.content = value != null ? FILE_CONTENT_VALUES[(Integer) value] : FileContent.DATA;
+      case 1 -> {
         // always coerce to String for Serializable
         this.filePath = value.toString();
-        return;
-      case 2:
-        this.format = FileFormat.fromString(value.toString());
-        return;
-      case 3:
-        this.partitionSpecId = (value != null) ? (Integer) value : -1;
-        return;
-      case 4:
-        this.partitionData = (PartitionData) value;
-        return;
-      case 5:
-        this.recordCount = (Long) value;
-        return;
-      case 6:
-        this.fileSizeInBytes = (Long) value;
-        return;
-      case 7:
-        this.columnSizes = (Map<Integer, Long>) value;
-        return;
-      case 8:
-        this.valueCounts = (Map<Integer, Long>) value;
-        return;
-      case 9:
-        this.nullValueCounts = (Map<Integer, Long>) value;
-        return;
-      case 10:
-        this.nanValueCounts = (Map<Integer, Long>) value;
-        return;
-      case 11:
-        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
-        return;
-      case 12:
-        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
-        return;
-      case 13:
-        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
-        return;
-      case 14:
-        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
-        return;
-      case 15:
-        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
-        return;
-      case 16:
-        this.sortOrderId = (Integer) value;
-        return;
-      case 17:
-        this.firstRowId = (Long) value;
-        return;
-      case 18:
-        this.referencedDataFile = value != null ? value.toString() : null;
-        return;
-      case 19:
-        this.contentOffset = (Long) value;
-        return;
-      case 20:
-        this.contentSizeInBytes = (Long) value;
-        return;
-      case 21:
-        this.fileOrdinal = (long) value;
-        return;
-      default:
+      }
+      case 2 -> this.format = FileFormat.fromString(value.toString());
+      case 3 -> this.partitionSpecId = (value != null) ? (Integer) value : -1;
+      case 4 -> this.partitionData = (PartitionData) value;
+      case 5 -> this.recordCount = (Long) value;
+      case 6 -> this.fileSizeInBytes = (Long) value;
+      case 7 -> this.columnSizes = (Map<Integer, Long>) value;
+      case 8 -> this.valueCounts = (Map<Integer, Long>) value;
+      case 9 -> this.nullValueCounts = (Map<Integer, Long>) value;
+      case 10 -> this.nanValueCounts = (Map<Integer, Long>) value;
+      case 11 ->
+          this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+      case 12 ->
+          this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+      case 13 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+      case 14 -> this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+      case 15 -> this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+      case 16 -> this.sortOrderId = (Integer) value;
+      case 17 -> this.firstRowId = (Long) value;
+      case 18 -> this.referencedDataFile = value != null ? value.toString() : null;
+      case 19 -> this.contentOffset = (Long) value;
+      case 20 -> this.contentSizeInBytes = (Long) value;
+      case 21 -> this.fileOrdinal = (long) value;
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 
@@ -394,52 +356,73 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
   private Object getByPos(int basePos) {
     switch (basePos) {
-      case 0:
+      case 0 -> {
         return content.id();
-      case 1:
+      }
+      case 1 -> {
         return filePath;
-      case 2:
+      }
+      case 2 -> {
         return format != null ? format.toString() : null;
-      case 3:
+      }
+      case 3 -> {
         return partitionSpecId;
-      case 4:
+      }
+      case 4 -> {
         return partitionData;
-      case 5:
+      }
+      case 5 -> {
         return recordCount;
-      case 6:
+      }
+      case 6 -> {
         return fileSizeInBytes;
-      case 7:
+      }
+      case 7 -> {
         return columnSizes;
-      case 8:
+      }
+      case 8 -> {
         return valueCounts;
-      case 9:
+      }
+      case 9 -> {
         return nullValueCounts;
-      case 10:
+      }
+      case 10 -> {
         return nanValueCounts;
-      case 11:
+      }
+      case 11 -> {
         return lowerBounds;
-      case 12:
+      }
+      case 12 -> {
         return upperBounds;
-      case 13:
+      }
+      case 13 -> {
         return keyMetadata();
-      case 14:
+      }
+      case 14 -> {
         return splitOffsets();
-      case 15:
+      }
+      case 15 -> {
         return equalityFieldIds();
-      case 16:
+      }
+      case 16 -> {
         return sortOrderId;
-      case 17:
+      }
+      case 17 -> {
         return firstRowId;
-      case 18:
+      }
+      case 18 -> {
         return referencedDataFile;
-      case 19:
+      }
+      case 19 -> {
         return contentOffset;
-      case 20:
+      }
+      case 20 -> {
         return contentSizeInBytes;
-      case 21:
+      }
+      case 21 -> {
         return fileOrdinal;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
+      }
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
     }
   }
 
@@ -597,8 +580,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private static Map<Integer, ByteBuffer> toReadableByteBufferMap(Map<Integer, ByteBuffer> map) {
     if (map == null) {
       return null;
-    } else if (map instanceof SerializableByteBufferMap) {
-      return ((SerializableByteBufferMap) map).immutableMap();
+    } else if (map instanceof SerializableByteBufferMap serializableMap) {
+      return serializableMap.immutableMap();
     } else {
       return Collections.unmodifiableMap(map);
     }

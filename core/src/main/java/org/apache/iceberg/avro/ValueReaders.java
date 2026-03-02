@@ -134,13 +134,17 @@ public class ValueReaders {
 
   public static ValueReader<byte[]> decimalBytesReader(Schema schema) {
     switch (schema.getType()) {
-      case FIXED:
+      case FIXED -> {
         return ValueReaders.fixed(schema.getFixedSize());
-      case BYTES:
+      }
+
+      case BYTES -> {
         return ValueReaders.bytes();
-      default:
-        throw new IllegalArgumentException(
-            "Invalid primitive type for decimal: " + schema.getType());
+      }
+
+      default ->
+          throw new IllegalArgumentException(
+              "Invalid primitive type for decimal: " + schema.getType());
     }
   }
 
@@ -548,8 +552,8 @@ public class ValueReaders {
     @Override
     public Utf8 read(Decoder decoder, Object reuse) throws IOException {
       // use the decoder's readString(Utf8) method because it may be a resolving decoder
-      if (reuse instanceof Utf8) {
-        return decoder.readString((Utf8) reuse);
+      if (reuse instanceof Utf8 utf8) {
+        return decoder.readString(utf8);
       } else {
         return decoder.readString(null);
       }
@@ -603,8 +607,7 @@ public class ValueReaders {
 
     @Override
     public byte[] read(Decoder decoder, Object reuse) throws IOException {
-      if (reuse instanceof byte[]) {
-        byte[] reusedBytes = (byte[]) reuse;
+      if (reuse instanceof byte[] reusedBytes) {
         if (reusedBytes.length == length) {
           decoder.readFixed(reusedBytes, 0, length);
           return reusedBytes;
@@ -633,8 +636,7 @@ public class ValueReaders {
 
     @Override
     public GenericData.Fixed read(Decoder decoder, Object reuse) throws IOException {
-      if (reuse instanceof GenericData.Fixed) {
-        GenericData.Fixed reusedFixed = (GenericData.Fixed) reuse;
+      if (reuse instanceof GenericData.Fixed reusedFixed) {
         if (reusedFixed.bytes().length == length) {
           decoder.readFixed(reusedFixed.bytes(), 0, length);
           return reusedFixed;
@@ -686,8 +688,8 @@ public class ValueReaders {
     @Override
     public ByteBuffer read(Decoder decoder, Object reuse) throws IOException {
       // use the decoder's readBytes method because it may be a resolving decoder
-      if (reuse instanceof ByteBuffer) {
-        return decoder.readBytes((ByteBuffer) reuse);
+      if (reuse instanceof ByteBuffer byteBuffer) {
+        return decoder.readBytes(byteBuffer);
       } else {
         return decoder.readBytes(null);
       }
@@ -1011,8 +1013,8 @@ public class ValueReaders {
     @Override
     public void setRowPositionSupplier(Supplier<Long> posSupplier) {
       for (ValueReader<?> reader : readers) {
-        if (reader instanceof SupportsRowPosition) {
-          ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
+        if (reader instanceof SupportsRowPosition supportsRowPosition) {
+          supportsRowPosition.setRowPositionSupplier(posSupplier);
         }
       }
     }
@@ -1058,8 +1060,8 @@ public class ValueReaders {
 
     @Override
     protected GenericData.Record reuseOrCreate(Object reuse) {
-      if (reuse instanceof GenericData.Record) {
-        return (GenericData.Record) reuse;
+      if (reuse instanceof GenericData.Record record) {
+        return record;
       } else {
         return new GenericData.Record(recordSchema);
       }
@@ -1177,8 +1179,8 @@ public class ValueReaders {
       }
 
       for (ValueReader<?> reader : readers) {
-        if (reader instanceof SupportsRowPosition) {
-          ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
+        if (reader instanceof SupportsRowPosition supportsRowPosition) {
+          supportsRowPosition.setRowPositionSupplier(posSupplier);
         }
       }
     }
@@ -1197,9 +1199,9 @@ public class ValueReaders {
     public S read(Decoder decoder, Object reuse) throws IOException {
       S struct = reuseOrCreate(reuse);
 
-      if (decoder instanceof ResolvingDecoder) {
+      if (decoder instanceof ResolvingDecoder resolvingDecoder) {
         // this may not set all of the fields. nulls are set by default.
-        for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
+        for (Schema.Field field : resolvingDecoder.readFieldOrder()) {
           Object reusedValue = get(struct, field.pos());
           set(struct, field.pos(), readers[field.pos()].read(decoder, reusedValue));
         }
@@ -1229,8 +1231,8 @@ public class ValueReaders {
 
     @Override
     protected GenericData.Record reuseOrCreate(Object reuse) {
-      if (reuse instanceof GenericData.Record) {
-        return (GenericData.Record) reuse;
+      if (reuse instanceof GenericData.Record record) {
+        return record;
       } else {
         return new GenericData.Record(recordSchema);
       }

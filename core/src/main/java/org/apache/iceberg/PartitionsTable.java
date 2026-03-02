@@ -255,11 +255,8 @@ public class PartitionsTable extends BaseMetadataTable {
 
     @Override
     public int compare(StructLike o1, StructLike o2) {
-      if (o1 instanceof StructProjection && o2 instanceof StructProjection) {
-        int cmp =
-            Integer.compare(
-                ((StructProjection) o1).projectedFields(),
-                ((StructProjection) o2).projectedFields());
+      if (o1 instanceof StructProjection sp1 && o2 instanceof StructProjection sp2) {
+        int cmp = Integer.compare(sp1.projectedFields(), sp2.projectedFields());
         if (cmp != 0) {
           return cmp;
         }
@@ -306,22 +303,22 @@ public class PartitionsTable extends BaseMetadataTable {
       }
 
       switch (file.content()) {
-        case DATA:
+        case DATA -> {
           this.dataRecordCount += file.recordCount();
           this.dataFileCount += 1;
           this.dataFileSizeInBytes += file.fileSizeInBytes();
-          break;
-        case POSITION_DELETES:
+        }
+        case POSITION_DELETES -> {
           this.posDeleteRecordCount += file.recordCount();
           this.posDeleteFileCount += 1;
-          break;
-        case EQUALITY_DELETES:
+        }
+        case EQUALITY_DELETES -> {
           this.eqDeleteRecordCount += file.recordCount();
           this.eqDeleteFileCount += 1;
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported file content type: " + file.content());
+        }
+        default ->
+            throw new UnsupportedOperationException(
+                "Unsupported file content type: " + file.content());
       }
     }
 

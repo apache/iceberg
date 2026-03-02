@@ -275,14 +275,11 @@ class BaseSnapshot implements Snapshot {
           ManifestFiles.readDeleteManifest(manifest, fileIO, null)) {
         for (ManifestEntry<DeleteFile> entry : reader.entries()) {
           switch (entry.status()) {
-            case ADDED:
-              adds.add(entry.file().copy());
-              break;
-            case DELETED:
-              deletes.add(entry.file().copyWithoutStats());
-              break;
-            default:
+            case ADDED -> adds.add(entry.file().copy());
+            case DELETED -> deletes.add(entry.file().copyWithoutStats());
+            default -> {
               // ignore existing
+            }
           }
         }
       } catch (IOException e) {
@@ -308,15 +305,11 @@ class BaseSnapshot implements Snapshot {
         new ManifestGroup(fileIO, changedManifests).ignoreExisting().entries()) {
       for (ManifestEntry<DataFile> entry : entries) {
         switch (entry.status()) {
-          case ADDED:
-            adds.add(entry.file().copy());
-            break;
-          case DELETED:
-            deletes.add(entry.file().copyWithoutStats());
-            break;
-          default:
-            throw new IllegalStateException(
-                "Unexpected entry status, not added or deleted: " + entry);
+          case ADDED -> adds.add(entry.file().copy());
+          case DELETED -> deletes.add(entry.file().copyWithoutStats());
+          default ->
+              throw new IllegalStateException(
+                  "Unexpected entry status, not added or deleted: " + entry);
         }
       }
     } catch (IOException e) {
@@ -333,8 +326,7 @@ class BaseSnapshot implements Snapshot {
       return true;
     }
 
-    if (o instanceof BaseSnapshot) {
-      BaseSnapshot other = (BaseSnapshot) o;
+    if (o instanceof BaseSnapshot other) {
       return this.snapshotId == other.snapshotId()
           && Objects.equal(this.parentId, other.parentId())
           && this.sequenceNumber == other.sequenceNumber()

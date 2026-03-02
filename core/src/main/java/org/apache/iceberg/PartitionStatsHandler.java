@@ -569,7 +569,7 @@ public class PartitionStatsHandler {
     Preconditions.checkArgument(stats.specId() == file.specId(), "Spec IDs must match");
 
     switch (file.content()) {
-      case DATA:
+      case DATA -> {
         stats.set(
             PartitionStatistics.DATA_RECORD_COUNT_POSITION,
             stats.dataRecordCount() + file.recordCount());
@@ -577,8 +577,8 @@ public class PartitionStatsHandler {
         stats.set(
             PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION,
             stats.totalDataFileSizeInBytes() + file.fileSizeInBytes());
-        break;
-      case POSITION_DELETES:
+      }
+      case POSITION_DELETES -> {
         stats.set(
             PartitionStatistics.POSITION_DELETE_RECORD_COUNT_POSITION,
             stats.positionDeleteRecordCount() + file.recordCount());
@@ -589,18 +589,18 @@ public class PartitionStatsHandler {
               PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION,
               stats.positionDeleteFileCount() + 1);
         }
-
-        break;
-      case EQUALITY_DELETES:
+      }
+      case EQUALITY_DELETES -> {
         stats.set(
             PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION,
             stats.equalityDeleteRecordCount() + file.recordCount());
         stats.set(
             PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION,
             stats.equalityDeleteFileCount() + 1);
-        break;
-      default:
-        throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported file content type: " + file.content());
     }
 
     if (snapshot != null) {
@@ -634,7 +634,7 @@ public class PartitionStatsHandler {
     Preconditions.checkArgument(stats.specId() == file.specId(), "Spec IDs must match");
 
     switch (file.content()) {
-      case DATA:
+      case DATA -> {
         stats.set(
             PartitionStatistics.DATA_RECORD_COUNT_POSITION,
             stats.dataRecordCount() - file.recordCount());
@@ -642,8 +642,8 @@ public class PartitionStatsHandler {
         stats.set(
             PartitionStatistics.TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION,
             stats.totalDataFileSizeInBytes() - file.fileSizeInBytes());
-        break;
-      case POSITION_DELETES:
+      }
+      case POSITION_DELETES -> {
         stats.set(
             PartitionStatistics.POSITION_DELETE_RECORD_COUNT_POSITION,
             stats.positionDeleteRecordCount() - file.recordCount());
@@ -654,18 +654,18 @@ public class PartitionStatsHandler {
               PartitionStatistics.POSITION_DELETE_FILE_COUNT_POSITION,
               stats.positionDeleteFileCount() - 1);
         }
-
-        break;
-      case EQUALITY_DELETES:
+      }
+      case EQUALITY_DELETES -> {
         stats.set(
             PartitionStatistics.EQUALITY_DELETE_RECORD_COUNT_POSITION,
             stats.equalityDeleteRecordCount() - file.recordCount());
         stats.set(
             PartitionStatistics.EQUALITY_DELETE_FILE_COUNT_POSITION,
             stats.equalityDeleteFileCount() - 1);
-        break;
-      default:
-        throw new UnsupportedOperationException("Unsupported file content type: " + file.content());
+      }
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported file content type: " + file.content());
     }
 
     if (snapshot != null) {

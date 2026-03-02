@@ -109,7 +109,7 @@ public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
   @Override
   protected boolean isConnectionException(Exception e) {
     return super.isConnectionException(e)
-        || (e instanceof SQLException
-            && retryableStatusCodes.contains(((SQLException) e).getSQLState()));
+        || (e instanceof SQLException sqlException
+            && retryableStatusCodes.contains(sqlException.getSQLState()));
   }
 }

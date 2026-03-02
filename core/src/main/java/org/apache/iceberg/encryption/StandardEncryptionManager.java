@@ -103,8 +103,8 @@ public class StandardEncryptionManager implements EncryptionManager {
   @Override
   public NativeEncryptionInputFile decrypt(EncryptedInputFile encrypted) {
     // this input file will lazily parse key metadata in case the file is not an AES GCM stream.
-    if (encrypted instanceof NativeEncryptionInputFile) {
-      return (NativeEncryptionInputFile) encrypted;
+    if (encrypted instanceof NativeEncryptionInputFile nativeEncryptionInputFile) {
+      return nativeEncryptionInputFile;
     }
 
     return new StandardDecryptedInputFile(encrypted);

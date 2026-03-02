@@ -316,8 +316,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     @Override
     public void close() throws IOException {
       iterator = null;
-      if (input instanceof Closeable) {
-        ((Closeable) input).close();
+      if (input instanceof Closeable closeable) {
+        closeable.close();
       }
     }
   }

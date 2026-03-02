@@ -310,12 +310,14 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
    */
   static List<String> scanColumns(ManifestContent content) {
     switch (content) {
-      case DATA:
+      case DATA -> {
         return BaseScan.SCAN_COLUMNS;
-      case DELETES:
+      }
+      case DELETES -> {
         return BaseScan.DELETE_SCAN_COLUMNS;
-      default:
-        throw new UnsupportedOperationException("Cannot read unknown manifest type: " + content);
+      }
+      default ->
+          throw new UnsupportedOperationException("Cannot read unknown manifest type: " + content);
     }
   }
 }

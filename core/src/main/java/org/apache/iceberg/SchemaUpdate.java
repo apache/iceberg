@@ -789,27 +789,21 @@ class SchemaUpdate implements UpdateSchema {
       reordered.remove(toMove);
 
       switch (move.type()) {
-        case FIRST:
-          reordered.addFirst(toMove);
-          break;
-
-        case BEFORE:
+        case FIRST -> reordered.addFirst(toMove);
+        case BEFORE -> {
           Types.NestedField before =
               Iterables.find(reordered, field -> field.fieldId() == move.referenceFieldId());
           int beforeIndex = reordered.indexOf(before);
           // insert the new node at the index of the existing node
           reordered.add(beforeIndex, toMove);
-          break;
-
-        case AFTER:
+        }
+        case AFTER -> {
           Types.NestedField after =
               Iterables.find(reordered, field -> field.fieldId() == move.referenceFieldId());
           int afterIndex = reordered.indexOf(after);
           reordered.add(afterIndex + 1, toMove);
-          break;
-
-        default:
-          throw new UnsupportedOperationException("Unknown move type: " + move.type());
+        }
+        default -> throw new UnsupportedOperationException("Unknown move type: " + move.type());
       }
     }
 

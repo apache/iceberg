@@ -133,34 +133,46 @@ public class BasePartitionStatistics extends SupportsIndexProjection
 
   private Object getByPos(int pos) {
     switch (pos) {
-      case PARTITION_POSITION:
+      case PARTITION_POSITION -> {
         return partition;
-      case SPEC_ID_POSITION:
+      }
+      case SPEC_ID_POSITION -> {
         return specId;
-      case DATA_RECORD_COUNT_POSITION:
+      }
+      case DATA_RECORD_COUNT_POSITION -> {
         return dataRecordCount;
-      case DATA_FILE_COUNT_POSITION:
+      }
+      case DATA_FILE_COUNT_POSITION -> {
         return dataFileCount;
-      case TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION:
+      }
+      case TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION -> {
         return totalDataFileSizeInBytes;
-      case POSITION_DELETE_RECORD_COUNT_POSITION:
+      }
+      case POSITION_DELETE_RECORD_COUNT_POSITION -> {
         return positionDeleteRecordCount;
-      case POSITION_DELETE_FILE_COUNT_POSITION:
+      }
+      case POSITION_DELETE_FILE_COUNT_POSITION -> {
         return positionDeleteFileCount;
-      case EQUALITY_DELETE_RECORD_COUNT_POSITION:
+      }
+      case EQUALITY_DELETE_RECORD_COUNT_POSITION -> {
         return equalityDeleteRecordCount;
-      case EQUALITY_DELETE_FILE_COUNT_POSITION:
+      }
+      case EQUALITY_DELETE_FILE_COUNT_POSITION -> {
         return equalityDeleteFileCount;
-      case TOTAL_RECORD_COUNT_POSITION:
+      }
+      case TOTAL_RECORD_COUNT_POSITION -> {
         return totalRecordCount;
-      case LAST_UPDATED_AT_POSITION:
+      }
+      case LAST_UPDATED_AT_POSITION -> {
         return lastUpdatedAt;
-      case LAST_UPDATED_SNAPSHOT_ID_POSITION:
+      }
+      case LAST_UPDATED_SNAPSHOT_ID_POSITION -> {
         return lastUpdatedSnapshotId;
-      case DV_COUNT_POSITION:
+      }
+      case DV_COUNT_POSITION -> {
         return dvCount;
-      default:
-        throw new UnsupportedOperationException("Unknown position: " + pos);
+      }
+      default -> throw new UnsupportedOperationException("Unknown position: " + pos);
     }
   }
 
@@ -171,47 +183,20 @@ public class BasePartitionStatistics extends SupportsIndexProjection
     }
 
     switch (pos) {
-      case PARTITION_POSITION:
-        this.partition = (StructLike) value;
-        break;
-      case SPEC_ID_POSITION:
-        this.specId = (int) value;
-        break;
-      case DATA_RECORD_COUNT_POSITION:
-        this.dataRecordCount = (long) value;
-        break;
-      case DATA_FILE_COUNT_POSITION:
-        this.dataFileCount = (int) value;
-        break;
-      case TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION:
-        this.totalDataFileSizeInBytes = (long) value;
-        break;
-      case POSITION_DELETE_RECORD_COUNT_POSITION:
-        this.positionDeleteRecordCount = (long) value;
-        break;
-      case POSITION_DELETE_FILE_COUNT_POSITION:
-        this.positionDeleteFileCount = (int) value;
-        break;
-      case EQUALITY_DELETE_RECORD_COUNT_POSITION:
-        this.equalityDeleteRecordCount = (long) value;
-        break;
-      case EQUALITY_DELETE_FILE_COUNT_POSITION:
-        this.equalityDeleteFileCount = (int) value;
-        break;
-      case TOTAL_RECORD_COUNT_POSITION:
-        this.totalRecordCount = (Long) value;
-        break;
-      case LAST_UPDATED_AT_POSITION:
-        this.lastUpdatedAt = (Long) value;
-        break;
-      case LAST_UPDATED_SNAPSHOT_ID_POSITION:
-        this.lastUpdatedSnapshotId = (Long) value;
-        break;
-      case DV_COUNT_POSITION:
-        this.dvCount = (int) value;
-        break;
-      default:
-        throw new UnsupportedOperationException("Unknown position: " + pos);
+      case PARTITION_POSITION -> this.partition = (StructLike) value;
+      case SPEC_ID_POSITION -> this.specId = (int) value;
+      case DATA_RECORD_COUNT_POSITION -> this.dataRecordCount = (long) value;
+      case DATA_FILE_COUNT_POSITION -> this.dataFileCount = (int) value;
+      case TOTAL_DATA_FILE_SIZE_IN_BYTES_POSITION -> this.totalDataFileSizeInBytes = (long) value;
+      case POSITION_DELETE_RECORD_COUNT_POSITION -> this.positionDeleteRecordCount = (long) value;
+      case POSITION_DELETE_FILE_COUNT_POSITION -> this.positionDeleteFileCount = (int) value;
+      case EQUALITY_DELETE_RECORD_COUNT_POSITION -> this.equalityDeleteRecordCount = (long) value;
+      case EQUALITY_DELETE_FILE_COUNT_POSITION -> this.equalityDeleteFileCount = (int) value;
+      case TOTAL_RECORD_COUNT_POSITION -> this.totalRecordCount = (Long) value;
+      case LAST_UPDATED_AT_POSITION -> this.lastUpdatedAt = (Long) value;
+      case LAST_UPDATED_SNAPSHOT_ID_POSITION -> this.lastUpdatedSnapshotId = (Long) value;
+      case DV_COUNT_POSITION -> this.dvCount = (int) value;
+      default -> throw new UnsupportedOperationException("Unknown position: " + pos);
     }
   }
 }

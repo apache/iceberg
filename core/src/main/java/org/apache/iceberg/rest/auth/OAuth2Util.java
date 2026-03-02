@@ -291,15 +291,19 @@ public class OAuth2Util {
     Preconditions.checkNotNull(credential, "Invalid credential: null");
     List<String> parts = CREDENTIAL_SPLITTER.splitToList(credential);
     switch (parts.size()) {
-      case 2:
-        // client ID and client secret
+      case 2 ->
+      // client ID and client secret
+      {
         return Pair.of(parts.get(0), parts.get(1));
-      case 1:
-        // client secret
+      }
+      case 1 ->
+      // client secret
+      {
         return Pair.of(null, parts.get(0));
-      default:
-        // this should never happen because the credential splitter is limited to 2
-        throw new IllegalArgumentException("Invalid credential: " + credential);
+      }
+      default ->
+          // this should never happen because the credential splitter is limited to 2
+          throw new IllegalArgumentException("Invalid credential: " + credential);
     }
   }
 

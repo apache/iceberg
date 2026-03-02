@@ -105,15 +105,18 @@ final class PuffinFormat {
 
   static ByteBuffer compress(PuffinCompressionCodec codec, ByteBuffer input) {
     switch (codec) {
-      case NONE:
+      case NONE -> {
         return input.duplicate();
-      case LZ4:
+      }
+      case LZ4 -> {
         // TODO requires LZ4 frame compressor, e.g.
         // https://github.com/airlift/aircompressor/pull/142
-        break;
-      case ZSTD:
+      }
+      case ZSTD -> {
         return compress(new ZstdCompressor(), input);
+      }
     }
+
     throw new UnsupportedOperationException("Unsupported codec: " + codec);
   }
 
@@ -126,16 +129,16 @@ final class PuffinFormat {
 
   static ByteBuffer decompress(PuffinCompressionCodec codec, ByteBuffer input) {
     switch (codec) {
-      case NONE:
+      case NONE -> {
         return input.duplicate();
-
-      case LZ4:
+      }
+      case LZ4 -> {
         // TODO requires LZ4 frame decompressor, e.g.
         // https://github.com/airlift/aircompressor/pull/142
-        break;
-
-      case ZSTD:
+      }
+      case ZSTD -> {
         return decompressZstd(input);
+      }
     }
 
     throw new UnsupportedOperationException("Unsupported codec: " + codec);

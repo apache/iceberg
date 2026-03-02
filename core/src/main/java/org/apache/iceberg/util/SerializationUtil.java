@@ -56,8 +56,8 @@ public class SerializationUtil {
    */
   public static byte[] serializeToBytes(
       Object obj, Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
-    if (obj instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) obj).serializeConfWith(confSerializer);
+    if (obj instanceof HadoopConfigurable hadoopConfigurable) {
+      hadoopConfigurable.serializeConfWith(confSerializer);
     }
 
     try (ByteArrayOutputStream baos = new ByteArrayOutputStream();

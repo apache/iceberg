@@ -218,12 +218,11 @@ public class ExpressionParser {
         SingleValueParser.toJson(Types.BooleanType.get(), object, gen);
       } else if (object instanceof ByteBuffer) {
         SingleValueParser.toJson(Types.BinaryType.get(), object, gen);
-      } else if (object instanceof byte[]) {
-        SingleValueParser.toJson(Types.BinaryType.get(), ByteBuffer.wrap((byte[]) object), gen);
+      } else if (object instanceof byte[] bytes) {
+        SingleValueParser.toJson(Types.BinaryType.get(), ByteBuffer.wrap(bytes), gen);
       } else if (object instanceof UUID) {
         SingleValueParser.toJson(Types.UUIDType.get(), object, gen);
-      } else if (object instanceof BigDecimal) {
-        BigDecimal decimal = (BigDecimal) object;
+      } else if (object instanceof BigDecimal decimal) {
         SingleValueParser.toJson(
             Types.DecimalType.of(decimal.precision(), decimal.scale()), decimal, gen);
       }
@@ -296,16 +295,20 @@ public class ExpressionParser {
 
     Expression.Operation op = fromType(type);
     switch (op) {
-      case NOT:
+      case NOT -> {
         return Expressions.not(fromJson(JsonUtil.get(CHILD, json), schema));
-      case AND:
+      }
+      case AND -> {
         return Expressions.and(
             fromJson(JsonUtil.get(LEFT, json), schema),
             fromJson(JsonUtil.get(RIGHT, json), schema));
-      case OR:
+      }
+      case OR -> {
         return Expressions.or(
             fromJson(JsonUtil.get(LEFT, json), schema),
             fromJson(JsonUtil.get(RIGHT, json), schema));
+      }
+      default -> {}
     }
 
     return predicateFromJson(op, json, schema);
@@ -329,34 +332,25 @@ public class ExpressionParser {
     }
 
     switch (op) {
-      case IS_NULL:
-      case NOT_NULL:
-      case IS_NAN:
-      case NOT_NAN:
         // unary predicates
+      case IS_NULL, NOT_NULL, IS_NAN, NOT_NAN -> {
         Preconditions.checkArgument(
             !node.has(VALUE), "Cannot parse %s predicate: has invalid value field", op);
         Preconditions.checkArgument(
             !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
         return Expressions.predicate(op, term);
-      case LT:
-      case LT_EQ:
-      case GT:
-      case GT_EQ:
-      case EQ:
-      case NOT_EQ:
-      case STARTS_WITH:
-      case NOT_STARTS_WITH:
+      }
         // literal predicates
+      case LT, LT_EQ, GT, GT_EQ, EQ, NOT_EQ, STARTS_WITH, NOT_STARTS_WITH -> {
         Preconditions.checkArgument(
             node.has(VALUE), "Cannot parse %s predicate: missing value", op);
         Preconditions.checkArgument(
             !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
         T value = literal(JsonUtil.get(VALUE, node), convertValue);
         return Expressions.predicate(op, term, ImmutableList.of(value));
-      case IN:
-      case NOT_IN:
+      }
         // literal set predicates
+      case IN, NOT_IN -> {
         Preconditions.checkArgument(
             node.has(VALUES), "Cannot parse %s predicate: missing values", op);
         Preconditions.checkArgument(
@@ -369,8 +363,8 @@ public class ExpressionParser {
             term,
             Iterables.transform(
                 ((ArrayNode) valuesNode)::elements, valueNode -> literal(valueNode, convertValue)));
-      default:
-        throw new UnsupportedOperationException("Unsupported operation: " + op);
+      }
+      default -> throw new UnsupportedOperationException("Unsupported operation: " + op);
     }
   }
 
@@ -407,15 +401,16 @@ public class ExpressionParser {
     } else if (node.isObject()) {
       String type = JsonUtil.getString(TYPE, node);
       switch (type) {
-        case REFERENCE:
+        case REFERENCE -> {
           return Expressions.ref(JsonUtil.getString(TERM, node));
-        case TRANSFORM:
+        }
+        case TRANSFORM -> {
           UnboundTerm<T> child = term(JsonUtil.get(TERM, node));
           String transform = JsonUtil.getString(TRANSFORM, node);
           return (UnboundTerm<T>)
               Expressions.transform(child.ref().name(), Transforms.fromString(transform));
-        default:
-          throw new IllegalArgumentException("Cannot parse type as a reference: " + type);
+        }
+        default -> throw new IllegalArgumentException("Cannot parse type as a reference: " + type);
       }
     }
 

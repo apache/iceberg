@@ -98,8 +98,8 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
    * @return a read-only serializable table reflecting the current state of the original table
    */
   public static Table copyOf(Table table) {
-    if (table instanceof BaseMetadataTable) {
-      return new SerializableMetadataTable((BaseMetadataTable) table);
+    if (table instanceof BaseMetadataTable baseMetadataTable) {
+      return new SerializableMetadataTable(baseMetadataTable);
     } else {
       return new SerializableTable(table);
     }
@@ -114,11 +114,11 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   private String metadataFileLocation(Table table) {
-    if (table instanceof HasTableOperations) {
-      TableOperations ops = ((HasTableOperations) table).operations();
+    if (table instanceof HasTableOperations hasTableOps) {
+      TableOperations ops = hasTableOps.operations();
       return ops.current().metadataFileLocation();
-    } else if (table instanceof BaseMetadataTable) {
-      return ((BaseMetadataTable) table).table().operations().current().metadataFileLocation();
+    } else if (table instanceof BaseMetadataTable baseMetadataTable) {
+      return baseMetadataTable.table().operations().current().metadataFileLocation();
     } else {
       return null;
     }

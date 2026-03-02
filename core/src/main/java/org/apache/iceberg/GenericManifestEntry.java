@@ -158,23 +158,14 @@ class GenericManifestEntry<F extends ContentFile<F>>
   @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
     switch (i) {
-      case 0:
-        this.status = STATUS_VALUES[(Integer) v];
-        return;
-      case 1:
-        this.snapshotId = (Long) v;
-        return;
-      case 2:
-        this.dataSequenceNumber = (Long) v;
-        return;
-      case 3:
-        this.fileSequenceNumber = (Long) v;
-        return;
-      case 4:
-        this.file = (F) v;
-        return;
-      default:
+      case 0 -> this.status = STATUS_VALUES[(Integer) v];
+      case 1 -> this.snapshotId = (Long) v;
+      case 2 -> this.dataSequenceNumber = (Long) v;
+      case 3 -> this.fileSequenceNumber = (Long) v;
+      case 4 -> this.file = (F) v;
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 
@@ -185,20 +176,14 @@ class GenericManifestEntry<F extends ContentFile<F>>
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
-        return status.id();
-      case 1:
-        return snapshotId;
-      case 2:
-        return dataSequenceNumber;
-      case 3:
-        return fileSequenceNumber;
-      case 4:
-        return file;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
+    return switch (i) {
+      case 0 -> status.id();
+      case 1 -> snapshotId;
+      case 2 -> dataSequenceNumber;
+      case 3 -> fileSequenceNumber;
+      case 4 -> file;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+    };
   }
 
   @Override

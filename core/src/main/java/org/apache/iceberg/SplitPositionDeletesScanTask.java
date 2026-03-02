@@ -63,8 +63,7 @@ class SplitPositionDeletesScanTask
 
   @Override
   public boolean canMerge(org.apache.iceberg.ScanTask other) {
-    if (other instanceof SplitPositionDeletesScanTask) {
-      SplitPositionDeletesScanTask that = (SplitPositionDeletesScanTask) other;
+    if (other instanceof SplitPositionDeletesScanTask that) {
       return file().equals(that.file()) && offset + length == that.start();
     } else {
       return false;

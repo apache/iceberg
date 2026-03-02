@@ -65,8 +65,8 @@ public class IOUtil {
       InputFile inputFile, long fileOffset, byte[] bytes, int offset, int length)
       throws IOException {
     try (SeekableInputStream stream = inputFile.newStream()) {
-      if (stream instanceof RangeReadable) {
-        ((RangeReadable) stream).readFully(fileOffset, bytes, offset, length);
+      if (stream instanceof RangeReadable rangeReadable) {
+        rangeReadable.readFully(fileOffset, bytes, offset, length);
       } else {
         stream.seek(fileOffset);
         readFully(stream, bytes, offset, length);

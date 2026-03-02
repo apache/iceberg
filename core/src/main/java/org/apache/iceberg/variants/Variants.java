@@ -108,10 +108,10 @@ public class Variants {
   }
 
   public static ShreddedObject object(VariantObject object) {
-    if (object instanceof ShreddedObject) {
-      return new ShreddedObject(((ShreddedObject) object).metadata(), object);
-    } else if (object instanceof SerializedObject) {
-      return new ShreddedObject(((SerializedObject) object).metadata(), object);
+    if (object instanceof ShreddedObject shreddedObject) {
+      return new ShreddedObject(shreddedObject.metadata(), object);
+    } else if (object instanceof SerializedObject serializedObject) {
+      return new ShreddedObject(serializedObject.metadata(), object);
     }
 
     throw new UnsupportedOperationException("Metadata is required for object: " + object);

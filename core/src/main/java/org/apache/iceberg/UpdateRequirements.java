@@ -93,22 +93,22 @@ public class UpdateRequirements {
       Preconditions.checkArgument(update != null, "Invalid update: null");
 
       // add requirements based on the change
-      if (update instanceof MetadataUpdate.SetSnapshotRef) {
-        update((MetadataUpdate.SetSnapshotRef) update);
-      } else if (update instanceof MetadataUpdate.AddSchema) {
-        update((MetadataUpdate.AddSchema) update);
-      } else if (update instanceof MetadataUpdate.SetCurrentSchema) {
-        update((MetadataUpdate.SetCurrentSchema) update);
-      } else if (update instanceof MetadataUpdate.AddPartitionSpec) {
-        update((MetadataUpdate.AddPartitionSpec) update);
-      } else if (update instanceof MetadataUpdate.SetDefaultPartitionSpec) {
-        update((MetadataUpdate.SetDefaultPartitionSpec) update);
-      } else if (update instanceof MetadataUpdate.SetDefaultSortOrder) {
-        update((MetadataUpdate.SetDefaultSortOrder) update);
-      } else if (update instanceof MetadataUpdate.RemovePartitionSpecs) {
-        update((MetadataUpdate.RemovePartitionSpecs) update);
-      } else if (update instanceof MetadataUpdate.RemoveSchemas) {
-        update((MetadataUpdate.RemoveSchemas) update);
+      if (update instanceof MetadataUpdate.SetSnapshotRef setSnapshotRef) {
+        update(setSnapshotRef);
+      } else if (update instanceof MetadataUpdate.AddSchema addSchema) {
+        update(addSchema);
+      } else if (update instanceof MetadataUpdate.SetCurrentSchema setCurrentSchema) {
+        update(setCurrentSchema);
+      } else if (update instanceof MetadataUpdate.AddPartitionSpec addPartitionSpec) {
+        update(addPartitionSpec);
+      } else if (update instanceof MetadataUpdate.SetDefaultPartitionSpec setDefaultPartitionSpec) {
+        update(setDefaultPartitionSpec);
+      } else if (update instanceof MetadataUpdate.SetDefaultSortOrder setDefaultSortOrder) {
+        update(setDefaultSortOrder);
+      } else if (update instanceof MetadataUpdate.RemovePartitionSpecs removePartitionSpecs) {
+        update(removePartitionSpecs);
+      } else if (update instanceof MetadataUpdate.RemoveSchemas removeSchemas) {
+        update(removeSchemas);
       }
 
       return this;

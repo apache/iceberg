@@ -455,9 +455,9 @@ public class CatalogHandlers {
             .withProperties(request.properties())
             .create();
 
-    if (table instanceof BaseTable) {
+    if (table instanceof BaseTable baseTable) {
       return LoadTableResponse.builder()
-          .withTableMetadata(((BaseTable) table).operations().current())
+          .withTableMetadata(baseTable.operations().current())
           .build();
     }
 
@@ -470,9 +470,9 @@ public class CatalogHandlers {
 
     TableIdentifier identifier = TableIdentifier.of(namespace, request.name());
     Table table = catalog.registerTable(identifier, request.metadataLocation());
-    if (table instanceof BaseTable) {
+    if (table instanceof BaseTable baseTable) {
       return LoadTableResponse.builder()
-          .withTableMetadata(((BaseTable) table).operations().current())
+          .withTableMetadata(baseTable.operations().current())
           .build();
     }
 
@@ -513,23 +513,20 @@ public class CatalogHandlers {
       Catalog catalog, TableIdentifier ident, SnapshotMode mode) {
     Table table = catalog.loadTable(ident);
 
-    if (table instanceof BaseTable) {
-      TableMetadata loadedMetadata = ((BaseTable) table).operations().current();
+    if (table instanceof BaseTable baseTable) {
+      TableMetadata loadedMetadata = baseTable.operations().current();
 
       TableMetadata metadata;
       switch (mode) {
-        case ALL:
-          metadata = loadedMetadata;
-          break;
-        case REFS:
-          metadata =
-              TableMetadata.buildFrom(loadedMetadata)
-                  .withMetadataLocation(loadedMetadata.metadataFileLocation())
-                  .suppressHistoricalSnapshots()
-                  .build();
-          break;
-        default:
-          throw new IllegalArgumentException(String.format("Invalid snapshot mode: %s", mode));
+        case ALL -> metadata = loadedMetadata;
+        case REFS ->
+            metadata =
+                TableMetadata.buildFrom(loadedMetadata)
+                    .withMetadataLocation(loadedMetadata.metadataFileLocation())
+                    .suppressHistoricalSnapshots()
+                    .build();
+        default ->
+            throw new IllegalArgumentException(String.format("Invalid snapshot mode: %s", mode));
       }
 
       return LoadTableResponse.builder().withTableMetadata(metadata).build();
@@ -548,8 +545,7 @@ public class CatalogHandlers {
       // this is a hacky way to get TableOperations for an uncommitted table
       Transaction transaction =
           catalog.buildTable(ident, EMPTY_SCHEMA).createOrReplaceTransaction();
-      if (transaction instanceof BaseTransaction) {
-        BaseTransaction baseTransaction = (BaseTransaction) transaction;
+      if (transaction instanceof BaseTransaction baseTransaction) {
         finalMetadata = create(baseTransaction.underlyingOps(), request);
       } else {
         throw new IllegalStateException(
@@ -558,8 +554,8 @@ public class CatalogHandlers {
 
     } else {
       Table table = catalog.loadTable(ident);
-      if (table instanceof BaseTable) {
-        TableOperations ops = ((BaseTable) table).operations();
+      if (table instanceof BaseTable baseTable) {
+        TableOperations ops = baseTable.operations();
         finalMetadata = commit(ops, request);
       } else {
         throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");

@@ -164,9 +164,7 @@ public class ShreddedObject implements VariantObject {
       int totalDataSize = 0;
       // get the unshredded field names and values as byte buffers
       ImmutableMap.Builder<String, ByteBuffer> unshreddedBuilder = ImmutableMap.builder();
-      if (unshredded instanceof SerializedObject) {
-        // for serialized objects, use existing buffers instead of materializing values
-        SerializedObject serialized = (SerializedObject) unshredded;
+      if (unshredded instanceof SerializedObject serialized) {
         for (Map.Entry<String, Integer> field : serialized.fields()) {
           // if the value is replaced by an unshredded field, don't include it
           String name = field.getKey();

@@ -93,8 +93,8 @@ public class Avro {
   }
 
   public static WriteBuilder write(OutputFile file) {
-    if (file instanceof EncryptedOutputFile) {
-      return write((EncryptedOutputFile) file);
+    if (file instanceof EncryptedOutputFile encryptedOutputFile) {
+      return write(encryptedOutputFile);
     }
 
     return new WriteBuilder(file);
@@ -249,24 +249,19 @@ public class Avro {
         CodecFactory codecFactory;
         try {
           switch (Codec.valueOf(codecAsString.toUpperCase(Locale.ENGLISH))) {
-            case UNCOMPRESSED:
-              codecFactory = CodecFactory.nullCodec();
-              break;
-            case SNAPPY:
-              codecFactory = CodecFactory.snappyCodec();
-              break;
-            case ZSTD:
-              codecFactory =
-                  CodecFactory.zstandardCodec(
-                      compressionLevelAsInt(compressionLevel, ZSTD_COMPRESSION_LEVEL_DEFAULT));
-              break;
-            case GZIP:
-              codecFactory =
-                  CodecFactory.deflateCodec(
-                      compressionLevelAsInt(compressionLevel, GZIP_COMPRESSION_LEVEL_DEFAULT));
-              break;
-            default:
-              throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
+            case UNCOMPRESSED -> codecFactory = CodecFactory.nullCodec();
+            case SNAPPY -> codecFactory = CodecFactory.snappyCodec();
+            case ZSTD ->
+                codecFactory =
+                    CodecFactory.zstandardCodec(
+                        compressionLevelAsInt(compressionLevel, ZSTD_COMPRESSION_LEVEL_DEFAULT));
+            case GZIP ->
+                codecFactory =
+                    CodecFactory.deflateCodec(
+                        compressionLevelAsInt(compressionLevel, GZIP_COMPRESSION_LEVEL_DEFAULT));
+            default ->
+                throw new IllegalArgumentException(
+                    "Unsupported compression codec: " + codecAsString);
           }
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
@@ -764,13 +759,13 @@ public class Avro {
         reader = (DatumReader<D>) defaultCreateReaderFunc.apply(schema);
       }
 
-      if (reader instanceof SupportsCustomRecords) {
-        ((SupportsCustomRecords) reader).setClassLoader(loader);
-        ((SupportsCustomRecords) reader).setRenames(renames);
+      if (reader instanceof SupportsCustomRecords supportsCustomRecords) {
+        supportsCustomRecords.setClassLoader(loader);
+        supportsCustomRecords.setRenames(renames);
       }
 
-      if (reader instanceof SupportsCustomTypes) {
-        ((SupportsCustomTypes) reader).setCustomTypes(rootType, typeMap);
+      if (reader instanceof SupportsCustomTypes supportsCustomTypes) {
+        supportsCustomTypes.setCustomTypes(rootType, typeMap);
       }
 
       return new AvroIterable<>(

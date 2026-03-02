@@ -163,10 +163,10 @@ public class AvroSchemaUtil {
         // not all avro timestamp logical types will have the adjust_to_utc prop, default to
         // timestamp without timezone
         return false;
-      } else if (value instanceof Boolean) {
-        return (Boolean) value;
-      } else if (value instanceof String) {
-        return Boolean.parseBoolean((String) value);
+      } else if (value instanceof Boolean boolValue) {
+        return boolValue;
+      } else if (value instanceof String stringValue) {
+        return Boolean.parseBoolean(stringValue);
       }
     }
 
@@ -190,14 +190,19 @@ public class AvroSchemaUtil {
 
   static Schema toOption(Schema schema) {
     switch (schema.getType()) {
-      case UNION:
+      case UNION -> {
         Preconditions.checkArgument(
             isOptionSchema(schema), "Union schemas are not supported: %s", schema);
         return schema;
-      case NULL:
+      }
+
+      case NULL -> {
         return schema;
-      default:
+      }
+
+      default -> {
         return Schema.createUnion(NULL, schema);
+      }
     }
   }
 
@@ -433,10 +438,10 @@ public class AvroSchemaUtil {
   }
 
   private static int toInt(Object value) {
-    if (value instanceof Number) {
-      return ((Number) value).intValue();
-    } else if (value instanceof String) {
-      return Integer.parseInt((String) value);
+    if (value instanceof Number number) {
+      return number.intValue();
+    } else if (value instanceof String stringValue) {
+      return Integer.parseInt(stringValue);
     }
 
     throw new UnsupportedOperationException("Cannot coerce value to int: " + value);

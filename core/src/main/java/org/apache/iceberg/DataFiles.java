@@ -216,8 +216,8 @@ public class DataFiles {
     }
 
     public Builder withInputFile(InputFile file) {
-      if (file instanceof HadoopInputFile) {
-        return withStatus(((HadoopInputFile) file).getStat());
+      if (file instanceof HadoopInputFile hadoopInputFile) {
+        return withStatus(hadoopInputFile.getStat());
       }
 
       this.filePath = file.location();

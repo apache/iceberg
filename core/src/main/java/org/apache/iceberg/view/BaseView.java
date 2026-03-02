@@ -116,8 +116,7 @@ public class BaseView implements View, Serializable {
     Preconditions.checkArgument(!dialect.isEmpty(), "Invalid dialect: (empty string)");
     SQLViewRepresentation closest = null;
     for (ViewRepresentation representation : currentVersion().representations()) {
-      if (representation instanceof SQLViewRepresentation) {
-        SQLViewRepresentation sqlViewRepresentation = (SQLViewRepresentation) representation;
+      if (representation instanceof SQLViewRepresentation sqlViewRepresentation) {
         if (sqlViewRepresentation.dialect().equalsIgnoreCase(dialect)) {
           return sqlViewRepresentation;
         } else if (closest == null) {

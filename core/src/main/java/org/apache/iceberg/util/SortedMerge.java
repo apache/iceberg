@@ -126,9 +126,9 @@ public class SortedMerge<T> extends CloseableGroup implements CloseableIterable<
     }
 
     private void close(Iterator<?> iter) {
-      if (iter instanceof Closeable) {
+      if (iter instanceof Closeable closeable) {
         try {
-          ((Closeable) iter).close();
+          closeable.close();
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }

@@ -159,17 +159,19 @@ public class AvroFormatModel<D, S>
     @Override
     public FileAppender<D> build() throws IOException {
       switch (content) {
-        case DATA:
+        case DATA -> {
           internal.createContextFunc(Avro.WriteBuilder.Context::dataContext);
           internal.createWriterFunc(
               avroSchema -> writerFunction.write(schema, avroSchema, engineSchema));
-          break;
-        case EQUALITY_DELETES:
+        }
+
+        case EQUALITY_DELETES -> {
           internal.createContextFunc(Avro.WriteBuilder.Context::deleteContext);
           internal.createWriterFunc(
               avroSchema -> writerFunction.write(schema, avroSchema, engineSchema));
-          break;
-        case POSITION_DELETES:
+        }
+
+        case POSITION_DELETES -> {
           Preconditions.checkState(
               schema == null,
               "Invalid schema: %s. Position deletes with schema are not supported by the API.",
@@ -182,9 +184,9 @@ public class AvroFormatModel<D, S>
           internal.createContextFunc(Avro.WriteBuilder.Context::deleteContext);
           internal.createWriterFunc(unused -> new Avro.PositionDatumWriter());
           internal.schema(DeleteSchemaUtil.pathPosSchema());
-          break;
-        default:
-          throw new IllegalArgumentException("Unknown file content: " + content);
+        }
+
+        default -> throw new IllegalArgumentException("Unknown file content: " + content);
       }
 
       return internal.build();

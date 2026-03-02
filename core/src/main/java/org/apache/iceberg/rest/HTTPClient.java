@@ -206,9 +206,8 @@ public class HTTPClient extends BaseHTTPClient {
 
     if (responseBody != null) {
       try {
-        if (errorHandler instanceof ErrorHandler) {
-          errorResponse =
-              ((ErrorHandler) errorHandler).parseResponse(response.getCode(), responseBody);
+        if (errorHandler instanceof ErrorHandler handler) {
+          errorResponse = handler.parseResponse(response.getCode(), responseBody);
         } else {
           LOG.warn(
               "Unknown error handler {}, response body won't be parsed",

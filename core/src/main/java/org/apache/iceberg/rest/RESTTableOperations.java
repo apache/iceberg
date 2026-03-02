@@ -160,7 +160,7 @@ class RESTTableOperations implements TableOperations {
     List<UpdateRequirement> requirements;
     List<MetadataUpdate> updates;
     switch (updateType) {
-      case CREATE:
+      case CREATE -> {
         Preconditions.checkState(
             base == null, "Invalid base metadata for create transaction, expected null: %s", base);
         updates =
@@ -170,9 +170,9 @@ class RESTTableOperations implements TableOperations {
                 .build();
         requirements = UpdateRequirements.forCreateTable(updates);
         errorHandler = ErrorHandlers.createTableErrorHandler();
-        break;
+      }
 
-      case REPLACE:
+      case REPLACE -> {
         Preconditions.checkState(base != null, "Invalid base metadata: null");
         updates =
             ImmutableList.<MetadataUpdate>builder()
@@ -182,18 +182,18 @@ class RESTTableOperations implements TableOperations {
         // use the original replace base metadata because the transaction will refresh
         requirements = UpdateRequirements.forReplaceTable(replaceBase, updates);
         errorHandler = ErrorHandlers.tableCommitHandler();
-        break;
+      }
 
-      case SIMPLE:
+      case SIMPLE -> {
         Preconditions.checkState(base != null, "Invalid base metadata: null");
         updates = metadata.changes();
         requirements = UpdateRequirements.forUpdateTable(base, updates);
         errorHandler = ErrorHandlers.tableCommitHandler();
-        break;
+      }
 
-      default:
-        throw new UnsupportedOperationException(
-            String.format("Update type %s is not supported", updateType));
+      default ->
+          throw new UnsupportedOperationException(
+              String.format("Update type %s is not supported", updateType));
     }
 
     UpdateTableRequest request = new UpdateTableRequest(requirements, updates);
@@ -253,13 +253,12 @@ class RESTTableOperations implements TableOperations {
     Long mainRefSnapshotId = null;
 
     for (MetadataUpdate update : updates) {
-      if (update instanceof MetadataUpdate.AddSnapshot) {
+      if (update instanceof MetadataUpdate.AddSnapshot addSnapshot) {
         if (addedSnapshotId != null) {
           return null; // multiple snapshot adds -> not safe
         }
-        addedSnapshotId = ((MetadataUpdate.AddSnapshot) update).snapshot().snapshotId();
-      } else if (update instanceof MetadataUpdate.SetSnapshotRef) {
-        MetadataUpdate.SetSnapshotRef setRef = (MetadataUpdate.SetSnapshotRef) update;
+        addedSnapshotId = addSnapshot.snapshot().snapshotId();
+      } else if (update instanceof MetadataUpdate.SetSnapshotRef setRef) {
         if (!SnapshotRef.MAIN_BRANCH.equals(setRef.name())) {
           return null; // only allow main ref update
         }

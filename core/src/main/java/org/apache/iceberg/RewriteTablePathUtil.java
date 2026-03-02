@@ -283,8 +283,8 @@ public class RewriteTablePathUtil {
                 sourcePrefix));
 
     EncryptionManager encryptionManager =
-        (io instanceof EncryptingFileIO)
-            ? ((EncryptingFileIO) io).encryptionManager()
+        (io instanceof EncryptingFileIO encryptingFileIO)
+            ? encryptingFileIO.encryptionManager()
             : PlaintextEncryptionManager.instance();
 
     try (FileAppender<ManifestFile> writer =
@@ -451,7 +451,7 @@ public class RewriteTablePathUtil {
     RewriteResult<DeleteFile> result = new RewriteResult<>();
 
     switch (file.content()) {
-      case POSITION_DELETES:
+      case POSITION_DELETES -> {
         DeleteFile posDeleteFile = newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, posDeleteFile);
         // keep the following entries in metadata but exclude them from copyPlan
@@ -467,7 +467,8 @@ public class RewriteTablePathUtil {
         }
         result.toRewrite().add(file);
         return result;
-      case EQUALITY_DELETES:
+      }
+      case EQUALITY_DELETES -> {
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, eqDeleteFile);
         // keep the following entries in metadata but exclude them from copyPlan
@@ -478,9 +479,11 @@ public class RewriteTablePathUtil {
           result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
         }
         return result;
+      }
 
-      default:
-        throw new UnsupportedOperationException("Unsupported delete file type: " + file.content());
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported delete file type: " + file.content());
     }
   }
 
@@ -488,16 +491,11 @@ public class RewriteTablePathUtil {
       ManifestEntry<F> entry, ManifestWriter<F> writer, F file) {
 
     switch (entry.status()) {
-      case ADDED:
-        writer.add(file);
-        break;
-      case EXISTING:
-        writer.existing(
-            file, entry.snapshotId(), entry.dataSequenceNumber(), entry.fileSequenceNumber());
-        break;
-      case DELETED:
-        writer.delete(file, entry.dataSequenceNumber(), entry.fileSequenceNumber());
-        break;
+      case ADDED -> writer.add(file);
+      case EXISTING ->
+          writer.existing(
+              file, entry.snapshotId(), entry.dataSequenceNumber(), entry.fileSequenceNumber());
+      case DELETED -> writer.delete(file, entry.dataSequenceNumber(), entry.fileSequenceNumber());
     }
   }
 
