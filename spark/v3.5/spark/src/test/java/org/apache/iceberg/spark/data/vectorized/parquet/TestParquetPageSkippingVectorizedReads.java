@@ -209,7 +209,7 @@ public class TestParquetPageSkippingVectorizedReads extends AvroDataTestBase {
 
     // pos 180, 800 are deleted in file
     when(deletedRowPos.isDeleted(180L)).thenReturn(true);
-    when(deletedRowPos.isDeleted(800L)).thenReturn(true);
+    when(deletedRowPos.isDeleted(380L)).thenReturn(true);
     when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
 
     Expression filter =
@@ -217,14 +217,13 @@ public class TestParquetPageSkippingVectorizedReads extends AvroDataTestBase {
             // page-1 in row group 0 -> row ranges: [100, 199]
             Expressions.and(
                 Expressions.greaterThanOrEqual("l", 150), Expressions.lessThan("l", 200)),
-            // firstRowIndex in row group 1 -> 619
-            // page-1, page-2 in row group 1 -> row ranges: [100, 299]
+            // page-3 in row group 0 -> row ranges: [300, 399]
             Expressions.and(
-                Expressions.greaterThanOrEqual("l", 750), Expressions.lessThan("l", 850)));
+                Expressions.greaterThanOrEqual("l", 350), Expressions.lessThan("l", 400)));
 
     List<Record> expected =
         selectRecords(
-            allRecords, Pair.of(100, 180), Pair.of(181, 200), Pair.of(719, 800), Pair.of(801, 919));
+            allRecords, Pair.of(100, 180), Pair.of(181, 200), Pair.of(300, 380), Pair.of(381, 400));
 
     readAndValidate(filter, expected, deleteFilter);
   }
