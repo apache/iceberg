@@ -140,7 +140,6 @@ A `definition version` represents a specific implementation of that definition a
 | *optional*  | `on-null-input`   | `string` (`"return-null"` or `"call"`, default `"call"`) | Defines how the UDF behaves when any input parameter is NULL.  |
 | *required*  | `timestamp-ms`    | `long` (unix epoch millis)                               | Creation timestamp of this version.                            |
 
-
 #### Null Input Handling
 `on-null-input` provides an optimization hint for query engines:
 1. If set to `return-null`, the function always returns `NULL` if any input argument is `NULL`. This allows engines to
