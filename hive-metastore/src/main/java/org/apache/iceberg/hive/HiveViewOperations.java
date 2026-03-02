@@ -115,7 +115,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
     refreshFromMetadataLocation(metadataLocation);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
   @Override
   public void doCommit(ViewMetadata base, ViewMetadata metadata) {
     boolean newView = base == null;
@@ -147,6 +147,9 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
         }
 
         updateHiveView = true;
+        String sqlQuery = sqlFor(metadata);
+        tbl.setViewOriginalText(sqlQuery);
+        tbl.setViewExpandedText(sqlQuery);
         LOG.debug("Committing existing view: {}", fullName);
       } else {
         tbl = newHMSView(metadata);

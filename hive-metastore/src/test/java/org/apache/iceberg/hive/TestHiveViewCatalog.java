@@ -262,6 +262,38 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
   }
 
   @Test
+  public void testReplaceViewUpdatesHiveViewText() throws TException, IOException {
+    String dbName = "hivedb";
+    Namespace ns = Namespace.of(dbName);
+    TableIdentifier identifier = TableIdentifier.of(ns, "test_iceberg_replace_view_hive_text");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    String initialQuery = "select * from hivedb.tbl";
+    String updatedQuery = "select count(*) from hivedb.tbl";
+
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(ns)
+        .withQuery("hive", initialQuery)
+        .create();
+
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(ns)
+        .withQuery("hive", updatedQuery)
+        .replace();
+
+    Table hiveTable =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(dbName, identifier.name());
+    assertThat(hiveTable.getViewOriginalText()).isEqualTo(updatedQuery);
+    assertThat(hiveTable.getViewExpandedText()).isEqualTo(updatedQuery);
+  }
+
+  @Test
   public void testInvalidIdentifiersWithRename() {
     TableIdentifier invalidFrom = TableIdentifier.of(Namespace.of("l1", "l2"), "view");
     TableIdentifier validTo = TableIdentifier.of(Namespace.of("l1"), "renamedView");
