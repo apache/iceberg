@@ -962,14 +962,16 @@ public class TestRecordConverter {
     org.apache.iceberg.Schema variantSchema =
         new org.apache.iceberg.Schema(
             NestedField.required(1, "id", IntegerType.get()),
-            NestedField.required(2, "variant_field", org.apache.iceberg.types.Types.VariantType.get()));
+            NestedField.required(
+                2, "variant_field", org.apache.iceberg.types.Types.VariantType.get()));
 
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(variantSchema);
     RecordConverter converter = new RecordConverter(table, config);
 
     // Test with JSON string
-    Map<String, Object> jsonData = ImmutableMap.of("id", 123, "variant_field", "{\"key\":\"value\"}");
+    Map<String, Object> jsonData =
+        ImmutableMap.of("id", 123, "variant_field", "{\"key\":\"value\"}");
     Record jsonRecord = converter.convert(jsonData);
     assertThat(jsonRecord.getField("id")).isEqualTo(123);
     assertThat(jsonRecord.getField("variant_field"))
