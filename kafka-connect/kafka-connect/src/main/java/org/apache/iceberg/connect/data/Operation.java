@@ -1,5 +1,3 @@
-package org.apache.iceberg.connect.data;
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -18,9 +16,10 @@ package org.apache.iceberg.connect.data;
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.iceberg.connect.data;
 
 public enum Operation {
-    INSERT,
-    UPDATE,
-    DELETE
+  INSERT,
+  UPDATE,
+  DELETE
 }

@@ -29,40 +29,40 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 
 public class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
-    private final RowDataDeltaWriter writer;
+  private final RowDataDeltaWriter writer;
 
-    UnpartitionedDeltaWriter(
-            PartitionSpec spec,
-            FileFormat format,
-            FileAppenderFactory<Record> appenderFactory,
-            OutputFileFactory fileFactory,
-            FileIO io,
-            long targetFileSize,
-            Schema schema,
-            Set<Integer> identifierFieldIds,
-            boolean upsertMode,
-            boolean insertToUpdateMode) {
-        super(
-                spec,
-                format,
-                appenderFactory,
-                fileFactory,
-                io,
-                targetFileSize,
-                schema,
-                identifierFieldIds,
-                upsertMode,
-                insertToUpdateMode);
-        this.writer = new RowDataDeltaWriter(null);
-    }
+  UnpartitionedDeltaWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileAppenderFactory<Record> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize,
+      Schema schema,
+      Set<Integer> identifierFieldIds,
+      boolean upsertMode,
+      boolean insertToUpdateMode) {
+    super(
+        spec,
+        format,
+        appenderFactory,
+        fileFactory,
+        io,
+        targetFileSize,
+        schema,
+        identifierFieldIds,
+        upsertMode,
+        insertToUpdateMode);
+    this.writer = new RowDataDeltaWriter(null);
+  }
 
-    @Override
-    RowDataDeltaWriter route(Record row) {
-        return writer;
-    }
+  @Override
+  RowDataDeltaWriter route(Record row) {
+    return writer;
+  }
 
-    @Override
-    public void close() throws IOException {
-        writer.close();
-    }
+  @Override
+  public void close() throws IOException {
+    writer.close();
+  }
 }
