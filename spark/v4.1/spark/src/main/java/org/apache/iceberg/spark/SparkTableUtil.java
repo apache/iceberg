@@ -44,6 +44,7 @@ import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -65,7 +66,6 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -79,8 +79,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -975,15 +973,7 @@ public class SparkTableUtil {
   }
 
   private static void deleteManifests(FileIO io, List<ManifestFile> manifests) {
-    if (io instanceof SupportsBulkOperations) {
-      ((SupportsBulkOperations) io).deleteFiles(Lists.transform(manifests, ManifestFile::path));
-    } else {
-      Tasks.foreach(manifests)
-          .executeWith(ThreadPools.getWorkerPool())
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .run(item -> io.deleteFile(item.path()));
-    }
+    CatalogUtil.deleteFiles(io, Lists.transform(manifests, ManifestFile::path), "manifests");
   }
 
   public static Dataset<Row> loadTable(SparkSession spark, Table table, long snapshotId) {
