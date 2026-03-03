@@ -52,7 +52,7 @@ class IcebergWriter implements RecordWriter {
   }
 
   private void initNewWriter() {
-    this.writer = RecordUtils.createTableWriter(table, table.name(), config);
+    this.writer = RecordUtils.createTableWriter(table, tableReference, config);
     this.recordConverter = new RecordConverter(table, config);
   }
 
