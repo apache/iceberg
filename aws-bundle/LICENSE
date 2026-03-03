@@ -217,6 +217,13 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles Apache Parquet.
+
+Project URL: https://parquet.apache.org
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles Netty.
 
 Project URL: https://netty.io/
