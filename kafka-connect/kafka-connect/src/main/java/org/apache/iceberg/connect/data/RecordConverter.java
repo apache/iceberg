@@ -538,6 +538,21 @@ class RecordConverter {
     return result;
   }
 
+  private Variant tryDeserializeVariant(Object value) {
+    // Try to deserialize ByteBuffer or byte[] as a serialized variant
+    // Returns null if not a valid serialized variant
+    try {
+      if (value instanceof ByteBuffer) {
+        return Variant.from((ByteBuffer) value);
+      } else if (value instanceof byte[]) {
+        return Variant.from(ByteBuffer.wrap((byte[]) value));
+      }
+    } catch (RuntimeException e) {
+      // Not a valid serialized variant, return null to fall back to JSON conversion
+    }
+    return null;
+  }
+
   protected Variant convertVariant(Object value) {
     try {
       // If it's already a Variant, return it
@@ -545,24 +560,10 @@ class RecordConverter {
         return (Variant) value;
       }
 
-      // If it's a ByteBuffer (serialized variant from source)
-      // Try to deserialize, but fall back to JSON conversion if it fails
-      if (value instanceof ByteBuffer) {
-        try {
-          return Variant.from((ByteBuffer) value);
-        } catch (RuntimeException e) {
-          // Not a valid serialized variant, fall through to JSON conversion
-        }
-      }
-
-      // If it's a byte array (serialized variant)
-      // Try to deserialize, but fall back to JSON conversion if it fails
-      if (value instanceof byte[]) {
-        try {
-          return Variant.from(ByteBuffer.wrap((byte[]) value));
-        } catch (RuntimeException e) {
-          // Not a valid serialized variant, fall through to JSON conversion
-        }
+      // Try to deserialize if it's a ByteBuffer or byte[]
+      Variant deserialized = tryDeserializeVariant(value);
+      if (deserialized != null) {
+        return deserialized;
       }
 
       // Convert the value to JSON representation and wrap in a Variant
