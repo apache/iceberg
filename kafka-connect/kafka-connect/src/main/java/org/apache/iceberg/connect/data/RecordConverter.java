@@ -546,13 +546,23 @@ class RecordConverter {
       }
 
       // If it's a ByteBuffer (serialized variant from source)
+      // Try to deserialize, but fall back to JSON conversion if it fails
       if (value instanceof ByteBuffer) {
-        return Variant.from((ByteBuffer) value);
+        try {
+          return Variant.from((ByteBuffer) value);
+        } catch (RuntimeException e) {
+          // Not a valid serialized variant, fall through to JSON conversion
+        }
       }
 
       // If it's a byte array (serialized variant)
+      // Try to deserialize, but fall back to JSON conversion if it fails
       if (value instanceof byte[]) {
-        return Variant.from(ByteBuffer.wrap((byte[]) value));
+        try {
+          return Variant.from(ByteBuffer.wrap((byte[]) value));
+        } catch (RuntimeException e) {
+          // Not a valid serialized variant, fall through to JSON conversion
+        }
       }
 
       // Convert the value to JSON representation and wrap in a Variant
