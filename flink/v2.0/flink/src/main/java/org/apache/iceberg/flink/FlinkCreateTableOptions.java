@@ -67,6 +67,24 @@ class FlinkCreateTableOptions {
           .noDefaultValue()
           .withDescription("Properties for the underlying catalog for iceberg table.");
 
+  public static final ConfigOption<Boolean> USE_DYNAMIC_ICEBERG_SINK =
+      ConfigOptions.key("use-dynamic-iceberg-sink")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription(
+              "Whether to use dynamic iceberg sink for routing data to multiple tables. "
+                  + "When enabled, a single sink instance can dynamically route records to different "
+                  + "Iceberg tables based on the logic defined in the DynamicRecordGenerator implementation. "
+                  + "Requires 'dynamic-record-generator-impl' to be specified. "
+                  + "Default is false (uses standard static sink behavior).");
+
+  public static final ConfigOption<String> DYNAMIC_RECORD_GENERATOR_IMPL =
+      ConfigOptions.key("dynamic-record-generator-impl")
+          .stringType()
+          .noDefaultValue()
+          .withDescription(
+              "Implementation of DynamicTableRecordGenerator class when use-dynamic-iceberg-sink is enabled.");
+
   public static final String SRC_CATALOG_PROPS_KEY = "src-catalog";
   public static final String CONNECTOR_PROPS_KEY = "connector";
   public static final String LOCATION_KEY = "location";

@@ -107,6 +107,11 @@ public class VectorizedPageIterator extends BasePageIterator {
         case DELTA_BYTE_ARRAY:
           valuesReader = new VectorizedDeltaByteArrayValuesReader();
           break;
+        case BYTE_STREAM_SPLIT:
+          valuesReader =
+              new VectorizedByteStreamSplitValuesReader(
+                  byteStreamSplitElementSize(desc.getPrimitiveType()));
+          break;
         case RLE:
           if (desc.getPrimitiveType().getPrimitiveTypeName()
               == PrimitiveType.PrimitiveTypeName.BOOLEAN) {
@@ -383,6 +388,22 @@ public class VectorizedPageIterator extends BasePageIterator {
               holder,
               dictionaryEncodedValuesReader,
               dictionary);
+    }
+  }
+
+  private static int byteStreamSplitElementSize(PrimitiveType type) {
+    switch (type.getPrimitiveTypeName()) {
+      case INT32:
+      case FLOAT:
+        return VectorizedValuesReader.INT_SIZE;
+      case INT64:
+      case DOUBLE:
+        return VectorizedValuesReader.LONG_SIZE;
+      case FIXED_LEN_BYTE_ARRAY:
+        return type.getTypeLength();
+      default:
+        throw new UnsupportedOperationException(
+            "Byte stream split encoding is not supported for type " + type.getPrimitiveTypeName());
     }
   }
 

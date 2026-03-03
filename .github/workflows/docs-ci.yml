@@ -25,6 +25,9 @@ on:
       - format/**
       - .github/workflows/docs-ci.yml
 
+permissions:
+  contents: read
+
 jobs:
   build-docs:
     runs-on: ${{ matrix.os }}

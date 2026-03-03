@@ -201,22 +201,22 @@ public class TestFieldStats {
             .hasExactBounds()
             .build();
 
-    assertThat(fieldStats.get(VALUE_COUNT.offset(), Long.class)).isEqualTo(10L);
-    assertThat(fieldStats.get(NULL_VALUE_COUNT.offset(), Long.class)).isEqualTo(2L);
-    assertThat(fieldStats.get(NAN_VALUE_COUNT.offset(), Long.class)).isEqualTo(3L);
-    assertThat(fieldStats.get(AVG_VALUE_SIZE.offset(), Integer.class)).isEqualTo(30);
-    assertThat(fieldStats.get(MAX_VALUE_SIZE.offset(), Integer.class)).isEqualTo(70);
-    assertThat(fieldStats.get(LOWER_BOUND.offset(), Integer.class)).isEqualTo(5);
-    assertThat(fieldStats.get(UPPER_BOUND.offset(), Integer.class)).isEqualTo(20);
-    assertThat(fieldStats.get(EXACT_BOUNDS.offset(), Boolean.class)).isEqualTo(true);
+    assertThat(fieldStats.get(VALUE_COUNT.position(), Long.class)).isEqualTo(10L);
+    assertThat(fieldStats.get(NULL_VALUE_COUNT.position(), Long.class)).isEqualTo(2L);
+    assertThat(fieldStats.get(NAN_VALUE_COUNT.position(), Long.class)).isEqualTo(3L);
+    assertThat(fieldStats.get(AVG_VALUE_SIZE.position(), Integer.class)).isEqualTo(30);
+    assertThat(fieldStats.get(MAX_VALUE_SIZE.position(), Integer.class)).isEqualTo(70);
+    assertThat(fieldStats.get(LOWER_BOUND.position(), Integer.class)).isEqualTo(5);
+    assertThat(fieldStats.get(UPPER_BOUND.position(), Integer.class)).isEqualTo(20);
+    assertThat(fieldStats.get(EXACT_BOUNDS.position(), Boolean.class)).isEqualTo(true);
 
     assertThatThrownBy(() -> assertThat(fieldStats.get(10, Long.class)))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid statistic offset: 10");
-    assertThatThrownBy(() -> assertThat(fieldStats.get(VALUE_COUNT.offset(), Double.class)))
+        .hasMessage("Invalid statistic position: 10");
+    assertThatThrownBy(() -> assertThat(fieldStats.get(VALUE_COUNT.position(), Double.class)))
         .isInstanceOf(ClassCastException.class)
         .hasMessage("Cannot cast java.lang.Long to java.lang.Double");
-    assertThatThrownBy(() -> assertThat(fieldStats.get(AVG_VALUE_SIZE.offset(), Long.class)))
+    assertThatThrownBy(() -> assertThat(fieldStats.get(AVG_VALUE_SIZE.position(), Long.class)))
         .isInstanceOf(ClassCastException.class)
         .hasMessage("Cannot cast java.lang.Integer to java.lang.Long");
   }

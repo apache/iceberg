@@ -55,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
@@ -70,6 +71,8 @@ import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
+import org.apache.spark.sql.connector.catalog.constraints.Constraint;
+import org.apache.spark.sql.connector.catalog.constraints.Constraint.ValidationStatus;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -284,6 +287,25 @@ public class SparkTable
     }
 
     return cols.toArray(SparkMetadataColumn[]::new);
+  }
+
+  @Override
+  public Constraint[] constraints() {
+    List<Constraint> constraints = Lists.newArrayList();
+
+    SparkReadConf readConf = new SparkReadConf(sparkSession(), icebergTable);
+    Set<String> identifierFieldNames = icebergTable.schema().identifierFieldNames();
+
+    if (readConf.identifierFieldsRely() && !identifierFieldNames.isEmpty()) {
+      constraints.add(
+          Constraint.primaryKey("iceberg_pk", Spark3Util.toNamedReferences(identifierFieldNames))
+              .enforced(false)
+              .validationStatus(ValidationStatus.UNVALIDATED)
+              .rely(true)
+              .build());
+    }
+
+    return constraints.toArray(new Constraint[0]);
   }
 
   @Override

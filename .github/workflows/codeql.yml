@@ -27,10 +27,13 @@ on:
   schedule:
     - cron: '16 4 * * 1'
 
+permissions:
+  contents: read
+
 jobs:
   analyze:
     name: Analyze Actions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: read
       security-events: write
@@ -38,7 +41,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4
