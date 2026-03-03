@@ -955,4 +955,39 @@ public class TestRecordConverter {
     assertThat(rec.getField("ii")).isEqualTo(11);
     assertRecordValues((GenericRecord) rec.getField("st"));
   }
+
+  @Test
+  public void testVariantConversion() {
+    // Create schema with variant field
+    org.apache.iceberg.Schema variantSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.required(2, "variant_field", org.apache.iceberg.types.Types.VariantType.get()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(variantSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    // Test with JSON string
+    Map<String, Object> jsonData = ImmutableMap.of("id", 123, "variant_field", "{\"key\":\"value\"}");
+    Record jsonRecord = converter.convert(jsonData);
+    assertThat(jsonRecord.getField("id")).isEqualTo(123);
+    assertThat(jsonRecord.getField("variant_field"))
+        .isInstanceOf(org.apache.iceberg.variants.Variant.class);
+
+    // Test with Map (complex object)
+    Map<String, Object> nestedMap = ImmutableMap.of("nested", ImmutableList.of(1, 2, 3));
+    Map<String, Object> mapData = ImmutableMap.of("id", 456, "variant_field", nestedMap);
+    Record mapRecord = converter.convert(mapData);
+    assertThat(mapRecord.getField("id")).isEqualTo(456);
+    assertThat(mapRecord.getField("variant_field"))
+        .isInstanceOf(org.apache.iceberg.variants.Variant.class);
+
+    // Test with primitive value
+    Map<String, Object> primitiveData = ImmutableMap.of("id", 789, "variant_field", 42);
+    Record primitiveRecord = converter.convert(primitiveData);
+    assertThat(primitiveRecord.getField("id")).isEqualTo(789);
+    assertThat(primitiveRecord.getField("variant_field"))
+        .isInstanceOf(org.apache.iceberg.variants.Variant.class);
+  }
 }
