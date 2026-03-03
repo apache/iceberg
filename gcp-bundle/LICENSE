@@ -732,13 +732,6 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles xDS API.
-
-Project URL: https://github.com/cncf/xds/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This product bundles JSpecify.
 
 Project URL: https://github.com/jspecify/jspecify
