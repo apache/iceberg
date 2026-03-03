@@ -17,7 +17,7 @@
  * under the License.
  */
 
-// duplicate artifact coordinates with the nested subproject, disable publishing...
+// disable publishing from empty grouping project
 afterEvaluate {
   tasks.matching { it.group == 'publishing' }.each { it.enabled = false }
 }
