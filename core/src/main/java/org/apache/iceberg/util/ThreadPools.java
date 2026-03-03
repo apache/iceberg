@@ -19,18 +19,15 @@
 package org.apache.iceberg.util;
 
 import java.time.Duration;
-import java.util.ArrayDeque;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.SystemConfigs;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,10 +45,12 @@ public class ThreadPools {
   public static final String WORKER_THREAD_POOL_SIZE_PROP =
       SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey();
 
+  private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ofSeconds(120);
+
   public static final int WORKER_THREAD_POOL_SIZE = SystemConfigs.WORKER_THREAD_POOL_SIZE.value();
 
-  private static final ConcurrentLinkedDeque<ExecutorService> THREAD_POOLS_TO_SHUTDOWN =
-      new ConcurrentLinkedDeque<>();
+  private static final List<ExecutorServiceWithTimeout> THREAD_POOLS_TO_SHUTDOWN =
+      Lists.newArrayList();
 
   private static final ExecutorService WORKER_POOL =
       newExitingWorkerPool("iceberg-worker-pool", WORKER_THREAD_POOL_SIZE);
@@ -64,8 +63,6 @@ public class ThreadPools {
 
   public static final int AUTH_REFRESH_THREAD_POOL_SIZE =
       SystemConfigs.AUTH_REFRESH_THREAD_POOL_SIZE.value();
-
-  private static final Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(120);
 
   private static Thread shutdownHook;
 
@@ -115,16 +112,11 @@ public class ThreadPools {
   private static class AuthRefreshPoolHolder {
     private static final ScheduledExecutorService INSTANCE =
         ThreadPools.newExitingScheduledPool(
-            "auth-session-refresh", AUTH_REFRESH_THREAD_POOL_SIZE, Duration.ZERO);
+            "auth-session-refresh", AUTH_REFRESH_THREAD_POOL_SIZE, Duration.ofSeconds(10));
   }
 
   /**
-   * Creates a fixed-size thread pool that uses daemon threads. The pool is wrapped with {@link
-   * MoreExecutors#getExitingExecutorService(ThreadPoolExecutor)}, which registers a shutdown hook
-   * to ensure the pool terminates when the JVM exits. <b>Important:</b> Even if the pool is
-   * explicitly shut down using {@link ExecutorService#shutdown()}, the shutdown hook is <i>not</i>
-   * removed. This can lead to accumulation of shutdown hooks if this method is used repeatedly for
-   * short-lived thread pools.
+   * Creates a fixed-size thread pool that uses daemon threads.
    *
    * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
    * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
@@ -140,12 +132,7 @@ public class ThreadPools {
   }
 
   /**
-   * Creates a fixed-size thread pool that uses daemon threads. The pool is wrapped with {@link
-   * MoreExecutors#getExitingExecutorService(ThreadPoolExecutor)}, which registers a shutdown hook
-   * to ensure the pool terminates when the JVM exits. <b>Important:</b> Even if the pool is
-   * explicitly shut down using {@link ExecutorService#shutdown()}, the shutdown hook is <i>not</i>
-   * removed. This can lead to accumulation of shutdown hooks if this method is used repeatedly for
-   * short-lived thread pools.
+   * Creates a fixed-size thread pool that uses daemon threads.
    *
    * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
    * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
@@ -165,10 +152,10 @@ public class ThreadPools {
    * ensure the pool terminates when the JVM exits. This is suitable for long-lived thread pools
    * that should be automatically cleaned up on JVM shutdown.
    */
-  public static ExecutorService newExitingWorkerPool(String namePrefix, int poolSize) {
+  public static synchronized ExecutorService newExitingWorkerPool(String namePrefix, int poolSize) {
     ExecutorService service =
         Executors.unconfigurableExecutorService(newFixedThreadPool(namePrefix, poolSize));
-    THREAD_POOLS_TO_SHUTDOWN.add(service);
+    THREAD_POOLS_TO_SHUTDOWN.add(new ExecutorServiceWithTimeout(service, DEFAULT_SHUTDOWN_TIMEOUT));
     return service;
   }
 
@@ -184,28 +171,28 @@ public class ThreadPools {
    * <p>Please only call this method at the end of the intended usage of the library, and NEVER
    * before, as this method will stop thread pools required for normal library workflows.
    */
-  public static void shutdownThreadPools() {
+  public static synchronized void shutdownThreadPools() {
     removeShutdownHook();
     long startTime = System.nanoTime();
-    ExecutorService item;
-    Queue<ExecutorService> pendingShutdown = new ArrayDeque<>();
-    while ((item = THREAD_POOLS_TO_SHUTDOWN.poll()) != null) {
-      item.shutdown();
+    List<ExecutorServiceWithTimeout> pendingShutdown = Lists.newArrayList();
+    for (ExecutorServiceWithTimeout item : THREAD_POOLS_TO_SHUTDOWN) {
+      item.getService().shutdown();
       pendingShutdown.add(item);
     }
-    while ((item = pendingShutdown.poll()) != null) {
+    THREAD_POOLS_TO_SHUTDOWN.clear();
+    for (ExecutorServiceWithTimeout item : pendingShutdown) {
       long timeElapsed = System.nanoTime() - startTime;
-      long remainingTime = SHUTDOWN_TIMEOUT.toNanos() - timeElapsed;
+      long remainingTime = item.getTimeout().toNanos() - timeElapsed;
       if (remainingTime > 0) {
         try {
-          if (!item.awaitTermination(remainingTime, TimeUnit.NANOSECONDS)) {
-            item.shutdownNow();
+          if (!item.service.awaitTermination(remainingTime, TimeUnit.NANOSECONDS)) {
+            item.getService().shutdownNow();
           }
         } catch (InterruptedException ignored) {
           // We're shutting down anyway, so just ignore.
         }
       } else {
-        item.shutdownNow();
+        item.getService().shutdownNow();
       }
     }
   }
@@ -287,15 +274,33 @@ public class ThreadPools {
    * is suitable for long-lived thread pools that should be automatically cleaned up on JVM
    * shutdown.
    */
-  public static ScheduledExecutorService newExitingScheduledPool(
+  public static synchronized ScheduledExecutorService newExitingScheduledPool(
       String namePrefix, int poolSize, Duration terminationTimeout) {
-    return MoreExecutors.getExitingScheduledExecutorService(
-        (ScheduledThreadPoolExecutor) newScheduledPool(namePrefix, poolSize),
-        terminationTimeout.toMillis(),
-        TimeUnit.MILLISECONDS);
+    ScheduledExecutorService service =
+        Executors.unconfigurableScheduledExecutorService(newScheduledPool(namePrefix, poolSize));
+    THREAD_POOLS_TO_SHUTDOWN.add(new ExecutorServiceWithTimeout(service, terminationTimeout));
+    return service;
   }
 
   private static ThreadFactory newDaemonThreadFactory(String namePrefix) {
     return new ThreadFactoryBuilder().setDaemon(true).setNameFormat(namePrefix + "-%d").build();
+  }
+
+  static class ExecutorServiceWithTimeout {
+    private ExecutorService service;
+    private Duration timeout;
+
+    ExecutorServiceWithTimeout(ExecutorService service, Duration timeout) {
+      this.service = service;
+      this.timeout = timeout;
+    }
+
+    ExecutorService getService() {
+      return service;
+    }
+
+    Duration getTimeout() {
+      return timeout;
+    }
   }
 }
