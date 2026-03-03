@@ -25,14 +25,11 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.UUID;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
-import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
@@ -76,9 +73,7 @@ public class WriterTestBase {
 
   protected WriteResult writeTest(
       List<Record> rows, IcebergSinkConfig config, Class<?> expectedWriterClass) {
-    TableReference tableReference =
-        TableReference.of("test_catalog", TableIdentifier.of("name"), UUID.randomUUID());
-    try (TaskWriter<Record> writer = RecordUtils.createTableWriter(table, tableReference, config)) {
+    try (TaskWriter<Record> writer = RecordUtils.createTableWriter(table, table.name(), config)) {
       assertThat(writer.getClass()).isEqualTo(expectedWriterClass);
 
       rows.forEach(

@@ -27,8 +27,8 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
@@ -41,7 +41,7 @@ public class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
   PartitionedDeltaWriter(
       PartitionSpec spec,
       FileFormat format,
-      FileAppenderFactory<Record> appenderFactory,
+      FileWriterFactory<Record> writerFactory,
       OutputFileFactory fileFactory,
       FileIO io,
       long targetFileSize,
@@ -52,7 +52,7 @@ public class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
     super(
         spec,
         format,
-        appenderFactory,
+        writerFactory,
         fileFactory,
         io,
         targetFileSize,

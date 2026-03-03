@@ -31,9 +31,9 @@ import java.util.UUID;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.connect.IcebergSinkConfig;
-import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.io.FileAppenderFactory;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
@@ -120,20 +120,25 @@ class RecordUtils {
               .collect(toSet());
     }
 
-    FileAppenderFactory<Record> appenderFactory;
+    FileWriterFactory<Record> writerFactory;
     if (identifierFieldIds == null || identifierFieldIds.isEmpty()) {
-      appenderFactory =
-          new GenericAppenderFactory(table.schema(), table.spec(), null, null, null)
-              .setAll(tableProps);
+      writerFactory =
+          new GenericFileWriterFactory.Builder(table)
+              .dataSchema(table.schema())
+              .dataFileFormat(format)
+              .writerProperties(tableProps)
+              .build();
     } else {
-      appenderFactory =
-          new GenericAppenderFactory(
-                  table.schema(),
-                  table.spec(),
-                  Ints.toArray(identifierFieldIds),
-                  TypeUtil.select(table.schema(), Sets.newHashSet(identifierFieldIds)),
-                  null)
-              .setAll(tableProps);
+      writerFactory =
+          new GenericFileWriterFactory.Builder(table)
+              .dataSchema(table.schema())
+              .dataFileFormat(format)
+              .equalityFieldIds(Ints.toArray(identifierFieldIds))
+              .equalityDeleteRowSchema(
+                  TypeUtil.select(table.schema(), Sets.newHashSet(identifierFieldIds)))
+              .deleteFileFormat(format)
+              .writerProperties(tableProps)
+              .build();
     }
 
     // (partition ID + task ID + operation ID) must be unique
@@ -149,13 +154,13 @@ class RecordUtils {
       if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
         writer =
             new UnpartitionedWriter<>(
-                table.spec(), format, appenderFactory, fileFactory, table.io(), targetFileSize);
+                table.spec(), format, writerFactory, fileFactory, table.io(), targetFileSize);
       } else {
         writer =
             new UnpartitionedDeltaWriter(
                 table.spec(),
                 format,
-                appenderFactory,
+                writerFactory,
                 fileFactory,
                 table.io(),
                 targetFileSize,
@@ -170,7 +175,7 @@ class RecordUtils {
             new PartitionedAppendWriter(
                 table.spec(),
                 format,
-                appenderFactory,
+                writerFactory,
                 fileFactory,
                 table.io(),
                 targetFileSize,
@@ -180,7 +185,7 @@ class RecordUtils {
             new PartitionedDeltaWriter(
                 table.spec(),
                 format,
-                appenderFactory,
+                writerFactory,
                 fileFactory,
                 table.io(),
                 targetFileSize,

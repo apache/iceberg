@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.connect.CatalogUtils;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.data.Record;
@@ -51,7 +52,7 @@ class IcebergWriter implements RecordWriter {
   }
 
   private void initNewWriter() {
-    this.writer = RecordUtils.createTableWriter(table, tableReference, config);
+    this.writer = RecordUtils.createTableWriter(table, table.name(), config);
     this.recordConverter = new RecordConverter(table, config);
   }
 

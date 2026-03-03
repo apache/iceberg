@@ -28,8 +28,8 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.BaseTaskWriter;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -47,7 +47,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<Record> {
   BaseDeltaTaskWriter(
       PartitionSpec spec,
       FileFormat format,
-      FileAppenderFactory<Record> appenderFactory,
+      FileWriterFactory<Record> writerFactory,
       OutputFileFactory fileFactory,
       FileIO io,
       long targetFileSize,
@@ -55,7 +55,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<Record> {
       Set<Integer> identifierFieldIds,
       boolean upsertMode,
       boolean insertToUpdateMode) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+    super(spec, format, writerFactory, fileFactory, io, targetFileSize);
     this.schema = schema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(identifierFieldIds));
     this.wrapper = new InternalRecordWrapper(schema.asStruct());
