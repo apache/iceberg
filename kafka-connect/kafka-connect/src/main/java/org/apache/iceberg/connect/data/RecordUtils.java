@@ -18,18 +18,14 @@
  */
 package org.apache.iceberg.connect.data;
 
-import static java.util.stream.Collectors.toSet;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.Record;
@@ -43,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Struct;
@@ -102,12 +99,16 @@ class RecordUtils {
     Map<String, String> tableProps = Maps.newHashMap(table.properties());
     tableProps.putAll(config.writeProps());
 
-    String formatStr = tableProps.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-    FileFormat format = FileFormat.valueOf(formatStr.toUpperCase());
+    String formatStr =
+        tableProps.getOrDefault(
+            TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+    FileFormat format = FileFormat.fromString(formatStr);
 
     long targetFileSize =
         PropertyUtil.propertyAsLong(
-            tableProps, WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+            tableProps,
+            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
+            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
 
     Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
 
@@ -116,8 +117,15 @@ class RecordUtils {
     if (!idCols.isEmpty()) {
       identifierFieldIds =
           idCols.stream()
-              .map(colName -> table.schema().findField(colName).fieldId())
-              .collect(toSet());
+              .map(
+                  colName -> {
+                    NestedField field = table.schema().findField(colName);
+                    if (field == null) {
+                      throw new IllegalArgumentException("ID column not found: " + colName);
+                    }
+                    return field.fieldId();
+                  })
+              .collect(Collectors.toSet());
     }
 
     FileWriterFactory<Record> writerFactory;
