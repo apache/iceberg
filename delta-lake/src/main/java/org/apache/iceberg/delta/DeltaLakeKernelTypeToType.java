@@ -44,13 +44,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class DeltaLakeKernelTypeToType {
+class DeltaLakeKernelTypeToType {
   private final StructType root;
   private int nextId = 0;
-
-  DeltaLakeKernelTypeToType() {
-    this.root = null;
-  }
 
   DeltaLakeKernelTypeToType(StructType root) {
     this.root = root;

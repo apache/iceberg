@@ -26,7 +26,7 @@ import io.delta.kernel.internal.actions.RemoveFile;
  * Util class helps to handle json operations for <a
  * href="https://github.com/delta-io/delta/blob/master/PROTOCOL.md#Actions">delta action</a>
  */
-public class DeltaLakeActionsTranslationUtil {
+class DeltaLakeActionsTranslationUtil {
   private DeltaLakeActionsTranslationUtil() {}
 
   public static boolean isAdd(Row row) {
