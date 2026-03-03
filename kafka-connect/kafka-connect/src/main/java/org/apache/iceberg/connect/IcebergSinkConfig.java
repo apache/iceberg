@@ -79,6 +79,11 @@ public class IcebergSinkConfig extends AbstractConfig {
       "iceberg.tables.schema-force-optional";
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
+  private static final String TABLES_CDC_FIELD_PROP = "iceberg.tables.cdc-field";
+  private static final String TABLES_UPSERT_MODE_ENABLED_PROP =
+      "iceberg.tables.upsert-mode-enabled";
+  private static final String TABLES_INSERT_TO_UPDATE_ENABLED_PROP =
+      "iceberg.tables.insert-to-update-enabled";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
   private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
@@ -224,6 +229,24 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.LOW,
         "Optional prefix of the transactional id for the coordinator");
     configDef.define(
+        TABLES_UPSERT_MODE_ENABLED_PROP,
+        ConfigDef.Type.BOOLEAN,
+        false,
+        Importance.MEDIUM,
+        "Set to true to treat all appends as upserts, false otherwise");
+    configDef.define(
+        TABLES_INSERT_TO_UPDATE_ENABLED_PROP,
+        ConfigDef.Type.BOOLEAN,
+        false,
+        Importance.MEDIUM,
+        "set to true to convert Insert to Update when upsertMode enabled , else set to false");
+    configDef.define(
+        TABLES_CDC_FIELD_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.MEDIUM,
+        "Source record field that identifies the type of operation (insert, update, or delete)");
+    configDef.define(
         HADOOP_CONF_DIR_PROP,
         ConfigDef.Type.STRING,
         null,
@@ -288,6 +311,18 @@ public class IcebergSinkConfig extends AbstractConfig {
     if (!condition) {
       throw new ConfigException(msg);
     }
+  }
+
+  public String tablesCdcField() {
+    return getString(TABLES_CDC_FIELD_PROP);
+  }
+
+  public boolean insertToUpdateModeEnabled() {
+    return getBoolean(TABLES_INSERT_TO_UPDATE_ENABLED_PROP);
+  }
+
+  public boolean upsertModeEnabled() {
+    return getBoolean(TABLES_UPSERT_MODE_ENABLED_PROP);
   }
 
   public String connectorName() {

@@ -18,19 +18,22 @@
  */
 package org.apache.iceberg.connect.data;
 
+import static java.util.stream.Collectors.toSet;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.connect.IcebergSinkConfig;
-import org.apache.iceberg.connect.events.TableReference;
-import org.apache.iceberg.data.GenericFileWriterFactory;
+import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.io.FileWriterFactory;
+import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
@@ -40,7 +43,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Struct;
@@ -96,58 +98,42 @@ class RecordUtils {
   }
 
   public static TaskWriter<Record> createTableWriter(
-      Table table, TableReference tableReference, IcebergSinkConfig config) {
+      Table table, String tableName, IcebergSinkConfig config) {
     Map<String, String> tableProps = Maps.newHashMap(table.properties());
     tableProps.putAll(config.writeProps());
 
-    String formatStr =
-        tableProps.getOrDefault(
-            TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-    FileFormat format = FileFormat.fromString(formatStr);
+    String formatStr = tableProps.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+    FileFormat format = FileFormat.valueOf(formatStr.toUpperCase());
 
     long targetFileSize =
         PropertyUtil.propertyAsLong(
-            tableProps,
-            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
-            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+            tableProps, WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
 
     Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
 
     // override the identifier fields if the config is set
-    List<String> idCols = config.tableConfig(tableReference.identifier().name()).idColumns();
+    List<String> idCols = config.tableConfig(tableName).idColumns();
     if (!idCols.isEmpty()) {
       identifierFieldIds =
           idCols.stream()
-              .map(
-                  colName -> {
-                    NestedField field = table.schema().findField(colName);
-                    if (field == null) {
-                      throw new IllegalArgumentException("ID column not found: " + colName);
-                    }
-                    return field.fieldId();
-                  })
-              .collect(Collectors.toSet());
+              .map(colName -> table.schema().findField(colName).fieldId())
+              .collect(toSet());
     }
 
-    FileWriterFactory<Record> writerFactory;
+    FileAppenderFactory<Record> appenderFactory;
     if (identifierFieldIds == null || identifierFieldIds.isEmpty()) {
-      writerFactory =
-          new GenericFileWriterFactory.Builder(table)
-              .dataSchema(table.schema())
-              .dataFileFormat(format)
-              .writerProperties(tableProps)
-              .build();
+      appenderFactory =
+          new GenericAppenderFactory(table.schema(), table.spec(), null, null, null)
+              .setAll(tableProps);
     } else {
-      writerFactory =
-          new GenericFileWriterFactory.Builder(table)
-              .dataSchema(table.schema())
-              .dataFileFormat(format)
-              .equalityFieldIds(Ints.toArray(identifierFieldIds))
-              .equalityDeleteRowSchema(
-                  TypeUtil.select(table.schema(), Sets.newHashSet(identifierFieldIds)))
-              .deleteFileFormat(format)
-              .writerProperties(tableProps)
-              .build();
+      appenderFactory =
+          new GenericAppenderFactory(
+                  table.schema(),
+                  table.spec(),
+                  Ints.toArray(identifierFieldIds),
+                  TypeUtil.select(table.schema(), Sets.newHashSet(identifierFieldIds)),
+                  null)
+              .setAll(tableProps);
     }
 
     // (partition ID + task ID + operation ID) must be unique
@@ -160,19 +146,49 @@ class RecordUtils {
 
     TaskWriter<Record> writer;
     if (table.spec().isUnpartitioned()) {
-      writer =
-          new UnpartitionedWriter<>(
-              table.spec(), format, writerFactory, fileFactory, table.io(), targetFileSize);
+      if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
+        writer =
+            new UnpartitionedWriter<>(
+                table.spec(), format, appenderFactory, fileFactory, table.io(), targetFileSize);
+      } else {
+        writer =
+            new UnpartitionedDeltaWriter(
+                table.spec(),
+                format,
+                appenderFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema(),
+                identifierFieldIds,
+                config.upsertModeEnabled(),
+                config.insertToUpdateModeEnabled());
+      }
     } else {
-      writer =
-          new PartitionedAppendWriter(
-              table.spec(),
-              format,
-              writerFactory,
-              fileFactory,
-              table.io(),
-              targetFileSize,
-              table.schema());
+      if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
+        writer =
+            new PartitionedAppendWriter(
+                table.spec(),
+                format,
+                appenderFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema());
+      } else {
+        writer =
+            new PartitionedDeltaWriter(
+                table.spec(),
+                format,
+                appenderFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema(),
+                identifierFieldIds,
+                config.upsertModeEnabled(),
+                config.insertToUpdateModeEnabled());
+      }
     }
     return writer;
   }
