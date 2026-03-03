@@ -19,7 +19,7 @@
 package org.apache.iceberg.connect.data;
 
 public enum Operation {
-    INSERT,
-    UPDATE,
-    DELETE
+  INSERT,
+  UPDATE,
+  DELETE
 }

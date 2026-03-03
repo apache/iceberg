@@ -49,149 +49,149 @@ import org.apache.kafka.connect.data.Struct;
 
 class RecordUtils {
 
-    @SuppressWarnings("unchecked")
-    static Object extractFromRecordValue(Object recordValue, String fieldName) {
-        List<String> fields = Splitter.on('.').splitToList(fieldName);
-        if (recordValue instanceof Struct) {
-            return valueFromStruct((Struct) recordValue, fields);
-        } else if (recordValue instanceof Map) {
-            return valueFromMap((Map<String, ?>) recordValue, fields);
-        } else {
-            throw new UnsupportedOperationException(
-                    "Cannot extract value from type: " + recordValue.getClass().getName());
-        }
+  @SuppressWarnings("unchecked")
+  static Object extractFromRecordValue(Object recordValue, String fieldName) {
+    List<String> fields = Splitter.on('.').splitToList(fieldName);
+    if (recordValue instanceof Struct) {
+      return valueFromStruct((Struct) recordValue, fields);
+    } else if (recordValue instanceof Map) {
+      return valueFromMap((Map<String, ?>) recordValue, fields);
+    } else {
+      throw new UnsupportedOperationException(
+          "Cannot extract value from type: " + recordValue.getClass().getName());
+    }
+  }
+
+  private static Object valueFromStruct(Struct parent, List<String> fields) {
+    Struct struct = parent;
+    for (int idx = 0; idx < fields.size() - 1; idx++) {
+      Object value = fieldValueFromStruct(struct, fields.get(idx));
+      if (value == null) {
+        return null;
+      }
+      Preconditions.checkState(value instanceof Struct, "Expected a struct type");
+      struct = (Struct) value;
+    }
+    return fieldValueFromStruct(struct, fields.get(fields.size() - 1));
+  }
+
+  private static Object fieldValueFromStruct(Struct struct, String fieldName) {
+    Field structField = struct.schema().field(fieldName);
+    if (structField == null) {
+      return null;
+    }
+    return struct.get(structField);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Object valueFromMap(Map<String, ?> parent, List<String> fields) {
+    Map<String, ?> map = parent;
+    for (int idx = 0; idx < fields.size() - 1; idx++) {
+      Object value = map.get(fields.get(idx));
+      if (value == null) {
+        return null;
+      }
+      Preconditions.checkState(value instanceof Map, "Expected a map type");
+      map = (Map<String, ?>) value;
+    }
+    return map.get(fields.get(fields.size() - 1));
+  }
+
+  public static TaskWriter<Record> createTableWriter(
+      Table table, String tableName, IcebergSinkConfig config) {
+    Map<String, String> tableProps = Maps.newHashMap(table.properties());
+    tableProps.putAll(config.writeProps());
+
+    String formatStr = tableProps.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+    FileFormat format = FileFormat.valueOf(formatStr.toUpperCase());
+
+    long targetFileSize =
+        PropertyUtil.propertyAsLong(
+            tableProps, WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+
+    Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
+
+    // override the identifier fields if the config is set
+    List<String> idCols = config.tableConfig(tableName).idColumns();
+    if (!idCols.isEmpty()) {
+      identifierFieldIds =
+          idCols.stream()
+              .map(colName -> table.schema().findField(colName).fieldId())
+              .collect(toSet());
     }
 
-    private static Object valueFromStruct(Struct parent, List<String> fields) {
-        Struct struct = parent;
-        for (int idx = 0; idx < fields.size() - 1; idx++) {
-            Object value = fieldValueFromStruct(struct, fields.get(idx));
-            if (value == null) {
-                return null;
-            }
-            Preconditions.checkState(value instanceof Struct, "Expected a struct type");
-            struct = (Struct) value;
-        }
-        return fieldValueFromStruct(struct, fields.get(fields.size() - 1));
+    FileAppenderFactory<Record> appenderFactory;
+    if (identifierFieldIds == null || identifierFieldIds.isEmpty()) {
+      appenderFactory =
+          new GenericAppenderFactory(table.schema(), table.spec(), null, null, null)
+              .setAll(tableProps);
+    } else {
+      appenderFactory =
+          new GenericAppenderFactory(
+                  table.schema(),
+                  table.spec(),
+                  Ints.toArray(identifierFieldIds),
+                  TypeUtil.select(table.schema(), Sets.newHashSet(identifierFieldIds)),
+                  null)
+              .setAll(tableProps);
     }
 
-    private static Object fieldValueFromStruct(Struct struct, String fieldName) {
-        Field structField = struct.schema().field(fieldName);
-        if (structField == null) {
-            return null;
-        }
-        return struct.get(structField);
+    // (partition ID + task ID + operation ID) must be unique
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, System.currentTimeMillis())
+            .defaultSpec(table.spec())
+            .operationId(UUID.randomUUID().toString())
+            .format(format)
+            .build();
+
+    TaskWriter<Record> writer;
+    if (table.spec().isUnpartitioned()) {
+      if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
+        writer =
+            new UnpartitionedWriter<>(
+                table.spec(), format, appenderFactory, fileFactory, table.io(), targetFileSize);
+      } else {
+        writer =
+            new UnpartitionedDeltaWriter(
+                table.spec(),
+                format,
+                appenderFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema(),
+                identifierFieldIds,
+                config.upsertModeEnabled(),
+                config.insertToUpdateModeEnabled());
+      }
+    } else {
+      if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
+        writer =
+            new PartitionedAppendWriter(
+                table.spec(),
+                format,
+                appenderFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema());
+      } else {
+        writer =
+            new PartitionedDeltaWriter(
+                table.spec(),
+                format,
+                appenderFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema(),
+                identifierFieldIds,
+                config.upsertModeEnabled(),
+                config.insertToUpdateModeEnabled());
+      }
     }
+    return writer;
+  }
 
-    @SuppressWarnings("unchecked")
-    private static Object valueFromMap(Map<String, ?> parent, List<String> fields) {
-        Map<String, ?> map = parent;
-        for (int idx = 0; idx < fields.size() - 1; idx++) {
-            Object value = map.get(fields.get(idx));
-            if (value == null) {
-                return null;
-            }
-            Preconditions.checkState(value instanceof Map, "Expected a map type");
-            map = (Map<String, ?>) value;
-        }
-        return map.get(fields.get(fields.size() - 1));
-    }
-
-    public static TaskWriter<Record> createTableWriter(
-            Table table, String tableName, IcebergSinkConfig config) {
-        Map<String, String> tableProps = Maps.newHashMap(table.properties());
-        tableProps.putAll(config.writeProps());
-
-        String formatStr = tableProps.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-        FileFormat format = FileFormat.valueOf(formatStr.toUpperCase());
-
-        long targetFileSize =
-                PropertyUtil.propertyAsLong(
-                        tableProps, WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-
-        Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
-
-        // override the identifier fields if the config is set
-        List<String> idCols = config.tableConfig(tableName).idColumns();
-        if (!idCols.isEmpty()) {
-            identifierFieldIds =
-                    idCols.stream()
-                            .map(colName -> table.schema().findField(colName).fieldId())
-                            .collect(toSet());
-        }
-
-        FileAppenderFactory<Record> appenderFactory;
-        if (identifierFieldIds == null || identifierFieldIds.isEmpty()) {
-            appenderFactory =
-                    new GenericAppenderFactory(table.schema(), table.spec(), null, null, null)
-                            .setAll(tableProps);
-        } else {
-            appenderFactory =
-                    new GenericAppenderFactory(
-                            table.schema(),
-                            table.spec(),
-                            Ints.toArray(identifierFieldIds),
-                            TypeUtil.select(table.schema(), Sets.newHashSet(identifierFieldIds)),
-                            null)
-                            .setAll(tableProps);
-        }
-
-        // (partition ID + task ID + operation ID) must be unique
-        OutputFileFactory fileFactory =
-                OutputFileFactory.builderFor(table, 1, System.currentTimeMillis())
-                        .defaultSpec(table.spec())
-                        .operationId(UUID.randomUUID().toString())
-                        .format(format)
-                        .build();
-
-        TaskWriter<Record> writer;
-        if (table.spec().isUnpartitioned()) {
-            if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
-                writer =
-                        new UnpartitionedWriter<>(
-                                table.spec(), format, appenderFactory, fileFactory, table.io(), targetFileSize);
-            } else {
-                writer =
-                        new UnpartitionedDeltaWriter(
-                                table.spec(),
-                                format,
-                                appenderFactory,
-                                fileFactory,
-                                table.io(),
-                                targetFileSize,
-                                table.schema(),
-                                identifierFieldIds,
-                                config.upsertModeEnabled(),
-                                config.insertToUpdateModeEnabled());
-            }
-        } else {
-            if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
-                writer =
-                        new PartitionedAppendWriter(
-                                table.spec(),
-                                format,
-                                appenderFactory,
-                                fileFactory,
-                                table.io(),
-                                targetFileSize,
-                                table.schema());
-            } else {
-                writer =
-                        new PartitionedDeltaWriter(
-                                table.spec(),
-                                format,
-                                appenderFactory,
-                                fileFactory,
-                                table.io(),
-                                targetFileSize,
-                                table.schema(),
-                                identifierFieldIds,
-                                config.upsertModeEnabled(),
-                                config.insertToUpdateModeEnabled());
-            }
-        }
-        return writer;
-    }
-
-    private RecordUtils() {}
+  private RecordUtils() {}
 }

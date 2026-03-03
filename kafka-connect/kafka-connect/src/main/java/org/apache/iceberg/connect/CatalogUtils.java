@@ -97,40 +97,39 @@ public class CatalogUtils {
     return null;
   }
 
-    public static Object extractFromRecordValue(Object recordValue, String fieldName) {
-        String[] fields = fieldName.split("\\.");
-        if (recordValue instanceof Struct) {
-            return getValueFromStruct((Struct) recordValue, fields, 0);
-        } else if (recordValue instanceof Map) {
-            return getValueFromMap((Map<?, ?>) recordValue, fields, 0);
-        } else {
-            throw new UnsupportedOperationException(
-                    "Cannot extract value from type: " + recordValue.getClass().getName());
-        }
+  public static Object extractFromRecordValue(Object recordValue, String fieldName) {
+    String[] fields = fieldName.split("\\.");
+    if (recordValue instanceof Struct) {
+      return getValueFromStruct((Struct) recordValue, fields, 0);
+    } else if (recordValue instanceof Map) {
+      return getValueFromMap((Map<?, ?>) recordValue, fields, 0);
+    } else {
+      throw new UnsupportedOperationException(
+          "Cannot extract value from type: " + recordValue.getClass().getName());
+    }
+  }
+
+  private static Object getValueFromStruct(Struct struct, String[] fields, int idx) {
+    Preconditions.checkArgument(idx < fields.length, "Invalid field index");
+    Object value = struct.get(fields[idx]);
+    if (value == null || idx == fields.length - 1) {
+      return value;
     }
 
-    private static Object getValueFromStruct(Struct struct, String[] fields, int idx) {
-        Preconditions.checkArgument(idx < fields.length, "Invalid field index");
-        Object value = struct.get(fields[idx]);
-        if (value == null || idx == fields.length - 1) {
-            return value;
-        }
+    Preconditions.checkState(value instanceof Struct, "Expected a struct type");
+    return getValueFromStruct((Struct) value, fields, idx + 1);
+  }
 
-        Preconditions.checkState(value instanceof Struct, "Expected a struct type");
-        return getValueFromStruct((Struct) value, fields, idx + 1);
+  private static Object getValueFromMap(Map<?, ?> map, String[] fields, int idx) {
+    Preconditions.checkArgument(idx < fields.length, "Invalid field index");
+    Object value = map.get(fields[idx]);
+    if (value == null || idx == fields.length - 1) {
+      return value;
     }
 
-    private static Object getValueFromMap(Map<?, ?> map, String[] fields, int idx) {
-        Preconditions.checkArgument(idx < fields.length, "Invalid field index");
-        Object value = map.get(fields[idx]);
-        if (value == null || idx == fields.length - 1) {
-            return value;
-        }
-
-        Preconditions.checkState(value instanceof Map, "Expected a map type");
-        return getValueFromMap((Map<?, ?>) value, fields, idx + 1);
-    }
-
+    Preconditions.checkState(value instanceof Map, "Expected a map type");
+    return getValueFromMap((Map<?, ?>) value, fields, idx + 1);
+  }
 
   private CatalogUtils() {}
 }

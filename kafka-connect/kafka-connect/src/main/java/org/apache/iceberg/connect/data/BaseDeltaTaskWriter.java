@@ -36,81 +36,81 @@ import org.apache.iceberg.types.TypeUtil;
 
 abstract class BaseDeltaTaskWriter extends BaseTaskWriter<Record> {
 
-    private final Schema schema;
-    private final Schema deleteSchema;
-    private final InternalRecordWrapper wrapper;
-    private final InternalRecordWrapper keyWrapper;
-    private final RecordProjection keyProjection;
-    private final boolean upsertMode;
-    private final boolean insertToUpdateMode;
+  private final Schema schema;
+  private final Schema deleteSchema;
+  private final InternalRecordWrapper wrapper;
+  private final InternalRecordWrapper keyWrapper;
+  private final RecordProjection keyProjection;
+  private final boolean upsertMode;
+  private final boolean insertToUpdateMode;
 
-    BaseDeltaTaskWriter(
-            PartitionSpec spec,
-            FileFormat format,
-            FileAppenderFactory<Record> appenderFactory,
-            OutputFileFactory fileFactory,
-            FileIO io,
-            long targetFileSize,
-            Schema schema,
-            Set<Integer> identifierFieldIds,
-            boolean upsertMode,
-            boolean insertToUpdateMode) {
-        super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-        this.schema = schema;
-        this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(identifierFieldIds));
-        this.wrapper = new InternalRecordWrapper(schema.asStruct());
-        this.keyWrapper = new InternalRecordWrapper(deleteSchema.asStruct());
-        this.keyProjection = RecordProjection.create(schema, deleteSchema);
-        this.upsertMode = upsertMode;
-        this.insertToUpdateMode = insertToUpdateMode;
+  BaseDeltaTaskWriter(
+      PartitionSpec spec,
+      FileFormat format,
+      FileAppenderFactory<Record> appenderFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSize,
+      Schema schema,
+      Set<Integer> identifierFieldIds,
+      boolean upsertMode,
+      boolean insertToUpdateMode) {
+    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+    this.schema = schema;
+    this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(identifierFieldIds));
+    this.wrapper = new InternalRecordWrapper(schema.asStruct());
+    this.keyWrapper = new InternalRecordWrapper(deleteSchema.asStruct());
+    this.keyProjection = RecordProjection.create(schema, deleteSchema);
+    this.upsertMode = upsertMode;
+    this.insertToUpdateMode = insertToUpdateMode;
+  }
+
+  abstract RowDataDeltaWriter route(Record row);
+
+  InternalRecordWrapper wrapper() {
+    return wrapper;
+  }
+
+  @Override
+  public void write(Record row) throws IOException {
+    Operation op =
+        row instanceof RecordWrapper
+            ? ((RecordWrapper) row).op()
+            : upsertMode ? Operation.UPDATE : Operation.INSERT;
+
+    if (insertToUpdateMode) {
+      op = Operation.INSERT;
+      if (row instanceof RecordWrapper) {
+        op = ((RecordWrapper) row).op();
+      }
+      if (upsertMode && op == Operation.INSERT) {
+        op = Operation.UPDATE;
+      }
     }
 
-    abstract RowDataDeltaWriter route(Record row);
+    RowDataDeltaWriter writer = route(row);
+    if (op == Operation.UPDATE || op == Operation.DELETE) {
+      writer.deleteKey(keyProjection.wrap(row));
+    }
+    if (op == Operation.UPDATE || op == Operation.INSERT) {
+      writer.write(row);
+    }
+  }
 
-    InternalRecordWrapper wrapper() {
-        return wrapper;
+  class RowDataDeltaWriter extends BaseEqualityDeltaWriter {
+
+    RowDataDeltaWriter(PartitionKey partition) {
+      super(partition, schema, deleteSchema);
     }
 
     @Override
-    public void write(Record row) throws IOException {
-        Operation op =
-                row instanceof RecordWrapper
-                        ? ((RecordWrapper) row).op()
-                        : upsertMode ? Operation.UPDATE : Operation.INSERT;
-
-        if (insertToUpdateMode) {
-            op = Operation.INSERT;
-            if (row instanceof RecordWrapper) {
-                op = ((RecordWrapper) row).op();
-            }
-            if (upsertMode && op == Operation.INSERT) {
-                op = Operation.UPDATE;
-            }
-        }
-
-        RowDataDeltaWriter writer = route(row);
-        if (op == Operation.UPDATE || op == Operation.DELETE) {
-            writer.deleteKey(keyProjection.wrap(row));
-        }
-        if (op == Operation.UPDATE || op == Operation.INSERT) {
-            writer.write(row);
-        }
+    protected StructLike asStructLike(Record data) {
+      return wrapper.wrap(data);
     }
 
-    class RowDataDeltaWriter extends BaseEqualityDeltaWriter {
-
-        RowDataDeltaWriter(PartitionKey partition) {
-            super(partition, schema, deleteSchema);
-        }
-
-        @Override
-        protected StructLike asStructLike(Record data) {
-            return wrapper.wrap(data);
-        }
-
-        @Override
-        protected StructLike asStructLikeKey(Record data) {
-            return keyWrapper.wrap(data);
-        }
+    @Override
+    protected StructLike asStructLikeKey(Record data) {
+      return keyWrapper.wrap(data);
     }
+  }
 }
