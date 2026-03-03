@@ -45,7 +45,8 @@ jobs:
                     "IcebergSourceNestedParquetDataReadBenchmark", "IcebergSourceNestedParquetDataWriteBenchmark",
                     "IcebergSourceParquetEqDeleteBenchmark", "IcebergSourceParquetMultiDeleteFileBenchmark",
                     "IcebergSourceParquetPosDeleteBenchmark", "IcebergSourceParquetWithUnrelatedDeleteBenchmark"]
-        spark_version: ['iceberg-spark-3.5']
+        spark_version: ['4.1']
+        scala_version: ['2.13']
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -67,11 +68,22 @@ jobs:
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
 
       - name: Run Benchmark
-        run: ./gradlew :iceberg-spark:${{ matrix.spark_version }}:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt -PjmhJsonOutputPath=benchmark/${{ matrix.benchmark }}.json
+        run: ./gradlew -DsparkVersions=${{ matrix.spark_version }} -DscalaVersion=${{ matrix.scala_version }} :iceberg-spark:iceberg-spark-${{ matrix.spark_version }}_${{ matrix.scala_version }}:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt -PjmhJsonOutputPath=benchmark/${{ matrix.benchmark }}.json
 
       - uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:
-          name: benchmark-results
+          name: benchmark-${{ matrix.benchmark }}
           path: |
             **/benchmark/*
+
+  merge-results:
+    needs: run-benchmark
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/upload-artifact/merge@v7
+        with:
+          name: benchmark-results
+          pattern: benchmark-*
+          delete-merged: true

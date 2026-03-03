@@ -71,7 +71,7 @@ configure(jmhProjects) {
     forceGC = true
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
-    jvmArgs = ['-Xmx32g']
+    jvmArgs = ['-Xmx4g'] + (project.property('extraJvmArgs') as List<String>)
     resultsFile = file(jmhJsonOutputPath)
     resultFormat = 'JSON'
     includes = [jmhIncludeRegex]
