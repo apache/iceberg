@@ -59,10 +59,16 @@ class IcebergWriter implements RecordWriter {
   public void write(SinkRecord record) {
     try {
       // ignore tombstones...
-      if (record.value() != null) {
-        Record row = convertToRow(record);
-        writer.write(row);
-      }
+        if (record.value() != null) {
+            Record row = convertToRow(record);
+            String cdcField = config.tablesCdcField();
+            if (cdcField == null) {
+                writer.write(row);
+            } else {
+                Operation op = extractCdcOperation(record.value(), cdcField);
+                writer.write(new RecordWrapper(row, op));
+            }
+        }
     } catch (Exception e) {
       throw new DataException(
           String.format(
@@ -74,6 +80,34 @@ class IcebergWriter implements RecordWriter {
           e);
     }
   }
+
+    private Operation extractCdcOperation(Object recordValue, String cdcField) {
+        Object opValue = CatalogUtils.extractFromRecordValue(recordValue, cdcField);
+
+        if (opValue == null) {
+            return config.upsertModeEnabled() ? Operation.UPDATE : Operation.INSERT;
+        }
+
+        String opStr = opValue.toString().trim().toUpperCase();
+        if (opStr.isEmpty()) {
+            return config.upsertModeEnabled() ? Operation.UPDATE : Operation.INSERT;
+        }
+
+        if (config.upsertModeEnabled() && opValue == Operation.INSERT) {
+            return Operation.UPDATE;
+        }
+
+        // TODO: define value mapping in config?
+
+        switch (opStr.charAt(0)) {
+            case 'U':
+                return Operation.UPDATE;
+            case 'D':
+                return Operation.DELETE;
+            default:
+                return config.upsertModeEnabled() ? Operation.UPDATE : Operation.INSERT;
+        }
+    }
 
   private Record convertToRow(SinkRecord record) {
     if (!config.evolveSchemaEnabled()) {

@@ -71,6 +71,11 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
   private static final String TABLES_DEFAULT_ID_COLUMNS = "iceberg.tables.default-id-columns";
   private static final String TABLES_DEFAULT_PARTITION_BY = "iceberg.tables.default-partition-by";
+    private static final String TABLES_CDC_FIELD_PROP = "iceberg.tables.cdc-field";
+    private static final String TABLES_UPSERT_MODE_ENABLED_PROP =
+            "iceberg.tables.upsert-mode-enabled";
+    private static final String TABLES_INSERT_TO_UPDATE_ENABLED_PROP =
+            "iceberg.tables.insert-to-update-enabled";
   private static final String TABLES_AUTO_CREATE_ENABLED_PROP =
       "iceberg.tables.auto-create-enabled";
   private static final String TABLES_EVOLVE_SCHEMA_ENABLED_PROP =
@@ -235,6 +240,24 @@ public class IcebergSinkConfig extends AbstractConfig {
         120000L,
         Importance.LOW,
         "config to control coordinator executor keep alive time");
+      configDef.define(
+              TABLES_UPSERT_MODE_ENABLED_PROP,
+              ConfigDef.Type.BOOLEAN,
+              false,
+              Importance.MEDIUM,
+              "Set to true to treat all appends as upserts, false otherwise");
+      configDef.define(
+              TABLES_INSERT_TO_UPDATE_ENABLED_PROP,
+              ConfigDef.Type.BOOLEAN,
+              false,
+              Importance.MEDIUM,
+              "set to true to convert Insert to Update when upsertMode enabled , else set to false");
+      configDef.define(
+              TABLES_CDC_FIELD_PROP,
+              ConfigDef.Type.STRING,
+              null,
+              Importance.MEDIUM,
+              "Source record field that identifies the type of operation (insert, update, or delete)");
     return configDef;
   }
 
@@ -354,6 +377,18 @@ public class IcebergSinkConfig extends AbstractConfig {
   public long keepAliveTimeoutInMs() {
     return getLong(COORDINATOR_EXECUTOR_KEEP_ALIVE_TIMEOUT_MS);
   }
+
+    public String tablesCdcField() {
+        return getString(TABLES_CDC_FIELD_PROP);
+    }
+
+    public boolean insertToUpdateModeEnabled() {
+        return getBoolean(TABLES_INSERT_TO_UPDATE_ENABLED_PROP);
+    }
+
+    public boolean upsertModeEnabled() {
+        return getBoolean(TABLES_UPSERT_MODE_ENABLED_PROP);
+    }
 
   public TableSinkConfig tableConfig(String tableName) {
     return tableConfigMap.computeIfAbsent(
