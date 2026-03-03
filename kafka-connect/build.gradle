@@ -17,6 +17,11 @@
  * under the License.
  */
 
+// duplicate artifact coordinates with the nested subproject, disable publishing...
+afterEvaluate {
+  tasks.matching { it.group == 'publishing' }.each { it.enabled = false }
+}
+
 project(':iceberg-kafka-connect:iceberg-kafka-connect-events') {
   dependencies {
     api project(':iceberg-api')
@@ -55,11 +60,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect') {
 
   test {
     useJUnitPlatform()
-  }
-
-  // duplicate artifact coordinates with the parent, disable publishing...
-  project.afterEvaluate {
-    project.tasks.matching { it.group == 'publishing' }.each { it.enabled = false }
   }
 }
 
