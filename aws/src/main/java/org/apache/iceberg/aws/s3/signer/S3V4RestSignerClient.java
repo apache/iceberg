@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
@@ -34,6 +36,8 @@ import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
@@ -72,6 +76,8 @@ public abstract class S3V4RestSignerClient
   static final String CACHE_CONTROL = "Cache-Control";
   static final String CACHE_CONTROL_PRIVATE = "private";
   static final String CACHE_CONTROL_NO_CACHE = "no-cache";
+  static final String SIGNED_HEADERS = "SignedHeaders";
+  static final String SIGNED_HEADERS_QUERY_PARAMETER = "X-Amz-SignedHeaders";
 
   private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
@@ -285,13 +291,23 @@ public abstract class S3V4RestSignerClient
                   ErrorHandlers.defaultErrorHandler(),
                   responseHeadersConsumer);
 
+      final Map<String, List<String>> signedResponseHeader = s3SignResponse.headers();
       signedComponent =
           ImmutableSignedComponent.builder()
-              .headers(s3SignResponse.headers())
+              .headers(signedResponseHeader)
               .signedURI(s3SignResponse.uri())
               .build();
 
       if (canBeCached(responseHeaders)) {
+        // clone the request but only those headers actually signed.
+        final List<String> signedHeaderList = enumerateSignedHeaders(s3SignResponse);
+        // now strip out everything from our list of stuff we don't expect to be signed.
+        Map<String, List<String>> cachedHeaders = Maps.newHashMap();
+        /* todo: flag and warn of anythhing in our unsighned header list which is actually signed.
+        UNSIGNED_HEADERS.
+         */
+
+
         SIGNED_COMPONENT_CACHE.put(cacheKey, signedComponent);
       }
     }
@@ -308,6 +324,40 @@ public abstract class S3V4RestSignerClient
 
   @Override
   public void close() throws Exception {}
+
+  /**
+   * Given a signing response from a server, extract the signed headers from the query parameters.
+   *
+   * @param response The signing response which contains the URI with signed headers.
+   * @return A list of signed header names.
+   */
+  @VisibleForTesting
+  static List<String> enumerateSignedHeaders(S3SignResponse response) {
+    String headerEnum = null;
+    final String query = response.uri().getQuery();
+    if (isNotEmpty(query)) {
+
+      Map<String, String> queryParams = Splitter.on('&').withKeyValueSeparator('=').split(query);
+      String signedHeaders = queryParams.get(SIGNED_HEADERS_QUERY_PARAMETER);
+
+      if (isNotEmpty(signedHeaders)) {
+        headerEnum = signedHeaders;
+      }
+    }
+    if (headerEnum == null) {
+      // nothing in the ? headers, look for it in response headers
+      final List<String> headers = response.headers().get(SIGNED_HEADERS);
+      if (headers != null) {
+        // there's an assumption here that there is only one.
+        headerEnum = headers.get(0);
+      }
+    }
+    if (headerEnum == null) {
+      LOG.warn("No signed headers found in response: {}", response);
+      return Collections.emptyList();
+    }
+    return Splitter.on(";").omitEmptyStrings().trimResults().splitToList(headerEnum);
+  }
 
   /**
    * Only add body for DeleteObjectsRequest. Refer to
