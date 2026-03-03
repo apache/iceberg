@@ -416,6 +416,7 @@ public class HTTPClient extends BaseHTTPClient {
               tlsConfigurer.supportedProtocols(),
               tlsConfigurer.supportedCipherSuites(),
               SSLBufferMode.STATIC,
+              tlsConfigurer.hostnameVerificationPolicy(),
               tlsConfigurer.hostnameVerifier()));
     }
 
