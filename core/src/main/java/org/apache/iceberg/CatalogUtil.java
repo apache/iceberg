@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynClasses;
@@ -586,21 +587,13 @@ public class CatalogUtil {
       // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
       // be removed
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      if (io instanceof SupportsBulkOperations) {
-        ((SupportsBulkOperations) io)
-            .deleteFiles(
-                Iterables.transform(
-                    removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
-      } else {
-        Tasks.foreach(removedPreviousMetadataFiles)
-            .noRetry()
-            .suppressFailureWhenFinished()
-            .onFailure(
-                (previousMetadataFile, exc) ->
-                    LOG.warn(
-                        "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-            .run(previousMetadataFile -> io.deleteFile(previousMetadataFile.file()));
-      }
+      deleteFiles(
+          io,
+          removedPreviousMetadataFiles.stream()
+              .map(TableMetadata.MetadataLogEntry::file)
+              .collect(Collectors.toSet()),
+          "metadata",
+          true);
     }
   }
 }

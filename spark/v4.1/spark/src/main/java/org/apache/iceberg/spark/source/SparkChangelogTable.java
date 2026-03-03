@@ -20,8 +20,6 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Set;
 import org.apache.iceberg.ChangelogUtil;
-import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -33,8 +31,6 @@ import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -108,33 +104,12 @@ public class SparkChangelogTable implements Table, SupportsRead, SupportsMetadat
 
   @Override
   public MetadataColumn[] metadataColumns() {
-    DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(icebergTable));
     return new MetadataColumn[] {
-      SparkMetadataColumn.builder()
-          .name(MetadataColumns.SPEC_ID.name())
-          .dataType(DataTypes.IntegerType)
-          .withNullability(true)
-          .build(),
-      SparkMetadataColumn.builder()
-          .name(MetadataColumns.PARTITION_COLUMN_NAME)
-          .dataType(sparkPartitionType)
-          .withNullability(true)
-          .build(),
-      SparkMetadataColumn.builder()
-          .name(MetadataColumns.FILE_PATH.name())
-          .dataType(DataTypes.StringType)
-          .withNullability(false)
-          .build(),
-      SparkMetadataColumn.builder()
-          .name(MetadataColumns.ROW_POSITION.name())
-          .dataType(DataTypes.LongType)
-          .withNullability(false)
-          .build(),
-      SparkMetadataColumn.builder()
-          .name(MetadataColumns.IS_DELETED.name())
-          .dataType(DataTypes.BooleanType)
-          .withNullability(false)
-          .build(),
+      SparkMetadataColumns.SPEC_ID,
+      SparkMetadataColumns.partition(icebergTable),
+      SparkMetadataColumns.FILE_PATH,
+      SparkMetadataColumns.ROW_POSITION,
+      SparkMetadataColumns.IS_DELETED,
     };
   }
 }

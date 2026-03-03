@@ -59,6 +59,9 @@ on:
     - '**/NOTICE'
     - 'doap.rdf'
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -67,6 +70,7 @@ jobs:
   core-tests:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 15
       matrix:
         jvm: [17, 21]
     env:
@@ -86,7 +90,7 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: ./gradlew check -DsparkVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true -x javadoc
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       if: failure()
       with:
         name: test logs
@@ -96,6 +100,7 @@ jobs:
   build-checks:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 15
       matrix:
         jvm: [17, 21]
     steps:
@@ -109,6 +114,7 @@ jobs:
   build-javadoc:
     runs-on: ubuntu-24.04
     strategy:
+      max-parallel: 15
       matrix:
         jvm: [17, 21]
     steps:

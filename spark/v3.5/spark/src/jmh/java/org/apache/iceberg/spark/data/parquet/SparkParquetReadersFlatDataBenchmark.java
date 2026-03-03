@@ -25,9 +25,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -113,9 +115,9 @@ public class SparkParquetReadersFlatDataBenchmark {
   @Threads(1)
   public void readUsingIcebergReader(Blackhole blackHole) throws IOException {
     try (CloseableIterable<InternalRow> rows =
-        Parquet.read(Files.localInput(dataFile))
+        FormatModelRegistry.readBuilder(
+                FileFormat.PARQUET, InternalRow.class, Files.localInput(dataFile))
             .project(SCHEMA)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(SCHEMA, type))
             .build()) {
 
       for (InternalRow row : rows) {
@@ -171,9 +173,9 @@ public class SparkParquetReadersFlatDataBenchmark {
   @Threads(1)
   public void readWithProjectionUsingIcebergReader(Blackhole blackhole) throws IOException {
     try (CloseableIterable<InternalRow> rows =
-        Parquet.read(Files.localInput(dataFile))
+        FormatModelRegistry.readBuilder(
+                FileFormat.PARQUET, InternalRow.class, Files.localInput(dataFile))
             .project(PROJECTED_SCHEMA)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(PROJECTED_SCHEMA, type))
             .build()) {
 
       for (InternalRow row : rows) {

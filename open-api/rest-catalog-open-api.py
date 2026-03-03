@@ -136,11 +136,59 @@ class ExpressionType(BaseModel):
 
 
 class TrueExpression(BaseModel):
-    type: Literal['true'] = Field('true', const=True)
+    type: Literal['true'] = Field(
+        'true',
+        const=True,
+        example=[
+            'true',
+            'false',
+            'eq',
+            'and',
+            'or',
+            'not',
+            'in',
+            'not-in',
+            'lt',
+            'lt-eq',
+            'gt',
+            'gt-eq',
+            'not-eq',
+            'starts-with',
+            'not-starts-with',
+            'is-null',
+            'not-null',
+            'is-nan',
+            'not-nan',
+        ],
+    )
 
 
 class FalseExpression(BaseModel):
-    type: Literal['false'] = Field('false', const=True)
+    type: Literal['false'] = Field(
+        'false',
+        const=True,
+        example=[
+            'true',
+            'false',
+            'eq',
+            'and',
+            'or',
+            'not',
+            'in',
+            'not-in',
+            'lt',
+            'lt-eq',
+            'gt',
+            'gt-eq',
+            'not-eq',
+            'starts-with',
+            'not-starts-with',
+            'is-null',
+            'not-null',
+            'is-nan',
+            'not-nan',
+        ],
+    )
 
 
 class Reference(BaseModel):
@@ -549,7 +597,9 @@ class LoadCredentialsResponse(BaseModel):
 
 
 class AsyncPlanningResult(BaseModel):
-    status: Literal['submitted'] = Field(..., const=True)
+    status: Literal['submitted'] = Field(
+        ..., const=True, description='Status of a server-side planning operation'
+    )
     plan_id: str = Field(
         ..., alias='plan-id', description='ID used to track a planning request'
     )
@@ -560,7 +610,9 @@ class EmptyPlanningResult(BaseModel):
     Empty server-side planning result
     """
 
-    status: Literal['cancelled']
+    status: Literal['cancelled'] = Field(
+        ..., description='Status of a server-side planning operation'
+    )
 
 
 class PlanStatus(BaseModel):
@@ -1023,7 +1075,9 @@ class FailedPlanningResult(IcebergErrorResponse):
     Failed server-side planning result
     """
 
-    status: Literal['failed'] = Field(..., const=True)
+    status: Literal['failed'] = Field(
+        ..., const=True, description='Status of a server-side planning operation'
+    )
 
 
 class ReportMetricsRequest2(CommitReport):
@@ -1110,20 +1164,89 @@ class SetStatisticsUpdate(BaseUpdate):
 
 
 class UnaryExpression(BaseModel):
-    type: Literal['is-null', 'not-null', 'is-nan', 'not-nan']
+    type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
+        ...,
+        example=[
+            'true',
+            'false',
+            'eq',
+            'and',
+            'or',
+            'not',
+            'in',
+            'not-in',
+            'lt',
+            'lt-eq',
+            'gt',
+            'gt-eq',
+            'not-eq',
+            'starts-with',
+            'not-starts-with',
+            'is-null',
+            'not-null',
+            'is-nan',
+            'not-nan',
+        ],
+    )
     term: Term
 
 
 class LiteralExpression(BaseModel):
     type: Literal[
         'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
-    ]
+    ] = Field(
+        ...,
+        example=[
+            'true',
+            'false',
+            'eq',
+            'and',
+            'or',
+            'not',
+            'in',
+            'not-in',
+            'lt',
+            'lt-eq',
+            'gt',
+            'gt-eq',
+            'not-eq',
+            'starts-with',
+            'not-starts-with',
+            'is-null',
+            'not-null',
+            'is-nan',
+            'not-nan',
+        ],
+    )
     term: Term
     value: PrimitiveTypeValue
 
 
 class SetExpression(BaseModel):
-    type: Literal['in', 'not-in']
+    type: Literal['in', 'not-in'] = Field(
+        ...,
+        example=[
+            'true',
+            'false',
+            'eq',
+            'and',
+            'or',
+            'not',
+            'in',
+            'not-in',
+            'lt',
+            'lt-eq',
+            'gt',
+            'gt-eq',
+            'not-eq',
+            'starts-with',
+            'not-starts-with',
+            'is-null',
+            'not-null',
+            'is-nan',
+            'not-nan',
+        ],
+    )
     term: Term
     values: list[PrimitiveTypeValue]
 
@@ -1176,13 +1299,60 @@ class Expression(BaseModel):
 
 
 class AndOrExpression(BaseModel):
-    type: Literal['and', 'or']
+    type: Literal['and', 'or'] = Field(
+        ...,
+        example=[
+            'true',
+            'false',
+            'eq',
+            'and',
+            'or',
+            'not',
+            'in',
+            'not-in',
+            'lt',
+            'lt-eq',
+            'gt',
+            'gt-eq',
+            'not-eq',
+            'starts-with',
+            'not-starts-with',
+            'is-null',
+            'not-null',
+            'is-nan',
+            'not-nan',
+        ],
+    )
     left: Expression
     right: Expression
 
 
 class NotExpression(BaseModel):
-    type: Literal['not'] = Field('not', const=True)
+    type: Literal['not'] = Field(
+        'not',
+        const=True,
+        example=[
+            'true',
+            'false',
+            'eq',
+            'and',
+            'or',
+            'not',
+            'in',
+            'not-in',
+            'lt',
+            'lt-eq',
+            'gt',
+            'gt-eq',
+            'not-eq',
+            'starts-with',
+            'not-starts-with',
+            'is-null',
+            'not-null',
+            'is-nan',
+            'not-nan',
+        ],
+    )
     child: Expression
 
 
@@ -1259,6 +1429,8 @@ class TableUpdate(BaseModel):
         | RemovePropertiesUpdate
         | SetStatisticsUpdate
         | RemoveStatisticsUpdate
+        | SetPartitionStatisticsUpdate
+        | RemovePartitionStatisticsUpdate
         | RemovePartitionSpecsUpdate
         | RemoveSchemasUpdate
         | AddEncryptionKeyUpdate
@@ -1535,7 +1707,9 @@ class CompletedPlanningResult(ScanTasks):
     Completed server-side planning result
     """
 
-    status: Literal['completed'] = Field(..., const=True)
+    status: Literal['completed'] = Field(
+        ..., const=True, description='Status of a server-side planning operation'
+    )
     storage_credentials: list[StorageCredential] | None = Field(
         None,
         alias='storage-credentials',

@@ -39,6 +39,7 @@ public class ParquetCodecFactory extends CodecFactory {
   /**
    * This is copied from {@link CodecFactory} and modified to include the level in the cache key.
    */
+  @SuppressWarnings("deprecation")
   @Override
   protected CompressionCodec getCodec(CompressionCodecName codecName) {
     String codecClassName = codecName.getHadoopCompressionCodecClassName();
@@ -67,6 +68,7 @@ public class ParquetCodecFactory extends CodecFactory {
     }
   }
 
+  @SuppressWarnings("deprecation")
   private String cacheKey(CompressionCodecName codecName) {
     String level = null;
     switch (codecName) {

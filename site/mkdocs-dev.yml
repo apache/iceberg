@@ -25,6 +25,7 @@ nav:
   - Home: index.md
   - Quickstart:
     - Spark: spark-quickstart.md
+    - Flink: flink-quickstart.md
     - Hive: hive-quickstart.md
   - Docs:
     - Java:
@@ -34,7 +35,7 @@ nav:
       - Python: https://py.iceberg.apache.org/
       - Rust: https://rust.iceberg.apache.org/
       - Go: https://go.iceberg.apache.org/
-      - C++: https://github.com/apache/iceberg-cpp/
+      - C++: https://cpp.iceberg.apache.org/
     - Third-party:
       - Catalogs:
         - Apache Gravitino: https://gravitino.apache.org/
@@ -67,6 +68,7 @@ nav:
         - Presto: https://prestodb.io/docs/current/connector/iceberg.html
         - Redpanda: https://docs.redpanda.com/current/manage/iceberg/about-iceberg-topics
         - RisingWave: integrations/risingwave.md
+        - Ryft: https://docs.ryft.io/platform
         - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
         - Starburst: https://docs.starburst.io/latest/connector/iceberg.html
         - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
@@ -98,6 +100,7 @@ nav:
     - View spec: view-spec.md
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md
+    - UDF spec: udf-spec.md
     - Implementation status: status.md
 
 exclude_docs: |

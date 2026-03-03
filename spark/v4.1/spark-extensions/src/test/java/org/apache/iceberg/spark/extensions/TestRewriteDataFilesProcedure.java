@@ -830,7 +830,10 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
+    Table table = validationCatalog.loadTable(identifier);
+    assertThat(SparkTableCache.get().tables())
+        .as("Table cache must not contain the test table")
+        .noneMatch(cachedTable -> cachedTable.uuid().equals(table.uuid()));
   }
 
   @TestTemplate
@@ -870,7 +873,10 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
+    Table table = validationCatalog.loadTable(identifier);
+    assertThat(SparkTableCache.get().tables())
+        .as("Table cache must not contain the test table")
+        .noneMatch(cachedTable -> cachedTable.uuid().equals(table.uuid()));
   }
 
   @TestTemplate
@@ -910,7 +916,10 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
+    Table table = validationCatalog.loadTable(identifier);
+    assertThat(SparkTableCache.get().tables())
+        .as("Table cache must not contain the test table")
+        .noneMatch(cachedTable -> cachedTable.uuid().equals(table.uuid()));
   }
 
   @TestTemplate

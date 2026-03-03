@@ -2983,21 +2983,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     ImmutableList<Object[]> expectedRows =
         ImmutableList.of(row(-1), row(0), row(1), row(2), row(3), row(4));
 
+    // writing to explicit branch should succeed even with WAP branch set
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
-        () ->
-            assertThatThrownBy(
-                    () ->
-                        sql(
-                            "MERGE INTO %s t USING source s ON t.id = s.id "
-                                + "WHEN MATCHED THEN UPDATE SET *"
-                                + "WHEN NOT MATCHED THEN INSERT *",
-                            commitTarget()))
-                .isInstanceOf(ValidationException.class)
-                .hasMessage(
-                    String.format(
-                        "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [wap]",
-                        branch)));
+        () -> {
+          sql(
+              "MERGE INTO %s t USING source s ON t.id = s.id "
+                  + "WHEN MATCHED THEN UPDATE SET *"
+                  + "WHEN NOT MATCHED THEN INSERT *",
+              commitTarget());
+
+          assertEquals(
+              "Should have expected rows in explicit branch",
+              expectedRows,
+              sql("SELECT * FROM %s ORDER BY id", commitTarget()));
+        });
   }
 
   private void checkJoinAndFilterConditions(String query, String join, String icebergFilters) {
@@ -3014,7 +3014,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
           assertThat(planAsString)
               .as("Pushed filters must match")
-              .contains("[filters=" + icebergFilters + ",");
+              .contains(", filters=" + icebergFilters + ",");
         });
   }
 

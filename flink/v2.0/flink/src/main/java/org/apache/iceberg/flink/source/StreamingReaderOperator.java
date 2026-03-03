@@ -67,6 +67,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   private final MailboxExecutor executor;
   private FlinkInputFormat format;
 
+  @SuppressWarnings("deprecation")
   private transient SourceFunction.SourceContext<RowData> sourceContext;
 
   private transient ListState<FlinkInputSplit> inputSplitsState;
@@ -93,6 +94,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
         Preconditions.checkNotNull(mailboxExecutor, "The mailboxExecutor should not be null.");
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
     super.initializeState(context);
@@ -213,6 +215,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
     RUNNING
   }
 
+  @SuppressWarnings("deprecation")
   private static class OperatorFactory extends AbstractStreamOperatorFactory<RowData>
       implements YieldingOperatorFactory<RowData>,
           OneInputStreamOperatorFactory<FlinkInputSplit, RowData> {

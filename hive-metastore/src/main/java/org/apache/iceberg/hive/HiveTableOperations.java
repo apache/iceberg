@@ -144,7 +144,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     if (tableKeyId != null) {
       if (keyManagementClient == null) {
         throw new RuntimeException(
-            "Cant create encryption manager, because key management client is not set");
+            "Can't create encryption manager, because key management client is not set");
       }
 
       Map<String, String> encryptionProperties = Maps.newHashMap();

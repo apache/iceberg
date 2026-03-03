@@ -40,6 +40,7 @@ import org.apache.iceberg.flink.sink.PartitionKeySelector;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -151,8 +152,9 @@ class HashKeyGenerator {
                 tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
           } else {
             for (PartitionField partitionField : spec.fields()) {
+              Types.NestedField sourceField = schema.findField(partitionField.sourceId());
               Preconditions.checkState(
-                  equalityFields.contains(partitionField.name()),
+                  sourceField != null && equalityFields.contains(sourceField.name()),
                   "%s: In 'hash' distribution mode with equality fields set, partition field '%s' "
                       + "should be included in equality fields: '%s'",
                   tableName,

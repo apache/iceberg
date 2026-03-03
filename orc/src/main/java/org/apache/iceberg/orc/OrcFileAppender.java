@@ -138,7 +138,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
           e);
     }
 
-    // This value is estimated, not actual.
+    // This value is an estimate, not the actual length.
     return (long)
         Math.ceil(dataLength + (estimateMemory + (long) batch.size * avgRowByteSize) * 0.2);
   }

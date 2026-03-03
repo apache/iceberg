@@ -24,14 +24,14 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public enum FieldStatistic {
-  VALUE_COUNT(0, "value_count"),
-  NULL_VALUE_COUNT(1, "null_value_count"),
-  NAN_VALUE_COUNT(2, "nan_value_count"),
-  AVG_VALUE_SIZE(3, "avg_value_size"),
-  MAX_VALUE_SIZE(4, "max_value_size"),
-  LOWER_BOUND(5, "lower_bound"),
-  UPPER_BOUND(6, "upper_bound"),
-  EXACT_BOUNDS(7, "exact_bounds");
+  VALUE_COUNT(1, "value_count"),
+  NULL_VALUE_COUNT(2, "null_value_count"),
+  NAN_VALUE_COUNT(3, "nan_value_count"),
+  AVG_VALUE_SIZE(4, "avg_value_size"),
+  MAX_VALUE_SIZE(5, "max_value_size"),
+  LOWER_BOUND(6, "lower_bound"),
+  UPPER_BOUND(7, "upper_bound"),
+  EXACT_BOUNDS(8, "exact_bounds");
 
   private final int offset;
   private final String fieldName;
@@ -41,68 +41,84 @@ public enum FieldStatistic {
     this.fieldName = fieldName;
   }
 
+  /**
+   * The offset from the field ID of the base stats structure
+   *
+   * @return The offset from the field ID of the base strats structure
+   */
   public int offset() {
     return offset;
   }
 
+  /**
+   * The ordinal position (0-based) within the stats structure
+   *
+   * @return The ordinal position (0-based) within the stats structure
+   */
+  public int position() {
+    return offset - 1;
+  }
+
+  /**
+   * The field name
+   *
+   * @return The field name
+   */
   public String fieldName() {
     return fieldName;
   }
 
-  public static FieldStatistic fromOffset(int offset) {
-    switch (offset) {
-      case 0:
-        return VALUE_COUNT;
-      case 1:
-        return NULL_VALUE_COUNT;
-      case 2:
-        return NAN_VALUE_COUNT;
-      case 3:
-        return AVG_VALUE_SIZE;
-      case 4:
-        return MAX_VALUE_SIZE;
-      case 5:
-        return LOWER_BOUND;
-      case 6:
-        return UPPER_BOUND;
-      case 7:
-        return EXACT_BOUNDS;
-      default:
-        throw new IllegalArgumentException("Invalid statistic offset: " + offset);
-    }
+  /**
+   * Returns the {@link FieldStatistic} from its ordinal position (0-based) in the stats structure
+   *
+   * @param position The ordinal position (0-based) in the stats structure
+   * @return The {@link FieldStatistic} from its ordinal position (0-based) in the stats structure
+   */
+  public static FieldStatistic fromPosition(int position) {
+    return switch (position) {
+      case 0 -> VALUE_COUNT;
+      case 1 -> NULL_VALUE_COUNT;
+      case 2 -> NAN_VALUE_COUNT;
+      case 3 -> AVG_VALUE_SIZE;
+      case 4 -> MAX_VALUE_SIZE;
+      case 5 -> LOWER_BOUND;
+      case 6 -> UPPER_BOUND;
+      case 7 -> EXACT_BOUNDS;
+      default -> throw new IllegalArgumentException("Invalid statistic position: " + position);
+    };
   }
 
-  public static Types.StructType fieldStatsFor(Type type, int fieldId) {
+  public static Types.StructType fieldStatsFor(Type type, int baseFieldId) {
     return Types.StructType.of(
         optional(
-            fieldId + VALUE_COUNT.offset(),
+            baseFieldId + VALUE_COUNT.offset(),
             VALUE_COUNT.fieldName(),
             Types.LongType.get(),
             "Total value count, including null and NaN"),
         optional(
-            fieldId + NULL_VALUE_COUNT.offset(),
+            baseFieldId + NULL_VALUE_COUNT.offset(),
             NULL_VALUE_COUNT.fieldName(),
             Types.LongType.get(),
             "Total null value count"),
         optional(
-            fieldId + NAN_VALUE_COUNT.offset(),
+            baseFieldId + NAN_VALUE_COUNT.offset(),
             NAN_VALUE_COUNT.fieldName(),
             Types.LongType.get(),
             "Total NaN value count"),
         optional(
-            fieldId + AVG_VALUE_SIZE.offset(),
+            baseFieldId + AVG_VALUE_SIZE.offset(),
             AVG_VALUE_SIZE.fieldName(),
             Types.IntegerType.get(),
             "Avg value size of variable-length types (String, Binary)"),
         optional(
-            fieldId + MAX_VALUE_SIZE.offset(),
+            baseFieldId + MAX_VALUE_SIZE.offset(),
             MAX_VALUE_SIZE.fieldName(),
             Types.IntegerType.get(),
             "Max value size of variable-length types (String, Binary)"),
-        optional(fieldId + LOWER_BOUND.offset(), LOWER_BOUND.fieldName(), type, "Lower bound"),
-        optional(fieldId + UPPER_BOUND.offset(), UPPER_BOUND.fieldName(), type, "Upper bound"),
+        optional(baseFieldId + LOWER_BOUND.offset(), LOWER_BOUND.fieldName(), type, "Lower bound"),
+        optional(baseFieldId + UPPER_BOUND.offset(), UPPER_BOUND.fieldName(), type, "Upper bound"),
         optional(
-            fieldId + EXACT_BOUNDS.offset(),
+            baseFieldId + EXACT_BOUNDS.offset(),
             EXACT_BOUNDS.fieldName(),
             Types.BooleanType.get(),
             "Whether the upper/lower bound is exact or not"));

@@ -25,7 +25,7 @@ import java.util.UUID;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,15 +61,25 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
   }
 
   @TestTemplate
-  public void testBranchAndWapBranchCannotBothBeSetForWrite() {
+  public void testWriteToBranchWithWapBranchSet() {
     Table table = validationCatalog.loadTable(tableIdent);
     table.manageSnapshots().createBranch("test2", table.refs().get(BRANCH).snapshotId()).commit();
     sql("REFRESH TABLE " + tableName);
-    assertThatThrownBy(() -> sql("INSERT INTO %s.branch_test2 VALUES (4, 'd')", tableName))
-        .isInstanceOf(ValidationException.class)
-        .hasMessage(
-            "Cannot write to both branch and WAP branch, but got branch [test2] and WAP branch [%s]",
-            BRANCH);
+
+    // writing to explicit branch should succeed even with WAP branch set
+    sql("INSERT INTO TABLE %s.branch_test2 VALUES (4, 'd')", tableName);
+
+    // verify write went to branch test2
+    assertEquals(
+        "Data should be written to branch test2",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d")),
+        sql("SELECT * FROM %s VERSION AS OF 'test2' ORDER BY id", tableName));
+
+    // verify current state is not affected
+    assertEquals(
+        "Data should be written to branch test2",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @TestTemplate
@@ -77,7 +87,7 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
     String wapId = UUID.randomUUID().toString();
     spark.conf().set(SparkSQLProperties.WAP_ID, wapId);
     assertThatThrownBy(() -> sql("INSERT INTO %s VALUES (4, 'd')", tableName))
-        .isInstanceOf(ValidationException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]", wapId, BRANCH);
   }

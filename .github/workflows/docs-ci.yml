@@ -25,10 +25,14 @@ on:
       - format/**
       - .github/workflows/docs-ci.yml
 
+permissions:
+  contents: read
+
 jobs:
   build-docs:
     runs-on: ${{ matrix.os }}
     strategy:
+      max-parallel: 15
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:

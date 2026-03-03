@@ -25,6 +25,9 @@ on:
     # we're publishing a new snapshot every night at 00:00 UTC
     - cron:  '0 0 * * *'
 
+permissions:
+  contents: read
+
 jobs:
   publish-snapshot:
     if: github.repository_owner == 'apache'

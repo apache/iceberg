@@ -158,7 +158,10 @@ public abstract class S3V4RestSignerClient
           // Don't include a base URI because this client may be used for contacting different
           // catalogs.
           httpClient =
-              HTTPClient.builder(properties()).withObjectMapper(S3ObjectMapper.mapper()).build();
+              HTTPClient.builder(properties())
+                  .withHeaders(RESTUtil.configHeaders(properties()))
+                  .withObjectMapper(S3ObjectMapper.mapper())
+                  .build();
         }
       }
     }
@@ -208,6 +211,7 @@ public abstract class S3V4RestSignerClient
     checkSignerParams(signerParams);
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   protected void processRequestPayload(
       SdkHttpFullRequest.Builder mutableRequest,

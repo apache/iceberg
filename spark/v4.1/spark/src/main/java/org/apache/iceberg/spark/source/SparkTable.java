@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_ID;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.BaseMetadataTable;
@@ -31,8 +32,6 @@ import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Partitioning;
-import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -49,13 +48,14 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
@@ -71,6 +71,8 @@ import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
+import org.apache.spark.sql.connector.catalog.constraints.Constraint;
+import org.apache.spark.sql.connector.catalog.constraints.Constraint.ValidationStatus;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -78,8 +80,6 @@ import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
 import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
@@ -273,66 +273,43 @@ public class SparkTable
 
   @Override
   public MetadataColumn[] metadataColumns() {
-    DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(table()));
-    ImmutableList.Builder<SparkMetadataColumn> metadataColumns = ImmutableList.builder();
-    metadataColumns.add(
-        SparkMetadataColumn.builder()
-            .name(MetadataColumns.SPEC_ID.name())
-            .dataType(DataTypes.IntegerType)
-            .withNullability(true)
-            .build(),
-        SparkMetadataColumn.builder()
-            .name(MetadataColumns.PARTITION_COLUMN_NAME)
-            .dataType(sparkPartitionType)
-            .withNullability(true)
-            .build(),
-        SparkMetadataColumn.builder()
-            .name(MetadataColumns.FILE_PATH.name())
-            .dataType(DataTypes.StringType)
-            .withNullability(false)
-            .build(),
-        SparkMetadataColumn.builder()
-            .name(MetadataColumns.ROW_POSITION.name())
-            .dataType(DataTypes.LongType)
-            .withNullability(false)
-            .build(),
-        SparkMetadataColumn.builder()
-            .name(MetadataColumns.IS_DELETED.name())
-            .dataType(DataTypes.BooleanType)
-            .withNullability(false)
-            .build());
+    List<SparkMetadataColumn> cols = Lists.newArrayList();
+
+    cols.add(SparkMetadataColumns.SPEC_ID);
+    cols.add(SparkMetadataColumns.partition(icebergTable));
+    cols.add(SparkMetadataColumns.FILE_PATH);
+    cols.add(SparkMetadataColumns.ROW_POSITION);
+    cols.add(SparkMetadataColumns.IS_DELETED);
 
     if (TableUtil.supportsRowLineage(icebergTable)) {
-      metadataColumns.add(
-          SparkMetadataColumn.builder()
-              .name(MetadataColumns.ROW_ID.name())
-              .dataType(DataTypes.LongType)
-              .withNullability(true)
-              .preserveOnReinsert(true)
-              .preserveOnUpdate(true)
-              .preserveOnDelete(false)
-              .build());
+      cols.add(SparkMetadataColumns.ROW_ID);
+      cols.add(SparkMetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+    }
 
-      metadataColumns.add(
-          SparkMetadataColumn.builder()
-              .name(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
-              .dataType(DataTypes.LongType)
-              .withNullability(true)
-              .preserveOnReinsert(false)
-              .preserveOnUpdate(false)
-              .preserveOnDelete(false)
+    return cols.toArray(SparkMetadataColumn[]::new);
+  }
+
+  @Override
+  public Constraint[] constraints() {
+    List<Constraint> constraints = Lists.newArrayList();
+
+    SparkReadConf readConf = new SparkReadConf(sparkSession(), icebergTable);
+    Set<String> identifierFieldNames = icebergTable.schema().identifierFieldNames();
+
+    if (readConf.identifierFieldsRely() && !identifierFieldNames.isEmpty()) {
+      constraints.add(
+          Constraint.primaryKey("iceberg_pk", Spark3Util.toNamedReferences(identifierFieldNames))
+              .enforced(false)
+              .validationStatus(ValidationStatus.UNVALIDATED)
+              .rely(true)
               .build());
     }
 
-    return metadataColumns.build().toArray(SparkMetadataColumn[]::new);
+    return constraints.toArray(new Constraint[0]);
   }
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
-    if (options.containsKey(SparkReadOptions.SCAN_TASK_SET_ID)) {
-      return new SparkStagedScanBuilder(sparkSession(), icebergTable, options);
-    }
-
     if (refreshEagerly) {
       icebergTable.refresh();
     }
@@ -347,12 +324,7 @@ public class SparkTable
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
         snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
-
-    if (icebergTable instanceof PositionDeletesTable) {
-      return new SparkPositionDeletesRewriteBuilder(sparkSession(), icebergTable, branch, info);
-    } else {
-      return new SparkWriteBuilder(sparkSession(), icebergTable, branch, info);
-    }
+    return new SparkWriteBuilder(sparkSession(), icebergTable, branch, info);
   }
 
   @Override
@@ -440,7 +412,7 @@ public class SparkTable
             .deleteFromRowFilter(deleteExpr);
 
     if (SparkTableUtil.wapEnabled(table())) {
-      branch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
+      branch = SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
     }
 
     if (branch != null) {

@@ -16,7 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.spark.source.metrics;
 
-/** Marker interface to indicate whether a Table requires remote scan planning */
-public interface RequiresRemoteScanPlanning {}
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
+
+public class RemovedEqualityDeleteFiles extends CustomSumMetric {
+
+  public static final String NAME = "removedEqualityDeleteFiles";
+
+  @Override
+  public String name() {
+    return NAME;
+  }
+
+  @Override
+  public String description() {
+    return "number of removed equality delete files";
+  }
+}

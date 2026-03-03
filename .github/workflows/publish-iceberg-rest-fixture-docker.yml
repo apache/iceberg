@@ -27,6 +27,9 @@ on:
     - cron: '0 2 * * *' # run at 2 AM UTC
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   DOCKER_IMAGE_TAG: iceberg-rest-fixture
   DOCKER_IMAGE_VERSION: latest

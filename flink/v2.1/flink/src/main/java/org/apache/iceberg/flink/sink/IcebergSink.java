@@ -327,7 +327,11 @@ public class IcebergSink
   public static class Builder implements IcebergSinkBuilder<Builder> {
     private TableLoader tableLoader;
     private Function<String, DataStream<RowData>> inputCreator = null;
-    @Deprecated private TableSchema tableSchema;
+
+    @SuppressWarnings("deprecation")
+    @Deprecated
+    private TableSchema tableSchema;
+
     private ResolvedSchema resolvedSchema;
     private SerializableTable table;
     private final Map<String, String> writeOptions = Maps.newHashMap();
@@ -442,6 +446,7 @@ public class IcebergSink
       return this;
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;

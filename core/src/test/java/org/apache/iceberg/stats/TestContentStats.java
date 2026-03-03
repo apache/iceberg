@@ -261,14 +261,14 @@ public class TestContentStats {
             .hasExactBounds()
             .build();
 
-    record.set(VALUE_COUNT.offset(), fieldStats.valueCount());
-    record.set(NULL_VALUE_COUNT.offset(), fieldStats.nullValueCount());
-    record.set(NAN_VALUE_COUNT.offset(), fieldStats.nanValueCount());
-    record.set(AVG_VALUE_SIZE.offset(), fieldStats.avgValueSize());
-    record.set(MAX_VALUE_SIZE.offset(), fieldStats.maxValueSize());
-    record.set(LOWER_BOUND.offset(), fieldStats.lowerBound());
-    record.set(UPPER_BOUND.offset(), fieldStats.upperBound());
-    record.set(EXACT_BOUNDS.offset(), fieldStats.hasExactBounds());
+    record.set(VALUE_COUNT.position(), fieldStats.valueCount());
+    record.set(NULL_VALUE_COUNT.position(), fieldStats.nullValueCount());
+    record.set(NAN_VALUE_COUNT.position(), fieldStats.nanValueCount());
+    record.set(AVG_VALUE_SIZE.position(), fieldStats.avgValueSize());
+    record.set(MAX_VALUE_SIZE.position(), fieldStats.maxValueSize());
+    record.set(LOWER_BOUND.position(), fieldStats.lowerBound());
+    record.set(UPPER_BOUND.position(), fieldStats.upperBound());
+    record.set(EXACT_BOUNDS.position(), fieldStats.hasExactBounds());
 
     // this is typically called by Avro reflection code
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
@@ -287,17 +287,17 @@ public class TestContentStats {
     BaseContentStats stats = new BaseContentStats(rootStatsStruct);
 
     // invalid lower bound
-    record.set(LOWER_BOUND.offset(), 5.0);
+    record.set(LOWER_BOUND.position(), 5.0);
     assertThatThrownBy(() -> stats.set(0, record))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid lower bound type, expected a subtype of class java.lang.Integer: java.lang.Double");
 
     // set valid lower bound so that upper bound is evaluated
-    record.set(LOWER_BOUND.offset(), 5);
+    record.set(LOWER_BOUND.position(), 5);
 
     // invalid upper bound
-    record.set(UPPER_BOUND.offset(), "20");
+    record.set(UPPER_BOUND.position(), "20");
     assertThatThrownBy(() -> stats.set(0, record))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(

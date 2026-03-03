@@ -623,6 +623,7 @@ public class RESTSerializers {
     }
   }
 
+  @SuppressWarnings("deprecation")
   private static TableScanResponseContext parseScanResponseContext(DeserializationContext context)
       throws IOException {
     @SuppressWarnings("unchecked")

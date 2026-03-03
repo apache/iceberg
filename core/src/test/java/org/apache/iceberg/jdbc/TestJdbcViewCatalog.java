@@ -112,6 +112,7 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
       mockedStatic
           .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
           .thenThrow(new SQLException());
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(UncheckedSQLException.class)
           .hasMessageStartingWith("Unknown failure");
@@ -139,9 +140,94 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
       mockedStatic
           .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
           .thenThrow(new SQLException("constraint failed"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
-          .isInstanceOf(AlreadyExistsException.class)
+          .isInstanceOf(UncheckedSQLException.class)
           .hasMessageStartingWith("View already exists: " + identifier);
+    }
+  }
+
+  @Test
+  public void testCommitExceptionWithPostgresUniqueViolation() {
+    TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
+    BaseView view =
+        (BaseView)
+            catalog
+                .buildView(identifier)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .create();
+    ViewOperations ops = view.operations();
+    ViewMetadata metadataV1 = ops.current();
+
+    view.updateProperties().set("k1", "v1").commit();
+    ops.refresh();
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
+          .thenThrow(new SQLException("unique violation", "23505"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
+          .isInstanceOf(UncheckedSQLException.class)
+          .hasMessageStartingWith("View already exists: " + identifier);
+    }
+  }
+
+  @Test
+  public void testCreateViewConstraintExceptionWithMessage() {
+    TableIdentifier existingIdent = TableIdentifier.of("namespace1", "existing_view");
+    BaseView existing =
+        (BaseView)
+            catalog
+                .buildView(existingIdent)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .create();
+    ViewMetadata metadata = existing.operations().current();
+
+    TableIdentifier newIdent = TableIdentifier.of("namespace1", "new_view");
+    ViewOperations ops = catalog.newViewOps(newIdent);
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
+          .thenReturn(Maps.newHashMap())
+          .thenThrow(new SQLException("constraint failed"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(null, metadata))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("View already exists: " + newIdent);
+    }
+  }
+
+  @Test
+  public void testCreateViewConstraintExceptionWithPostgresUniqueViolation() {
+    TableIdentifier existingIdent = TableIdentifier.of("namespace1", "existing_view2");
+    BaseView existing =
+        (BaseView)
+            catalog
+                .buildView(existingIdent)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .create();
+    ViewMetadata metadata = existing.operations().current();
+
+    TableIdentifier newIdent = TableIdentifier.of("namespace1", "new_view2");
+    ViewOperations ops = catalog.newViewOps(newIdent);
+
+    try (MockedStatic<JdbcUtil> mockedStatic = Mockito.mockStatic(JdbcUtil.class)) {
+      mockedStatic
+          .when(() -> JdbcUtil.loadView(any(), any(), any(), any()))
+          .thenReturn(Maps.newHashMap())
+          .thenThrow(new SQLException("unique violation", "23505"));
+      mockedStatic.when(() -> JdbcUtil.isConstraintViolation(any())).thenCallRealMethod();
+      assertThatThrownBy(() -> ops.commit(null, metadata))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessageStartingWith("View already exists: " + newIdent);
     }
   }
 

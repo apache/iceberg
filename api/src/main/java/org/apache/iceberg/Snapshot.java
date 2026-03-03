@@ -175,7 +175,7 @@ public interface Snapshot extends Serializable {
   /**
    * The row-id of the first newly added row in this snapshot. All rows added in this snapshot will
    * have a row-id assigned to them greater than this value. All rows with a row-id less than this
-   * value were created in a snapshot that was added to the table (but not necessarily commited to
+   * value were created in a snapshot that was added to the table (but not necessarily committed to
    * this branch) in the past.
    *
    * @return the first row-id to be used in this snapshot or null when row lineage is not supported

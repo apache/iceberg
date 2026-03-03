@@ -181,7 +181,6 @@ public class TestPositionDeletesReader extends TestBase {
         new PositionDeletesRowReader(
             table,
             new BaseScanTaskGroup<>(null, ImmutableList.of(scanTask1)),
-            positionDeletesTable.schema(),
             projectedSchema,
             false,
             true)) {
@@ -221,7 +220,6 @@ public class TestPositionDeletesReader extends TestBase {
         new PositionDeletesRowReader(
             table,
             new BaseScanTaskGroup<>(null, ImmutableList.of(scanTask2)),
-            positionDeletesTable.schema(),
             projectedSchema,
             false,
             true)) {
@@ -293,7 +291,6 @@ public class TestPositionDeletesReader extends TestBase {
         new PositionDeletesRowReader(
             table,
             new BaseScanTaskGroup<>(null, ImmutableList.of(scanTask1)),
-            positionDeletesTable.schema(),
             projectedSchema,
             false,
             true)) {

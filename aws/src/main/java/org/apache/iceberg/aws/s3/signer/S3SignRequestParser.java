@@ -116,8 +116,8 @@ public class S3SignRequestParser {
     Map<String, List<String>> headers = Maps.newHashMap();
     JsonNode headersNode = JsonUtil.get(property, json);
     headersNode
-        .fields()
-        .forEachRemaining(
+        .properties()
+        .forEach(
             entry -> {
               String key = entry.getKey();
               List<String> values = Arrays.asList(JsonUtil.getStringArray(entry.getValue()));

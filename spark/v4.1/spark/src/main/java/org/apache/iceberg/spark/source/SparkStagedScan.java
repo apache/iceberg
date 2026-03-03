@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import org.apache.iceberg.ScanTask;
@@ -28,8 +29,10 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.read.Statistics;
 
 class SparkStagedScan extends SparkScan {
 
@@ -40,12 +43,24 @@ class SparkStagedScan extends SparkScan {
 
   private List<ScanTaskGroup<ScanTask>> taskGroups = null; // lazy cache of tasks
 
-  SparkStagedScan(SparkSession spark, Table table, Schema expectedSchema, SparkReadConf readConf) {
-    super(spark, table, readConf, expectedSchema, ImmutableList.of(), null);
-    this.taskSetId = readConf.scanTaskSetId();
+  SparkStagedScan(
+      SparkSession spark,
+      Table table,
+      Schema projection,
+      String taskSetId,
+      SparkReadConf readConf) {
+    super(spark, table, readConf, projection, ImmutableList.of(), null);
+    this.taskSetId = taskSetId;
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.openFileCost = readConf.splitOpenFileCost();
+  }
+
+  @Override
+  public Statistics estimateStatistics() {
+    long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
+    long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
+    return new Stats(sizeInBytes, rowsCount, Collections.emptyMap());
   }
 
   @Override
@@ -76,6 +91,7 @@ class SparkStagedScan extends SparkScan {
 
     SparkStagedScan that = (SparkStagedScan) other;
     return table().name().equals(that.table().name())
+        && Objects.equals(table().uuid(), that.table().uuid())
         && Objects.equals(taskSetId, that.taskSetId)
         && readSchema().equals(that.readSchema())
         && splitSize == that.splitSize
@@ -86,13 +102,17 @@ class SparkStagedScan extends SparkScan {
   @Override
   public int hashCode() {
     return Objects.hash(
-        table().name(), taskSetId, readSchema(), splitSize, splitSize, openFileCost);
+        table().name(),
+        table().uuid(),
+        taskSetId,
+        readSchema(),
+        splitSize,
+        splitLookback,
+        openFileCost);
   }
 
   @Override
-  public String toString() {
-    return String.format(
-        "IcebergStagedScan(table=%s, type=%s, taskSetID=%s, caseSensitive=%s)",
-        table(), expectedSchema().asStruct(), taskSetId, caseSensitive());
+  public String description() {
+    return String.format("IcebergStagedScan(table=%s, taskSetID=%s)", table(), taskSetId);
   }
 }

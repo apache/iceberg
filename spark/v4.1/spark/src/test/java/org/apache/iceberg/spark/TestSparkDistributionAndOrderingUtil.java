@@ -34,7 +34,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
 import org.apache.spark.sql.connector.expressions.Expression;
@@ -2976,7 +2975,7 @@ public class TestSparkDistributionAndOrderingUtil extends TestBaseWithCatalog {
 
   private void checkWriteDistributionAndOrdering(
       Table table, Distribution expectedDistribution, SortOrder[] expectedOrdering) {
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
 
     SparkWriteRequirements requirements = writeConf.writeRequirements();
 
@@ -2992,7 +2991,7 @@ public class TestSparkDistributionAndOrderingUtil extends TestBaseWithCatalog {
       Command command,
       Distribution expectedDistribution,
       SortOrder[] expectedOrdering) {
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
 
     SparkWriteRequirements requirements = writeConf.copyOnWriteRequirements(command);
 
@@ -3008,7 +3007,7 @@ public class TestSparkDistributionAndOrderingUtil extends TestBaseWithCatalog {
       Command command,
       Distribution expectedDistribution,
       SortOrder[] expectedOrdering) {
-    SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
 
     SparkWriteRequirements requirements = writeConf.positionDeltaRequirements(command);
 

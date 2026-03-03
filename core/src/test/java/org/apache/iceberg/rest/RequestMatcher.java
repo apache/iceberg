@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 class RequestMatcher {
   private RequestMatcher() {}
@@ -69,6 +70,21 @@ class RequestMatcher {
                 && req.headers().equals(HTTPHeaders.of(headers))
                 && req.queryParameters().equals(parameters)
                 && Objects.equals(req.body(), body));
+  }
+
+  static HTTPRequest matches(
+      HTTPRequest.HTTPMethod method,
+      String path,
+      Map<String, String> headers,
+      Map<String, String> parameters,
+      Predicate<Object> pred) {
+    return argThat(
+        req ->
+            req.method() == method
+                && req.path().equals(path)
+                && req.headers().equals(HTTPHeaders.of(headers))
+                && req.queryParameters().equals(parameters)
+                && pred.test(req.body()));
   }
 
   public static HTTPRequest containsHeaders(

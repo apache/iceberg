@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.nessie;
 
+import java.io.UncheckedIOException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.view.BaseViewOperations;
@@ -55,7 +56,7 @@ public class NessieViewOperations extends BaseViewOperations {
     try {
       client.refresh();
     } catch (NessieNotFoundException e) {
-      throw new RuntimeException(
+      throw new UncheckedIOException(
           String.format(
               "Failed to refresh as ref '%s' is no longer valid.", client.getRef().getName()),
           e);

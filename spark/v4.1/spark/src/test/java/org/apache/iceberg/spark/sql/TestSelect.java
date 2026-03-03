@@ -32,7 +32,10 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -43,6 +46,7 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.AfterEach;
@@ -635,6 +639,29 @@ public class TestSelect extends CatalogTestBase {
         "Should return all expected rows",
         expected,
         sql("SELECT id, binary FROM %s where binary > X'11'", binaryTableName));
+  }
+
+  @TestTemplate
+  public void testFixedInFilter() {
+    // Create table programmatically with fixed type since Spark SQL DDL doesn't support it
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(2, "fixed", Types.FixedType.ofLength(2)));
+
+    TableIdentifier fixedTableIdent = TableIdentifier.of(tableIdent.namespace(), "fixed_table");
+    validationCatalog.createTable(fixedTableIdent, schema, PartitionSpec.unpartitioned());
+
+    String fixedTableName = tableName("fixed_table");
+    sql("INSERT INTO %s VALUES (1, X'0000'), (2, X'1111'), (3, X'0011')", fixedTableName);
+    List<Object[]> expected = ImmutableList.of(row(2L, new byte[] {0x11, 0x11}));
+
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT id, fixed FROM %s WHERE fixed > X'0011'", fixedTableName));
+
+    sql("DROP TABLE IF EXISTS %s", fixedTableName);
   }
 
   @TestTemplate

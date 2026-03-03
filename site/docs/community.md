@@ -51,6 +51,16 @@ We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slac
 
 Please note that this link may occasionally break when Slack does an upgrade. If you encounter problems using it, please let us know by sending an email to <dev@iceberg.apache.org>.
 
+#### Requesting Slack Integrations
+
+To request a new app or integration for the Apache Iceberg Slack workspace, send an email to the [dev mailing list](#mailing-lists) with the following information:
+
+* **What you want to add** — The name and description of the app or integration
+* **Why you want to add it** — The benefit it provides to the community
+* **What permissions does it need** — The access levels and permissions required by the app
+
+This allows the community to do a quick consensus check before the app is installed.
+
 ### Issues
 
 Apache Iceberg tracks issues in GitHub and prefers to receive contributions as pull requests.

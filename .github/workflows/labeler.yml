@@ -26,9 +26,8 @@ permissions:
 
 jobs:
   triage:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     steps:
     - uses: actions/labeler@v6
       with:
-        repo-token: "${{ secrets.GITHUB_TOKEN }}"
         sync-labels: true

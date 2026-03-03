@@ -33,6 +33,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -104,8 +105,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final SparkSession spark;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
-  private final Schema expectedSchema;
-  private final List<Expression> filterExpressions;
+  private final Schema projection;
+  private final List<Expression> filters;
   private final String branch;
   private final Supplier<ScanReport> scanReportSupplier;
 
@@ -116,19 +117,19 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       SparkSession spark,
       Table table,
       SparkReadConf readConf,
-      Schema expectedSchema,
+      Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
-    SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
+    SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, projection);
 
     this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
-    this.expectedSchema = expectedSchema;
-    this.filterExpressions = filters != null ? filters : Collections.emptyList();
+    this.projection = projection;
+    this.filters = filters != null ? filters : Collections.emptyList();
     this.branch = readConf.branch();
     this.scanReportSupplier = scanReportSupplier;
   }
@@ -145,12 +146,20 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return caseSensitive;
   }
 
-  protected Schema expectedSchema() {
-    return expectedSchema;
+  protected Schema projection() {
+    return projection;
   }
 
-  protected List<Expression> filterExpressions() {
-    return filterExpressions;
+  protected List<Expression> filters() {
+    return filters;
+  }
+
+  protected Expression filter() {
+    return filters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
+  }
+
+  protected String filtersDesc() {
+    return Spark3Util.describe(filters);
   }
 
   protected Types.StructType groupingKeyType() {
@@ -162,19 +171,18 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public Batch toBatch() {
     return new SparkBatch(
-        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema, hashCode());
+        sparkContext, table, readConf, groupingKeyType(), taskGroups(), projection, hashCode());
   }
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-    return new SparkMicroBatchStream(
-        sparkContext, table, readConf, expectedSchema, checkpointLocation);
+    return new SparkMicroBatchStream(sparkContext, table, readConf, projection, checkpointLocation);
   }
 
   @Override
   public StructType readSchema() {
     if (readSchema == null) {
-      this.readSchema = SparkSchemaUtil.convert(expectedSchema);
+      this.readSchema = SparkSchemaUtil.convert(projection);
     }
     return readSchema;
   }
@@ -236,7 +244,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
     // estimate stats using snapshot summary only for partitioned tables
     // (metadata tables are unpartitioned)
-    if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
+    if (!table.spec().isUnpartitioned() && filters.isEmpty()) {
       LOG.debug(
           "Using snapshot {} metadata to estimate statistics for table {}",
           snapshot.snapshotId(),
@@ -257,15 +265,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   @Override
-  public String description() {
-    String groupingKeyFieldNamesAsString =
-        groupingKeyType().fields().stream()
-            .map(Types.NestedField::name)
-            .collect(Collectors.joining(", "));
-
-    return String.format(
-        "%s (branch=%s) [filters=%s, groupedBy=%s]",
-        table(), branch(), Spark3Util.describe(filterExpressions), groupingKeyFieldNamesAsString);
+  public String toString() {
+    return description();
   }
 
   @Override
