@@ -56,6 +56,11 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect') {
   test {
     useJUnitPlatform()
   }
+
+  // duplicate artifact coordinates with the parent, disable publishing...
+  project.afterEvaluate {
+    project.tasks.matching { it.group == 'publishing' }.each { it.enabled = false }
+  }
 }
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
