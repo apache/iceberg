@@ -109,6 +109,8 @@ There are two types of row-level deletes:
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
+A deleted row must not be restored by rewriting the position delete file or delete vector and clearing the associated position or bit. Rows must only be added to a table by writing new data files.
+
 ### File System Operations
 
 Iceberg only requires that file systems support the following operations:
