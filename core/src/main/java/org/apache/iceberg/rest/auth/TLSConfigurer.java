@@ -21,6 +21,7 @@ package org.apache.iceberg.rest.auth;
 import java.util.Map;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
+import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
 import org.apache.hc.client5.http.ssl.HttpsSupport;
 import org.apache.hc.core5.ssl.SSLContexts;
 
@@ -30,6 +31,10 @@ public interface TLSConfigurer {
 
   default SSLContext sslContext() {
     return SSLContexts.createDefault();
+  }
+
+  default HostnameVerificationPolicy hostnameVerificationPolicy() {
+    return HostnameVerificationPolicy.BOTH;
   }
 
   default HostnameVerifier hostnameVerifier() {

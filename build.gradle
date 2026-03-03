@@ -399,6 +399,7 @@ project(':iceberg-core') {
       exclude group: 'junit'
     }
     testImplementation libs.awaitility
+    testImplementation libs.bouncycastle.bcpkix
   }
 }
 
