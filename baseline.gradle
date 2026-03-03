@@ -48,6 +48,7 @@ subprojects {
     t.setReproducibleFileOrder(true);
     t.setDuplicatesStrategy(DuplicatesStrategy.WARN);
   });
+  apply plugin: 'com.palantir.baseline-exact-dependencies'
   apply plugin: 'com.diffplug.spotless'
 
   String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
