@@ -143,8 +143,7 @@ interface TrackedFile {
    * Returns the deletion vector info for this entry.
    *
    * <p>May only be defined when content_type is DATA. Must be null for all other content types.
-   * When present, indicates that this data file has an associated deletion vector stored in a
-   * Puffin file.
+   * When present, indicates that this data file has an associated deletion vector.
    */
   DvInfo dvInfo();
 
