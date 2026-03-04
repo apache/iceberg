@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -226,11 +227,12 @@ public class TestS3MultipartUpload {
   private void verifyDistinctPartsWithInts(
       S3FileIO fileIO, String fileUri, int parts, long partSize) throws IOException {
     try (SeekableInputStream inputStream = fileIO.newInputFile(fileUri).newStream()) {
+      byte[] readBuffer = new byte[(int) partSize];
       for (int part = 0; part < parts; part++) {
-        int expectedValue = part + 1;
-        for (long j = 0; j < partSize; j++) {
-          int actual = inputStream.read();
-          assertThat(actual).as("part %d, offset %d", part, j).isEqualTo(expectedValue);
+        byte expectedByte = (byte) (part + 1);
+        IOUtil.readFully(inputStream, readBuffer, 0, (int) partSize);
+        for (int i = 0; i < (int) partSize; i++) {
+          assertThat(readBuffer[i]).as("part %d, offset %d", part, i).isEqualTo(expectedByte);
         }
       }
       assertThat(inputStream.read()).as("expected end of stream").isEqualTo(-1);
@@ -256,9 +258,8 @@ public class TestS3MultipartUpload {
       byte[] readBuffer = new byte[(int) partSize];
       for (int part = 0; part < parts; part++) {
         byte expectedByte = (byte) (part + 1);
-        int bytesRead = inputStream.read(readBuffer);
-        assertThat(bytesRead).isEqualTo((int) partSize);
-        for (int i = 0; i < bytesRead; i++) {
+        IOUtil.readFully(inputStream, readBuffer, 0, (int) partSize);
+        for (int i = 0; i < (int) partSize; i++) {
           assertThat(readBuffer[i]).as("part %d, offset %d", part, i).isEqualTo(expectedByte);
         }
       }
