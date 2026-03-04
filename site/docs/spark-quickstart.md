@@ -146,6 +146,28 @@ You can then run any of the following commands to start a Spark session.
 To create your first Iceberg table in Spark, run a [`CREATE TABLE`](docs/latest/spark-ddl.md#create-table) command. Let's create a table
 using `demo.nyc.taxis` where `demo` is the catalog name, `nyc` is the database name, and `taxis` is the table name.
 
+First, create the database if it doesn't already exist:
+
+=== "SparkSQL"
+
+    ```sql
+    CREATE DATABASE IF NOT EXISTS demo.nyc;
+    ```
+
+=== "Spark-Shell"
+
+    ```scala
+    spark.sql("CREATE DATABASE IF NOT EXISTS demo.nyc")
+    ```
+
+=== "PySpark"
+
+    ```py
+    spark.sql("CREATE DATABASE IF NOT EXISTS demo.nyc")
+    ```
+
+Then create the table:
+
 === "SparkSQL"
 
     ```sql
