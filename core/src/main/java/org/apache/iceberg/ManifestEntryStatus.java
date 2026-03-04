@@ -23,11 +23,18 @@ package org.apache.iceberg;
  *
  * <p>This is a top-level enum to avoid duplication across manifest entry types (V3 ManifestEntry
  * and V4 TrackingInfo).
+ *
+ * <p>For V4: Only ADDED and EXISTING entries are considered live for scan planning. DELETED and
+ * REPLACED entries are used for change detection but are not live. REPLACED may only be used for
+ * entries that have had data column updates or dv_info changes, and every REPLACED entry will have
+ * a corresponding EXISTING entry for the same location.
  */
 public enum ManifestEntryStatus {
   EXISTING(0),
   ADDED(1),
-  DELETED(2);
+  DELETED(2),
+  /** V4 only: indicates an entry that has been replaced by a column update or DV change. */
+  REPLACED(3);
 
   private final int id;
 

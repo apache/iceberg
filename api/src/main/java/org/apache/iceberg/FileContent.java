@@ -23,7 +23,9 @@ package org.apache.iceberg;
  *
  * <p>For V1-V3 tables: DATA, POSITION_DELETES, or EQUALITY_DELETES.
  *
- * <p>For V4 tables: DATA, POSITION_DELETES, EQUALITY_DELETES, DATA_MANIFEST, or DELETE_MANIFEST.
+ * <p>For V4 tables: DATA, EQUALITY_DELETES, DATA_MANIFEST, or DELETE_MANIFEST. Note that
+ * POSITION_DELETES is not valid in V4 manifests; deletion vectors are instead represented as
+ * optional DV info on DATA entries.
  */
 public enum FileContent {
   DATA(0),
