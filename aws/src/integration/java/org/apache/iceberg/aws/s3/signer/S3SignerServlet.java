@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.s3.signer;
 
 import static java.lang.String.format;
+import static org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient.UNSIGNED_HEADERS;
 import static org.apache.iceberg.rest.RESTCatalogAdapter.castRequest;
 import static org.apache.iceberg.rest.RESTCatalogAdapter.castResponse;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
@@ -43,7 +44,6 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
@@ -69,26 +69,6 @@ public class S3SignerServlet extends HttpServlet {
   private static final Logger LOG = LoggerFactory.getLogger(S3SignerServlet.class);
 
   static final Clock SIGNING_CLOCK = Clock.fixed(Instant.now(), ZoneId.of("UTC"));
-
-  /**
-   * Headers which are not to be signed and also filtered out by the signer client before caching the
-   * response.
-   */
-  public static final Set<String> UNSIGNED_HEADERS =
-      ImmutableSet.of(
-          "Content-Type",
-          "amz-sdk-invocation-id",
-          "amz-sdk-retry",
-          "if-match",
-          "if-modified-since",
-          "if-none-match",
-          "if-unmodified-since",
-          "range",
-          "referer",
-          "user-agent",
-          "x-amz-date",
-          "x-amz-content-sha256"
-          );
 
   private static final String POST = "POST";
 

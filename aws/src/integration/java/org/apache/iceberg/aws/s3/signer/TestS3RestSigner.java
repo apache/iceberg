@@ -220,11 +220,11 @@ public class TestS3RestSigner {
     int hits = S3V4RestSignerClient.cacheHits();
     int misses = S3V4RestSignerClient.cacheMisses();
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").build());
-    assertCacheHitsAndMisses(hits, misses + 1);
+    assertCacheHitsAndMisses(hits, ++misses);
 
     // signer caching should kick in when repeating the same request with a range
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").range("0-10").build());
-    assertCacheHitsAndMisses(hits + 1, misses + 1);
+    assertCacheHitsAndMisses(++hits, misses);
   }
 
   @Test
@@ -233,8 +233,7 @@ public class TestS3RestSigner {
     int misses = S3V4RestSignerClient.cacheMisses();
     final HeadObjectResponse response =
         s3.headObject(HeadObjectRequest.builder().bucket(BUCKET).key("random/key").build());
-    assertCacheHitsAndMisses(hits, misses + 1);
-    response.eTag();
+    assertCacheHitsAndMisses(hits, ++misses);
 
     // the etag is passed in: the same object is returned and the same cached signature is retained.
     // if the ifMatch header was cached, this would have resulted in a failure as there would
@@ -245,7 +244,7 @@ public class TestS3RestSigner {
             .key("random/key")
             .ifMatch(response.eTag())
             .build());
-    assertCacheHitsAndMisses(hits + 1, misses + 1);
+    assertCacheHitsAndMisses(++hits, misses);
   }
 
   @Test
@@ -393,12 +392,12 @@ public class TestS3RestSigner {
           request.headers().entrySet().stream()
               .filter(
                   e ->
-                      S3SignerServlet.UNSIGNED_HEADERS.contains(
+                      S3V4RestSignerClient.UNSIGNED_HEADERS.contains(
                           e.getKey().toLowerCase(Locale.ROOT)))
               .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
       SdkHttpFullRequest.Builder builder = request.toBuilder();
-      for (String unsignedHeader : S3SignerServlet.UNSIGNED_HEADERS) {
+      for (String unsignedHeader : S3V4RestSignerClient.UNSIGNED_HEADERS) {
         builder.removeHeader(unsignedHeader);
       }
 

@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.Mockito.when;
 
+import java.net.URI;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.rest.RESTClient;
@@ -34,6 +36,7 @@ import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -93,6 +96,7 @@ class TestS3V4RestSignerClient {
   void afterEach() {
     IoUtils.closeQuietlyV2(S3V4RestSignerClient.authManager, null);
     S3V4RestSignerClient.authManager = null;
+    S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.invalidateAll();
   }
 
   @ParameterizedTest
@@ -168,5 +172,129 @@ class TestS3V4RestSignerClient {
                 "custom"),
             "custom",
             "token"));
+  }
+
+  @Test
+  void identicalRequestsCauseCacheHit() {
+    S3SignRequest request1 =
+        ImmutableS3SignRequest.builder()
+            .method("PUT")
+            .region("us-east-1")
+            .uri(URI.create("s3://bucket/path/to/file.avro"))
+            .headers(Map.of("x-amz-content-sha256", List.of("abc123")))
+            .properties(Map.of())
+            .build();
+
+    S3SignResponse response =
+        ImmutableS3SignResponse.builder()
+            .uri(URI.create("https://signed.example.com/path"))
+            .headers(Map.of("Authorization", List.of("AWS4-HMAC-SHA256 ...")))
+            .build();
+
+    S3V4RestSignerClient.SignedComponent cachedResponse = cache(request1, response);
+
+    S3SignRequest request2 = ImmutableS3SignRequest.builder().from(request1).build();
+    assertThat(S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.getIfPresent(request2))
+        .isEqualTo(cachedResponse);
+  }
+
+  /**
+   * Build a SignedComponent from an S3SignResponse then store it in the cache.
+   *
+   * @param request request to use as key
+   * @param response signing response
+   * @return the SignedComponent
+   */
+  private S3V4RestSignerClient.SignedComponent cache(
+      S3SignRequest request, S3SignResponse response) {
+    S3V4RestSignerClient.SignedComponent signedComponent =
+        ImmutableSignedComponent.builder()
+            .headers(response.headers())
+            .signedURI(response.uri())
+            .build();
+    S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.put(request, signedComponent);
+    return signedComponent;
+  }
+
+  @ParameterizedTest
+  @MethodSource("differentRequestPairs")
+  void differentRequestsCauseCacheMiss(S3SignRequest request1, S3SignRequest request2) {
+    S3SignResponse cachedResponse =
+        ImmutableS3SignResponse.builder()
+            .uri(URI.create("https://signed.example.com/path"))
+            .headers(Map.of("Authorization", List.of("AWS4-HMAC-SHA256 ...")))
+            .build();
+
+    cache(request1, cachedResponse);
+
+    assertThat(S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.getIfPresent(request2)).isNull();
+  }
+
+  static Stream<Arguments> differentRequestPairs() {
+    return Stream.of(
+        // Different x-amz-content-sha256 headers
+        Arguments.of(
+            ImmutableS3SignRequest.builder()
+                .method("PUT")
+                .region("us-east-1")
+                .uri(URI.create("s3://bucket/path/to/file.avro"))
+                .headers(Map.of("x-amz-content-sha256", List.of("abc123")))
+                .properties(Map.of())
+                .build(),
+            ImmutableS3SignRequest.builder()
+                .method("PUT")
+                .region("us-east-1")
+                .uri(URI.create("s3://bucket/path/to/file.avro"))
+                .headers(Map.of("x-amz-content-sha256", List.of("def456")))
+                .properties(Map.of())
+                .build()),
+        // Different methods
+        Arguments.of(
+            ImmutableS3SignRequest.builder()
+                .method("GET")
+                .region("us-east-1")
+                .uri(URI.create("s3://bucket/path/to/file.avro"))
+                .headers(Map.of())
+                .properties(Map.of())
+                .build(),
+            ImmutableS3SignRequest.builder()
+                .method("HEAD")
+                .region("us-east-1")
+                .uri(URI.create("s3://bucket/path/to/file.avro"))
+                .headers(Map.of())
+                .properties(Map.of())
+                .build()),
+        // Different URIs
+        Arguments.of(
+            ImmutableS3SignRequest.builder()
+                .method("GET")
+                .region("us-east-1")
+                .uri(URI.create("s3://bucket/path/to/file1.avro"))
+                .headers(Map.of())
+                .properties(Map.of())
+                .build(),
+            ImmutableS3SignRequest.builder()
+                .method("GET")
+                .region("us-east-1")
+                .uri(URI.create("s3://bucket/path/to/file2.avro"))
+                .headers(Map.of())
+                .properties(Map.of())
+                .build()),
+        // Different regions
+        Arguments.of(
+            ImmutableS3SignRequest.builder()
+                .method("GET")
+                .region("us-east-1")
+                .uri(URI.create("s3://bucket/path/to/file.avro"))
+                .headers(Map.of())
+                .properties(Map.of())
+                .build(),
+            ImmutableS3SignRequest.builder()
+                .method("GET")
+                .region("us-west-2")
+                .uri(URI.create("s3://bucket/path/to/file.avro"))
+                .headers(Map.of())
+                .properties(Map.of())
+                .build()));
   }
 }
