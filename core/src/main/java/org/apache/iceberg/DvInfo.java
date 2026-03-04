@@ -21,38 +21,44 @@ package org.apache.iceberg;
 import org.apache.iceberg.types.Types;
 
 /**
- * Metadata about externally stored content such as deletion vectors.
+ * Metadata about a deletion vector (DV) associated with a data file entry.
  *
- * <p>The deletion vector content is stored at the specified offset and size within the file
- * referenced by {@link TrackedFile#location()}.
+ * <p>In the combined entry model, each DATA entry may optionally carry DV information. The DV
+ * content is stored in a Puffin file at the specified location, offset, and size.
  *
- * <p>This struct must be defined when content_type is POSITION_DELETES, and must be null otherwise.
- *
- * <p>Note: For manifest-level deletion vectors (marking entries in a manifest as deleted), see
- * {@link TrackedFile#manifestDV()} which stores the DV inline as a binary field.
+ * <p>This struct may only be defined when content_type is DATA (0), and must be null for all other
+ * content types.
  */
-interface ContentInfo {
+interface DvInfo {
+  Types.NestedField LOCATION =
+      Types.NestedField.required(
+          155, "location", Types.StringType.get(), "Location of the Puffin file");
   Types.NestedField OFFSET =
       Types.NestedField.required(
-          144, "offset", Types.LongType.get(), "Offset in the file where the content starts");
+          144, "offset", Types.LongType.get(), "Offset in the file where the DV content starts");
   Types.NestedField SIZE_IN_BYTES =
       Types.NestedField.required(
           145,
           "size_in_bytes",
           Types.LongType.get(),
-          "Length of the referenced content stored in the file");
+          "Length of the referenced DV content stored in the file");
+  Types.NestedField CARDINALITY =
+      Types.NestedField.required(
+          156, "cardinality", Types.LongType.get(), "Cardinality of the deletion vector");
 
   static Types.StructType schema() {
-    return Types.StructType.of(OFFSET, SIZE_IN_BYTES);
+    return Types.StructType.of(LOCATION, OFFSET, SIZE_IN_BYTES, CARDINALITY);
   }
 
-  /**
-   * Returns the offset in the file where the deletion vector content starts.
-   *
-   * <p>The file location is specified in the {@link TrackedFile#location()} field.
-   */
+  /** Returns the location of the Puffin file containing the deletion vector. */
+  String location();
+
+  /** Returns the offset in the Puffin file where the deletion vector content starts. */
   long offset();
 
   /** Returns the size in bytes of the deletion vector content. */
   long sizeInBytes();
+
+  /** Returns the cardinality (number of deleted positions) of the deletion vector. */
+  long cardinality();
 }
