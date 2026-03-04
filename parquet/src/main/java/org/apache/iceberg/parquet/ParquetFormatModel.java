@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
@@ -51,7 +51,7 @@ public class ParquetFormatModel<D, S, R>
     extends BaseFormatModel<D, S, ParquetValueWriter<?>, R, MessageType> {
   private final boolean isBatchReader;
   private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
-  private final UnaryOperator<D> copyFunc;
+  private final BiFunction<D, S, D> copyFunc;
 
   public static <D> ParquetFormatModel<PositionDelete<D>, Void, Object> forPositionDeletes() {
     return new ParquetFormatModel<>(
@@ -73,7 +73,7 @@ public class ParquetFormatModel<D, S, R>
       WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
       ReaderFunction<ParquetValueReader<?>, S, MessageType> readerFunction,
       VariantShreddingAnalyzer<D, S> variantAnalyzer,
-      UnaryOperator<D> copyFunc) {
+      BiFunction<D, S, D> copyFunc) {
     return new ParquetFormatModel<>(
         type, schemaType, writerFunction, readerFunction, false, variantAnalyzer, copyFunc);
   }
@@ -92,7 +92,7 @@ public class ParquetFormatModel<D, S, R>
       ReaderFunction<R, S, MessageType> readerFunction,
       boolean isBatchReader,
       VariantShreddingAnalyzer<D, S> variantAnalyzer,
-      UnaryOperator<D> copyFunc) {
+      BiFunction<D, S, D> copyFunc) {
     super(type, schemaType, writerFunction, readerFunction);
     this.isBatchReader = isBatchReader;
     this.variantAnalyzer = variantAnalyzer;
@@ -118,7 +118,7 @@ public class ParquetFormatModel<D, S, R>
     private final Parquet.WriteBuilder internal;
     private final WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction;
     private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
-    private final UnaryOperator<D> copyFunc;
+    private final BiFunction<D, S, D> copyFunc;
     private Schema schema;
     private S engineSchema;
     private FileContent content;
@@ -129,7 +129,7 @@ public class ParquetFormatModel<D, S, R>
         EncryptedOutputFile outputFile,
         WriterFunction<ParquetValueWriter<?>, S, MessageType> writerFunction,
         VariantShreddingAnalyzer<D, S> variantAnalyzer,
-        UnaryOperator<D> copyFunc) {
+        BiFunction<D, S, D> copyFunc) {
       this.internal = Parquet.write(outputFile);
       this.writerFunction = writerFunction;
       this.variantAnalyzer = variantAnalyzer;
@@ -283,7 +283,7 @@ public class ParquetFormatModel<D, S, R>
               throw new UncheckedIOException("Failed to create shredded variant writer", e);
             }
           },
-          copyFunc);
+          datum -> copyFunc.apply(datum, engineSchema));
     }
 
     private static boolean hasVariantColumns(Schema schema) {

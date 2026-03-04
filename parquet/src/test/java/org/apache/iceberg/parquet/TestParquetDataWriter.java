@@ -370,7 +370,7 @@ public class TestParquetDataWriter {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 GenericParquetReaders.buildReader(icebergSchema, fileSchema),
             testAnalyzer,
-            record -> record);
+            (record, unused) -> record);
 
     try (FileAppender<Record> appender =
         model
@@ -471,7 +471,7 @@ public class TestParquetDataWriter {
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 GenericParquetReaders.buildReader(icebergSchema, fileSchema),
             analyzer,
-            record1 -> record1);
+            (oriRecord, unused) -> oriRecord);
 
     try (FileAppender<Record> appender =
         model

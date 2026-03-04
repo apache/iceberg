@@ -105,4 +105,10 @@ public class FlinkWriteOptions {
   //  specify the uidSuffix to be used for the underlying IcebergSink
   public static final ConfigOption<String> UID_SUFFIX =
       ConfigOptions.key("uid-suffix").stringType().defaultValue("");
+
+  public static final ConfigOption<Boolean> SHRED_VARIANTS =
+      ConfigOptions.key("shred-variants").booleanType().defaultValue(false);
+
+  public static final ConfigOption<Integer> VARIANT_INFERENCE_BUFFER_SIZE =
+      ConfigOptions.key("variant-inference-buffer-size").intType().defaultValue(10);
 }
