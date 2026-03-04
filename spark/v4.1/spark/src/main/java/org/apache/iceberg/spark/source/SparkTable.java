@@ -197,10 +197,6 @@ public class SparkTable extends BaseSparkTable
   public boolean canDeleteWhere(Predicate[] predicates) {
     Preconditions.checkArgument(timeTravel == null, "Cannot delete from table with time travel");
 
-    if (SparkTableUtil.wapEnabled(table())) {
-      branch = SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
-    }
-
     Expression deleteExpr = Expressions.alwaysTrue();
 
     for (Predicate predicate : predicates) {
@@ -212,7 +208,10 @@ public class SparkTable extends BaseSparkTable
       }
     }
 
-    return canDeleteUsingMetadata(deleteExpr);
+    String scanBranch =
+        SparkTableUtil.determineReadBranch(
+            sparkSession(), icebergTable, branch, CaseInsensitiveStringMap.empty());
+    return canDeleteUsingMetadata(deleteExpr, scanBranch);
   }
 
   // a metadata delete is possible iff matching files can be deleted entirely
