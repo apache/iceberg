@@ -414,12 +414,11 @@ public class SparkTable
             .set("spark.app.id", sparkSession().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
 
-    if (SparkTableUtil.wapEnabled(table())) {
-      branch = SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
-    }
+    String writeBranch =
+        SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
 
-    if (branch != null) {
-      deleteFiles.toBranch(branch);
+    if (writeBranch != null) {
+      deleteFiles.toBranch(writeBranch);
     }
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
