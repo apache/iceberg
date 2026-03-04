@@ -125,6 +125,10 @@ paths:
 
           - DELETE /v1/{prefix}/namespaces/{namespace}/tables/{table}
 
+          - GET /v1/{prefix}/namespaces/{namespace}/functions
+
+          - GET /v1/{prefix}/namespaces/{namespace}/functions/{function}
+
           - POST /v1/{prefix}/namespaces/{namespace}/register
 
           - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics
@@ -606,6 +610,94 @@ paths:
               examples:
                 TableAlreadyExists:
                   $ref: '#/components/examples/TableAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/functions:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    get:
+      tags:
+        - Catalog API
+      summary: List all functions underneath a given namespace
+      description: Return all function names under this namespace
+      operationId: listFunctions
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+      responses:
+        200:
+          $ref: '#/components/responses/ListFunctionsResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/functions/{function}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/function'
+
+    get:
+      tags:
+        - Catalog API
+      summary: Load a function from the catalog
+      description:
+        Load a function from the catalog.
+
+
+        The response contains both configuration and function metadata. The configuration, if non-empty is used
+        as additional configuration that overrides catalog configuration.
+
+
+        The response also contains the function's full UDF metadata JSON, matching the function metadata JSON file.
+
+
+      operationId: loadFunction
+      responses:
+        200:
+          $ref: '#/components/responses/LoadFunctionResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Function or namespace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+                FunctionNotFound:
+                  $ref: '#/components/examples/NoSuchFunctionError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -1936,6 +2028,15 @@ components:
       schema:
         type: string
       example: "sales"
+
+    function:
+      name: function
+      in: path
+      description: A function name
+      required: true
+      schema:
+        type: string
+      example: "add_one"
 
     plan-id:
       name: plan-id
@@ -4170,6 +4271,17 @@ components:
           items:
             $ref: '#/components/schemas/TableIdentifier'
 
+    ListFunctionsResponse:
+      type: object
+      properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
+        names:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+
     ListNamespacesResponse:
       type: object
       properties:
@@ -4180,6 +4292,228 @@ components:
           uniqueItems: true
           items:
             $ref: '#/components/schemas/Namespace'
+
+    LoadFunctionResult:
+      description: |
+        Result returned when a function is loaded from the catalog.
+
+
+        The function metadata JSON is returned in the `metadata` field. The location of the metadata
+        file is returned in the `metadata-location` field.
+
+
+        The `config` map returns function-specific configuration for accessing the function's resources,
+        including any required credentials or client configuration overrides.
+      type: object
+      required:
+        - metadata-location
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/UdfMetadata'
+        config:
+          type: object
+          additionalProperties:
+            type: string
+
+    UdfMetadata:
+      description: |
+        Portable UDF metadata format.
+
+
+        Each function is represented by a self-contained metadata file. The `format-version` field
+        identifies the UDF metadata format.
+      type: object
+      required:
+        - function-uuid
+        - format-version
+        - definitions
+        - definition-log
+      properties:
+        function-uuid:
+          type: string
+          description: A UUID that identifies this UDF, generated once at creation.
+        format-version:
+          type: integer
+          description: UDF specification format version (must be 1).
+          enum: [1]
+        definitions:
+          type: array
+          description: List of function definition entities.
+          items:
+            $ref: '#/components/schemas/UdfDefinition'
+        definition-log:
+          type: array
+          description: History of versions within the function's definitions.
+          items:
+            $ref: '#/components/schemas/UdfDefinitionLogEntry'
+        location:
+          type: string
+          description: The function's base location; used to create metadata file locations.
+          nullable: true
+        properties:
+          type: object
+          description: A string-to-string map of properties.
+          additionalProperties:
+            type: string
+          nullable: true
+        secure:
+          type: boolean
+          description: Whether it is a secure function.
+          default: false
+          nullable: true
+        doc:
+          type: string
+          description: Documentation string.
+          nullable: true
+
+    UdfDefinition:
+      type: object
+      required:
+        - definition-id
+        - parameters
+        - return-type
+        - versions
+        - current-version-id
+        - function-type
+      properties:
+        definition-id:
+          type: string
+          description: An identifier derived from the canonical parameter-type tuple.
+        parameters:
+          type: array
+          description: Ordered list of function parameters. Invocation order must match this list.
+          items:
+            $ref: '#/components/schemas/UdfParameter'
+        return-type:
+          $ref: '#/components/schemas/UdfType'
+        return-nullable:
+          type: boolean
+          description: A hint to indicate whether the return value is nullable or not.
+          default: true
+          nullable: true
+        versions:
+          type: array
+          description: Versioned implementations of this definition.
+          items:
+            $ref: '#/components/schemas/UdfDefinitionVersion'
+        current-version-id:
+          type: integer
+          description: Identifier of the current version for this definition.
+        function-type:
+          type: string
+          description: Function type.
+          enum: ["udf", "udtf"]
+        doc:
+          type: string
+          description: Documentation string.
+          nullable: true
+
+    UdfParameter:
+      type: object
+      required:
+        - type
+        - name
+      properties:
+        type:
+          $ref: '#/components/schemas/UdfType'
+        name:
+          type: string
+        doc:
+          type: string
+          description: Parameter documentation.
+          nullable: true
+
+    UdfType:
+      description: >
+        A UDF data type, encoded either as a type string (e.g., "int", "decimal(9,2)") or as a JSON
+        object for nested types (struct, list, map) following the Iceberg type JSON representation.
+      oneOf:
+        - type: string
+        - type: object
+          additionalProperties: true
+
+    UdfDefinitionVersion:
+      type: object
+      required:
+        - version-id
+        - representations
+        - timestamp-ms
+      properties:
+        version-id:
+          type: integer
+          description: Monotonically increasing identifier of the definition version.
+        representations:
+          type: array
+          description: UDF implementations.
+          items:
+            $ref: '#/components/schemas/UdfRepresentation'
+        deterministic:
+          type: boolean
+          description: Whether the function is deterministic.
+          default: false
+          nullable: true
+        on-null-input:
+          type: string
+          description: Defines how the UDF behaves when any input parameter is NULL.
+          enum: ["return-null", "call"]
+          default: "call"
+          nullable: true
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: Creation timestamp of this version (unix epoch millis).
+
+    UdfRepresentation:
+      description: UDF implementation representation.
+      oneOf:
+        - $ref: '#/components/schemas/UdfSqlRepresentation'
+
+    UdfSqlRepresentation:
+      type: object
+      required:
+        - type
+        - dialect
+        - sql
+      properties:
+        type:
+          type: string
+          const: "sql"
+        dialect:
+          type: string
+          description: SQL dialect identifier (e.g., "spark", "trino").
+        sql:
+          type: string
+          description: SQL expression text.
+
+    UdfDefinitionLogEntry:
+      type: object
+      required:
+        - timestamp-ms
+        - definition-versions
+      properties:
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: Timestamp when the function was updated to use the definition versions.
+        definition-versions:
+          type: array
+          description: Mapping of each definition to its selected version at this time.
+          items:
+            $ref: '#/components/schemas/UdfDefinitionVersionRef'
+
+    UdfDefinitionVersionRef:
+      type: object
+      required:
+        - definition-id
+        - version-id
+      properties:
+        definition-id:
+          type: string
+        version-id:
+          type: integer
 
     UpdateNamespacePropertiesResponse:
       type: object
@@ -4830,6 +5164,13 @@ components:
             ListTablesResponseEmpty:
               $ref: '#/components/examples/ListTablesEmptyExample'
 
+    ListFunctionsResponse:
+      description: A list of function names
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ListFunctionsResponse'
+
     ListNamespacesResponse:
       description: A list of namespaces
       content:
@@ -4947,6 +5288,13 @@ components:
         etag:
           $ref: '#/components/parameters/etag'
 
+    LoadFunctionResponse:
+      description: Function metadata result when loading a function
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadFunctionResult'
+
     LoadViewResponse:
       description: View metadata result when loading a view
       content:
@@ -5063,6 +5411,16 @@ components:
         "error": {
           "message": "The given view does not exist",
           "type": "NoSuchViewException",
+          "code": 404
+        }
+      }
+
+    NoSuchFunctionError:
+      summary: The requested function does not exist
+      value: {
+        "error": {
+          "message": "The given function does not exist",
+          "type": "NoSuchFunctionException",
           "code": 404
         }
       }
