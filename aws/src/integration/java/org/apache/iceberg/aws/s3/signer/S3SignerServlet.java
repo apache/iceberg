@@ -32,9 +32,7 @@ import java.io.Reader;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -46,7 +44,6 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
@@ -70,9 +67,7 @@ public class S3SignerServlet extends HttpServlet {
   private static final Logger LOG = LoggerFactory.getLogger(S3SignerServlet.class);
 
   static final Clock SIGNING_CLOCK = Clock.fixed(Instant.now(), ZoneId.of("UTC"));
-  static final Set<String> UNSIGNED_HEADERS =
-      Sets.newHashSet(
-          Arrays.asList("range", "x-amz-date", "amz-sdk-invocation-id", "amz-sdk-retry"));
+
   private static final String POST = "POST";
 
   private static final Set<SdkHttpMethod> CACHEABLE_METHODS =
@@ -184,14 +179,16 @@ public class S3SignerServlet extends HttpServlet {
             .signingName("s3")
             .build();
 
+    // Note: the signer client is expected to remove headers it doesn't want us to sign;
+    // but older versions of the client don't do that, so we need to filter them out ourselves
     Map<String, List<String>> unsignedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
+            .filter(S3V4RestSignerClient.UNSIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     Map<String, List<String>> signedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> !UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
+            .filter(S3V4RestSignerClient.SIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     SdkHttpFullRequest sign =
@@ -204,6 +201,7 @@ public class S3SignerServlet extends HttpServlet {
                     .build(),
                 signingParams);
 
+    // Put the unsigned headers back
     Map<String, List<String>> headers = Maps.newHashMap(sign.headers());
     headers.putAll(unsignedHeaders);
 
@@ -226,6 +224,9 @@ public class S3SignerServlet extends HttpServlet {
                 S3SignRequest.class, mapper.readValue(request.getReader(), S3SignRequest.class));
         s3SignRequestValidators.forEach(validator -> validator.validateRequest(s3SignRequest));
         S3SignResponse s3SignResponse = signRequest(s3SignRequest);
+
+        // Older versions of the client could break when caching methods other than GET and HEAD,
+        // so for safety we need to instruct the client to only cache those.
         if (CACHEABLE_METHODS.contains(SdkHttpMethod.fromValue(s3SignRequest.method()))) {
           // tell the client this can be cached
           response.setHeader(

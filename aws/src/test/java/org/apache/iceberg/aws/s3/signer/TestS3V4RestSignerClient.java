@@ -214,7 +214,7 @@ class TestS3V4RestSignerClient {
 
   static Stream<Arguments> differentRequestPairs() {
     return Stream.of(
-        // Different x-amz-content-sha256 headers
+        // Different signed headers
         Arguments.of(
             ImmutableS3SignRequest.builder()
                 .method("PUT")
@@ -228,22 +228,6 @@ class TestS3V4RestSignerClient {
                 .region("us-east-1")
                 .uri(URI.create("s3://bucket/path/to/file.avro"))
                 .headers(Map.of("x-amz-content-sha256", List.of("def456")))
-                .properties(Map.of())
-                .build()),
-        // Different Range headers
-        Arguments.of(
-            ImmutableS3SignRequest.builder()
-                .method("GET")
-                .region("us-east-1")
-                .uri(URI.create("s3://bucket/path/to/file.parquet"))
-                .headers(Map.of("Range", List.of("bytes=0-99")))
-                .properties(Map.of())
-                .build(),
-            ImmutableS3SignRequest.builder()
-                .method("GET")
-                .region("us-east-1")
-                .uri(URI.create("s3://bucket/path/to/file.parquet"))
-                .headers(Map.of("Range", List.of("bytes=100-199")))
                 .properties(Map.of())
                 .build()),
         // Different methods

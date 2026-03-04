@@ -24,10 +24,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -70,6 +74,47 @@ public abstract class S3V4RestSignerClient
   static final String CACHE_CONTROL = "Cache-Control";
   static final String CACHE_CONTROL_PRIVATE = "private";
   static final String CACHE_CONTROL_NO_CACHE = "no-cache";
+
+  /** Headers that are excluded from signing. */
+  private static final Set<String> UNSIGNED_HEADERS =
+      // Note: only Host and x-amz-* headers are required to be signed. Other headers are optional.
+      // Also see
+      // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html#create-canonical-request
+      // for guidelines about headers that are safe to exclude from signing.
+      Set.of(
+          // Excluded by software.amazon.awssdk.http.auth.aws.internal.signer.V4CanonicalRequest
+          "connection",
+          "expect",
+          "transfer-encoding",
+          "user-agent",
+          "x-amzn-trace-id",
+          "x-forwarded-for",
+          // S3-specific headers
+          "range",
+          // Conditional headers
+          "if-match",
+          "if-modified-since",
+          "if-none-match",
+          "if-unmodified-since",
+          // Transient headers
+          "keep-alive",
+          "proxy-authenticate",
+          "proxy-authorization",
+          "referer",
+          "te",
+          "trailer",
+          "upgrade");
+
+  @VisibleForTesting
+  static final Predicate<Map.Entry<String, List<String>>> UNSIGNED_HEADERS_PREDICATE =
+      e -> {
+        String name = e.getKey().toLowerCase(Locale.ROOT);
+        return name.startsWith("amz-sdk-") || UNSIGNED_HEADERS.contains(name);
+      };
+
+  @VisibleForTesting
+  static final Predicate<Map.Entry<String, List<String>>> SIGNED_HEADERS_PREDICATE =
+      UNSIGNED_HEADERS_PREDICATE.negate();
 
   @VisibleForTesting
   static final Cache<S3SignRequest, S3SignResponse> SIGNED_RESPONSE_CACHE =
@@ -241,18 +286,24 @@ public abstract class S3V4RestSignerClient
     AwsS3V4SignerParams signerParams =
         extractSignerParams(AwsS3V4SignerParams.builder(), executionAttributes).build();
 
+    // Strip-off headers that should not be signed
+    Map<String, List<String>> headersToSign =
+        request.headers().entrySet().stream()
+            .filter(SIGNED_HEADERS_PREDICATE)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
     S3SignRequest remoteSigningRequest =
         ImmutableS3SignRequest.builder()
             .method(request.method().name())
             .region(signerParams.signingRegion().id())
             .uri(request.getUri())
-            .headers(request.headers())
+            .headers(headersToSign)
             .properties(requestPropertiesSupplier().get())
             .body(bodyAsString(request))
             .build();
 
-    S3SignResponse cachedResponse = SIGNED_RESPONSE_CACHE.getIfPresent(remoteSigningRequest);
     S3SignResponse signedResponse;
+    S3SignResponse cachedResponse = SIGNED_RESPONSE_CACHE.getIfPresent(remoteSigningRequest);
 
     if (null != cachedResponse) {
       signedResponse = cachedResponse;

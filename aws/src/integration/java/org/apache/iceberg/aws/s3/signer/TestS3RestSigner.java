@@ -27,7 +27,6 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
@@ -352,14 +351,11 @@ public class TestS3RestSigner {
       // back after signing
       Map<String, List<String>> unsignedHeaders =
           request.headers().entrySet().stream()
-              .filter(
-                  e ->
-                      S3SignerServlet.UNSIGNED_HEADERS.contains(
-                          e.getKey().toLowerCase(Locale.ROOT)))
+              .filter(S3V4RestSignerClient.UNSIGNED_HEADERS_PREDICATE)
               .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
       SdkHttpFullRequest.Builder builder = request.toBuilder();
-      for (String unsignedHeader : S3SignerServlet.UNSIGNED_HEADERS) {
+      for (String unsignedHeader : unsignedHeaders.keySet()) {
         builder.removeHeader(unsignedHeader);
       }
 
