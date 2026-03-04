@@ -18,7 +18,7 @@
 #
 
 # The format of this file is documented at
-# https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
+# https://github.com/apache/infrastructure-asfyaml/blob/main/README.md
 
 github:
   description: "Apache Iceberg"
