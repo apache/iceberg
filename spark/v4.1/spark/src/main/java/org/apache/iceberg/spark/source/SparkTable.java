@@ -337,6 +337,10 @@ public class SparkTable
     Preconditions.checkArgument(
         snapshotId == null, "Cannot delete from table at a specific snapshot: %s", snapshotId);
 
+    if (SparkTableUtil.wapEnabled(table())) {
+      branch = SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
+    }
+
     Expression deleteExpr = Expressions.alwaysTrue();
 
     for (Predicate predicate : predicates) {
