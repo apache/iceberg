@@ -49,8 +49,7 @@ public class ThreadPools {
 
   public static final int WORKER_THREAD_POOL_SIZE = SystemConfigs.WORKER_THREAD_POOL_SIZE.value();
 
-  private static final List<ExecutorServiceWithTimeout> THREAD_POOLS_TO_SHUTDOWN =
-      Lists.newArrayList();
+  private static final ThreadPoolManager THREAD_POOL_MANAGER = new ThreadPoolManager();
 
   private static final ExecutorService WORKER_POOL =
       newExitingWorkerPool("iceberg-worker-pool", WORKER_THREAD_POOL_SIZE);
@@ -152,10 +151,10 @@ public class ThreadPools {
    * ensure the pool terminates when the JVM exits. This is suitable for long-lived thread pools
    * that should be automatically cleaned up on JVM shutdown.
    */
-  public static synchronized ExecutorService newExitingWorkerPool(String namePrefix, int poolSize) {
+  public static ExecutorService newExitingWorkerPool(String namePrefix, int poolSize) {
     ExecutorService service =
         Executors.unconfigurableExecutorService(newFixedThreadPool(namePrefix, poolSize));
-    THREAD_POOLS_TO_SHUTDOWN.add(new ExecutorServiceWithTimeout(service, DEFAULT_SHUTDOWN_TIMEOUT));
+    THREAD_POOL_MANAGER.addThreadPool(service, DEFAULT_SHUTDOWN_TIMEOUT);
     return service;
   }
 
@@ -171,30 +170,9 @@ public class ThreadPools {
    * <p>Please only call this method at the end of the intended usage of the library, and NEVER
    * before, as this method will stop thread pools required for normal library workflows.
    */
-  public static synchronized void shutdownThreadPools() {
+  public static void shutdownThreadPools() {
     removeShutdownHook();
-    long startTime = System.nanoTime();
-    List<ExecutorServiceWithTimeout> pendingShutdown = Lists.newArrayList();
-    for (ExecutorServiceWithTimeout item : THREAD_POOLS_TO_SHUTDOWN) {
-      item.getService().shutdown();
-      pendingShutdown.add(item);
-    }
-    THREAD_POOLS_TO_SHUTDOWN.clear();
-    for (ExecutorServiceWithTimeout item : pendingShutdown) {
-      long timeElapsed = System.nanoTime() - startTime;
-      long remainingTime = item.getTimeout().toNanos() - timeElapsed;
-      if (remainingTime > 0) {
-        try {
-          if (!item.service.awaitTermination(remainingTime, TimeUnit.NANOSECONDS)) {
-            item.getService().shutdownNow();
-          }
-        } catch (InterruptedException ignored) {
-          // We're shutting down anyway, so just ignore.
-        }
-      } else {
-        item.getService().shutdownNow();
-      }
-    }
+    THREAD_POOL_MANAGER.shutdownAll();
   }
 
   /**
@@ -278,12 +256,53 @@ public class ThreadPools {
       String namePrefix, int poolSize, Duration terminationTimeout) {
     ScheduledExecutorService service =
         Executors.unconfigurableScheduledExecutorService(newScheduledPool(namePrefix, poolSize));
-    THREAD_POOLS_TO_SHUTDOWN.add(new ExecutorServiceWithTimeout(service, terminationTimeout));
+    THREAD_POOL_MANAGER.addThreadPool(service, terminationTimeout);
     return service;
   }
 
   private static ThreadFactory newDaemonThreadFactory(String namePrefix) {
     return new ThreadFactoryBuilder().setDaemon(true).setNameFormat(namePrefix + "-%d").build();
+  }
+
+  /** Manages the lifecycle of thread pools that need to be shut down gracefully. */
+  static class ThreadPoolManager {
+    private final List<ExecutorServiceWithTimeout> threadPoolsToShutdown = Lists.newArrayList();
+
+    /**
+     * Add an executor service to the list of thread pools to be shut down.
+     *
+     * @param service the executor service to add
+     * @param timeout the timeout for shutdown operations
+     */
+    synchronized void addThreadPool(ExecutorService service, Duration timeout) {
+      threadPoolsToShutdown.add(new ExecutorServiceWithTimeout(service, timeout));
+    }
+
+    /** Shut down all registered thread pools. */
+    synchronized void shutdownAll() {
+      long startTime = System.nanoTime();
+      List<ExecutorServiceWithTimeout> pendingShutdown = Lists.newArrayList();
+      for (ExecutorServiceWithTimeout item : threadPoolsToShutdown) {
+        item.getService().shutdown();
+        pendingShutdown.add(item);
+      }
+      threadPoolsToShutdown.clear();
+      for (ExecutorServiceWithTimeout item : pendingShutdown) {
+        long timeElapsed = System.nanoTime() - startTime;
+        long remainingTime = item.getTimeout().toNanos() - timeElapsed;
+        if (remainingTime > 0) {
+          try {
+            if (!item.service.awaitTermination(remainingTime, TimeUnit.NANOSECONDS)) {
+              item.getService().shutdownNow();
+            }
+          } catch (InterruptedException ignored) {
+            // We're shutting down anyway, so just ignore.
+          }
+        } else {
+          item.getService().shutdownNow();
+        }
+      }
+    }
   }
 
   static class ExecutorServiceWithTimeout {
