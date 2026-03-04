@@ -36,7 +36,6 @@ subprojects {
 
   // Thus we concede to applying all of the Baseline plugins individually on all the projects we are
   // ready to enforce linting on.
-  apply plugin: 'org.inferred.processors'
   if (!project.hasProperty('quick')) {
     apply plugin: 'com.palantir.baseline-checkstyle'
     apply plugin: 'com.palantir.baseline-error-prone'
@@ -57,9 +56,7 @@ subprojects {
     spotless {
       java {
         target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/testFixtures/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
-        // 1.23.0 has an issue in formatting comments https://github.com/google/google-java-format/issues/1155
-        // so we stick to 1.22.0 to produce consistent result for JDK 17/21
-        googleJavaFormat("1.22.0")
+        googleJavaFormat("1.25.2")
         removeUnusedImports()
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
