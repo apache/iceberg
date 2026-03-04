@@ -79,9 +79,9 @@ public class TestThreadPools {
     Duration shortTimeout = Duration.ofMillis(50);
     manager.addThreadPool(slowExecutor, shortTimeout);
 
-    var start = System.nanoTime();
+    long start = System.nanoTime();
     manager.shutdownAll();
-    var end = System.nanoTime();
+    long end = System.nanoTime();
 
     assertThat(slowExecutor.isShutdown()).isTrue();
     assertThat(interrupted.get()).isTrue();
