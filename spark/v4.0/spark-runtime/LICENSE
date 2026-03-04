@@ -214,7 +214,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 This product bundles Jackson JSON processor.
 
 Copyright: 2007-2019 Tatu Saloranta and other contributors
-Project URL: http://jackson.codehaus.org/
+Project URL: https://github.com/FasterXML/jackson
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -676,9 +676,9 @@ This product bundles Alibaba Cloud Tea for Java.
 Project URL: https://github.com/aliyun/tea-java
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
-This product bundles Google GAX.
-
 --------------------------------------------------------------------------------
+
+This product bundles Google GAX.
 
 Project URL: https://github.com/googleapis/gax-java
 License: BSD 3-Clause

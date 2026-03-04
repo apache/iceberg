@@ -214,7 +214,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 This product bundles Jackson JSON Processor.
 
 Copyright: 2007-2020 Tatu Saloranta and other contributors
-Project URL: http://jackson.codehaus.org/
+Project URL: https://github.com/FasterXML/jackson
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -401,7 +401,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This prodduct bundles Google protobuf.
+This product bundles Google protobuf.
 
 Copyright: 2008 Google Inc.
 Project URL: https://developers.google.com/protocol-buffers

@@ -214,7 +214,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 This product bundles Jackson JSON Processor.
 
 Copyright: 2007-2020 Tatu Saloranta and other contributors
-Project URL: http://jackson.codehaus.org/
+Project URL: https://github.com/FasterXML/jackson
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -401,7 +401,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This prodduct bundles Google protobuf.
+This product bundles Google protobuf.
 
 Copyright: 2008 Google Inc.
 Project URL: https://developers.google.com/protocol-buffers
@@ -690,7 +690,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 This product bundles JaCoCo.
 
-Project URL:https://github.com/jacoco/jacoco/
+Project URL: https://github.com/jacoco/jacoco/
 License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -770,8 +770,6 @@ This product bundles JSpecify.
 
 Project URL: https://github.com/jspecify/jspecify
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
-This product bundles Animal Sniffer Annotations.
 
 --------------------------------------------------------------------------------
 
