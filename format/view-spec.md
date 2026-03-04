@@ -219,7 +219,7 @@ Some producers expect the entire dependency graph to be evaluated and therefore 
 
 When writing the refresh state, producers:
 
-- Should provide a sufficient list of source states such that consumers can determine freshness according to the producer's interpretation.
+- Should provide a sufficient list of source states such that consumers can determine freshness according to the producer's interpretation. If the producers interpretation is such that it doesn't rely on the source-states to determine freshness, it may provide an empty list.
 - If the source state cannot be determined for all objects (for example, for non-Iceberg tables) may leave the source states list empty.
 - If a stored object is reachable through multiple paths in the dependency graph (diamond dependency pattern), the entry with the oldest snapshot-id or version-id must be stored.
 
