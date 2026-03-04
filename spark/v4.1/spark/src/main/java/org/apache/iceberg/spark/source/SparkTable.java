@@ -414,8 +414,7 @@ public class SparkTable
             .set("spark.app.id", sparkSession().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
 
-    String writeBranch =
-        SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
+    String writeBranch = SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
 
     if (writeBranch != null) {
       deleteFiles.toBranch(writeBranch);
