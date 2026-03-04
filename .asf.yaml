@@ -33,6 +33,9 @@ github:
     squash: true
     rebase: true
 
+  # deprecated but still set for backward compatibility
+  del_branch_on_merge: true
+
   pull_requests:
     # auto-delete head branches after being merged
     del_branch_on_merge: true
