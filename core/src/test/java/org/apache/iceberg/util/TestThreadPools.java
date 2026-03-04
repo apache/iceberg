@@ -21,12 +21,24 @@ package org.apache.iceberg.util;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
 public class TestThreadPools {
+
+  @Test
+  public void testRemoveShutdownHook() {
+    try {
+      assertThat(ThreadPools.isShutdownHookRegistered()).isTrue();
+      ThreadPools.removeShutdownHook();
+      assertThat(ThreadPools.isShutdownHookRegistered()).isFalse();
+    } finally {
+      ThreadPools.initShutdownHook();
+    }
+  }
 
   @Test
   public void testThreadPoolManagerAddAndShutdown() throws Exception {
@@ -66,21 +78,28 @@ public class TestThreadPools {
     final AtomicBoolean interrupted = new AtomicBoolean(false);
     ExecutorService slowExecutor = Executors.newFixedThreadPool(1);
 
+    manager.addThreadPool(slowExecutor, Duration.ofMillis(50));
+
+    CountDownLatch threadStarted = new CountDownLatch(1);
+    CountDownLatch threadInterrupted = new CountDownLatch(1);
+
     slowExecutor.submit(
         () -> {
           try {
-            Thread.sleep(2000);
+            threadStarted.countDown();
+            Thread.sleep(60_000);
           } catch (InterruptedException e) {
             interrupted.set(true);
+            threadInterrupted.countDown();
             Thread.currentThread().interrupt();
           }
         });
 
-    Duration shortTimeout = Duration.ofMillis(50);
-    manager.addThreadPool(slowExecutor, shortTimeout);
+    threadStarted.await();
 
     long start = System.nanoTime();
     manager.shutdownAll();
+    threadInterrupted.await();
     long end = System.nanoTime();
 
     assertThat(slowExecutor.isShutdown()).isTrue();
