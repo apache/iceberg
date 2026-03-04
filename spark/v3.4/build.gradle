@@ -287,7 +287,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
   shadowJar {
     configurations = [project.configurations.runtimeClasspath]
 
-    zip64 true
+    zip64 = true
 
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {

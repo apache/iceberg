@@ -181,7 +181,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     integrationImplementation(libs.flink20.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
-      exclude group: 'junit'
     }
 
     integrationImplementation libs.flink20.table.api.java.bridge
@@ -226,7 +225,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   shadowJar {
     configurations = [project.configurations.runtimeClasspath]
 
-    zip64 true
+    zip64 = true
 
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {
