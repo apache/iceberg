@@ -337,10 +337,6 @@ public class VectorizedPageIterator extends BasePageIterator {
     }
   }
 
-  private int getActualBatchSize(int expectedBatchSize) {
-    return Math.min(expectedBatchSize, triplesCount - triplesRead);
-  }
-
   class FixedSizeBinaryPageReader extends BasePageReader {
     @Override
     protected void nextVal(
