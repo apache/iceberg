@@ -28,6 +28,7 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -39,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
@@ -86,6 +88,27 @@ public abstract class S3V4RestSignerClient
   private static final AtomicInteger CACHE_MISSES = new AtomicInteger();
 
   private static final String SCOPE = "sign";
+
+
+  /**
+   * Headers which are not to be signed and also filtered out by the signer client before caching the
+   * response.
+   */
+  public static final Set<String> UNSIGNED_HEADERS =
+      ImmutableSet.of(
+          "Content-Type",
+          "amz-sdk-invocation-id",
+          "amz-sdk-retry",
+          "if-match",
+          "if-modified-since",
+          "if-none-match",
+          "if-unmodified-since",
+          "range",
+          "referer",
+          "user-agent",
+          "x-amz-date",
+          "x-amz-content-sha256"
+          );
 
   @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
   @VisibleForTesting
