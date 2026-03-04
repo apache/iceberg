@@ -39,3 +39,19 @@ Different FileIO implementations are used depending on the type of storage. Iceb
 - Object Service Storage (including https)
 - Dell Enterprise Cloud Storage
 - Hadoop (adapts any Hadoop FileSystem implementation)
+
+## HadoopFileIO
+
+The HadoopFileIO implementation can connect to any filesystem for which there is a Hadoop filesystem client on the classpath.
+
+Configuration options for these filesystems are generally through properties set in the file `core-site.xml` or in `spark-defaults.conf` prefixed with `spark.hadoop.`
+
+### Specific options for HadoopFileIO
+
+| Property                               | Default        | Description                                                                               |
+|----------------------------------------|----------------|-------------------------------------------------------------------------------------------|
+| iceberg.hadoop.delete-file-parallelism | 3 * #of cores  | Number of threads to perform delete operations in parallel                                |
+| iceberg.hadoop.bulk.delete.enabled     | false          | Use the Hadoop 3.4 Bulk Delete API. If enabled (and available) trash options are ignored. |
+
+The Hadoop Bulk Delete API was a new feature in Hadoop 3.4.0; with object stores this can make large deletion operations
+during compaction significantly faster.
