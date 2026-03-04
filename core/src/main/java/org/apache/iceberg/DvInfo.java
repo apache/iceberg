@@ -24,7 +24,7 @@ import org.apache.iceberg.types.Types;
  * Metadata about a deletion vector (DV) associated with a data file entry.
  *
  * <p>In the combined entry model, each DATA entry may optionally carry DV information. The DV
- * content is stored in a Puffin file at the specified location, offset, and size.
+ * content is stored at the specified location, offset, and size.
  *
  * <p>This struct may only be defined when content_type is DATA (0), and must be null for all other
  * content types.
@@ -32,7 +32,7 @@ import org.apache.iceberg.types.Types;
 interface DvInfo {
   Types.NestedField LOCATION =
       Types.NestedField.required(
-          155, "location", Types.StringType.get(), "Location of the Puffin file");
+          155, "location", Types.StringType.get(), "Location of the file containing the DV");
   Types.NestedField OFFSET =
       Types.NestedField.required(
           144, "offset", Types.LongType.get(), "Offset in the file where the DV content starts");
@@ -50,10 +50,10 @@ interface DvInfo {
     return Types.StructType.of(LOCATION, OFFSET, SIZE_IN_BYTES, CARDINALITY);
   }
 
-  /** Returns the location of the Puffin file containing the deletion vector. */
+  /** Returns the location of the file containing the deletion vector. */
   String location();
 
-  /** Returns the offset in the Puffin file where the deletion vector content starts. */
+  /** Returns the offset in the file where the deletion vector content starts. */
   long offset();
 
   /** Returns the size in bytes of the deletion vector content. */
