@@ -204,6 +204,7 @@ Since different systems define freshness differently, it is left to the consumer
 **Consumer behavior:**
 
 When evaluating freshness, consumers:
+
 - May apply time-based freshness policies, such as allowing a staleness window based on `refresh-start-timestamp-ms`.
 - May compare the `source-states` list against the states loaded from the catalog to verify the producer's freshness interpretation.
 - May parse the view definition to implement more sophisticated policies.
@@ -217,6 +218,7 @@ Different producers may have different freshness interpretations, based on how m
 Some producers expect the entire dependency graph to be evaluated and therefore include source MV dependencies. Other producers may only expect dependencies in the MV's SQL to be evaluated and therefore do not include dependencies of source MVs.
 
 When writing the refresh state, producers:
+
 - Should provide a sufficient list of source states such that consumers can determine freshness according to the producer's interpretation.
 - If the source state cannot be determined for all objects (for example, for non-Iceberg tables) may leave the source states list empty.
 - If a stored object is reachable through multiple paths in the dependency graph (diamond dependency pattern), the entry with the oldest snapshot-id or version-id must be stored.
