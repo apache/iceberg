@@ -162,11 +162,14 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     spark = null;
   }
 
+  private static final String EQ_CACHE_TABLE = "test_eq_cache_ordering";
+
   @AfterEach
   @Override
   public void cleanup() throws IOException {
     super.cleanup();
     dropTable("test3");
+    dropTable(EQ_CACHE_TABLE);
   }
 
   @Override
@@ -736,6 +739,78 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     StructLikeSet actual = rowSet(tableName, table, "id", "data");
     int expectedRecordCount = records.size() + 2;
     assertThat(actual).hasSize(expectedRecordCount);
+  }
+
+  /**
+   * Covers a bug where equality deletes columns are appended to the required schema in a different
+   * order than the table schema, which can cause different deleteSchema orderings, poisoning the
+   * cache.
+   */
+  @TestTemplate
+  public void testEqualityDeletesAppliedWithCachedFieldReordering() throws IOException {
+    Schema eqDeleteTestSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "a", Types.IntegerType.get()),
+            Types.NestedField.optional(3, "b", Types.IntegerType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(eqDeleteTestSchema).bucket("id", 1).build();
+
+    Table eqTestTable = createTable(EQ_CACHE_TABLE, eqDeleteTestSchema, spec);
+
+    GenericRecord record = GenericRecord.create(eqDeleteTestSchema);
+    List<Record> data = Lists.newArrayList();
+    for (int i = 0; i < 10; i++) {
+      data.add(record.copy("id", i, "a", i * 10, "b", i * 100));
+    }
+
+    DataFile dataFile =
+        FileHelpers.writeDataFile(
+            eqTestTable,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            data);
+    eqTestTable.newAppend().appendFile(dataFile).commit();
+
+    Schema deleteSchema =
+        new Schema(
+            Types.NestedField.optional(3, "b", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "a", Types.IntegerType.get()));
+
+    Record eqDel = GenericRecord.create(deleteSchema);
+    List<Record> deletes =
+        Lists.newArrayList(
+            eqDel.copy("b", 0, "a", 0),
+            eqDel.copy("b", 100, "a", 10),
+            eqDel.copy("b", 200, "a", 20));
+
+    DeleteFile eqFile =
+        FileHelpers.writeDeleteFile(
+            eqTestTable,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            deletes,
+            deleteSchema);
+    eqTestTable.newRowDelta().addDeletes(eqFile).commit();
+
+    String tableRef = TableIdentifier.of("default", EQ_CACHE_TABLE).toString();
+    int expectedRows = 7;
+
+    // Narrow projection: Spark will not request a or b columns, so the delete columns are appended
+    // in metadata order [b, a]
+    long narrowCount =
+        spark.read().format("iceberg").load(tableRef).select("id").collectAsList().size();
+
+    // Wide projection: Spark will request all columns, so the delete columns are already present in
+    // table order [a, b].
+    long wideCount =
+        spark.read().format("iceberg").load(tableRef).select("*").collectAsList().size();
+
+    assertThat(narrowCount)
+        .as("Narrow projection should return %d rows after equality deletes", expectedRows)
+        .isEqualTo(expectedRows);
+    assertThat(wideCount)
+        .as("Wide projection should return the same row count as narrow projection")
+        .isEqualTo(narrowCount);
   }
 
   private static final Schema PROJECTION_SCHEMA =

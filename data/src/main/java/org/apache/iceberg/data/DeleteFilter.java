@@ -19,6 +19,7 @@
 package org.apache.iceberg.data;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -210,7 +211,10 @@ public abstract class DeleteFilter<T> {
       Set<Integer> ids = entry.getKey();
       Iterable<DeleteFile> deletes = entry.getValue();
 
-      Schema deleteSchema = TypeUtil.select(requiredSchema, ids);
+      Schema selectedSchema = TypeUtil.select(requiredSchema, ids);
+      List<Types.NestedField> sortedFields = Lists.newArrayList(selectedSchema.columns());
+      sortedFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+      Schema deleteSchema = new Schema(sortedFields);
 
       // a projection to select and reorder fields of the file schema to match the delete rows
       StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
