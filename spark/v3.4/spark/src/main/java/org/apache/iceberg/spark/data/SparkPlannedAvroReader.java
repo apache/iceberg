@@ -136,11 +136,13 @@ public class SparkPlannedAvroReader implements DatumReader<InternalRow>, Support
             return ValueReaders.ints();
 
           case "timestamp-millis":
+          case "local-timestamp-millis":
             // adjust to microseconds
             ValueReader<Long> longs = ValueReaders.longs();
             return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
 
           case "timestamp-micros":
+          case "local-timestamp-micros":
             // Spark uses the same representation
             return ValueReaders.longs();
 
