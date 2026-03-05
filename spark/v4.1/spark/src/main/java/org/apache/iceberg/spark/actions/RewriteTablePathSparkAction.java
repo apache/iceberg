@@ -90,6 +90,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteTablePathSparkAction.class);
   private static final String RESULT_LOCATION = "file-list";
+  private static final String DATA_FILE_LIST_DIR = "data-file-list";
+  private static final String METADATA_FILE_LIST_DIR = "metadata-file-list";
   static final String NOT_APPLICABLE = "N/A";
 
   private String sourcePrefix;
@@ -311,20 +313,37 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .latestVersion(RewriteTablePathUtil.fileName(endVersionName));
 
     if (!createFileList) {
-      return builder.fileListLocation(NOT_APPLICABLE).build();
+      return builder
+          .fileListLocation(NOT_APPLICABLE)
+          .dataFileListLocation(NOT_APPLICABLE)
+          .metadataFileListLocation(NOT_APPLICABLE)
+          .build();
     }
 
-    Set<Pair<String, String>> copyPlan = Sets.newHashSet();
-    copyPlan.addAll(rewriteVersionResult.copyPlan());
-    copyPlan.addAll(rewriteManifestListResult.copyPlan());
-    copyPlan.addAll(rewriteManifestResult.copyPlan());
-    String fileListLocation = saveFileList(copyPlan);
+    Set<Pair<String, String>> metadataCopyPlan = Sets.newHashSet();
+    metadataCopyPlan.addAll(rewriteVersionResult.copyPlan());
+    metadataCopyPlan.addAll(rewriteManifestListResult.copyPlan());
 
-    return builder.fileListLocation(fileListLocation).build();
+    Set<Pair<String, String>> dataCopyPlan = Sets.newHashSet();
+    dataCopyPlan.addAll(rewriteManifestResult.copyPlan());
+
+    Set<Pair<String, String>> copyPlan = Sets.newHashSet();
+    copyPlan.addAll(metadataCopyPlan);
+    copyPlan.addAll(dataCopyPlan);
+
+    String fileListLocation = saveFileList(copyPlan, RESULT_LOCATION);
+    String dataFileListLocation = saveFileList(dataCopyPlan, DATA_FILE_LIST_DIR);
+    String metadataFileListLocation = saveFileList(metadataCopyPlan, METADATA_FILE_LIST_DIR);
+
+    return builder
+        .fileListLocation(fileListLocation)
+        .dataFileListLocation(dataFileListLocation)
+        .metadataFileListLocation(metadataFileListLocation)
+        .build();
   }
 
-  private String saveFileList(Set<Pair<String, String>> filesToMove) {
-    String fileListPath = stagingDir + RESULT_LOCATION;
+  private String saveFileList(Set<Pair<String, String>> filesToMove, String name) {
+    String fileListPath = stagingDir + name;
     OutputFile fileList = table.io().newOutputFile(fileListPath);
     writeAsCsv(filesToMove, fileList);
     return fileListPath;
@@ -507,10 +526,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   public static class RewriteContentFileResult extends RewriteResult<ContentFile<?>> {
-    @Override
-    public RewriteContentFileResult append(RewriteResult<ContentFile<?>> r1) {
-      this.copyPlan().addAll(r1.copyPlan());
-      this.toRewrite().addAll(r1.toRewrite());
+
+    public RewriteContentFileResult append(RewriteContentFileResult other) {
+      this.copyPlan().addAll(other.copyPlan());
+      this.toRewrite().addAll(other.toRewrite());
       return this;
     }
 
