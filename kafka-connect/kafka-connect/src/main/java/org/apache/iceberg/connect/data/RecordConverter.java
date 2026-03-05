@@ -64,6 +64,10 @@ import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
+import org.apache.iceberg.variants.Variants;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 
@@ -142,6 +146,8 @@ class RecordConverter {
         return convertTimeValue(value);
       case TIMESTAMP:
         return convertTimestampValue(value, (TimestampType) type);
+      case VARIANT:
+        return convertVariant(value);
     }
     throw new UnsupportedOperationException("Unsupported type: " + type.typeId());
   }
@@ -530,5 +536,63 @@ class RecordConverter {
       result = result.substring(0, 19) + result.substring(19).replace(":", "");
     }
     return result;
+  }
+
+  private Variant tryDeserializeVariant(Object value) {
+    // Try to deserialize ByteBuffer or byte[] as a serialized variant
+    // Returns null if not a valid serialized variant
+    try {
+      if (value instanceof ByteBuffer) {
+        return Variant.from((ByteBuffer) value);
+      } else if (value instanceof byte[]) {
+        return Variant.from(ByteBuffer.wrap((byte[]) value));
+      }
+    } catch (RuntimeException e) {
+      // Not a valid serialized variant, return null to fall back to JSON conversion
+    }
+    return null;
+  }
+
+  protected Variant convertVariant(Object value) {
+    try {
+      // If it's already a Variant, return it
+      if (value instanceof Variant) {
+        return (Variant) value;
+      }
+
+      // Try to deserialize if it's a ByteBuffer or byte[]
+      Variant deserialized = tryDeserializeVariant(value);
+      if (deserialized != null) {
+        return deserialized;
+      }
+
+      // Convert the value to JSON representation and wrap in a Variant
+      String jsonString;
+      if (value instanceof String) {
+        jsonString = (String) value;
+      } else if (value instanceof Map || value instanceof List) {
+        jsonString = MAPPER.writeValueAsString(value);
+      } else if (value instanceof Struct) {
+        Struct struct = (Struct) value;
+        byte[] data = config.jsonConverter().fromConnectData(null, struct.schema(), struct);
+        jsonString = new String(data, StandardCharsets.UTF_8);
+      } else if (value instanceof Number || value instanceof Boolean) {
+        // For primitives, convert to JSON representation
+        jsonString = value.toString();
+      } else {
+        throw new IllegalArgumentException(
+            "Cannot convert to variant: " + value.getClass().getName());
+      }
+
+      // Create a Variant from the JSON string
+      // Using empty metadata and wrapping the string as a variant value
+      VariantMetadata metadata = Variants.emptyMetadata();
+      VariantValue variantValue =
+          Variants.of(jsonString); // Returns VariantPrimitive which is a VariantValue
+      return Variant.of(metadata, variantValue);
+
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to convert value to variant", e);
+    }
   }
 }
