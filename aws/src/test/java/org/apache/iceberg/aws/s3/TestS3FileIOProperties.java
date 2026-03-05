@@ -35,6 +35,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
@@ -552,6 +554,46 @@ public class TestS3FileIOProperties {
     s3FileIOProperties.applyS3CrtConfigurations(mockS3CrtAsyncClientBuilder);
 
     Mockito.verify(mockS3CrtAsyncClientBuilder).maxConcurrency(Mockito.any(Integer.class));
+  }
+
+  @Test
+  public void testApplyChecksumConfigurationsDefault() {
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
+    S3ClientBuilder mockBuilder = Mockito.mock(S3ClientBuilder.class);
+    s3FileIOProperties.applyChecksumConfigurations(mockBuilder);
+
+    Mockito.verify(mockBuilder)
+        .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
+    Mockito.verify(mockBuilder)
+        .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
+  }
+
+  @Test
+  public void testApplyChecksumConfigurationsEnabled() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.CHECKSUM_ENABLED, "true");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockBuilder = Mockito.mock(S3ClientBuilder.class);
+    s3FileIOProperties.applyChecksumConfigurations(mockBuilder);
+
+    Mockito.verify(mockBuilder)
+        .requestChecksumCalculation(RequestChecksumCalculation.WHEN_SUPPORTED);
+    Mockito.verify(mockBuilder)
+        .responseChecksumValidation(ResponseChecksumValidation.WHEN_SUPPORTED);
+  }
+
+  @Test
+  public void testApplyChecksumConfigurationsDisabled() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.CHECKSUM_ENABLED, "false");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockBuilder = Mockito.mock(S3ClientBuilder.class);
+    s3FileIOProperties.applyChecksumConfigurations(mockBuilder);
+
+    Mockito.verify(mockBuilder)
+        .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
+    Mockito.verify(mockBuilder)
+        .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
   }
 
   @Test

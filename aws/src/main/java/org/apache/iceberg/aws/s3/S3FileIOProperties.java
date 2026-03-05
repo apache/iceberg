@@ -39,6 +39,8 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.exception.SdkServiceException;
@@ -995,6 +997,57 @@ public class S3FileIOProperties implements Serializable {
                 .useArnRegionEnabled(isUseArnRegionEnabled)
                 .accelerateModeEnabled(isAccelerationEnabled)
                 .build());
+  }
+
+  /**
+   * Configure the request checksum calculation and response checksum validation for an S3 client
+   * based on the {@link #CHECKSUM_ENABLED} property.
+   *
+   * <p>When checksums are disabled (default), sets the checksum policies to {@code WHEN_REQUIRED}
+   * to avoid unexpected checksum calculation from the AWS SDK default of {@code WHEN_SUPPORTED}.
+   * When checksums are enabled, sets the policies to {@code WHEN_SUPPORTED}.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyChecksumConfigurations)
+   *     S3AsyncClient.builder().applyMutation(s3FileIOProperties::applyChecksumConfigurations)
+   * </pre>
+   */
+  public <T extends S3BaseClientBuilder<T, ?>> void applyChecksumConfigurations(T builder) {
+    RequestChecksumCalculation checksumCalculation =
+        isChecksumEnabled
+            ? RequestChecksumCalculation.WHEN_SUPPORTED
+            : RequestChecksumCalculation.WHEN_REQUIRED;
+    ResponseChecksumValidation checksumValidation =
+        isChecksumEnabled
+            ? ResponseChecksumValidation.WHEN_SUPPORTED
+            : ResponseChecksumValidation.WHEN_REQUIRED;
+    builder.requestChecksumCalculation(checksumCalculation);
+    builder.responseChecksumValidation(checksumValidation);
+  }
+
+  /**
+   * Configure the request checksum calculation and response checksum validation for an S3 CRT
+   * client based on the {@link #CHECKSUM_ENABLED} property.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(s3FileIOProperties::applyChecksumConfigurations)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyChecksumConfigurations(T builder) {
+    RequestChecksumCalculation checksumCalculation =
+        isChecksumEnabled
+            ? RequestChecksumCalculation.WHEN_SUPPORTED
+            : RequestChecksumCalculation.WHEN_REQUIRED;
+    ResponseChecksumValidation checksumValidation =
+        isChecksumEnabled
+            ? ResponseChecksumValidation.WHEN_SUPPORTED
+            : ResponseChecksumValidation.WHEN_REQUIRED;
+    builder.requestChecksumCalculation(checksumCalculation);
+    builder.responseChecksumValidation(checksumValidation);
   }
 
   /**
