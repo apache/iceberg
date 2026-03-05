@@ -68,9 +68,9 @@ public class AwsClientProperties implements Serializable {
   protected static final String CLIENT_CREDENTIAL_PROVIDER_PREFIX = "client.credentials-provider.";
 
   /**
-   * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and also
-   * other client factory classes. If set, all AWS clients except STS client will use the given
-   * region instead of the default region chain.
+   * Used by {@link org.apache.iceberg.aws.AwsClientFactories.DefaultAwsClientFactory} and other
+   * client factory classes. If set, all AWS clients will use the given region instead of the
+   * default region chain.
    */
   public static final String CLIENT_REGION = "client.region";
 
