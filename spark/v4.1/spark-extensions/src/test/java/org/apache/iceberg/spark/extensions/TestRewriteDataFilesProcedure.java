@@ -215,6 +215,30 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testRewriteDataFilesOnNonPartitionTableAsyncEnabled() {
+    createTableAsyncEnabled();
+    // create 10 files under non-partitioned table
+    insertData(10);
+    List<Object[]> expectedRecords = currentData();
+
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(5);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesWithOptions() {
     createTable();
     // create 10 files under non-partitioned table
@@ -1043,6 +1067,12 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
   private void createTable() {
     sql("CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg", tableName);
+  }
+
+  private void createTableAsyncEnabled() {
+    sql(
+        "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg TBLPROPERTIES ('%s' = '%s')",
+        tableName, TableProperties.ASYNC_READER_ENABLED, true);
   }
 
   private void createPartitionTable() {

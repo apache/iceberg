@@ -76,6 +76,7 @@ configure(jmhProjects) {
     resultFormat = 'JSON'
     includes = [jmhIncludeRegex]
     zip64 = true
+    jvmArgs = ['--add-opens=java.base/java.nio=ALL-UNNAMED']
   }
 
   jmhReport {
