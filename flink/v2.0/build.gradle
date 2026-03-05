@@ -176,12 +176,14 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     // all of those dependencies are required because the integration test extends FlinkTestBase
     integrationCompileOnly project(':iceberg-api')
     integrationImplementation libs.assertj.core
+    integrationImplementation libs.junit.jupiter
+    integrationImplementation libs.junit.jupiter.engine
+    integrationImplementation libs.junit.platform.launcher
     integrationImplementation project(path: ":iceberg-flink:iceberg-flink-${flinkMajorVersion}", configuration: "testArtifacts")
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     integrationImplementation(libs.flink20.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
-      exclude group: 'junit'
     }
 
     integrationImplementation libs.flink20.table.api.java.bridge
@@ -253,6 +255,9 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   }
 
   task integrationTest(type: Test) {
+    useJUnitPlatform {
+      excludeEngines 'junit-vintage'
+    }
     description = "Test Flink Runtime Jar against Flink ${flinkMajorVersion}"
     group = "verification"
     jvmArgs += project.property('extraJvmArgs')
