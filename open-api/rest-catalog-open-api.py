@@ -200,6 +200,7 @@ class Transform(BaseModel):
         ...,
         example=[
             'identity',
+            'void',
             'year',
             'month',
             'day',
