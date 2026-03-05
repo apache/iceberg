@@ -340,15 +340,6 @@ class BaseUpdate(BaseModel):
     action: str
 
 
-class AssignUUIDUpdate(BaseUpdate):
-    """
-    Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
-    """
-
-    action: Literal['assign-uuid'] = Field('assign-uuid', const=True)
-    uuid: str
-
-
 class UpgradeFormatVersionUpdate(BaseUpdate):
     action: Literal['upgrade-format-version'] = Field(
         'upgrade-format-version', const=True
@@ -494,15 +485,6 @@ class AssertCreate(TableRequirement):
     type: Literal['assert-create'] = Field(..., const=True)
 
 
-class AssertTableUUID(TableRequirement):
-    """
-    The table UUID must match the requirement's `uuid`
-    """
-
-    type: Literal['assert-table-uuid'] = Field(..., const=True)
-    uuid: str
-
-
 class AssertRefSnapshotId(TableRequirement):
     """
     The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`.
@@ -571,15 +553,6 @@ class AssertDefaultSortOrderId(TableRequirement):
         'assert-default-sort-order-id', const=True
     )
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
-
-
-class AssertViewUUID(BaseModel):
-    """
-    The view UUID must match the requirement's `uuid`
-    """
-
-    type: Literal['assert-view-uuid'] = Field('assert-view-uuid', const=True)
-    uuid: str
 
 
 class StorageCredential(BaseModel):
@@ -1057,6 +1030,15 @@ class TransformTerm(BaseModel):
     term: Reference
 
 
+class AssignUUIDUpdate(BaseUpdate):
+    """
+    Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
+    """
+
+    action: Literal['assign-uuid'] = Field('assign-uuid', const=True)
+    uuid: UUIDTypeValue
+
+
 class SetPartitionStatisticsUpdate(BaseUpdate):
     action: Literal['set-partition-statistics'] = Field(
         'set-partition-statistics', const=True
@@ -1066,8 +1048,22 @@ class SetPartitionStatisticsUpdate(BaseUpdate):
     )
 
 
-class ViewRequirement(BaseModel):
-    __root__: AssertViewUUID = Field(..., discriminator='type')
+class AssertTableUUID(TableRequirement):
+    """
+    The table UUID must match the requirement's `uuid`
+    """
+
+    type: Literal['assert-table-uuid'] = Field(..., const=True)
+    uuid: UUIDTypeValue
+
+
+class AssertViewUUID(BaseModel):
+    """
+    The view UUID must match the requirement's `uuid`
+    """
+
+    type: Literal['assert-view-uuid'] = Field('assert-view-uuid', const=True)
+    uuid: UUIDTypeValue
 
 
 class FailedPlanningResult(IcebergErrorResponse):
@@ -1161,6 +1157,10 @@ class SetStatisticsUpdate(BaseUpdate):
         description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
     )
     statistics: StatisticsFile
+
+
+class ViewRequirement(BaseModel):
+    __root__: AssertViewUUID = Field(..., discriminator='type')
 
 
 class UnaryExpression(BaseModel):
@@ -1358,7 +1358,7 @@ class NotExpression(BaseModel):
 
 class TableMetadata(BaseModel):
     format_version: int = Field(..., alias='format-version', ge=1, le=3)
-    table_uuid: str = Field(..., alias='table-uuid')
+    table_uuid: UUIDTypeValue = Field(..., alias='table-uuid')
     location: str | None = None
     last_updated_ms: int | None = Field(None, alias='last-updated-ms')
     next_row_id: int | None = Field(
@@ -1389,7 +1389,7 @@ class TableMetadata(BaseModel):
 
 
 class ViewMetadata(BaseModel):
-    view_uuid: str = Field(..., alias='view-uuid')
+    view_uuid: UUIDTypeValue = Field(..., alias='view-uuid')
     format_version: int = Field(..., alias='format-version', ge=1, le=1)
     location: str
     current_version_id: int = Field(..., alias='current-version-id')
