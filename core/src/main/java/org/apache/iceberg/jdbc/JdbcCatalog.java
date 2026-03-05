@@ -20,6 +20,7 @@ package org.apache.iceberg.jdbc;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -244,10 +245,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                   LOG.debug(
                       "{} is being updated to support views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
                   schemaVersion = JdbcUtil.SchemaVersion.V1;
-                  try (PreparedStatement stmt =
-                      conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL)) {
-                    return stmt.execute();
-                  }
+                  return executeV1CatalogUpdate(conn);
                 } else {
                   LOG.warn(VIEW_WARNING_LOG_MESSAGE);
                   return true;
@@ -264,6 +262,12 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
+    }
+  }
+
+  private static boolean executeV1CatalogUpdate(Connection conn) throws SQLException {
+    try (PreparedStatement stmt = conn.prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL)) {
+      return stmt.execute();
     }
   }
 
