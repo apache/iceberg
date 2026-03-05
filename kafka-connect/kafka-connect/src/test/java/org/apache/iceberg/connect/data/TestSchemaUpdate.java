@@ -28,7 +28,7 @@ public class TestSchemaUpdate {
   @Test
   public void testAddColumn() {
     SchemaUpdate.Consumer updateConsumer = new SchemaUpdate.Consumer();
-    updateConsumer.addColumn("parent", "name", Types.StringType.get());
+    updateConsumer.addColumn("parent", "name", Types.StringType.get(), true);
     assertThat(updateConsumer.addColumns()).hasSize(1);
     assertThat(updateConsumer.updateTypes()).isEmpty();
     assertThat(updateConsumer.makeOptionals()).isEmpty();
@@ -37,6 +37,22 @@ public class TestSchemaUpdate {
     assertThat(addColumn.parentName()).isEqualTo("parent");
     assertThat(addColumn.name()).isEqualTo("name");
     assertThat(addColumn.type()).isEqualTo(Types.StringType.get());
+    assertThat(addColumn.isOptional()).isTrue();
+  }
+
+  @Test
+  public void testAddColumnRequired() {
+    SchemaUpdate.Consumer updateConsumer = new SchemaUpdate.Consumer();
+    updateConsumer.addColumn("parent", "name", Types.StringType.get(), false);
+    assertThat(updateConsumer.addColumns()).hasSize(1);
+    assertThat(updateConsumer.updateTypes()).isEmpty();
+    assertThat(updateConsumer.makeOptionals()).isEmpty();
+
+    SchemaUpdate.AddColumn addColumn = updateConsumer.addColumns().iterator().next();
+    assertThat(addColumn.parentName()).isEqualTo("parent");
+    assertThat(addColumn.name()).isEqualTo("name");
+    assertThat(addColumn.type()).isEqualTo(Types.StringType.get());
+    assertThat(addColumn.isOptional()).isFalse();
   }
 
   @Test

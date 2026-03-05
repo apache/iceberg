@@ -47,8 +47,8 @@ class SchemaUpdate {
       return addColumns.isEmpty() && updateTypes.isEmpty() && makeOptionals.isEmpty();
     }
 
-    void addColumn(String parentName, String name, Type type) {
-      AddColumn addCol = new AddColumn(parentName, name, type);
+    void addColumn(String parentName, String name, Type type, boolean isOptional) {
+      AddColumn addCol = new AddColumn(parentName, name, type, isOptional);
       addColumns.put(addCol.key(), addCol);
     }
 
@@ -65,11 +65,13 @@ class SchemaUpdate {
     private final String parentName;
     private final String name;
     private final Type type;
+    private final boolean isOptional;
 
-    AddColumn(String parentName, String name, Type type) {
+    AddColumn(String parentName, String name, Type type, boolean isOptional) {
       this.parentName = parentName;
       this.name = name;
       this.type = type;
+      this.isOptional = isOptional;
     }
 
     String parentName() {
@@ -86,6 +88,10 @@ class SchemaUpdate {
 
     Type type() {
       return type;
+    }
+
+    boolean isOptional() {
+      return isOptional;
     }
   }
 
