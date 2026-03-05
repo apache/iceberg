@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
+import static org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient.UNSIGNED_HEADERS_PREDICATE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 
@@ -27,7 +28,6 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
@@ -65,6 +65,9 @@ import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.auth.aws.signer.SignerConstant;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
+import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.Delete;
@@ -76,6 +79,7 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
+import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.utils.IoUtils;
 
 @Testcontainers
@@ -181,6 +185,7 @@ public class TestS3RestSigner {
 
     s3.createMultipartUpload(
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("random/multipart-key").build());
+    S3V4RestSignerClient.resetCacheHitMissCounters();
   }
 
   private static Server initHttpServer() throws Exception {
@@ -217,23 +222,19 @@ public class TestS3RestSigner {
 
   @Test
   public void validateGetObject() {
-    int hits = S3V4RestSignerClient.cacheHits();
-    int misses = S3V4RestSignerClient.cacheMisses();
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").build());
-    assertCacheHitsAndMisses(hits, ++misses);
+    assertCacheHitsAndMisses(0, 1);
 
     // signer caching should kick in when repeating the same request with a range
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").range("0-10").build());
-    assertCacheHitsAndMisses(++hits, misses);
+    assertCacheHitsAndMisses(1, 1);
   }
 
   @Test
   public void validateHeadObjectUnsignedHeaders() {
-    int hits = S3V4RestSignerClient.cacheHits();
-    int misses = S3V4RestSignerClient.cacheMisses();
     final HeadObjectResponse response =
         s3.headObject(HeadObjectRequest.builder().bucket(BUCKET).key("random/key").build());
-    assertCacheHitsAndMisses(hits, ++misses);
+    assertCacheHitsAndMisses(0, 1);
 
     // the etag is passed in: the same object is returned and the same cached signature is retained.
     // if the ifMatch header was cached, this would have resulted in a failure as there would
@@ -244,20 +245,29 @@ public class TestS3RestSigner {
             .key("random/key")
             .ifMatch(response.eTag())
             .build());
-    assertCacheHitsAndMisses(++hits, misses);
+    assertCacheHitsAndMisses(1, 1);
   }
 
   @Test
   public void validatePutObject() {
+    int hits = S3V4RestSignerClient.cacheHits();
     s3.putObject(
         PutObjectRequest.builder().bucket(BUCKET).key("some/key").build(), Paths.get("/etc/hosts"));
+    assertCacheHitsAndMisses(0, 1);
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET).key("some/key").build(),
+        RequestBody.fromString("update"));
+    assertCacheHitsAndMisses(0, 2);
   }
 
   @Test
   public void validateDeleteObjects() {
+    int hits = S3V4RestSignerClient.cacheHits();
+    int misses = S3V4RestSignerClient.cacheMisses();
     Path sourcePath = Paths.get("/etc/hosts");
     s3.putObject(PutObjectRequest.builder().bucket(BUCKET).key("some/key1").build(), sourcePath);
     s3.putObject(PutObjectRequest.builder().bucket(BUCKET).key("some/key2").build(), sourcePath);
+    S3V4RestSignerClient.resetCacheHitMissCounters();
 
     Delete objectsToDelete =
         Delete.builder()
@@ -266,12 +276,28 @@ public class TestS3RestSigner {
                 ObjectIdentifier.builder().key("some/key2").build())
             .build();
 
-    s3.deleteObjects(DeleteObjectsRequest.builder().bucket(BUCKET).delete(objectsToDelete).build());
+    final DeleteObjectsRequest request =
+        DeleteObjectsRequest.builder().bucket(BUCKET).delete(objectsToDelete).build();
+    s3.deleteObjects(request);
+    assertCacheHitsAndMisses(0, 1);
+
+    // issue exactly the same object. DELETE must never be cached as all paths
+    // need review by the remote service.
+    s3.deleteObjects(request);
+    assertCacheHitsAndMisses(0, 2);
   }
 
   @Test
   public void validateListPrefix() {
     s3.listObjectsV2(ListObjectsV2Request.builder().bucket(BUCKET).prefix("some/prefix/").build());
+    assertCacheHitsAndMisses(0, 1);
+    s3.listObjectsV2(ListObjectsV2Request.builder().bucket(BUCKET).prefix("some/prefix/").build());
+    // list is a GET.
+    assertCacheHitsAndMisses(1, 1);
+    assertCacheHitsAndMisses(1, 1);
+    s3.listObjectsV2(ListObjectsV2Request.builder().bucket(BUCKET).prefix("some/prefix/2").build());
+    // change the prefix and the cache is missed
+    assertCacheHitsAndMisses(1, 2);
   }
 
   @Test
@@ -279,6 +305,7 @@ public class TestS3RestSigner {
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("encoded/key=value/file").build());
     // signer caching should kick in when repeating the same request
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("encoded/key=value/file").build());
+    assertCacheHitsAndMisses(1, 1);
   }
 
   @Test
@@ -294,21 +321,38 @@ public class TestS3RestSigner {
 
   @Test
   public void validatedUploadPart() {
+    final String key = "some/multipart-key";
     String multipartUploadId =
         s3.createMultipartUpload(
-                CreateMultipartUploadRequest.builder()
-                    .bucket(BUCKET)
-                    .key("some/multipart-key")
-                    .build())
+                CreateMultipartUploadRequest.builder().bucket(BUCKET).key(key).build())
             .uploadId();
-    s3.uploadPart(
-        UploadPartRequest.builder()
+    final UploadPartResponse response =
+        s3.uploadPart(
+            UploadPartRequest.builder()
+                .bucket(BUCKET)
+                .key(key)
+                .uploadId(multipartUploadId)
+                .partNumber(1)
+                .build(),
+            RequestBody.fromString("content"));
+    s3.completeMultipartUpload(
+        CompleteMultipartUploadRequest.builder()
             .bucket(BUCKET)
-            .key("some/multipart-key")
+            .key(key)
             .uploadId(multipartUploadId)
-            .partNumber(1)
-            .build(),
-        RequestBody.fromString("content"));
+            .multipartUpload(
+                CompletedMultipartUpload.builder()
+                    .parts(
+                        CompletedPart.builder()
+                            .partNumber(1)
+                            .eTag(response.eTag())
+                            .checksumCRC32(response.checksumCRC32())
+                            .checksumCRC32C(response.checksumCRC32C())
+                            .checksumSHA1(response.checksumSHA1())
+                            .checksumSHA256(response.checksumSHA256())
+                            .build())
+                    .build())
+            .build());
   }
 
   /**
@@ -390,16 +434,11 @@ public class TestS3RestSigner {
       // back after signing
       Map<String, List<String>> unsignedHeaders =
           request.headers().entrySet().stream()
-              .filter(
-                  e ->
-                      S3V4RestSignerClient.UNSIGNED_HEADERS.contains(
-                          e.getKey().toLowerCase(Locale.ROOT)))
+              .filter(UNSIGNED_HEADERS_PREDICATE)
               .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
       SdkHttpFullRequest.Builder builder = request.toBuilder();
-      for (String unsignedHeader : S3V4RestSignerClient.UNSIGNED_HEADERS) {
-        builder.removeHeader(unsignedHeader);
-      }
+      unsignedHeaders.forEach((k, v) -> builder.removeHeader(k));
 
       SdkHttpFullRequest awsResult = awsSigner.sign(builder.build(), signerParams);
       // append the unsigned headers back

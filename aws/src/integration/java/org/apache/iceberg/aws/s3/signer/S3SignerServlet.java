@@ -19,7 +19,6 @@
 package org.apache.iceberg.aws.s3.signer;
 
 import static java.lang.String.format;
-import static org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient.UNSIGNED_HEADERS;
 import static org.apache.iceberg.rest.RESTCatalogAdapter.castRequest;
 import static org.apache.iceberg.rest.RESTCatalogAdapter.castResponse;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
@@ -34,7 +33,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -183,12 +181,12 @@ public class S3SignerServlet extends HttpServlet {
 
     Map<String, List<String>> unsignedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
+            .filter(S3V4RestSignerClient.UNSIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     Map<String, List<String>> signedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> !UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
+            .filter(S3V4RestSignerClient.SIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     SdkHttpFullRequest sign =

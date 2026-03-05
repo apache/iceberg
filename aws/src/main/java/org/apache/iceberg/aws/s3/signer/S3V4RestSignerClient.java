@@ -120,16 +120,14 @@ public abstract class S3V4RestSignerClient
           "trailer",
           "upgrade");
 
-  @VisibleForTesting
   static final Predicate<Map.Entry<String, List<String>>> UNSIGNED_HEADERS_PREDICATE =
       e -> {
         String name = e.getKey().toLowerCase(Locale.ROOT);
         return name.startsWith("amz-sdk-") || UNSIGNED_HEADERS.contains(name);
       };
 
-  private static final Predicate<Map.Entry<String, List<String>>> SIGNED_HEADERS_PREDICATE =
+  static final Predicate<Map.Entry<String, List<String>>> SIGNED_HEADERS_PREDICATE =
       UNSIGNED_HEADERS_PREDICATE.negate();
-
 
   @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
   @VisibleForTesting
@@ -223,12 +221,30 @@ public abstract class S3V4RestSignerClient
     return httpClient;
   }
 
-  public static int cacheHits() {
+  /**
+   * Counter of cache hits.
+   *
+   * @return current number of requests which were succesfully satisified by a cached signature.
+   */
+  @VisibleForTesting
+  static int cacheHits() {
     return CACHE_HITS.get();
   }
 
-  public static int cacheMisses() {
+  /**
+   * Counter of cache misses
+   *
+   * @return current number of requests which required a call to the rest signer service.
+   */
+  @VisibleForTesting
+  static int cacheMisses() {
     return CACHE_MISSES.get();
+  }
+
+  @VisibleForTesting
+  static void resetCacheHitMissCounters() {
+    CACHE_HITS.set(0);
+    CACHE_MISSES.set(0);
   }
 
   @VisibleForTesting
@@ -303,10 +319,10 @@ public abstract class S3V4RestSignerClient
     AwsS3V4SignerParams signerParams =
         extractSignerParams(AwsS3V4SignerParams.builder(), executionAttributes).build();
 
-    // Strip-off headers that should not be signed
-    Map<String, List<String>> strippedHeaders =
+    // Strip-off headers that should be signed
+    Map<String, List<String>> headersToSign =
         request.headers().entrySet().stream()
-            .filter(e -> !UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
+            .filter(SIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     S3SignRequest remoteSigningRequest =
@@ -314,7 +330,7 @@ public abstract class S3V4RestSignerClient
             .method(request.method().name())
             .region(signerParams.signingRegion().id())
             .uri(request.getUri())
-            .headers(strippedHeaders)
+            .headers(headersToSign)
             .properties(requestPropertiesSupplier().get())
             .body(bodyAsString(request))
             .build();

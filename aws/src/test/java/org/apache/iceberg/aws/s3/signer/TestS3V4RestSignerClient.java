@@ -232,7 +232,7 @@ class TestS3V4RestSignerClient {
 
   static Stream<Arguments> differentRequestPairs() {
     return Stream.of(
-        // Different x-amz-content-sha256 headers
+        // Different signed headers
         Arguments.of(
             ImmutableS3SignRequest.builder()
                 .method("PUT")
