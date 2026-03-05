@@ -18,4 +18,19 @@
  */
 package org.apache.iceberg.flink;
 
-public class TestIcebergConnectorSmoke extends TestIcebergConnector {}
+import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.TestTemplate;
+
+public class TestIcebergConnectorSmoke extends TestIcebergConnector {
+
+  @Override
+  @TestTemplate
+  @Disabled("Not supported in the runtime integration test")
+  public void testCreateDynamicIcebergSink() throws DatabaseAlreadyExistException {}
+
+  @Override
+  @TestTemplate
+  @Disabled("Not supported in the runtime integration test")
+  public void testMissingDynamicRecordGeneratorImpl() throws DatabaseAlreadyExistException {}
+}
