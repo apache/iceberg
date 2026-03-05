@@ -94,7 +94,7 @@ public class TestCommitterImpl {
     clientFactoryField.setAccessible(true);
 
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
-    when(config.connectGroupId()).thenReturn("test-group");
+    when(config.sourceConsumerGroupId()).thenReturn("test-group");
     configField.set(committer, config);
 
     KafkaClientFactory clientFactory = mock(KafkaClientFactory.class);

@@ -92,7 +92,7 @@ public class TestWorker extends ChannelTestBase {
       worker.save(ImmutableList.of(rec));
 
       UUID commitId = UUID.randomUUID();
-      Event commitRequest = new Event(config.connectGroupId(), new StartCommit(commitId));
+      Event commitRequest = new Event(config.sourceConsumerGroupId(), new StartCommit(commitId));
       byte[] bytes = AvroUtil.encode(commitRequest);
       consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
 

@@ -77,7 +77,7 @@ public class CommitterImpl implements Committer {
   boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
-      groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
+      groupDesc = KafkaUtils.consumerGroupDescription(config.sourceConsumerGroupId(), admin);
     }
 
     Collection<MemberDescription> members = groupDesc.members();
