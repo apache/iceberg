@@ -430,23 +430,6 @@ public abstract class S3V4RestSignerClient
   }
 
   @Value.Immutable
-  interface Key {
-    String method();
-
-    String region();
-
-    String uri();
-
-    static Key from(S3SignRequest request) {
-      return ImmutableKey.builder()
-          .method(request.method())
-          .region(request.region())
-          .uri(request.uri().toString())
-          .build();
-    }
-  }
-
-  @Value.Immutable
   interface SignedComponent {
     Map<String, List<String>> headers();
 
