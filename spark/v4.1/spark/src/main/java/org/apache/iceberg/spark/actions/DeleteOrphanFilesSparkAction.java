@@ -227,6 +227,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     if (location != null) {
       files = files.filter(files.col(FILE_PATH).startsWith(location));
     }
+
     return files
         .filter(files.col(LAST_MODIFIED).lt(new Timestamp(olderThanTimestamp)))
         .select(files.col(FILE_PATH))
@@ -245,6 +246,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     if (location != null) {
       options.add("location=" + location);
     }
+
     String optionsAsString = COMMA_JOINER.join(options);
     return String.format("Deleting orphan files (%s) from %s", optionsAsString, table.name());
   }
@@ -476,6 +478,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         }
       }
     }
+
     return flattenedMap;
   }
 

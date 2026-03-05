@@ -279,6 +279,7 @@ public class TestS3OutputStream {
     } catch (NoSuchAlgorithmException e) {
       fail("Failed to get MD5 MessageDigest. %s", e);
     }
+
     return null;
   }
 

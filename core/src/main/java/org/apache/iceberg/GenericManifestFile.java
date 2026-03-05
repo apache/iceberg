@@ -150,6 +150,7 @@ public class GenericManifestFile extends SupportsIndexProjection
       // DummyFileIO does not support .length()
       this.length = null;
     }
+
     this.specId = toCopy.specId;
     this.content = toCopy.content;
     this.sequenceNumber = toCopy.sequenceNumber;
@@ -169,6 +170,7 @@ public class GenericManifestFile extends SupportsIndexProjection
     } else {
       this.partitions = null;
     }
+
     this.keyMetadata =
         toCopy.keyMetadata == null
             ? null
@@ -196,6 +198,7 @@ public class GenericManifestFile extends SupportsIndexProjection
         return null;
       }
     }
+
     return length;
   }
 
@@ -411,6 +414,7 @@ public class GenericManifestFile extends SupportsIndexProjection
     } else if (!(other instanceof GenericManifestFile)) {
       return false;
     }
+
     GenericManifestFile that = (GenericManifestFile) other;
     return Objects.equal(manifestPath, that.manifestPath);
   }
@@ -490,8 +494,10 @@ public class GenericManifestFile extends SupportsIndexProjection
       for (E element : list) {
         copy.add(transform.apply(element));
       }
+
       return copy;
     }
+
     return null;
   }
 }

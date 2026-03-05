@@ -56,6 +56,7 @@ public class TestGenericReaderDeletes extends DeleteReadTests {
           CloseableIterable.transform(
               reader, record -> new InternalRecordWrapper(schema).wrap(record)));
     }
+
     return set;
   }
 

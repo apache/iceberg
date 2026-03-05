@@ -121,6 +121,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
               field, readersById.get(field.fieldId()), idToConstant, setArrowValidityVector);
       reorderedFields.add(defaultReader(field, reader));
     }
+
     return vectorizedReader(reorderedFields);
   }
 
@@ -151,6 +152,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       throw new UnsupportedOperationException(
           "Vectorized reads are not supported yet for struct fields");
     }
+
     return null;
   }
 
@@ -162,16 +164,19 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     if (primitive.getId() == null) {
       return null;
     }
+
     int parquetFieldId = primitive.getId().intValue();
     ColumnDescriptor desc = parquetSchema.getColumnDescription(currentPath());
     // Nested types not yet supported for vectorized reads
     if (desc.getMaxRepetitionLevel() > 0) {
       return null;
     }
+
     Types.NestedField icebergField = icebergSchema.findField(parquetFieldId);
     if (icebergField == null) {
       return null;
     }
+
     // Set the validity buffer if null checking is enabled in arrow
     return new VectorizedArrowReader(desc, icebergField, rootAllocator, setArrowValidityVector);
   }

@@ -127,6 +127,7 @@ class SketchUtil {
         numChosen += 1;
       }
     }
+
     SortKey[] candidates = candidatesList.toArray(new SortKey[0]);
     return candidates;
   }

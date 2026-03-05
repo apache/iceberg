@@ -84,6 +84,7 @@ public class ScanSummary {
       for (Snapshot snap : table.snapshots()) {
         builder.put(snap.snapshotId(), snap.timestampMillis());
       }
+
       this.snapshotTimestamps = builder.build();
     }
 
@@ -289,6 +290,7 @@ public class ScanSummary {
           && (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
         this.dataTimestampMillis = timestampMillis;
       }
+
       return this;
     }
 
@@ -300,6 +302,7 @@ public class ScanSummary {
           && (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
         this.dataTimestampMillis = timestampMillis;
       }
+
       return this;
     }
 
@@ -350,6 +353,7 @@ public class ScanSummary {
           throw new IllegalStateException(
               String.format(Locale.ROOT, "Too many matching keys: more than %d", maxSize));
         }
+
         this.cut = map.lastKey();
         map.remove(cut);
       }
@@ -365,6 +369,7 @@ public class ScanSummary {
     for (Expression expression : expressions) {
       result = Expressions.and(result, expression);
     }
+
     return result;
   }
 
@@ -376,6 +381,7 @@ public class ScanSummary {
       // in millis
       return timestamp;
     }
+
     // in micros
     return timestamp / 1000;
   }
@@ -392,29 +398,35 @@ public class ScanSummary {
           if (value - 1 < maxTimestamp) {
             maxTimestamp = value - 1;
           }
+
           break;
         case LT_EQ:
           if (value < maxTimestamp) {
             maxTimestamp = value;
           }
+
           break;
         case GT:
           if (value + 1 > minTimestamp) {
             minTimestamp = value + 1;
           }
+
           break;
         case GT_EQ:
           if (value > minTimestamp) {
             minTimestamp = value;
           }
+
           break;
         case EQ:
           if (value < maxTimestamp) {
             maxTimestamp = value;
           }
+
           if (value > minTimestamp) {
             minTimestamp = value;
           }
+
           break;
         default:
           throw new UnsupportedOperationException(

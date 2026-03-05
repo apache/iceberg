@@ -496,6 +496,7 @@ public class TestRewriteManifestsAction extends TestBase {
     for (int fileOrdinal = 0; fileOrdinal < 1000; fileOrdinal++) {
       dataFiles.add(newDataFile(table, "c3=" + fileOrdinal));
     }
+
     ManifestFile appendManifest = writeManifest(table, dataFiles);
     table.newFastAppend().appendManifest(appendManifest).commit();
 
@@ -593,6 +594,7 @@ public class TestRewriteManifestsAction extends TestBase {
               table,
               TestHelpers.Row.of(i, String.valueOf(random.nextInt() * 100), random.nextInt(10))));
     }
+
     ManifestFile appendManifest = writeManifest(table, dataFiles);
     table.newFastAppend().appendManifest(appendManifest).commit();
 
@@ -798,6 +800,7 @@ public class TestRewriteManifestsAction extends TestBase {
     for (int fileOrdinal = 0; fileOrdinal < 1000; fileOrdinal++) {
       dataFiles.add(newDataFile(table, TestHelpers.Row.of(new Object[] {null})));
     }
+
     ManifestFile appendManifest = writeManifest(table, dataFiles);
     table.newFastAppend().appendManifest(appendManifest).commit();
 
@@ -1027,6 +1030,7 @@ public class TestRewriteManifestsAction extends TestBase {
     for (DeleteFile deleteFile : deleteFiles) {
       rowDelta.addDeletes(deleteFile);
     }
+
     rowDelta.commit();
 
     // the current snapshot should contain only 1 delete manifest

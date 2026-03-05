@@ -93,6 +93,7 @@ public interface ExtendedParser extends ParserInterface {
             return (ParserInterface) value;
           }
         }
+
         clazz = clazz.getSuperclass();
       }
     } catch (Exception e) {

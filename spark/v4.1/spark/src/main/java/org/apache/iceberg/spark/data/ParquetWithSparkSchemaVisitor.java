@@ -145,6 +145,7 @@ public class ParquetWithSparkSchemaVisitor<T> {
                 valueResult = visitField(valueField, keyOrValue, visitor);
                 // key result remains null
               }
+
               break;
             default:
               // both results will remain null

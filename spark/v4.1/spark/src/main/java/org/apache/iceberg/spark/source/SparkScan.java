@@ -184,6 +184,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     if (readSchema == null) {
       this.readSchema = SparkSchemaUtil.convert(projection);
     }
+
     return readSchema;
   }
 
@@ -234,6 +235,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
               LOG.debug("Blob type {} is not supported yet", blobMetadata.type());
             }
           }
+
           ColumnStatistics colStats =
               new SparkColumnStatistics(ndv, null, null, null, null, null, null);
 

@@ -58,6 +58,7 @@ public class LocationProviders {
                 impl, LocationProvider.class),
             e);
       }
+
       try {
         return ctor.newInstance(location, properties);
       } catch (ClassCastException e) {
@@ -111,6 +112,7 @@ public class LocationProviders {
           dataLocation = String.format("%s/data", tableLocation);
         }
       }
+
       return dataLocation;
     }
 
@@ -148,6 +150,7 @@ public class LocationProviders {
       } else {
         this.context = pathContext(tableLocation);
       }
+
       this.includePartitionPaths =
           PropertyUtil.propertyAsBoolean(
               properties,
@@ -168,6 +171,7 @@ public class LocationProviders {
           }
         }
       }
+
       return dataLocation;
     }
 
@@ -240,6 +244,7 @@ public class LocationProviders {
         if (i > 0) {
           hashWithDirs.append("/");
         }
+
         hashWithDirs.append(hash, i, Math.min(i + ENTROPY_DIR_LENGTH, hash.length()));
       }
 

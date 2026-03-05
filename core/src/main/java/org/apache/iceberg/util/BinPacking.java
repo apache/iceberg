@@ -169,6 +169,7 @@ public class BinPacking {
             } else {
               binToRemove = bins.removeFirst();
             }
+
             return ImmutableList.copyOf(binToRemove.items());
           }
         }
@@ -187,6 +188,7 @@ public class BinPacking {
           return bin;
         }
       }
+
       return null;
     }
 

@@ -73,6 +73,7 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
         }
       }
     }
+
     return spec;
   }
 

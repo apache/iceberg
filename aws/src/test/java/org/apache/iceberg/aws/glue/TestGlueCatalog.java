@@ -391,6 +391,7 @@ public class TestGlueCatalog {
                 if (createTableRequest.tableInput().storageDescriptor().hasParameters()) {
                   counter.decrementAndGet();
                 }
+
                 return CreateTableResponse.builder().build();
               }
             })

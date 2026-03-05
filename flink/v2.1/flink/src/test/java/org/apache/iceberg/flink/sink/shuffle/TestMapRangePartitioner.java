@@ -61,6 +61,7 @@ public class TestMapRangePartitioner {
       sortKey.wrap(keyWrapper);
       sortKeys[i] = sortKey;
     }
+
     return sortKeys;
   }
 

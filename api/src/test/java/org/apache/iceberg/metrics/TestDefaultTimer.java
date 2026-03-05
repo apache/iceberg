@@ -95,6 +95,7 @@ public class TestDefaultTimer {
     try (Timer.Timed sample = timer.start()) {
       Thread.sleep(500L);
     }
+
     assertThat(timer.count()).isEqualTo(1);
     assertThat(timer.totalDuration()).isGreaterThan(Duration.ZERO);
   }
@@ -134,6 +135,7 @@ public class TestDefaultTimer {
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
+
           return true;
         };
     assertThat(timer.count()).isEqualTo(0);
@@ -160,6 +162,7 @@ public class TestDefaultTimer {
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
+
           return true;
         };
     assertThat(timer.count()).isEqualTo(0);

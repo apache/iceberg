@@ -420,6 +420,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
           "Before and after path rewrite, statistic file size should be same");
       result.add(Pair.of(before.path(), after.path()));
     }
+
     return result;
   }
 
@@ -441,6 +442,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
           "Before and after path rewrite, partition statistic file size should be same");
       result.add(Pair.of(before.path(), after.path()));
     }
+
     return result;
   }
 
@@ -593,6 +595,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
           throw new UnsupportedOperationException(
               "Unsupported manifest type: " + manifestFile.content());
       }
+
       return result;
     };
   }
@@ -777,6 +780,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     if (path == null || path.trim().isEmpty()) {
       return false;
     }
+
     return table.io().newInputFile(path).exists();
   }
 

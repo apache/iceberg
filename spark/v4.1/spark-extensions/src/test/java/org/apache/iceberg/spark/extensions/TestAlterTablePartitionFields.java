@@ -401,6 +401,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
               .addField("hour", 3, 1001, "ts_hour")
               .build();
     }
+
     assertThat(table.spec())
         .as("Should changed from daily to hourly partitioned field")
         .isEqualTo(expected);
@@ -435,6 +436,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
               .addField("hour", 3, 1001, "hour_col")
               .build();
     }
+
     assertThat(table.spec())
         .as("Should changed from daily to hourly partitioned field")
         .isEqualTo(expected);
@@ -469,6 +471,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
               .addField("hour", 3, 1001, "ts_hour")
               .build();
     }
+
     assertThat(table.spec())
         .as("Should changed from daily to hourly partitioned field")
         .isEqualTo(expected);
@@ -503,6 +506,7 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
               .addField("hour", 3, 1001, "hour_col")
               .build();
     }
+
     assertThat(table.spec())
         .as("Should changed from daily to hourly partitioned field")
         .isEqualTo(expected);

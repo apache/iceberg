@@ -867,6 +867,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
         }
       }
     }
+
     return expected;
   }
 
@@ -874,6 +875,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
     if (partValue == null) {
       return true;
     }
+
     Record partition = (Record) file.get(4);
     return partValue.equals(partition.get(0).toString());
   }

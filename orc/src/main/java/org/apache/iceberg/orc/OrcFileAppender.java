@@ -88,6 +88,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     if (file instanceof HadoopOutputFile) {
       options.fileSystem(((HadoopOutputFile) file).getFileSystem());
     }
+
     options.setSchema(orcSchema);
     this.writer = ORC.newFileWriter(file, options, metadata);
     this.valueWriter = newOrcRowWriter(schema, orcSchema, createWriterFunc);

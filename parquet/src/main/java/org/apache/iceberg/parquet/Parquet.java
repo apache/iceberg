@@ -241,6 +241,7 @@ public class Parquet {
       if (newCreateWriterFunc != null) {
         this.createWriterFunc = (icebergSchema, type) -> newCreateWriterFunc.apply(type);
       }
+
       return this;
     }
 
@@ -329,6 +330,7 @@ public class Parquet {
                 if (fpp != null) {
                   withBloomFilterFPP.accept(parquetColumnPath, Double.parseDouble(fpp));
                 }
+
                 String ndv = context.columnBloomFilterNdv().get(colPath);
                 if (ndv != null) {
                   withBloomFilterNDV.accept(parquetColumnPath, Long.parseLong(ndv));
@@ -350,6 +352,7 @@ public class Parquet {
                   LOG.warn("Skipping column statistics config for missing field: {}", colPath);
                   return;
                 }
+
                 withColumnStatsEnabled.accept(parquetColumnPath, Boolean.valueOf(isEnabled));
               });
     }
@@ -1151,6 +1154,7 @@ public class Parquet {
       for (Map.Entry<String, String> entry : config.entrySet()) {
         configuration.set(entry.getKey(), entry.getValue());
       }
+
       return new ParquetWriteSupport<>(type, keyValueMetadata, writeSupport);
     }
   }
@@ -1441,6 +1445,7 @@ public class Parquet {
           for (String property : READ_PROPERTIES_TO_REMOVE) {
             conf.unset(property);
           }
+
           optionsBuilder = HadoopReadOptions.builder(conf);
         } else {
           optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
@@ -1534,6 +1539,7 @@ public class Parquet {
         } catch (IOException e) {
           throw new RuntimeIOException(e);
         }
+
         Schema fileSchema = ParquetSchemaUtil.convert(type);
         builder
             .useStatsFilter()
@@ -1635,6 +1641,7 @@ public class Parquet {
     for (File inputFile : inputFiles) {
       writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));
     }
+
     writer.end(metadata);
   }
 }

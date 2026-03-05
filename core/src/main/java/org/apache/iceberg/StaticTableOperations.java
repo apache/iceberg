@@ -61,6 +61,7 @@ public class StaticTableOperations implements TableOperations {
     if (staticMetadata == null) {
       staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
     }
+
     return staticMetadata;
   }
 

@@ -61,6 +61,7 @@ public class StatisticsFileParser {
     for (BlobMetadata blobMetadata : statisticsFile.blobMetadata()) {
       toJson(blobMetadata, generator);
     }
+
     generator.writeEndArray();
     generator.writeEndObject();
   }
@@ -79,6 +80,7 @@ public class StatisticsFileParser {
     for (JsonNode blobJson : blobsJson) {
       blobMetadata.add(blobMetadataFromJson(blobJson));
     }
+
     return new GenericStatisticsFile(
         snapshotId, path, fileSizeInBytes, fileFooterSizeInBytes, blobMetadata.build());
   }
@@ -93,11 +95,13 @@ public class StatisticsFileParser {
     for (int field : blobMetadata.fields()) {
       generator.writeNumber(field);
     }
+
     generator.writeEndArray();
 
     if (!blobMetadata.properties().isEmpty()) {
       JsonUtil.writeStringMap(PROPERTIES, blobMetadata.properties(), generator);
     }
+
     generator.writeEndObject();
   }
 
@@ -112,6 +116,7 @@ public class StatisticsFileParser {
     } else {
       properties = ImmutableMap.of();
     }
+
     return new GenericBlobMetadata(
         type, sourceSnapshotId, sourceSnapshotSequenceNumber, fields, properties);
   }

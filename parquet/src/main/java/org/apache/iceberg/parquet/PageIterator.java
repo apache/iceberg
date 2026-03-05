@@ -222,6 +222,7 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
                   currentDL),
               exception));
     }
+
     throw new ParquetDecodingException(
         String.format(
             Locale.ROOT,
@@ -252,6 +253,7 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
                 + " as the dictionary was missing for encoding "
                 + dataEncoding);
       }
+
       this.values =
           dataEncoding.getDictionaryBasedValuesReader(desc, ValuesType.VALUES, dictionary);
     } else {

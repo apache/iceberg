@@ -55,6 +55,7 @@ public interface VariantObject extends VariantValue {
 
       builder.append(field).append(": ").append(object.get(field));
     }
+
     builder.append("})");
 
     return builder.toString();

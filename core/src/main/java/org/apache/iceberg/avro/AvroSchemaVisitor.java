@@ -66,6 +66,7 @@ public abstract class AvroSchemaVisitor<T> {
         for (Schema type : types) {
           options.add(visit(type, visitor));
         }
+
         return visitor.union(schema, options);
 
       case ARRAY:

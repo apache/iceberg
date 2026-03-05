@@ -73,6 +73,7 @@ class VendedAzureSasCredentialPolicy implements HttpPipelinePolicy {
                   }
                 }
               }
+
               azureSasCredential.update(sasToken);
               return Mono.empty();
             });

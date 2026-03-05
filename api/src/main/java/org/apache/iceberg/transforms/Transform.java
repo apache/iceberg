@@ -181,12 +181,14 @@ public interface Transform<S, T> extends Serializable {
         } else {
           return TransformUtil.humanTimestampWithoutZone((Long) value);
         }
+
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
           return TransformUtil.humanTimestampNanoWithZone((Long) value);
         } else {
           return TransformUtil.humanTimestampNanoWithoutZone((Long) value);
         }
+
       case FIXED:
       case BINARY:
         if (value instanceof ByteBuffer) {
@@ -196,6 +198,7 @@ public interface Transform<S, T> extends Serializable {
         } else {
           throw new UnsupportedOperationException("Unsupported binary type: " + value.getClass());
         }
+
       default:
         return value.toString();
     }

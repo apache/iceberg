@@ -217,6 +217,7 @@ public class ManifestFiles {
       case 4:
         return new ManifestWriter.V4Writer(spec, encryptedOutputFile, snapshotId, firstRowId);
     }
+
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
   }
@@ -277,6 +278,7 @@ public class ManifestFiles {
       case 4:
         return new ManifestWriter.V4DeleteWriter(spec, outputFile, snapshotId);
     }
+
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
   }
@@ -318,6 +320,7 @@ public class ManifestFiles {
       case DELETES:
         return ManifestFiles.readDeleteManifest(manifest, io, specsById);
     }
+
     throw new UnsupportedOperationException(
         "Cannot read unknown manifest type: " + manifest.content());
   }

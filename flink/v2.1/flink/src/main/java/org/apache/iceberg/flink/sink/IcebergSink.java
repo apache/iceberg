@@ -388,6 +388,7 @@ public class IcebergSink
               String uid = String.format("Sink pre-writer mapper: %s", newUidSuffix);
               inputStream.name(uid).uid(uid);
             }
+
             return inputStream;
           };
       return this;
@@ -484,6 +485,7 @@ public class IcebergSink
       if (mode != null) {
         writeOptions.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), mode.modeName());
       }
+
       return this;
     }
 
@@ -507,6 +509,7 @@ public class IcebergSink
       if (type != null) {
         writeOptions.put(FlinkWriteOptions.RANGE_DISTRIBUTION_STATISTICS_TYPE.key(), type.name());
       }
+
       return this;
     }
 
@@ -729,6 +732,7 @@ public class IcebergSink
     if (uidSuffix == null || uidSuffix.isEmpty()) {
       return defaultSuffix;
     }
+
     return uidSuffix;
   }
 
@@ -846,6 +850,7 @@ public class IcebergSink
               partitionField,
               equalityFieldColumns);
         }
+
         return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
       }
     }

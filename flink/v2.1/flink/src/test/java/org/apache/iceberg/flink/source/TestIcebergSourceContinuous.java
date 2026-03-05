@@ -535,6 +535,7 @@ public class TestIcebergSourceContinuous {
         break;
       }
     }
+
     return results;
   }
 

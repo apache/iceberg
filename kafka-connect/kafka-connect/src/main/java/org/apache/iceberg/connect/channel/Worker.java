@@ -84,6 +84,7 @@ class Worker extends Channel {
                   if (offset == null) {
                     offset = Offset.NULL_OFFSET;
                   }
+
                   return new TopicPartitionOffset(
                       tp.topic(), tp.partition(), offset.offset(), offset.timestamp());
                 })

@@ -110,6 +110,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
       throw new UnsupportedOperationException(
           this.getClass().getName() + " does not have a metadata file location");
     }
+
     return metadataFileLocation;
   }
 
@@ -175,6 +176,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
       throw new UnsupportedOperationException(
           this.getClass().getName() + " does not have a format version");
     }
+
     return formatVersion;
   }
 

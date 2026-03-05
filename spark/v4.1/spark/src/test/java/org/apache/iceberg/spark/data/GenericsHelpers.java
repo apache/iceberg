@@ -183,6 +183,7 @@ public class GenericsHelpers {
 
           assertThat(actual).as("Timestamp should be equal").isEqualTo(expected);
         }
+
         break;
       case STRING:
         assertThat(actual)
@@ -339,6 +340,7 @@ public class GenericsHelpers {
         } else {
           assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         }
+
         break;
       case DOUBLE:
         assertThat(actual).as("Should be a double").isInstanceOf(Double.class);
@@ -349,6 +351,7 @@ public class GenericsHelpers {
         } else {
           assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         }
+
         break;
       case BOOLEAN:
       case INTEGER:
@@ -382,6 +385,7 @@ public class GenericsHelpers {
               .as("Primitive value should be equal to expected")
               .isEqualTo(expectedMicros);
         }
+
         break;
       case STRING:
         assertThat(actual)

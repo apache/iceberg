@@ -67,6 +67,7 @@ class ParquetWritingTestUtils {
     if (writer instanceof ParquetWriter) {
       len = writer.length();
     }
+
     return len;
   }
 

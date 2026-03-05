@@ -84,6 +84,7 @@ class ManifestLists {
             sequenceNumber,
             firstRowId);
     }
+
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);
   }

@@ -170,6 +170,7 @@ public class FlinkPlannedAvroReader implements DatumReader<RowData>, SupportsRow
           if (partner != null && partner.typeId() == Type.TypeID.LONG) {
             return ValueReaders.intsAsLongs();
           }
+
           return ValueReaders.ints();
         case LONG:
           return ValueReaders.longs();
@@ -177,6 +178,7 @@ public class FlinkPlannedAvroReader implements DatumReader<RowData>, SupportsRow
           if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
             return ValueReaders.floatsAsDoubles();
           }
+
           return ValueReaders.floats();
         case DOUBLE:
           return ValueReaders.doubles();

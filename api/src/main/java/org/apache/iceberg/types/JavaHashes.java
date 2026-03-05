@@ -35,6 +35,7 @@ public class JavaHashes {
       char ch = str.charAt(i);
       result = 31 * result + (int) ch;
     }
+
     return result;
   }
 
@@ -95,6 +96,7 @@ public class JavaHashes {
       for (int i = 0; i < len; i += 1) {
         result = 41 * result + hashes[i].hash(struct.get(i, Object.class));
       }
+
       return result;
     }
   }
@@ -117,6 +119,7 @@ public class JavaHashes {
       for (Object o : list) {
         result = 37 * result + elementHash.hash(o);
       }
+
       return result;
     }
   }

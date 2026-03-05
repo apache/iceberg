@@ -107,6 +107,7 @@ class V2Metadata {
           } else {
             return wrapped.sequenceNumber();
           }
+
         case 5:
           if (wrapped.minSequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
             // same sanity check as above
@@ -122,6 +123,7 @@ class V2Metadata {
           } else {
             return wrapped.minSequenceNumber();
           }
+
         case 6:
           return wrapped.snapshotId();
         case 7:
@@ -334,6 +336,7 @@ class V2Metadata {
 
             return null;
           }
+
           return wrapped.dataSequenceNumber();
         case 3:
           return wrapped.fileSequenceNumber();
@@ -466,6 +469,7 @@ class V2Metadata {
             return null;
           }
       }
+
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
 

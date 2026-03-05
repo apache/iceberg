@@ -60,6 +60,7 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
         }
       }
     }
+
     return parameters;
   }
 

@@ -114,6 +114,7 @@ public abstract class IntegrationTestBase {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+
     producer.close();
     admin.close();
   }

@@ -33,6 +33,7 @@ public abstract class MemoryMockKMS implements KeyManagementClient {
       throw new RuntimeException(
           "Cannot wrap, because wrapping key " + wrappingKeyId + " is not found");
     }
+
     Ciphers.AesGcmEncryptor keyEncryptor = new Ciphers.AesGcmEncryptor(wrappingKey);
     byte[] encryptedKey = keyEncryptor.encrypt(key.array(), null);
     return ByteBuffer.wrap(encryptedKey);
@@ -45,6 +46,7 @@ public abstract class MemoryMockKMS implements KeyManagementClient {
       throw new RuntimeException(
           "Cannot unwrap, because wrapping key " + wrappingKeyId + " is not found");
     }
+
     Ciphers.AesGcmDecryptor keyDecryptor = new Ciphers.AesGcmDecryptor(wrappingKey);
     byte[] key = keyDecryptor.decrypt(wrappedKey.array(), null);
     return ByteBuffer.wrap(key);

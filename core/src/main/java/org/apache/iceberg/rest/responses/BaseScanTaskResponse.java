@@ -90,6 +90,7 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
             DeleteFileSet.of(
                 () -> tasks.stream().flatMap(task -> task.deletes().stream()).iterator());
       }
+
       return self();
     }
 

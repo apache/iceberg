@@ -126,6 +126,7 @@ public class ZOrderByteUtils {
       CharBuffer inputBuffer = CharBuffer.wrap(val);
       encoder.encode(inputBuffer, bytes, true);
     }
+
     return bytes;
   }
 
@@ -147,6 +148,7 @@ public class ZOrderByteUtils {
     } else {
       bytes.put(val, 0, length);
     }
+
     return bytes;
   }
 
@@ -214,6 +216,7 @@ public class ZOrderByteUtils {
         }
       } while (columnsBinary[sourceColumn].length <= sourceByte);
     }
+
     return interleavedBytes;
   }
 }

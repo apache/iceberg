@@ -102,6 +102,7 @@ enum Dates implements Transform<Integer, Integer> {
     if (granularity == ChronoUnit.DAYS) {
       return Types.DateType.get();
     }
+
     return Types.IntegerType.get();
   }
 

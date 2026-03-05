@@ -50,6 +50,7 @@ public interface VariantArray extends VariantValue {
 
       builder.append(arr.get(i));
     }
+
     builder.append("])");
 
     return builder.toString();

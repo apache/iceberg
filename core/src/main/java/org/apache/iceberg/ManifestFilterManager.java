@@ -623,6 +623,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
             partition.copy(), // The partition may be a re-used container so a copy is required
             Pair.of(inclusive, strict));
       }
+
       return metricsEvaluators.get(partition);
     }
   }

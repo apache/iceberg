@@ -117,6 +117,7 @@ public class SimpleDataUtil {
     } else {
       spec = PartitionSpec.unpartitioned();
     }
+
     return new HadoopTables().create(SCHEMA, spec, properties, path);
   }
 
@@ -222,6 +223,7 @@ public class SimpleDataUtil {
     try (EqualityDeleteWriter<RowData> writer = eqWriter) {
       writer.write(deletes);
     }
+
     return eqWriter.toDeleteFile();
   }
 
@@ -262,6 +264,7 @@ public class SimpleDataUtil {
         writer.write(posDelete.set(p.first(), p.second(), null));
       }
     }
+
     return posWriter.toDeleteFile();
   }
 
@@ -299,6 +302,7 @@ public class SimpleDataUtil {
         records.add(createRecord(id, data, extra));
       }
     }
+
     return records;
   }
 
@@ -325,6 +329,7 @@ public class SimpleDataUtil {
         records.add(record);
       }
     }
+
     return records;
   }
 
@@ -332,6 +337,7 @@ public class SimpleDataUtil {
     if (expected.size() != actual.size()) {
       return false;
     }
+
     Types.StructType type = schema.asStruct();
     StructLikeSet expectedSet = StructLikeSet.create(type);
     expectedSet.addAll(expected);
@@ -431,6 +437,7 @@ public class SimpleDataUtil {
     for (Record record : records) {
       set.add(wrapper.copyFor(record));
     }
+
     return set;
   }
 
@@ -450,6 +457,7 @@ public class SimpleDataUtil {
             .build()) {
       reader.forEach(record -> set.add(wrapper.copyFor(record)));
     }
+
     return set;
   }
 
@@ -491,6 +499,7 @@ public class SimpleDataUtil {
         // Collect the data files that was added in the oldest snapshot.
         tableScan = tableScan.useSnapshot(current.snapshotId());
       }
+
       try (CloseableIterable<FileScanTask> scanTasks = tableScan.planFiles()) {
         result.put(
             current.snapshotId(),
@@ -501,9 +510,11 @@ public class SimpleDataUtil {
       if (current.parentId() == null) {
         break;
       }
+
       // Iterate to the parent snapshot.
       current = table.snapshot(current.parentId());
     }
+
     return result;
   }
 

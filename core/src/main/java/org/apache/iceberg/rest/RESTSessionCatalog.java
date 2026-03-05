@@ -610,6 +610,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           properties(),
           conf);
     }
+
     return null;
   }
 
@@ -903,6 +904,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       if (props != null) {
         this.propertiesBuilder.putAll(props);
       }
+
       return this;
     }
 
@@ -1114,6 +1116,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     } else {
       changes.add(new MetadataUpdate.AddPartitionSpec(PartitionSpec.unpartitioned()));
     }
+
     changes.add(new MetadataUpdate.SetDefaultPartitionSpec(-1));
 
     SortOrder order = meta.sortOrder();
@@ -1122,6 +1125,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     } else {
       changes.add(new MetadataUpdate.AddSortOrder(SortOrder.unsorted()));
     }
+
     changes.add(new MetadataUpdate.SetDefaultSortOrder(-1));
 
     String location = meta.location();

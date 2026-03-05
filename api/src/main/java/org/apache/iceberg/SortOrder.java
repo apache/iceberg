@@ -119,6 +119,7 @@ public class SortOrder implements Serializable {
         }
       }
     }
+
     return fieldList;
   }
 
@@ -141,9 +142,11 @@ public class SortOrder implements Serializable {
       sb.append("\n");
       sb.append("  ").append(field);
     }
+
     if (fields.length > 0) {
       sb.append("\n");
     }
+
     sb.append("]");
     return sb.toString();
   }
@@ -271,6 +274,7 @@ public class SortOrder implements Serializable {
         if (orderId != null && orderId != 0) {
           throw new IllegalArgumentException("Unsorted order ID must be 0");
         }
+
         return SortOrder.unsorted();
       }
 

@@ -76,6 +76,7 @@ public abstract class BaseMetastoreOperations {
           newMetadataLocation);
       return CommitStatus.UNKNOWN;
     }
+
     return strictStatus;
   }
 
@@ -147,6 +148,7 @@ public abstract class BaseMetastoreOperations {
           tableOrViewName,
           maxAttempts);
     }
+
     return status.get();
   }
 }

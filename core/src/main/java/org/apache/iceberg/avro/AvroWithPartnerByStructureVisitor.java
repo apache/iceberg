@@ -148,6 +148,7 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
         }
       }
     }
+
     return visitor.union(type, union, options);
   }
 

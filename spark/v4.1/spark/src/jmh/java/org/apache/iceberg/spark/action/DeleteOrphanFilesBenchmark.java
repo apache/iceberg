@@ -137,6 +137,7 @@ public class DeleteOrphanFilesBenchmark {
                 .build();
         appendFiles.appendFile(dataFile);
       }
+
       appendFiles.commit();
     }
   }
@@ -159,6 +160,7 @@ public class DeleteOrphanFilesBenchmark {
         throw new RuntimeException(e);
       }
     }
+
     return table;
   }
 

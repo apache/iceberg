@@ -98,6 +98,7 @@ public class TestSparkMetadataColumns extends TestBase {
       parameters.add(new Object[] {FileFormat.ORC, false, version});
       parameters.add(new Object[] {FileFormat.ORC, true, version});
     }
+
     return parameters.toArray(new Object[0][]);
   }
 
@@ -224,6 +225,7 @@ public class TestSparkMetadataColumns extends TestBase {
     for (long id = 0L; id < 200L; id++) {
       ids.add(id);
     }
+
     Dataset<Row> df =
         spark
             .createDataset(ids, Encoders.LONG())
@@ -248,6 +250,7 @@ public class TestSparkMetadataColumns extends TestBase {
     for (long id = 0L; id < 7500L; id++) {
       ids.add(id);
     }
+
     Dataset<Row> df =
         spark
             .createDataset(ids, Encoders.LONG())

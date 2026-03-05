@@ -561,6 +561,7 @@ public class Types {
       if (scale != that.scale) {
         return false;
       }
+
       return precision == that.precision;
     }
 
@@ -904,6 +905,7 @@ public class Types {
       if (isOptional) {
         return this;
       }
+
       return new NestedField(true, id, name, type, doc, initialDefault, writeDefault);
     }
 
@@ -915,6 +917,7 @@ public class Types {
       if (!isOptional) {
         return this;
       }
+
       return new NestedField(false, id, name, type, doc, initialDefault, writeDefault);
     }
 
@@ -989,6 +992,7 @@ public class Types {
       } else if (!Objects.equals(writeDefault, that.writeDefault)) {
         return false;
       }
+
       return true;
     }
 
@@ -1050,6 +1054,7 @@ public class Types {
       if (field != null) {
         return field.type();
       }
+
       return null;
     }
 
@@ -1079,6 +1084,7 @@ public class Types {
       if (this.schema == null) {
         this.schema = new Schema(Arrays.asList(this.fields));
       }
+
       return this.schema;
     }
 
@@ -1108,6 +1114,7 @@ public class Types {
       if (fieldList == null) {
         this.fieldList = ImmutableList.copyOf(fields);
       }
+
       return fieldList;
     }
 
@@ -1117,8 +1124,10 @@ public class Types {
         for (NestedField field : fields) {
           byNameBuilder.put(field.name(), field);
         }
+
         fieldsByName = byNameBuilder.build();
       }
+
       return fieldsByName;
     }
 
@@ -1128,8 +1137,10 @@ public class Types {
         for (NestedField field : fields) {
           byLowerCaseNameBuilder.put(field.name().toLowerCase(Locale.ROOT), field);
         }
+
         fieldsByLowerCaseName = byLowerCaseNameBuilder.build();
       }
+
       return fieldsByLowerCaseName;
     }
 
@@ -1139,8 +1150,10 @@ public class Types {
         for (NestedField field : fields) {
           byIdBuilder.put(field.fieldId(), field);
         }
+
         this.fieldsById = byIdBuilder.build();
       }
+
       return fieldsById;
     }
   }
@@ -1172,6 +1185,7 @@ public class Types {
       if ("element".equals(name)) {
         return elementType();
       }
+
       return null;
     }
 
@@ -1180,6 +1194,7 @@ public class Types {
       if (elementField.fieldId() == id) {
         return elementField;
       }
+
       return null;
     }
 
@@ -1241,6 +1256,7 @@ public class Types {
       if (fields == null) {
         this.fields = ImmutableList.of(elementField);
       }
+
       return fields;
     }
   }
@@ -1284,6 +1300,7 @@ public class Types {
       } else if ("value".equals(name)) {
         return valueField.type();
       }
+
       return null;
     }
 
@@ -1294,6 +1311,7 @@ public class Types {
       } else if (valueField.fieldId() == id) {
         return valueField;
       }
+
       return null;
     }
 
@@ -1350,6 +1368,7 @@ public class Types {
       if (!keyField.equals(mapType.keyField)) {
         return false;
       }
+
       return valueField.equals(mapType.valueField);
     }
 
@@ -1362,6 +1381,7 @@ public class Types {
       if (fields == null) {
         this.fields = ImmutableList.of(keyField, valueField);
       }
+
       return fields;
     }
   }

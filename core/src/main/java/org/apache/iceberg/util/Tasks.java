@@ -248,6 +248,7 @@ public class Tasks {
                 LOG.error("Failed to revert task", e);
                 // keep going
               }
+
               if (stopRevertsOnFailure && failed) {
                 break;
               }
@@ -264,6 +265,7 @@ public class Tasks {
                 LOG.error("Failed to abort task", e);
                 // keep going
               }
+
               if (stopAbortsOnFailure && failed) {
                 break;
               }
@@ -419,6 +421,7 @@ public class Tasks {
             if (durationMs > maxDurationMs) {
               LOG.info("Stopping retries after {} ms", durationMs);
             }
+
             throw e;
           }
 
@@ -436,6 +439,7 @@ public class Tasks {
                 break;
               }
             }
+
             if (!matchedRetryException) {
               throw e;
             }
@@ -492,6 +496,7 @@ public class Tasks {
             for (Throwable t : uncaught) {
               e.addSuppressed(t);
             }
+
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
 
@@ -504,6 +509,7 @@ public class Tasks {
               for (Throwable t : uncaught) {
                 cause.addSuppressed(t);
               }
+
               throw (Error) cause;
             }
 
@@ -526,6 +532,7 @@ public class Tasks {
           for (Future<?> future : futures) {
             future.cancel(true);
           }
+
           Thread.currentThread().interrupt();
           throw new RuntimeException(e);
         }

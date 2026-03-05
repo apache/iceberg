@@ -161,6 +161,7 @@ class TestIcebergCommitter extends TestBase {
         parameters.add(new Object[] {formatVersion, isStreamingMode, "test-branch"});
       }
     }
+
     return parameters;
   }
 
@@ -1190,6 +1191,7 @@ class TestIcebergCommitter extends TestBase {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+
     return icebergWriteAggregator;
   }
 

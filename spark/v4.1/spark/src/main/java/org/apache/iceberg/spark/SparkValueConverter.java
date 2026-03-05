@@ -56,6 +56,7 @@ public class SparkValueConverter {
         for (Object element : list) {
           convertedList.add(convert(type.asListType().elementType(), element));
         }
+
         return convertedList;
 
       case MAP:
@@ -66,6 +67,7 @@ public class SparkValueConverter {
               convert(type.asMapType().keyType(), entry.getKey()),
               convert(type.asMapType().valueType(), entry.getValue()));
         }
+
         return convertedMap;
 
       case DATE:
@@ -117,6 +119,7 @@ public class SparkValueConverter {
           record.set(i, convert(fieldType, row.get(i)));
       }
     }
+
     return record;
   }
 
@@ -139,6 +142,7 @@ public class SparkValueConverter {
         } else {
           return DateTimeUtils.microsToLocalDateTime((long) object);
         }
+
       case BINARY:
         return ByteBuffers.toByteArray((ByteBuffer) object);
       case INTEGER:

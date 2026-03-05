@@ -116,6 +116,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrappedPartition.size() > 0) {
       wrappedPartition.wrap(row.getAs(partitionPosition));
     }
+
     return asFile();
   }
 
@@ -131,6 +132,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrapped.isNullAt(fileSpecIdPosition)) {
       return -1;
     }
+
     return wrapped.getAs(fileSpecIdPosition);
   }
 
@@ -139,6 +141,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrapped.isNullAt(fileContentPosition)) {
       return null;
     }
+
     return FILE_CONTENT_VALUES[wrapped.getInt(fileContentPosition)];
   }
 
@@ -182,6 +185,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrapped.isNullAt(nullValueCountsPosition)) {
       return null;
     }
+
     return wrapped.getJavaMap(nullValueCountsPosition);
   }
 
@@ -190,6 +194,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrapped.isNullAt(nanValueCountsPosition)) {
       return null;
     }
+
     return wrapped.getJavaMap(nanValueCountsPosition);
   }
 
@@ -241,6 +246,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrapped.isNullAt(referencedDataFilePosition)) {
       return null;
     }
+
     return wrapped.getString(referencedDataFilePosition);
   }
 
@@ -248,6 +254,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrapped.isNullAt(contentOffsetPosition)) {
       return null;
     }
+
     return wrapped.getLong(contentOffsetPosition);
   }
 
@@ -255,6 +262,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     if (wrapped.isNullAt(contentSizePosition)) {
       return null;
     }
+
     return wrapped.getLong(contentSizePosition);
   }
 
@@ -266,6 +274,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
       if (name.equals(DataFile.PARTITION_NAME) && wrappedPartition.size() == 0) {
         return -1;
       }
+
       throw e;
     }
   }

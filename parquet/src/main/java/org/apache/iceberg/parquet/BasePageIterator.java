@@ -180,6 +180,7 @@ public abstract class BasePageIterator {
       if (maxLevel == 0) {
         return new NullIntIterator();
       }
+
       return new RLEIntIterator(
           new RunLengthBitPackingHybridDecoder(
               BytesUtils.getWidthFromMaxInt(maxLevel), bytes.toInputStream()));

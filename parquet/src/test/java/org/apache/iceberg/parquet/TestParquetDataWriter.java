@@ -189,6 +189,7 @@ public class TestParquetDataWriter {
       charArray[i] = '\uDBFF';
       charArray[i + 1] = '\uDFFF';
     }
+
     builder.add(genericRecord.copy(ImmutableMap.of("id", 1L, "data", String.valueOf(charArray))));
     List<Record> overflowRecords = builder.build();
 
@@ -261,6 +262,7 @@ public class TestParquetDataWriter {
     for (int i = 0; i < 17; i++) {
       bytes.put(i, (byte) 0xff);
     }
+
     builder.add(genericRecord.copy(ImmutableMap.of("id", 1L, "binary", bytes)));
     List<Record> overflowRecords = builder.build();
 

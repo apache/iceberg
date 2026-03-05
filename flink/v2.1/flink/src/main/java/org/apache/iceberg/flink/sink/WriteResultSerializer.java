@@ -58,6 +58,7 @@ public class WriteResultSerializer implements SimpleVersionedSerializer<WriteRes
         throw new IOException("Could not deserialize the WriteResult object", cnc);
       }
     }
+
     throw new IOException("Unrecognized version or corrupt state: " + version);
   }
 }

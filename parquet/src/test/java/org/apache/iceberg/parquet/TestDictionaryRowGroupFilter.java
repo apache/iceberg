@@ -144,6 +144,7 @@ public class TestDictionaryRowGroupFilter {
     for (int i = 0; i < 200; i += 1) {
       sb.append(UUID.randomUUID());
     }
+
     TOO_LONG_FOR_STATS = sb.toString();
   }
 
@@ -1364,6 +1365,7 @@ public class TestDictionaryRowGroupFilter {
         return column;
       }
     }
+
     throw new NoSuchElementException("No column in rowGroup for the name " + columnName);
   }
 }

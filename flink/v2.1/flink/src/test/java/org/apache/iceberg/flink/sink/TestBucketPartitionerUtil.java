@@ -95,6 +95,7 @@ final class TestBucketPartitionerUtil {
         rows.add(GenericRowData.of(1, StringData.fromString(value)));
       }
     }
+
     return rows;
   }
 

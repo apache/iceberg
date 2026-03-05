@@ -223,6 +223,7 @@ public class TestJdbcTableConcurrency {
       for (int i = 0; i < parallelism; i++) {
         futures.add(executorService.submit(makeCatalog));
       }
+
       for (Future<JdbcCatalog> future : futures) {
         future.get();
       }
@@ -681,6 +682,7 @@ public class TestJdbcTableConcurrency {
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }
+
       return delegate.execute();
     }
 
@@ -1160,6 +1162,7 @@ public class TestJdbcTableConcurrency {
       if (!url.startsWith(PREFIX)) {
         throw new SQLException("url must start with " + PREFIX);
       }
+
       delegate = DriverManager.getDriver(rewriteUrl(url));
     }
 

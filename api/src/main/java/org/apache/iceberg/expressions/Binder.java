@@ -90,6 +90,7 @@ public class Binder {
     if (exprs == null) {
       return ImmutableSet.of();
     }
+
     ReferenceVisitor visitor = new ReferenceVisitor();
     for (Expression expr : exprs) {
       if (isBound(expr)) {
@@ -98,6 +99,7 @@ public class Binder {
         ExpressionVisitors.visit(bind(struct, expr, caseSensitive), visitor);
       }
     }
+
     return visitor.references;
   }
 

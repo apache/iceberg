@@ -91,6 +91,7 @@ public abstract class ReaderBenchmark {
         // access something to ensure the compiler doesn't optimize this away
         val ^= (Long) record.get(0);
       }
+
       LOG.info("XOR val: {}", val);
     }
   }

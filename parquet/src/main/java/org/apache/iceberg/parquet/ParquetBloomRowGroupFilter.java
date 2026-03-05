@@ -111,6 +111,7 @@ public class ParquetBloomRowGroupFilter {
           if (!ParquetUtil.hasNoBloomFilterPages(meta)) {
             fieldsWithBloomFilter.add(id);
           }
+
           columnMetaMap.put(id, meta);
           parquetPrimitiveTypes.put(id, colType);
           types.put(id, icebergType);
@@ -231,6 +232,7 @@ public class ParquetBloomRowGroupFilter {
       if (!fieldsWithBloomFilter.contains(id)) { // no bloom filter
         return ROWS_MIGHT_MATCH;
       }
+
       BloomFilter bloom = loadBloomFilter(id);
       Type type = types.get(id);
       for (T e : literalSet) {
@@ -238,6 +240,7 @@ public class ParquetBloomRowGroupFilter {
           return ROWS_MIGHT_MATCH;
         }
       }
+
       return ROWS_CANNOT_MATCH;
     }
 
@@ -292,6 +295,7 @@ public class ParquetBloomRowGroupFilter {
             default:
               return ROWS_MIGHT_MATCH;
           }
+
         case INT64:
           switch (type.typeId()) {
             case DECIMAL:
@@ -306,6 +310,7 @@ public class ParquetBloomRowGroupFilter {
             default:
               return ROWS_MIGHT_MATCH;
           }
+
         case FLOAT:
           hashValue = bloom.hash(((Number) value).floatValue());
           return bloom.findHash(hashValue);
@@ -339,6 +344,7 @@ public class ParquetBloomRowGroupFilter {
             default:
               return ROWS_MIGHT_MATCH;
           }
+
         default:
           return ROWS_MIGHT_MATCH;
       }

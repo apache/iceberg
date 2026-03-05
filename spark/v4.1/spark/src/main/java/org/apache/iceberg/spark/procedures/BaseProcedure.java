@@ -101,6 +101,7 @@ abstract class BaseProcedure implements BoundProcedure, UnboundProcedure {
     if (actions == null) {
       this.actions = SparkActions.get(spark);
     }
+
     return actions;
   }
 

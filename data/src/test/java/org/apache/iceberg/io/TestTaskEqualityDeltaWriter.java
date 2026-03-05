@@ -140,6 +140,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
       deltaWriter.write(record);
     }
+
     result = deltaWriter.complete();
     assertThat(result.dataFiles()).as("Should only have a data file.").hasSize(1);
     assertThat(result.deleteFiles()).as("Should have no delete file").hasSize(0);
@@ -544,6 +545,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
       reader.forEach(set::add);
     }
+
     return set;
   }
 
@@ -569,6 +571,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
     for (Integer fieldId : equalityFieldIds) {
       columns.add(table.schema().findField(fieldId).name());
     }
+
     Schema deleteSchema = table.schema().select(columns);
 
     return new GenericTaskDeltaWriter(

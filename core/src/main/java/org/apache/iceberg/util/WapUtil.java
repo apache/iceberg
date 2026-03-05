@@ -66,6 +66,7 @@ public class WapUtil {
         return true;
       }
     }
+
     return false;
   }
 }

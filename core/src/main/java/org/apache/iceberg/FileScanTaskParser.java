@@ -64,6 +64,7 @@ public class FileScanTaskParser {
       for (DeleteFile deleteFile : fileScanTask.deletes()) {
         ContentFileParser.toJson(deleteFile, spec, generator);
       }
+
       generator.writeEndArray();
     }
 

@@ -157,6 +157,7 @@ public class TestDynamoDbLockManager {
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
+
           assertThat(lockManager.release(entityId, oldOwner)).isTrue();
           return null;
         });
@@ -192,9 +193,11 @@ public class TestDynamoDbLockManager {
                                 } catch (InterruptedException e) {
                                   throw new RuntimeException(e);
                                 }
+
                                 assertThat(threadLocalLockManager.release(entityId, owner))
                                     .isTrue();
                               }
+
                               return succeeded;
                             })
                         .collect(Collectors.toList()))

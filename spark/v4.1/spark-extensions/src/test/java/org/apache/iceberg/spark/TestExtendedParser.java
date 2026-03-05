@@ -70,6 +70,7 @@ public class TestExtendedParser {
         clazz = clazz.getSuperclass();
       }
     }
+
     parserField.setAccessible(true);
     originalParser = (ParserInterface) parserField.get(spark.sessionState());
   }
@@ -98,6 +99,7 @@ public class TestExtendedParser {
         clazz = clazz.getSuperclass();
       }
     }
+
     assertThat(origParser).isNotNull();
 
     IcebergSparkSqlExtensionsParser icebergParser = new IcebergSparkSqlExtensionsParser(origParser);
@@ -190,10 +192,12 @@ public class TestExtendedParser {
         clazz = clazz.getSuperclass();
       }
     }
+
     if (targetField == null) {
       throw new IllegalStateException(
           "No suitable sqlParser field found in sessionState class hierarchy!");
     }
+
     targetField.setAccessible(true);
     targetField.set(sessionState, parser);
   }

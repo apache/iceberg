@@ -163,6 +163,7 @@ class HashKeyGenerator {
                       .filter(c -> equalityFields.contains(c.name()))
                       .collect(Collectors.toList()));
             }
+
             return partitionKeySelector(
                 tableName, schema, spec, writeParallelism, maxWriteParallelism);
           }

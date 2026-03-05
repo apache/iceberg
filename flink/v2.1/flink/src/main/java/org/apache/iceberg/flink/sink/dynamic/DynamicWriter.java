@@ -204,10 +204,12 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     if (equalityFieldIds != null && !equalityFieldIds.isEmpty()) {
       return equalityFieldIds;
     }
+
     Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
     if (identifierFieldIds != null && !identifierFieldIds.isEmpty()) {
       return identifierFieldIds;
     }
+
     return Collections.emptySet();
   }
 

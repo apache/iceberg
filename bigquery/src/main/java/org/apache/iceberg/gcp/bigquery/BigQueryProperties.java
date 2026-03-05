@@ -71,6 +71,7 @@ class BigQueryProperties implements Serializable {
     if (input == null || input.trim().isEmpty()) {
       return defaultValue;
     }
+
     return Arrays.stream(input.split(","))
         .map(String::trim)
         .filter(str -> !str.isEmpty())
@@ -83,12 +84,14 @@ class BigQueryProperties implements Serializable {
     if (inputScopes == null || inputScopes.isEmpty()) {
       return inputScopes;
     }
+
     return inputScopes.stream()
         .map(
             inputScope -> {
               if (inputScope.startsWith("https://")) {
                 return inputScope;
               }
+
               if (inputScope.startsWith("http://")) {
                 return inputScope.replace("http://", "https://");
               }

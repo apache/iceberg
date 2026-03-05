@@ -107,6 +107,7 @@ public interface RESTClient extends Closeable {
     if (parserContext != null) {
       throw new UnsupportedOperationException("Parser context is not supported");
     }
+
     return get(path, queryParams, responseType, headers, errorHandler);
   }
 
@@ -171,6 +172,7 @@ public interface RESTClient extends Closeable {
     if (parserContext != null) {
       throw new UnsupportedOperationException("Parser context is not supported");
     }
+
     return post(path, body, responseType, headers, errorHandler, responseHeaders);
   }
 

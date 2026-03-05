@@ -772,6 +772,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     if (implementation.equals(SparkCatalogConfig.SPARK_SESSION.implementation())) {
       fullTableName = String.format("%s.%s", catalogName, tableName);
     }
+
     assertThatThrownBy(
             () ->
                 scalarSql(

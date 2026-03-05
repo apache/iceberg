@@ -65,6 +65,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
             builder.addField(originalField);
           }
         }
+
         fieldCount += 1;
       } else if (field != null) {
         hasChange = true;
@@ -125,6 +126,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
           return list.withNewFields(repeated.asGroupType().withNewFields(element));
         }
       }
+
       return list;
     }
 
@@ -147,6 +149,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
       if (!Objects.equal(value, originalValue)) {
         return map.withNewFields(repeated.withNewFields(originalKey, value));
       }
+
       return map;
     }
 

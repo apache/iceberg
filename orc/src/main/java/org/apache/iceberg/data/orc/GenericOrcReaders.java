@@ -273,6 +273,7 @@ public class GenericOrcReaders {
             keyReader.read(mapVector.keys, offset + c),
             valueReader.read(mapVector.values, offset + c));
       }
+
       return map;
     }
 
@@ -299,6 +300,7 @@ public class GenericOrcReaders {
       for (int c = 0; c < length; ++c) {
         elements.add(elementReader.read(listVector.child, offset + c));
       }
+
       return elements;
     }
 

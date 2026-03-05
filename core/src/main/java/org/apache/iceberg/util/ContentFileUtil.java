@@ -164,6 +164,7 @@ public class ContentFileUtil {
     if (lowerBounds != null) {
       lowerBounds.remove(PATH_ID);
     }
+
     if (upperBounds != null) {
       upperBounds.remove(PATH_ID);
     }
@@ -186,6 +187,7 @@ public class ContentFileUtil {
     if (lowerBounds != null) {
       lowerBounds.put(PATH_ID, bound);
     }
+
     if (upperBounds != null) {
       upperBounds.put(PATH_ID, bound);
     }

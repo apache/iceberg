@@ -122,12 +122,14 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericWriters.timestamptz();
             }
+
             return GenericWriters.timestamps();
 
           case "timestamp-nanos":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericWriters.timestamptzNanos();
             }
+
             return GenericWriters.timestampNanos();
 
           case "decimal":

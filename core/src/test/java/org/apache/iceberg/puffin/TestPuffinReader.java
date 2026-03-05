@@ -55,6 +55,7 @@ public class TestPuffinReader {
     if (footerSize != null) {
       readBuilder = readBuilder.withFooterSize(footerSize);
     }
+
     try (PuffinReader reader = readBuilder.build()) {
       FileMetadata fileMetadata = reader.fileMetadata();
       assertThat(fileMetadata.properties()).as("file properties").isEqualTo(ImmutableMap.of());

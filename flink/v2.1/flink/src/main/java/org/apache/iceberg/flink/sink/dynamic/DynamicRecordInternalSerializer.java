@@ -206,9 +206,11 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     } else {
       equalityFieldIds = Collections.emptySet();
     }
+
     for (int i = 0; i < numEqualityFields; i++) {
       equalityFieldIds.add(dataInputView.readInt());
     }
+
     return new DynamicRecordInternal(
         tableName, branch, schema, rowData, spec, writerKey, upsertMode, equalityFieldIds);
   }
@@ -249,10 +251,12 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     if (this == obj) {
       return true;
     }
+
     if (obj instanceof DynamicRecordInternalSerializer) {
       DynamicRecordInternalSerializer other = (DynamicRecordInternalSerializer) obj;
       return writeSchemaAndSpec == other.writeSchemaAndSpec;
     }
+
     return false;
   }
 

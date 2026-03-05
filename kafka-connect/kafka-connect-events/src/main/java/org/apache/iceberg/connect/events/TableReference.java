@@ -170,9 +170,11 @@ public class TableReference implements IndexedRecord {
     if (this == o) {
       return true;
     }
+
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
+
     TableReference that = (TableReference) o;
     return Objects.equals(catalog, that.catalog)
         && Objects.equals(namespace, that.namespace)

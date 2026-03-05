@@ -125,6 +125,7 @@ class VariantExpressionUtil {
                       DateTimeUtil.dateFromDays(((Number) value.asPrimitive().get()).intValue())
                           .atStartOfDay());
         }
+
         break;
       case TIMESTAMP_NANO:
         if (value.type() == PhysicalType.TIMESTAMPTZ || value.type() == PhysicalType.TIMESTAMPNTZ) {
@@ -137,6 +138,7 @@ class VariantExpressionUtil {
                       DateTimeUtil.dateFromDays(((Number) value.asPrimitive().get()).intValue())
                           .atStartOfDay());
         }
+
         break;
       case DATE:
         if (value.type() == PhysicalType.TIMESTAMPTZ || value.type() == PhysicalType.TIMESTAMPNTZ) {

@@ -104,6 +104,7 @@ public class KafkaConnectUtils {
                         return "RUNNING".equals(connectorState)
                             && taskStates.stream().allMatch("RUNNING"::equals);
                       }
+
                       return false;
                     }));
   }

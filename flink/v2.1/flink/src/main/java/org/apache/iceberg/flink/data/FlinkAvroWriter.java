@@ -148,6 +148,7 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
             default:
               return ValueWriters.ints();
           }
+
         case LONG:
           return ValueWriters.longs();
         case FLOAT:

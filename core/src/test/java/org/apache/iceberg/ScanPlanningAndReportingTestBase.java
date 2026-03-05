@@ -238,6 +238,7 @@ public abstract class ScanPlanningAndReportingTestBase<
         tableScan.filter(Expressions.equal("data", "1")).planFiles()) {
       scanTasks.forEach(task -> fileTasks.add((FileScanTask) task));
     }
+
     assertThat(fileTasks)
         .singleElement()
         .satisfies(task -> assertThat(task.file().location()).isEqualTo(FILE_D.location()));
@@ -279,6 +280,7 @@ public abstract class ScanPlanningAndReportingTestBase<
         tableScan.filter(Expressions.equal("data", "1")).planFiles()) {
       scanTasks.forEach(task -> fileTasks.add((FileScanTask) task));
     }
+
     assertThat(fileTasks)
         .singleElement()
         .satisfies(task -> assertThat(task.file().location()).isEqualTo(FILE_D.location()));

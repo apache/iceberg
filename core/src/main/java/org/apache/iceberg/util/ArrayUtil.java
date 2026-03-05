@@ -103,10 +103,12 @@ public class ArrayUtil {
     } else if (array.length == 0) {
       return EMPTY_BOOLEAN_ARRAY;
     }
+
     final boolean[] result = new boolean[array.length];
     for (int i = 0; i < array.length; i++) {
       result[i] = array[i];
     }
+
     return result;
   }
 
@@ -127,10 +129,12 @@ public class ArrayUtil {
     } else if (array.length == 0) {
       return EMPTY_BYTE_ARRAY;
     }
+
     final byte[] result = new byte[array.length];
     for (int i = 0; i < array.length; i++) {
       result[i] = array[i];
     }
+
     return result;
   }
 
@@ -151,10 +155,12 @@ public class ArrayUtil {
     } else if (array.length == 0) {
       return EMPTY_SHORT_ARRAY;
     }
+
     final short[] result = new short[array.length];
     for (int i = 0; i < array.length; i++) {
       result[i] = array[i];
     }
+
     return result;
   }
 
@@ -175,10 +181,12 @@ public class ArrayUtil {
     } else if (array.length == 0) {
       return EMPTY_INT_ARRAY;
     }
+
     final int[] result = new int[array.length];
     for (int i = 0; i < array.length; i++) {
       result[i] = array[i];
     }
+
     return result;
   }
 
@@ -199,10 +207,12 @@ public class ArrayUtil {
     } else if (array.length == 0) {
       return EMPTY_LONG_ARRAY;
     }
+
     final long[] result = new long[array.length];
     for (int i = 0; i < array.length; i++) {
       result[i] = array[i];
     }
+
     return result;
   }
 
@@ -223,10 +233,12 @@ public class ArrayUtil {
     } else if (array.length == 0) {
       return EMPTY_FLOAT_ARRAY;
     }
+
     final float[] result = new float[array.length];
     for (int i = 0; i < array.length; i++) {
       result[i] = array[i];
     }
+
     return result;
   }
 
@@ -247,10 +259,12 @@ public class ArrayUtil {
     } else if (array.length == 0) {
       return EMPTY_DOUBLE_ARRAY;
     }
+
     final double[] result = new double[array.length];
     for (int i = 0; i < array.length; i++) {
       result[i] = array[i];
     }
+
     return result;
   }
 
@@ -292,6 +306,7 @@ public class ArrayUtil {
     } else {
       throw new IllegalArgumentException("Arguments cannot both be null");
     }
+
     @SuppressWarnings("unchecked") // type must be T
     final T[] newArray = (T[]) copyArrayGrow1(array, type);
     newArray[newArray.length - 1] = element;
@@ -317,6 +332,7 @@ public class ArrayUtil {
       System.arraycopy(array, 0, newArray, 0, arrayLength);
       return newArray;
     }
+
     return Array.newInstance(newArrayComponentType, 1);
   }
 

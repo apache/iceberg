@@ -64,6 +64,7 @@ class ParquetIO {
             e, "Failed to create Parquet input file for %s", file.location());
       }
     }
+
     return new ParquetInputFile(file);
   }
 
@@ -78,6 +79,7 @@ class ParquetIO {
             e, "Failed to create Parquet output file for %s", file.location());
       }
     }
+
     return new ParquetOutputFile(file);
   }
 
@@ -91,6 +93,7 @@ class ParquetIO {
             e, "Failed to create Parquet output file for %s", file.location());
       }
     }
+
     return new ParquetOutputFile(file);
   }
 
@@ -116,6 +119,7 @@ class ParquetIO {
         return HadoopStreams.wrap((FSDataOutputStream) wrapped);
       }
     }
+
     return new ParquetOutputStreamAdapter(stream);
   }
 

@@ -103,6 +103,7 @@ public class TestFlinkAvroReaderWriter extends DataTestBase {
         TestHelpers.assertRowData(
             expectedSchema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
+
       assertThat(rows).isExhausted();
     }
 
@@ -130,6 +131,7 @@ public class TestFlinkAvroReaderWriter extends DataTestBase {
         TestHelpers.assertRowData(
             expectedSchema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
+
       assertThat(rows).isExhausted();
     }
   }

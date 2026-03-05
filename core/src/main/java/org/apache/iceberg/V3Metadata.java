@@ -108,6 +108,7 @@ class V3Metadata {
           } else {
             return wrapped.sequenceNumber();
           }
+
         case 5:
           if (wrapped.minSequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
             // same sanity check as above
@@ -123,6 +124,7 @@ class V3Metadata {
           } else {
             return wrapped.minSequenceNumber();
           }
+
         case 6:
           return wrapped.snapshotId();
         case 7:
@@ -157,6 +159,7 @@ class V3Metadata {
                 "Found unassigned first-row-id for file: " + wrapped.path());
             return wrapped.firstRowId();
           }
+
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -359,6 +362,7 @@ class V3Metadata {
 
             return null;
           }
+
           return wrapped.dataSequenceNumber();
         case 3:
           return wrapped.fileSequenceNumber();
@@ -491,18 +495,21 @@ class V3Metadata {
           } else {
             return null;
           }
+
         case 17:
           if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).referencedDataFile();
           } else {
             return null;
           }
+
         case 18:
           if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).contentOffset();
           } else {
             return null;
           }
+
         case 19:
           if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).contentSizeInBytes();
@@ -510,6 +517,7 @@ class V3Metadata {
             return null;
           }
       }
+
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
 

@@ -248,6 +248,7 @@ public class Comparators {
         if (o2 != null) {
           return 0;
         }
+
         return 1;
       }
 
@@ -275,6 +276,7 @@ public class Comparators {
         if (o2 != null) {
           return 0;
         }
+
         return -1;
       }
 
@@ -306,6 +308,7 @@ public class Comparators {
       if (cmp == 0 && o1 != null) {
         return second.compare(o1, o2);
       }
+
       return cmp;
     }
   }
@@ -398,9 +401,11 @@ public class Comparators {
         if (isC1HighSurrogate && !isC2HighSurrogate) {
           return 1;
         }
+
         if (!isC1HighSurrogate && isC2HighSurrogate) {
           return -1;
         }
+
         int cmp = Character.compare(c1, c2);
         if (cmp != 0) {
           return cmp;
@@ -422,6 +427,7 @@ public class Comparators {
       if (s1 == s2) {
         return 0;
       }
+
       int count = s1.length();
 
       int cmp = Integer.compare(count, s2.length());
@@ -435,6 +441,7 @@ public class Comparators {
           return cmp;
         }
       }
+
       // File paths inside a delete file normally have more identical chars at the beginning. For
       // example, a typical
       // path is like "s3:/bucket/db/table/data/partition/00000-0-[uuid]-00001.parquet".
@@ -445,6 +452,7 @@ public class Comparators {
           return cmp;
         }
       }
+
       return 0;
     }
   }

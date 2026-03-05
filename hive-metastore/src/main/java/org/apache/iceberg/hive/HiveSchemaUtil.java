@@ -75,6 +75,7 @@ public final class HiveSchemaUtil {
       typeInfos.add(TypeInfoUtils.getTypeInfoFromTypeString(col.getType()));
       comments.add(col.getComment());
     }
+
     return HiveSchemaConverter.convert(names, typeInfos, comments, autoConvert);
   }
 
@@ -163,6 +164,7 @@ public final class HiveSchemaUtil {
         if (HiveVersion.min(HiveVersion.HIVE_3) && timestampType.shouldAdjustToUTC()) {
           return "timestamp with local time zone";
         }
+
         return "timestamp";
       case FIXED:
       case BINARY:

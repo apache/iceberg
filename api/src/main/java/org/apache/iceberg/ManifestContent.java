@@ -40,6 +40,7 @@ public enum ManifestContent {
       case 1:
         return DELETES;
     }
+
     throw new IllegalArgumentException("Unknown manifest content: " + id);
   }
 }

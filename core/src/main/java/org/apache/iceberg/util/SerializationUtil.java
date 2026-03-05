@@ -94,6 +94,7 @@ public class SerializationUtil {
     if (base64 == null) {
       return null;
     }
+
     byte[] bytes = Base64.getMimeDecoder().decode(base64.getBytes(StandardCharsets.UTF_8));
     return deserializeFromBytes(bytes);
   }

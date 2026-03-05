@@ -82,6 +82,7 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
       for (DeleteFile deleteFile : deletes) {
         size += ScanTaskUtil.contentSizeInBytes(deleteFile);
       }
+
       this.deletesSizeBytes = size;
     }
 

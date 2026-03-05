@@ -152,6 +152,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             String.format("Failed to serialize and deserialize %s: %s", description, payload), e);
       }
     }
+
     return null;
   }
 
@@ -195,6 +196,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
           .withQuery("spark", "select * from ns.tbl")
           .create();
     }
+
     List<TableIdentifier> views = catalog.listViews(Namespace.of(namespaceName));
     assertThat(views).hasSize(numberOfItems);
 

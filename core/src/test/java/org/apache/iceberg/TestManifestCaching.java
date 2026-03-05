@@ -273,6 +273,7 @@ public class TestManifestCaching {
     for (int fileNum = 0; fileNum < numFiles; fileNum++) {
       files.add(newFile(sizeInBytes, fileFormat, numOffset));
     }
+
     return files;
   }
 

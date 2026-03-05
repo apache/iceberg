@@ -71,6 +71,7 @@ public class TestFlinkUpsert extends CatalogTestBase {
         }
       }
     }
+
     return parameters;
   }
 
@@ -94,6 +95,7 @@ public class TestFlinkUpsert extends CatalogTestBase {
         }
       }
     }
+
     return tEnv;
   }
 

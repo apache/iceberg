@@ -75,9 +75,11 @@ class SchemaUtils {
     if (currentIcebergType.typeId() == TypeID.FLOAT && valueSchema.type() == Schema.Type.FLOAT64) {
       return DoubleType.get();
     }
+
     if (currentIcebergType.typeId() == TypeID.INTEGER && valueSchema.type() == Schema.Type.INT64) {
       return LongType.get();
     }
+
     return null;
   }
 
@@ -139,6 +141,7 @@ class SchemaUtils {
     if (type == null) {
       throw new IllegalArgumentException("Invalid column: " + update.name());
     }
+
     return type.typeId() == update.type().typeId();
   }
 
@@ -147,6 +150,7 @@ class SchemaUtils {
     if (field == null) {
       throw new IllegalArgumentException("Invalid column: " + update.name());
     }
+
     return field.isOptional();
   }
 
@@ -185,12 +189,14 @@ class SchemaUtils {
                   specBuilder.bucket(args.first(), args.second());
                   break;
                 }
+
               case "truncate":
                 {
                   Pair<String, Integer> args = transformArgPair(matcher.group(2));
                   specBuilder.truncate(args.first(), args.second());
                   break;
                 }
+
               default:
                 throw new UnsupportedOperationException("Unsupported transform: " + transform);
             }
@@ -206,6 +212,7 @@ class SchemaUtils {
     if (parts.size() != 2) {
       throw new IllegalArgumentException("Invalid argument " + argsStr + ", should have 2 parts");
     }
+
     return Pair.of(parts.get(0).trim(), Integer.parseInt(parts.get(1).trim()));
   }
 
@@ -236,6 +243,7 @@ class SchemaUtils {
             int scale = Integer.parseInt(valueSchema.parameters().get(Decimal.SCALE_FIELD));
             return DecimalType.of(38, scale);
           }
+
           return BinaryType.get();
         case INT8:
         case INT16:
@@ -246,11 +254,13 @@ class SchemaUtils {
           } else if (Time.LOGICAL_NAME.equals(valueSchema.name())) {
             return TimeType.get();
           }
+
           return IntegerType.get();
         case INT64:
           if (Timestamp.LOGICAL_NAME.equals(valueSchema.name())) {
             return TimestampType.withZone();
           }
+
           return LongType.get();
         case FLOAT32:
           return FloatType.get();
@@ -263,6 +273,7 @@ class SchemaUtils {
           } else {
             return ListType.ofRequired(nextId(), elementType);
           }
+
         case MAP:
           Type keyType = toIcebergType(valueSchema.keySchema());
           Type valueType = toIcebergType(valueSchema.valueSchema());
@@ -271,6 +282,7 @@ class SchemaUtils {
           } else {
             return MapType.ofRequired(nextId(), nextId(), keyType, valueType);
           }
+
         case STRUCT:
           List<NestedField> structFields =
               valueSchema.fields().stream()
@@ -319,6 +331,7 @@ class SchemaUtils {
         if (list.isEmpty()) {
           return null;
         }
+
         Type elementType = inferIcebergType(list.get(0));
         return elementType == null ? null : ListType.ofOptional(nextId(), elementType);
       } else if (value instanceof Map) {
@@ -338,6 +351,7 @@ class SchemaUtils {
         if (structFields.isEmpty()) {
           return null;
         }
+
         return StructType.of(structFields);
       } else {
         return null;

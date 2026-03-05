@@ -206,6 +206,7 @@ class ParquetMetrics {
       if (null == id) {
         return ImmutableList.of();
       }
+
       int fieldId = id.intValue();
 
       MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
@@ -350,6 +351,7 @@ class ParquetMetrics {
       if (null == id) {
         return ImmutableList.of();
       }
+
       int fieldId = id.intValue();
 
       MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);

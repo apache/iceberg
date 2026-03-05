@@ -140,8 +140,10 @@ class Coordinator extends Channel {
         if (commitState.isCommitReady(totalPartitionCount)) {
           commit(false);
         }
+
         return true;
     }
+
     return false;
   }
 
@@ -269,12 +271,14 @@ class Coordinator extends Channel {
         if (branch != null) {
           appendOp.toBranch(branch);
         }
+
         appendOp.set(snapshotOffsetsProp, offsetsJson);
         appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
         appendOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
         if (validThroughTs != null) {
           appendOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
+
         dataFiles.forEach(appendOp::appendFile);
         appendOp.commit();
       } else {
@@ -283,12 +287,14 @@ class Coordinator extends Channel {
         if (branch != null) {
           deltaOp.toBranch(branch);
         }
+
         deltaOp.set(snapshotOffsetsProp, offsetsJson);
         deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
         deltaOp.set(TASK_ID_SNAPSHOT_PROP, taskId);
         if (validThroughTs != null) {
           deltaOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
+
         dataFiles.forEach(deltaOp::addRows);
         deleteFiles.forEach(deltaOp::addDeletes);
         deltaOp.commit();
@@ -342,6 +348,7 @@ class Coordinator extends Channel {
     if (branch == null) {
       return table.currentSnapshot();
     }
+
     return table.snapshot(branch);
   }
 

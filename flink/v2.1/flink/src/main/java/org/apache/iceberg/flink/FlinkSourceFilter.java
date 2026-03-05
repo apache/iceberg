@@ -44,6 +44,7 @@ public class FlinkSourceFilter implements FilterFunction<RowData> {
     if (wrapper == null) {
       this.wrapper = new RowDataWrapper(rowType, struct);
     }
+
     return evaluator.eval(wrapper.wrap(value));
   }
 }

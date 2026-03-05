@@ -596,6 +596,7 @@ public class S3FileIOProperties implements Serializable {
       Preconditions.checkArgument(
           null != sseMd5, "Cannot initialize SSE-C S3FileIO with null encryption key MD5");
     }
+
     this.endpoint = properties.get(ENDPOINT);
 
     this.multipartUploadThreads =
@@ -623,6 +624,7 @@ public class S3FileIOProperties implements Serializable {
               "Input malformed or exceeded maximum multipart upload size 5GB: %s",
               properties.get(MULTIPART_SIZE)));
     }
+
     this.multipartThresholdFactor =
         PropertyUtil.propertyAsDouble(
             properties, MULTIPART_THRESHOLD_FACTOR, MULTIPART_THRESHOLD_FACTOR_DEFAULT);

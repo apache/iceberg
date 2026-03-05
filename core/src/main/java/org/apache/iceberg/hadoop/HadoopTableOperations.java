@@ -82,6 +82,7 @@ public class HadoopTableOperations implements TableOperations {
     if (shouldRefresh) {
       return refresh();
     }
+
     return currentMetadata;
   }
 
@@ -276,6 +277,7 @@ public class HadoopTableOperations implements TableOperations {
     if (!matcher.matches()) {
       return -1;
     }
+
     String versionNumber = matcher.group(1);
     try {
       return Integer.parseInt(versionNumber);
@@ -383,6 +385,7 @@ public class HadoopTableOperations implements TableOperations {
         if (re != null) {
           cfe.addSuppressed(re);
         }
+
         throw cfe;
       }
     } catch (IOException e) {
@@ -392,6 +395,7 @@ public class HadoopTableOperations implements TableOperations {
       if (re != null) {
         cfe.addSuppressed(re);
       }
+
       throw cfe;
     } finally {
       if (!lockManager.release(dst.toString(), src.toString())) {
@@ -428,6 +432,7 @@ public class HadoopTableOperations implements TableOperations {
           currentMetadata.uuid(),
           newUUID);
     }
+
     return newMetadata;
   }
 }

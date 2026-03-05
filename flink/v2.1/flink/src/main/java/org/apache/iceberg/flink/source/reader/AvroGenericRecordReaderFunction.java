@@ -100,6 +100,7 @@ public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<
     if (converter == null) {
       this.converter = RowDataToAvroGenericRecordConverter.fromIcebergSchema(tableName, readSchema);
     }
+
     return converter;
   }
 

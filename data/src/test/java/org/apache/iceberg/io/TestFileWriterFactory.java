@@ -307,6 +307,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
       for (Types.NestedField column : table.schema().columns()) {
         assertThat(deleteFile.lowerBounds()).containsKey(column.fieldId());
       }
+
       assertThat(deleteFile.upperBounds())
           .hasSize(4)
           .containsKey(DELETE_FILE_PATH.fieldId())
@@ -314,6 +315,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
       for (Types.NestedField column : table.schema().columns()) {
         assertThat(deleteFile.upperBounds()).containsKey(column.fieldId());
       }
+
       // ORC also contains metrics for the deleted row struct, not just actual data fields
       assertThat(deleteFile.columnSizes()).hasSizeGreaterThanOrEqualTo(4);
       assertThat(deleteFile.valueCounts()).hasSizeGreaterThanOrEqualTo(2);

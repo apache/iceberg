@@ -316,6 +316,7 @@ public class AwsClientProperties implements Serializable {
       provider =
           DynMethods.builder("create").hiddenImpl(providerClass).buildStaticChecked().invoke();
     }
+
     return provider;
   }
 }

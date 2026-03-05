@@ -146,6 +146,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     for (int index = 0; index < 100; index++) {
       employees[index] = new Employee(index, "hr");
     }
+
     append(tableName, employees);
     append(tableName, employees);
     append(tableName, employees);
@@ -221,6 +222,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     for (int index = 0; index < 100; index++) {
       employees[index] = new Employee(index, "hr");
     }
+
     append(tableName, employees);
     append(tableName, employees);
     append(tableName, employees);
@@ -750,6 +752,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     for (int id = 1; id <= 200; id++) {
       ids.add(id);
     }
+
     Dataset<Row> df =
         spark
             .createDataset(ids, Encoders.INT())
@@ -1269,6 +1272,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     } else {
       validateMergeOnRead(currentSnapshot, "2", "2", null);
     }
+
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(row(2, "hardware"), row(3, "hr")),

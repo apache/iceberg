@@ -116,6 +116,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
           if (Type.TypeID.UUID == iPrimitive.typeId()) {
             return SparkOrcValueWriters.uuids();
           }
+
           return GenericOrcWriters.byteArrays();
         case STRING:
         case CHAR:
@@ -195,6 +196,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         } else {
           fieldGetter = SpecializedGetters::getBinary;
         }
+
         // getBinary always makes a copy, so we don't need to worry about it
         // being changed behind our back.
         break;
@@ -226,6 +228,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
       if (row.isNullAt(ordinal)) {
         return null;
       }
+
       return fieldGetter.getFieldOrNull(row, ordinal);
     };
   }

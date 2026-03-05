@@ -125,6 +125,7 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       if (!isValidFieldName) {
         field.addProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP, origFieldName);
       }
+
       field.addProp(AvroSchemaUtil.FIELD_ID_PROP, structField.fieldId());
       fields.add(field);
     }
@@ -243,6 +244,7 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         } else {
           primitiveSchema = TIMESTAMP_SCHEMA;
         }
+
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) primitive).shouldAdjustToUTC()) {
@@ -250,6 +252,7 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         } else {
           primitiveSchema = TIMESTAMP_NANO_SCHEMA;
         }
+
         break;
       case STRING:
         primitiveSchema = STRING_SCHEMA;

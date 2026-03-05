@@ -131,6 +131,7 @@ public class DeleteFileIndexBenchmark {
       for (ManifestEntry<DataFile> entry : entries) {
         files.add(entry.file().copyWithoutStats());
       }
+
       this.dataFiles = files;
     } catch (IOException e) {
       throw new UncheckedIOException(e);

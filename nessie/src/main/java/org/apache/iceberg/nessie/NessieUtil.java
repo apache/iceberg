@@ -88,6 +88,7 @@ public final class NessieUtil {
     if (tableIdentifier.hasNamespace()) {
       identifiers.addAll(Arrays.asList(tableIdentifier.namespace().levels()));
     }
+
     identifiers.add(tableIdentifier.name());
 
     return ContentKey.of(identifiers);
@@ -106,6 +107,7 @@ public final class NessieUtil {
       commitMetaBuilder.putProperties(
           CatalogProperties.APP_ID, catalogOptions.get(CatalogProperties.APP_ID));
     }
+
     return commitMetaBuilder;
   }
 
@@ -176,6 +178,7 @@ public final class NessieUtil {
     if (table.getSnapshotId() != -1) {
       builder.setBranchSnapshot(table.getSnapshotId(), SnapshotRef.MAIN_BRANCH);
     }
+
     LOG.info(
         "loadTableMetadata for '{}' from location '{}' at '{}'",
         identifier,
@@ -312,6 +315,7 @@ public final class NessieUtil {
           return Optional.of(
               new NoSuchTableException(ex, "%s does not exist: %s", contentType, conflict.key()));
         }
+
       case KEY_EXISTS:
         return Optional.of(
             new AlreadyExistsException(ex, "%s already exists: %s", contentType, conflict.key()));

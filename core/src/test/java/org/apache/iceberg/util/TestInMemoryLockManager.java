@@ -116,6 +116,7 @@ public class TestInMemoryLockManager {
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }
+
           assertThat(lockManager.release(lockEntityId, oldOwner)).isTrue();
           return null;
         });
@@ -145,8 +146,10 @@ public class TestInMemoryLockManager {
                     } catch (InterruptedException e) {
                       throw new RuntimeException(e);
                     }
+
                     assertThat(lockManager.release(lockEntityId, owner)).isTrue();
                   }
+
                   return succeeded;
                 })
             .collect(Collectors.toList());

@@ -311,6 +311,7 @@ public class MetricsUtil {
           projectedIndex++;
         }
       }
+
       return result;
     }
 

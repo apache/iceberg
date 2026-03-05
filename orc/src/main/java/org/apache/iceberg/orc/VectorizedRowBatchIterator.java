@@ -59,6 +59,7 @@ public class VectorizedRowBatchIterator
       } catch (IOException ioe) {
         throw new RuntimeIOException(ioe, "Problem reading ORC file %s", fileLocation);
       }
+
       advanced = true;
     }
   }

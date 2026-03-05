@@ -853,6 +853,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         }
       }
     }
+
     rewrite.commit();
   }
 

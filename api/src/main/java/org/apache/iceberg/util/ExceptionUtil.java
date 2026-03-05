@@ -36,6 +36,7 @@ public class ExceptionUtil {
     } else if (exceptionClass.isInstance(exception)) {
       throw (E) exception;
     }
+
     throw new RuntimeException(exception);
   }
 

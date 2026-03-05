@@ -86,6 +86,7 @@ public class TestExpressionSerialization {
       if (!(left.getClass().isInstance(right))) {
         return false;
       }
+
       return equals((Predicate) left, (Predicate) right);
     }
 
@@ -152,6 +153,7 @@ public class TestExpressionSerialization {
       if (left.op() == Operation.IN || left.op() == Operation.NOT_IN) {
         return equals(lpred.literals(), rpred.literals());
       }
+
       return lpred.literal().comparator().compare(lpred.literal().value(), rpred.literal().value())
           == 0;
 
@@ -183,6 +185,7 @@ public class TestExpressionSerialization {
     if (left.size() != right.size()) {
       return false;
     }
+
     return left.containsAll(right);
   }
 

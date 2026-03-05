@@ -92,6 +92,7 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
     for (Field field : value.schema().fields()) {
       updatedValue.put(field.name(), value.get(field));
     }
+
     updatedValue.put(targetField, value.get(sourceField));
 
     return newRecord(record, updatedSchema, updatedValue);
@@ -103,6 +104,7 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
     for (Field field : schema.fields()) {
       builder.field(field.name(), field.schema());
     }
+
     builder.field(targetField, schema.field(sourceField).schema());
 
     return builder.build();

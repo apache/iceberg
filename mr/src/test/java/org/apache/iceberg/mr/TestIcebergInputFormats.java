@@ -241,6 +241,7 @@ public class TestIcebergInputFormats {
           helper.writeFile(Row.of("2020-03-2" + idx, idx.toString()), ImmutableList.of(record)));
       idx += 1;
     }
+
     append.commit();
 
     // individual fields
@@ -273,6 +274,7 @@ public class TestIcebergInputFormats {
     for (String name : names) {
       projectedIds.add(indexByName.get(name));
     }
+
     return TypeUtil.select(LOG_SCHEMA, projectedIds);
   }
 

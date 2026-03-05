@@ -158,6 +158,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     while (end <= table.snapshot(snapshotId).timestampMillis()) {
       end = System.currentTimeMillis();
     }
+
     return end;
   }
 

@@ -67,6 +67,7 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
           if (findFreePort) {
             config.put(RESTCatalogServer.REST_PORT, String.valueOf(RCKUtils.findFreePort()));
           }
+
           this.localServer = new RESTCatalogServer(config);
           this.localServer.start(false);
           break;
@@ -88,6 +89,7 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
     if (localServer != null) {
       localServer.stop();
     }
+
     if (client != null) {
       client.close();
     }

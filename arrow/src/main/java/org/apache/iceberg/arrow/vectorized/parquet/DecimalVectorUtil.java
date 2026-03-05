@@ -57,10 +57,12 @@ public class DecimalVectorUtil {
       if (bigEndianBytes[0] < 0) {
         Arrays.fill(result, 0, start, (byte) 0xFF);
       }
+
       System.arraycopy(bigEndianBytes, 0, result, start, bigEndianBytes.length);
 
       return result;
     }
+
     throw new IllegalArgumentException(
         String.format(
             Locale.ROOT,

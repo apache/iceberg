@@ -67,6 +67,7 @@ public class HoursFunction extends UnaryUnboundFunction {
       if (otherBucketFunction instanceof DaysFunction.BaseToDaysFunction) {
         return new HourToDaysReducer();
       }
+
       return null;
     }
   }

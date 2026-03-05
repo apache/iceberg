@@ -122,6 +122,7 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
           // MICROS
           return new TimestampType(6);
         }
+
       case TIMESTAMP_NANO:
         Types.TimestampNanoType timestamp9 = (Types.TimestampNanoType) primitive;
         if (timestamp9.shouldAdjustToUTC()) {
@@ -131,6 +132,7 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
           // NANOS
           return new TimestampType(9);
         }
+
       case STRING:
         return new VarCharType(VarCharType.MAX_LENGTH);
       case UUID:

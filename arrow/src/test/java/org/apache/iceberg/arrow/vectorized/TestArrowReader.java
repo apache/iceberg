@@ -246,6 +246,7 @@ public class TestArrowReader {
         numRoots++;
       }
     }
+
     assertThat(numRoots).isZero();
   }
 
@@ -431,6 +432,7 @@ public class TestArrowReader {
         totalRows += root.getRowCount();
       }
     }
+
     assertThat(totalRows).isEqualTo(expectedTotalRows);
   }
 
@@ -464,6 +466,7 @@ public class TestArrowReader {
         totalRows += root.getRowCount();
       }
     }
+
     assertThat(totalRows).isEqualTo(expectedTotalRows);
   }
 
@@ -478,6 +481,7 @@ public class TestArrowReader {
     for (int i = 0; i < columns.size(); i++) {
       columnNameToIndex.put(columns.get(i), i);
     }
+
     Set<String> columnSet = columnNameToIndex.keySet();
 
     assertThat(batch.numRows()).isEqualTo(expectedNumRows);
@@ -885,8 +889,10 @@ public class TestArrowReader {
         records =
             createIncrementalRecordsForDate(table.schema(), LocalDateTime.of(2020, i, 1, 0, 0, 0));
       }
+
       overwrite.addFile(writeParquetFile(table, records));
     }
+
     overwrite.commit();
 
     // Perform a type promotion
@@ -1040,6 +1046,7 @@ public class TestArrowReader {
           datetime.plus(i, ChronoUnit.MINUTES).plusNanos(i).atOffset(ZoneOffset.UTC));
       records.add(rec);
     }
+
     return records;
   }
 
@@ -1083,6 +1090,7 @@ public class TestArrowReader {
       rec.setField("timestamp_nano_tz_nullable", datetime.atOffset(ZoneOffset.UTC));
       records.add(rec);
     }
+
     return records;
   }
 

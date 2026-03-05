@@ -625,6 +625,7 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
     for (int id = -400; id <= 0; id++) {
       ids.add(id);
     }
+
     assertThat(shouldRead(in(day("ts"), ids))).as("Should read: large in expression").isTrue();
   }
 

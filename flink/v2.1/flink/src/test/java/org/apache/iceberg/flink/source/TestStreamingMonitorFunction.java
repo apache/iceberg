@@ -318,6 +318,7 @@ public class TestStreamingMonitorFunction extends TestBase {
       // Commit those records to iceberg table.
       writeRecords(records);
     }
+
     return expectedRecords;
   }
 

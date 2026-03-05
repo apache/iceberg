@@ -163,6 +163,7 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
     if (blobSize == null) {
       blobSize = storage.get(blobId).getSize();
     }
+
     long startPosition = Math.max(0, blobSize - length);
     try (ReadChannel readChannel = openChannel()) {
       readChannel.seek(startPosition);

@@ -146,18 +146,21 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptz();
             }
+
             return GenericReaders.timestamps();
 
           case "timestamp-nanos":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptzNanos();
             }
+
             return GenericReaders.timestampNanos();
 
           case "timestamp-millis":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptzMillis();
             }
+
             return GenericReaders.timestampMillis();
 
           case "decimal":
@@ -182,6 +185,7 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
           if (partner != null && partner.typeId() == Type.TypeID.LONG) {
             return ValueReaders.intsAsLongs();
           }
+
           return ValueReaders.ints();
         case LONG:
           return ValueReaders.longs();
@@ -189,6 +193,7 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
           if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
             return ValueReaders.floatsAsDoubles();
           }
+
           return ValueReaders.floats();
         case DOUBLE:
           return ValueReaders.doubles();

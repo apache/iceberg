@@ -169,6 +169,7 @@ public class HadoopTableTestBase {
           }
         }
       }
+
       // delete original metadata file
       file.delete();
     }

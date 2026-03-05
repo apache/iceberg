@@ -164,6 +164,7 @@ public class TestMetricsRowGroupFilterTypes {
       record.setField("_fixed_decimal", new BigDecimal("99.99"));
       records.add(record);
     }
+
     switch (format) {
       case ORC:
         createOrcInputFile(records);

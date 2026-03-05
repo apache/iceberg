@@ -120,9 +120,11 @@ public class RewriteTablePathProcedure extends BaseProcedure {
           if (startVersion != null) {
             action.startVersion(startVersion);
           }
+
           if (endVersion != null) {
             action.endVersion(endVersion);
           }
+
           if (stagingLocation != null) {
             action.stagingLocation(stagingLocation);
           }

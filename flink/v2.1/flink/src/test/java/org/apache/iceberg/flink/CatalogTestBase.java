@@ -82,12 +82,14 @@ public abstract class CatalogTestBase extends TestBase {
     if (!baseNamespace.isEmpty()) {
       config.put(FlinkCatalogFactory.BASE_NAMESPACE, baseNamespace.toString());
     }
+
     if (isHadoopCatalog) {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop");
     } else {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
       config.put(CatalogProperties.URI, getURI(hiveConf));
     }
+
     config.put(CatalogProperties.WAREHOUSE_LOCATION, String.format("file://%s", warehouseRoot()));
 
     this.flinkDatabase = catalogName + "." + DATABASE;

@@ -53,6 +53,7 @@ public class DoubleFieldMetrics extends FieldMetrics<Double> {
         if (Double.compare(value, lowerBound) < 0) {
           this.lowerBound = value;
         }
+
         if (Double.compare(value, upperBound) > 0) {
           this.upperBound = value;
         }

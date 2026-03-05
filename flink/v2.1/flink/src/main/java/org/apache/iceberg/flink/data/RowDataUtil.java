@@ -55,6 +55,7 @@ public class RowDataUtil {
           Utf8 utf8 = (Utf8) value;
           return StringData.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
         }
+
         return StringData.fromString(value.toString());
       case FIXED: // byte[]
         if (value instanceof byte[]) {
@@ -62,6 +63,7 @@ public class RowDataUtil {
         } else if (value instanceof GenericData.Fixed) {
           return ((GenericData.Fixed) value).bytes();
         }
+
         return ByteBuffers.toByteArray((ByteBuffer) value);
       case BINARY: // byte[]
         return ByteBuffers.toByteArray((ByteBuffer) value);
@@ -73,6 +75,7 @@ public class RowDataUtil {
         return UUIDUtil.convert((UUID) value);
       default:
     }
+
     return value;
   }
 

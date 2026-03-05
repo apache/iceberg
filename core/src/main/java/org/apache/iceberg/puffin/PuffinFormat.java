@@ -114,6 +114,7 @@ final class PuffinFormat {
       case ZSTD:
         return compress(new ZstdCompressor(), input);
     }
+
     throw new UnsupportedOperationException("Unsupported codec: " + codec);
   }
 

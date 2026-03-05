@@ -60,6 +60,7 @@ class InMemoryPlanningState {
         }
       }
     }
+
     return instance;
   }
 
@@ -144,6 +145,7 @@ class InMemoryPlanningState {
                   if (!key.contains(planId)) {
                     return false;
                   }
+
                   List<String> keyParts = Splitter.on("-").splitToList(key);
                   if (keyParts.isEmpty()) {
                     return false;

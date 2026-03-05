@@ -65,10 +65,12 @@ class UrlConnectionHttpClientConfigurations extends BaseHttpClientConfigurations
       urlConnectionHttpClientBuilder.connectionTimeout(
           Duration.ofMillis(httpClientUrlConnectionConnectionTimeoutMs));
     }
+
     if (httpClientUrlConnectionSocketTimeoutMs != null) {
       urlConnectionHttpClientBuilder.socketTimeout(
           Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
     }
+
     if (proxyEndpoint != null) {
       urlConnectionHttpClientBuilder.proxyConfiguration(
           ProxyConfiguration.builder().endpoint(URI.create(proxyEndpoint)).build());

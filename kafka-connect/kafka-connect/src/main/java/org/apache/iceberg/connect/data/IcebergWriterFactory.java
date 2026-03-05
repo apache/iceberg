@@ -75,6 +75,7 @@ class IcebergWriterFactory {
           "Table {} does not have a UUID, this may cause issues with commit coordination on table replace",
           identifier);
     }
+
     TableReference tableReference = TableReference.of(catalog.name(), identifier, tableUuid);
 
     return new IcebergWriter(table, tableReference, config);
@@ -88,6 +89,7 @@ class IcebergWriterFactory {
       if (type == null) {
         throw new DataException("Unable to create table from empty object");
       }
+
       structType = type.asStructType();
     } else {
       structType = SchemaUtils.toIcebergType(sample.valueSchema(), config).asStructType();

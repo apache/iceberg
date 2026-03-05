@@ -216,6 +216,7 @@ public class Schema implements Serializable {
     if (idToField == null) {
       this.idToField = TypeUtil.indexById(struct);
     }
+
     return idToField;
   }
 
@@ -223,6 +224,7 @@ public class Schema implements Serializable {
     if (nameToId == null) {
       this.nameToId = ImmutableMap.copyOf(TypeUtil.indexByName(struct));
     }
+
     return nameToId;
   }
 
@@ -230,6 +232,7 @@ public class Schema implements Serializable {
     if (idToName == null) {
       this.idToName = ImmutableMap.copyOf(TypeUtil.indexNameById(struct));
     }
+
     return idToName;
   }
 
@@ -237,6 +240,7 @@ public class Schema implements Serializable {
     if (lowerCaseNameToId == null) {
       this.lowerCaseNameToId = ImmutableMap.copyOf(TypeUtil.indexByLowerCaseName(struct));
     }
+
     return lowerCaseNameToId;
   }
 
@@ -244,6 +248,7 @@ public class Schema implements Serializable {
     if (idToAccessor == null) {
       idToAccessor = Accessors.forSchema(this);
     }
+
     return idToAccessor;
   }
 
@@ -251,6 +256,7 @@ public class Schema implements Serializable {
     if (identifierFieldIdSet == null) {
       identifierFieldIdSet = ImmutableSet.copyOf(Ints.asList(identifierFieldIds));
     }
+
     return identifierFieldIdSet;
   }
 
@@ -364,6 +370,7 @@ public class Schema implements Serializable {
     if (field != null) {
       return field.type();
     }
+
     return null;
   }
 
@@ -391,6 +398,7 @@ public class Schema implements Serializable {
     if (id != null) {
       return lazyIdToField().get(id);
     }
+
     return null;
   }
 
@@ -408,6 +416,7 @@ public class Schema implements Serializable {
     if (id != null) {
       return lazyIdToField().get(id);
     }
+
     return null;
   }
 
@@ -432,6 +441,7 @@ public class Schema implements Serializable {
     if (aliasToId != null) {
       return aliasToId.get(alias);
     }
+
     return null;
   }
 
@@ -446,6 +456,7 @@ public class Schema implements Serializable {
     if (aliasToId != null) {
       return aliasToId.inverse().get(fieldId);
     }
+
     return null;
   }
 
@@ -578,6 +589,7 @@ public class Schema implements Serializable {
     if (getID == null) {
       return columns;
     }
+
     Type res =
         TypeUtil.assignIds(
             StructType.of(columns),
@@ -587,6 +599,7 @@ public class Schema implements Serializable {
                 idsToReassigned.put(oldId, newId);
                 idsToOriginal.put(newId, oldId);
               }
+
               return newId;
             });
     return res.asStructType().fields();

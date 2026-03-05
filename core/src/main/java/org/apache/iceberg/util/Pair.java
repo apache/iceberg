@@ -73,6 +73,7 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
       this.second = (Y) v;
       return;
     }
+
     throw new IllegalArgumentException("Cannot set value " + i + " (not 0 or 1): " + v);
   }
 
@@ -83,6 +84,7 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
     } else if (i == 1) {
       return second;
     }
+
     throw new IllegalArgumentException("Cannot get value " + i + " (not 0 or 1)");
   }
 
@@ -91,6 +93,7 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
     if (schema == null) {
       this.schema = SCHEMA_CACHE.get(Pair.of(first.getClass(), second.getClass()));
     }
+
     return schema;
   }
 
@@ -119,6 +122,7 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
     } else if (!(other instanceof Pair)) {
       return false;
     }
+
     Pair<?, ?> otherPair = (Pair<?, ?>) other;
     return Objects.equal(first, otherPair.first) && Objects.equal(second, otherPair.second);
   }

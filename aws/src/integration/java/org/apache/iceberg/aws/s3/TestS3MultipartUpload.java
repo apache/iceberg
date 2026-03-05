@@ -119,6 +119,7 @@ public class TestS3MultipartUpload {
     for (int i = 0; i < S3FileIOProperties.MULTIPART_SIZE_MIN; i++) {
       bytes[i] = 6;
     }
+
     writeBytes(objectUri, 10, () -> bytes);
     verifyInts(objectUri, () -> 6);
   }

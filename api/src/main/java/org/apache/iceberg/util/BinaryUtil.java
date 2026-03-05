@@ -45,6 +45,7 @@ public class BinaryUtil {
     } else if (length >= input.remaining()) {
       return input;
     }
+
     byte[] array = new byte[length];
     input.duplicate().get(array);
     return ByteBuffer.wrap(array);
@@ -73,6 +74,7 @@ public class BinaryUtil {
     if (length >= inputBuffer.remaining()) {
       return input;
     }
+
     return Literal.of(truncateBinary(inputBuffer, length));
   }
 
@@ -118,6 +120,7 @@ public class BinaryUtil {
         return truncatedInput;
       }
     }
+
     return null; // Cannot find a valid upper bound
   }
 }

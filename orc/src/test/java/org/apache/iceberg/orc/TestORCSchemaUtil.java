@@ -552,6 +552,7 @@ public class TestORCSchemaUtil {
     if (firstChildren.size() != secondChildren.size()) {
       return false;
     }
+
     for (int i = 0; i < firstChildren.size(); ++i) {
       if (!equalsWithIds(firstChildren.get(i), secondChildren.get(i))) {
         return false;

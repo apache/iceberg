@@ -310,6 +310,7 @@ public class ContentFileParser {
       Object partitionValue = partitionData.get(pos, Object.class);
       SingleValueParser.toJson(field.type(), partitionValue, generator);
     }
+
     generator.writeEndArray();
   }
 

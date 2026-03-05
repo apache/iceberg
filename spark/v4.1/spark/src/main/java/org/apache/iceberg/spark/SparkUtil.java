@@ -302,6 +302,7 @@ public class SparkUtil {
           Utf8 utf8 = (Utf8) value;
           return UTF8String.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
         }
+
         return UTF8String.fromString(value.toString());
       case FIXED:
         if (value instanceof byte[]) {
@@ -309,6 +310,7 @@ public class SparkUtil {
         } else if (value instanceof GenericData.Fixed) {
           return ((GenericData.Fixed) value).bytes();
         }
+
         return ByteBuffers.toByteArray((ByteBuffer) value);
       case BINARY:
         return ByteBuffers.toByteArray((ByteBuffer) value);

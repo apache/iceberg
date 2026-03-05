@@ -80,6 +80,7 @@ public class VectorizedPageIterator extends BasePageIterator {
                 + " as the dictionary was missing for encoding "
                 + dataEncoding);
       }
+
       try {
         dictionaryEncodedValuesReader =
             new VectorizedDictionaryEncodedParquetValuesReader(
@@ -121,14 +122,17 @@ public class VectorizedPageIterator extends BasePageIterator {
                   + dataEncoding
                   + ". Disable vectorized reads to read this table/file");
       }
+
       try {
         valuesReader.initFromPage(valueCount, in);
       } catch (IOException e) {
         throw new ParquetDecodingException(
             "could not read page " + valueCount + " in col " + desc, e);
       }
+
       dictionaryDecodeMode = DictionaryDecodeMode.NONE;
     }
+
     if (CorruptDeltaByteArrays.requiresSequentialReads(writerVersion, dataEncoding)
         && previousReader instanceof RequiresPreviousReader) {
       // previous reader can only be set if reading sequentially
@@ -176,6 +180,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
+
     vectorizedDefinitionLevelReader
         .dictionaryIdReader()
         .nextDictEncodedBatch(
@@ -202,11 +207,13 @@ public class VectorizedPageIterator extends BasePageIterator {
       if (actualBatchSize <= 0) {
         return 0;
       }
+
       if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
         nextDictEncodedVal(vector, actualBatchSize, numValsInVector, typeWidth, holder);
       } else {
         nextVal(vector, actualBatchSize, numValsInVector, typeWidth, holder);
       }
+
       triplesRead += actualBatchSize;
       hasNext = triplesRead < triplesCount;
       return actualBatchSize;

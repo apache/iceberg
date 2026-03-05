@@ -166,6 +166,7 @@ public class ExpressionParser {
               for (T value : pred.asSetPredicate().literalSet()) {
                 SingleValueParser.toJson(pred.term().type(), value, gen);
               }
+
               gen.writeEndArray();
             }
 
@@ -190,6 +191,7 @@ public class ExpressionParser {
                 for (Literal<T> lit : pred.literals()) {
                   unboundLiteral(lit.value());
                 }
+
                 gen.writeEndArray();
 
               } else {

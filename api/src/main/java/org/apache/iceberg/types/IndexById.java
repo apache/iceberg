@@ -51,6 +51,7 @@ class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> 
     for (Types.NestedField field : list.fields()) {
       index.put(field.fieldId(), field);
     }
+
     return null;
   }
 
@@ -62,6 +63,7 @@ class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> 
     for (Types.NestedField field : map.fields()) {
       index.put(field.fieldId(), field);
     }
+
     return null;
   }
 

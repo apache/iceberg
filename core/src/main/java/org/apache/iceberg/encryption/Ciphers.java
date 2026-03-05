@@ -164,6 +164,7 @@ public class Ciphers {
         if (null != aad) {
           cipher.updateAAD(aad);
         }
+
         // For java Cipher, the nonce is not part of ciphertext
         plaintextLength =
             cipher.doFinal(

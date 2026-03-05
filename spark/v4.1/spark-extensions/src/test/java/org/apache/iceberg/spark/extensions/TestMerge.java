@@ -274,6 +274,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     for (int index = 0; index < 100; index++) {
       records[index] = String.format("{ \"id\": %d, \"salary\": 100, \"dep\": \"hr\" }", index);
     }
+
     append(tableName, records);
     append(tableName, records);
     append(tableName, records);
@@ -356,6 +357,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     for (int index = 0; index < 100; index++) {
       records[index] = String.format("{ \"id\": %d, \"salary\": 100, \"dep\": \"hr\" }", index);
     }
+
     append(tableName, records);
     append(tableName, records);
     append(tableName, records);
@@ -951,6 +953,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     for (int i = 0; i < 10_000; i++) {
       sourceIds.add(i);
     }
+
     Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
     ds.union(ds).createOrReplaceTempView("source");
 
@@ -988,6 +991,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     for (int i = 0; i < 10_000; i++) {
       sourceIds.add(i);
     }
+
     Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
     ds.union(ds).createOrReplaceTempView("source");
 
@@ -1026,6 +1030,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     for (int i = 0; i < 10_000; i++) {
       sourceIds.add(i);
     }
+
     Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
     ds.union(ds).createOrReplaceTempView("source");
 
@@ -1066,6 +1071,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     for (int i = 0; i < 10_000; i++) {
       sourceIds.add(i);
     }
+
     Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
     ds.union(ds).createOrReplaceTempView("source");
 
@@ -1098,6 +1104,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     for (int i = 0; i < 10_000; i++) {
       sourceIds.add(i);
     }
+
     Dataset<Integer> ds = spark.createDataset(sourceIds, Encoders.INT());
     ds.union(ds).createOrReplaceTempView("source");
 
@@ -1608,6 +1615,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   if (branch != null) {
                     appendFiles.toBranch(branch);
                   }
+
                   appendFiles.commit();
                 }
 
@@ -1944,6 +1952,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     for (int id = 1; id <= 200; id++) {
       ids.add(id);
     }
+
     Dataset<Row> df =
         spark
             .createDataset(ids, Encoders.INT())

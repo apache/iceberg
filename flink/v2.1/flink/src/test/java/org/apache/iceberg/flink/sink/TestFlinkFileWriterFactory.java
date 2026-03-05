@@ -63,6 +63,7 @@ public class TestFlinkFileWriterFactory extends TestFileWriterFactory<RowData> {
       RowDataWrapper wrapper = new RowDataWrapper(flinkType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
     }
+
     return set;
   }
 

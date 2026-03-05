@@ -99,6 +99,7 @@ public class TestSparkParquetReader extends AvroDataTestBase {
             expectedSchema.asStruct(), record, rows.next(), ID_TO_CONSTANT, pos);
         pos += 1;
       }
+
       assertThat(rows).as("Should not have extra rows").isExhausted();
     }
   }

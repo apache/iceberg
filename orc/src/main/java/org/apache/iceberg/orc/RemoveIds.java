@@ -33,6 +33,7 @@ class RemoveIds extends OrcSchemaVisitor<TypeDescription> {
     for (int i = 0; i < fields.size(); i++) {
       struct.addField(names.get(i), fields.get(i));
     }
+
     return struct;
   }
 

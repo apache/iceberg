@@ -71,6 +71,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     if (shouldRefresh) {
       return refresh();
     }
+
     return currentMetadata;
   }
 
@@ -98,6 +99,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
       version = -1;
       throw e;
     }
+
     return current();
   }
 
@@ -117,6 +119,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
         throw new AlreadyExistsException("Table already exists: %s", tableName());
       }
     }
+
     // if the metadata is not changed, return early
     if (base == metadata) {
       LOG.info("Nothing to commit.");
@@ -212,6 +215,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
       this.currentMetadataLocation = newLocation;
       this.version = parseVersion(newLocation);
     }
+
     this.shouldRefresh = false;
   }
 

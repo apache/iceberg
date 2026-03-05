@@ -113,6 +113,7 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
             case SMALLINT:
               return GenericOrcWriters.shorts();
           }
+
           return GenericOrcWriters.ints();
         case LONG:
           return GenericOrcWriters.longs();
@@ -143,6 +144,7 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
           } else {
             return FlinkOrcWriters.timestamps();
           }
+
         case STRING:
           return FlinkOrcWriters.strings();
         case UUID:

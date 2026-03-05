@@ -48,6 +48,7 @@ public class Accessors {
     if (accessor instanceof PositionAccessor) {
       return ((PositionAccessor) accessor).position();
     }
+
     throw new IllegalArgumentException("Cannot convert nested accessor to position");
   }
 
@@ -169,6 +170,7 @@ public class Accessors {
       if (inner != null) {
         return accessor.get(inner);
       }
+
       return null;
     }
 

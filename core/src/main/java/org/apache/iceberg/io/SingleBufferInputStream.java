@@ -60,6 +60,7 @@ class SingleBufferInputStream extends ByteBufferInputStream {
     if (!buffer.hasRemaining()) {
       throw new EOFException();
     }
+
     return buffer.get() & 0xFF; // as unsigned
   }
 

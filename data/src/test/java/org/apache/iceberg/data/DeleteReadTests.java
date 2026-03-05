@@ -669,6 +669,7 @@ public abstract class DeleteReadTests {
                   "structData",
                   structRecord)));
     }
+
     DataFile binaryDataFile =
         FileHelpers.writeDataFile(
             table,

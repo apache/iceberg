@@ -316,6 +316,7 @@ public class S3FileIO
               .map(obj -> String.format("s3://%s/%s", request.bucket(), obj.key()))
               .collect(Collectors.toList()));
     }
+
     return failures;
   }
 

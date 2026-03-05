@@ -197,6 +197,7 @@ public class DVReaderBenchmark {
         closableWriter.delete(path, pos, table.spec(), null);
       }
     }
+
     return writer.result();
   }
 
@@ -212,6 +213,7 @@ public class DVReaderBenchmark {
         closableWriter.write(positionDelete, table.spec(), null);
       }
     }
+
     return writer.result();
   }
 

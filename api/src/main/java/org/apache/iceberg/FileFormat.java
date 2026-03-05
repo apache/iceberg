@@ -54,6 +54,7 @@ public enum FileFormat {
     if (filename.endsWith(ext)) {
       return filename;
     }
+
     return filename + ext;
   }
 

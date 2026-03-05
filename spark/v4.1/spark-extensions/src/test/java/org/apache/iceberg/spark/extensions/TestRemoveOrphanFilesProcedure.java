@@ -99,6 +99,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
           tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
     }
+
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
 
@@ -457,6 +458,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     if (!location.startsWith("file:")) {
       location = "file:" + location;
     }
+
     File statsLocation =
         new File(new URI(location)).toPath().resolve("data").resolve(statsFileName).toFile();
     StatisticsFile statisticsFile;
@@ -594,6 +596,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
           tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
     }
+
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     String location = table.location();
     Path originalPath = new Path(location);
@@ -677,6 +680,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
           "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
           tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
     }
+
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     Path originalPath = new Path(table.location());
 

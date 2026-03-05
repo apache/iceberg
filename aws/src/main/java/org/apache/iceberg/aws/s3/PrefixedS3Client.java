@@ -54,9 +54,11 @@ class PrefixedS3Client implements AutoCloseable {
       if (clientFactory instanceof S3FileIOAwsClientFactory) {
         this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
       }
+
       if (clientFactory instanceof AwsClientFactory) {
         this.s3 = ((AwsClientFactory) clientFactory)::s3;
       }
+
       if (s3FileIOProperties.isPreloadClientEnabled()) {
         s3();
       }
@@ -68,6 +70,7 @@ class PrefixedS3Client implements AutoCloseable {
       if (clientFactory instanceof S3FileIOAwsClientFactory) {
         this.s3Async = ((S3FileIOAwsClientFactory) clientFactory)::s3Async;
       }
+
       if (clientFactory instanceof AwsClientFactory) {
         this.s3Async = ((AwsClientFactory) clientFactory)::s3Async;
       }
@@ -117,6 +120,7 @@ class PrefixedS3Client implements AutoCloseable {
       if (s3FileIOProperties().isS3AnalyticsAcceleratorEnabled()) {
         AnalyticsAcceleratorUtil.cleanupCache(s3AsyncClient, s3FileIOProperties);
       }
+
       s3AsyncClient.close();
     }
   }

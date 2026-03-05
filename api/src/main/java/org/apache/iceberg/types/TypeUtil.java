@@ -68,6 +68,7 @@ public class TypeUtil {
         return new Schema(result.fields());
       }
     }
+
     return new Schema(Collections.emptyList(), schema.getAliases());
   }
 
@@ -124,6 +125,7 @@ public class TypeUtil {
     if (type.isPrimitiveType()) {
       return ImmutableSet.of();
     }
+
     return ImmutableSet.copyOf(getIdsInternal(type, true));
   }
 
@@ -514,6 +516,7 @@ public class TypeUtil {
       for (String error : errors) {
         sb.append("\n* ").append(error);
       }
+
       throw new IllegalArgumentException(sb.toString());
     }
   }
@@ -730,8 +733,10 @@ public class TypeUtil {
           } finally {
             visitor.afterField(field);
           }
+
           results.add(visitor.field(field, result));
         }
+
         return visitor.struct(struct, results);
 
       case LIST:
@@ -919,6 +924,7 @@ public class TypeUtil {
           break;
         }
       }
+
       if (REQUIRED_LENGTH[precision] < 0) {
         throw new IllegalStateException(
             "Could not find required length for precision " + precision);

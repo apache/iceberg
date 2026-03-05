@@ -1274,6 +1274,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
       if (tableExists(metadata, JdbcUtil.CATALOG_TABLE_VIEW_NAME)) {
         catalogTableExists = true;
       }
+
       if (tableExists(metadata, JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME)) {
         namespacePropertiesTableExists = true;
       }

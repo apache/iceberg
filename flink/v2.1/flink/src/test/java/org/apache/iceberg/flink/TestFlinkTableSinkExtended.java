@@ -314,6 +314,7 @@ public class TestFlinkTableSinkExtended extends SqlBase {
                       charRows.add(Row.of(c - 'a', String.valueOf(c)));
                     }
                   }
+
                   return charRows;
                 })
             .collect(Collectors.toList());

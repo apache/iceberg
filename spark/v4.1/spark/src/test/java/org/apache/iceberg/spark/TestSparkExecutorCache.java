@@ -246,6 +246,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
                       assertThat(loadedInternalKeys.contains(internalKey)).isFalse();
                       loadedInternalKeys.add(internalKey);
                     }
+
                     return "value1";
                   },
                   valueSize);
@@ -260,6 +261,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
                       assertThat(loadedInternalKeys.contains(internalKey)).isFalse();
                       loadedInternalKeys.add(internalKey);
                     }
+
                     return "value2";
                   },
                   valueSize);

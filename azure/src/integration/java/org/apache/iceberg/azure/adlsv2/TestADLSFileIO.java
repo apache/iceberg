@@ -66,6 +66,7 @@ public class TestADLSFileIO extends AzuriteTestBase {
     try (OutputStream out = outputFile.create()) {
       out.write(123);
     }
+
     assertThat(fileClient.exists()).isTrue();
 
     InputFile inputFile = io.newInputFile(location);

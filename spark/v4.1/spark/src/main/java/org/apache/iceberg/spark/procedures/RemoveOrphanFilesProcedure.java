@@ -160,6 +160,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
             if (!isTesting) {
               validateInterval(olderThanMillis);
             }
+
             action.olderThan(olderThanMillis);
           }
 

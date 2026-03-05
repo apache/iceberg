@@ -84,6 +84,7 @@ class MapRangePartitioner implements Partitioner<RowData> {
         lastNewSortKeyLogTimeMilli = now;
         newSortKeyCounter = 0;
       }
+
       partition = (int) (newSortKeyCounter % numPartitions);
     } else {
       partition = keyAssignment.select();

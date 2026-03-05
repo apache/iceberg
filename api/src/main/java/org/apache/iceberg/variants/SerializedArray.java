@@ -78,6 +78,7 @@ class SerializedArray implements VariantArray, SerializedValue {
       array[index] =
           VariantValue.from(metadata, VariantUtil.slice(value, dataOffset + offset, next - offset));
     }
+
     return array[index];
   }
 

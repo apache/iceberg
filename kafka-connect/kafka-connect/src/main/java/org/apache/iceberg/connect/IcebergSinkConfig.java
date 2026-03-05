@@ -487,6 +487,7 @@ public class IcebergSinkConfig extends AbstractConfig {
         }
       }
     }
+
     LOG.info(
         "Worker properties not loaded, using only {}* properties for Kafka clients",
         KAFKA_PROP_PREFIX);

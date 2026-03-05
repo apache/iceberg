@@ -179,6 +179,7 @@ public class OrcMetrics {
           } else {
             nullCounts.put(fieldId, 0L);
           }
+
           valueCounts.put(fieldId, colStat.getNumberOfValues() + nullCounts.get(fieldId));
 
           if (metricsMode != MetricsModes.Counts.get()) {
@@ -329,6 +330,7 @@ public class OrcMetrics {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
       max = booleanStats.getTrueCount() > 0;
     }
+
     return Optional.ofNullable(
         Conversions.toByteBuffer(type, truncateIfNeeded(Bound.UPPER, type, max, metricsMode)));
   }

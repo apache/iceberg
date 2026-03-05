@@ -66,6 +66,7 @@ public class TestORCFileIOProxies {
       os.write('R');
       os.write('C');
     }
+
     // No other operation is supported
     assertThatThrownBy(() -> ofs.open(new Path(outputFile.location())))
         .isInstanceOf(UnsupportedOperationException.class)

@@ -147,6 +147,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
       permute(arr, start + 1, pm);
       Collections.swap(arr, start, i);
     }
+
     if (start == arr.size() - 1) {
       pm.add(arr.toArray());
     }

@@ -163,9 +163,11 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
       } catch (IOException e) {
         throw new ParquetDecodingException("Error reading mini block.", e);
       }
+
       currentRowId += loadedRows;
       remaining -= loadedRows;
     }
+
     valuesRead = total - remaining;
   }
 
@@ -211,6 +213,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     } catch (IOException e) {
       throw new ParquetDecodingException("Can not read min delta in current block", e);
     }
+
     readBitWidthsForMiniBlocks();
     remainingInBlock = blockSizeInValues;
     currentMiniBlock = 0;
@@ -235,6 +238,7 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
         packer.unpack8Values(buffer, buffer.position(), unpackedValuesBuffer, j);
       }
     }
+
     remainingInMiniBlock = miniBlockSizeInValues;
     currentMiniBlock++;
   }

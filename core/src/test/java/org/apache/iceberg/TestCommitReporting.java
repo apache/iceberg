@@ -126,6 +126,7 @@ public class TestCommitReporting extends TestBase {
       assertThat(metrics.addedPositionalDeleteFiles()).isNull();
       assertThat(metrics.addedDVs().value()).isEqualTo(2L);
     }
+
     assertThat(metrics.addedEqualityDeleteFiles().value()).isEqualTo(1L);
 
     assertThat(metrics.addedPositionalDeletes().value()).isEqualTo(2L);
@@ -168,6 +169,7 @@ public class TestCommitReporting extends TestBase {
       assertThat(metrics.removedPositionalDeleteFiles()).isNull();
       assertThat(metrics.removedDVs().value()).isEqualTo(2L);
     }
+
     assertThat(metrics.removedEqualityDeleteFiles().value()).isEqualTo(1L);
 
     assertThat(metrics.removedPositionalDeletes().value()).isEqualTo(2L);

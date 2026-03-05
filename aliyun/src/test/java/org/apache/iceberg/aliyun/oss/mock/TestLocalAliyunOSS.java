@@ -157,6 +157,7 @@ public class TestLocalAliyunOSS {
     try (InputStream is = oss.getObject(bucketName, "key").getObjectContent()) {
       ByteStreams.readFully(is, actual);
     }
+
     assertThat(actual).isEqualTo(bytes);
     oss.deleteObject(bucketName, "key");
   }
@@ -168,6 +169,7 @@ public class TestLocalAliyunOSS {
     for (int i = 0; i < bytes.length; i++) {
       bytes[i] = (byte) i;
     }
+
     oss.putObject(bucketName, "key", new ByteArrayInputStream(bytes));
 
     int start = 0;
@@ -233,6 +235,7 @@ public class TestLocalAliyunOSS {
     try (InputStream is = oss.getObject(getObjectRequest).getObjectContent()) {
       ByteStreams.readFully(is, actual);
     }
+
     assertThat(actual).isEqualTo(testBytes);
   }
 
@@ -249,6 +252,7 @@ public class TestLocalAliyunOSS {
       if (Objects.equals(e.getErrorCode(), OSSErrorCode.BUCKET_ALREADY_EXISTS)) {
         return true;
       }
+
       throw e;
     }
   }

@@ -67,6 +67,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
     } else {
       this.type = type;
     }
+
     this.value = value;
   }
 
@@ -115,9 +116,11 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
         }
+
         if (buffer.remaining() <= MAX_SHORT_STRING_LENGTH) {
           return 1 + buffer.remaining(); // 1 header + value length
         }
+
         return 5 + buffer.remaining(); // 1 header + 4 length + value length
       case UUID:
         return 1 + 16; // 1 header + 16 length
@@ -203,6 +206,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
             outBuffer.put(offset + 2 + i, padding);
           }
         }
+
         return 18;
       case BINARY:
         ByteBuffer binary = (ByteBuffer) value;
@@ -214,6 +218,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
         }
+
         if (buffer.remaining() <= MAX_SHORT_STRING_LENGTH) {
           outBuffer.put(offset, VariantUtil.shortStringHeader(buffer.remaining()));
           VariantUtil.writeBufferAbsolute(outBuffer, offset + 1, buffer);
@@ -224,6 +229,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
           VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, buffer);
           return 5 + buffer.remaining();
         }
+
       case TIME:
         outBuffer.put(offset, TIME_HEADER);
         outBuffer.putLong(offset + 1, (Long) value);

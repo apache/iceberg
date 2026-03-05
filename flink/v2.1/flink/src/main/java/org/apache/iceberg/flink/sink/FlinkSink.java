@@ -192,6 +192,7 @@ public class FlinkSink {
             if (newUidPrefix != null) {
               inputStream.name(operatorName(newUidPrefix)).uid(newUidPrefix + "-mapper");
             }
+
             return inputStream;
           };
       return this;
@@ -281,6 +282,7 @@ public class FlinkSink {
       if (mode != null) {
         writeOptions.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), mode.modeName());
       }
+
       return this;
     }
 
@@ -304,6 +306,7 @@ public class FlinkSink {
       if (type != null) {
         writeOptions.put(FlinkWriteOptions.RANGE_DISTRIBUTION_STATISTICS_TYPE.key(), type.name());
       }
+
       return this;
     }
 
@@ -515,8 +518,10 @@ public class FlinkSink {
               equalityFieldSet,
               table.schema().identifierFieldIds());
         }
+
         equalityFieldIds = Lists.newArrayList(equalityFieldSet);
       }
+
       return equalityFieldIds;
     }
 
@@ -529,6 +534,7 @@ public class FlinkSink {
       if (uidPrefix != null) {
         resultStream = resultStream.uid(uidPrefix + "-dummysink");
       }
+
       return resultStream;
     }
 
@@ -551,6 +557,7 @@ public class FlinkSink {
       if (uidPrefix != null) {
         committerStream = committerStream.uid(uidPrefix + "-committer");
       }
+
       return committerStream;
     }
 
@@ -603,6 +610,7 @@ public class FlinkSink {
       if (uidPrefix != null) {
         writerStream = writerStream.uid(uidPrefix + "-writer");
       }
+
       return writerStream;
     }
 
@@ -655,6 +663,7 @@ public class FlinkSink {
                     partitionField,
                     equalityFieldColumns);
               }
+
               return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
             }
           }

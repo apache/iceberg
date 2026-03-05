@@ -47,6 +47,7 @@ public class TestZOrderByteUtil {
     for (byte b : bytes) {
       result.append(String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0'));
     }
+
     return result.toString();
   }
 
@@ -76,8 +77,10 @@ public class TestZOrderByteUtil {
           characterIndex++;
         }
       }
+
       substringIndex++;
     }
+
     return result.toString();
   }
 

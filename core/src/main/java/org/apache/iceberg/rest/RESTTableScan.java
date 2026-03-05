@@ -293,6 +293,7 @@ class RESTTableScan extends DataTableScan {
         // Ignore cancellation failures during exception handling
         e.addSuppressed(cancelException);
       }
+
       throw e;
     }
   }

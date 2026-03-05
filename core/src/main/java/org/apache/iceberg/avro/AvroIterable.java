@@ -59,6 +59,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
         metadata.put(key, metadataReader.getMetaString(key));
       }
     }
+
     return metadataReader;
   }
 
@@ -70,6 +71,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
         throw new RuntimeIOException(e, "Failed to read metadata for file: %s", file.location());
       }
     }
+
     return metadata;
   }
 
@@ -83,6 +85,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
             .setRowPositionSupplier(
                 Suppliers.memoize(() -> AvroIO.findStartingRowPos(file::newStream, start)));
       }
+
       fileReader = new AvroRangeIterator<>(fileReader, start, end);
     } else if (reader instanceof SupportsRowPosition) {
       ((SupportsRowPosition) reader).setRowPositionSupplier(() -> 0L);
@@ -110,6 +113,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
           // Ignore close exception
         }
       }
+
       throw new RuntimeIOException(e, "Failed to open file: %s", file.location());
     }
   }
@@ -148,6 +152,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
+
       return reader.next();
     }
 
@@ -156,6 +161,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
+
       try {
         return reader.next(reuse);
       } catch (IOException e) {

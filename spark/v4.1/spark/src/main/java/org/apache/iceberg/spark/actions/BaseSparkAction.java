@@ -292,6 +292,7 @@ abstract class BaseSparkAction<ThisT> {
       } catch (BulkDeletionFailureException e) {
         failures = e.numberFailedObjects();
       }
+
       summary.deletedFiles(type, paths.size() - failures);
     }
   }

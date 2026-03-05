@@ -195,6 +195,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
             if (tableExists.test(tableName)) {
               return true;
             }
+
             throw e;
           }
         });
@@ -274,6 +275,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     if (schemaVersion != JdbcUtil.SchemaVersion.V1) {
       throw new UnsupportedOperationException(VIEW_WARNING_LOG_MESSAGE);
     }
+
     return new JdbcViewOperations(connections, io, catalogName, viewIdentifier, catalogProperties);
   }
 
@@ -490,6 +492,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                       return false;
                     }
                   }
+
                   return true;
                 })
             .collect(Collectors.toList());
@@ -509,6 +512,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     if (!properties.containsKey("location")) {
       properties.put("location", defaultNamespaceLocation(namespace));
     }
+
     properties.remove(NAMESPACE_EXISTS_PROPERTY); // do not return reserved existence property
 
     return ImmutableMap.copyOf(properties);

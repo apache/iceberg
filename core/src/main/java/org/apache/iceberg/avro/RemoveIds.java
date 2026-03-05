@@ -33,6 +33,7 @@ public class RemoveIds extends AvroSchemaVisitor<Schema> {
     for (int i = 0; i < length; i += 1) {
       newFields.add(copyField(fields.get(i), types.get(i)));
     }
+
     return AvroSchemaUtil.copyRecord(record, newFields, null);
   }
 
@@ -45,6 +46,7 @@ public class RemoveIds extends AvroSchemaVisitor<Schema> {
         result.addProp(key, prop.getValue());
       }
     }
+
     return result;
   }
 
@@ -57,6 +59,7 @@ public class RemoveIds extends AvroSchemaVisitor<Schema> {
         result.addProp(key, prop.getValue());
       }
     }
+
     return result;
   }
 
@@ -84,6 +87,7 @@ public class RemoveIds extends AvroSchemaVisitor<Schema> {
         copy.addProp(key, prop.getValue());
       }
     }
+
     return copy;
   }
 

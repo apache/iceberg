@@ -86,6 +86,7 @@ public class ScriptRunner {
         if (originalAutoCommit != this.autoCommit) {
           connection.setAutoCommit(this.autoCommit);
         }
+
         runScript(connection, reader);
       } finally {
         connection.setAutoCommit(originalAutoCommit);
@@ -115,6 +116,7 @@ public class ScriptRunner {
         if (command == null) {
           command = new StringBuilder();
         }
+
         String trimmedLine = line.trim();
         if (trimmedLine.startsWith("--")) {
           println(trimmedLine);
@@ -153,12 +155,14 @@ public class ScriptRunner {
               String name = md.getColumnLabel(i);
               print(name + "\t");
             }
+
             println("");
             while (rs.next()) {
               for (int i = 0; i < cols; i++) {
                 String value = rs.getString(i);
                 print(value + "\t");
               }
+
               println("");
             }
           }
@@ -169,12 +173,14 @@ public class ScriptRunner {
           } catch (Exception e) {
             // Ignore to workaround a bug in Jakarta DBCP
           }
+
           Thread.yield();
         } else {
           command.append(line);
           command.append(" ");
         }
       }
+
       if (!autoCommit) {
         conn.commit();
       }
@@ -215,6 +221,7 @@ public class ScriptRunner {
     if (logWriter != null) {
       logWriter.flush();
     }
+
     if (errorLogWriter != null) {
       errorLogWriter.flush();
     }

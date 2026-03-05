@@ -245,6 +245,7 @@ public class FlinkCatalog extends AbstractCatalog {
     if (!StringUtils.isNullOrWhitespaceOnly(comment)) {
       ret.put("comment", comment);
     }
+
     return ret;
   }
 
@@ -314,6 +315,7 @@ public class FlinkCatalog extends AbstractCatalog {
         throw new CatalogException(
             "Can not alter the default database when the iceberg catalog doesn't support namespaces.");
       }
+
       if (!ignoreIfNotExists) {
         throw new DatabaseNotExistException(getName(), name);
       }
@@ -652,6 +654,7 @@ public class FlinkCatalog extends AbstractCatalog {
         return Collections.emptyList();
       }
     }
+
     return partitionKeysBuilder.build();
   }
 
@@ -820,6 +823,7 @@ public class FlinkCatalog extends AbstractCatalog {
         for (int i = 0; i < structLike.size(); i++) {
           map.put(spec.fields().get(i).name(), String.valueOf(structLike.get(i, Object.class)));
         }
+
         set.add(new CatalogPartitionSpec(map));
       }
     } catch (IOException e) {

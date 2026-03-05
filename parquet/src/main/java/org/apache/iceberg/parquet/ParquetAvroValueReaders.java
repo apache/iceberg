@@ -167,6 +167,7 @@ public class ParquetAvroValueReaders {
             if (isMapKey) {
               return new StringReader(desc);
             }
+
             return new Utf8Reader(desc);
           case DATE:
           case INT_8:
@@ -195,6 +196,7 @@ public class ParquetAvroValueReaders {
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
+
           case BSON:
             return new BytesReader(desc);
           default:
@@ -216,12 +218,14 @@ public class ParquetAvroValueReaders {
           } else {
             return new UnboxedReader<>(desc);
           }
+
         case FLOAT:
           if (expected != null && expected.typeId() == TypeID.DOUBLE) {
             return new FloatAsDoubleReader(desc);
           } else {
             return new UnboxedReader<>(desc);
           }
+
         case BOOLEAN:
         case INT64:
         case DOUBLE:

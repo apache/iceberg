@@ -101,6 +101,7 @@ public abstract class IcebergSourceBenchmark {
           .config("parquet.enable.dictionary", false)
           .config(TableProperties.PARQUET_DICT_SIZE_BYTES, "1");
     }
+
     builder.master("local");
     spark = builder.getOrCreate();
     Configuration sparkHadoopConf = spark.sessionState().newHadoopConf();
@@ -153,6 +154,7 @@ public abstract class IcebergSourceBenchmark {
           if (SQLConf.isStaticConfigKey(confKey)) {
             throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
           }
+
           sqlConf.setConfString(confKey, confValue);
         });
 

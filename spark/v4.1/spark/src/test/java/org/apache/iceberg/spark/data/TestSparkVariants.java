@@ -152,6 +152,7 @@ public class TestSparkVariants extends TestBase {
         for (String fieldName : expectedObject.fieldNames()) {
           assertEquals(expectedObject.get(fieldName), actual.getFieldByKey(fieldName));
         }
+
         break;
       case ARRAY:
         assertThat(actual.getType()).isEqualTo(VariantUtil.Type.ARRAY);
@@ -163,6 +164,7 @@ public class TestSparkVariants extends TestBase {
         for (int i = 0; i < expectedArray.numElements(); i += 1) {
           assertEquals(expectedArray.get(i), actual.getElementAtIndex(i));
         }
+
         break;
       case NULL:
         assertThat(actual.getType())

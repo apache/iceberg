@@ -87,6 +87,7 @@ public class TestHelpers {
     while (current <= timestampMillis) {
       current = System.currentTimeMillis();
     }
+
     return current;
   }
 
@@ -367,6 +368,7 @@ public class TestHelpers {
       if (this == other) {
         return true;
       }
+
       if (other == null || getClass() != other.getClass()) {
         return false;
       }

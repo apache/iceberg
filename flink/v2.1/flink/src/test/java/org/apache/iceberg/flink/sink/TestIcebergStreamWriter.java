@@ -184,6 +184,7 @@ public class TestIcebergStreamWriter {
         createIcebergStreamWriter()) {
       assertThat(testHarness.extractOutputValues()).isEmpty();
     }
+
     // Even if we closed the iceberg stream writer, there's no orphan data file.
     assertThat(scanDataFiles()).isEmpty();
 
@@ -193,6 +194,7 @@ public class TestIcebergStreamWriter {
       // Still not emit the data file yet, because there is no checkpoint.
       assertThat(testHarness.extractOutputValues()).isEmpty();
     }
+
     // Once we closed the iceberg stream writer, there will left an orphan data file.
     assertThat(scanDataFiles()).hasSize(1);
   }
@@ -214,6 +216,7 @@ public class TestIcebergStreamWriter {
           }
         }
       }
+
       return paths;
     }
   }
@@ -363,6 +366,7 @@ public class TestIcebergStreamWriter {
       for (RowData row : rows) {
         testHarness.processElement(row, 1);
       }
+
       testHarness.prepareSnapshotPreBarrier(1);
       WriteResult result =
           WriteResult.builder().addAll(getWriteResults(testHarness.extractOutputValues())).build();

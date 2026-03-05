@@ -134,6 +134,7 @@ public abstract class TestBaseWithRESTServer {
             String.format("Failed to serialize and deserialize %s: %s", description, payload), e);
       }
     }
+
     return null;
   }
 

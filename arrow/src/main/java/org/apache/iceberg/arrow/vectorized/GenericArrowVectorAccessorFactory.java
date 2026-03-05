@@ -153,6 +153,7 @@ public class GenericArrowVectorAccessorFactory<
               throw new UnsupportedOperationException(
                   "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
           }
+
         default:
           throw new UnsupportedOperationException(
               "Unsupported logical type: " + primitive.getOriginalType());
@@ -189,11 +190,13 @@ public class GenericArrowVectorAccessorFactory<
       if (isDecimal(primitive)) {
         return new IntBackedDecimalAccessor<>((IntVector) vector, decimalFactorySupplier.get());
       }
+
       return new IntAccessor<>((IntVector) vector);
     } else if (vector instanceof BigIntVector) {
       if (isDecimal(primitive)) {
         return new LongBackedDecimalAccessor<>((BigIntVector) vector, decimalFactorySupplier.get());
       }
+
       return new LongAccessor<>((BigIntVector) vector);
     } else if (vector instanceof Float4Vector) {
       return new FloatAccessor<>((Float4Vector) vector);
@@ -228,9 +231,11 @@ public class GenericArrowVectorAccessorFactory<
         return new FixedSizeBinaryBackedDecimalAccessor<>(
             (FixedSizeBinaryVector) vector, decimalFactorySupplier.get());
       }
+
       return new FixedSizeBinaryAccessor<>(
           (FixedSizeBinaryVector) vector, stringFactorySupplier.get());
     }
+
     throw new UnsupportedOperationException("Unsupported vector: " + vector.getClass());
   }
 
@@ -436,6 +441,7 @@ public class GenericArrowVectorAccessorFactory<
         cache[offset] =
             stringFactory.ofByteBuffer(dictionary.decodeToBinary(offset).toByteBuffer());
       }
+
       return cache[offset];
     }
   }
@@ -732,6 +738,7 @@ public class GenericArrowVectorAccessorFactory<
       if (cache[offset] == null) {
         cache[offset] = decode(offset, precision, scale);
       }
+
       return cache[offset];
     }
 

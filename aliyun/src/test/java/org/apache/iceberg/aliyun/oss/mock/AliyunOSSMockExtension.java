@@ -117,6 +117,7 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
         rootDir = dir.getAbsolutePath();
         props.put(AliyunOSSMock.PROP_ROOT_DIR, rootDir);
       }
+
       File root = new File(rootDir);
       root.deleteOnExit();
       root.mkdir();

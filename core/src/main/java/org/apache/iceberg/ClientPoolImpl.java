@@ -118,6 +118,7 @@ public abstract class ClientPoolImpl<C, E extends Exception>
             }
           }
         }
+
         if (clients.isEmpty() && currentSize > 0) {
           // wake every second in case this missed the signal
           synchronized (signal) {
@@ -146,6 +147,7 @@ public abstract class ClientPoolImpl<C, E extends Exception>
           }
         }
       }
+
       synchronized (signal) {
         // wake every second in case this missed the signal
         signal.wait(1000);
@@ -157,6 +159,7 @@ public abstract class ClientPoolImpl<C, E extends Exception>
     synchronized (this) {
       clients.addFirst(client);
     }
+
     synchronized (signal) {
       signal.notify();
     }

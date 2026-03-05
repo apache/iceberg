@@ -169,6 +169,7 @@ public class DataFiles {
       if (isPartitioned) {
         partitionData.clear();
       }
+
       this.filePath = null;
       this.format = null;
       this.recordCount = -1L;
@@ -190,6 +191,7 @@ public class DataFiles {
             specId == toCopy.specId(), "Cannot copy a DataFile with a different spec");
         this.partitionData = copyPartitionData(spec, toCopy.partition(), partitionData);
       }
+
       this.filePath = toCopy.location();
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
@@ -250,6 +252,7 @@ public class DataFiles {
       if (isPartitioned) {
         this.partitionData = copyPartitionData(spec, newPartition, partitionData);
       }
+
       return this;
     }
 
@@ -270,6 +273,7 @@ public class DataFiles {
       if (!newPartitionPath.isEmpty()) {
         this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
       }
+
       return this;
     }
 
@@ -280,6 +284,7 @@ public class DataFiles {
       if (!partitionValues.isEmpty()) {
         this.partitionData = fillFromValues(spec, partitionValues, partitionData);
       }
+
       return this;
     }
 
@@ -302,6 +307,7 @@ public class DataFiles {
       } else {
         this.splitOffsets = null;
       }
+
       return this;
     }
 
@@ -318,6 +324,7 @@ public class DataFiles {
       if (newSortOrder != null) {
         this.sortOrderId = newSortOrder.orderId();
       }
+
       return this;
     }
 
@@ -336,6 +343,7 @@ public class DataFiles {
       if (format == null) {
         this.format = FileFormat.fromFileName(filePath);
       }
+
       Preconditions.checkArgument(format != null, "File format is required");
       Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");

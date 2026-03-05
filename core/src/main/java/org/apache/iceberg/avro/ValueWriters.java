@@ -473,6 +473,7 @@ public class ValueWriters {
       } else {
         throw new IllegalArgumentException("Invalid option index: " + nullIndex);
       }
+
       this.valueWriter = valueWriter;
     }
 
@@ -505,6 +506,7 @@ public class ValueWriters {
         encoder.startItem();
         elementWriter.write(iter.next(), encoder);
       }
+
       encoder.writeArrayEnd();
     }
   }
@@ -531,6 +533,7 @@ public class ValueWriters {
         keyWriter.write(entry.getKey(), encoder);
         valueWriter.write(entry.getValue(), encoder);
       }
+
       encoder.writeArrayEnd();
     }
   }
@@ -557,6 +560,7 @@ public class ValueWriters {
         keyWriter.write(entry.getKey(), encoder);
         valueWriter.write(entry.getValue(), encoder);
       }
+
       encoder.writeMapEnd();
     }
   }

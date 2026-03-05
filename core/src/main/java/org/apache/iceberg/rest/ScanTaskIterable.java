@@ -151,6 +151,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
           return true;
         }
       }
+
       return false;
     }
 
@@ -271,6 +272,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       if (!hasNext()) {
         throw new NoSuchElementException("No more scan tasks available");
       }
+
       FileScanTask result = nextTask;
       nextTask = null;
       return result;

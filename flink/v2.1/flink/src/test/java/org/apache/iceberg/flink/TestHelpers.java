@@ -316,6 +316,7 @@ public class TestHelpers {
               .as("LocalDataTime should be equal")
               .isEqualTo(ts);
         }
+
         break;
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
@@ -335,6 +336,7 @@ public class TestHelpers {
               .as("LocalDataTime should be equal")
               .isEqualTo(ts);
         }
+
         break;
       case BINARY:
         assertThat(ByteBuffer.wrap((byte[]) actual))
@@ -468,6 +470,7 @@ public class TestHelpers {
     if (expected == null && actual == null) {
       return;
     }
+
     assertThat(expected).isNotNull();
     assertThat(actual).isNotNull();
 
@@ -518,6 +521,7 @@ public class TestHelpers {
               .as("LocalDataTime should be equal")
               .isEqualTo(ts);
         }
+
         break;
       case BINARY:
         assertThat(ByteBuffer.wrap((byte[]) actual))
@@ -541,6 +545,7 @@ public class TestHelpers {
         } catch (ClassCastException e) {
           actualArrayData = new GenericArrayData((Object[]) actual);
         }
+
         LogicalType elementType = ((ArrayType) logicalType).getElementType();
         assertThat(actualArrayData.size())
             .as("array length should be equal")
@@ -556,6 +561,7 @@ public class TestHelpers {
         } catch (ClassCastException e) {
           actualMap = new GenericMapData((Map<?, ?>) actual);
         }
+
         assertMapValues(type.asMapType(), logicalType, (Map<?, ?>) expected, actualMap);
         break;
       case STRUCT:
@@ -642,6 +648,7 @@ public class TestHelpers {
           // not found
         }
       }
+
       assertThat(matchedActualKey).as("Should have a matching key").isNotNull();
       final int valueIndex = matchedKeyIndex;
       assertEquals(
@@ -656,6 +663,7 @@ public class TestHelpers {
     if (expected == actual) {
       return;
     }
+
     assertThat(expected).isNotNull();
     assertThat(actual).isNotNull();
     assertThat(actual.path()).as("Path must match").isEqualTo(expected.path());
@@ -724,6 +732,7 @@ public class TestHelpers {
     if (expected == actual) {
       return;
     }
+
     assertThat(expected).isNotNull();
     assertThat(actual).isNotNull();
     assertThat(actual.specId()).as("SpecId").isEqualTo(expected.specId());
@@ -738,6 +747,7 @@ public class TestHelpers {
           .as("Partition data at index " + i)
           .isEqualTo(expected.partition().get(i, Object.class));
     }
+
     assertThat(actual.recordCount()).as("Record count").isEqualTo(expected.recordCount());
     assertThat(actual.fileSizeInBytes())
         .as("File size in bytes")

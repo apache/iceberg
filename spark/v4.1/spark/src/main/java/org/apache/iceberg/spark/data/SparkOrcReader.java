@@ -126,6 +126,7 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
           if (Type.TypeID.UUID == iPrimitive.typeId()) {
             return SparkOrcValueReaders.uuids();
           }
+
           return OrcValueReaders.bytes();
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);

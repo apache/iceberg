@@ -44,6 +44,7 @@ public class TestFlinkPackage {
       mockedStatic.when(FlinkPackage::version).thenCallRealMethod();
       assertThat(FlinkPackage.version()).isEqualTo(FlinkPackage.FLINK_UNKNOWN_VERSION);
     }
+
     FlinkPackage.setVersion(null);
     try (MockedStatic<FlinkPackage> mockedStatic = Mockito.mockStatic(FlinkPackage.class)) {
       mockedStatic.when(FlinkPackage::versionFromJar).thenReturn(null);

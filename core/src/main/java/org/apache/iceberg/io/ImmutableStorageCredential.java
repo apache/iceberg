@@ -152,6 +152,7 @@ public final class ImmutableStorageCredential implements StorageCredential {
     if (instance instanceof ImmutableStorageCredential) {
       return (ImmutableStorageCredential) instance;
     }
+
     return ImmutableStorageCredential.builder().from(instance).build();
   }
 
@@ -279,6 +280,7 @@ public final class ImmutableStorageCredential implements StorageCredential {
             Objects.requireNonNull(k, "config key"),
             Objects.requireNonNull(v, v == null ? "config value for key: " + k : null));
       }
+
       return this;
     }
 
@@ -312,11 +314,13 @@ public final class ImmutableStorageCredential implements StorageCredential {
           Objects.requireNonNull(k, "key");
           Objects.requireNonNull(v, v == null ? "value for key: " + k : null);
         }
+
         linkedMap.put(k, v);
       }
     } else {
       linkedMap.putAll(map);
     }
+
     return SerializableMap.copyOf(linkedMap);
   }
 }

@@ -43,6 +43,7 @@ public abstract class TestFlinkSource extends TestFlinkScan {
       TableColumn column = schema.getTableColumn(field).get();
       builder.field(column.getName(), column.getType());
     }
+
     return run(FlinkSource.forRowData().project(builder.build()), Maps.newHashMap(), "", projected);
   }
 

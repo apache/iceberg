@@ -65,6 +65,7 @@ public class UnboundPartitionSpec {
       } else {
         transform = Transforms.fromString(field.transform.toString());
       }
+
       if (field.partitionId != null) {
         builder.add(field.sourceId, field.partitionId, field.name, transform);
       } else {

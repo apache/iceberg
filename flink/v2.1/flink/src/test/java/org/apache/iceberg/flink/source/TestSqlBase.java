@@ -74,6 +74,7 @@ public abstract class TestSqlBase {
         }
       }
     }
+
     return tEnv;
   }
 

@@ -159,6 +159,7 @@ public class PartitionSet extends AbstractSet<Pair<Integer, StructLike>> {
     if (objects != null) {
       return Iterables.all(objects, this::contains);
     }
+
     return false;
   }
 
@@ -170,6 +171,7 @@ public class PartitionSet extends AbstractSet<Pair<Integer, StructLike>> {
         changed |= add(pair);
       }
     }
+
     return changed;
   }
 
@@ -186,6 +188,7 @@ public class PartitionSet extends AbstractSet<Pair<Integer, StructLike>> {
         changed |= remove(object);
       }
     }
+
     return changed;
   }
 
@@ -204,8 +207,10 @@ public class PartitionSet extends AbstractSet<Pair<Integer, StructLike>> {
           partitionDataJoiner.add(partitionStringBuilder.toString());
         }
       }
+
       result.add(partitionDataJoiner.toString());
     }
+
     return result.toString();
   }
 

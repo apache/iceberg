@@ -50,6 +50,7 @@ class TestAuthManagers {
             "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2))) {
       assertThat(manager).isInstanceOf(OAuth2Manager.class);
     }
+
     assertThat(streamCaptor.toString())
         .contains("Loading AuthManager implementation: org.apache.iceberg.rest.auth.OAuth2Manager");
   }
@@ -60,6 +61,7 @@ class TestAuthManagers {
         AuthManagers.loadAuthManager("test", Map.of(OAuth2Properties.TOKEN, "irrelevant"))) {
       assertThat(manager).isInstanceOf(OAuth2Manager.class);
     }
+
     assertThat(streamCaptor.toString())
         .contains(
             "Inferring rest.auth.type=oauth2 since property token was provided. "
@@ -74,6 +76,7 @@ class TestAuthManagers {
         AuthManagers.loadAuthManager("test", Map.of(OAuth2Properties.CREDENTIAL, "irrelevant"))) {
       assertThat(manager).isInstanceOf(OAuth2Manager.class);
     }
+
     assertThat(streamCaptor.toString())
         .contains(
             "Inferring rest.auth.type=oauth2 since property credential was provided. "
@@ -87,6 +90,7 @@ class TestAuthManagers {
     try (AuthManager manager = AuthManagers.loadAuthManager("test", Map.of())) {
       assertThat(manager).isInstanceOf(NoopAuthManager.class);
     }
+
     assertThat(streamCaptor.toString())
         .contains(
             "Loading AuthManager implementation: org.apache.iceberg.rest.auth.NoopAuthManager");
@@ -99,6 +103,7 @@ class TestAuthManagers {
             "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_NONE))) {
       assertThat(manager).isInstanceOf(NoopAuthManager.class);
     }
+
     assertThat(streamCaptor.toString())
         .contains(
             "Loading AuthManager implementation: org.apache.iceberg.rest.auth.NoopAuthManager");
@@ -111,6 +116,7 @@ class TestAuthManagers {
             "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_BASIC))) {
       assertThat(manager).isInstanceOf(BasicAuthManager.class);
     }
+
     assertThat(streamCaptor.toString())
         .contains(
             "Loading AuthManager implementation: org.apache.iceberg.rest.auth.BasicAuthManager");

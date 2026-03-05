@@ -68,6 +68,7 @@ public class SerializableTableWithSize extends SerializableTable
       LOG.info("Releasing resources");
       io().close();
     }
+
     invalidateCache(name());
   }
 
@@ -95,6 +96,7 @@ public class SerializableTableWithSize extends SerializableTable
         LOG.info("Releasing resources");
         io().close();
       }
+
       invalidateCache(name());
     }
   }

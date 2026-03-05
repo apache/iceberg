@@ -86,6 +86,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.conf = readConf.copy();
       return readConf;
     }
+
     return conf;
   }
 

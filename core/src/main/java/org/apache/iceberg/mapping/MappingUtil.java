@@ -163,6 +163,7 @@ public class MappingUtil {
           newField = removeName(field, name);
         }
       }
+
       return newField;
     }
 
@@ -189,6 +190,7 @@ public class MappingUtil {
       for (Map<String, MappedField> results : fieldResults) {
         builder.putAll(results);
       }
+
       return builder.build();
     }
 

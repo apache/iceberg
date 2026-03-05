@@ -75,8 +75,10 @@ public class SinkUtil {
             equalityFieldSet,
             table.schema().identifierFieldIds());
       }
+
       equalityFieldIds = Sets.newHashSet(equalityFieldSet);
     }
+
     return equalityFieldIds;
   }
 
@@ -97,6 +99,7 @@ public class SinkUtil {
           break;
         }
       }
+
       Long parentSnapshotId = snapshot.parentId();
       snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
     }

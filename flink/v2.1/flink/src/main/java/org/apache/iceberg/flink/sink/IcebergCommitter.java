@@ -204,6 +204,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       } else {
         commitDeltaTxn(pendingResults, summary, newFlinkJobId, operatorId);
       }
+
       continuousEmptyCheckpoints = 0;
     } else {
       long checkpointId = pendingResults.lastKey();
@@ -226,6 +227,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
           result.referencedDataFiles().length == 0, "Should have no referenced data files.");
       Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
     }
+
     String description = "dynamic partition overwrite";
 
     logCommitSummary(summary, description);
@@ -247,6 +249,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
             "Should have no referenced data files for append.");
         Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
       }
+
       String description = "append";
       logCommitSummary(summary, description);
       // fail all commits as really its only one

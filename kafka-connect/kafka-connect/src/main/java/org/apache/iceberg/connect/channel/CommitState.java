@@ -106,6 +106,7 @@ class CommitState {
       LOG.info("Commit timeout reached. Commit ID: {}", currentCommitId);
       return true;
     }
+
     return false;
   }
 
@@ -162,6 +163,7 @@ class CommitState {
     } else {
       result = null;
     }
+
     return result;
   }
 }

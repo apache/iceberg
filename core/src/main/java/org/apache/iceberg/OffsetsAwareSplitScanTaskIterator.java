@@ -56,6 +56,7 @@ class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements SplitScan
       for (int index = 0; index < lastIndex; index++) {
         splitSizes[index] = offsets[index + 1] - offsets[index];
       }
+
       splitSizes[lastIndex] = parentTaskLength - offsets[lastIndex];
     }
   }
@@ -70,6 +71,7 @@ class OffsetsAwareSplitScanTaskIterator<T extends ScanTask> implements SplitScan
     if (!hasNext()) {
       throw new NoSuchElementException();
     }
+
     long offset = offsets[splitIndex];
     long splitSize = splitSizes[splitIndex];
     splitIndex += 1; // create 1 split per offset

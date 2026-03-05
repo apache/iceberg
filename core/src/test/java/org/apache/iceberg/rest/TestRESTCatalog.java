@@ -365,6 +365,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             String.format("Failed to serialize and deserialize %s: %s", description, payload), e);
       }
     }
+
     return null;
   }
 
@@ -435,6 +436,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                                   + "warehouse"))
                       .build());
             }
+
             return super.execute(request, responseType, errorHandler, responseHeaders);
           }
         };
@@ -957,6 +959,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               any(),
               any());
     }
+
     Mockito.verify(adapter)
         .execute(
             matches(HTTPMethod.HEAD, RESOURCE_PATHS.table(TBL), expectedHeaders),
@@ -2671,6 +2674,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                   errorHandler.accept(error);
                   throw new IllegalStateException("Error handler should have thrown");
                 }
+
                 return response;
               }
             });

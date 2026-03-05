@@ -63,6 +63,7 @@ public class IcebergBuild {
     } else {
       IcebergBuild.tags = ImmutableList.of();
     }
+
     IcebergBuild.version = buildProperties.getProperty("git.build.version", UNKNOWN_DEFAULT);
     IcebergBuild.fullVersion = String.format("Apache Iceberg %s (commit %s)", version, commitId);
   }

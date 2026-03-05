@@ -120,6 +120,7 @@ class Identity<T> implements Transform<T, T> {
     if (this.type != null) {
       return toHumanString(this.type, value);
     }
+
     return Transform.super.toHumanString(value);
   }
 
@@ -153,6 +154,7 @@ class Identity<T> implements Transform<T, T> {
     } else if (predicate.isSetPredicate()) {
       return Expressions.predicate(predicate.op(), name, predicate.asSetPredicate().literalSet());
     }
+
     return null;
   }
 
@@ -169,6 +171,7 @@ class Identity<T> implements Transform<T, T> {
     } else if (o instanceof Identity) {
       return true;
     }
+
     return false;
   }
 

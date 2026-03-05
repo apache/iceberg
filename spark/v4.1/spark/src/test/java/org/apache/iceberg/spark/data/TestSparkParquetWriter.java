@@ -127,6 +127,7 @@ public class TestSparkParquetWriter {
         assertThat(rows).as("Should have expected number of rows").hasNext();
         TestHelpers.assertEquals(COMPLEX_SCHEMA, expected.next(), rows.next());
       }
+
       assertThat(rows).as("Should not have extra rows").isExhausted();
     }
   }

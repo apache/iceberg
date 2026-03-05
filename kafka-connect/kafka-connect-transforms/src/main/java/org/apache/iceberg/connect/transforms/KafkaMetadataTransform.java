@@ -63,11 +63,13 @@ public class KafkaMetadataTransform implements Transformation<SinkRecord> {
     if (field == null) {
       return new NoOpRecordAppender();
     }
+
     List<String> parts = Splitter.on(',').splitToList(field);
     if (parts.size() != 2) {
       throw new ConfigException(
           String.format("Could not parse %s for %s", field, EXTERNAL_KAFKA_METADATA));
     }
+
     String fieldName = fieldNamer.apply(parts.get(0));
     String fieldValue = parts.get(1);
     return new RecordAppender() {
@@ -164,6 +166,7 @@ public class KafkaMetadataTransform implements Transformation<SinkRecord> {
           if (record.timestamp() != null) {
             nested.put(TIMESTAMP, record.timestamp());
           }
+
           externalFieldAppender.addToStruct(record, nested);
           struct.put(metadataFieldName, nested);
         }
@@ -177,6 +180,7 @@ public class KafkaMetadataTransform implements Transformation<SinkRecord> {
           if (record.timestamp() != null) {
             nested.put(TIMESTAMP, record.timestamp());
           }
+
           externalFieldAppender.addToMap(record, nested);
           map.put(metadataFieldName, nested);
         }
@@ -210,6 +214,7 @@ public class KafkaMetadataTransform implements Transformation<SinkRecord> {
           if (record.timestamp() != null) {
             struct.put(timestampFieldName, record.timestamp());
           }
+
           externalFieldAppender.addToStruct(record, struct);
         }
 
@@ -221,6 +226,7 @@ public class KafkaMetadataTransform implements Transformation<SinkRecord> {
           if (record.timestamp() != null) {
             map.put(timestampFieldName, record.timestamp());
           }
+
           externalFieldAppender.addToMap(record, map);
         }
       };
@@ -245,6 +251,7 @@ public class KafkaMetadataTransform implements Transformation<SinkRecord> {
     for (Field field : record.valueSchema().fields()) {
       newValue.put(field.name(), value.get(field));
     }
+
     recordAppender.addToStruct(record, newValue);
     return record.newRecord(
         record.topic(),
@@ -262,6 +269,7 @@ public class KafkaMetadataTransform implements Transformation<SinkRecord> {
     for (Field field : schema.fields()) {
       builder.field(field.name(), field.schema());
     }
+
     recordAppender.addToSchema(builder);
     return builder.build();
   }

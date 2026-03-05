@@ -63,8 +63,10 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
           } finally {
             visitor.afterField(field, fieldPartner);
           }
+
           results.add(visitor.field(field, fieldPartner, result));
         }
+
         return visitor.struct(struct, partner, results);
 
       case LIST:

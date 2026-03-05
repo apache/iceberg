@@ -45,6 +45,7 @@ class FlinkFixupTypes extends FixupTypes {
       int length = ((Types.FixedType) type).length();
       return source.typeId() == Type.TypeID.UUID && length == 16;
     }
+
     return false;
   }
 }

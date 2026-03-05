@@ -113,6 +113,7 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     if (value == null) {
       return null;
     }
+
     return (hash(value) & Integer.MAX_VALUE) % numBuckets;
   }
 
@@ -132,6 +133,7 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
       case UUID:
         return true;
     }
+
     return false;
   }
 

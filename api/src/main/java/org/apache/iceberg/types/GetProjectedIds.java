@@ -52,6 +52,7 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
         || field.type().isVariantType()) {
       fieldIds.add(field.fieldId());
     }
+
     return fieldIds;
   }
 
@@ -62,6 +63,7 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
         fieldIds.add(field.fieldId());
       }
     }
+
     return fieldIds;
   }
 
@@ -72,6 +74,7 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
         fieldIds.add(field.fieldId());
       }
     }
+
     return fieldIds;
   }
 

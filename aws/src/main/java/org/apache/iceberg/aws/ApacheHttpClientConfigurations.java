@@ -89,30 +89,39 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
     if (connectionTimeoutMs != null) {
       apacheHttpClientBuilder.connectionTimeout(Duration.ofMillis(connectionTimeoutMs));
     }
+
     if (socketTimeoutMs != null) {
       apacheHttpClientBuilder.socketTimeout(Duration.ofMillis(socketTimeoutMs));
     }
+
     if (acquisitionTimeoutMs != null) {
       apacheHttpClientBuilder.connectionAcquisitionTimeout(Duration.ofMillis(acquisitionTimeoutMs));
     }
+
     if (connectionMaxIdleTimeMs != null) {
       apacheHttpClientBuilder.connectionMaxIdleTime(Duration.ofMillis(connectionMaxIdleTimeMs));
     }
+
     if (connectionTimeToLiveMs != null) {
       apacheHttpClientBuilder.connectionTimeToLive(Duration.ofMillis(connectionTimeToLiveMs));
     }
+
     if (expectContinueEnabled != null) {
       apacheHttpClientBuilder.expectContinueEnabled(expectContinueEnabled);
     }
+
     if (maxConnections != null) {
       apacheHttpClientBuilder.maxConnections(maxConnections);
     }
+
     if (tcpKeepAliveEnabled != null) {
       apacheHttpClientBuilder.tcpKeepAlive(tcpKeepAliveEnabled);
     }
+
     if (useIdleConnectionReaperEnabled != null) {
       apacheHttpClientBuilder.useIdleConnectionReaper(useIdleConnectionReaperEnabled);
     }
+
     if (proxyEndpoint != null) {
       apacheHttpClientBuilder.proxyConfiguration(
           ProxyConfiguration.builder().endpoint(URI.create(proxyEndpoint)).build());

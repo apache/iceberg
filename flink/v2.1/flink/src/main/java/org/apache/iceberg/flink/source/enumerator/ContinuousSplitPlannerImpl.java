@@ -73,6 +73,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     if (!isSharedPool) {
       workerPool.shutdown();
     }
+
     tableLoader.close();
   }
 

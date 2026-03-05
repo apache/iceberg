@@ -66,6 +66,7 @@ public class TestStreamScanSql extends CatalogTestBase {
     if (tableEnv != null) {
       return tableEnv;
     }
+
     synchronized (this) {
       if (tEnv == null) {
         EnvironmentSettings.Builder settingsBuilder =
@@ -86,6 +87,7 @@ public class TestStreamScanSql extends CatalogTestBase {
         tEnv = streamTableEnv;
       }
     }
+
     return tEnv;
   }
 
@@ -167,6 +169,7 @@ public class TestStreamScanSql extends CatalogTestBase {
       insertRows(table, row2);
       assertRows(ImmutableList.of(row2), iterator);
     }
+
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
@@ -194,6 +197,7 @@ public class TestStreamScanSql extends CatalogTestBase {
       insertRows("2021-01-01", table, row4);
       assertRows(ImmutableList.of(row4), iterator);
     }
+
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
@@ -219,6 +223,7 @@ public class TestStreamScanSql extends CatalogTestBase {
       insertRows(table, row4);
       assertRows(ImmutableList.of(row4), iterator);
     }
+
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
@@ -262,6 +267,7 @@ public class TestStreamScanSql extends CatalogTestBase {
       insertRows(table, row7);
       assertRows(ImmutableList.of(row7), iterator);
     }
+
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
@@ -295,6 +301,7 @@ public class TestStreamScanSql extends CatalogTestBase {
       insertRowsInBranch(branchName, table, row3, row4);
       assertRows(ImmutableList.of(row3, row4), iterator);
     }
+
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
@@ -384,6 +391,7 @@ public class TestStreamScanSql extends CatalogTestBase {
       insertRows(table, row7);
       assertRows(ImmutableList.of(row7), iterator);
     }
+
     result.getJobClient().ifPresent(JobClient::cancel);
   }
 
@@ -424,6 +432,7 @@ public class TestStreamScanSql extends CatalogTestBase {
       insertRows(table, row7);
       assertRows(ImmutableList.of(row7), iterator);
     }
+
     result.getJobClient().ifPresent(JobClient::cancel);
 
     assertThatThrownBy(

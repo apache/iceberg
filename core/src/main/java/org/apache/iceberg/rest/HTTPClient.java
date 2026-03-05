@@ -358,6 +358,7 @@ public class HTTPClient extends BaseHTTPClient {
         if (parserContext != null && !parserContext.isEmpty()) {
           reader = reader.with(parserContext.toInjectableValues());
         }
+
         return reader.readValue(responseBody);
       } catch (JsonProcessingException e) {
         throw new RESTException(
@@ -505,6 +506,7 @@ public class HTTPClient extends BaseHTTPClient {
       } catch (IllegalArgumentException e) {
         throw new RESTException(e, "Failed to create request URI from base %s", baseUri);
       }
+
       return this;
     }
 

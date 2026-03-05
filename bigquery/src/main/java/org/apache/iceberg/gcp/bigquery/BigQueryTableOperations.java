@@ -75,6 +75,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
         throw e;
       }
     }
+
     refreshFromMetadataLocation(metadataLocation);
   }
 
@@ -94,6 +95,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
       } else {
         updateTable(newMetadataLocation, metadata);
       }
+
       commitStatus = BaseMetastoreOperations.CommitStatus.SUCCESS;
     } catch (CommitFailedException | CommitStateUnknownException e) {
       throw e;
@@ -102,12 +104,14 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
       if (e instanceof AlreadyExistsException) {
         throw e;
       }
+
       commitStatus =
           BaseMetastoreOperations.CommitStatus.valueOf(
               checkCommitStatus(newMetadataLocation, metadata).name());
       if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE) {
         throw new CommitFailedException(e, "Failed to commit");
       }
+
       if (commitStatus == BaseMetastoreOperations.CommitStatus.UNKNOWN) {
         throw new CommitStateUnknownException(e);
       }
@@ -167,6 +171,7 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
               + " recreate and retry",
           tableName());
     }
+
     ExternalCatalogTableOptions options = metastoreTable.getExternalCatalogTableOptions();
     addConnectionIfProvided(metastoreTable, metadata.properties());
 
@@ -194,9 +199,11 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
     if (metadata.uuid() != null) {
       parameters.put(TableProperties.UUID, metadata.uuid());
     }
+
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
       parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
     }
+
     parameters.put(METADATA_LOCATION_PROP, metadataFileLocation);
     parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE);
     // Follow HMS to use the EXTERNAL type.

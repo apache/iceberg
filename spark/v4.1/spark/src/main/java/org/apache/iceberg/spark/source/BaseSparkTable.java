@@ -76,6 +76,7 @@ abstract class BaseSparkTable
     if (lazySpark == null) {
       this.lazySpark = SparkSession.active();
     }
+
     return lazySpark;
   }
 
@@ -93,6 +94,7 @@ abstract class BaseSparkTable
     if (lazySparkSchema == null) {
       this.lazySparkSchema = SparkSchemaUtil.convert(schema);
     }
+
     return lazySparkSchema;
   }
 

@@ -65,6 +65,7 @@ public class MinioUtil {
     if (legacyMd5PluginEnabled) {
       builder.addPlugin(LegacyMd5Plugin.create());
     }
+
     builder.credentialsProvider(
         StaticCredentialsProvider.create(
             AwsBasicCredentials.create(container.getUserName(), container.getPassword())));

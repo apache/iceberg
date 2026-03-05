@@ -124,6 +124,7 @@ public class BaseDVFileWriter implements DVFileWriter {
               }
             }
           }
+
           write(closeableWriter, deletes);
           referencedDataFiles.add(path);
         }

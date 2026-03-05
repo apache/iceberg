@@ -32,6 +32,7 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
         if (dateResult != null) {
           return dateResult;
         }
+
         break;
       case TIMESTAMP:
         return microsResult;

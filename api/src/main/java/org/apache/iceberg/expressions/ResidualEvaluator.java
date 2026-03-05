@@ -296,6 +296,7 @@ public class ResidualEvaluator implements Serializable {
         if (boundResidual instanceof Predicate) {
           return pred; // replace inclusive original unbound predicate
         }
+
         return boundResidual; // use the non-predicate residual (e.g. alwaysTrue)
       }
 

@@ -304,6 +304,7 @@ public class ArrowReader extends CloseableGroup {
         if (currentTask != null && !currentTask.isDataTask()) {
           LOG.error("Error reading file: {}", getInputFile(currentTask).location(), e);
         }
+
         ExceptionUtil.castAndThrow(e, RuntimeException.class);
         return false;
       }
@@ -329,6 +330,7 @@ public class ArrowReader extends CloseableGroup {
         if (reuseContainers) {
           builder.reuseContainers();
         }
+
         if (nameMapping != null) {
           builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
         }
@@ -345,6 +347,7 @@ public class ArrowReader extends CloseableGroup {
         throw new UnsupportedOperationException(
             "Format: " + task.file().format() + " not supported for batched reads");
       }
+
       return iter.iterator();
     }
 

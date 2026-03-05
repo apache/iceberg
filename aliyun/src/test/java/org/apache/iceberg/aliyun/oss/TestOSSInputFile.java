@@ -130,6 +130,7 @@ public class TestOSSInputFile extends AliyunOSSTestBase {
       inputFile =
           new OSSInputFile(ossClientMock, uri, aliyunProperties, MetricsContext.nullMetrics());
     }
+
     inputFile.getLength();
     assertThat(inputFile.getLength()).as("Should have expected file length").isEqualTo(data.length);
   }

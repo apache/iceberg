@@ -342,12 +342,14 @@ public class FlinkParquetReaders {
           } else {
             return new ParquetValueReaders.UnboxedReader<>(desc);
           }
+
         case FLOAT:
           if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
             return new ParquetValueReaders.FloatAsDoubleReader(desc);
           } else {
             return new ParquetValueReaders.UnboxedReader<>(desc);
           }
+
         case BOOLEAN:
         case INT64:
         case DOUBLE:

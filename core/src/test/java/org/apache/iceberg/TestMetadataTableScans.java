@@ -1683,6 +1683,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     for (int i = 0; i <= 2000; i++) {
       updateSchema.addColumn(String.valueOf(i), Types.IntegerType.get());
     }
+
     updateSchema.commit();
 
     DataFile dataFile1 =
@@ -1825,6 +1826,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         }
       }
     }
+
     return count;
   }
 

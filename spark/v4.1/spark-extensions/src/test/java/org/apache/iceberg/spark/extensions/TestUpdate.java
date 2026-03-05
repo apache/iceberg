@@ -125,6 +125,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     for (int index = 0; index < 100; index++) {
       records[index] = String.format("{ \"id\": %d, \"dep\": \"hr\" }", index);
     }
+
     append(tableName, records);
     append(tableName, records);
     append(tableName, records);
@@ -201,6 +202,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     for (int index = 0; index < 100; index++) {
       records[index] = String.format("{ \"id\": %d, \"dep\": \"hr\" }", index);
     }
+
     append(tableName, records);
     append(tableName, records);
     append(tableName, records);
@@ -533,6 +535,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     for (int id = 1; id <= 200; id++) {
       ids.add(id);
     }
+
     Dataset<Row> df =
         spark
             .createDataset(ids, Encoders.INT())

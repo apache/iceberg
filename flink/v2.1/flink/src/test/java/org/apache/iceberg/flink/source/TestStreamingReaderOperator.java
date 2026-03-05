@@ -216,6 +216,7 @@ public class TestStreamingReaderOperator extends TestBase {
     for (RowData rowData : harness.extractOutputValues()) {
       results.add(Row.of(rowData.getInt(0), rowData.getString(1).toString()));
     }
+
     return results;
   }
 
@@ -228,6 +229,7 @@ public class TestStreamingReaderOperator extends TestBase {
       // Commit those records to iceberg table.
       writeRecords(records);
     }
+
     return expectedRecords;
   }
 

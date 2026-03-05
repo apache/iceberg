@@ -164,6 +164,7 @@ public class TestDataFileSerialization {
     try (Output out = new Output(new FileOutputStream(dataFile))) {
       kryo.writeClassAndObject(out, writer.splitOffsets());
     }
+
     try (Input in = new Input(new FileInputStream(dataFile))) {
       kryo.readClassAndObject(in);
     }

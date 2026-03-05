@@ -302,6 +302,7 @@ public class SnapshotSummary {
           } else {
             this.addedPosDeleteFiles += 1;
           }
+
           this.addedDeleteFiles += 1;
           this.addedPosDeletes += file.recordCount();
           break;
@@ -330,6 +331,7 @@ public class SnapshotSummary {
           } else {
             this.removedPosDeleteFiles += 1;
           }
+
           this.removedDeleteFiles += 1;
           this.removedPosDeletes += file.recordCount();
           break;

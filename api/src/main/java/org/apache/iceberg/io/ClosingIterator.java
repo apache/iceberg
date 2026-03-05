@@ -40,6 +40,7 @@ public class ClosingIterator<T> implements Iterator<T> {
     if (!hasNext && !isClosed) {
       close();
     }
+
     return hasNext;
   }
 

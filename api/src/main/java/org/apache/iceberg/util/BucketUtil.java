@@ -85,6 +85,7 @@ public class BucketUtil {
         // make sure the buffer position is unchanged
         value.position(position);
       }
+
       return MURMUR3.hashBytes(copy).asInt();
     }
   }

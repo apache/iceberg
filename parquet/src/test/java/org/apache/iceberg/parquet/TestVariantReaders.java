@@ -1367,6 +1367,7 @@ public class TestVariantReaders {
     for (Map.Entry<String, Object> entry : fields.entrySet()) {
       record.put(entry.getKey(), entry.getValue());
     }
+
     return record;
   }
 

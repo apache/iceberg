@@ -102,6 +102,7 @@ public class TestResolvingIO {
       fs.createNewFile(randomFilePath);
       assertThat(delegation.newInputFile(randomFilePath.toUri().toString()).exists()).isTrue();
     }
+
     // bulk deletion
     List<String> randomFilePathString =
         randomFilePaths.stream().map(p -> p.toUri().toString()).collect(Collectors.toList());

@@ -104,6 +104,7 @@ public class MockFileScanTask extends BaseFileScanTask {
     if (this == o) {
       return true;
     }
+
     if (o == null || getClass() != o.getClass()) {
       return false;
     }

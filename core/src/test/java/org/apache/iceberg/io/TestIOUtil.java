@@ -137,6 +137,7 @@ public class TestIOUtil {
     try (PositionOutputStream outputStream = outputFile.create()) {
       IOUtil.writeFully(outputStream, ByteBuffer.wrap(input.clone()));
     }
+
     assertThat(outputFile.toByteArray()).isEqualTo(input);
   }
 }

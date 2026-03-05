@@ -50,6 +50,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
       throw new AlreadyExistsException(
           "Namespace already exists: %s", dataset.getDatasetReference());
     }
+
     // Assign an ETag for consistency
     dataset.setEtag(generateEtag());
     datasets.put(dataset.getDatasetReference(), dataset);
@@ -104,6 +105,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
     if (dataset.getExternalCatalogDatasetOptions() == null) {
       dataset.setExternalCatalogDatasetOptions(new ExternalCatalogDatasetOptions());
     }
+
     dataset.getExternalCatalogDatasetOptions().setParameters(newParameters);
 
     updateDataset(dataset);
@@ -154,6 +156,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
     if (tables.containsKey(table.getTableReference())) {
       throw new AlreadyExistsException("Table already exists: %s", table.getTableReference());
     }
+
     // Assign an ETag
     table.setEtag(generateEtag());
     tables.put(table.getTableReference(), table);
@@ -223,6 +226,7 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
       throw new NoSuchNamespaceException(
           "Namespace does not exist: %s", datasetReference.getDatasetId());
     }
+
     Dataset existingDataset = datasets.get(datasetReference);
     if (existingDataset == null) {
       throw new NoSuchNamespaceException(

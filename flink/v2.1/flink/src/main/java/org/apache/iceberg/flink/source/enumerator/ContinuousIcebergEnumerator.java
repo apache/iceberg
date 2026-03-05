@@ -170,6 +170,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
               result.fromPosition(),
               result.toPosition());
         }
+
         // update the enumerator position even if there is no split discovered
         // or the toPosition is empty (e.g. for empty table).
         enumeratorPosition.set(result.toPosition());

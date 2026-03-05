@@ -96,6 +96,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     if (record instanceof SinkRecord) {
       cdcMetadata.put(CdcConstants.COL_OFFSET, ((SinkRecord) record).kafkaOffset());
     }
+
     setTableAndTargetFromSourceStruct(value.getStruct("source"), cdcMetadata);
 
     if (record.keySchema() != null) {
@@ -109,6 +110,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     for (Field field : payloadSchema.fields()) {
       newValue.put(field.name(), payload.get(field));
     }
+
     newValue.put(CdcConstants.COL_CDC, cdcMetadata);
 
     return record.newRecord(
@@ -146,6 +148,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     if (record instanceof SinkRecord) {
       cdcMetadata.put(CdcConstants.COL_OFFSET, ((SinkRecord) record).kafkaOffset());
     }
+
     setTableAndTargetFromSourceMap(value.get("source"), cdcMetadata);
 
     if (record.key() instanceof Map) {
@@ -186,6 +189,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     } else {
       db = source.getString("db");
     }
+
     String table = source.getString("table");
 
     cdcMetadata.put(CdcConstants.COL_SOURCE, db + "." + table);
@@ -202,6 +206,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     } else {
       db = map.get("db").toString();
     }
+
     String table = map.get("table").toString();
 
     cdcMetadata.put(CdcConstants.COL_SOURCE, db + "." + table);

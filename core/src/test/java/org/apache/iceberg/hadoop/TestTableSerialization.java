@@ -268,6 +268,7 @@ public class TestTableSerialization extends HadoopTableTestBase {
         }
       }
     }
+
     return files;
   }
 

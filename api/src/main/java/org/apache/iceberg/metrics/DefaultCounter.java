@@ -120,6 +120,7 @@ public class DefaultCounter implements Counter {
       if (value > Integer.MAX_VALUE) {
         throw new ArithmeticException("integer overflow");
       }
+
       return (int) value;
     }
 

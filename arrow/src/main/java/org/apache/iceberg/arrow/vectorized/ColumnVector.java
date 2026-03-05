@@ -117,6 +117,7 @@ public class ColumnVector implements AutoCloseable {
     if (isNullAt(rowId)) {
       return null;
     }
+
     return accessor.getUTF8String(rowId);
   }
 
@@ -124,6 +125,7 @@ public class ColumnVector implements AutoCloseable {
     if (isNullAt(rowId)) {
       return null;
     }
+
     return accessor.getBinary(rowId);
   }
 
@@ -131,6 +133,7 @@ public class ColumnVector implements AutoCloseable {
     if (isNullAt(rowId)) {
       return null;
     }
+
     return (BigDecimal) accessor.getDecimal(rowId, precision, scale);
   }
 

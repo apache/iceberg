@@ -51,12 +51,14 @@ public class GenericDataUtil {
         } else {
           return DateTimeUtil.timestampFromMicros((Long) value);
         }
+
       case TIMESTAMP_NANO:
         if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
           return DateTimeUtil.timestamptzFromNanos((Long) value);
         } else {
           return DateTimeUtil.timestampFromNanos((Long) value);
         }
+
       case FIXED:
         return ByteBuffers.toByteArray((ByteBuffer) value);
     }

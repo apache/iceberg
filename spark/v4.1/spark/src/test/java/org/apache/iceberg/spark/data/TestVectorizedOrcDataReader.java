@@ -112,6 +112,7 @@ public class TestVectorizedOrcDataReader {
       expChar += 1;
       rowCount += 1;
     }
+
     assertThat(rowCount).isEqualTo(5);
   }
 

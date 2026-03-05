@@ -217,6 +217,7 @@ public abstract class TestWriterMetrics<T> {
     for (int i = 0; i < numColumns; i++) {
       fields.add(required(i, "col" + i, Types.IntegerType.get()));
     }
+
     Schema maxColSchema = new Schema(fields);
 
     Table maxColumnTable =
@@ -314,6 +315,7 @@ public abstract class TestWriterMetrics<T> {
     for (int i = 0; i < numColumns; i++) {
       fields.add(required(i, "col" + i, Types.IntegerType.get()));
     }
+
     Schema maxColSchema = new Schema(fields);
 
     Table maxColumnTable =

@@ -172,6 +172,7 @@ public class DataDistributionUtil {
     for (int i = 0; i < rangeBoundSize; ++i) {
       rangeBounds[i] = sampledUUIDs[i * step];
     }
+
     Arrays.sort(rangeBounds);
     return rangeBounds;
   }

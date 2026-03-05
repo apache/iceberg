@@ -120,6 +120,7 @@ public class FlinkSource {
       if (newLimit != null) {
         readOptions.put(FlinkReadOptions.LIMIT, Long.toString(newLimit));
       }
+
       return this;
     }
 
@@ -299,6 +300,7 @@ public class FlinkSource {
         if (env.getMaxParallelism() > 0) {
           parallelism = Math.min(parallelism, env.getMaxParallelism());
         }
+
         return env.createInput(format, typeInfo).setParallelism(parallelism);
       } else {
         StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader, context);

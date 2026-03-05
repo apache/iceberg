@@ -163,6 +163,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
+
     return metadata;
   }
 
@@ -278,9 +279,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     if (projection.findField(DataFile.RECORD_COUNT.fieldId()) == null) {
       fields.add(DataFile.RECORD_COUNT);
     }
+
     if (projection.findField(DataFile.FIRST_ROW_ID.fieldId()) == null) {
       fields.add(DataFile.FIRST_ROW_ID);
     }
+
     fields.add(MetadataColumns.ROW_POSITION);
 
     CloseableIterable<ManifestEntry<F>> reader =
@@ -342,6 +345,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       Expression finalPartFilter = Expressions.and(projected, partFilter);
       this.lazyEvaluator = new Evaluator(spec.partitionType(), finalPartFilter, caseSensitive);
     }
+
     return lazyEvaluator;
   }
 
@@ -350,6 +354,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       this.lazyMetricsEvaluator =
           new InclusiveMetricsEvaluator(spec.schema(), rowFilter, caseSensitive);
     }
+
     return lazyMetricsEvaluator;
   }
 
@@ -372,6 +377,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       Set<String> intersection = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
       return intersection.isEmpty() || intersection.equals(Sets.newHashSet("record_count"));
     }
+
     return false;
   }
 

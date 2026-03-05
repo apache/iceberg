@@ -207,6 +207,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
             return ROWS_CANNOT_MATCH;
           }
         }
+
         return ROWS_MIGHT_MATCH;
       }
 
@@ -218,6 +219,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
             return ROWS_CANNOT_MATCH;
           }
         }
+
         return ROWS_MIGHT_MATCH;
       }
 
@@ -228,6 +230,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
             return ROWS_CANNOT_MATCH;
           }
         }
+
         return ROWS_MIGHT_MATCH;
       }
 
@@ -238,6 +241,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
             return ROWS_CANNOT_MATCH;
           }
         }
+
         return ROWS_MIGHT_MATCH;
       }
 

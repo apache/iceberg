@@ -52,6 +52,12 @@
         <property name="format" value="^\n\n$"/>
         <property name="message" value="Two consecutive blank lines are not permitted."/>
     </module>
+    <module name="RegexpMultiline"> <!-- Java Style Guide: Vertical Whitespace -->
+        <property name="fileExtensions" value="java"/>
+        <property name="matchAcrossLines" value="true"/>
+        <property name="format" value="(?m)(^[ \t]*\}[ \t]*\n)(?![ \t]*\n)(?![ \t]*\})(?![ \t]*\z)"/>
+        <property name="message" value="A blank line is required after a closing brace when followed by more code."/>
+    </module>
     <module name="RegexpSingleline">
         <property name="fileExtensions" value="java"/>
         <property name="format" value="sparkContext\(\)\.hadoopConfiguration\(\)"/>

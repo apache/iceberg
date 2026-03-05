@@ -44,6 +44,7 @@ public class GenericRecord implements Record, StructLike {
                 for (int i = 0; i < fields.size(); i += 1) {
                   idToPos.put(fields.get(i).name(), i);
                 }
+
                 return idToPos;
               });
 
@@ -74,6 +75,7 @@ public class GenericRecord implements Record, StructLike {
     for (int i = 0; i < this.values.length; i++) {
       this.values[i] = deepCopyValue(toCopy.values[i]);
     }
+
     this.nameToPos = toCopy.nameToPos;
   }
 
@@ -162,8 +164,10 @@ public class GenericRecord implements Record, StructLike {
       if (i != 0) {
         sb.append(", ");
       }
+
       sb.append(values[i]);
     }
+
     sb.append(")");
     return sb.toString();
   }

@@ -161,6 +161,7 @@ public class TestTaskWriters {
       for (DataFile dataFile : dataFiles) {
         appendFiles.appendFile(dataFile);
       }
+
       appendFiles.commit();
 
       // Assert the data rows.
@@ -197,6 +198,7 @@ public class TestTaskWriters {
       for (DataFile dataFile : dataFiles) {
         appendFiles.appendFile(dataFile);
       }
+
       appendFiles.commit();
 
       // Assert the data rows.
@@ -218,6 +220,7 @@ public class TestTaskWriters {
       for (DataFile dataFile : dataFiles) {
         appendFiles.appendFile(dataFile);
       }
+
       appendFiles.commit();
 
       // Assert the data rows.

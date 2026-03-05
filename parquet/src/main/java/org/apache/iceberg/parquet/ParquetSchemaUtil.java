@@ -161,6 +161,7 @@ public class ParquetSchemaUtil {
       if (selectedIds.contains(ordinal)) {
         builder.addField(type.withId(ordinal));
       }
+
       ordinal += 1;
     }
 
@@ -200,6 +201,7 @@ public class ParquetSchemaUtil {
           return true;
         }
       }
+
       return struct.getId() != null;
     }
 

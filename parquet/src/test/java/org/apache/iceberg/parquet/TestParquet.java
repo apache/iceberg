@@ -327,10 +327,12 @@ public class TestParquet {
     if (rowGroupSizeBytes != null) {
       propsBuilder.put(PARQUET_ROW_GROUP_SIZE_BYTES, Integer.toString(rowGroupSizeBytes));
     }
+
     if (minCheckRecordCount != null) {
       propsBuilder.put(
           PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT, Integer.toString(minCheckRecordCount));
     }
+
     if (maxCheckRecordCount != null) {
       propsBuilder.put(
           PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT, Integer.toString(maxCheckRecordCount));

@@ -45,6 +45,7 @@ public class ColumnarBatch implements AutoCloseable {
               + columnValueCount
               + ")");
     }
+
     this.numRows = numRows;
     this.columns = columns;
   }

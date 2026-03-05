@@ -142,6 +142,7 @@ public class RowDataRewriter {
           RowData rowData = iterator.next();
           writer.write(rowData);
         }
+
         return Lists.newArrayList(writer.dataFiles());
       } catch (Throwable originalThrowable) {
         try {

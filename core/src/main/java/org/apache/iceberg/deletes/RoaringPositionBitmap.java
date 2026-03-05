@@ -134,6 +134,7 @@ class RoaringPositionBitmap {
     for (RoaringBitmap bitmap : bitmaps) {
       cardinality += bitmap.getLongCardinality();
     }
+
     return cardinality;
   }
 
@@ -147,6 +148,7 @@ class RoaringPositionBitmap {
     for (RoaringBitmap bitmap : bitmaps) {
       changed |= bitmap.runOptimize();
     }
+
     return changed;
   }
 
@@ -176,6 +178,7 @@ class RoaringPositionBitmap {
         for (int key = bitmaps.length; key < requiredLength; key++) {
           newBitmaps[key] = new RoaringBitmap();
         }
+
         this.bitmaps = newBitmaps;
       }
     }
@@ -191,6 +194,7 @@ class RoaringPositionBitmap {
     for (RoaringBitmap bitmap : bitmaps) {
       size += BITMAP_KEY_SIZE_BYTES + bitmap.serializedSizeInBytes();
     }
+
     return size;
   }
 

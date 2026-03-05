@@ -281,6 +281,7 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
       } else {
         selectedIds = TypeUtil.getProjectedIds(schema.caseInsensitiveSelect(selectedColumns));
       }
+
       requiredFieldIds.addAll(selectedIds);
 
       return TypeUtil.project(schema, requiredFieldIds);

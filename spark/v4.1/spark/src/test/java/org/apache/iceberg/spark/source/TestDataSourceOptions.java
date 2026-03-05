@@ -244,6 +244,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
           spark.createDataFrame(Lists.newArrayList(record), SimpleRecord.class);
       originalDf.select("id", "data").write().format("iceberg").mode("append").save(tableLocation);
     }
+
     List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
 
     // start-snapshot-id and snapshot-id are both configured.

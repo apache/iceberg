@@ -181,6 +181,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
     for (int index = 0; index < count; index++) {
       files[index] = mockDeleteFile(partition);
     }
+
     return files;
   }
 

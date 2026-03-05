@@ -453,6 +453,7 @@ public class TestRoaringPositionBitmap {
         bitmap.set(position);
         positions.add(position);
       }
+
       long shift = nextLong(random, (long) (0.1 * BITMAP_SIZE), (long) (0.25 * BITMAP_SIZE));
       currentPosition = maxRunPosition + shift;
     }

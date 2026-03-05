@@ -463,6 +463,7 @@ public class ManifestEvaluator {
         // In case bounds don't include NaN value, containsNaN needs to be checked against.
         allNull = summary.containsNaN() != null && !summary.containsNaN();
       }
+
       return allNull;
     }
   }

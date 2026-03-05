@@ -700,6 +700,7 @@ public class TestContinuousSplitPlannerImpl {
       assertThat(result.fromPosition().snapshotTimestampMs().longValue())
           .isEqualTo(fromSnapshotExclusive.timestampMillis());
     }
+
     assertThat(result.toPosition().snapshotId().longValue())
         .isEqualTo(toSnapshotInclusive.snapshotId());
     assertThat(result.toPosition().snapshotTimestampMs().longValue())

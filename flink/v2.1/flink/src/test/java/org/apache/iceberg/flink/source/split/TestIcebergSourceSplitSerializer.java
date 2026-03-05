@@ -145,6 +145,7 @@ public class TestIcebergSourceSplitSerializer {
                   } else {
                     result = split;
                   }
+
                   index.incrementAndGet();
                   return result;
                 })

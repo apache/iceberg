@@ -114,6 +114,7 @@ public class TestNessieTable extends BaseTestIceberg {
       try (Stream<Path> walk = Files.walk(Paths.get(tableLocation))) {
         walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
       }
+
       catalog.dropTable(TABLE_IDENTIFIER, false);
     }
 
@@ -424,6 +425,7 @@ public class TestNessieTable extends BaseTestIceberg {
     for (ManifestFile manifest : manifests) {
       assertThat(new File(manifest.path().replace("file:", ""))).exists();
     }
+
     TableOperations ops = ((HasTableOperations) table).operations();
     String metadataLocation = ((NessieTableOperations) ops).currentMetadataLocation();
     assertThat(new File(metadataLocation.replace("file:", ""))).exists();
@@ -456,6 +458,7 @@ public class TestNessieTable extends BaseTestIceberg {
     } catch (NessieNamespaceAlreadyExistsException ignore) {
       // ignore
     }
+
     validateRegister(identifier, metadataVersionFiles.get(0));
   }
 
@@ -531,6 +534,7 @@ public class TestNessieTable extends BaseTestIceberg {
     } catch (NessieNamespaceAlreadyExistsException ignore) {
       // ignore
     }
+
     validateRegister(identifier, metadataVersionFiles.get(0));
     assertThat(catalog.dropTable(TABLE_IDENTIFIER, false)).isTrue();
     validateRegister(TABLE_IDENTIFIER, metadataVersionFiles.get(0));

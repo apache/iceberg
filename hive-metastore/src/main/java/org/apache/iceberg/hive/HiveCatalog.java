@@ -516,9 +516,11 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     if (!namespace.isEmpty() && (!isValidateNamespace(namespace) || !namespaceExists(namespace))) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
+
     if (!namespace.isEmpty()) {
       return ImmutableList.of();
     }
+
     try {
       List<Namespace> namespaces =
           clients.run(IMetaStoreClient::getAllDatabases).stream()
@@ -751,6 +753,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     if (database.getDescription() != null) {
       meta.put("comment", database.getDescription());
     }
+
     if (database.getOwnerName() != null) {
       meta.put(HMS_DB_OWNER, database.getOwnerName());
       if (database.getOwnerType() != null) {
@@ -861,6 +864,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       if (viewExists(identifier)) {
         throw new AlreadyExistsException("View with same name already exists: %s", identifier);
       }
+
       return super.createOrReplaceTransaction();
     }
 
@@ -869,6 +873,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       if (viewExists(identifier)) {
         throw new AlreadyExistsException("View with same name already exists: %s", identifier);
       }
+
       return super.create();
     }
   }
@@ -893,6 +898,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       if (tableExists(identifier)) {
         throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
       }
+
       return super.createOrReplace();
     }
 
@@ -901,6 +907,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       if (tableExists(identifier)) {
         throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
       }
+
       return super.create();
     }
   }

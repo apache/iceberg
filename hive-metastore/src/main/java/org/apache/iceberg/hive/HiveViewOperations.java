@@ -176,6 +176,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
                 .filter(key -> !metadata.properties().containsKey(key))
                 .collect(Collectors.toSet());
       }
+
       HMSTablePropertyHelper.updateHmsTableForIcebergView(
           newMetadataLocation,
           tbl,

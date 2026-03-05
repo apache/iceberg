@@ -203,6 +203,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 responseType, CatalogHandlers.listNamespaces(asNamespaceCatalog, ns));
           }
         }
+
         break;
 
       case CREATE_NAMESPACE:
@@ -214,6 +215,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                   castResponse(
                       responseType, CatalogHandlers.createNamespace(asNamespaceCatalog, request)));
         }
+
         break;
 
       case NAMESPACE_EXISTS:
@@ -221,6 +223,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           CatalogHandlers.namespaceExists(asNamespaceCatalog, namespaceFromPathVars(vars));
           return null;
         }
+
         break;
 
       case LOAD_NAMESPACE:
@@ -229,6 +232,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           return castResponse(
               responseType, CatalogHandlers.loadNamespace(asNamespaceCatalog, namespace));
         }
+
         break;
 
       case DROP_NAMESPACE:
@@ -238,6 +242,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
               () -> CatalogHandlers.dropNamespace(asNamespaceCatalog, namespaceFromPathVars(vars)));
           return null;
         }
+
         break;
 
       case UPDATE_NAMESPACE:
@@ -253,6 +258,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                       CatalogHandlers.updateNamespaceProperties(
                           asNamespaceCatalog, namespace, request)));
         }
+
         break;
 
       case LIST_TABLES:
@@ -303,6 +309,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 httpRequest,
                 () -> CatalogHandlers.dropTable(catalog, tableIdentFromPathVars(vars)));
           }
+
           return null;
         }
 
@@ -448,6 +455,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                   responseType, CatalogHandlers.listViews(asViewCatalog, namespace));
             }
           }
+
           break;
         }
 
@@ -463,6 +471,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                         responseType,
                         CatalogHandlers.createView(asViewCatalog, namespace, request)));
           }
+
           break;
         }
 
@@ -472,6 +481,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             CatalogHandlers.viewExists(asViewCatalog, viewIdentFromPathVars(vars));
             return null;
           }
+
           break;
         }
 
@@ -481,6 +491,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             TableIdentifier ident = viewIdentFromPathVars(vars);
             return castResponse(responseType, CatalogHandlers.loadView(asViewCatalog, ident));
           }
+
           break;
         }
 
@@ -495,6 +506,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                     castResponse(
                         responseType, CatalogHandlers.updateView(asViewCatalog, ident, request)));
           }
+
           break;
         }
 
@@ -506,6 +518,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 httpRequest, () -> CatalogHandlers.renameView(asViewCatalog, request));
             return null;
           }
+
           break;
         }
 
@@ -517,6 +530,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
                 () -> CatalogHandlers.dropView(asViewCatalog, viewIdentFromPathVars(vars)));
             return null;
           }
+
           break;
         }
 
@@ -528,6 +542,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
             return castResponse(
                 responseType, CatalogHandlers.registerView(asViewCatalog, namespace, request));
           }
+
           break;
         }
 

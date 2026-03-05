@@ -79,6 +79,7 @@ public class IOUtil {
     if (!buffer.hasRemaining()) {
       return;
     }
+
     byte[] chunk = new byte[WRITE_CHUNK_SIZE];
     while (buffer.hasRemaining()) {
       int chunkSize = Math.min(chunk.length, buffer.remaining());

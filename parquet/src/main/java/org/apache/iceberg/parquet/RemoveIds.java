@@ -34,6 +34,7 @@ public class RemoveIds extends ParquetTypeVisitor<Type> {
     for (Type field : struct(message.asGroupType(), fields).asGroupType().getFields()) {
       builder.addField(field);
     }
+
     return builder.named(message.getName());
   }
 
@@ -43,6 +44,7 @@ public class RemoveIds extends ParquetTypeVisitor<Type> {
     for (Type field : fields) {
       builder.addField(field);
     }
+
     return builder.named(struct.getName());
   }
 
@@ -56,6 +58,7 @@ public class RemoveIds extends ParquetTypeVisitor<Type> {
     } else {
       listBuilder.repeatedGroup().addFields(item).named(array.getFieldName(0));
     }
+
     return listBuilder.named(array.getName());
   }
 
@@ -84,6 +87,7 @@ public class RemoveIds extends ParquetTypeVisitor<Type> {
     for (Type field : variant.getFields()) {
       builder.addField(field);
     }
+
     return builder.named(variant.getName());
   }
 

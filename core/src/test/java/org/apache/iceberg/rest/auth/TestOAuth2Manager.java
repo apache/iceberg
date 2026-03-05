@@ -64,6 +64,7 @@ class TestOAuth2Manager {
         OAuth2Util.AuthSession session = manager.initSession(client, properties)) {
       assertThat(session.headers()).isEmpty();
     }
+
     Mockito.verifyNoInteractions(client);
   }
 
@@ -74,6 +75,7 @@ class TestOAuth2Manager {
         OAuth2Util.AuthSession session = manager.initSession(client, properties)) {
       assertThat(session.headers()).containsOnly(entry("Authorization", "Bearer test"));
     }
+
     Mockito.verifyNoInteractions(client);
   }
 
@@ -84,6 +86,7 @@ class TestOAuth2Manager {
         OAuth2Util.AuthSession session = manager.initSession(client, properties)) {
       assertThat(session.headers()).containsOnly(entry("Authorization", "Bearer test"));
     }
+
     Mockito.verify(client)
         .postForm(
             any(),
@@ -107,6 +110,7 @@ class TestOAuth2Manager {
         OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
       assertThat(catalogSession.headers()).isEmpty();
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -118,6 +122,7 @@ class TestOAuth2Manager {
         OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
       assertThat(catalogSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -130,6 +135,7 @@ class TestOAuth2Manager {
         OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
       assertThat(catalogSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -144,6 +150,7 @@ class TestOAuth2Manager {
         OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
       assertThat(catalogSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
     }
+
     Mockito.verify(client)
         .postForm(
             any(),
@@ -169,6 +176,7 @@ class TestOAuth2Manager {
         OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
       assertThat(catalogSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
     }
+
     Mockito.verify(client)
         .postForm(
             any(),
@@ -198,6 +206,7 @@ class TestOAuth2Manager {
           .as("should not create session cache for empty context")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -221,6 +230,7 @@ class TestOAuth2Manager {
           .as("should create session cache for context with token")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -243,6 +253,7 @@ class TestOAuth2Manager {
           .as("should create session cache for context with credentials")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
     }
+
     Mockito.verify(client)
         .postForm(
             any(),
@@ -276,6 +287,7 @@ class TestOAuth2Manager {
           .as("should create session cache for context with token exchange")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
     }
+
     Mockito.verify(client)
         .postForm(
             any(),
@@ -317,6 +329,7 @@ class TestOAuth2Manager {
       Mockito.verify(manager, times(1))
           .newSessionFromAccessToken("context-token", Map.of(), catalogSession);
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -336,6 +349,7 @@ class TestOAuth2Manager {
           .as("should not create session cache for empty table credentials")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -357,6 +371,7 @@ class TestOAuth2Manager {
           .as("should create session cache for table with token")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -377,6 +392,7 @@ class TestOAuth2Manager {
           .as("should create session cache for table with token exchange")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
     }
+
     Mockito.verify(client)
         .postForm(
             any(),
@@ -417,6 +433,7 @@ class TestOAuth2Manager {
       Mockito.verify(manager, times(1))
           .newSessionFromAccessToken("table-token", Map.of("token", "table-token"), catalogSession);
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -439,6 +456,7 @@ class TestOAuth2Manager {
           .as("should not create session cache for ignored table credentials")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -456,6 +474,7 @@ class TestOAuth2Manager {
           .as("should create session cache for empty table properties")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -473,6 +492,7 @@ class TestOAuth2Manager {
           .as("should create session cache for table with token")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
@@ -490,6 +510,7 @@ class TestOAuth2Manager {
           .as("should create session cache for table with token")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verify(client)
         .postForm(
@@ -522,6 +543,7 @@ class TestOAuth2Manager {
       assertThat(tableSession2.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(tableSession1).isNotSameAs(tableSession2);
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verify(client, times(2))
         .postForm(
@@ -572,6 +594,7 @@ class TestOAuth2Manager {
       Mockito.verify(contextualSession).close();
       Mockito.verify(tableSession).close();
     }
+
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }

@@ -648,6 +648,7 @@ public class TestFilteredScan {
       Types.NestedField field = fields.get(i);
       result.set(i, record.getField(field.name()));
     }
+
     return result;
   }
 
@@ -658,6 +659,7 @@ public class TestFilteredScan {
     for (int i = 0; i < numRecords; i += 1) {
       GenericsHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
     }
+
     assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
   }
 
@@ -668,6 +670,7 @@ public class TestFilteredScan {
     for (int i = 0; i < numRecords; i += 1) {
       GenericsHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
     }
+
     assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
   }
 
@@ -676,6 +679,7 @@ public class TestFilteredScan {
     for (int ord : ordinals) {
       expected.add(records.get(ord));
     }
+
     return expected;
   }
 
@@ -754,6 +758,7 @@ public class TestFilteredScan {
     for (int i = 0; i < values.length; i += 1) {
       rec.set(i, values[i]);
     }
+
     return rec;
   }
 }

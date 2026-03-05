@@ -27,6 +27,7 @@ class BaseEncryptionKeyMetadata implements EncryptionKeyMetadata {
     if (keyMetadata == null) {
       return EncryptionKeyMetadata.empty();
     }
+
     return new BaseEncryptionKeyMetadata(keyMetadata);
   }
 
@@ -34,6 +35,7 @@ class BaseEncryptionKeyMetadata implements EncryptionKeyMetadata {
     if (keyMetadata == null) {
       return EncryptionKeyMetadata.empty();
     }
+
     return fromKeyMetadata(ByteBuffer.wrap(keyMetadata));
   }
 

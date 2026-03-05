@@ -67,6 +67,7 @@ public class RowDataConverter {
       Type fieldType = field.type();
       rowData.setField(i, convert(fieldType, record.get(i)));
     }
+
     return rowData;
   }
 
@@ -119,6 +120,7 @@ public class RowDataConverter {
         for (int i = 0; i < convertedArray.length; i++) {
           convertedArray[i] = convert(type.asListType().elementType(), list.get(i));
         }
+
         return new GenericArrayData(convertedArray);
       case MAP:
         Map<Object, Object> convertedMap = Maps.newLinkedHashMap();
@@ -128,6 +130,7 @@ public class RowDataConverter {
               convert(type.asMapType().keyType(), entry.getKey()),
               convert(type.asMapType().valueType(), entry.getValue()));
         }
+
         return new GenericMapData(convertedMap);
       case VARIANT:
         Variant icebergVariant = (Variant) object;

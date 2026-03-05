@@ -42,6 +42,7 @@ class SinkTestUtil {
                 return new StreamRecord<>(
                     ((StreamRecord<CommittableMessage<?>>) element).getValue());
               }
+
               return (StreamElement) element;
             })
         .collect(Collectors.toList());

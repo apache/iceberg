@@ -213,6 +213,7 @@ public class TestHelpers {
           long tsMicros = (instant.toEpochMilli() * 1000) + ((ts.getNano() / 1000) % 1000);
           assertThat(tsMicros).as("Timestamp micros should be equal").isEqualTo(expected);
         }
+
         break;
       case STRING:
         assertThat(actual).isInstanceOf(String.class).isEqualTo(String.valueOf(expected));
@@ -336,6 +337,7 @@ public class TestHelpers {
         } else {
           assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         }
+
         break;
       case DOUBLE:
         assertThat(actual).as("Should be a double").isInstanceOf(Double.class);
@@ -346,6 +348,7 @@ public class TestHelpers {
         } else {
           assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         }
+
         break;
       case INTEGER:
       case FLOAT:
@@ -469,6 +472,7 @@ public class TestHelpers {
                   actual.getStruct(c));
               break;
             }
+
           case LIST:
             assertEqualsLists(
                 prefix + "." + fieldName,
@@ -531,6 +535,7 @@ public class TestHelpers {
                   (Row) actual.get(e));
               break;
             }
+
           case LIST:
             assertEqualsLists(
                 prefix + ".elem " + e,
@@ -602,6 +607,7 @@ public class TestHelpers {
                     (Row) actual.get(expectedKey));
                 break;
               }
+
             case LIST:
               assertEqualsLists(
                   prefix + ".key=" + expectedKey,
@@ -628,6 +634,7 @@ public class TestHelpers {
     if (container.isNullAt(ord)) {
       return null;
     }
+
     switch (type.typeId()) {
       case BOOLEAN:
         return container.getBoolean(ord);
@@ -654,6 +661,7 @@ public class TestHelpers {
           Types.DecimalType dt = (Types.DecimalType) type;
           return container.getDecimal(ord, dt.precision(), dt.scale()).toJavaBigDecimal();
         }
+
       case STRUCT:
         Types.StructType struct = type.asStructType();
         InternalRow internalRow = container.getStruct(ord, struct.fields().size());
@@ -665,6 +673,7 @@ public class TestHelpers {
             data[i] = getValue(internalRow, i, struct.fields().get(i).type());
           }
         }
+
         return new GenericRow(data);
       default:
         throw new IllegalArgumentException("Unhandled type " + type);
@@ -675,6 +684,7 @@ public class TestHelpers {
     if (row.isNullAt(ord)) {
       return null;
     }
+
     switch (type.typeId()) {
       case BOOLEAN:
         return row.getBoolean(ord);

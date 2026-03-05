@@ -67,6 +67,7 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
         for (Schema type : types) {
           options.add(new VisitFuture<>(type, visitor));
         }
+
         return visitor.union(schema, Iterables.transform(options, Supplier::get));
 
       case ARRAY:

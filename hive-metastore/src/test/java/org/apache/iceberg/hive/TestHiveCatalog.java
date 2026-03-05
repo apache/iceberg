@@ -1031,6 +1031,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     for (int i = 0; i < 100; i++) {
       summary.put(String.valueOf(i), "value");
     }
+
     assertThat(JsonUtil.mapper().writeValueAsString(summary).length()).isLessThan(4000);
     Map<String, String> parameters = Maps.newHashMap();
     HMSTablePropertyHelper.setSnapshotSummary(parameters, snapshot, maxHiveTablePropertySize);
@@ -1040,6 +1041,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     for (int i = 0; i < 1000; i++) {
       summary.put(String.valueOf(i), "value");
     }
+
     long summarySize = JsonUtil.mapper().writeValueAsString(summary).length();
     // the limit has been updated to 4000 instead of the default value(32672)
     assertThat(summarySize).isGreaterThan(4000).isLessThan(32672);
@@ -1114,6 +1116,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
       for (int i = 0; i < 600; i++) {
         updateSchema.addColumn("new_col_" + i, Types.StringType.get());
       }
+
       updateSchema.commit();
 
       assertThat(SchemaParser.toJson(table.schema()).length()).isGreaterThan(32672);

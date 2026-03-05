@@ -63,6 +63,7 @@ public class TestCloseableIterable {
     try (CloseableIterable<Integer> filtered = CloseableIterable.filter(iterable, x -> x > 5)) {
       assertThat(iterable.closed()).isFalse();
     }
+
     assertThat(iterable.closed()).isTrue();
   }
 
@@ -111,6 +112,7 @@ public class TestCloseableIterable {
             CloseableIterable.combine(items, () -> {}), completionCounter::incrementAndGet)) {
       iter.forEach(val -> assertThat(completionCounter.get()).isZero());
     }
+
     assertThat(completionCounter.get()).isOne();
   }
 
@@ -123,6 +125,7 @@ public class TestCloseableIterable {
             CloseableIterable.combine(empty, () -> {}), completionCounter::incrementAndGet)) {
       iter.forEach(val -> assertThat(completionCounter.get()).isZero());
     }
+
     assertThat(completionCounter.get()).isOne();
   }
 
@@ -199,6 +202,7 @@ public class TestCloseableIterable {
     try (CloseableIterable<Integer> concat = CloseableIterable.concat(transform)) {
       concat.forEach(count -> consumedCounter.getAndIncrement());
     }
+
     assertThat(counter.get()).isEqualTo(items.size()).isEqualTo(consumedCounter.get());
   }
 

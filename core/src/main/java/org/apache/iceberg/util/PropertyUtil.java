@@ -50,6 +50,7 @@ public class PropertyUtil {
     if (value != null) {
       return Boolean.parseBoolean(value);
     }
+
     return defaultValue;
   }
 
@@ -58,6 +59,7 @@ public class PropertyUtil {
     if (value != null) {
       return Boolean.parseBoolean(value);
     }
+
     return null;
   }
 
@@ -67,6 +69,7 @@ public class PropertyUtil {
     if (value != null) {
       return Double.parseDouble(value);
     }
+
     return defaultValue;
   }
 
@@ -76,6 +79,7 @@ public class PropertyUtil {
     if (value == null) {
       return defaultValue;
     }
+
     try {
       return Integer.parseInt(value);
     } catch (NumberFormatException e) {
@@ -90,6 +94,7 @@ public class PropertyUtil {
     if (value != null) {
       return Integer.parseInt(value);
     }
+
     return defaultValue;
   }
 
@@ -98,6 +103,7 @@ public class PropertyUtil {
     if (value != null) {
       return Integer.parseInt(value);
     }
+
     return null;
   }
 
@@ -107,6 +113,7 @@ public class PropertyUtil {
     if (value != null) {
       return Long.parseLong(value);
     }
+
     return defaultValue;
   }
 
@@ -115,6 +122,7 @@ public class PropertyUtil {
     if (value != null) {
       return Long.parseLong(value);
     }
+
     return null;
   }
 
@@ -124,6 +132,7 @@ public class PropertyUtil {
     if (value != null) {
       return value;
     }
+
     return defaultValue;
   }
 
@@ -142,6 +151,7 @@ public class PropertyUtil {
           throw new ValidationException(
               "Table property %s must have integer value", commitProperty);
         }
+
         ValidationException.check(
             parsedValue >= 0,
             "Table property %s must have non negative integer value",
@@ -233,6 +243,7 @@ public class PropertyUtil {
                     // Copy over the original.
                     updatedProperties.put(key, properties.get(key));
                   }
+
                   // Implicit drop if deleted.
                 } else {
                   updatedProperties.put(key, properties.get(key));

@@ -91,6 +91,7 @@ class CatalogUtils {
       LOG.warn(
           "Hadoop found on classpath but could not create config, proceeding without config", e);
     }
+
     return null;
   }
 

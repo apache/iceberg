@@ -85,6 +85,7 @@ public class AzureKeyManagementClient implements KeyManagementClient {
         }
       }
     }
+
     return state;
   }
 

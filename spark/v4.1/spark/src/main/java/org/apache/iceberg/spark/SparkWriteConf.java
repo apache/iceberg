@@ -485,6 +485,7 @@ public class SparkWriteConf {
         if (parquetCompressionLevel != null) {
           writeProperties.put(PARQUET_COMPRESSION_LEVEL, parquetCompressionLevel);
         }
+
         break;
 
       case AVRO:
@@ -493,6 +494,7 @@ public class SparkWriteConf {
         if (avroCompressionLevel != null) {
           writeProperties.put(AVRO_COMPRESSION_LEVEL, avroCompressionLevel);
         }
+
         break;
 
       case ORC:
@@ -518,6 +520,7 @@ public class SparkWriteConf {
         if (deleteParquetCompressionLevel != null) {
           writeProperties.put(DELETE_PARQUET_COMPRESSION_LEVEL, deleteParquetCompressionLevel);
         }
+
         break;
 
       case AVRO:
@@ -526,6 +529,7 @@ public class SparkWriteConf {
         if (deleteAvroCompressionLevel != null) {
           writeProperties.put(DELETE_AVRO_COMPRESSION_LEVEL, deleteAvroCompressionLevel);
         }
+
         break;
 
       case ORC:

@@ -126,6 +126,7 @@ public class ContentCache {
     if (input.getLength() <= maxContentLength) {
       return new CachingInputFile(this, input);
     }
+
     return input;
   }
 

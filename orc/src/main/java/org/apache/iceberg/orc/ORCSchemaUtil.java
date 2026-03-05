@@ -131,6 +131,7 @@ public final class ORCSchemaUtil {
         root.addField(field.name(), orcColumnType);
       }
     }
+
     return root;
   }
 
@@ -209,6 +210,7 @@ public final class ORCSchemaUtil {
                   .withPrecision(decimal.precision());
           break;
         }
+
       case VARIANT:
         orcType = TypeDescription.createStruct();
         orcType.addField(VARIANT_METADATA, TypeDescription.createBinary());
@@ -224,8 +226,10 @@ public final class ORCSchemaUtil {
               orcType.addField(field.name(), childType);
             }
           }
+
           break;
         }
+
       case LIST:
         {
           Types.ListType list = (Types.ListType) type;
@@ -240,6 +244,7 @@ public final class ORCSchemaUtil {
           orcType = TypeDescription.createList(elementType);
           break;
         }
+
       case MAP:
         {
           Types.MapType map = (Types.MapType) type;
@@ -257,6 +262,7 @@ public final class ORCSchemaUtil {
           orcType = TypeDescription.createMap(keyType, valueType);
           break;
         }
+
       default:
         throw new IllegalArgumentException("Unhandled type " + type.typeId());
     }
@@ -349,6 +355,7 @@ public final class ORCSchemaUtil {
             orcType.addField(name, childType);
           }
         }
+
         break;
       case LIST:
         Types.ListType list = (Types.ListType) type;
@@ -431,6 +438,7 @@ public final class ORCSchemaUtil {
         for (int i = 0; i < children.size(); i++) {
           icebergToOrc.putAll(icebergToOrcMapping(childrenNames.get(i), children.get(i)));
         }
+
         break;
       case LIST:
         icebergToOrc.putAll(icebergToOrcMapping("element", orcType.getChildren().get(0)));
@@ -473,6 +481,7 @@ public final class ORCSchemaUtil {
                 .withPrecision(newDecimal.precision());
       }
     }
+
     return Optional.ofNullable(promotedOrcType);
   }
 
@@ -512,6 +521,7 @@ public final class ORCSchemaUtil {
     if (isRequiredStr != null) {
       return !Boolean.parseBoolean(isRequiredStr);
     }
+
     return true;
   }
 

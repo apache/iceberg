@@ -290,6 +290,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
           if (reuseContainers) {
             readBuilder.reuseContainers();
           }
+
           try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
             Iterator<Record> expectedIter = expected.iterator();
             Iterator<ColumnarBatch> batches = batchReader.iterator();
@@ -300,6 +301,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                   schema.asStruct(), expectedIter, batch, idToConstant, numRowsRead);
               numRowsRead += batch.numRows();
             }
+
             assertThat(numRowsRead).isEqualTo(expectedSize);
           } catch (IOException e) {
             throw new RuntimeException(e);
@@ -377,6 +379,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
           } else {
             record.set(dataOrdinal, Strings.padEnd("", 512, 'a'));
           }
+
           return record;
         });
   }
@@ -430,6 +433,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
+
     assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE);
   }
 
@@ -444,6 +448,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
+
     assertThatThrownBy(() -> assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageStartingWith("Cannot support vectorized reads for column")
@@ -462,6 +467,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     try (FileAppender<Record> writer = getParquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
+
     assertRecordsMatch(schema, numRows, data, dataFile, false, BATCH_SIZE);
   }
 
@@ -524,6 +530,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
     try (InputStream in = url.openStream()) {
       java.nio.file.Files.copy(in, tmp.toPath(), REPLACE_EXISTING);
     }
+
     return tmp;
   }
 

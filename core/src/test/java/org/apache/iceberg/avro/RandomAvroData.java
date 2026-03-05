@@ -81,6 +81,7 @@ public class RandomAvroData {
       if (field.isOptional() && random.nextInt(20) == 1) {
         return null;
       }
+
       return fieldResult.get();
     }
 

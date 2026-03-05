@@ -102,6 +102,7 @@ public class PartitionSpecParser {
       generator.writeNumberField(FIELD_ID, field.partitionId());
       generator.writeEndObject();
     }
+
     generator.writeEndArray();
   }
 

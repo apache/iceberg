@@ -55,6 +55,7 @@ public class PartitionKeySelector implements KeySelector<RowData, String> {
     if (rowDataWrapper == null) {
       rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     }
+
     return rowDataWrapper;
   }
 

@@ -440,6 +440,7 @@ public class TestManifestWriterVersions {
     } finally {
       writer.close();
     }
+
     return writer.toManifestFile();
   }
 
@@ -459,6 +460,7 @@ public class TestManifestWriterVersions {
     } finally {
       writer.close();
     }
+
     return writer.toManifestFile();
   }
 
@@ -486,6 +488,7 @@ public class TestManifestWriterVersions {
     } finally {
       writer.close();
     }
+
     return writer.toManifestFile();
   }
 

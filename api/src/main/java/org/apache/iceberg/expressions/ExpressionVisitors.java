@@ -406,6 +406,7 @@ public class ExpressionVisitors {
           if (!andLeftOperand) {
             return visitor.alwaysFalse();
           }
+
           return visitor.and(Boolean.TRUE, visitEvaluator(and.right(), visitor));
         case OR:
           Or or = (Or) expr;
@@ -413,6 +414,7 @@ public class ExpressionVisitors {
           if (orLeftOperand) {
             return visitor.alwaysTrue();
           }
+
           return visitor.or(Boolean.FALSE, visitEvaluator(or.right(), visitor));
         default:
           throw new UnsupportedOperationException("Unknown operation: " + expr.op());

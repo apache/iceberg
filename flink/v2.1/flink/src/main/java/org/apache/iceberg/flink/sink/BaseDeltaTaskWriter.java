@@ -87,6 +87,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
         if (upsert) {
           writer.deleteKey(keyProjection.wrap(row));
         }
+
         writer.write(row);
         break;
 
@@ -95,6 +96,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
           break; // UPDATE_BEFORE is not necessary for UPSERT, we do nothing to prevent delete one
           // row twice
         }
+
         writer.delete(row);
         break;
       case DELETE:
@@ -103,6 +105,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
         } else {
           writer.delete(row);
         }
+
         break;
 
       default:

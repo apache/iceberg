@@ -61,12 +61,14 @@ public class UpdateTableRequestParser {
     for (UpdateRequirement updateRequirement : request.requirements()) {
       org.apache.iceberg.UpdateRequirementParser.toJson(updateRequirement, gen);
     }
+
     gen.writeEndArray();
 
     gen.writeArrayFieldStart(UPDATES);
     for (MetadataUpdate metadataUpdate : request.updates()) {
       MetadataUpdateParser.toJson(metadataUpdate, gen);
     }
+
     gen.writeEndArray();
 
     gen.writeEndObject();

@@ -183,10 +183,12 @@ public class PositionDeletesTable extends BaseMetadataTable {
               if (!idsToReassign.contains(oldId)) {
                 return oldId;
               }
+
               int candidate = nextId.incrementAndGet();
               while (allUsedIds.contains(candidate)) {
                 candidate = nextId.incrementAndGet();
               }
+
               return candidate;
             });
 

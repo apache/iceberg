@@ -308,6 +308,7 @@ public class ValueReaders {
       if (fieldId == MetadataColumns.ROW_ID.fieldId()) {
         return ValueReaders.rowIds((Long) constant, null);
       }
+
       return ValueReaders.constant(constant);
     } else if (field.initialDefault() != null) {
       return ValueReaders.constant(convert.apply(field.type(), field.initialDefault()));
@@ -553,6 +554,7 @@ public class ValueReaders {
       } else {
         return decoder.readString(null);
       }
+
       //      int length = decoder.readInt();
       //      byte[] bytes = new byte[length];
       //      decoder.readFixed(bytes, 0, length);
@@ -691,6 +693,7 @@ public class ValueReaders {
       } else {
         return decoder.readBytes(null);
       }
+
       //      int length = decoder.readInt();
       //      byte[] bytes = new byte[length];
       //      decoder.readFixed(bytes, 0, length);
@@ -892,6 +895,7 @@ public class ValueReaders {
             key = keyReader.read(decoder, null);
             value = valueReader.read(decoder, null);
           }
+
           resultMap.put(key, value);
         }
 
@@ -956,6 +960,7 @@ public class ValueReaders {
             key = keyReader.read(decoder, null);
             value = valueReader.read(decoder, null);
           }
+
           resultMap.put(key, value);
         }
 

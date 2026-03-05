@@ -186,8 +186,10 @@ public class OrcValueReaders {
           vector = columnVectors[vectorIndex];
           vectorIndex++;
         }
+
         set(struct, c, reader(c).read(vector, row));
       }
+
       return struct;
     }
 

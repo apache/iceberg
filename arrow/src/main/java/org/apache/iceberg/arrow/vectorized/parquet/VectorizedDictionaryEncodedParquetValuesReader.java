@@ -56,6 +56,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
         if (currentCount == 0) {
           readNextGroup();
         }
+
         int numValues = Math.min(left, currentCount);
         for (int i = 0; i < numValues; i++) {
           if (Mode.RLE.equals(mode)) {
@@ -63,12 +64,15 @@ public class VectorizedDictionaryEncodedParquetValuesReader
           } else if (Mode.PACKED.equals(mode)) {
             nextVal(vector, dict, idx, packedValuesBuffer[packedValuesBufferIdx++], typeWidth);
           }
+
           nullabilityHolder.setNotNull(idx);
           if (setArrowValidityVector) {
             BitVectorHelper.setBit(vector.getValidityBuffer(), idx);
           }
+
           idx++;
         }
+
         left -= numValues;
         currentCount -= numValues;
       }

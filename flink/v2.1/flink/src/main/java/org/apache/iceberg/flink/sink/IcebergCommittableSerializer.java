@@ -63,6 +63,7 @@ public class IcebergCommittableSerializer implements SimpleVersionedSerializer<I
       view.read(manifestBuf);
       return new IcebergCommittable(manifestBuf, jobId, operatorId, checkpointId);
     }
+
     throw new IOException("Unrecognized version or corrupt state: " + version);
   }
 }

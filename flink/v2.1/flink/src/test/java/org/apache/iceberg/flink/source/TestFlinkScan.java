@@ -158,6 +158,7 @@ public abstract class TestFlinkScan {
                   ImmutableList.of(record)));
       idx += 1;
     }
+
     append.commit();
 
     // individual fields

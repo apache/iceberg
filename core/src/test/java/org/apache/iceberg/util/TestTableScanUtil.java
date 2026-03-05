@@ -235,6 +235,7 @@ public class TestTableScanUtil {
       assertThat(task.sizeBytes()).isEqualTo(64 + 128 + 64 + 128);
       count += 1;
     }
+
     assertThat(count).isOne();
 
     // We have 2 files from partition 1 and 2 files from partition 2, so they should be combined
@@ -253,6 +254,7 @@ public class TestTableScanUtil {
       assertThat(task.sizeBytes()).isEqualTo(64 + 128);
       count += 1;
     }
+
     assertThat(count).isEqualTo(2);
 
     // Similar to the case above, but now files have different partition specs
@@ -270,6 +272,7 @@ public class TestTableScanUtil {
       assertThat(task.sizeBytes()).isEqualTo(64 + 128);
       count += 1;
     }
+
     assertThat(count).isEqualTo(2);
 
     // Combining within partitions should also respect split size. In this case, the split size
@@ -288,6 +291,7 @@ public class TestTableScanUtil {
       assertThat(task.sizeBytes()).isEqualTo(128);
       count += 1;
     }
+
     assertThat(count).isEqualTo(4);
 
     // The following should throw exception since `SPEC2` is not an intersection of partition specs

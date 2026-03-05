@@ -136,6 +136,7 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
         } else {
           return TimestampNTZType$.MODULE$;
         }
+
       case STRING:
         return StringType$.MODULE$;
       case UUID:

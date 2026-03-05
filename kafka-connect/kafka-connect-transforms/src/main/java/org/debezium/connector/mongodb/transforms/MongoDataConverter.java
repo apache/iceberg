@@ -142,6 +142,7 @@ public class MongoDataConverter {
         if (field == null) {
           throw new DataException("Failed to find field '" + key + "' in schema " + schema.name());
         }
+
         Schema documentSchema = field.schema();
         Struct documentStruct = new Struct(documentSchema);
         BsonDocument docs = keyValueForStruct.getValue().asDocument();
@@ -179,6 +180,7 @@ public class MongoDataConverter {
                     } else {
                       valueSchema = null;
                     }
+
                     convertFieldValue(valueSchema, valueType, arrValue, list);
                   });
               colValue = list;
@@ -191,6 +193,7 @@ public class MongoDataConverter {
               for (int i = 0; i < array.size(); i++) {
                 convertedArray.put(arrayElementStructName(i), array.get(i));
               }
+
               convertedArray
                   .entrySet()
                   .forEach(
@@ -202,11 +205,13 @@ public class MongoDataConverter {
               break;
           }
         }
+
         break;
 
       default:
         return;
     }
+
     struct.put(key, keyValueForStruct.getValue().isNull() ? null : colValue);
   }
 
@@ -252,6 +257,7 @@ public class MongoDataConverter {
       for (Entry<String, BsonValue> entry9 : arrValue.asDocument().entrySet()) {
         convertFieldValue(entry9, struct1, valueSchema);
       }
+
       list.add(struct1);
     } else if (arrValue.getBsonType() == BsonType.ARRAY && valueType == BsonType.ARRAY) {
       List<Object> subList = Lists.newArrayList();
@@ -262,9 +268,11 @@ public class MongoDataConverter {
       } else {
         subValueSchema = null;
       }
+
       for (BsonValue v : arrValue.asArray()) {
         convertFieldValue(subValueSchema, v.getBsonType(), v, subList);
       }
+
       list.add(subList);
     }
   }
@@ -342,6 +350,7 @@ public class MongoDataConverter {
         for (Entry<String, BsonValue> doc : docs.entrySet()) {
           addFieldSchema(doc, builderDoc);
         }
+
         builder.field(key, builderDoc.build());
         break;
 
@@ -377,11 +386,13 @@ public class MongoDataConverter {
               for (int i = 0; i < array.size(); i++) {
                 convertedArray.put(arrayElementStructName(i), array.get(i));
               }
+
               convertedArray.entrySet().forEach(x -> addFieldSchema(x, arrayStructBuilder));
               builder.field(key, arrayStructBuilder.build());
               break;
           }
         }
+
         break;
       default:
         break;
@@ -425,6 +436,7 @@ public class MongoDataConverter {
         } else {
           subSchema(documentSchemaBuilder, union, value.asDocument(), false);
         }
+
         return documentSchemaBuilder.build();
       case ARRAY:
         BsonType subValueType = value.asArray().get(0).asArray().get(0).getBsonType();
@@ -451,6 +463,7 @@ public class MongoDataConverter {
                   && ((BsonArray) arrayDoc.getValue()).isEmpty()))) {
         continue;
       }
+
       final BsonType prevType = union.putIfAbsent(key, arrayDoc.getValue().getBsonType());
       if (prevType == null) {
         addFieldSchema(arrayDoc, documentSchemaBuilder);

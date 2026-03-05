@@ -138,18 +138,21 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptz();
             }
+
             return GenericReaders.timestamps();
 
           case "timestamp-nanos":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptzNanos();
             }
+
             return GenericReaders.timestampNanos();
 
           case "timestamp-millis":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptzMillis();
             }
+
             return GenericReaders.timestampMillis();
 
           case "decimal":

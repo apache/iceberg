@@ -154,6 +154,7 @@ public class TestSparkReadProjection extends TestReadProjection {
         String originalName = writeSchema.findColumnName(id);
         idMapping.put(id, tableSchema.findField(originalName).fieldId());
       }
+
       Schema expectedSchema = reassignIds(readSchema, idMapping);
 
       // Set the schema to the expected schema directly to simulate the table schema evolving
@@ -210,6 +211,7 @@ public class TestSparkReadProjection extends TestReadProjection {
                     if (idMapping.containsKey(id)) {
                       return idMapping.get(id);
                     }
+
                     return 1000 + id; // make sure the new IDs don't conflict with reassignment
                   }
 
@@ -233,6 +235,7 @@ public class TestSparkReadProjection extends TestReadProjection {
                             required(mapId(field.fieldId()), field.name(), fieldResults.get(i)));
                       }
                     }
+
                     return Types.StructType.of(newFields);
                   }
 

@@ -151,6 +151,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
                 .collect(Collectors.joining(", "));
         LOG.error("Error reading file(s): {}", filePaths, e);
       }
+
       throw e;
     }
   }
@@ -230,6 +231,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       if (cacheDeleteFilesOnExecutors) {
         return new CachingDeleteLoader(this::loadInputFile);
       }
+
       return new BaseDeleteLoader(this::loadInputFile);
     }
 
@@ -275,6 +277,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
             }
           }
         }
+
         return historicSchemaFields;
       }
 

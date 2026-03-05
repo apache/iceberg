@@ -268,6 +268,7 @@ public class TestColumnarBatchUtil {
     for (int i = 0; i < 5; i++) {
       vectors[i] = mock(ColumnVector.class);
     }
+
     when(deleteFilter.expectedSchema()).thenReturn(mock(Schema.class));
     when(deleteFilter.expectedSchema().columns()).thenReturn(nCopies(3, null));
 
@@ -281,6 +282,7 @@ public class TestColumnarBatchUtil {
     for (int i = 0; i < 3; i++) {
       vectors[i] = mock(ColumnVector.class);
     }
+
     when(deleteFilter.expectedSchema()).thenReturn(mock(Schema.class));
     when(deleteFilter.expectedSchema().columns()).thenReturn(nCopies(3, null));
 

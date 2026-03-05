@@ -44,6 +44,7 @@ public class S3FileIOAwsClientFactories {
     if (Strings.isNullOrEmpty(factoryImpl)) {
       return (T) AwsClientFactories.from(properties);
     }
+
     return (T) loadClientFactory(factoryImpl, properties);
   }
 

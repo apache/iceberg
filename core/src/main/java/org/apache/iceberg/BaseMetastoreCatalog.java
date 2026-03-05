@@ -176,6 +176,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
       if (properties != null) {
         tableProperties.putAll(properties);
       }
+
       return this;
     }
 

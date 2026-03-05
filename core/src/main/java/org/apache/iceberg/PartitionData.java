@@ -99,6 +99,7 @@ public class PartitionData
     if (schema == null) {
       this.schema = new Schema.Parser().parse(stringSchema);
     }
+
     return schema;
   }
 
@@ -160,8 +161,10 @@ public class PartitionData
       if (i > 0) {
         sb.append(", ");
       }
+
       sb.append(partitionType.fields().get(i).name()).append("=").append(data[i]);
     }
+
     sb.append("}");
     return sb.toString();
   }

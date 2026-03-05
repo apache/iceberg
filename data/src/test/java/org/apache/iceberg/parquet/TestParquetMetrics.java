@@ -86,6 +86,7 @@ public class TestParquetMetrics extends TestMetrics {
     try (FileAppender<Record> appender = writer) {
       appender.addAll(Lists.newArrayList(records));
     }
+
     return writer.metrics();
   }
 

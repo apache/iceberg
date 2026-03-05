@@ -96,6 +96,7 @@ class RecordConverter {
     if (data instanceof Struct || data instanceof Map) {
       return convertStructValue(data, tableSchema.asStruct(), -1, schemaUpdateConsumer);
     }
+
     throw new UnsupportedOperationException("Cannot convert type: " + data.getClass().getName());
   }
 
@@ -109,6 +110,7 @@ class RecordConverter {
     if (value == null) {
       return null;
     }
+
     switch (type.typeId()) {
       case STRUCT:
         return convertStructValue(value, type.asStructType(), fieldId, schemaUpdateConsumer);
@@ -143,6 +145,7 @@ class RecordConverter {
       case TIMESTAMP:
         return convertTimestampValue(value, (TimestampType) type);
     }
+
     throw new UnsupportedOperationException("Unsupported type: " + type.typeId());
   }
 
@@ -156,6 +159,7 @@ class RecordConverter {
     } else if (value instanceof Struct) {
       return convertToStruct((Struct) value, schema, parentFieldId, schemaUpdateConsumer);
     }
+
     throw new IllegalArgumentException("Cannot convert to struct: " + value.getClass().getName());
   }
 
@@ -231,6 +235,7 @@ class RecordConverter {
                     schemaUpdateConsumer.updateType(fieldName, evolveDataType);
                     hasSchemaUpdates = true;
                   }
+
                   // make optional if needed and schema evolution is on
                   if (tableField.isRequired() && recordField.schema().isOptional()) {
                     String fieldName = tableSchema.findColumnName(tableField.fieldId());
@@ -238,6 +243,7 @@ class RecordConverter {
                     hasSchemaUpdates = true;
                   }
                 }
+
                 if (!hasSchemaUpdates) {
                   result.setField(
                       tableField.name(),
@@ -315,6 +321,7 @@ class RecordConverter {
     } else if (value instanceof String) {
       return Integer.parseInt((String) value);
     }
+
     throw new IllegalArgumentException("Cannot convert to int: " + value.getClass().getName());
   }
 
@@ -324,6 +331,7 @@ class RecordConverter {
     } else if (value instanceof String) {
       return Long.parseLong((String) value);
     }
+
     throw new IllegalArgumentException("Cannot convert to long: " + value.getClass().getName());
   }
 
@@ -333,6 +341,7 @@ class RecordConverter {
     } else if (value instanceof String) {
       return Float.parseFloat((String) value);
     }
+
     throw new IllegalArgumentException("Cannot convert to float: " + value.getClass().getName());
   }
 
@@ -342,6 +351,7 @@ class RecordConverter {
     } else if (value instanceof String) {
       return Double.parseDouble((String) value);
     }
+
     throw new IllegalArgumentException("Cannot convert to double: " + value.getClass().getName());
   }
 
@@ -363,6 +373,7 @@ class RecordConverter {
       throw new IllegalArgumentException(
           "Cannot convert to BigDecimal: " + value.getClass().getName());
     }
+
     return bigDecimal.setScale(type.scale(), RoundingMode.HALF_UP);
   }
 
@@ -372,6 +383,7 @@ class RecordConverter {
     } else if (value instanceof String) {
       return Boolean.parseBoolean((String) value);
     }
+
     throw new IllegalArgumentException("Cannot convert to boolean: " + value.getClass().getName());
   }
 
@@ -391,6 +403,7 @@ class RecordConverter {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+
     throw new IllegalArgumentException("Cannot convert to string: " + value.getClass().getName());
   }
 
@@ -422,6 +435,7 @@ class RecordConverter {
     } else if (value instanceof ByteBuffer) {
       return (ByteBuffer) value;
     }
+
     throw new IllegalArgumentException("Cannot convert to binary: " + value.getClass().getName());
   }
 
@@ -438,6 +452,7 @@ class RecordConverter {
       int days = (int) (((Date) value).getTime() / 1000 / 60 / 60 / 24);
       return DateTimeUtil.dateFromDays(days);
     }
+
     throw new ConnectException("Cannot convert date: " + value);
   }
 
@@ -454,6 +469,7 @@ class RecordConverter {
       long millis = ((Date) value).getTime();
       return DateTimeUtil.timeFromMicros(millis * 1000);
     }
+
     throw new ConnectException("Cannot convert time: " + value);
   }
 
@@ -461,6 +477,7 @@ class RecordConverter {
     if (type.shouldAdjustToUTC()) {
       return convertOffsetDateTime(value);
     }
+
     return convertLocalDateTime(value);
   }
 
@@ -478,6 +495,7 @@ class RecordConverter {
     } else if (value instanceof Date) {
       return DateTimeUtil.timestamptzFromMicros(((Date) value).getTime() * 1000);
     }
+
     throw new ConnectException(
         "Cannot convert timestamptz: " + value + ", type: " + value.getClass());
   }
@@ -506,6 +524,7 @@ class RecordConverter {
     } else if (value instanceof Date) {
       return DateTimeUtil.timestampFromMicros(((Date) value).getTime() * 1000);
     }
+
     throw new ConnectException(
         "Cannot convert timestamp: " + value + ", type: " + value.getClass());
   }
@@ -524,11 +543,13 @@ class RecordConverter {
     if (result.charAt(10) == ' ') {
       result = result.substring(0, 10) + 'T' + result.substring(11);
     }
+
     if (result.length() > 22
         && (result.charAt(19) == '+' || result.charAt(19) == '-')
         && result.charAt(22) == ':') {
       result = result.substring(0, 19) + result.substring(19).replace(":", "");
     }
+
     return result;
   }
 }

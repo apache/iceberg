@@ -98,8 +98,10 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
       if (nextSnapshot.snapshotId() == table.currentSnapshot().snapshotId()) {
         return null;
       }
+
       nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
     }
+
     return nextSnapshot;
   }
 

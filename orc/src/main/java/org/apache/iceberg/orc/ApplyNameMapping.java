@@ -50,6 +50,7 @@ class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
     if (mappedField != null) {
       type.setAttribute(ORCSchemaUtil.ICEBERG_ID_ATTRIBUTE, mappedField.id().toString());
     }
+
     return type;
   }
 
@@ -67,6 +68,7 @@ class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
         structType.addField(fieldName, fieldType);
       }
     }
+
     return setId(structType, field);
   }
 

@@ -62,6 +62,7 @@ public final class FileMetadataParser {
     for (BlobMetadata blobMetadata : fileMetadata.blobs()) {
       toJson(blobMetadata, generator);
     }
+
     generator.writeEndArray();
 
     if (!fileMetadata.properties().isEmpty()) {

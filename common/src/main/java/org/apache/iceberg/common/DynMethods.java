@@ -230,6 +230,7 @@ public class DynMethods {
       if (method == null) {
         this.method = UnboundMethod.NOOP;
       }
+
       return this;
     }
 
@@ -255,6 +256,7 @@ public class DynMethods {
       } catch (ClassNotFoundException e) {
         // not the right implementation
       }
+
       return this;
     }
 
@@ -295,6 +297,7 @@ public class DynMethods {
       } catch (NoSuchMethodException e) {
         // not the right implementation
       }
+
       return this;
     }
 
@@ -336,6 +339,7 @@ public class DynMethods {
       } catch (ClassNotFoundException e) {
         // not the right implementation
       }
+
       return this;
     }
 
@@ -379,6 +383,7 @@ public class DynMethods {
       } catch (SecurityException | NoSuchMethodException e) {
         // unusable or not the right implementation
       }
+
       return this;
     }
 

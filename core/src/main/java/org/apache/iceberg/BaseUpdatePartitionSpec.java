@@ -139,6 +139,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
         }
       }
     }
+
     return new PartitionField(
         sourceTransform.first(), assignFieldId(), name, sourceTransform.second());
   }
@@ -342,6 +343,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     } else {
       update = base.addPartitionSpec(apply());
     }
+
     ops.commit(base, update);
   }
 
@@ -358,6 +360,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     } else {
       transform = Transforms.fromString(transform.toString());
     }
+
     return Pair.of(sourceId, transform);
   }
 

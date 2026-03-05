@@ -59,6 +59,7 @@ class SerializedShortString implements VariantPrimitive<String>, SerializedValue
     if (null == string) {
       this.string = VariantUtil.readString(value, HEADER_SIZE, length);
     }
+
     return string;
   }
 

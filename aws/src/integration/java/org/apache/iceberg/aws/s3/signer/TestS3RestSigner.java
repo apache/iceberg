@@ -404,6 +404,7 @@ public class TestS3RestSigner {
         // notified to pick up the header value returned by this method.
         mutableRequest.putHeader(SignerConstant.X_AMZ_CONTENT_SHA256, "required");
       }
+
       return S3V4RestSignerClient.UNSIGNED_PAYLOAD;
     }
   }

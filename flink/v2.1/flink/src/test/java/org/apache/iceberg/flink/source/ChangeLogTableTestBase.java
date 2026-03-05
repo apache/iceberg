@@ -70,6 +70,7 @@ public class ChangeLogTableTestBase extends TestBase {
         }
       }
     }
+
     return tEnv;
   }
 

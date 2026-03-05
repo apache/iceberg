@@ -138,6 +138,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
                 return true;
               }
             }
+
             LOG.info("Creating Flink maintenance lock table {}", LOCK_TABLE_NAME);
             try (PreparedStatement ps = conn.prepareStatement(CREATE_LOCK_TABLE_SQL)) {
               ps.execute();

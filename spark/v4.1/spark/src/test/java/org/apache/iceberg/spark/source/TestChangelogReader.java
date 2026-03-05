@@ -109,6 +109,7 @@ public class TestChangelogReader extends TestBase {
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
+
       reader.close();
     }
 
@@ -140,6 +141,7 @@ public class TestChangelogReader extends TestBase {
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
+
       reader.close();
     }
 
@@ -174,6 +176,7 @@ public class TestChangelogReader extends TestBase {
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
+
       reader.close();
     }
 
@@ -201,6 +204,7 @@ public class TestChangelogReader extends TestBase {
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
+
       reader.close();
     }
 

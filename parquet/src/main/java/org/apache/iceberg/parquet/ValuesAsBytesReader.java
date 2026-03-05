@@ -86,6 +86,7 @@ public class ValuesAsBytesReader extends ValuesReader {
     if (bitOffset == 8) {
       bitOffset = 0;
     }
+
     return value;
   }
 
@@ -94,11 +95,13 @@ public class ValuesAsBytesReader extends ValuesReader {
     if (bitOffset == 0) {
       currentByte = getByte();
     }
+
     int value = (currentByte & (1 << bitOffset)) >> bitOffset;
     bitOffset += 1;
     if (bitOffset == 8) {
       bitOffset = 0;
     }
+
     return value;
   }
 

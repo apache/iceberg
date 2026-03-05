@@ -224,6 +224,7 @@ public class TestTimestampWithoutZone extends CatalogTestBase {
                                 } else if (value instanceof LocalDateTime) {
                                   return String.format("timestamp_ntz '%s'", value);
                                 }
+
                                 throw new RuntimeException("Type is not supported");
                               })
                           .collect(Collectors.toList());

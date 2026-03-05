@@ -211,6 +211,7 @@ abstract class BaseParquetWriter<T> {
               ParquetValueWriters.decimalAsFixed(
                   desc, decimalType.getPrecision(), decimalType.getScale()));
       }
+
       return Optional.empty();
     }
 

@@ -136,6 +136,7 @@ public class TestMetadataTableFilters extends TestBase {
         } else {
           return partitions * 2; // Delete File and Data File per partition
         }
+
       case DATA_FILES:
       case DELETE_FILES:
         return partitions;
@@ -149,6 +150,7 @@ public class TestMetadataTableFilters extends TestBase {
         } else {
           return partitions * 4; // ScanTask for Delete and Data File in DELETED and ADDED states
         }
+
       default:
         throw new IllegalArgumentException("Unsupported metadata table type:" + type);
     }

@@ -151,6 +151,7 @@ public class OAuth2Util {
         optionalParamBuilder.put(key, value);
       }
     }
+
     return optionalParamBuilder.buildKeepingLast();
   }
 
@@ -282,6 +283,7 @@ public class OAuth2Util {
       formData.put(ACTOR_TOKEN, actorToken);
       formData.put(ACTOR_TOKEN_TYPE, actorTokenType);
     }
+
     formData.putAll(optionalParams);
 
     return formData.buildKeepingLast();
@@ -320,6 +322,7 @@ public class OAuth2Util {
     if (clientId != null) {
       formData.put(CLIENT_ID, clientId);
     }
+
     formData.put(CLIENT_SECRET, clientSecret);
     formData.put(SCOPE, toScope(scopes));
     formData.putAll(optionalOAuthParams);
@@ -691,6 +694,7 @@ public class OAuth2Util {
       if (issuedTokenType == null) {
         issuedTokenType = OAuth2Properties.ACCESS_TOKEN_TYPE;
       }
+
       AuthSession session =
           new AuthSession(
               RESTUtil.merge(parent.headers(), authHeaders(response.token())),

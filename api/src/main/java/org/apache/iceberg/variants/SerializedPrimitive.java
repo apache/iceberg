@@ -84,12 +84,14 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
           int unscaled = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET + 1);
           return new BigDecimal(BigInteger.valueOf(unscaled), scale);
         }
+
       case DECIMAL8:
         {
           int scale = VariantUtil.readByte(value, PRIMITIVE_OFFSET);
           long unscaled = VariantUtil.readLittleEndianInt64(value, PRIMITIVE_OFFSET + 1);
           return new BigDecimal(BigInteger.valueOf(unscaled), scale);
         }
+
       case DECIMAL16:
         {
           int scale = VariantUtil.readByte(value, PRIMITIVE_OFFSET);
@@ -97,18 +99,22 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
           for (int i = 0; i < 16; i += 1) {
             unscaled[i] = (byte) VariantUtil.readByte(value, PRIMITIVE_OFFSET + 16 - i);
           }
+
           return new BigDecimal(new BigInteger(unscaled), scale);
         }
+
       case BINARY:
         {
           int size = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
           return VariantUtil.slice(value, PRIMITIVE_OFFSET + 4, size);
         }
+
       case STRING:
         {
           int size = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
           return VariantUtil.readString(value, PRIMITIVE_OFFSET + 4, size);
         }
+
       case UUID:
         return UUIDUtil.convert(
             VariantUtil.slice(value, PRIMITIVE_OFFSET, 16).order(ByteOrder.BIG_ENDIAN));
@@ -127,6 +133,7 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
     if (null == primitive) {
       this.primitive = read();
     }
+
     return primitive;
   }
 

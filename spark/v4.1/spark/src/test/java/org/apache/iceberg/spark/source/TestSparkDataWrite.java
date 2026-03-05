@@ -153,6 +153,7 @@ public class TestSparkDataWrite {
         if (!format.equals(FileFormat.AVRO)) {
           assertThat(file.splitOffsets()).as("Split offsets not present").isNotNull();
         }
+
         assertThat(file.recordCount()).as("Should have reported record count as 1").isEqualTo(1);
         // TODO: append more metric info
         if (format.equals(FileFormat.PARQUET)) {
@@ -628,6 +629,7 @@ public class TestSparkDataWrite {
         files.add(file);
       }
     }
+
     assertThat(files)
         .hasSize(8)
         .allSatisfy(

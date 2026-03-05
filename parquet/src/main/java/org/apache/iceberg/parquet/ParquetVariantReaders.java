@@ -373,6 +373,7 @@ public class ParquetVariantReaders {
           for (TripleIterator<?> child : children) {
             child.nextNull();
           }
+
           // if the current definition level is equal to the definition level of this repeated type,
           // then the result is an empty list and the repetition level will always be <= rl.
           break;

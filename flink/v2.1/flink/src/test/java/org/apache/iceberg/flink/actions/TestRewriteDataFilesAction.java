@@ -107,6 +107,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
         }
       }
     }
+
     return parameters;
   }
 
@@ -316,6 +317,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
       } else {
         records2.add("(" + id + ",'" + data + "')");
       }
+
       Record record = RECORD.copy();
       record.setField("id", id);
       record.setField("data", data);
@@ -338,6 +340,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
           .as("Residuals must be ignored")
           .isEqualTo(Expressions.alwaysTrue());
     }
+
     List<DataFile> dataFiles =
         Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     assertThat(dataFiles).hasSize(2);

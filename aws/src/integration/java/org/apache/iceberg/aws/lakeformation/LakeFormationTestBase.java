@@ -601,6 +601,7 @@ public class LakeFormationTestBase {
     } else {
       dataLakeAdmins.removeIf(p -> p.dataLakePrincipalIdentifier().equals(adminArn));
     }
+
     DataLakeSettings newDataLakeSettings =
         DataLakeSettings.builder()
             .dataLakeAdmins(dataLakeAdmins)

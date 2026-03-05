@@ -218,6 +218,7 @@ class ReadConf<T> {
         listBuilder.add(ImmutableMap.of());
       }
     }
+
     return listBuilder.build();
   }
 }

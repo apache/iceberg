@@ -115,10 +115,12 @@ public class TestFlinkManifest {
       for (int i = 0; i < dataFiles.size(); i++) {
         TestHelpers.assertEquals(dataFiles.get(i), result.dataFiles()[i]);
       }
+
       assertThat(result.deleteFiles()).hasSize(10);
       for (int i = 0; i < 5; i++) {
         TestHelpers.assertEquals(eqDeleteFiles.get(i), result.deleteFiles()[i]);
       }
+
       for (int i = 0; i < 5; i++) {
         TestHelpers.assertEquals(posDeleteFiles.get(i), result.deleteFiles()[5 + i]);
       }
@@ -280,6 +282,7 @@ public class TestFlinkManifest {
       rowDataList.add(SimpleDataUtil.createRowData(i, "a" + i));
       dataFiles.add(writeDataFile("data-file-" + fileCount.incrementAndGet(), rowDataList));
     }
+
     return dataFiles;
   }
 
@@ -291,6 +294,7 @@ public class TestFlinkManifest {
       deleteFiles.add(
           writeEqDeleteFile("eq-delete-file-" + fileCount.incrementAndGet(), rowDataList));
     }
+
     return deleteFiles;
   }
 
@@ -302,6 +306,7 @@ public class TestFlinkManifest {
       deleteFiles.add(
           writePosDeleteFile("pos-delete-file-" + fileCount.incrementAndGet(), positions));
     }
+
     return deleteFiles;
   }
 

@@ -232,6 +232,7 @@ abstract class BaseCommitService<T> implements Closeable {
       } catch (Exception e) {
         LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
       }
+
       inProgressCommits.remove(inProgressCommitToken);
     }
   }

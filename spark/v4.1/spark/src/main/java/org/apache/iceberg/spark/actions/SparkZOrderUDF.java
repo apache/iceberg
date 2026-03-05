@@ -84,6 +84,7 @@ class SparkZOrderUDF implements Serializable {
       buffer = ByteBuffer.allocate(size);
       inputBuffers.get()[position] = buffer;
     }
+
     return buffer;
   }
 
@@ -101,6 +102,7 @@ class SparkZOrderUDF implements Serializable {
                   if (value == null) {
                     return PRIMITIVE_EMPTY;
                   }
+
                   return ZOrderByteUtils.tinyintToOrderedBytes(
                           value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE))
                       .array();
@@ -123,6 +125,7 @@ class SparkZOrderUDF implements Serializable {
                   if (value == null) {
                     return PRIMITIVE_EMPTY;
                   }
+
                   return ZOrderByteUtils.shortToOrderedBytes(
                           value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE))
                       .array();
@@ -145,6 +148,7 @@ class SparkZOrderUDF implements Serializable {
                   if (value == null) {
                     return PRIMITIVE_EMPTY;
                   }
+
                   return ZOrderByteUtils.intToOrderedBytes(
                           value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE))
                       .array();
@@ -167,6 +171,7 @@ class SparkZOrderUDF implements Serializable {
                   if (value == null) {
                     return PRIMITIVE_EMPTY;
                   }
+
                   return ZOrderByteUtils.longToOrderedBytes(
                           value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE))
                       .array();
@@ -189,6 +194,7 @@ class SparkZOrderUDF implements Serializable {
                   if (value == null) {
                     return PRIMITIVE_EMPTY;
                   }
+
                   return ZOrderByteUtils.floatToOrderedBytes(
                           value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE))
                       .array();
@@ -211,6 +217,7 @@ class SparkZOrderUDF implements Serializable {
                   if (value == null) {
                     return PRIMITIVE_EMPTY;
                   }
+
                   return ZOrderByteUtils.doubleToOrderedBytes(
                           value, inputBuffer(position, ZOrderByteUtils.PRIMITIVE_BUFFER_SIZE))
                       .array();

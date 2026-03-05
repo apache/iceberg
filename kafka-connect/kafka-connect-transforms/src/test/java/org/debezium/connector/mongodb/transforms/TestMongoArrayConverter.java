@@ -139,6 +139,7 @@ public class TestMongoArrayConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
+
     final Schema finalSchema = builder.build();
 
     assertThat(finalSchema)
@@ -218,6 +219,7 @@ public class TestMongoArrayConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       arrayConverter.addFieldSchema(entry, builder);
     }
+
     final Schema arraySchema = builder.build();
 
     assertThat(arraySchema)
@@ -237,6 +239,7 @@ public class TestMongoArrayConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       arrayConverter.addFieldSchema(entry, builder);
     }
+
     final Schema arraySchema = builder.build();
 
     final Struct struct = new Struct(arraySchema);
@@ -258,6 +261,7 @@ public class TestMongoArrayConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       documentConverter.addFieldSchema(entry, builder);
     }
+
     final Schema documentSchema = builder.build();
 
     assertThat(documentSchema)
@@ -277,6 +281,7 @@ public class TestMongoArrayConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       documentConverter.addFieldSchema(entry, builder);
     }
+
     final Schema documentSchema = builder.build();
 
     final Struct struct = new Struct(documentSchema);
@@ -295,6 +300,7 @@ public class TestMongoArrayConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
+
     final Schema finalSchema = builder.build();
 
     assertThat(finalSchema)
@@ -320,6 +326,7 @@ public class TestMongoArrayConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
+
     final Schema finalSchema = builder.build();
 
     final Struct struct = new Struct(finalSchema);
@@ -338,6 +345,7 @@ public class TestMongoArrayConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
+
     final Schema finalSchema = builder.build();
 
     assertThat(finalSchema)
@@ -375,6 +383,7 @@ public class TestMongoArrayConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
+
     final Schema finalSchema = builder.build();
 
     final Struct struct = new Struct(finalSchema);

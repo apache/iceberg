@@ -158,6 +158,7 @@ public class PartitionSpec implements Serializable {
       // not re-assigned.
       return partitionType();
     }
+
     if (lazyRawPartitionType == null) {
       synchronized (this) {
         if (lazyRawPartitionType == null) {
@@ -223,8 +224,10 @@ public class PartitionSpec implements Serializable {
       if (i > 0) {
         sb.append("/");
       }
+
       sb.append(escape(field.name())).append("=").append(escape(valueString));
     }
+
     return sb.toString();
   }
 
@@ -270,6 +273,7 @@ public class PartitionSpec implements Serializable {
     if (this.specId != that.specId) {
       return false;
     }
+
     return Arrays.equals(fields, that.fields);
   }
 
@@ -286,6 +290,7 @@ public class PartitionSpec implements Serializable {
         }
       }
     }
+
     return fieldList;
   }
 
@@ -299,6 +304,7 @@ public class PartitionSpec implements Serializable {
           for (PartitionField field : fields) {
             multiMap.put(field.sourceId(), field);
           }
+
           this.fieldsBySourceId = multiMap;
         }
       }
@@ -331,9 +337,11 @@ public class PartitionSpec implements Serializable {
       sb.append("\n");
       sb.append("  ").append(field);
     }
+
     if (fields.length > 0) {
       sb.append("\n");
     }
+
     sb.append("]");
     return sb.toString();
   }
@@ -419,6 +427,7 @@ public class PartitionSpec implements Serializable {
               name);
         }
       }
+
       Preconditions.checkArgument(!name.isEmpty(), "Cannot use empty partition name: %s", name);
       Preconditions.checkArgument(
           !partitionNames.contains(name), "Cannot use partition name more than once: %s", name);
@@ -648,6 +657,7 @@ public class PartitionSpec implements Serializable {
       if (allowMissingFields && sourceType == null) {
         continue;
       }
+
       // In the case of a Version 1 partition-spec field gets deleted,
       // it is replaced with a void transform, see:
       // https://iceberg.apache.org/spec/#partition-transforms
@@ -684,6 +694,7 @@ public class PartitionSpec implements Serializable {
         return false;
       }
     }
+
     return true;
   }
 }

@@ -117,6 +117,7 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
       if (filterRefs.contains(field.fieldId())) {
         return field.type();
       }
+
       return null;
     }
 

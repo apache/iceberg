@@ -271,6 +271,7 @@ public class Avro {
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
         }
+
         return codecFactory;
       }
 

@@ -254,12 +254,14 @@ class ParquetVariantUtil {
           } else {
             return Optional.of(PhysicalType.TIMESTAMPNTZ);
           }
+
         case NANOS:
           if (timestamps.isAdjustedToUTC()) {
             return Optional.of(PhysicalType.TIMESTAMPTZ_NANOS);
           } else {
             return Optional.of(PhysicalType.TIMESTAMPNTZ_NANOS);
           }
+
         default:
           return Optional.empty();
       }

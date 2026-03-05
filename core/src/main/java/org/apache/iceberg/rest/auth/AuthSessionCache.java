@@ -104,6 +104,7 @@ public class AuthSessionCache implements AutoCloseable {
         if (!Uninterruptibles.awaitTerminationUninterruptibly(service, 10, TimeUnit.SECONDS)) {
           LOG.warn("Timed out waiting for eviction executor to terminate");
         }
+
         service.shutdownNow();
       }
     }

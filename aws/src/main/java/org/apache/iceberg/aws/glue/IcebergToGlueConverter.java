@@ -95,6 +95,7 @@ class IcebergToGlueConverter {
     if (namespace.levels().length != 1) {
       return false;
     }
+
     String dbName = namespace.level(0);
     return dbName != null && GLUE_DB_PATTERN.matcher(dbName).find();
   }

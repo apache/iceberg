@@ -60,6 +60,7 @@ public class InMemoryFileIO implements FileIO {
     if (null == contents) {
       throw new NotFoundException("No in-memory file found for location: %s", location);
     }
+
     return new InMemoryInputFile(location, contents);
   }
 

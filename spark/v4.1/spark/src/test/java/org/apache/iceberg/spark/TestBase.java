@@ -103,6 +103,7 @@ public abstract class TestBase extends SparkTestHelperBase {
       metastore.stop();
       TestBase.metastore = null;
     }
+
     if (spark != null) {
       spark.stop();
       TestBase.spark = null;
@@ -115,6 +116,7 @@ public abstract class TestBase extends SparkTestHelperBase {
     while (current <= timestampMillis) {
       current = System.currentTimeMillis();
     }
+
     return current;
   }
 
@@ -201,6 +203,7 @@ public abstract class TestBase extends SparkTestHelperBase {
           if (SQLConf.isStaticConfigKey(confKey)) {
             throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
           }
+
           sqlConf.setConfString(confKey, confValue);
         });
 
@@ -240,6 +243,7 @@ public abstract class TestBase extends SparkTestHelperBase {
       if (stringBuilder.length() > 0) {
         stringBuilder.append(", ");
       }
+
       stringBuilder.append(String.format("'%s' '%s'", property.getKey(), property.getValue()));
     }
 

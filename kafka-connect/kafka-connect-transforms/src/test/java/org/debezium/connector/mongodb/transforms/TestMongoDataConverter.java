@@ -104,6 +104,7 @@ public class TestMongoDataConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
+
     Schema finalSchema = builder.build();
 
     assertThat(finalSchema)
@@ -171,6 +172,7 @@ public class TestMongoDataConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
+
     Schema finalSchema = builder.build();
     Struct struct = new Struct(finalSchema);
 
@@ -220,6 +222,7 @@ public class TestMongoDataConverter {
     for (Entry<String, BsonValue> entry : val.entrySet()) {
       converter.addFieldSchema(entry, builder);
     }
+
     Schema finalSchema = builder.build();
     Struct struct = new Struct(finalSchema);
 

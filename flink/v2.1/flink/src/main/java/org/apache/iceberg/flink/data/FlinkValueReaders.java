@@ -312,6 +312,7 @@ public class FlinkValueReaders {
       if (reuse instanceof GenericRowData && ((GenericRowData) reuse).getArity() == numFields) {
         return (RowData) reuse;
       }
+
       return new GenericRowData(numFields);
     }
 
@@ -340,6 +341,7 @@ public class FlinkValueReaders {
       if (reuse instanceof GenericRowData && ((GenericRowData) reuse).getArity() == numFields) {
         return (GenericRowData) reuse;
       }
+
       return new GenericRowData(numFields);
     }
 

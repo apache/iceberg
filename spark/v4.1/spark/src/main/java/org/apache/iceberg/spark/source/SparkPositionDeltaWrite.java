@@ -215,6 +215,7 @@ class SparkPositionDeltaWrite extends BaseSparkWrite
           return sparkContext.broadcast(rewritableDeletes);
         }
       }
+
       return null;
     }
 

@@ -136,6 +136,7 @@ public class TestIcebergSourceSql extends TestSqlBase {
       expected.addAll(recordsDataFile2);
       expected.addAll(recordsDataFile1);
     }
+
     return expected;
   }
 

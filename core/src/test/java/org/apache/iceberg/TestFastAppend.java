@@ -267,6 +267,7 @@ public class TestFastAppend extends TestBase {
     for (Snapshot snapshot : base.snapshots()) {
       ids.add(snapshot.snapshotId());
     }
+
     ids.add(pending.snapshotId());
     assertThat(ids).hasSize(3);
 

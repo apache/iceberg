@@ -345,6 +345,7 @@ public class TestBase {
               ManifestFiles.writeDeleteManifest(
                   formatVersion, table.spec(), outputFile, snapshotId);
     }
+
     try {
       for (ManifestEntry<?> entry : entries) {
         writer.addEntry((ManifestEntry<F>) entry);
@@ -371,6 +372,7 @@ public class TestBase {
     } finally {
       writer.close();
     }
+
     return writer.toManifestFile();
   }
 
@@ -432,6 +434,7 @@ public class TestBase {
         } else {
           return entry.wrapAppend(snapshotId, file);
         }
+
       case EXISTING:
         return entry.wrapExisting(snapshotId, dataSequenceNumber, fileSequenceNumber, file);
       case DELETED:
@@ -523,6 +526,7 @@ public class TestBase {
             snap.sequenceNumber(),
             entry.file().fileSequenceNumber().longValue());
       }
+
       assertThat(file.location()).as("Path should match expected").isEqualTo(newPaths.next());
       assertThat(entry.snapshotId()).as("File's snapshot ID should match").isEqualTo(id);
     }
@@ -541,10 +545,12 @@ public class TestBase {
     for (DataFile file : expectedFiles) {
       expectedFilePaths.add(file.location());
     }
+
     Set<CharSequence> actualFilePaths = Sets.newHashSet();
     for (FileScanTask task : tbl.newScan().planFiles()) {
       actualFilePaths.add(task.file().location());
     }
+
     assertThat(actualFilePaths).as("Files should match").isEqualTo(expectedFilePaths);
   }
 
@@ -553,10 +559,12 @@ public class TestBase {
     for (DataFile file : expectedFiles) {
       expectedFilePaths.add(file.location());
     }
+
     Set<CharSequence> actualFilePaths = Sets.newHashSet();
     for (FileScanTask task : tbl.newScan().useRef(ref).planFiles()) {
       actualFilePaths.add(task.file().location());
     }
+
     assertThat(actualFilePaths).as("Files should match").isEqualTo(expectedFilePaths);
   }
 
@@ -565,12 +573,14 @@ public class TestBase {
     for (DeleteFile file : expectedFiles) {
       expectedFilePaths.add(file.location());
     }
+
     Set<CharSequence> actualFilePaths = Sets.newHashSet();
     for (FileScanTask task : tbl.newScan().useRef(branch).planFiles()) {
       for (DeleteFile file : task.deletes()) {
         actualFilePaths.add(file.location());
       }
     }
+
     assertThat(actualFilePaths).as("Delete files should match").isEqualTo(expectedFilePaths);
   }
 
@@ -579,6 +589,7 @@ public class TestBase {
     for (DataFile file : dataFiles) {
       paths.add(file.location());
     }
+
     return paths;
   }
 

@@ -813,6 +813,7 @@ public class ORC {
       // length we supply the length as input
       readerOptions.filesystem(new FileIOFSUtil.InputFileSystem(file)).maxLength(file.getLength());
     }
+
     try {
       return OrcFile.createReader(new Path(file.location()), readerOptions);
     } catch (IOException ioe) {
@@ -827,6 +828,7 @@ public class ORC {
     } else {
       options.fileSystem(new FileIOFSUtil.OutputFileSystem(file));
     }
+
     final Path locPath = new Path(file.location());
     final Writer writer;
 

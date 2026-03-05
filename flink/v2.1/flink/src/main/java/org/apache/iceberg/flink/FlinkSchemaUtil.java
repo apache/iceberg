@@ -127,6 +127,7 @@ public class FlinkSchemaUtil {
           icebergSchema);
       identifierFieldIds.add(field.fieldId());
     }
+
     return new Schema(
         icebergSchema.schemaId(), icebergSchema.asStruct().fields(), identifierFieldIds);
   }
@@ -239,6 +240,7 @@ public class FlinkSchemaUtil {
     for (RowType.RowField field : rowType.getFields()) {
       builder.field(field.getName(), TypeConversions.fromLogicalToDataType(field.getType()));
     }
+
     return builder.build();
   }
 
@@ -286,6 +288,7 @@ public class FlinkSchemaUtil {
 
         columns.add(columnName);
       }
+
       builder.primaryKey(columns.toArray(new String[0]));
     }
 

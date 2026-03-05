@@ -204,6 +204,7 @@ class BaseSnapshot implements Snapshot {
     if (allManifests == null) {
       cacheManifests(fileIO);
     }
+
     return allManifests;
   }
 
@@ -212,6 +213,7 @@ class BaseSnapshot implements Snapshot {
     if (dataManifests == null) {
       cacheManifests(fileIO);
     }
+
     return dataManifests;
   }
 
@@ -220,6 +222,7 @@ class BaseSnapshot implements Snapshot {
     if (deleteManifests == null) {
       cacheManifests(fileIO);
     }
+
     return deleteManifests;
   }
 
@@ -228,6 +231,7 @@ class BaseSnapshot implements Snapshot {
     if (addedDataFiles == null) {
       cacheDataFileChanges(fileIO);
     }
+
     return addedDataFiles;
   }
 
@@ -236,6 +240,7 @@ class BaseSnapshot implements Snapshot {
     if (removedDataFiles == null) {
       cacheDataFileChanges(fileIO);
     }
+
     return removedDataFiles;
   }
 
@@ -244,6 +249,7 @@ class BaseSnapshot implements Snapshot {
     if (addedDeleteFiles == null) {
       cacheDeleteFileChanges(fileIO);
     }
+
     return addedDeleteFiles;
   }
 
@@ -252,6 +258,7 @@ class BaseSnapshot implements Snapshot {
     if (removedDeleteFiles == null) {
       cacheDeleteFileChanges(fileIO);
     }
+
     return removedDeleteFiles;
   }
 

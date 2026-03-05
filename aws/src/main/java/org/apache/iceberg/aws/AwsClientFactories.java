@@ -132,6 +132,7 @@ public class AwsClientFactories {
             .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
             .build();
       }
+
       return S3AsyncClient.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
@@ -196,6 +197,7 @@ public class AwsClientFactories {
     if (Strings.isNullOrEmpty(clientType)) {
       clientType = HttpClientProperties.CLIENT_TYPE_DEFAULT;
     }
+
     switch (clientType) {
       case HttpClientProperties.CLIENT_TYPE_URLCONNECTION:
         return UrlConnectionHttpClient.builder();
