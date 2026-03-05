@@ -82,6 +82,41 @@ class TestTableMigrationUtil {
   }
 
   @Test
+  void testListPartitionRecursive() throws IOException {
+    Path partitionPath = tempTableLocation.resolve("id=1");
+    Path subDir = partitionPath.resolve("subdir");
+    String partitionUri = partitionPath.toUri().toString();
+    java.nio.file.Files.createDirectories(subDir);
+    writePartitionFile(subDir.toFile());
+
+    Configuration recursiveConf = new Configuration(CONF);
+    recursiveConf.setBoolean("spark.hive.mapred.supports.subdirectories", true);
+
+    List<DataFile> dataFiles =
+        TableMigrationUtil.listPartition(
+            PARTITION, partitionUri, FORMAT, SPEC, recursiveConf, MetricsConfig.getDefault(), null);
+    assertThat(dataFiles)
+        .as("Recursive listing should find the Parquet file in the subdirectory")
+        .hasSize(1);
+  }
+
+  @Test
+  void testListPartitionNonRecursiveDoesNotFindSubdirFiles() throws IOException {
+    Path partitionPath = tempTableLocation.resolve("id=1");
+    Path subDir = partitionPath.resolve("subdir");
+    String partitionUri = partitionPath.toUri().toString();
+    java.nio.file.Files.createDirectories(subDir);
+    writePartitionFile(subDir.toFile());
+
+    List<DataFile> dataFiles =
+        TableMigrationUtil.listPartition(
+            PARTITION, partitionUri, FORMAT, SPEC, CONF, MetricsConfig.getDefault(), null);
+    assertThat(dataFiles)
+        .as("Non-recursive listing should not find files in subdirectories")
+        .isEmpty();
+  }
+
+  @Test
   void testListPartitionMissingFilesFailure() {
     String partitionUri = tempTableLocation.resolve("id=1").toUri().toString();
 
