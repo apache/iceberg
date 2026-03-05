@@ -41,6 +41,7 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.UnboundSortOrder;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.NamespaceParser;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.auth.OAuth2Util;
@@ -83,7 +84,6 @@ import org.apache.iceberg.rest.responses.LoadViewResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponseParser;
-import org.apache.iceberg.util.JsonUtil;
 
 public class RESTSerializers {
 
@@ -241,8 +241,8 @@ public class RESTSerializers {
   public static class NamespaceDeserializer extends JsonDeserializer<Namespace> {
     @Override
     public Namespace deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-      String[] levels = JsonUtil.getStringArray(p.getCodec().readTree(p));
-      return Namespace.of(levels);
+      JsonNode node = p.getCodec().readTree(p);
+      return NamespaceParser.fromJson(node);
     }
   }
 
@@ -250,8 +250,7 @@ public class RESTSerializers {
     @Override
     public void serialize(Namespace namespace, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
-      String[] parts = namespace.levels();
-      gen.writeArray(parts, 0, parts.length);
+      NamespaceParser.toJson(namespace, gen);
     }
   }
 

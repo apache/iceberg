@@ -201,7 +201,11 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public boolean namespaceExists(Namespace namespace) {
-    return namespaces.containsKey(namespace);
+    if (namespaces.containsKey(namespace)) {
+      return true;
+    }
+    return namespaces.keySet().stream()
+        .anyMatch(n -> Arrays.equals(n.levels(), namespace.levels()));
   }
 
   @Override
@@ -272,6 +276,17 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       throws NoSuchNamespaceException {
     Map<String, String> properties = namespaces.get(namespace);
     if (properties == null) {
+      Namespace matchingNamespace =
+          namespaces.keySet().stream()
+              .filter(n -> Arrays.equals(n.levels(), namespace.levels()))
+              .findFirst()
+              .orElse(null);
+      if (matchingNamespace != null) {
+        properties = namespaces.get(matchingNamespace);
+      }
+    }
+
+    if (properties == null) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
@@ -282,10 +297,9 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   public List<Namespace> listNamespaces() {
     return namespaces.keySet().stream()
         .filter(n -> !n.isEmpty())
-        .map(n -> n.level(0))
+        .map(n -> n.length() == 1 ? n : Namespace.of(n.levels()[0]))
         .distinct()
-        .sorted()
-        .map(Namespace::of)
+        .sorted(Comparator.comparing(n -> DOT.join(n.levels())))
         .collect(Collectors.toList());
   }
 
@@ -309,7 +323,13 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
     return filteredNamespaces.stream()
         // List only the child-namespaces roots.
-        .map(n -> Namespace.of(Arrays.copyOf(n.levels(), searchNumberOfLevels + 1)))
+        .map(
+            n -> {
+              if (n.length() == searchNumberOfLevels + 1) {
+                return n;
+              }
+              return Namespace.of(Arrays.copyOf(n.levels(), searchNumberOfLevels + 1));
+            })
         .distinct()
         .sorted(Comparator.comparing(n -> DOT.join(n.levels())))
         .collect(Collectors.toList());

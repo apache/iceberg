@@ -54,6 +54,15 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
             .withNamespace(NAMESPACE)
             .setProperties(EMPTY_PROPERTIES)
             .build());
+
+    String jsonWithUuid =
+        "{\"namespace\":{\"namespace\":[\"accounting\",\"tax\"],\"namespace-uuid\":\"12345-67890\"},\"properties\":{\"owner\":\"Hank\"}}";
+    GetNamespaceResponse responseWithUuid =
+        GetNamespaceResponse.builder()
+            .withNamespace(Namespace.of(new String[] {"accounting", "tax"}, "12345-67890"))
+            .setProperties(PROPERTIES)
+            .build();
+    assertRoundTripSerializesEquallyFrom(jsonWithUuid, responseWithUuid);
   }
 
   @Test
@@ -71,7 +80,7 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
     assertThatThrownBy(() -> deserialize(jsonNamespaceHasWrongType))
         .as("A JSON response with the wrong type for a field should fail to deserialize")
         .isInstanceOf(JsonProcessingException.class)
-        .hasMessageContaining("Cannot parse string array from non-array");
+        .hasMessageContaining("Cannot parse namespace from non-array or non-object node:");
 
     String jsonPropertiesHasWrongType =
         "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":[]}";

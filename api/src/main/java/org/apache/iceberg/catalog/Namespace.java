@@ -19,6 +19,7 @@
 package org.apache.iceberg.catalog;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -26,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** A namespace in a {@link Catalog}. */
 public class Namespace {
-  private static final Namespace EMPTY_NAMESPACE = new Namespace(new String[] {});
+  private static final Namespace EMPTY_NAMESPACE = new Namespace(new String[] {}, null);
   private static final Joiner DOT = Joiner.on('.');
   private static final Predicate<String> CONTAINS_NULL_CHARACTER =
       Pattern.compile("\u0000", Pattern.UNICODE_CHARACTER_CLASS).asPredicate();
@@ -36,6 +37,10 @@ public class Namespace {
   }
 
   public static Namespace of(String... levels) {
+    return of(levels, null);
+  }
+
+  public static Namespace of(String[] levels, String uuid) {
     Preconditions.checkArgument(null != levels, "Cannot create Namespace from null array");
     if (levels.length == 0) {
       return empty();
@@ -48,17 +53,23 @@ public class Namespace {
           "Cannot create a namespace with the null-byte character");
     }
 
-    return new Namespace(levels);
+    return new Namespace(levels, uuid);
   }
 
   private final String[] levels;
+  private final String uuid;
 
-  private Namespace(String[] levels) {
+  private Namespace(String[] levels, String uuid) {
     this.levels = levels;
+    this.uuid = uuid;
   }
 
   public String[] levels() {
     return levels;
+  }
+
+  public String uuid() {
+    return uuid;
   }
 
   public String level(int pos) {
@@ -84,12 +95,12 @@ public class Namespace {
     }
 
     Namespace namespace = (Namespace) other;
-    return Arrays.equals(levels, namespace.levels);
+    return Arrays.equals(levels, namespace.levels) && Objects.equals(uuid, namespace.uuid);
   }
 
   @Override
   public int hashCode() {
-    return Arrays.hashCode(levels);
+    return Objects.hash(Arrays.hashCode(levels), uuid);
   }
 
   @Override

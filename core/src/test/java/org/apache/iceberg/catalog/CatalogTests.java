@@ -172,6 +172,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return true;
   }
 
+  protected boolean supportsNamespaceUUIDs() {
+    return false;
+  }
+
   protected boolean supportsNestedNamespaces() {
     return false;
   }
@@ -267,6 +271,29 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Map<String, String> props = catalog.loadNamespaceMetadata(NS);
     assertThat(props).as("Should return non-null property map").isNotNull();
     // note that there are no requirements for the properties returned by the catalog
+  }
+
+  @Test
+  public void testNamespaceUUIDs() {
+    assumeThat(supportsNamespaceUUIDs()).isTrue();
+
+    C catalog = catalog();
+
+    assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
+
+    String testUuid = java.util.UUID.randomUUID().toString();
+    Namespace nsWithUuid = Namespace.of(NS.levels(), testUuid);
+
+    catalog.createNamespace(nsWithUuid);
+    assertThat(catalog.namespaceExists(nsWithUuid)).as("Namespace should exist").isTrue();
+
+    Namespace returnedNs =
+        catalog.listNamespaces().stream()
+            .filter(n -> Arrays.equals(n.levels(), NS.levels()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Namespace should be listed"));
+
+    assertThat(returnedNs.uuid()).as("Should return expected UUID").isEqualTo(testUuid);
   }
 
   @Test

@@ -80,16 +80,23 @@ class UpdateNamespacePropertiesRequest(BaseModel):
     updates: dict[str, str] | None = Field(None, example={'owner': 'Hank Bendickson'})
 
 
-class Namespace(BaseModel):
+class NamespaceObject(BaseModel):
     """
     Reference to one or more levels of a namespace
     """
-
-    __root__: list[str] = Field(
+    namespace: list[str] = Field(
         ...,
         description='Reference to one or more levels of a namespace',
         example=['accounting', 'tax'],
     )
+    namespace_uuid: str | None = Field(
+        None,
+        alias='namespace-uuid',
+        description='Optional UUID representing the unique identifier for the namespace.',
+    )
+
+
+Namespace = list[str] | NamespaceObject
 
 
 class PageToken(BaseModel):

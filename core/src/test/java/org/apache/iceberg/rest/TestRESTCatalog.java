@@ -395,6 +395,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Override
+  protected boolean supportsNamespaceUUIDs() {
+    return true;
+  }
+
+  @Override
   protected boolean supportsServerSideRetry() {
     return true;
   }
