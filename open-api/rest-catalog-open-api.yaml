@@ -3468,7 +3468,7 @@ components:
         ## General Configurations
 
         - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
-        - `scan-planning-mode`: Communicates to clients the supported scanning mode. Clients should use this value to fail fast if the supported scanning mode is not available on the client. Valid values:
+        - `scan-planning-mode`: Communicates to clients the supported planning mode. Clients should use this value to fail fast if the supported scanning mode is not available on the client. Valid values:
           - `client`: Clients MUST use client-side scan planning
           - `server`: Clients MUST use server-side scan planning via the `planTableScan` endpoint
 

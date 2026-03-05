@@ -842,15 +842,15 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
 
-    ImmutableMap.Builder<String, String> configBuilder =
+    ImmutableMap.Builder<String, String> clientConfigBuilder =
         ImmutableMap.<String, String>builder()
             .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO");
 
     if (clientMode != null) {
-      configBuilder.put(RESTCatalogProperties.SCAN_PLANNING_MODE, clientMode);
+      clientConfigBuilder.put(RESTCatalogProperties.SCAN_PLANNING_MODE, clientMode);
     }
 
-    catalog.initialize("test-scan-planning-modes", configBuilder.build());
+    catalog.initialize("test-scan-planning-modes", clientConfigBuilder.build());
     return new CatalogWithAdapter(catalog, adapter);
   }
 

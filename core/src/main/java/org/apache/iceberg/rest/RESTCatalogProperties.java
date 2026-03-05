@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public final class RESTCatalogProperties {
@@ -60,37 +61,25 @@ public final class RESTCatalogProperties {
     REFS
   }
 
-  /**
-   * Enum to represent scan planning mode.
-   *
-   * <ul>
-   *   <li>CLIENT - Use client-side scan planning
-   *   <li>SERVER - Use server-side scan planning
-   * </ul>
-   */
   public enum ScanPlanningMode {
-    CLIENT("client"),
-    SERVER("server");
-
-    private final String modeName;
-
-    ScanPlanningMode(String modeName) {
-      this.modeName = modeName;
-    }
+    CLIENT,
+    SERVER;
 
     public String modeName() {
-      return modeName;
+      return name().toLowerCase(Locale.ROOT);
     }
 
     public static ScanPlanningMode fromString(String mode) {
       for (ScanPlanningMode planningMode : values()) {
-        if (planningMode.modeName.equalsIgnoreCase(mode)) {
+        if (planningMode.modeName().equalsIgnoreCase(mode)) {
           return planningMode;
         }
       }
 
       throw new IllegalArgumentException(
-          String.format("Invalid scan planning mode: %s. Valid values are: client, server", mode));
+          String.format(
+              "Invalid scan planning mode: %s. Valid values are: %s, %s",
+              mode, CLIENT.modeName(), SERVER.modeName()));
     }
   }
 }
