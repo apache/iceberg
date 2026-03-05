@@ -79,7 +79,7 @@ jobs:
       max-parallel: 15
       matrix:
         jvm: [17, 21]
-        flink: ['1.20', '2.0', '2.1']
+        flink: ['1.20', '2.0', '2.1', '2.2']
     env:
       SPARK_LOCAL_IP: localhost
     steps:
