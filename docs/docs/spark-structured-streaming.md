@@ -34,7 +34,15 @@ val df = spark.readStream
 ```
 
 !!! warning
-    Iceberg only supports reading data from append snapshots. Overwrite snapshots cannot be processed and will cause an exception by default. Overwrites may be ignored by setting `streaming-skip-overwrite-snapshots=true`. Similarly, delete snapshots will cause an exception by default, and deletes may be ignored by setting `streaming-skip-delete-snapshots=true`.
+    Iceberg only supports reading data from append snapshots by default. Overwrite snapshots can be handled using the `streaming-overwrite-mode` option:
+
+    * `fail` (default): Throws an exception when an overwrite snapshot is encountered
+    * `skip`: Ignores overwrite snapshots entirely
+    * `added-files-only`: Processes only the added files from overwrite snapshots. **Warning:** This may produce duplicate records when overwrites rewrite existing data (e.g., MERGE, UPDATE, DELETE). Downstream processing must handle duplicates (e.g., idempotent writes, deduplication).
+
+    The deprecated `streaming-skip-overwrite-snapshots=true` option is equivalent to `streaming-overwrite-mode=skip`.
+
+    Similarly, delete snapshots will cause an exception by default, and deletes may be ignored by setting `streaming-skip-delete-snapshots=true`.
 
 ### Limit input rate
 To control the size of micro-batches in the DataFrame API, Iceberg supports two read options:

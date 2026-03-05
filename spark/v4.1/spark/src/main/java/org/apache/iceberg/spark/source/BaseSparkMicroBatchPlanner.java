@@ -25,6 +25,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.StreamingOverwriteMode;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.connector.read.streaming.CompositeReadLimit;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
@@ -66,12 +67,23 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
             SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
         return false;
       case DataOperations.OVERWRITE:
-        Preconditions.checkState(
-            readConf.streamingSkipOverwriteSnapshots(),
-            "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=true",
-            snapshot.snapshotId(),
-            SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS);
-        return false;
+        StreamingOverwriteMode overwriteMode = readConf.streamingOverwriteMode();
+        switch (overwriteMode) {
+          case FAIL:
+            throw new IllegalStateException(
+                String.format(
+                    "Cannot process overwrite snapshot: %s, to ignore overwrites, set %s=skip, "
+                        + "or to process added files only, set %s=added-files-only",
+                    snapshot.snapshotId(),
+                    SparkReadOptions.STREAMING_OVERWRITE_MODE,
+                    SparkReadOptions.STREAMING_OVERWRITE_MODE));
+          case SKIP:
+            return false;
+          case ADDED_FILES_ONLY:
+            return true;
+          default:
+            throw new IllegalStateException("Unknown overwrite mode: " + overwriteMode);
+        }
       default:
         throw new IllegalStateException(
             String.format(
