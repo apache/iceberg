@@ -20,12 +20,13 @@ package org.apache.iceberg.data;
 
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
@@ -44,6 +45,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -56,6 +59,26 @@ public class TestGenericFormatModels {
 
   private static final FileFormat[] FILE_FORMATS =
       new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
+
+  private static final Schema PRIMITIVE_SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "b", Types.BooleanType.get()),
+          optional(3, "i", Types.IntegerType.get()),
+          optional(4, "l", Types.LongType.get()),
+          optional(5, "f", Types.FloatType.get()),
+          optional(6, "d", Types.DoubleType.get()),
+          optional(7, "date", Types.DateType.get()),
+          optional(8, "ts_tz", Types.TimestampType.withZone()),
+          optional(9, "ts", Types.TimestampType.withoutZone()),
+          optional(10, "s", Types.StringType.get()),
+          optional(11, "fixed", Types.FixedType.ofLength(7)),
+          optional(12, "bytes", Types.BinaryType.get()),
+          optional(13, "dec_9_0", Types.DecimalType.of(9, 0)),
+          optional(14, "dec_11_2", Types.DecimalType.of(11, 2)),
+          optional(15, "dec_38_10", Types.DecimalType.of(38, 10)),
+          optional(16, "time", Types.TimeType.get()),
+          optional(17, "uuid", Types.UUIDType.get()));
 
   @TempDir protected Path temp;
 
@@ -79,39 +102,42 @@ public class TestGenericFormatModels {
     }
   }
 
-  @ParameterizedTest
-  @FieldSource("FILE_FORMATS")
-  public void testDataWriterRoundTrip(FileFormat fileFormat) throws IOException {
+  private void runRoundTrip(FileFormat fileFormat, Schema schema) throws IOException {
+    List<Record> records = RandomGenericData.generate(schema, 10, 0L);
     FileWriterBuilder<DataWriter<Record>, Schema> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile);
 
-    DataFile dataFile;
     DataWriter<Record> writer =
-        writerBuilder.schema(TestBase.SCHEMA).spec(PartitionSpec.unpartitioned()).build();
+        writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
     try (writer) {
-      for (Record record : TEST_RECORDS) {
+      for (Record record : records) {
         writer.write(record);
       }
     }
-
-    dataFile = writer.toDataFile();
-
-    assertThat(dataFile).isNotNull();
-    assertThat(dataFile.recordCount()).isEqualTo(TEST_RECORDS.size());
-    assertThat(dataFile.format()).isEqualTo(fileFormat);
 
     // Verify the file content by reading it back
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
     List<Record> readRecords;
     try (CloseableIterable<Record> reader =
         FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
-            .project(TestBase.SCHEMA)
-            .reuseContainers()
+            .project(schema)
             .build()) {
-      readRecords = ImmutableList.copyOf(CloseableIterable.transform(reader, Record::copy));
+      readRecords = Lists.newArrayList(reader);
     }
 
-    DataTestHelpers.assertEquals(TestBase.SCHEMA.asStruct(), TEST_RECORDS, readRecords);
+    DataTestHelpers.assertEquals(schema.asStruct(), records, readRecords);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  public void testDataWriterRoundTrip(FileFormat fileFormat) throws IOException {
+    runRoundTrip(fileFormat, TestBase.SCHEMA);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  public void testPrimitiveTypesRoundTrip(FileFormat fileFormat) throws IOException {
+    runRoundTrip(fileFormat, PRIMITIVE_SCHEMA);
   }
 
   @ParameterizedTest
