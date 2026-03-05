@@ -87,6 +87,8 @@ public class TestThreadPools {
         () -> {
           try {
             threadStarted.countDown();
+            // NOTE: the test is NOT actually waiting for 60s, as it will be interrupted
+            // after 50ms due to the `shutdownAll` call below
             Thread.sleep(60_000);
           } catch (InterruptedException e) {
             interrupted.set(true);

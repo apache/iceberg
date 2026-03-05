@@ -216,11 +216,13 @@ public class ThreadPools {
   @SuppressWarnings("ShutdownHook")
   public static synchronized void removeShutdownHook() {
     if (shutdownHook != null) {
+
       try {
         Runtime.getRuntime().removeShutdownHook(shutdownHook);
       } catch (SecurityException e) {
         LOG.warn("Cannot remove the shutdown hook for thread pools clean up", e);
       }
+
       shutdownHook = null;
     }
   }
@@ -291,22 +293,28 @@ public class ThreadPools {
     synchronized void shutdownAll() {
       long startTime = System.nanoTime();
       List<ExecutorServiceWithTimeout> pendingShutdown = Lists.newArrayList();
+
       for (ExecutorServiceWithTimeout item : threadPoolsToShutdown) {
         item.getService().shutdown();
         pendingShutdown.add(item);
       }
+
       threadPoolsToShutdown.clear();
+
       for (ExecutorServiceWithTimeout item : pendingShutdown) {
         long timeElapsed = System.nanoTime() - startTime;
         long remainingTime = item.getTimeout().toNanos() - timeElapsed;
         if (remainingTime > 0) {
+
           try {
             if (!item.service.awaitTermination(remainingTime, TimeUnit.NANOSECONDS)) {
               item.getService().shutdownNow();
             }
-          } catch (InterruptedException ignored) {
+          } catch (InterruptedException e) {
             // We're shutting down anyway, so just ignore.
+            LOG.warn("Interrupted while shutting down, ignoring", e);
           }
+
         } else {
           item.getService().shutdownNow();
         }
@@ -314,20 +322,20 @@ public class ThreadPools {
     }
   }
 
-  static class ExecutorServiceWithTimeout {
+  private static class ExecutorServiceWithTimeout {
     private ExecutorService service;
     private Duration timeout;
 
-    ExecutorServiceWithTimeout(ExecutorService service, Duration timeout) {
+    private ExecutorServiceWithTimeout(ExecutorService service, Duration timeout) {
       this.service = service;
       this.timeout = timeout;
     }
 
-    ExecutorService getService() {
+    private ExecutorService getService() {
       return service;
     }
 
-    Duration getTimeout() {
+    private Duration getTimeout() {
       return timeout;
     }
   }
