@@ -35,22 +35,31 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
+import java.nio.file.Path;
+import java.security.KeyStore;
+import java.security.cert.CertificateException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
+import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.TLSConfigurer;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -58,14 +67,17 @@ import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockserver.configuration.Configuration;
 import org.mockserver.integration.ClientAndServer;
+import org.mockserver.logging.MockServerLogger;
 import org.mockserver.matchers.Times;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
+import org.mockserver.socket.tls.KeyStoreFactory;
 import org.mockserver.verify.VerificationTimes;
 
 /**
@@ -393,6 +405,99 @@ public class TestHTTPClient {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot initialize TLSConfigurer")
         .hasMessageContaining("does not implement TLSConfigurer");
+  }
+
+  public static class LaxTLSConfigurer implements TLSConfigurer {
+
+    private static HostnameVerificationPolicy policy = HostnameVerificationPolicy.BUILTIN;
+
+    static void setPolicy(HostnameVerificationPolicy policy) {
+      LaxTLSConfigurer.policy = policy;
+    }
+
+    @Override
+    public SSLContext sslContext() {
+      // Create an SSLContext that trusts MockServer's CA certificate but still performs hostname
+      // verification during SSL handshake
+      try {
+        KeyStore keyStore =
+            new KeyStoreFactory(Configuration.configuration(), new MockServerLogger())
+                .loadOrCreateKeyStore();
+        TrustManagerFactory tmf =
+            TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(keyStore);
+        SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+        sslContext.init(null, tmf.getTrustManagers(), null);
+        return sslContext;
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to create SSLContext", e);
+      }
+    }
+
+    @Override
+    public HostnameVerificationPolicy hostnameVerificationPolicy() {
+      return policy;
+    }
+
+    @Override
+    public HostnameVerifier hostnameVerifier() {
+      // Disable hostname verification at HttpClient level (post SSL handshake)
+      return NoopHostnameVerifier.INSTANCE;
+    }
+  }
+
+  @ParameterizedTest
+  @EnumSource(HostnameVerificationPolicy.class)
+  public void testTLSConfigurerHostnameVerificationPolicy(
+      HostnameVerificationPolicy policy, @TempDir Path temp) throws IOException {
+
+    // Start a dedicated MockServer with a certificate that does NOT include 127.0.0.1 or localhost
+    // in its SANs. Hostname verification must be disabled for this test to pass.
+    Configuration tlsConfig = Configuration.configuration();
+    tlsConfig.proactivelyInitialiseTLS(true);
+    tlsConfig.preventCertificateDynamicUpdate(true);
+    tlsConfig.sslCertificateDomainName("example.com");
+    tlsConfig.sslSubjectAlternativeNameIps(Sets.newHashSet("1.2.3.4"));
+    tlsConfig.sslSubjectAlternativeNameDomains(Sets.newHashSet("example.com"));
+    tlsConfig.directoryToSaveDynamicSSLCertificate(temp.toFile().getAbsolutePath());
+
+    int tlsPort = PORT + 1;
+    try (ClientAndServer server = startClientAndServer(tlsConfig, tlsPort)) {
+
+      String path = "tls/path";
+      HttpRequest mockRequest =
+          request()
+              .withPath("/" + path)
+              .withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT));
+      HttpResponse mockResponse = response().withStatusCode(200).withBody("TLS response");
+      server.when(mockRequest).respond(mockResponse);
+
+      LaxTLSConfigurer.setPolicy(policy);
+
+      Map<String, String> properties =
+          Map.of(HTTPClient.REST_TLS_CONFIGURER, LaxTLSConfigurer.class.getName());
+
+      try (HTTPClient client =
+          HTTPClient.builder(properties)
+              .uri(String.format("https://127.0.0.1:%d", tlsPort))
+              .withAuthSession(AuthSession.EMPTY)
+              .build()) {
+
+        if (policy == HostnameVerificationPolicy.CLIENT) {
+          // With hostname verification performed by the HttpClient *only*,
+          // the request should succeed
+          assertThatCode(() -> client.head(path, Map.of(), (unused) -> {}))
+              .doesNotThrowAnyException();
+        } else {
+          // With hostname verification performed by the JSSE provider,
+          // the request should fail with a CertificateException
+          assertThatThrownBy(() -> client.head(path, Map.of(), (unused) -> {}))
+              .rootCause()
+              .isInstanceOf(CertificateException.class)
+              .hasMessage("No subject alternative names matching IP address 127.0.0.1 found");
+        }
+      }
+    }
   }
 
   @Test
