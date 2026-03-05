@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -41,14 +42,18 @@ public class UnboundSortOrder {
     SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(orderId);
 
     for (UnboundSortField field : fields) {
-      Type sourceType = schema.findType(field.sourceId);
+      Type sourceType = schema.findType(field.sourceId());
       Transform<?, ?> transform;
       if (sourceType != null) {
         transform = Transforms.fromString(sourceType, field.transform.toString());
       } else {
         transform = field.transform;
       }
-      builder.addSortField(transform, field.sourceId, field.direction, field.nullOrder);
+      if (field.sourceIds().size() > 1) {
+        builder.addSortField(transform, field.sourceIds(), field.direction, field.nullOrder);
+      } else {
+        builder.addSortField(transform, field.sourceId(), field.direction, field.nullOrder);
+      }
     }
 
     return builder.build();
@@ -58,7 +63,11 @@ public class UnboundSortOrder {
     SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(orderId);
 
     for (UnboundSortField field : fields) {
-      builder.addSortField(field.transform, field.sourceId, field.direction, field.nullOrder);
+      if (field.sourceIds().size() > 1) {
+        builder.addSortField(field.transform, field.sourceIds(), field.direction, field.nullOrder);
+      } else {
+        builder.addSortField(field.transform, field.sourceId(), field.direction, field.nullOrder);
+      }
     }
 
     return builder.buildUnchecked();
@@ -103,6 +112,15 @@ public class UnboundSortOrder {
       return this;
     }
 
+    Builder addSortField(
+        String transformAsString,
+        List<Integer> sourceIds,
+        SortDirection direction,
+        NullOrder nullOrder) {
+      fields.add(new UnboundSortField(transformAsString, sourceIds, direction, nullOrder));
+      return this;
+    }
+
     UnboundSortOrder build() {
       if (fields.isEmpty()) {
         if (orderId != null && orderId != 0) {
@@ -123,14 +141,22 @@ public class UnboundSortOrder {
 
   static class UnboundSortField {
     private final Transform<?, ?> transform;
-    private final int sourceId;
+    private final List<Integer> sourceIds;
     private final SortDirection direction;
     private final NullOrder nullOrder;
 
     private UnboundSortField(
         String transformAsString, int sourceId, SortDirection direction, NullOrder nullOrder) {
+      this(transformAsString, ImmutableList.of(sourceId), direction, nullOrder);
+    }
+
+    private UnboundSortField(
+        String transformAsString,
+        List<Integer> sourceIds,
+        SortDirection direction,
+        NullOrder nullOrder) {
       this.transform = Transforms.fromString(transformAsString);
-      this.sourceId = sourceId;
+      this.sourceIds = ImmutableList.copyOf(sourceIds);
       this.direction = direction;
       this.nullOrder = nullOrder;
     }
@@ -140,7 +166,11 @@ public class UnboundSortOrder {
     }
 
     public int sourceId() {
-      return sourceId;
+      return sourceIds.get(0);
+    }
+
+    public List<Integer> sourceIds() {
+      return sourceIds;
     }
 
     public SortDirection direction() {
