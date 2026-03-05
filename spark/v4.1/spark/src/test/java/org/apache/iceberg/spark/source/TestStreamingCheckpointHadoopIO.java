@@ -33,7 +33,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalog;
-import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.junit.jupiter.api.AfterEach;
@@ -41,11 +40,11 @@ import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
- * Tests to verify that streaming checkpoint configuration correctly controls which I/O
- * implementation is used for checkpoint operations.
+ * Tests to verify that streaming checkpoints always use HadoopFileIO and never use the table's
+ * FileIO implementation.
  */
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestStreamingCheckpointLocation extends TestBaseWithCatalog {
+public class TestStreamingCheckpointHadoopIO extends TestBaseWithCatalog {
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   protected static Object[][] parameters() {
@@ -78,52 +77,19 @@ public class TestStreamingCheckpointLocation extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testTableIOMode() throws Exception {
-    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
-    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
-
-    // Use nested checkpoint path to verify parent directory handling
-    File checkpointDir = new File(temp.toFile(), "nested/checkpoint");
-    TrackingFileIO.reset();
-
-    // Explicit: streaming-checkpoint-use-hadoop=false
-    StreamingQuery query =
-        spark
-            .readStream()
-            .format("iceberg")
-            .option("streaming-checkpoint-use-hadoop", "false")
-            .load(tableName)
-            .writeStream()
-            .format("console")
-            .option("checkpointLocation", checkpointDir.getAbsolutePath())
-            .start();
-
-    query.processAllAvailable();
-    query.stop();
-
-    // Verify TrackingFileIO was used
-    assertThat(TrackingFileIO.wasUsed())
-        .as("Table FileIO should be used for checkpoints when config is false")
-        .isTrue();
-
-    assertThat(new File(checkpointDir, "offsets/0")).exists().isFile();
-  }
-
-  @TestTemplate
-  public void testHadoopFileIOMode() throws Exception {
+  public void testCheckpointsUseHadoopIONotTableIO() throws Exception {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
 
     // Use nested checkpoint path to verify parent directory creation
-    File checkpointDir = new File(temp.toFile(), "deeply/nested/checkpoint");
+    File checkpointDir = new File(temp.toFile(), "nested/checkpoint");
     TrackingFileIO.reset();
 
-    // Explicit: streaming-checkpoint-use-hadoop=true (uses HadoopFileIO)
+    // Run streaming query with checkpoints
     StreamingQuery query =
         spark
             .readStream()
             .format("iceberg")
-            .option("streaming-checkpoint-use-hadoop", "true")
             .load(tableName)
             .writeStream()
             .format("console")
@@ -133,27 +99,18 @@ public class TestStreamingCheckpointLocation extends TestBaseWithCatalog {
     query.processAllAvailable();
     query.stop();
 
-    // Verify TrackingFileIO was NOT used
+    // Verify TrackingFileIO (table's FileIO) was NOT used for checkpoint operations
     assertThat(TrackingFileIO.wasUsed())
-        .as("HadoopFileIO should be used instead of table FileIO when config is true")
+        .as("HadoopFileIO should be used for checkpoints, not table's FileIO")
         .isFalse();
 
-    // Verify HadoopFileIO created the nested directory structure
+    // Verify checkpoint files were actually created using HadoopFileIO
     assertThat(new File(checkpointDir, "offsets/0")).exists().isFile();
-  }
-
-  @TestTemplate
-  public void testCheckpointModeConfigDefault() {
-    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
-
-    // No option set - should use default false
-    SparkReadConf readConf = new SparkReadConf(spark, validationCatalog.loadTable(tableIdent));
-    assertThat(readConf.streamingCheckpointUseHadoop()).isFalse();
   }
 
   /**
    * A FileIO that tracks whether it was used for checkpoint operations. This allows us to verify
-   * which I/O path (TableIO vs HadoopFileIO) is being used.
+   * that the table's FileIO is NOT being used for checkpoints.
    */
   public static class TrackingFileIO implements FileIO {
     private static final String CHECKPOINT_OFFSETS_PATH = "/offsets/";

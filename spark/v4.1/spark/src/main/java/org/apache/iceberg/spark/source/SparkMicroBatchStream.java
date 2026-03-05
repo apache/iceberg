@@ -55,6 +55,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerAvailableNow {
+  private static final Joiner SLASH = Joiner.on("/");
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
@@ -95,10 +96,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
-    FileIO io =
-        readConf.streamingCheckpointUseHadoop()
-            ? new HadoopFileIO(sparkContext.hadoopConfiguration())
-            : table.io();
+    FileIO io = new HadoopFileIO(sparkContext.hadoopConfiguration());
     InitialOffsetStore initialOffsetStore =
         new InitialOffsetStore(table, checkpointLocation, fromTimestamp, io);
     this.initialOffset = initialOffsetStore.initialOffset();
@@ -252,8 +250,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   }
 
   private static class InitialOffsetStore {
-    private static final Joiner SLASH = Joiner.on("/");
-
     private final Table table;
     private final FileIO io;
     private final String initialOffsetLocation;

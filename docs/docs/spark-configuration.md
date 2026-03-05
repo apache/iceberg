@@ -220,7 +220,6 @@ spark.read
 | stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used                                                             |
 | streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch                                                                                                                                        |
 | streaming-max-rows-per-micro-batch  | INT_MAX | "Soft maximum" number of rows per microbatch; always includes all rows in next unprocessed file, excludes additional files if their inclusion would exceed the soft max limit |
-| streaming-checkpoint-use-hadoop | false | Use Hadoop FileSystem for streaming checkpoint operations instead of the table's FileIO implementation                                                                              |
 
 ### Write options
 
