@@ -124,9 +124,9 @@ TriggerLockFactory lockFactory = new ZkLockFactory(
 );
 ```
 
-#### Coordinator Lock
+#### Flink-maintained lock
 
-Maintain the lock within Flink itself, and use the Coordinator to communicate lock acquisition and release.
+Maintain the lock within Flink itself. This does not require configuring external systems. One prerequisite is that there are no parallel table maintenance jobs for a given table.
 
 ### Quick Start
 
@@ -151,36 +151,9 @@ TriggerLockFactory lockFactory = new JdbcLockFactory(
     jdbcProps                                   // JDBC connection properties
 );
 
+// Option 1: With external lock factory
 TableMaintenance.forTable(env, tableLoader, lockFactory)
-    .uidSuffix("my-maintenance-job")
-    .rateLimit(Duration.ofMinutes(10))
-    .lockCheckDelay(Duration.ofSeconds(10))
-    .add(ExpireSnapshots.builder()
-        .scheduleOnCommitCount(10)
-        .maxSnapshotAge(Duration.ofMinutes(10))
-        .retainLast(5)
-        .deleteBatchSize(5)
-        .parallelism(8))
-    .add(RewriteDataFiles.builder()
-        .scheduleOnDataFileCount(10)
-        .targetFileSizeBytes(128 * 1024 * 1024)
-        .partialProgressEnabled(true)
-        .partialProgressMaxCommits(10))
-    .append();
-
-env.execute("Table Maintenance Job");
-```
-
-Use Coordinator Lock
-
-```java
-StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
-TableLoader tableLoader = TableLoader.fromCatalog(
-    CatalogLoader.hive("my_catalog", configuration, properties),  
-    TableIdentifier.of("database", "table")
-);
-
+// Option 2: With Flink-managed lock (no external lock required)
 TableMaintenance.forTable(env, tableLoader)
     .uidSuffix("my-maintenance-job")
     .rateLimit(Duration.ofMinutes(10))
