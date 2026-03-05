@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -91,18 +92,44 @@ public abstract class S3V4RestSignerClient
    * signing requests to the signing service. They will not be in the cached request key.
    */
   public static final Set<String> UNSIGNED_HEADERS =
+      // Note: only Host and x-amz-* headers are required to be signed. Other headers are optional.
+      // Also see
+      // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html#create-canonical-request
+      // for guidelines about headers that are safe to exclude from signing.
       ImmutableSet.of(
-          "amz-sdk-invocation-id",
-          "amz-sdk-request",
-          "amz-sdk-retry",
+          // Excluded by software.amazon.awssdk.http.auth.aws.internal.signer.V4CanonicalRequest
+          "connection",
           "expect",
+          "transfer-encoding",
+          "user-agent",
+          "x-amzn-trace-id",
+          "x-forwarded-for",
+          // S3-specific headers
+          "range",
+          // Conditional headers
           "if-match",
           "if-modified-since",
           "if-none-match",
           "if-unmodified-since",
-          "range",
+          // Transient headers
+          "keep-alive",
+          "proxy-authenticate",
+          "proxy-authorization",
           "referer",
-          "user-agent");
+          "te",
+          "trailer",
+          "upgrade");
+
+  @VisibleForTesting
+  static final Predicate<Map.Entry<String, List<String>>> UNSIGNED_HEADERS_PREDICATE =
+      e -> {
+        String name = e.getKey().toLowerCase(Locale.ROOT);
+        return name.startsWith("amz-sdk-") || UNSIGNED_HEADERS.contains(name);
+      };
+
+  private static final Predicate<Map.Entry<String, List<String>>> SIGNED_HEADERS_PREDICATE =
+      UNSIGNED_HEADERS_PREDICATE.negate();
+
 
   @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
   @VisibleForTesting
@@ -276,6 +303,7 @@ public abstract class S3V4RestSignerClient
     AwsS3V4SignerParams signerParams =
         extractSignerParams(AwsS3V4SignerParams.builder(), executionAttributes).build();
 
+    // Strip-off headers that should not be signed
     Map<String, List<String>> strippedHeaders =
         request.headers().entrySet().stream()
             .filter(e -> !UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
