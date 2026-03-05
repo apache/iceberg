@@ -36,6 +36,36 @@ val df = spark.readStream
 !!! warning
     Iceberg only supports reading data from append snapshots. Overwrite snapshots cannot be processed and will cause an exception by default. Overwrites may be ignored by setting `streaming-skip-overwrite-snapshots=true`. Similarly, delete snapshots will cause an exception by default, and deletes may be ignored by setting `streaming-skip-delete-snapshots=true`.
 
+### Starting offset
+
+The `streaming-starting-offset` option controls where a stream begins reading when there is **no existing checkpoint**. Once a checkpoint exists the option is ignored and the stream resumes from where it left off.
+
+| Value | Behaviour |
+|-------|-----------|
+| `earliest` (default) | Start from the oldest snapshot, streaming files added by each snapshot incrementally. |
+| `latest` | Skip all existing data. Only snapshots appended **after** the stream starts are processed. |
+| `earliest-snapshot` | Read **all** files in the oldest snapshot as the first micro-batch, then switch to incremental (added-files-only) processing. |
+| `latest-snapshot` | Read **all** files in the current snapshot as the first micro-batch, then switch to incremental (added-files-only) processing. |
+
+```scala
+// Only process new data; skip everything already in the table
+val df = spark.readStream
+    .format("iceberg")
+    .option("streaming-starting-offset", "latest")
+    .load("database.table_name")
+```
+
+```scala
+// Bootstrap from a full table scan of the current snapshot, then go incremental
+val df = spark.readStream
+    .format("iceberg")
+    .option("streaming-starting-offset", "latest-snapshot")
+    .load("database.table_name")
+```
+
+!!! note
+    `streaming-starting-offset` and `stream-from-timestamp` are mutually exclusive in intent: when `stream-from-timestamp` is set it always takes precedence and `streaming-starting-offset` is ignored.
+
 ### Limit input rate
 To control the size of micro-batches in the DataFrame API, Iceberg supports two read options:
 
@@ -83,7 +113,7 @@ data.writeStream
     .format("iceberg")
     .outputMode("append")
     .trigger(Trigger.ProcessingTime(1, TimeUnit.MINUTES))
-    .option("path", "hdfs://nn:8020/path/to/table") 
+    .option("path", "hdfs://nn:8020/path/to/table")
     .option("checkpointLocation", checkpointPath)
     .start()
 ```

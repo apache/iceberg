@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.StartingOffset;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -86,6 +87,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final boolean skipDelete;
   private final boolean skipOverwrite;
   private final long fromTimestamp;
+  private final StartingOffset startingOffset;
   private final int maxFilesPerMicroBatch;
   private final int maxRecordsPerMicroBatch;
   private final boolean cacheDeleteFilesOnExecutors;
@@ -107,12 +109,13 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
     this.fromTimestamp = readConf.streamFromTimestamp();
+    this.startingOffset = readConf.streamingStartingOffset();
     this.maxFilesPerMicroBatch = readConf.maxFilesPerMicroBatch();
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
     InitialOffsetStore initialOffsetStore =
-        new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
+        new InitialOffsetStore(table, checkpointLocation, fromTimestamp, startingOffset);
     this.initialOffset = initialOffsetStore.initialOffset();
 
     this.skipDelete = readConf.streamingSkipDeleteSnapshots();
@@ -205,10 +208,19 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
 
   private List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
-    StreamingOffset batchStartOffset =
-        StreamingOffset.START_OFFSET.equals(startOffset)
-            ? determineStartingOffset(table, fromTimestamp)
-            : startOffset;
+    StreamingOffset batchStartOffset;
+    if (StreamingOffset.START_OFFSET.equals(startOffset)) {
+      if (fromTimestamp == Long.MIN_VALUE && startingOffset == StartingOffset.LATEST) {
+        // Table was empty at stream start (otherwise initialOffset would not be START_OFFSET).
+        // All current data is new, so start from the oldest snapshot.
+        batchStartOffset =
+            new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
+      } else {
+        batchStartOffset = determineStartingOffset(table, fromTimestamp, startingOffset);
+      }
+    } else {
+      batchStartOffset = startOffset;
+    }
 
     StreamingOffset currentOffset = null;
 
@@ -289,31 +301,57 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     }
   }
 
-  private static StreamingOffset determineStartingOffset(Table table, Long fromTimestamp) {
+  private static StreamingOffset determineStartingOffset(
+      Table table, long fromTimestamp, StartingOffset startingOffset) {
     if (table.currentSnapshot() == null) {
       return StreamingOffset.START_OFFSET;
     }
 
-    if (fromTimestamp == null) {
-      // match existing behavior and start from the oldest snapshot
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
+    if (fromTimestamp != Long.MIN_VALUE && startingOffset != StartingOffset.EARLIEST) {
+      LOG.warn(
+          "Both stream-from-timestamp and streaming-starting-offset are set; "
+              + "stream-from-timestamp takes precedence and streaming-starting-offset is ignored");
     }
 
-    if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
-      return StreamingOffset.START_OFFSET;
-    }
+    Snapshot startSnapshot;
 
-    try {
-      Snapshot snapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
-      if (snapshot != null) {
-        return new StreamingOffset(snapshot.snapshotId(), 0, false);
-      } else {
+    if (fromTimestamp != Long.MIN_VALUE) {
+      // stream-from-timestamp takes full precedence; streaming-starting-offset is entirely ignored
+      if (table.currentSnapshot().timestampMillis() < fromTimestamp) {
         return StreamingOffset.START_OFFSET;
       }
-    } catch (IllegalStateException e) {
-      // could not determine the first snapshot after the timestamp. use the oldest ancestor instead
-      return new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
+
+      Snapshot tsSnapshot;
+      try {
+        tsSnapshot = SnapshotUtil.oldestAncestorAfter(table, fromTimestamp);
+        if (tsSnapshot == null) {
+          return StreamingOffset.START_OFFSET;
+        }
+      } catch (IllegalStateException e) {
+        // could not determine the first snapshot after the timestamp; use the oldest ancestor
+        tsSnapshot = SnapshotUtil.oldestAncestor(table);
+      }
+
+      return new StreamingOffset(tsSnapshot.snapshotId(), 0, false);
+    } else if (startingOffset.useLatest()) {
+      startSnapshot = table.currentSnapshot();
+    } else {
+      startSnapshot = SnapshotUtil.oldestAncestor(table);
     }
+
+    // When scanAllFiles=false (LATEST mode), the stream iterates only addedDataFiles() for
+    // the starting snapshot. Setting position = addedFilesCount skips all of them, so
+    // processing begins only from the next snapshot's added files.
+    long position = 0;
+    if (startingOffset == StartingOffset.LATEST) {
+      long addedFiles =
+          PropertyUtil.propertyAsLong(
+              startSnapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, -1L);
+      position =
+          addedFiles == -1L ? Iterables.size(startSnapshot.addedDataFiles(table.io())) : addedFiles;
+    }
+
+    return new StreamingOffset(startSnapshot.snapshotId(), position, startingOffset.scanAllFiles());
   }
 
   private static int getMaxFiles(ReadLimit readLimit) {
@@ -376,14 +414,21 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     }
 
     // end offset can expand to multiple snapshots
-    StreamingOffset startingOffset = (StreamingOffset) startOffset;
+    StreamingOffset effectiveStart = (StreamingOffset) startOffset;
 
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = determineStartingOffset(table, fromTimestamp);
+      if (fromTimestamp == Long.MIN_VALUE && startingOffset == StartingOffset.LATEST) {
+        // Table was empty at stream start (otherwise initialOffset would not be START_OFFSET).
+        // All current data is new, so start from the oldest snapshot.
+        effectiveStart =
+            new StreamingOffset(SnapshotUtil.oldestAncestor(table).snapshotId(), 0, false);
+      } else {
+        effectiveStart = determineStartingOffset(table, fromTimestamp, startingOffset);
+      }
     }
 
-    Snapshot curSnapshot = table.snapshot(startingOffset.snapshotId());
-    validateCurrentSnapshotExists(curSnapshot, startingOffset);
+    Snapshot curSnapshot = table.snapshot(effectiveStart.snapshotId());
+    validateCurrentSnapshotExists(curSnapshot, effectiveStart);
 
     // Use the pre-computed snapshotId when Trigger.AvailableNow is enabled.
     long latestSnapshotId =
@@ -391,9 +436,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
             ? lastOffsetForTriggerAvailableNow.snapshotId()
             : table.currentSnapshot().snapshotId();
 
-    int startPosOfSnapOffset = (int) startingOffset.position();
+    int startPosOfSnapOffset = (int) effectiveStart.position();
 
-    boolean scanAllFiles = startingOffset.shouldScanAllFiles();
+    boolean scanAllFiles = effectiveStart.shouldScanAllFiles();
 
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
@@ -470,7 +515,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         new StreamingOffset(curSnapshot.snapshotId(), curPos, scanAllFiles);
 
     // if no new data arrived, then return null.
-    return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
+    return latestStreamingOffset.equals(effectiveStart) ? null : latestStreamingOffset;
   }
 
   /**
@@ -545,13 +590,16 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     private final Table table;
     private final FileIO io;
     private final String initialOffsetLocation;
-    private final Long fromTimestamp;
+    private final long fromTimestamp;
+    private final StartingOffset startingOffset;
 
-    InitialOffsetStore(Table table, String checkpointLocation, Long fromTimestamp) {
+    InitialOffsetStore(
+        Table table, String checkpointLocation, long fromTimestamp, StartingOffset startingOffset) {
       this.table = table;
       this.io = table.io();
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
       this.fromTimestamp = fromTimestamp;
+      this.startingOffset = startingOffset;
     }
 
     public StreamingOffset initialOffset() {
@@ -561,7 +609,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
       }
 
       table.refresh();
-      StreamingOffset offset = determineStartingOffset(table, fromTimestamp);
+      StreamingOffset offset = determineStartingOffset(table, fromTimestamp, startingOffset);
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
       writeOffset(offset, outputFile);
