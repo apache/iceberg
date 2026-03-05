@@ -311,7 +311,6 @@ public class ThreadPools {
               item.getService().shutdownNow();
             }
           } catch (InterruptedException e) {
-            // We're shutting down anyway, so just ignore.
             LOG.warn("Interrupted while shutting down, ignoring", e);
           }
 
