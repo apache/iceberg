@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hive;
 
+import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class NoLock implements HiveLock {
@@ -35,6 +36,16 @@ public class NoLock implements HiveLock {
   @Override
   public void ensureActive() throws LockException {
     // no-op
+  }
+
+  @Override
+  public LockInfo findLock() throws LockException {
+    return null;
+  }
+
+  @Override
+  public Optional<Long> getHmsLockId() {
+    return Optional.empty();
   }
 
   @Override

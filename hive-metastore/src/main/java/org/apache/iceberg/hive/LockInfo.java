@@ -18,16 +18,44 @@
  */
 package org.apache.iceberg.hive;
 
-import java.util.Optional;
+import org.apache.hadoop.hive.metastore.api.LockState;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-interface HiveLock {
-  void lock() throws LockException;
+public class LockInfo {
+  private long lockId;
+  private LockState lockState;
 
-  void ensureActive() throws LockException;
+  public LockInfo() {
+    this.lockId = -1;
+    this.lockState = null;
+  }
 
-  LockInfo findLock() throws LockException, InterruptedException;
+  public LockInfo(long lockId, LockState lockState) {
+    this.lockId = lockId;
+    this.lockState = lockState;
+  }
 
-  Optional<Long> getHmsLockId();
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("lockId", lockId)
+        .add("lockState", lockState)
+        .toString();
+  }
 
-  void unlock();
+  public long getLockId() {
+    return lockId;
+  }
+
+  public void setLockId(long lockId) {
+    this.lockId = lockId;
+  }
+
+  public LockState getLockState() {
+    return lockState;
+  }
+
+  public void setLockState(LockState lockState) {
+    this.lockState = lockState;
+  }
 }
