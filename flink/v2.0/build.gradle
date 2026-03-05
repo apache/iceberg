@@ -186,6 +186,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: "org.apache.curator", module: 'curator-test'
     }
 
+    integrationImplementation libs.flink20.connector.base
     integrationImplementation libs.flink20.table.api.java.bridge
     integrationImplementation "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink20.get()}"
 
