@@ -24,6 +24,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+import org.apache.avro.LogicalType;
+import org.apache.avro.LogicalTypes;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.util.Utf8;
@@ -34,10 +37,50 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
+import org.junit.jupiter.params.provider.Arguments;
 
 public class RandomAvroData {
 
   private RandomAvroData() {}
+
+  public static Stream<Arguments> localTimestampRecords() {
+    Random random = new Random(42L);
+    long millis = (Long) RandomUtil.generatePrimitive(Types.LongType.get(), random);
+    long micros = (Long) RandomUtil.generatePrimitive(Types.LongType.get(), random);
+    long nanos = (Long) RandomUtil.generatePrimitive(Types.LongType.get(), random);
+    return Stream.of(
+        // millis written on disk; expected to be read back as micros (multiplied by 1000)
+        localTimestampArguments(
+            LogicalTypes.localTimestampMillis(),
+            Types.TimestampType.withoutZone(),
+            millis,
+            millis * 1_000L),
+        // micros written on disk; expected to be read back unchanged
+        localTimestampArguments(
+            LogicalTypes.localTimestampMicros(), Types.TimestampType.withoutZone(), micros, micros),
+        // nanos written on disk; expected to be read back unchanged
+        localTimestampArguments(
+            LogicalTypes.localTimestampNanos(),
+            Types.TimestampNanoType.withoutZone(),
+            nanos,
+            nanos));
+  }
+
+  private static Arguments localTimestampArguments(
+      LogicalType logicalType, Type icebergType, long writeValue, long expectedValue) {
+    org.apache.avro.Schema avroSchema =
+        AvroTestHelpers.record(
+            "r1",
+            AvroTestHelpers.optionalField(
+                1,
+                "ts",
+                logicalType.addToSchema(
+                    org.apache.avro.Schema.create(org.apache.avro.Schema.Type.LONG))));
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("ts", writeValue);
+    Schema readSchema = new Schema(Types.NestedField.optional(1, "ts", icebergType));
+    return Arguments.of(record, readSchema, expectedValue);
+  }
 
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
     RandomDataGenerator generator = new RandomDataGenerator(schema, seed);

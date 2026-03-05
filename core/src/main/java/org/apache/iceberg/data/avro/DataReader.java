@@ -152,6 +152,16 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
             }
             return GenericReaders.timestampMillis();
 
+          case "local-timestamp-millis":
+            // local-timestamp-* is always NTZ by definition; no adjust-to-utc check needed
+            return GenericReaders.timestampMillis();
+
+          case "local-timestamp-micros":
+            return GenericReaders.timestamps();
+
+          case "local-timestamp-nanos":
+            return GenericReaders.timestampNanos();
+
           case "decimal":
             return ValueReaders.decimal(
                 ValueReaders.decimalBytesReader(primitive),

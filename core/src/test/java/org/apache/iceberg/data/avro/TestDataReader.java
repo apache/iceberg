@@ -200,6 +200,68 @@ class TestDataReader {
     }
   }
 
+  @Test
+  public void localTimestampDataReader() throws IOException {
+    org.apache.iceberg.Schema icebergSchema =
+        new org.apache.iceberg.Schema(
+            Types.NestedField.required(1, "local_ts_nanos", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.required(2, "local_ts_micros", Types.TimestampType.withoutZone()),
+            Types.NestedField.required(3, "local_ts_millis", Types.TimestampType.withoutZone()));
+
+    Schema avroSchema =
+        SchemaBuilder.record("test_programmatic")
+            .fields()
+            .name("local_ts_nanos")
+            .type(LogicalTypes.localTimestampNanos().addToSchema(Schema.create(Schema.Type.LONG)))
+            .noDefault()
+            .name("local_ts_micros")
+            .type(LogicalTypes.localTimestampMicros().addToSchema(Schema.create(Schema.Type.LONG)))
+            .noDefault()
+            .name("local_ts_millis")
+            .type(LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Schema.Type.LONG)))
+            .noDefault()
+            .endRecord();
+
+    avroSchema.getField("local_ts_nanos").addProp("field-id", 1);
+    avroSchema.getField("local_ts_micros").addProp("field-id", 2);
+    avroSchema.getField("local_ts_millis").addProp("field-id", 3);
+
+    DataReader<Record> reader = DataReader.create(icebergSchema, avroSchema);
+    reader.setSchema(avroSchema);
+
+    // post-epoch timestamps
+    GenericRecord avroRecord = new GenericData.Record(avroSchema);
+    LocalDateTime localNanos = LocalDateTime.of(2023, 10, 15, 14, 30, 45, 123456789);
+    LocalDateTime localMicros = LocalDateTime.of(2023, 10, 15, 14, 30, 45, 123456000);
+    LocalDateTime localMillis = LocalDateTime.of(2023, 10, 15, 14, 30, 45, 123000000);
+
+    avroRecord.put("local_ts_nanos", DateTimeUtil.nanosFromTimestamp(localNanos));
+    avroRecord.put("local_ts_micros", DateTimeUtil.microsFromTimestamp(localMicros));
+    avroRecord.put("local_ts_millis", DateTimeUtil.millisFromTimestamp(localMillis));
+
+    Record result = readRecord(reader, avroSchema, avroRecord);
+
+    assertThat(result.getField("local_ts_nanos")).isEqualTo(localNanos);
+    assertThat(result.getField("local_ts_micros")).isEqualTo(localMicros);
+    assertThat(result.getField("local_ts_millis")).isEqualTo(localMillis);
+
+    // pre-epoch timestamps
+    GenericRecord preEpochRecord = new GenericData.Record(avroSchema);
+    LocalDateTime preEpochNanos = LocalDateTime.of(1969, 1, 1, 10, 11, 12, 123456789);
+    LocalDateTime preEpochMicros = LocalDateTime.of(1968, 1, 1, 10, 11, 12, 123456000);
+    LocalDateTime preEpochMillis = LocalDateTime.of(1967, 1, 1, 10, 11, 12, 123000000);
+
+    preEpochRecord.put("local_ts_nanos", DateTimeUtil.nanosFromTimestamp(preEpochNanos));
+    preEpochRecord.put("local_ts_micros", DateTimeUtil.microsFromTimestamp(preEpochMicros));
+    preEpochRecord.put("local_ts_millis", DateTimeUtil.millisFromTimestamp(preEpochMillis));
+
+    Record preEpochResult = readRecord(reader, avroSchema, preEpochRecord);
+
+    assertThat(preEpochResult.getField("local_ts_nanos")).isEqualTo(preEpochNanos);
+    assertThat(preEpochResult.getField("local_ts_micros")).isEqualTo(preEpochMicros);
+    assertThat(preEpochResult.getField("local_ts_millis")).isEqualTo(preEpochMillis);
+  }
+
   private Schema utcAdjustedLongSchema() {
     Schema schema = Schema.create(Schema.Type.LONG);
     schema.addProp(ADJUST_TO_UTC_PROP, "true");

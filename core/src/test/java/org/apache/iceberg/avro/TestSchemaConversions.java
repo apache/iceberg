@@ -30,6 +30,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.stream.Stream;
+import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
@@ -39,6 +41,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSchemaConversions {
   @Test
@@ -104,6 +109,23 @@ public class TestSchemaConversions {
     Schema avroType = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
 
     assertThat(AvroSchemaUtil.convert(avroType)).isEqualTo(expectedIcebergType);
+  }
+
+  static Stream<Arguments> localTimestampLogicalTypes() {
+    return Stream.of(
+        Arguments.of(LogicalTypes.localTimestampMillis(), Types.TimestampType.withoutZone()),
+        Arguments.of(LogicalTypes.localTimestampMicros(), Types.TimestampType.withoutZone()),
+        Arguments.of(LogicalTypes.localTimestampNanos(), Types.TimestampNanoType.withoutZone()));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("localTimestampLogicalTypes")
+  public void testAvroLocalTimestampTypeToIceberg(
+      LogicalType logicalType, Type expectedIcebergType) {
+    Schema avroSchema = logicalType.addToSchema(Schema.create(Schema.Type.LONG));
+    assertThat(AvroSchemaUtil.convert(avroSchema))
+        .as(logicalType.getName() + " should convert to " + expectedIcebergType)
+        .isEqualTo(expectedIcebergType);
   }
 
   private Schema addAdjustToUtc(Schema schema, boolean adjustToUTC) {
