@@ -216,6 +216,24 @@ Here are the catalog properties related to locking. They are used by some catalo
 
 ## Hadoop configuration
 
+### HadoopTables Lock Configuration
+
+When using `HadoopTables` (tables without a catalog), a `LockManager` can be configured to ensure atomic commits on file systems like S3 that lack native write mutual exclusion. Lock properties must be prefixed with `iceberg.tables.hadoop.`.
+
+| Property                                    | Default         | Description                                            |
+| ------------------------------------------- | --------------- | ------------------------------------------------------ |
+| iceberg.tables.hadoop.lock-impl             | null            | a custom implementation of the lock manager (e.g., `org.apache.iceberg.aws.dynamodb.DynamoDbLockManager`) |
+| iceberg.tables.hadoop.lock.table            | null            | an auxiliary table for locking (e.g., DynamoDB table name) |
+| iceberg.tables.hadoop.lock.acquire-interval-ms | 5000 (5 s)   | the interval to wait between each attempt to acquire a lock |
+| iceberg.tables.hadoop.lock.acquire-timeout-ms  | 180000 (3 min) | the maximum time to try acquiring a lock |
+| iceberg.tables.hadoop.lock.heartbeat-interval-ms | 3000 (3 s) | the interval to wait between each heartbeat after acquiring a lock |
+| iceberg.tables.hadoop.lock.heartbeat-timeout-ms  | 15000 (15 s) | the maximum time without a heartbeat to consider a lock expired |
+
+!!! info
+    To use DynamoDB as a lock manager with `HadoopTables`, set `iceberg.tables.hadoop.lock-impl` to `org.apache.iceberg.aws.dynamodb.DynamoDbLockManager` and `iceberg.tables.hadoop.lock.table` to your DynamoDB table name. See [DynamoDB Lock Manager](aws.md#dynamodb-lock-manager) for more details.
+
+### Hive Metastore Configuration
+
 The following properties from the Hadoop configuration are used by the Hive Metastore connector.
 The HMS table locking is a 2-step process:
 
