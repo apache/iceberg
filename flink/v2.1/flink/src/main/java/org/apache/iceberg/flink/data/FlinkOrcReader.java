@@ -112,6 +112,13 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
           } else {
             return FlinkOrcReaders.timestamps();
           }
+        case TIMESTAMP_NANO:
+          Types.TimestampNanoType timestampNanoType = (Types.TimestampNanoType) iPrimitive;
+          if (timestampNanoType.shouldAdjustToUTC()) {
+            return FlinkOrcReaders.timestampTzs();
+          } else {
+            return FlinkOrcReaders.timestamps();
+          }
         case STRING:
           return FlinkOrcReaders.strings();
         case UUID:

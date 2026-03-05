@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.DateTimeUtil;
 
 @Internal
 public class StructRowData implements RowData {
@@ -121,8 +122,8 @@ public class StructRowData implements RowData {
 
     if (integer instanceof Integer) {
       return (int) integer;
-    } else if (integer instanceof LocalDate) {
-      return (int) ((LocalDate) integer).toEpochDay();
+    } else if (integer instanceof LocalDate localDate) {
+      return (int) localDate.toEpochDay();
     } else if (integer instanceof LocalTime) {
       return (int) (((LocalTime) integer).toNanoOfDay() / 1000_000);
     } else {
@@ -186,8 +187,27 @@ public class StructRowData implements RowData {
 
   @Override
   public TimestampData getTimestamp(int pos, int precision) {
+    if (precision > 6) {
+      Object timeVal = struct.get(pos, Object.class);
+      if (timeVal instanceof OffsetDateTime) {
+        OffsetDateTime odt = (OffsetDateTime) timeVal;
+        return TimestampData.fromEpochMillis(
+            odt.toInstant().toEpochMilli(), odt.getNano() % 1_000_000);
+      } else if (timeVal instanceof LocalDateTime) {
+        LocalDateTime ldt = (LocalDateTime) timeVal;
+        return TimestampData.fromEpochMillis(
+            ldt.toInstant(ZoneOffset.UTC).toEpochMilli(), ldt.getNano() % 1_000_000);
+      } else if (timeVal instanceof Long) {
+        long timeLong = (Long) timeVal;
+        return TimestampData.fromEpochMillis(
+            Math.floorDiv(timeLong, 1_000_000L), (int) Math.floorMod(timeLong, 1_000_000L));
+      } else {
+        throw new IllegalStateException("Unknown type for timestamp_ns: " + timeVal.getClass());
+      }
+    }
     long timeLong = getLong(pos);
-    return TimestampData.fromEpochMillis(timeLong / 1000, (int) (timeLong % 1000) * 1000);
+    return TimestampData.fromEpochMillis(
+        Math.floorDiv(timeLong, 1000L), (int) Math.floorMod(timeLong, 1000L) * 1000);
   }
 
   @Override
@@ -263,9 +283,29 @@ public class StructRowData implements RowData {
       case DECIMAL:
         return value;
       case TIMESTAMP:
-        long millisecond = (long) value / 1000;
-        int nanoOfMillisecond = (int) ((Long) value % 1000) * 1000;
-        return TimestampData.fromEpochMillis(millisecond, nanoOfMillisecond);
+        long timeMillis;
+        if (value instanceof LocalDateTime localDateTime) {
+          timeMillis = DateTimeUtil.microsFromTimestamp(localDateTime) / 1000L;
+        } else if (value instanceof OffsetDateTime offsetDateTime) {
+          timeMillis = DateTimeUtil.microsFromTimestamptz(offsetDateTime) / 1000L;
+        } else {
+          timeMillis = Math.floorDiv((Long) value, 1000L);
+        }
+        return TimestampData.fromEpochMillis(
+            timeMillis,
+            (int) Math.floorMod(value instanceof Long ? (Long) value : timeMillis * 1000L, 1000L)
+                * 1000);
+      case TIMESTAMP_NANO:
+        long nanoLong;
+        if (value instanceof LocalDateTime localDateTime) {
+          nanoLong = DateTimeUtil.nanosFromTimestamp(localDateTime);
+        } else if (value instanceof OffsetDateTime offsetDateTime) {
+          nanoLong = DateTimeUtil.nanosFromTimestamptz(offsetDateTime);
+        } else {
+          nanoLong = (Long) value;
+        }
+        return TimestampData.fromEpochMillis(
+            Math.floorDiv(nanoLong, 1_000_000L), (int) Math.floorMod(nanoLong, 1_000_000L));
       case STRING:
         return StringData.fromString(value.toString());
       case FIXED:

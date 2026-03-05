@@ -114,19 +114,35 @@ public class RowDataWrapper implements StructLike {
 
       case TIMESTAMP_WITHOUT_TIME_ZONE:
         TimestampType timestampType = (TimestampType) logicalType;
-        return (row, pos) -> {
-          LocalDateTime localDateTime =
-              row.getTimestamp(pos, timestampType.getPrecision()).toLocalDateTime();
-          return DateTimeUtil.microsFromTimestamp(localDateTime);
-        };
+        if (type.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+          return (row, pos) -> {
+            LocalDateTime localDateTime =
+                row.getTimestamp(pos, timestampType.getPrecision()).toLocalDateTime();
+            return DateTimeUtil.nanosFromTimestamp(localDateTime);
+          };
+        } else {
+          return (row, pos) -> {
+            LocalDateTime localDateTime =
+                row.getTimestamp(pos, timestampType.getPrecision()).toLocalDateTime();
+            return DateTimeUtil.microsFromTimestamp(localDateTime);
+          };
+        }
 
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
         LocalZonedTimestampType lzTs = (LocalZonedTimestampType) logicalType;
-        return (row, pos) -> {
-          TimestampData timestampData = row.getTimestamp(pos, lzTs.getPrecision());
-          return timestampData.getMillisecond() * 1000
-              + timestampData.getNanoOfMillisecond() / 1000;
-        };
+        if (type.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+          return (row, pos) -> {
+            TimestampData timestampData = row.getTimestamp(pos, lzTs.getPrecision());
+            return timestampData.getMillisecond() * 1_000_000L
+                + timestampData.getNanoOfMillisecond();
+          };
+        } else {
+          return (row, pos) -> {
+            TimestampData timestampData = row.getTimestamp(pos, lzTs.getPrecision());
+            return timestampData.getMillisecond() * 1000L
+                + timestampData.getNanoOfMillisecond() / 1000;
+          };
+        }
 
       case ROW:
         RowType rowType = (RowType) logicalType;

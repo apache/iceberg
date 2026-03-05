@@ -143,6 +143,13 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
           } else {
             return FlinkOrcWriters.timestamps();
           }
+        case TIMESTAMP_NANO:
+          Types.TimestampNanoType timestampNanoType = (Types.TimestampNanoType) iPrimitive;
+          if (timestampNanoType.shouldAdjustToUTC()) {
+            return FlinkOrcWriters.timestampNanoTzs();
+          } else {
+            return FlinkOrcWriters.timestampNanos();
+          }
         case STRING:
           return FlinkOrcWriters.strings();
         case UUID:

@@ -70,6 +70,14 @@ class FlinkOrcWriters {
     return TimestampTzWriter.INSTANCE;
   }
 
+  static OrcValueWriter<TimestampData> timestampNanos() {
+    return TimestampNanoWriter.INSTANCE;
+  }
+
+  static OrcValueWriter<TimestampData> timestampNanoTzs() {
+    return TimestampNanoTzWriter.INSTANCE;
+  }
+
   static OrcValueWriter<DecimalData> decimals(int precision, int scale) {
     if (precision <= 18) {
       return new Decimal18Writer(precision, scale);
@@ -167,6 +175,35 @@ class FlinkOrcWriters {
       cv.time[rowId] = instant.toEpochMilli();
       // truncate nanos to only keep microsecond precision.
       cv.nanos[rowId] = (instant.getNano() / 1_000) * 1_000;
+    }
+  }
+
+  private static class TimestampNanoWriter implements OrcValueWriter<TimestampData> {
+    private static final TimestampNanoWriter INSTANCE = new TimestampNanoWriter();
+
+    @Override
+    public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
+      TimestampColumnVector cv = (TimestampColumnVector) output;
+      cv.setIsUTC(true);
+      // millis
+      OffsetDateTime offsetDateTime = data.toInstant().atOffset(ZoneOffset.UTC);
+      cv.time[rowId] =
+          offsetDateTime.toEpochSecond() * 1_000 + offsetDateTime.getNano() / 1_000_000;
+      cv.nanos[rowId] = offsetDateTime.getNano();
+    }
+  }
+
+  private static class TimestampNanoTzWriter implements OrcValueWriter<TimestampData> {
+    private static final TimestampNanoTzWriter INSTANCE = new TimestampNanoTzWriter();
+
+    @SuppressWarnings("JavaInstantGetSecondsGetNano")
+    @Override
+    public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
+      TimestampColumnVector cv = (TimestampColumnVector) output;
+      // millis
+      Instant instant = data.toInstant();
+      cv.time[rowId] = instant.toEpochMilli();
+      cv.nanos[rowId] = instant.getNano();
     }
   }
 
