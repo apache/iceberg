@@ -34,6 +34,10 @@
   z-index: 3;
 }
 
+.md-social__link{
+  height: auto;
+}
+
 /*hero*/
 .mdx-container {
   text-align: center;
@@ -448,3 +452,111 @@ p {
 .footer-icons img {
   max-width: 100%;
 }
+
+@media (max-width: 992px) {
+  .footer-links {
+    text-align: center;
+  }
+  
+  .footer-icons {
+    margin-top: 2rem;
+    text-align: center;
+  }
+  
+  .footer-icons img {
+    display: block;
+    margin: 0 auto;
+  }
+  
+  .footer-icons .d-flex {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 576px) {
+  #footer h4 {
+    font-size: 18px;
+    margin-bottom: 0.5rem;
+  }
+  
+  .footer-links {
+    padding: 0 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .mdx-container {
+    height: auto;
+    padding: 3rem 1rem;
+  }
+
+  .intro-message {
+    padding-top: 0;
+  }
+
+  .intro-message h1 {
+    font-size: 3rem;
+    line-height: 1.2;
+  }
+
+  .intro-message h3 {
+    font-size: 1.1rem;
+  }
+
+  .intro-divider {
+    width: 100%;
+  }
+
+  .content-section-a,
+  .content-section-b {
+    margin-top: 2.5rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .section-heading {
+    float: none;
+    font-size: 24px;
+  }
+
+  .btn,
+  .btn-lg {
+    font-size: 14px;
+    padding: 0.6rem 1rem;
+  }
+
+  #termynal,
+  #termynal-expressive-sql,
+  #termynal-time-travel,
+  #termynal-data-compaction {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  .termynal,
+  [data-termynal] {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  lottie-player {
+    width: 100% !important;
+    max-width: 280px;
+    height: auto;
+    margin: 0 auto;
+  }
+
+  .footer-links,
+  .footer-icons {
+    text-align: center;
+  }
+
+  .footer-icons {
+    margin-top: 2rem;
+  }
+  .md-tabs__list {
+    justify-content: flex-start;
+    text-align: left;
+    padding-left: 0.5rem;
+  }
+}
+
