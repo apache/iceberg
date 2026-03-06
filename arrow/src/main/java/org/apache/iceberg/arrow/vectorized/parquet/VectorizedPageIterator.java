@@ -112,6 +112,14 @@ public class VectorizedPageIterator extends BasePageIterator {
               new VectorizedByteStreamSplitValuesReader(
                   byteStreamSplitElementSize(desc.getPrimitiveType()));
           break;
+        case RLE:
+          if (desc.getPrimitiveType().getPrimitiveTypeName()
+              == PrimitiveType.PrimitiveTypeName.BOOLEAN) {
+            valuesReader =
+                new VectorizedRunLengthEncodedParquetValuesReader(setArrowValidityVector);
+            break;
+          }
+          // fall through
         default:
           throw new UnsupportedOperationException(
               "Cannot support vectorized reads for column "
