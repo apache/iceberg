@@ -91,7 +91,7 @@ public class RewritePositionDeletesCommitManager {
 
     Iterable<String> filePaths =
         Iterables.transform(fileGroup.addedDeleteFiles(), ContentFile::location);
-    CatalogUtil.deleteFiles(table.io(), filePaths, "position delete", true);
+    CatalogUtil.deleteFiles(table.io(), filePaths, "position delete");
   }
 
   public void commitOrClean(Set<RewritePositionDeletesGroup> rewriteGroups) {
