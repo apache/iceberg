@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
+import static org.apache.iceberg.aws.s3.signer.S3SignerServlet.UNSIGNED_HEADERS_PREDICATE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 
@@ -27,7 +28,6 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
@@ -65,6 +65,9 @@ import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.auth.aws.signer.SignerConstant;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
+import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.Delete;
@@ -74,6 +77,7 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
+import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.utils.IoUtils;
 
 @Testcontainers
@@ -255,22 +259,39 @@ public class TestS3RestSigner {
   }
 
   @Test
-  public void validatedUploadPart() {
+  public void validatedUploadMultiPart() {
+    final String key = "some/multipart-key";
     String multipartUploadId =
         s3.createMultipartUpload(
-                CreateMultipartUploadRequest.builder()
-                    .bucket(BUCKET)
-                    .key("some/multipart-key")
-                    .build())
+                CreateMultipartUploadRequest.builder().bucket(BUCKET).key(key).build())
             .uploadId();
-    s3.uploadPart(
-        UploadPartRequest.builder()
+    final UploadPartResponse response =
+        s3.uploadPart(
+            UploadPartRequest.builder()
+                .bucket(BUCKET)
+                .key(key)
+                .uploadId(multipartUploadId)
+                .partNumber(1)
+                .build(),
+            RequestBody.fromString("content"));
+    s3.completeMultipartUpload(
+        CompleteMultipartUploadRequest.builder()
             .bucket(BUCKET)
-            .key("some/multipart-key")
+            .key(key)
             .uploadId(multipartUploadId)
-            .partNumber(1)
-            .build(),
-        RequestBody.fromString("content"));
+            .multipartUpload(
+                CompletedMultipartUpload.builder()
+                    .parts(
+                        CompletedPart.builder()
+                            .partNumber(1)
+                            .eTag(response.eTag())
+                            .checksumCRC32(response.checksumCRC32())
+                            .checksumCRC32C(response.checksumCRC32C())
+                            .checksumSHA1(response.checksumSHA1())
+                            .checksumSHA256(response.checksumSHA256())
+                            .build())
+                    .build())
+            .build());
   }
 
   /**
@@ -352,16 +373,11 @@ public class TestS3RestSigner {
       // back after signing
       Map<String, List<String>> unsignedHeaders =
           request.headers().entrySet().stream()
-              .filter(
-                  e ->
-                      S3SignerServlet.UNSIGNED_HEADERS.contains(
-                          e.getKey().toLowerCase(Locale.ROOT)))
+              .filter(UNSIGNED_HEADERS_PREDICATE)
               .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
       SdkHttpFullRequest.Builder builder = request.toBuilder();
-      for (String unsignedHeader : S3SignerServlet.UNSIGNED_HEADERS) {
-        builder.removeHeader(unsignedHeader);
-      }
+      unsignedHeaders.forEach((k, v) -> builder.removeHeader(k));
 
       SdkHttpFullRequest awsResult = awsSigner.sign(builder.build(), signerParams);
       // append the unsigned headers back

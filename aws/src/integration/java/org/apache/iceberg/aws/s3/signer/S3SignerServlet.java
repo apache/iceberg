@@ -32,7 +32,6 @@ import java.io.Reader;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,7 +45,6 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
@@ -70,9 +68,37 @@ public class S3SignerServlet extends HttpServlet {
   private static final Logger LOG = LoggerFactory.getLogger(S3SignerServlet.class);
 
   static final Clock SIGNING_CLOCK = Clock.fixed(Instant.now(), ZoneId.of("UTC"));
-  static final Set<String> UNSIGNED_HEADERS =
-      Sets.newHashSet(
-          Arrays.asList("range", "x-amz-date", "amz-sdk-invocation-id", "amz-sdk-retry"));
+
+  /** Headers which are not to be signed. */
+  private static final Set<String> UNSIGNED_HEADERS =
+      // Note: only Host and x-amz-* headers are required to be signed. Other headers are optional.
+      // Also see
+      // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html#create-canonical-request
+      // for guidelines about headers that are safe to exclude from signing.
+      Set.of(
+          // Excluded by software.amazon.awssdk.http.auth.aws.internal.signer.V4CanonicalRequest
+          "connection",
+          "expect",
+          "transfer-encoding",
+          "user-agent",
+          "x-amzn-trace-id",
+          "x-forwarded-for",
+          // S3-specific headers
+          "range",
+          // Conditional headers
+          "if-match",
+          "if-modified-since",
+          "if-none-match",
+          "if-unmodified-since",
+          // Transient headers
+          "keep-alive",
+          "proxy-authenticate",
+          "proxy-authorization",
+          "referer",
+          "te",
+          "trailer",
+          "upgrade");
+
   private static final String POST = "POST";
 
   private static final Set<SdkHttpMethod> CACHEABLE_METHODS =
@@ -171,6 +197,15 @@ public class S3SignerServlet extends HttpServlet {
     }
   }
 
+  static final Predicate<Map.Entry<String, List<String>>> UNSIGNED_HEADERS_PREDICATE =
+      e -> {
+        String name = e.getKey().toLowerCase(Locale.ROOT);
+        return name.startsWith("amz-sdk-") || UNSIGNED_HEADERS.contains(name);
+      };
+
+  static final Predicate<Map.Entry<String, List<String>>> SIGNED_HEADERS_PREDICATE =
+      UNSIGNED_HEADERS_PREDICATE.negate();
+
   private S3SignResponse signRequest(S3SignRequest request) {
     AwsS3V4SignerParams signingParams =
         AwsS3V4SignerParams.builder()
@@ -186,12 +221,12 @@ public class S3SignerServlet extends HttpServlet {
 
     Map<String, List<String>> unsignedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
+            .filter(UNSIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     Map<String, List<String>> signedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> !UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
+            .filter(SIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     SdkHttpFullRequest sign =

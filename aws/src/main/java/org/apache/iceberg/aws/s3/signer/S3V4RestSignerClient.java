@@ -72,7 +72,8 @@ public abstract class S3V4RestSignerClient
   static final String CACHE_CONTROL_PRIVATE = "private";
   static final String CACHE_CONTROL_NO_CACHE = "no-cache";
 
-  private static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
+  @VisibleForTesting
+  static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
 
   private static final String SCOPE = "sign";
