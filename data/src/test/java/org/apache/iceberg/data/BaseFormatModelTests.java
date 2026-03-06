@@ -43,9 +43,9 @@ import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -61,19 +61,7 @@ public abstract class BaseFormatModelTests<T> {
 
   protected abstract T convertToEngine(Record record, Schema schema);
 
-  protected abstract void assertEqualsEngineToGeneric(
-      Types.StructType struct, List<T> expected, List<Record> actual);
-
-  protected abstract void assertEqualsGenericToEngine(
-      Types.StructType struct, List<Record> expected, List<T> actual);
-
-  protected List<Record> genericPositionDeletes(Schema schema) {
-    return ImmutableList.of(
-        GenericRecord.create(schema)
-            .copy(DELETE_FILE_PATH.name(), "data-file-1.parquet", DELETE_FILE_POS.name(), 0L),
-        GenericRecord.create(schema)
-            .copy(DELETE_FILE_PATH.name(), "data-file-1.parquet", DELETE_FILE_POS.name(), 1L));
-  }
+  protected abstract void assertEquals(Schema schema, List<T> expected, List<T> actual);
 
   private static final FileFormat[] FILE_FORMATS =
       new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
@@ -84,7 +72,7 @@ public abstract class BaseFormatModelTests<T> {
               format ->
                   Arrays.stream(DataGenerators.ALL)
                       .map(generator -> Arguments.of(format, generator)))
-          .collect(Collectors.toList());
+          .toList();
 
   @TempDir protected Path temp;
 
@@ -92,19 +80,15 @@ public abstract class BaseFormatModelTests<T> {
   private EncryptedOutputFile encryptedFile;
 
   @BeforeEach
-  public void before() {
+  void before() {
     this.fileIO = new InMemoryFileIO();
     this.encryptedFile =
         EncryptedFiles.encryptedOutput(
             fileIO.newOutputFile("test-file"), EncryptionKeyMetadata.EMPTY);
   }
 
-  protected List<T> convertToEngineRecords(List<Record> records, Schema schema) {
-    return records.stream().map(r -> convertToEngine(r, schema)).collect(Collectors.toList());
-  }
-
   @AfterEach
-  public void after() throws IOException {
+  void after() {
     fileIO.deleteFile(encryptedFile.encryptingOutputFile());
     this.encryptedFile = null;
     if (fileIO != null) {
@@ -114,21 +98,21 @@ public abstract class BaseFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  public void testDataWriterEngineWriteGenericRead(
-      FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
+  void testDataWriterEngineWriteGenericRead(FileFormat fileFormat, DataGenerator dataGenerator)
+      throws IOException {
     // Write with engine type T, read with Generic Record
+    Schema schema = dataGenerator.schema();
     FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
 
     DataFile dataFile;
     DataWriter<T> writer =
         writerBuilder
-            .schema(dataGenerator.schema())
-            .engineSchema(engineSchema(dataGenerator.schema()))
+            .schema(schema)
+            .engineSchema(engineSchema(schema))
             .spec(PartitionSpec.unpartitioned())
             .build();
 
-    Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
 
@@ -149,27 +133,27 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> readRecords;
     try (CloseableIterable<Record> reader =
         FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
-            .project(dataGenerator.schema())
+            .project(schema)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
 
-    assertEqualsEngineToGeneric(schema.asStruct(), engineRecords, readRecords);
+    DataTestHelpers.assertEquals(schema.asStruct(), genericRecords, readRecords);
   }
 
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  public void testDataWriterGenericWriteEngineRead(
-      FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
+  void testDataWriterGenericWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
+      throws IOException {
     // Write with Generic Record, read with engine type T
+    Schema schema = dataGenerator.schema();
     FileWriterBuilder<DataWriter<Record>, Object> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile);
 
     DataFile dataFile;
     DataWriter<Record> writer =
-        writerBuilder.schema(dataGenerator.schema()).spec(PartitionSpec.unpartitioned()).build();
+        writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
 
-    Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
 
     try (writer) {
@@ -189,32 +173,32 @@ public abstract class BaseFormatModelTests<T> {
     List<T> readRecords;
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(dataGenerator.schema())
+            .project(schema)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
 
-    assertEqualsGenericToEngine(dataGenerator.schema().asStruct(), genericRecords, readRecords);
+    assertEquals(schema, convertToEngineRecords(genericRecords, schema), readRecords);
   }
 
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  public void testEqualityDeleteWriterEngineWriteGenericRead(
+  void testEqualityDeleteWriterEngineWriteGenericRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     // Write with engine type T, read with Generic Record
-
+    Schema schema = dataGenerator.schema();
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
     DeleteFile deleteFile;
     EqualityDeleteWriter<T> writer =
         writerBuilder
-            .schema(dataGenerator.schema())
-            .engineSchema(engineSchema(dataGenerator.schema()))
+            .schema(schema)
+            .engineSchema(engineSchema(schema))
             .spec(PartitionSpec.unpartitioned())
             .equalityFieldIds(1)
             .build();
-    Schema schema = dataGenerator.schema();
+
     List<Record> genericRecords = dataGenerator.generateRecords();
     List<T> engineRecords = convertToEngineRecords(genericRecords, schema);
 
@@ -236,31 +220,31 @@ public abstract class BaseFormatModelTests<T> {
     List<Record> readRecords;
     try (CloseableIterable<Record> reader =
         FormatModelRegistry.readBuilder(fileFormat, Record.class, inputFile)
-            .project(dataGenerator.schema())
+            .project(schema)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
 
-    assertEqualsEngineToGeneric(schema.asStruct(), engineRecords, readRecords);
+    DataTestHelpers.assertEquals(schema.asStruct(), genericRecords, readRecords);
   }
 
   @ParameterizedTest
   @FieldSource("FORMAT_AND_GENERATOR")
-  public void testEqualityDeleteWriterGenericWriteEngineRead(
+  void testEqualityDeleteWriterGenericWriteEngineRead(
       FileFormat fileFormat, DataGenerator dataGenerator) throws IOException {
     // Write with Generic Record, read with engine type T
+    Schema schema = dataGenerator.schema();
     FileWriterBuilder<EqualityDeleteWriter<Record>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, Record.class, encryptedFile);
 
     DeleteFile deleteFile;
     EqualityDeleteWriter<Record> writer =
         writerBuilder
-            .schema(dataGenerator.schema())
+            .schema(schema)
             .spec(PartitionSpec.unpartitioned())
             .equalityFieldIds(1)
             .build();
 
-    Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
 
     try (writer) {
@@ -281,36 +265,40 @@ public abstract class BaseFormatModelTests<T> {
     List<T> readRecords;
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(dataGenerator.schema())
+            .project(schema)
             .build()) {
       readRecords = ImmutableList.copyOf(reader);
     }
 
-    assertEqualsGenericToEngine(dataGenerator.schema().asStruct(), genericRecords, readRecords);
+    assertEquals(schema, convertToEngineRecords(genericRecords, schema), readRecords);
   }
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
-  public void testPositionDeleteWriterEngineWriteGenericRead(FileFormat fileFormat)
-      throws IOException {
+  void testPositionDeleteWriterEngineWriteGenericRead(FileFormat fileFormat) throws IOException {
     // Write position deletes, read with Generic Record
-    Schema positionDeleteSchema = new Schema(DELETE_FILE_PATH, DELETE_FILE_POS);
+    Schema positionDeleteSchema = DeleteSchemaUtil.pathPosSchema();
 
     FileWriterBuilder<PositionDeleteWriter<T>, ?> writerBuilder =
         FormatModelRegistry.positionDeleteWriteBuilder(fileFormat, encryptedFile);
 
-    PositionDelete<T> delete1 = PositionDelete.create();
-    delete1.set("data-file-1.parquet", 0L);
+    List<PositionDelete<T>> deletes =
+        ImmutableList.of(
+            PositionDelete.<T>create().set("data-file-1.parquet", 0L),
+            PositionDelete.<T>create().set("data-file-1.parquet", 1L));
 
-    PositionDelete<T> delete2 = PositionDelete.create();
-    delete2.set("data-file-1.parquet", 1L);
-
-    List<PositionDelete<T>> positionDeletes = ImmutableList.of(delete1, delete2);
+    List<Record> records =
+        deletes.stream()
+            .map(
+                d ->
+                    GenericRecord.create(positionDeleteSchema)
+                        .copy(DELETE_FILE_PATH.name(), d.path(), DELETE_FILE_POS.name(), d.pos()))
+            .toList();
 
     DeleteFile deleteFile;
     PositionDeleteWriter<T> writer = writerBuilder.spec(PartitionSpec.unpartitioned()).build();
     try (writer) {
-      for (PositionDelete<T> delete : positionDeletes) {
+      for (PositionDelete<T> delete : deletes) {
         writer.write(delete);
       }
     }
@@ -331,7 +319,10 @@ public abstract class BaseFormatModelTests<T> {
       readRecords = ImmutableList.copyOf(reader);
     }
 
-    DataTestHelpers.assertEquals(
-        positionDeleteSchema.asStruct(), genericPositionDeletes(positionDeleteSchema), readRecords);
+    DataTestHelpers.assertEquals(positionDeleteSchema.asStruct(), records, readRecords);
+  }
+
+  private List<T> convertToEngineRecords(List<Record> records, Schema schema) {
+    return records.stream().map(r -> convertToEngine(r, schema)).collect(Collectors.toList());
   }
 }

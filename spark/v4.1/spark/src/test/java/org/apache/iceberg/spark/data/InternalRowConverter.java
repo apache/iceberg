@@ -61,6 +61,7 @@ public class InternalRowConverter {
       Type fieldType = field.type();
       internalRow.update(i, convert(fieldType, record.get(i)));
     }
+
     return internalRow;
   }
 
