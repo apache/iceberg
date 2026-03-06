@@ -27,6 +27,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.SystemConfigs;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.slf4j.Logger;
@@ -111,7 +112,7 @@ public class ThreadPools {
   private static class AuthRefreshPoolHolder {
     private static final ScheduledExecutorService INSTANCE =
         ThreadPools.newExitingScheduledPool(
-            "auth-session-refresh", AUTH_REFRESH_THREAD_POOL_SIZE, Duration.ofSeconds(10));
+            "auth-session-refresh", AUTH_REFRESH_THREAD_POOL_SIZE, Duration.ZERO);
   }
 
   /**
@@ -216,7 +217,6 @@ public class ThreadPools {
   @SuppressWarnings("ShutdownHook")
   public static synchronized void removeShutdownHook() {
     if (shutdownHook != null) {
-
       try {
         Runtime.getRuntime().removeShutdownHook(shutdownHook);
       } catch (SecurityException e) {
@@ -232,7 +232,8 @@ public class ThreadPools {
    *
    * @return true if the shutdown hook is registered, false otherwise
    */
-  public static synchronized boolean isShutdownHookRegistered() {
+  @VisibleForTesting
+  static synchronized boolean isShutdownHookRegistered() {
     return shutdownHook != null;
   }
 
@@ -276,6 +277,7 @@ public class ThreadPools {
   }
 
   /** Manages the lifecycle of thread pools that need to be shut down gracefully. */
+  @VisibleForTesting
   static class ThreadPoolManager {
     private final List<ExecutorServiceWithTimeout> threadPoolsToShutdown = Lists.newArrayList();
 
@@ -285,11 +287,13 @@ public class ThreadPools {
      * @param service the executor service to add
      * @param timeout the timeout for shutdown operations
      */
+    @VisibleForTesting
     synchronized void addThreadPool(ExecutorService service, Duration timeout) {
       threadPoolsToShutdown.add(new ExecutorServiceWithTimeout(service, timeout));
     }
 
     /** Shut down all registered thread pools. */
+    @VisibleForTesting
     synchronized void shutdownAll() {
       long startTime = System.nanoTime();
       List<ExecutorServiceWithTimeout> pendingShutdown = Lists.newArrayList();
