@@ -3659,7 +3659,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     table.newAppend().appendFile(FILE_A).commit();
 
     // loadTable is executed once
-    Mockito.verify(adapter)
+    Mockito.verify(adapter, times(2))
         .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
 
     // CommitReport reflects the table state after the commit

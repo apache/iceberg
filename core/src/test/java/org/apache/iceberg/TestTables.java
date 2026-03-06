@@ -276,7 +276,7 @@ public class TestTables {
     private final String tableName;
     private final File metadata;
     private final FileIO fileIO;
-    private TableMetadata current = null;
+    protected TableMetadata current = null;
     private long lastSnapshotId = 0;
     private int failCommits = 0;
 
