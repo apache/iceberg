@@ -22,12 +22,14 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.view.View;
 
 /**
- * Extension interface for Catalog that supports context-aware table loading. This enables passing
- * additional context (such as view information) when loading tables.
+ * Extension interface for Catalog that supports context-aware loading. This enables passing
+ * additional context (such as view information) when loading tables or views.
  */
-public interface ContextAwareTableCatalog {
+public interface ContextAwareCatalog {
 
   /** Context key for the view identifier chain that references a table. */
   String VIEW_IDENTIFIER_KEY = "view.referenced-by";
@@ -50,4 +52,21 @@ public interface ContextAwareTableCatalog {
    */
   Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext)
       throws NoSuchTableException;
+
+  /**
+   * Load a view with additional context information.
+   *
+   * <p>The default implementation throws {@link UnsupportedOperationException}. Implementations
+   * that support context-aware view loading should override this method.
+   *
+   * @param identifier the view identifier to load
+   * @param viewContext additional context information as key-value pairs
+   * @return the loaded view
+   * @throws NoSuchViewException if the view does not exist
+   */
+  default View loadView(TableIdentifier identifier, Map<String, Object> viewContext)
+      throws NoSuchViewException {
+    throw new UnsupportedOperationException(
+        "Context-aware view loading is not supported by this catalog");
+  }
 }

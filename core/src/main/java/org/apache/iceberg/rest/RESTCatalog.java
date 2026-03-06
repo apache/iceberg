@@ -30,7 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.ContextAwareTableCatalog;
+import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -48,7 +48,7 @@ import org.apache.iceberg.view.ViewBuilder;
 public class RESTCatalog
     implements Catalog,
         ViewCatalog,
-        ContextAwareTableCatalog,
+        ContextAwareCatalog,
         SupportsNamespaces,
         Configurable<Object>,
         Closeable {

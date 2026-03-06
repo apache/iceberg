@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.ContextAwareTableCatalog;
+import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
@@ -50,7 +50,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Tests that the referenced-by view chain is correctly constructed and passed to
- * ContextAwareTableCatalog.loadTable() during view resolution.
+ * ContextAwareCatalog.loadTable() during view resolution.
  *
  * <p>This verifies:
  *
@@ -69,11 +69,11 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   private static SparkSession spark;
 
   /**
-   * An InMemoryCatalog that also implements ContextAwareTableCatalog and records all context-aware
+   * An InMemoryCatalog that also implements ContextAwareCatalog and records all context-aware
    * loadTable calls for later assertion.
    */
   public static class ContextTrackingCatalog extends InMemoryCatalog
-      implements ContextAwareTableCatalog {
+      implements ContextAwareCatalog {
 
     /** Records of (tableIdentifier, viewContext) captured from loadTable calls. */
     public static final List<CapturedContext> CAPTURED = new CopyOnWriteArrayList<>();
@@ -205,11 +205,11 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
 
     ContextTrackingCatalog.CapturedContext captured = ContextTrackingCatalog.CAPTURED.get(0);
     assertThat(captured.tableIdentifier).isEqualTo(TableIdentifier.of(NAMESPACE, TABLE_NAME));
-    assertThat(captured.context).containsKey(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY);
+    assertThat(captured.context).containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
 
     @SuppressWarnings("unchecked")
     List<TableIdentifier> viewChain =
-        (List<TableIdentifier>) captured.context.get(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY);
+        (List<TableIdentifier>) captured.context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
     assertThat(viewChain).hasSize(1);
     assertThat(viewChain.get(0)).isEqualTo(TableIdentifier.of(NAMESPACE, "simple_view"));
   }
@@ -248,7 +248,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     List<ContextTrackingCatalog.CapturedContext> tableCaptures =
         ContextTrackingCatalog.CAPTURED.stream()
             .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, TABLE_NAME)))
-            .filter(c -> c.context.containsKey(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY))
+            .filter(c -> c.context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY))
             .collect(Collectors.toList());
 
     assertThat(tableCaptures).isNotEmpty();
@@ -258,7 +258,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
 
     @SuppressWarnings("unchecked")
     List<TableIdentifier> viewChain =
-        (List<TableIdentifier>) captured.context.get(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY);
+        (List<TableIdentifier>) captured.context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
 
     // Chain should be [outer_view, inner_view] - outermost first, innermost last
     assertThat(viewChain).hasSize(2);
@@ -298,7 +298,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     List<ContextTrackingCatalog.CapturedContext> viewCaptures =
         ContextTrackingCatalog.CAPTURED_VIEWS.stream()
             .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, "view_a")))
-            .filter(c -> c.context.containsKey(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY))
+            .filter(c -> c.context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY))
             .collect(Collectors.toList());
 
     assertThat(viewCaptures).isNotEmpty();
@@ -306,7 +306,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     @SuppressWarnings("unchecked")
     List<TableIdentifier> viewChain =
         (List<TableIdentifier>)
-            viewCaptures.get(0).context.get(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY);
+            viewCaptures.get(0).context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
     assertThat(viewChain).hasSize(1);
     assertThat(viewChain.get(0)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_b"));
   }
@@ -355,7 +355,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     List<ContextTrackingCatalog.CapturedContext> tableCaptures =
         ContextTrackingCatalog.CAPTURED.stream()
             .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, TABLE_NAME)))
-            .filter(c -> c.context.containsKey(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY))
+            .filter(c -> c.context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY))
             .collect(Collectors.toList());
 
     assertThat(tableCaptures).isNotEmpty();
@@ -363,7 +363,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     @SuppressWarnings("unchecked")
     List<TableIdentifier> tableChain =
         (List<TableIdentifier>)
-            tableCaptures.get(0).context.get(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY);
+            tableCaptures.get(0).context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
     assertThat(tableChain).hasSize(3);
     assertThat(tableChain.get(0)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_c"));
     assertThat(tableChain.get(1)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_b"));
@@ -373,7 +373,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     List<ContextTrackingCatalog.CapturedContext> viewACaptures =
         ContextTrackingCatalog.CAPTURED_VIEWS.stream()
             .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, "view_a")))
-            .filter(c -> c.context.containsKey(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY))
+            .filter(c -> c.context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY))
             .collect(Collectors.toList());
 
     assertThat(viewACaptures).isNotEmpty();
@@ -381,7 +381,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     @SuppressWarnings("unchecked")
     List<TableIdentifier> viewAChain =
         (List<TableIdentifier>)
-            viewACaptures.get(0).context.get(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY);
+            viewACaptures.get(0).context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
     assertThat(viewAChain).hasSize(2);
     assertThat(viewAChain.get(0)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_c"));
     assertThat(viewAChain.get(1)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_b"));

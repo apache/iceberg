@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.catalog.ContextAwareTableCatalog;
+import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -38,8 +38,7 @@ public class TestReferencedByQueryParam {
   public void testSingleViewSimpleNamespace() {
     List<TableIdentifier> chain =
         ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "viewName"));
-    Map<String, Object> context =
-        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, chain);
+    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
     Map<String, String> result = catalog.referencedByToQueryParam(Map.of(), context);
 
@@ -51,8 +50,7 @@ public class TestReferencedByQueryParam {
   public void testSingleViewNestedNamespace() {
     List<TableIdentifier> chain =
         ImmutableList.of(TableIdentifier.of(Namespace.of("prod", "analytics"), "quarterly_view"));
-    Map<String, Object> context =
-        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, chain);
+    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
     Map<String, String> result = catalog.referencedByToQueryParam(Map.of(), context);
 
@@ -68,8 +66,7 @@ public class TestReferencedByQueryParam {
         ImmutableList.of(
             TableIdentifier.of(Namespace.of("outer_ns"), "outer_view"),
             TableIdentifier.of(Namespace.of("inner_ns"), "inner_view"));
-    Map<String, Object> context =
-        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, chain);
+    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
     Map<String, String> result = catalog.referencedByToQueryParam(Map.of(), context);
 
@@ -83,8 +80,7 @@ public class TestReferencedByQueryParam {
   public void testViewNameWithCommaIsEncoded() {
     List<TableIdentifier> chain =
         ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "view,name"));
-    Map<String, Object> context =
-        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, chain);
+    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
     Map<String, String> result = catalog.referencedByToQueryParam(Map.of(), context);
 
@@ -115,7 +111,7 @@ public class TestReferencedByQueryParam {
   @Test
   public void testInvalidContextValueType() {
     Map<String, Object> context =
-        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, "not-a-list");
+        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, "not-a-list");
 
     assertThatThrownBy(() -> catalog.referencedByToQueryParam(Map.of(), context))
         .isInstanceOf(IllegalArgumentException.class)
@@ -125,8 +121,7 @@ public class TestReferencedByQueryParam {
   @Test
   public void testEmptyChainReturnsOriginalParams() {
     List<TableIdentifier> chain = ImmutableList.of();
-    Map<String, Object> context =
-        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, chain);
+    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
     Map<String, String> result =
         catalog.referencedByToQueryParam(ImmutableMap.of("key", "value"), context);
@@ -140,8 +135,7 @@ public class TestReferencedByQueryParam {
   @Test
   public void testExistingParamsArePreserved() {
     List<TableIdentifier> chain = ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "view"));
-    Map<String, Object> context =
-        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, chain);
+    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
     Map<String, String> original = ImmutableMap.of("snapshots", "all");
 
     Map<String, String> result = catalog.referencedByToQueryParam(original, context);
@@ -155,8 +149,7 @@ public class TestReferencedByQueryParam {
   public void testNamespaceWithSpecialCharsEncoded() {
     List<TableIdentifier> chain =
         ImmutableList.of(TableIdentifier.of(Namespace.of("ns with spaces"), "view/name"));
-    Map<String, Object> context =
-        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, chain);
+    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
 
     Map<String, String> result = catalog.referencedByToQueryParam(Map.of(), context);
 

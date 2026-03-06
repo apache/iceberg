@@ -20,7 +20,7 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.iceberg.catalog.Namespace
 import org.apache.iceberg.catalog.TableIdentifier
-import org.apache.iceberg.spark.ContextAwareTableCatalog
+import org.apache.iceberg.spark.ContextAwareCatalog
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
@@ -83,17 +83,17 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       }
       val context = new java.util.HashMap[String, Object]()
       context.put(
-        org.apache.iceberg.catalog.ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY,
+        org.apache.iceberg.catalog.ContextAwareCatalog.VIEW_IDENTIFIER_KEY,
         viewIdentifiers.asJava)
       try {
         catalog match {
-          case contextAwareCatalog: ContextAwareTableCatalog =>
+          case contextAwareCatalog: ContextAwareCatalog =>
             val table = contextAwareCatalog.loadTable(tableIdent, context)
             DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
-          case catalog if catalog.asTableCatalog.isInstanceOf[ContextAwareTableCatalog] =>
+          case catalog if catalog.asTableCatalog.isInstanceOf[ContextAwareCatalog] =>
             val table =
               catalog.asTableCatalog
-                .asInstanceOf[ContextAwareTableCatalog]
+                .asInstanceOf[ContextAwareCatalog]
                 .loadTable(tableIdent, context)
             DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
           case _ =>
@@ -101,14 +101,13 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
             DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
         }
       } catch {
-        case _: org.apache.spark.sql.catalyst.analysis.NoSuchTableException =>
+        case _: NoSuchTableException =>
           // The target might be a view, not a table. Try loading as a view
           // and recursively resolve with the accumulated chain.
           ViewUtil
             .loadView(catalog, tableIdent, context)
             .map(view => createViewRelation(tableParts, view, Some(viewChain)))
             .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
-        case _: Throwable => UnresolvedRelation(tableParts, options, isStreaming)
       }
 
     case c @ CreateIcebergView(
