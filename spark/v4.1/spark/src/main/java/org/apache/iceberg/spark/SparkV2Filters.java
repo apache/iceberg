@@ -354,7 +354,21 @@ public class SparkV2Filters {
 
   private static boolean canConvertToTerm(
       org.apache.spark.sql.connector.expressions.Expression expr) {
-    return isRef(expr) || isSystemFunc(expr);
+    return isRef(expr) || isSystemFunc(expr) || isVariantGetFunc(expr);
+  }
+
+  private static boolean isVariantGetFunc(
+      org.apache.spark.sql.connector.expressions.Expression expr) {
+    if (!(expr instanceof UserDefinedScalarFunc)) {
+      return false;
+    }
+    UserDefinedScalarFunc udf = (UserDefinedScalarFunc) expr;
+    String name = udf.name().toLowerCase(Locale.ROOT);
+    return ("variant_get".equals(name) || "try_variant_get".equals(name))
+        && udf.children().length == 3
+        && isRef(udf.children()[0])
+        && isLiteral(udf.children()[1])
+        && isLiteral(udf.children()[2]);
   }
 
   private static boolean isRef(org.apache.spark.sql.connector.expressions.Expression expr) {
@@ -475,6 +489,19 @@ public class SparkV2Filters {
           case "truncate":
             int width = (Integer) convertLiteral((Literal<?>) children[0]);
             return truncate(column, width);
+        }
+      }
+    } else if (children.length == 3) {
+      if (isRef(children[0]) && isLiteral(children[1]) && isLiteral(children[2])) {
+        String column = SparkUtil.toColumnName((NamedReference) children[0]);
+        String path = convertLiteral((Literal<?>) children[1]).toString();
+        String type = convertLiteral((Literal<?>) children[2]).toString();
+        switch (udfName) {
+          case "variant_get":
+          case "try_variant_get":
+            return Expressions.extract(column, path, type);
+          default:
+            break;
         }
       }
     }
