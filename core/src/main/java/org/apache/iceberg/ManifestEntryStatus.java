@@ -18,22 +18,27 @@
  */
 package org.apache.iceberg;
 
-/** Content type stored in a file. */
-public enum FileContent {
-  /** Data file content. Stored in data manifests since v1. */
-  DATA(0),
-  /** Position delete file content. Added in v2. */
-  POSITION_DELETES(1),
-  /** Equality delete file content. Added in v2. */
-  EQUALITY_DELETES(2),
-  /** Data manifest content, referencing data files in a root manifest. Added in v4. */
-  DATA_MANIFEST(3),
-  /** Delete manifest content, referencing delete files in a root manifest. Added in v4. */
-  DELETE_MANIFEST(4);
+/**
+ * Status of an entry in a manifest file.
+ *
+ * <p>This is a top-level enum to avoid duplication across manifest entry types (v3 ManifestEntry
+ * and v4 TrackingInfo).
+ *
+ * <p>For v4: Only ADDED and EXISTING entries are considered live for scan planning. DELETED and
+ * REPLACED entries are used for change detection but are not live. REPLACED may only be used for
+ * entries that have had data column updates or deletion vector changes, and every REPLACED entry
+ * will have a corresponding EXISTING entry for the same location.
+ */
+public enum ManifestEntryStatus {
+  EXISTING(0),
+  ADDED(1),
+  DELETED(2),
+  // v4 only: indicates an entry that has been replaced by a column update or DV change.
+  REPLACED(3);
 
   private final int id;
 
-  FileContent(int id) {
+  ManifestEntryStatus(int id) {
     this.id = id;
   }
 
