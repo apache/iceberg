@@ -216,27 +216,4 @@ interface TrackedFile {
    * @return a copy of this tracked file, with content stats for only the requested columns
    */
   TrackedFile copyWithStats(Set<Integer> requestedColumnIds);
-
-  /**
-   * Converts this tracked file to a DataFile.
-   *
-   * <p>Only valid when content_type is DATA. The partition spec must have been set on this
-   * TrackedFile prior to calling this method (typically done by the manifest reader).
-   *
-   * @return a DataFile representation
-   * @throws IllegalStateException if content_type is not DATA or partition spec is not set
-   */
-  DataFile asDataFile();
-
-  /**
-   * Converts this tracked file to a DeleteFile.
-   *
-   * <p>Only valid when content_type is EQUALITY_DELETES. The partition spec must have been set on
-   * this TrackedFile prior to calling this method (typically done by the manifest reader).
-   *
-   * @return a DeleteFile representation
-   * @throws IllegalStateException if content_type is not EQUALITY_DELETES or partition spec is not
-   *     set
-   */
-  DeleteFile asDeleteFile();
 }
