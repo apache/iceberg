@@ -181,6 +181,7 @@ public class ThreadPools {
    * #newExitingWorkerPool(String, int)}.
    */
   @SuppressWarnings("ShutdownHook")
+  @VisibleForTesting
   static synchronized void initShutdownHook() {
     if (shutdownHook == null) {
       shutdownHook =
@@ -287,13 +288,11 @@ public class ThreadPools {
      * @param service the executor service to add
      * @param timeout the timeout for shutdown operations
      */
-    @VisibleForTesting
     synchronized void addThreadPool(ExecutorService service, Duration timeout) {
       threadPoolsToShutdown.add(new ExecutorServiceWithTimeout(service, timeout));
     }
 
     /** Shut down all registered thread pools. */
-    @VisibleForTesting
     synchronized void shutdownAll() {
       long startTime = System.nanoTime();
       List<ExecutorServiceWithTimeout> pendingShutdown = Lists.newArrayList();
