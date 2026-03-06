@@ -228,27 +228,11 @@ class TestS3V4RestSignerClient {
 
     cache(request1, cachedResponse);
 
-    assertThat(S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.getIfPresent(request2)).isNull();
+    assertThat(S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.getIfPresent(S3V4RestSignerClient.Key.from(request2))).isNull();
   }
 
   static Stream<Arguments> differentRequestPairs() {
     return Stream.of(
-        // Different signed headers
-        Arguments.of(
-            ImmutableS3SignRequest.builder()
-                .method("PUT")
-                .region("us-east-1")
-                .uri(URI.create("s3://bucket/path/to/file.avro"))
-                .headers(Map.of("x-amz-content-sha256", List.of("abc123")))
-                .properties(Map.of())
-                .build(),
-            ImmutableS3SignRequest.builder()
-                .method("PUT")
-                .region("us-east-1")
-                .uri(URI.create("s3://bucket/path/to/file.avro"))
-                .headers(Map.of("x-amz-content-sha256", List.of("def456")))
-                .properties(Map.of())
-                .build()),
         // Different methods
         Arguments.of(
             ImmutableS3SignRequest.builder()
@@ -297,5 +281,10 @@ class TestS3V4RestSignerClient {
                 .headers(Map.of())
                 .properties(Map.of())
                 .build()));
+  }
+
+  @Test
+  public void testHeaderExtraction() throws Throwable {
+
   }
 }

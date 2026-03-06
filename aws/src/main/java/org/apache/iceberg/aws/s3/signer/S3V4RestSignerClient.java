@@ -18,13 +18,12 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
-import static org.apache.commons.lang3.StringUtils.isNotEmpty;
-
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +76,6 @@ public abstract class S3V4RestSignerClient
   static final String CACHE_CONTROL_PRIVATE = "private";
   static final String CACHE_CONTROL_NO_CACHE = "no-cache";
   static final String SIGNED_HEADERS = "SignedHeaders";
-  static final String SIGNED_HEADERS_QUERY_PARAMETER = "X-Amz-SignedHeaders";
 
   @VisibleForTesting
   static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
@@ -345,7 +343,7 @@ public abstract class S3V4RestSignerClient
     // strip out everything from the response which was unsigned
     Map<String, List<String>> signedHeaders =
         s3SignResponse.headers().entrySet().stream()
-            .filter((entry) -> signedHeaderList.contains(entry.getKey()))
+            .filter(entry -> signedHeaderList.contains(entry.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     return ImmutableSignedComponent.builder()
         .headers(signedHeaders)
@@ -355,36 +353,25 @@ public abstract class S3V4RestSignerClient
 
   /**
    * Given a signing response from a server, extract the signed headers from the query parameters.
+   * This requires authorization to come as the Authorization header.
    *
    * @param response The signing response which contains the URI with signed headers.
    * @return A list of signed header names.
    */
   @VisibleForTesting
   static List<String> enumerateSignedHeaders(S3SignResponse response) {
-    String headerEnum = null;
-    final String query = response.uri().getQuery();
-    if (isNotEmpty(query)) {
 
-      Map<String, String> queryParams = Splitter.on('&').withKeyValueSeparator('=').split(query);
-      String signedHeaders = queryParams.get(SIGNED_HEADERS_QUERY_PARAMETER);
+    final List<String> authHeaderList = response.headers().get(SIGNED_HEADERS);
+    String authHeader = null;
+    authHeader = authHeaderList != null ?  authHeaderList.get(0) : null;
 
-      if (isNotEmpty(signedHeaders)) {
-        headerEnum = signedHeaders;
-      }
-    }
-    if (headerEnum == null) {
-      // nothing in the ? headers, look for it in response headers
-      final List<String> headers = response.headers().get(SIGNED_HEADERS);
-      if (headers != null) {
-        // there's an assumption here that there is only one.
-        headerEnum = headers.get(0);
-      }
-    }
-    if (headerEnum == null) {
-      LOG.warn("No signed headers found in response: {}", response);
+    if (authHeader == null) {
+      LOG.warn("No " + SIGNED_HEADERS + " found in response: {}", response);
       return Collections.emptyList();
     }
-    return Splitter.on(";").omitEmptyStrings().trimResults().splitToList(headerEnum);
+    List<String> result = new ArrayList<>();
+    result.add(SIGNED_HEADERS)
+    return Splitter.on(";").omitEmptyStrings().trimResults().splitToList(authHeader);
   }
 
   @Override

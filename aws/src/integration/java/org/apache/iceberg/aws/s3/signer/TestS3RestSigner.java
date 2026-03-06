@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.s3.signer;
 
 import static org.apache.iceberg.aws.s3.signer.S3SignerServlet.UNSIGNED_HEADERS_PREDICATE;
+import static org.assertj.core.api.Assertions.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 
@@ -417,10 +418,14 @@ public class TestS3RestSigner {
               .build();
 
       SdkHttpFullRequest icebergResult = icebergSigner.sign(request, executionAttributes);
+      assertThat(icebergResult.headers().get("Authorization"))
+          .describedAs("Iceberg Signer returned no Authorization header")
+          .isNotNull();
 
       SdkHttpFullRequest awsResult = signWithAwsSigner(request, signerParams);
-
       assertThat(awsResult.headers().get("Authorization"))
+          .describedAs("Authorization Header from the AWS signer")
+          .isNotNull()
           .isEqualTo(icebergResult.headers().get("Authorization"));
 
       assertThat(awsResult.headers()).isEqualTo(icebergResult.headers());
