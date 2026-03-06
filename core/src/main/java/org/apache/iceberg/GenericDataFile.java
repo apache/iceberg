@@ -47,7 +47,8 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
       ByteBuffer keyMetadata,
       List<Long> splitOffsets,
       Integer sortOrderId,
-      Long firstRowId) {
+      Long firstRowId,
+      List<ContentFile.ColumnUpdateDetails> columnUpdateDetails) {
     super(
         specId,
         FileContent.DATA,
@@ -69,7 +70,8 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         firstRowId,
         null /* no referenced data file */,
         null /* no content offset */,
-        null /* no content size */);
+        null /* no content size */,
+        columnUpdateDetails);
   }
 
   /**

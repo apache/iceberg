@@ -175,6 +175,7 @@ public class ContentFileParser {
     Long contentOffset = JsonUtil.getLongOrNull(CONTENT_OFFSET, jsonNode);
     Long contentSizeInBytes = JsonUtil.getLongOrNull(CONTENT_SIZE, jsonNode);
 
+    // TODO gaborkaszab: should I pass column updates too?
     if (fileContent == FileContent.DATA) {
       return new GenericDataFile(
           specId,
@@ -186,7 +187,8 @@ public class ContentFileParser {
           keyMetadata,
           splitOffsets,
           sortOrderId,
-          firstRowId);
+          firstRowId,
+          null /* column update details */);
     } else {
       return new GenericDeleteFile(
           specId,

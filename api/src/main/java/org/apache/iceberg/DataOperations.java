@@ -45,7 +45,8 @@ public class DataOperations {
   /**
    * New data is added to overwrite existing data.
    *
-   * <p>This operation is implemented by {@link OverwriteFiles} and {@link ReplacePartitions}.
+   * <p>This operation is implemented by {@link OverwriteFiles}, {@link ReplacePartitions} and
+   * {@link ColumnUpdate}.
    */
   public static final String OVERWRITE = "overwrite";
 

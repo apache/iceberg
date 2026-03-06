@@ -124,6 +124,18 @@ public interface DataFile extends ContentFile<DataFile> {
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
 
+  // TODO gaborkaszab: made up IDs, TBD
+  Types.StructType COLUMN_UPDATE_ITEM =
+      Types.StructType.of(
+          required(202, "field_ids", ListType.ofRequired(203, IntegerType.get()), "doc"),
+          required(204, "file_path", StringType.get(), "The path of the column update file"));
+  Types.NestedField COLUMN_UPDATES =
+      optional(
+          200,
+          "column_updates",
+          ListType.ofRequired(201, COLUMN_UPDATE_ITEM),
+          "Details of the column updates");
+
   // NEXT ID TO ASSIGN: 146
 
   static StructType getType(StructType partitionType) {
@@ -149,7 +161,8 @@ public interface DataFile extends ContentFile<DataFile> {
         FIRST_ROW_ID,
         REFERENCED_DATA_FILE,
         CONTENT_OFFSET,
-        CONTENT_SIZE);
+        CONTENT_SIZE,
+        COLUMN_UPDATES);
   }
 
   /**

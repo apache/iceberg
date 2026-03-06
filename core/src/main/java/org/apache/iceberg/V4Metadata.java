@@ -299,7 +299,8 @@ class V4Metadata {
         DataFile.FIRST_ROW_ID,
         DataFile.REFERENCED_DATA_FILE,
         DataFile.CONTENT_OFFSET,
-        DataFile.CONTENT_SIZE);
+        DataFile.CONTENT_SIZE,
+        DataFile.COLUMN_UPDATES);
   }
 
   static class ManifestEntryWrapper<F extends ContentFile<F>>
@@ -506,6 +507,12 @@ class V4Metadata {
         case 19:
           if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).contentSizeInBytes();
+          } else {
+            return null;
+          }
+        case 20:
+          if (wrapped.content() == FileContent.DATA) {
+            return wrapped.columnUpdateDetails();
           } else {
             return null;
           }

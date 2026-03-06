@@ -27,10 +27,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -309,5 +313,88 @@ public abstract class DataTableScanTestBase<
             .collect(Collectors.toList())
             .get(0);
     assertThat(deletes.get(0).manifestLocation()).isEqualTo(deleteManifest.path());
+  }
+
+  @TestTemplate
+  public void testManifestEntriesWithColumnUpdates() throws IOException {
+    assumeThat(formatVersion).isEqualTo(4);
+
+    DataFile dataFileToUpdate =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-with-stats-" + UUID.randomUUID() + ".parquet")
+            .withFormat(FileFormat.PARQUET)
+            .withFileSizeInBytes(100)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(10)
+            .withMetrics(
+                new Metrics(
+                    10L,
+                    null, // column sizes
+                    null, // value counts
+                    null, // null value counts
+                    null, // nan value counts
+                    ImmutableMap.of(
+                        1, Conversions.toByteBuffer(Types.IntegerType.get(), 5)), // lower bounds
+                    ImmutableMap.of(
+                        1, Conversions.toByteBuffer(Types.IntegerType.get(), 15)))) // upper bounds
+            .build();
+
+    DataFile dataFileNotToUpdate =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/other-data-with-stats-" + UUID.randomUUID() + ".parquet")
+            .withFormat(FileFormat.PARQUET)
+            .withFileSizeInBytes(100)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(10)
+            .withMetrics(
+                new Metrics(
+                    10L,
+                    null, // column sizes
+                    null, // value counts
+                    null, // null value counts
+                    null, // nan value counts
+                    ImmutableMap.of(
+                        1, Conversions.toByteBuffer(Types.IntegerType.get(), 9)), // lower bounds
+                    ImmutableMap.of(
+                        1, Conversions.toByteBuffer(Types.IntegerType.get(), 11)))) // upper bounds
+            .build();
+
+    table.newFastAppend().appendFile(dataFileToUpdate).appendFile(dataFileNotToUpdate).commit();
+
+    DataFile updateFile =
+        DataFiles.builder(SPEC)
+            .withPath("/path/to/data-update.parquet")
+            .withFileSizeInBytes(2)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .withMetrics(
+                new Metrics(
+                    1L,
+                    null, // column sizes
+                    null, // value counts
+                    null, // null value counts
+                    null, // nan value counts
+                    ImmutableMap.of(
+                        1, Conversions.toByteBuffer(Types.IntegerType.get(), 2)), // lower bounds
+                    ImmutableMap.of(
+                        1, Conversions.toByteBuffer(Types.IntegerType.get(), 5)))) // upper bounds
+            .build();
+
+    table
+        .newColumnUpdate()
+        .withFieldIds(List.of(1))
+        .addColumnUpdate(dataFileToUpdate, updateFile)
+        .commit();
+
+    ScanT scan = newScan().filter(Expressions.equal("id", 10));
+    try (CloseableIterable<T> scanTasks = scan.planFiles()) {
+      List<T> tasks = Lists.newArrayList(scanTasks);
+      assertThat(tasks).as("Should have one file matching the filter").hasSize(1);
+      for (T task : tasks) {
+        FileScanTask fileScanTask = (FileScanTask) task;
+        assertThat(fileScanTask).isNotNull();
+        assertThat(fileScanTask.file().location()).isEqualTo(dataFileNotToUpdate.location());
+      }
+    }
   }
 }

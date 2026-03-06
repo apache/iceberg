@@ -197,6 +197,11 @@ public class BaseTable
   }
 
   @Override
+  public ColumnUpdate newColumnUpdate() {
+    return new BaseColumnUpdate(name, ops).reportWith(reporter);
+  }
+
+  @Override
   public RewriteFiles newRewrite() {
     return new BaseRewriteFiles(name, ops).reportWith(reporter);
   }
