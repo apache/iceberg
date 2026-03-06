@@ -266,12 +266,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @BeforeEach
   public void createCatalog() throws Exception {
-    File warehouse = temp.toFile();
-
     this.backendCatalog = new InMemoryCatalog();
-    this.backendCatalog.initialize(
-        "in-memory",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
 
     HTTPHeaders catalogHeaders =
         HTTPHeaders.of(
@@ -307,6 +302,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Override
   protected RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
     Configuration conf = new Configuration();
+    File warehouse = temp.toFile();
+
+    backendCatalog.initialize(
+        "in-memory",
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath())
+            .putAll(additionalProperties)
+            .build());
 
     RESTCatalog catalog =
         new RESTCatalog(
