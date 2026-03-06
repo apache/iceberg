@@ -29,7 +29,7 @@ import org.apache.iceberg.types.Types;
  * <p>This struct may only be defined when content_type is DATA (0), and must be null for all other
  * content types.
  */
-interface DvInfo {
+interface DeletionVector {
   Types.NestedField LOCATION =
       Types.NestedField.required(
           155, "location", Types.StringType.get(), "Location of the file containing the DV");

@@ -18,22 +18,17 @@
  */
 package org.apache.iceberg;
 
-/**
- * Content type stored in a file.
- *
- * <p>For V1-V3 tables: DATA, POSITION_DELETES, or EQUALITY_DELETES.
- *
- * <p>For V4 tables: DATA, EQUALITY_DELETES, DATA_MANIFEST, or DELETE_MANIFEST. Note that
- * POSITION_DELETES is not valid in V4 manifests; deletion vectors are instead represented as
- * optional DV info on DATA entries.
- */
+/** Content type stored in a file. */
 public enum FileContent {
+  /** Data file content. Stored in data manifests since v1. */
   DATA(0),
+  /** Position delete file content. Added in v2. */
   POSITION_DELETES(1),
+  /** Equality delete file content. Added in v2. */
   EQUALITY_DELETES(2),
-  /** Data manifest entry (V4+ only) - references data files in a root manifest. */
+  /** Data manifest content, referencing data files in a root manifest. Added in v4. */
   DATA_MANIFEST(3),
-  /** Delete manifest entry (V4+ only) - references delete files in a root manifest. */
+  /** Delete manifest content, referencing delete files in a root manifest. Added in v4. */
   DELETE_MANIFEST(4);
 
   private final int id;
