@@ -714,7 +714,7 @@ License (from POM): BSD 2-Clause license - http://opensource.org/licenses/BSD-2-
 
 --------------------------------------------------------------------------------
 
-Group: io.airlift  Name: aircompressor  Version: 2.0.2
+Group: io.airlift  Name: aircompressor  Version: 2.0.3
 Project URL (from POM): https://github.com/airlift/aircompressor
 License (from POM): Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.html
 
