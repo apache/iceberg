@@ -19,7 +19,6 @@
 package org.apache.iceberg.aws.s3.signer;
 
 import static org.apache.iceberg.aws.s3.signer.S3SignerServlet.UNSIGNED_HEADERS_PREDICATE;
-import static org.assertj.core.api.Assertions.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 
@@ -74,8 +73,6 @@ import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -186,7 +183,6 @@ public class TestS3RestSigner {
 
     s3.createMultipartUpload(
         CreateMultipartUploadRequest.builder().bucket(BUCKET).key("random/multipart-key").build());
-    S3V4RestSignerClient.resetCacheHitMissCounters();
   }
 
   private static Server initHttpServer() throws Exception {
@@ -210,65 +206,24 @@ public class TestS3RestSigner {
     return server;
   }
 
-  /**
-   * Assert the cache hits and misses match the values.
-   *
-   * @param hits expected hits
-   * @param misses expected misses
-   */
-  private void assertCacheHitsAndMisses(int hits, int misses) {
-    assertThat(S3V4RestSignerClient.cacheHits()).describedAs("Cache hits").isEqualTo(hits);
-    assertThat(S3V4RestSignerClient.cacheMisses()).describedAs("Cache misses").isEqualTo(misses);
-  }
-
   @Test
   public void validateGetObject() {
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").build());
-    assertCacheHitsAndMisses(0, 1);
-
-    // signer caching should kick in when repeating the same request with a range
-    s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").range("0-10").build());
-    assertCacheHitsAndMisses(1, 1);
-  }
-
-  @Test
-  public void validateHeadObjectUnsignedHeaders() {
-    final HeadObjectResponse response =
-        s3.headObject(HeadObjectRequest.builder().bucket(BUCKET).key("random/key").build());
-    assertCacheHitsAndMisses(0, 1);
-
-    // the etag is passed in: the same object is returned and the same cached signature is retained.
-    // if the ifMatch header was cached, this would have resulted in a failure as there would
-    // be a signature mismatch.
-    s3.headObject(
-        HeadObjectRequest.builder()
-            .bucket(BUCKET)
-            .key("random/key")
-            .ifMatch(response.eTag())
-            .build());
-    assertCacheHitsAndMisses(1, 1);
+    // signer caching should kick in when repeating the same request
+    s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("random/key").build());
   }
 
   @Test
   public void validatePutObject() {
-    int hits = S3V4RestSignerClient.cacheHits();
     s3.putObject(
         PutObjectRequest.builder().bucket(BUCKET).key("some/key").build(), Paths.get("/etc/hosts"));
-    assertCacheHitsAndMisses(0, 1);
-    s3.putObject(
-        PutObjectRequest.builder().bucket(BUCKET).key("some/key").build(),
-        RequestBody.fromString("update"));
-    assertCacheHitsAndMisses(0, 2);
   }
 
   @Test
   public void validateDeleteObjects() {
-    int hits = S3V4RestSignerClient.cacheHits();
-    int misses = S3V4RestSignerClient.cacheMisses();
     Path sourcePath = Paths.get("/etc/hosts");
     s3.putObject(PutObjectRequest.builder().bucket(BUCKET).key("some/key1").build(), sourcePath);
     s3.putObject(PutObjectRequest.builder().bucket(BUCKET).key("some/key2").build(), sourcePath);
-    S3V4RestSignerClient.resetCacheHitMissCounters();
 
     Delete objectsToDelete =
         Delete.builder()
@@ -277,28 +232,12 @@ public class TestS3RestSigner {
                 ObjectIdentifier.builder().key("some/key2").build())
             .build();
 
-    final DeleteObjectsRequest request =
-        DeleteObjectsRequest.builder().bucket(BUCKET).delete(objectsToDelete).build();
-    s3.deleteObjects(request);
-    assertCacheHitsAndMisses(0, 1);
-
-    // issue exactly the same object. DELETE must never be cached as all paths
-    // need review by the remote service.
-    s3.deleteObjects(request);
-    assertCacheHitsAndMisses(0, 2);
+    s3.deleteObjects(DeleteObjectsRequest.builder().bucket(BUCKET).delete(objectsToDelete).build());
   }
 
   @Test
   public void validateListPrefix() {
     s3.listObjectsV2(ListObjectsV2Request.builder().bucket(BUCKET).prefix("some/prefix/").build());
-    assertCacheHitsAndMisses(0, 1);
-    s3.listObjectsV2(ListObjectsV2Request.builder().bucket(BUCKET).prefix("some/prefix/").build());
-    // list is a GET.
-    assertCacheHitsAndMisses(1, 1);
-    assertCacheHitsAndMisses(1, 1);
-    s3.listObjectsV2(ListObjectsV2Request.builder().bucket(BUCKET).prefix("some/prefix/2").build());
-    // change the prefix and the cache is missed
-    assertCacheHitsAndMisses(1, 2);
   }
 
   @Test
@@ -306,7 +245,6 @@ public class TestS3RestSigner {
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("encoded/key=value/file").build());
     // signer caching should kick in when repeating the same request
     s3.getObject(GetObjectRequest.builder().bucket(BUCKET).key("encoded/key=value/file").build());
-    assertCacheHitsAndMisses(1, 1);
   }
 
   @Test
@@ -321,7 +259,7 @@ public class TestS3RestSigner {
   }
 
   @Test
-  public void validatedUploadPart() {
+  public void validatedUploadMultiPart() {
     final String key = "some/multipart-key";
     String multipartUploadId =
         s3.createMultipartUpload(
@@ -418,14 +356,10 @@ public class TestS3RestSigner {
               .build();
 
       SdkHttpFullRequest icebergResult = icebergSigner.sign(request, executionAttributes);
-      assertThat(icebergResult.headers().get("Authorization"))
-          .describedAs("Iceberg Signer returned no Authorization header")
-          .isNotNull();
 
       SdkHttpFullRequest awsResult = signWithAwsSigner(request, signerParams);
+
       assertThat(awsResult.headers().get("Authorization"))
-          .describedAs("Authorization Header from the AWS signer")
-          .isNotNull()
           .isEqualTo(icebergResult.headers().get("Authorization"));
 
       assertThat(awsResult.headers()).isEqualTo(icebergResult.headers());

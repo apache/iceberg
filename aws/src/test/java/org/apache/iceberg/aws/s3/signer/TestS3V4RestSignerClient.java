@@ -178,10 +178,10 @@ class TestS3V4RestSignerClient {
   void identicalRequestsCauseCacheHit() {
     S3SignRequest request1 =
         ImmutableS3SignRequest.builder()
-            .method("PUT")
+            .method("GET")
             .region("us-east-1")
             .uri(URI.create("s3://bucket/path/to/file.avro"))
-            .headers(Map.of("x-amz-content-sha256", List.of("abc123")))
+            .headers(Map.of("x-amz-content-sha256", List.of("UNSIGNED-PAYLOAD")))
             .properties(Map.of())
             .build();
 
@@ -194,7 +194,9 @@ class TestS3V4RestSignerClient {
     S3V4RestSignerClient.SignedComponent cachedResponse = cache(request1, response);
 
     S3SignRequest request2 = ImmutableS3SignRequest.builder().from(request1).build();
-    assertThat(S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.getIfPresent(request2))
+    assertThat(
+            S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.getIfPresent(
+                S3V4RestSignerClient.Key.from(request2)))
         .isEqualTo(cachedResponse);
   }
 
@@ -228,7 +230,10 @@ class TestS3V4RestSignerClient {
 
     cache(request1, cachedResponse);
 
-    assertThat(S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.getIfPresent(S3V4RestSignerClient.Key.from(request2))).isNull();
+    assertThat(
+            S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.getIfPresent(
+                S3V4RestSignerClient.Key.from(request2)))
+        .isNull();
   }
 
   static Stream<Arguments> differentRequestPairs() {
@@ -281,10 +286,5 @@ class TestS3V4RestSignerClient {
                 .headers(Map.of())
                 .properties(Map.of())
                 .build()));
-  }
-
-  @Test
-  public void testHeaderExtraction() throws Throwable {
-
   }
 }

@@ -23,20 +23,16 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
@@ -75,14 +71,10 @@ public abstract class S3V4RestSignerClient
   static final String CACHE_CONTROL = "Cache-Control";
   static final String CACHE_CONTROL_PRIVATE = "private";
   static final String CACHE_CONTROL_NO_CACHE = "no-cache";
-  static final String SIGNED_HEADERS = "SignedHeaders";
 
   @VisibleForTesting
   static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
-
-  private static final AtomicInteger CACHE_HITS = new AtomicInteger();
-  private static final AtomicInteger CACHE_MISSES = new AtomicInteger();
 
   private static final String SCOPE = "sign";
 
@@ -178,32 +170,6 @@ public abstract class S3V4RestSignerClient
     return httpClient;
   }
 
-  /**
-   * Counter of cache hits.
-   *
-   * @return current number of requests which were succesfully satisified by a cached signature.
-   */
-  @VisibleForTesting
-  static int cacheHits() {
-    return CACHE_HITS.get();
-  }
-
-  /**
-   * Counter of cache misses
-   *
-   * @return current number of requests which required a call to the rest signer service.
-   */
-  @VisibleForTesting
-  static int cacheMisses() {
-    return CACHE_MISSES.get();
-  }
-
-  @VisibleForTesting
-  static void resetCacheHitMissCounters() {
-    CACHE_HITS.set(0);
-    CACHE_MISSES.set(0);
-  }
-
   @VisibleForTesting
   AuthSession authSession() {
     ImmutableMap.Builder<String, String> properties =
@@ -291,10 +257,8 @@ public abstract class S3V4RestSignerClient
     SignedComponent signedComponent;
 
     if (null != cachedSignedComponent) {
-      CACHE_HITS.incrementAndGet();
       signedComponent = cachedSignedComponent;
     } else {
-      CACHE_MISSES.incrementAndGet();
       Map<String, String> responseHeaders = Maps.newHashMap();
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
       S3SignResponse s3SignResponse =
@@ -308,16 +272,14 @@ public abstract class S3V4RestSignerClient
                   ErrorHandlers.defaultErrorHandler(),
                   responseHeadersConsumer);
 
+      signedComponent =
+          ImmutableSignedComponent.builder()
+              .headers(s3SignResponse.headers())
+              .signedURI(s3SignResponse.uri())
+              .build();
+
       if (canBeCached(responseHeaders)) {
-        // determine the list of signed headers
-        signedComponent = buildComponent(s3SignResponse);
         SIGNED_COMPONENT_CACHE.put(cacheKey, signedComponent);
-      } else {
-        signedComponent =
-            ImmutableSignedComponent.builder()
-                .headers(s3SignResponse.headers())
-                .signedURI(s3SignResponse.uri())
-                .build();
       }
     }
 
@@ -329,49 +291,6 @@ public abstract class S3V4RestSignerClient
     reconstructHeaders(signedComponent.headers(), mutableRequest);
 
     return mutableRequest.build();
-  }
-
-  /**
-   * Build a signed component from the response.
-   *
-   * @param s3SignResponse response
-   * @return the component
-   */
-  @VisibleForTesting
-  static SignedComponent buildComponent(final S3SignResponse s3SignResponse) {
-    final List<String> signedHeaderList = enumerateSignedHeaders(s3SignResponse);
-    // strip out everything from the response which was unsigned
-    Map<String, List<String>> signedHeaders =
-        s3SignResponse.headers().entrySet().stream()
-            .filter(entry -> signedHeaderList.contains(entry.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    return ImmutableSignedComponent.builder()
-        .headers(signedHeaders)
-        .signedURI(s3SignResponse.uri())
-        .build();
-  }
-
-  /**
-   * Given a signing response from a server, extract the signed headers from the query parameters.
-   * This requires authorization to come as the Authorization header.
-   *
-   * @param response The signing response which contains the URI with signed headers.
-   * @return A list of signed header names.
-   */
-  @VisibleForTesting
-  static List<String> enumerateSignedHeaders(S3SignResponse response) {
-
-    final List<String> authHeaderList = response.headers().get(SIGNED_HEADERS);
-    String authHeader = null;
-    authHeader = authHeaderList != null ?  authHeaderList.get(0) : null;
-
-    if (authHeader == null) {
-      LOG.warn("No " + SIGNED_HEADERS + " found in response: {}", response);
-      return Collections.emptyList();
-    }
-    List<String> result = new ArrayList<>();
-    result.add(SIGNED_HEADERS)
-    return Splitter.on(";").omitEmptyStrings().trimResults().splitToList(authHeader);
   }
 
   @Override

@@ -43,7 +43,6 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
@@ -70,24 +69,35 @@ public class S3SignerServlet extends HttpServlet {
 
   static final Clock SIGNING_CLOCK = Clock.fixed(Instant.now(), ZoneId.of("UTC"));
 
-  /**
-   * Headers which are not to be signed and also filtered out by the signer client before caching
-   * the response.
-   */
-  public static final Set<String> UNSIGNED_HEADERS =
-      ImmutableSet.of(
-          "Content-Type",
-          "amz-sdk-invocation-id",
-          "amz-sdk-retry",
+  /** Headers which are not to be signed. */
+  private static final Set<String> UNSIGNED_HEADERS =
+      // Note: only Host and x-amz-* headers are required to be signed. Other headers are optional.
+      // Also see
+      // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html#create-canonical-request
+      // for guidelines about headers that are safe to exclude from signing.
+      Set.of(
+          // Excluded by software.amazon.awssdk.http.auth.aws.internal.signer.V4CanonicalRequest
+          "connection",
+          "expect",
+          "transfer-encoding",
+          "user-agent",
+          "x-amzn-trace-id",
+          "x-forwarded-for",
+          // S3-specific headers
+          "range",
+          // Conditional headers
           "if-match",
           "if-modified-since",
           "if-none-match",
           "if-unmodified-since",
-          "range",
+          // Transient headers
+          "keep-alive",
+          "proxy-authenticate",
+          "proxy-authorization",
           "referer",
-          "user-agent",
-          "x-amz-date",
-          "x-amz-content-sha256");
+          "te",
+          "trailer",
+          "upgrade");
 
   private static final String POST = "POST";
 
