@@ -37,6 +37,10 @@ public class ViewVersionParser {
   private static final String SCHEMA_ID = "schema-id";
   private static final String DEFAULT_CATALOG = "default-catalog";
   private static final String DEFAULT_NAMESPACE = "default-namespace";
+  private static final String STORAGE_TABLE = "storage-table";
+  private static final String STORAGE_TABLE_NAMESPACE = "namespace";
+  private static final String STORAGE_TABLE_NAME = "name";
+  private static final String STORAGE_TABLE_CATALOG = "catalog";
 
   private ViewVersionParser() {}
 
@@ -61,6 +65,20 @@ public class ViewVersionParser {
       ViewRepresentationParser.toJson(representation, generator);
     }
     generator.writeEndArray();
+
+    if (version.storageTable() != null) {
+      StorageTableIdentifier storageTable = version.storageTable();
+      generator.writeObjectFieldStart(STORAGE_TABLE);
+      JsonUtil.writeStringArray(
+          STORAGE_TABLE_NAMESPACE,
+          Arrays.asList(storageTable.namespace().levels()),
+          generator);
+      generator.writeStringField(STORAGE_TABLE_NAME, storageTable.name());
+      if (storageTable.hasCatalog()) {
+        generator.writeStringField(STORAGE_TABLE_CATALOG, storageTable.catalog());
+      }
+      generator.writeEndObject();
+    }
 
     generator.writeEndObject();
   }
@@ -99,6 +117,20 @@ public class ViewVersionParser {
     Namespace defaultNamespace =
         Namespace.of(JsonUtil.getStringArray(JsonUtil.get(DEFAULT_NAMESPACE, node)));
 
+    StorageTableIdentifier storageTable = null;
+    if (node.has(STORAGE_TABLE)) {
+      JsonNode storageTableNode = node.get(STORAGE_TABLE);
+      Namespace storageNamespace =
+          Namespace.of(JsonUtil.getStringArray(JsonUtil.get(STORAGE_TABLE_NAMESPACE, storageTableNode)));
+      String storageTableName = JsonUtil.getString(STORAGE_TABLE_NAME, storageTableNode);
+      String storageTableCatalog = JsonUtil.getStringOrNull(STORAGE_TABLE_CATALOG, storageTableNode);
+      if (storageTableCatalog != null) {
+        storageTable = StorageTableIdentifier.of(storageTableCatalog, storageNamespace, storageTableName);
+      } else {
+        storageTable = StorageTableIdentifier.of(storageNamespace, storageTableName);
+      }
+    }
+
     return ImmutableViewVersion.builder()
         .versionId(versionId)
         .timestampMillis(timestamp)
@@ -107,6 +139,7 @@ public class ViewVersionParser {
         .defaultNamespace(defaultNamespace)
         .defaultCatalog(defaultCatalog)
         .representations(representations.build())
+        .storageTable(storageTable)
         .build();
   }
 }

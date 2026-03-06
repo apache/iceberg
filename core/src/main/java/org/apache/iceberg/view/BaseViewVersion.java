@@ -45,4 +45,8 @@ interface BaseViewVersion extends ViewVersion {
   @Override
   @Nullable
   String defaultCatalog();
+
+  @Override
+  @Nullable
+  StorageTableIdentifier storageTable();
 }

@@ -78,4 +78,16 @@ public interface ViewVersion {
 
   /** The default namespace to use when the SQL does not contain a namespace. */
   Namespace defaultNamespace();
+
+  /**
+   * Return the storage table identifier for this version, or null if this is a plain logical view.
+   *
+   * <p>When non-null, this version represents a materialized view whose precomputed results are
+   * stored in the identified Iceberg table.
+   *
+   * @return a {@link StorageTableIdentifier}, or null for plain views
+   */
+  default StorageTableIdentifier storageTable() {
+    return null;
+  }
 }
