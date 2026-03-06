@@ -2185,11 +2185,23 @@ components:
           $ref: '#/components/schemas/TableIdentifier'
 
     Namespace:
-      description: Reference to one or more levels of a namespace
-      type: array
-      items:
-        type: string
-      example: [ "accounting", "tax" ]
+      oneOf:
+        - type: array
+          items:
+            type: string
+          description: "Reference to one or more levels of a namespace"
+        - type: object
+          required:
+            - namespace
+          properties:
+            namespace:
+              type: array
+              items:
+                type: string
+              description: "Reference to one or more levels of a namespace"
+            namespace-uuid:
+              type: string
+              description: "Optional UUID representing the unique identifier for the namespace."
 
     PageToken:
       description:
