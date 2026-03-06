@@ -74,6 +74,9 @@ jobs:
 
   kafka-connect-tests:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
     strategy:
       max-parallel: 15
       matrix:
@@ -107,3 +110,50 @@ jobs:
         name: test logs
         path: |
           **/build/testlogs
+    # ------------------------------------------------------------------
+    # Trivy CVE scan (JVM 21 only — dependency CVEs are JVM-independent)
+    #
+    # Scans bundled jars for CRITICAL/HIGH vulnerabilities. This is
+    # report-only and does NOT fail the build (exit-code: '0').
+    # On push: results are uploaded as SARIF to GitHub's Security tab.
+    # On PRs: results are printed to the CI log for visibility.
+    # ------------------------------------------------------------------
+    - name: Build Kafka Connect distribution for scanning
+      if: matrix.jvm == 21
+      run: |
+        ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions=3 \
+          :iceberg-kafka-connect:iceberg-kafka-connect-runtime:distZip \
+          -Pquick=true -x test -x javadoc
+    - name: Unpack distribution for scanning
+      if: matrix.jvm == 21
+      run: |
+        mkdir -p /tmp/kafka-connect-scan
+        unzip kafka-connect/kafka-connect-runtime/build/distributions/iceberg-kafka-connect-runtime-*.zip \
+          -d /tmp/kafka-connect-scan
+    - name: Run Trivy vulnerability scan
+      if: matrix.jvm == 21
+      uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # v0.34.1
+      with:
+        scan-type: 'fs'
+        scan-ref: '/tmp/kafka-connect-scan'
+        scanners: 'vuln'
+        severity: 'CRITICAL,HIGH'
+        ignore-unfixed: true
+        exit-code: '0'
+    - name: Run Trivy vulnerability scan (SARIF)
+      if: matrix.jvm == 21 && github.event_name == 'push'
+      uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # v0.34.1
+      with:
+        scan-type: 'fs'
+        scan-ref: '/tmp/kafka-connect-scan'
+        scanners: 'vuln'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH'
+        ignore-unfixed: true
+        exit-code: '0'
+    - name: Upload Trivy results to GitHub Security tab
+      if: matrix.jvm == 21 && github.event_name == 'push'
+      uses: github/codeql-action/upload-sarif@c4a7bc332abaec03596ff2803dd7f3ca3a238975 # v3
+      with:
+        sarif_file: 'trivy-results.sarif'
