@@ -101,9 +101,11 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
 import org.apache.iceberg.view.ImmutableViewVersion;
+import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewProperties;
 import org.apache.iceberg.view.ViewRepresentation;
 import org.apache.iceberg.view.ViewUtil;
 import org.apache.iceberg.view.ViewVersion;
@@ -1710,6 +1712,28 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .map(ViewVersion::versionId)
               .max(Integer::compareTo)
               .orElseGet(metadata::currentVersionId);
+
+      if (!PropertyUtil.propertyAsBoolean(
+          properties,
+          ViewProperties.REPLACE_DROP_DIALECT_ALLOWED,
+          ViewProperties.REPLACE_DROP_DIALECT_ALLOWED_DEFAULT)) {
+        Map<String, ViewRepresentation> representationsMap = Maps.newHashMap();
+        for (ViewRepresentation representation : representations) {
+          if (representation instanceof SQLViewRepresentation) {
+            representationsMap.put(
+                ((SQLViewRepresentation) representation).dialect(), representation);
+          }
+        }
+
+        for (ViewRepresentation representation : metadata.currentVersion().representations()) {
+          if (representation instanceof SQLViewRepresentation) {
+            String dialect = ((SQLViewRepresentation) representation).dialect();
+            if (!representationsMap.containsKey(dialect)) {
+              representations.add(representation);
+            }
+          }
+        }
+      }
 
       ViewVersion viewVersion =
           ImmutableViewVersion.builder()

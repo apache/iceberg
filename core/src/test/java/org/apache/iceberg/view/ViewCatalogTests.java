@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Schema;
@@ -875,6 +876,55 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThatThrownBy(() -> tableCatalog().renameTable(tableIdentifier, viewIdentifier))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("Cannot rename ns.table to ns.view. View already exists");
+  }
+
+  @Test
+  public void replaceViewWithMultiDialect() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(tableIdentifier.namespace());
+    }
+
+    View view =
+        catalog()
+            .buildView(tableIdentifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(tableIdentifier.namespace())
+            .withQuery("spark", "select * from ns.tbl")
+            .withQuery("trino", "select * from ns.tbl")
+            .create();
+
+    assertThat(catalog().viewExists(tableIdentifier)).as("View should exist").isTrue();
+
+    ViewMetadata original = ((BaseView) view).operations().current();
+    assertThat(original.metadataFileLocation()).isNotNull();
+
+    catalog()
+        .buildView(tableIdentifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(tableIdentifier.namespace())
+        .withQuery("trino", "select * from ns.tbl limit 10")
+        .replace();
+
+    assertThat(catalog().viewExists(tableIdentifier)).as("View should exist").isTrue();
+
+    View newView = catalog().loadView(tableIdentifier);
+    List<ViewRepresentation> representations = newView.currentVersion().representations();
+    assertThat(representations).hasSize(2);
+    assertThat(representations)
+        .containsExactlyInAnyOrder(
+            ImmutableSQLViewRepresentation.builder()
+                .dialect("spark")
+                .sql("select * from ns.tbl")
+                .build(),
+            ImmutableSQLViewRepresentation.builder()
+                .dialect("trino")
+                .sql("select * from ns.tbl limit 10")
+                .build());
+
+    assertThat(catalog().dropView(tableIdentifier)).isTrue();
+    assertThat(catalog().viewExists(tableIdentifier)).as("View should not exist").isFalse();
   }
 
   @Test
