@@ -30,6 +30,8 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1329,6 +1331,28 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(result.fileListLocation())
         .as("File list location should not be set when createFileList is false")
         .isEqualTo(NOT_APPLICABLE);
+  }
+
+  @TestTemplate
+  public void testRewritePathWithExecutorService() throws Exception {
+    String sourceLocation = newTableLocation();
+    Table sourceTable = createTableWithSnapshots(sourceLocation, 50);
+
+    ExecutorService service = Executors.newFixedThreadPool(4);
+    try {
+      sourceTable.refresh();
+      RewriteTablePath.Result result =
+          actions()
+              .rewriteTablePath(sourceTable)
+              .rewriteLocationPrefix(sourceLocation, targetTableLocation())
+              .startVersion("v1.metadata.json")
+              .executeWith(service)
+              .execute();
+
+      checkFileNum(50, 50, 50, 200, result);
+    } finally {
+      service.shutdown();
+    }
   }
 
   protected void checkFileNum(
