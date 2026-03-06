@@ -30,6 +30,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTCatalogProperties;
@@ -72,7 +73,7 @@ public class OAuth2RefreshCredentialsHandler
         httpClient()
             .get(
                 credentialsEndpoint,
-                null != planId ? Map.of("planId", planId) : null,
+                credentialsQueryParams(),
                 LoadCredentialsResponse.class,
                 Map.of(),
                 ErrorHandlers.defaultErrorHandler());
@@ -124,6 +125,18 @@ public class OAuth2RefreshCredentialsHandler
     }
 
     return client;
+  }
+
+  private Map<String, String> credentialsQueryParams() {
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (null != planId) {
+      queryParams.put("planId", planId);
+    }
+    String referencedBy = properties.get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
+    if (referencedBy != null) {
+      queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
+    }
+    return queryParams.isEmpty() ? null : queryParams;
   }
 
   @Override
