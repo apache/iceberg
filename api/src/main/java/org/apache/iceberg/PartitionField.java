@@ -35,8 +35,7 @@ public class PartitionField implements Serializable {
     this(ImmutableList.of(sourceId), fieldId, name, transform);
   }
 
-  PartitionField(
-      List<Integer> sourceIds, int fieldId, String name, Transform<?, ?> transform) {
+  PartitionField(List<Integer> sourceIds, int fieldId, String name, Transform<?, ?> transform) {
     this.sourceIds = ImmutableList.copyOf(sourceIds);
     this.fieldId = fieldId;
     this.name = name;
