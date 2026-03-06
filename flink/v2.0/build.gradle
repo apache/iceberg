@@ -32,7 +32,14 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
+<<<<<<< HEAD:flink/v2.0/build.gradle
     compileOnly libs.flink20.avro
+=======
+    // for lookup join cache
+    implementation libs.caffeine
+
+    compileOnly libs.flink116.avro
+>>>>>>> ac7e66b07 ([FLINK] Implement Iceberg lookup join functionality, and source code and junit test code.):flink/v1.16/build.gradle
     // for dropwizard histogram metrics implementation
     compileOnly libs.flink20.metrics.dropwizard
     compileOnly libs.flink20.streaming.java
