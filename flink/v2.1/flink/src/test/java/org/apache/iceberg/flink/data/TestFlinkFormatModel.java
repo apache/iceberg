@@ -26,7 +26,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.types.Types;
 
 public class TestFlinkFormatModel extends BaseFormatModelTests<RowData> {
 
@@ -46,20 +45,7 @@ public class TestFlinkFormatModel extends BaseFormatModelTests<RowData> {
   }
 
   @Override
-  protected void assertEqualsEngineToGeneric(
-      Types.StructType struct, List<RowData> expected, List<Record> actual) {
-    Schema schema = new Schema(struct.fields());
-    for (int i = 0; i < expected.size(); i++) {
-      TestHelpers.assertRowData(schema, actual.get(i), expected.get(i));
-    }
-  }
-
-  @Override
-  protected void assertEqualsGenericToEngine(
-      Types.StructType struct, List<Record> expected, List<RowData> actual) {
-    Schema schema = new Schema(struct.fields());
-    for (int i = 0; i < expected.size(); i++) {
-      TestHelpers.assertRowData(schema, expected.get(i), actual.get(i));
-    }
+  protected void assertEquals(Schema schema, List<RowData> expected, List<RowData> actual) {
+    TestHelpers.assertRows(actual, expected, FlinkSchemaUtil.convert(schema));
   }
 }

@@ -25,7 +25,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.BaseFormatModelTests;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
@@ -46,20 +45,10 @@ public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
   }
 
   @Override
-  protected void assertEqualsEngineToGeneric(
-      Types.StructType struct, List<InternalRow> expected, List<Record> actual) {
+  protected void assertEquals(Schema schema, List<InternalRow> expected, List<InternalRow> actual) {
     assertThat(actual).hasSameSizeAs(expected);
     for (int i = 0; i < expected.size(); i++) {
-      GenericsHelpers.assertEqualsUnsafe(struct, actual.get(i), expected.get(i));
-    }
-  }
-
-  @Override
-  protected void assertEqualsGenericToEngine(
-      Types.StructType struct, List<Record> expected, List<InternalRow> actual) {
-    assertThat(actual).hasSameSizeAs(expected);
-    for (int i = 0; i < expected.size(); i++) {
-      GenericsHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
+      TestHelpers.assertEquals(schema, expected.get(i), actual.get(i));
     }
   }
 }
