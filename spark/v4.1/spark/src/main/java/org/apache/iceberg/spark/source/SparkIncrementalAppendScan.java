@@ -21,63 +21,49 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
-import org.apache.iceberg.Scan;
-import org.apache.iceberg.ScanTask;
-import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.read.Statistics;
 
-class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
+class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
 
-  private final Snapshot snapshot;
-  private final String branch;
+  private final long startSnapshotId;
+  private final Long endSnapshotId;
 
-  SparkBatchQueryScan(
+  SparkIncrementalAppendScan(
       SparkSession spark,
       Table table,
-      Schema schema,
-      Snapshot snapshot,
-      String branch,
-      Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
+      long startSnapshotId,
+      Long endSnapshotId,
+      IncrementalAppendScan scan,
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, schema, scan, readConf, projection, filters, scanReportSupplier);
-    this.snapshot = snapshot;
-    this.branch = branch;
-  }
-
-  Long snapshotId() {
-    return snapshot != null ? snapshot.snapshotId() : null;
+    super(spark, table, table.schema(), scan, readConf, projection, filters, scanReportSupplier);
+    this.startSnapshotId = startSnapshotId;
+    this.endSnapshotId = endSnapshotId;
   }
 
   @Override
-  public Statistics estimateStatistics() {
-    return estimateStatistics(snapshot);
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
+  public boolean equals(Object other) {
+    if (this == other) {
       return true;
     }
 
-    if (o == null || getClass() != o.getClass()) {
+    if (other == null || getClass() != other.getClass()) {
       return false;
     }
 
-    SparkBatchQueryScan that = (SparkBatchQueryScan) o;
+    SparkIncrementalAppendScan that = (SparkIncrementalAppendScan) other;
     return table().name().equals(that.table().name())
         && Objects.equals(table().uuid(), that.table().uuid())
-        && Objects.equals(snapshot, that.snapshot)
-        && Objects.equals(branch, that.branch)
+        && startSnapshotId == that.startSnapshotId
+        && Objects.equals(endSnapshotId, that.endSnapshotId)
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
         && filtersDesc().equals(that.filtersDesc())
         && runtimeFiltersDesc().equals(that.runtimeFiltersDesc());
@@ -88,8 +74,8 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
     return Objects.hash(
         table().name(),
         table().uuid(),
-        snapshot,
-        branch,
+        startSnapshotId,
+        endSnapshotId,
         readSchema(),
         filtersDesc(),
         runtimeFiltersDesc());
@@ -98,11 +84,10 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
   @Override
   public String description() {
     return String.format(
-        "IcebergScan(table=%s, schemaId=%s, snapshotId=%s, branch=%s, filters=%s, runtimeFilters=%s, groupedBy=%s)",
+        "IcebergIncrementalScan(table=%s, startSnapshotId=%s, endSnapshotId=%s, filters=%s, runtimeFilters=%s, groupedBy=%s)",
         table(),
-        schema().schemaId(),
-        snapshotId(),
-        branch,
+        startSnapshotId,
+        endSnapshotId,
         filtersDesc(),
         runtimeFiltersDesc(),
         groupingKeyDesc());

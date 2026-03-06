@@ -86,7 +86,7 @@ public class TestDeleteFrom extends CatalogTestBase {
     String prefix = "snapshot_id_";
     assertThatThrownBy(() -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot delete from table at a specific snapshot");
+        .hasMessageStartingWith("Cannot modify table with time travel");
   }
 
   @TestTemplate
