@@ -25,19 +25,19 @@ import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
 
 /**
- * Represents a V4 combined content entry in a manifest file.
+ * Represents a v4 combined content entry in a manifest file.
  *
- * <p>TrackedFile is the V4 equivalent of ContentFile. It provides a unified representation for all
- * entry types in a V4 manifest: data files (optionally with an associated deletion vector),
+ * <p>TrackedFile is the v4 equivalent of ContentFile. It provides a unified representation for all
+ * entry types in a v4 manifest: data files (optionally with an associated deletion vector),
  * equality delete files, and manifest entries.
  *
  * <p>In the combined entry model, data files and their deletion vectors are represented as a single
- * entry. Each DATA entry may optionally carry DV information via {@link #dvInfo()}, eliminating the
- * need for separate delete manifest entries for position deletes and avoiding 2-phase scan
- * planning.
+ * entry. Each DATA entry may optionally carry DV information via {@link #deletionVector()},
+ * eliminating the need for separate delete manifest entries for position deletes and avoiding
+ * 2-phase scan planning.
  */
 interface TrackedFile {
-  // Field IDs from V4 specification
+  // Field IDs from v4 specification
   Types.NestedField CONTENT_TYPE =
       Types.NestedField.required(
           134,
@@ -55,11 +55,11 @@ interface TrackedFile {
   Types.NestedField TRACKING_INFO =
       Types.NestedField.required(
           147, "tracking_info", TrackingInfo.schema(), "Tracking information for this entry");
-  Types.NestedField DV_INFO =
+  Types.NestedField DELETION_VECTOR =
       Types.NestedField.optional(
           148,
           "dv_info",
-          DvInfo.schema(),
+          DeletionVector.schema(),
           "Deletion vector info. May only be defined for content_type DATA, must be null otherwise");
   Types.NestedField PARTITION_SPEC_ID =
       Types.NestedField.required(
@@ -124,13 +124,7 @@ interface TrackedFile {
    */
   TrackingInfo trackingInfo();
 
-  /**
-   * Returns the type of content stored by this entry.
-   *
-   * <p>One of: DATA, EQUALITY_DELETES, DATA_MANIFEST, or DELETE_MANIFEST. Note that
-   * POSITION_DELETES is not a valid content type in V4 manifests; deletion vectors are instead
-   * represented via {@link #dvInfo()} on DATA entries.
-   */
+  /** Returns the type of content stored by this entry. */
   FileContent contentType();
 
   /** Returns the location of the file. */
@@ -140,12 +134,11 @@ interface TrackedFile {
   FileFormat fileFormat();
 
   /**
-   * Returns the deletion vector info for this entry.
+   * Returns the deletion vector for this entry, or null if there is no deletion vector.
    *
    * <p>May only be defined when content_type is DATA. Must be null for all other content types.
-   * When present, indicates that this data file has an associated deletion vector.
    */
-  DvInfo dvInfo();
+  DeletionVector deletionVector();
 
   /** Returns the ID of the partition spec used to write this file or manifest. */
   int partitionSpecId();

@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import org.apache.iceberg.types.Types;
 
 /**
- * Information about a manifest entry in a V4 root manifest.
+ * Information about a manifest entry in a v4 root manifest.
  *
  * <p>This encapsulates added/existing/deleted/replaced file and row counts, min_sequence_number,
  * and the manifest deletion vector. This must be defined when the content_type is a manifest (3 or

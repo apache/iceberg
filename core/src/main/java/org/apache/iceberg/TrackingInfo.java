@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import org.apache.iceberg.types.Types;
 
 /**
- * Tracking information for a tracked file entry in a V4 manifest.
+ * Tracking information for a tracked file entry in a v4 manifest.
  *
  * <p>This groups the status, snapshot, and sequence number information for the entry. This enables
  * accessing the fields for the entry and provides an isolated structure that can be modified.
@@ -45,7 +45,7 @@ interface TrackingInfo {
           157,
           "dv_snapshot_id",
           Types.LongType.get(),
-          "Snapshot ID where the DV was added. May only be defined when dv_info is non-null");
+          "Snapshot ID where the DV was added. May only be defined when a deletion vector is present");
   Types.NestedField SEQUENCE_NUMBER =
       Types.NestedField.optional(
           3, "sequence_number", Types.LongType.get(), "Data sequence number of the file");
@@ -99,7 +99,7 @@ interface TrackingInfo {
    *   <li>0: EXISTING - file was already in the table
    *   <li>1: ADDED - file newly added
    *   <li>2: DELETED - file removed
-   *   <li>3: REPLACED - entry replaced by a column update or DV change (V4 only)
+   *   <li>3: REPLACED - entry replaced by a column update or DV change (v4 only)
    * </ul>
    *
    * <p>Only ADDED and EXISTING entries are considered live for scan planning. DELETED and REPLACED
@@ -113,7 +113,7 @@ interface TrackingInfo {
   /**
    * Returns the snapshot ID where the DV was added.
    *
-   * <p>Inherited when null. May only be defined when dv_info is non-null.
+   * <p>Inherited when null. May only be defined when a deletion vector is present.
    */
   Long dvSnapshotId();
 
