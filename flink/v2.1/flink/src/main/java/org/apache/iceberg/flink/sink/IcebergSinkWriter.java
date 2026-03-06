@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
  * emits a single {@link WriteResult} at every checkpoint for every data/delete file created by this
  * writer.
  */
-class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
+public class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSinkWriter.class);
 
   private final String fullTableName;
@@ -47,7 +47,7 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
   private final int subTaskId;
   private final int attemptId;
 
-  IcebergSinkWriter(
+  public IcebergSinkWriter(
       String fullTableName,
       TaskWriterFactory<RowData> taskWriterFactory,
       IcebergStreamWriterMetrics metrics,
