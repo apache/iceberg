@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.iceberg.util.ManagedThreadPools;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,6 +101,7 @@ public class AuthSessionCache implements AutoCloseable {
     } finally {
       if (executor instanceof ExecutorService) {
         ExecutorService service = (ExecutorService) executor;
+        ManagedThreadPools.remove(service);
         service.shutdown();
         if (!Uninterruptibles.awaitTerminationUninterruptibly(service, 10, TimeUnit.SECONDS)) {
           LOG.warn("Timed out waiting for eviction executor to terminate");
