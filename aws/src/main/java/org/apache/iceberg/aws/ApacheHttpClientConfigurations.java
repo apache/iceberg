@@ -41,6 +41,8 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
   private Boolean tcpKeepAliveEnabled;
   private Boolean useIdleConnectionReaperEnabled;
   private String proxyEndpoint;
+  private Boolean proxyUseSystemPropertyValues;
+  private Boolean proxyUseEnvironmentVariableValues;
 
   private ApacheHttpClientConfigurations() {}
 
@@ -82,6 +84,12 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
     this.proxyEndpoint =
         PropertyUtil.propertyAsString(
             httpClientProperties, HttpClientProperties.PROXY_ENDPOINT, null);
+    this.proxyUseSystemPropertyValues =
+        PropertyUtil.propertyAsNullableBoolean(
+            httpClientProperties, HttpClientProperties.PROXY_USE_SYSTEM_PROPERTY_VALUES);
+    this.proxyUseEnvironmentVariableValues =
+        PropertyUtil.propertyAsNullableBoolean(
+            httpClientProperties, HttpClientProperties.PROXY_USE_ENVIRONMENT_VARIABLE_VALUES);
   }
 
   @VisibleForTesting
@@ -113,9 +121,26 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
     if (useIdleConnectionReaperEnabled != null) {
       apacheHttpClientBuilder.useIdleConnectionReaper(useIdleConnectionReaperEnabled);
     }
-    if (proxyEndpoint != null) {
-      apacheHttpClientBuilder.proxyConfiguration(
-          ProxyConfiguration.builder().endpoint(URI.create(proxyEndpoint)).build());
+    configureProxy(apacheHttpClientBuilder);
+  }
+
+  private void configureProxy(ApacheHttpClient.Builder apacheHttpClientBuilder) {
+    if (proxyEndpoint != null
+        || proxyUseSystemPropertyValues != null
+        || proxyUseEnvironmentVariableValues != null) {
+      ProxyConfiguration.Builder proxyBuilder = ProxyConfiguration.builder();
+
+      if (proxyEndpoint != null) {
+        proxyBuilder.endpoint(URI.create(proxyEndpoint));
+      }
+      if (proxyUseSystemPropertyValues != null) {
+        proxyBuilder.useSystemPropertyValues(proxyUseSystemPropertyValues);
+      }
+      if (proxyUseEnvironmentVariableValues != null) {
+        proxyBuilder.useEnvironmentVariableValues(proxyUseEnvironmentVariableValues);
+      }
+
+      apacheHttpClientBuilder.proxyConfiguration(proxyBuilder.build());
     }
   }
 
@@ -138,6 +163,8 @@ class ApacheHttpClientConfigurations extends BaseHttpClientConfigurations {
     keyComponents.put("tcpKeepAliveEnabled", tcpKeepAliveEnabled);
     keyComponents.put("useIdleConnectionReaperEnabled", useIdleConnectionReaperEnabled);
     keyComponents.put("proxyEndpoint", proxyEndpoint);
+    keyComponents.put("proxyUseSystemPropertyValues", proxyUseSystemPropertyValues);
+    keyComponents.put("proxyUseEnvironmentVariableValues", proxyUseEnvironmentVariableValues);
 
     return keyComponents.entrySet().stream()
         .map(entry -> entry.getKey() + "=" + Objects.toString(entry.getValue(), "null"))

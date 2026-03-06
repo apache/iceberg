@@ -62,6 +62,30 @@ public class HttpClientProperties implements Serializable {
   public static final String PROXY_ENDPOINT = "http-client.proxy-endpoint";
 
   /**
+   * Used to enable reading proxy configuration from Java system properties (http.proxyHost,
+   * http.proxyPort, http.nonProxyHosts, etc.). Default is true.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/ProxyConfiguration.html
+   * and
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ProxyConfiguration.html
+   */
+  public static final String PROXY_USE_SYSTEM_PROPERTY_VALUES =
+      "http-client.proxy-use-system-property-values";
+
+  /**
+   * Used to enable reading proxy configuration from environment variables (HTTP_PROXY, HTTPS_PROXY,
+   * NO_PROXY, etc.). Default is true.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/urlconnection/ProxyConfiguration.html
+   * and
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ProxyConfiguration.html
+   */
+  public static final String PROXY_USE_ENVIRONMENT_VARIABLE_VALUES =
+      "http-client.proxy-use-environment-variable-values";
+
+  /**
    * Used to configure the connection timeout in milliseconds for {@link
    * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}. This flag only
    * works when {@link #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_URLCONNECTION}

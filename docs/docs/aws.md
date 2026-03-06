@@ -705,10 +705,12 @@ For more details of configuration, see sections [URL Connection HTTP Client Conf
 
 Configurations for the HTTP client can be set via catalog properties. Below is an overview of available configurations:
 
-| Property                   | Default | Description                                                                                                |
-|----------------------------|---------|------------------------------------------------------------------------------------------------------------|
-| http-client.type           | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client |
-| http-client.proxy-endpoint | null    | An optional proxy endpoint to use for the HTTP client.                                                     |
+| Property                                          | Default | Description                                                                                                                                                                                                                                                          |
+|---------------------------------------------------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| http-client.type                                  | apache  | Types of HTTP Client. <br/> `urlconnection`: URL Connection HTTP Client <br/> `apache`: Apache HTTP Client                                                                                                                                                          |
+| http-client.proxy-endpoint                        | null    | An optional proxy endpoint to use for the HTTP client.                                                                                                                                                                                                               |
+| http-client.proxy-use-system-property-values      | null, enabled by default | An optional `true/false` setting that controls whether proxy configuration is read from Java system properties (`http.proxyHost`, `http.proxyPort`, `http.nonProxyHosts`, etc.).                                                               |
+| http-client.proxy-use-environment-variable-values | null, enabled by default | An optional `true/false` setting that controls whether proxy configuration is read from environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, etc.).                                                                                |
 
 #### URL Connection HTTP Client Configurations
 
