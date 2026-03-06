@@ -1012,23 +1012,36 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   }
 
   @Test
-  public void catalogAndTableConfigMismatch() {
-    CatalogWithAdapter catalogWithAdapter =
+  public void serverConfigTakesPrecedenceOnMismatch() {
+    // Client=SERVER, Server=CLIENT → server wins → effective=CLIENT → returns BaseTable
+    CatalogWithAdapter catalogWithAdapter1 =
         catalogWithModes(
             RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
             RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName());
-    catalogWithAdapter.catalog.createNamespace(NS);
+    catalogWithAdapter1.catalog.createNamespace(NS);
 
-    assertThatThrownBy(
-            () ->
-                catalogWithAdapter
-                    .catalog
-                    .buildTable(TableIdentifier.of(NS, "mismatch_test"), SCHEMA)
-                    .create())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Scan planning mode mismatch")
-        .hasMessageContaining("client config=server")
-        .hasMessageContaining("server config=client");
+    Table table1 =
+        catalogWithAdapter1
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "mismatch_test"), SCHEMA)
+            .create();
+
+    assertThat(table1).isNotInstanceOf(RESTTable.class);
+    assertThat(table1).isInstanceOf(BaseTable.class);
+
+    // Client=CLIENT, Server=SERVER → server wins → effective=SERVER → returns RESTTable
+    CatalogWithAdapter catalogWithAdapter2 =
+        catalogWithModes(
+            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(),
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName());
+
+    Table table2 =
+        catalogWithAdapter2
+            .catalog
+            .buildTable(TableIdentifier.of(NS, "client_override_rejected_test"), SCHEMA)
+            .create();
+
+    assertThat(table2).isInstanceOf(RESTTable.class);
   }
 
   @Test
@@ -1047,26 +1060,6 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
     assertThat(table).isNotInstanceOf(RESTTable.class);
     assertThat(table).isInstanceOf(BaseTable.class);
-  }
-
-  @Test
-  public void clientAndServerModeConflict() {
-    CatalogWithAdapter catalogWithAdapter =
-        catalogWithModes(
-            RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(),
-            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName());
-    catalogWithAdapter.catalog.createNamespace(NS);
-
-    assertThatThrownBy(
-            () ->
-                catalogWithAdapter
-                    .catalog
-                    .buildTable(TableIdentifier.of(NS, "client_override_rejected_test"), SCHEMA)
-                    .create())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Scan planning mode mismatch")
-        .hasMessageContaining("client config=client")
-        .hasMessageContaining("server config=server");
   }
 
   @Test
