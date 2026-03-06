@@ -128,16 +128,10 @@ public class SortOrder implements Serializable {
     for (SortField field : fields) {
       if (field.sourceIds().size() > 1) {
         builder.addSortField(
-            field.transform().toString(),
-            field.sourceIds(),
-            field.direction(),
-            field.nullOrder());
+            field.transform().toString(), field.sourceIds(), field.direction(), field.nullOrder());
       } else {
         builder.addSortField(
-            field.transform().toString(),
-            field.sourceId(),
-            field.direction(),
-            field.nullOrder());
+            field.transform().toString(), field.sourceId(), field.direction(), field.nullOrder());
       }
     }
 
