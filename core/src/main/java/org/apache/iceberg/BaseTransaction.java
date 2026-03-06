@@ -59,7 +59,7 @@ import org.slf4j.LoggerFactory;
 public class BaseTransaction implements Transaction {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTransaction.class);
 
-  enum TransactionType {
+  protected enum TransactionType {
     CREATE_TABLE,
     REPLACE_TABLE,
     CREATE_OR_REPLACE_TABLE,
@@ -80,7 +80,7 @@ public class BaseTransaction implements Transaction {
   private boolean hasLastOpCommitted;
   private final MetricsReporter reporter;
 
-  BaseTransaction(
+  protected BaseTransaction(
       String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
     this(tableName, ops, type, start, LoggingMetricsReporter.instance());
   }
@@ -379,11 +379,11 @@ public class BaseTransaction implements Transaction {
       throw e;
 
     } catch (PendingUpdateFailedException e) {
-      cleanUpOnCommitFailure();
+      cleanUp();
       throw e.wrapped();
     } catch (RuntimeException e) {
       if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
-        cleanUpOnCommitFailure();
+        cleanUp();
       }
 
       throw e;
@@ -420,7 +420,7 @@ public class BaseTransaction implements Transaction {
     }
   }
 
-  private void cleanUpOnCommitFailure() {
+  protected void cleanUp() {
     // the commit failed and no files were committed. clean up each update.
     cleanAllUpdates();
 
