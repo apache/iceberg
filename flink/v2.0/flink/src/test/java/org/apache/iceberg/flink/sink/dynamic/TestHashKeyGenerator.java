@@ -49,7 +49,7 @@ class TestHashKeyGenerator {
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of("default", "table");
 
   @Test
-  void testRoundRobinWithDistributionModeNone() throws Exception {
+  void testRoundRobinWithDistributionModeRoundRobin() throws Exception {
     int writeParallelism = 10;
     int maxWriteParallelism = 2;
     HashKeyGenerator generator = new HashKeyGenerator(1, maxWriteParallelism);
@@ -58,16 +58,36 @@ class TestHashKeyGenerator {
     GenericRowData row = GenericRowData.of(1, StringData.fromString("z"));
     int writeKey1 =
         getWriteKey(
-            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptySet(), row);
+            generator,
+            spec,
+            DistributionMode.ROUND_ROBIN,
+            writeParallelism,
+            Collections.emptySet(),
+            row);
     int writeKey2 =
         getWriteKey(
-            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptySet(), row);
+            generator,
+            spec,
+            DistributionMode.ROUND_ROBIN,
+            writeParallelism,
+            Collections.emptySet(),
+            row);
     int writeKey3 =
         getWriteKey(
-            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptySet(), row);
+            generator,
+            spec,
+            DistributionMode.ROUND_ROBIN,
+            writeParallelism,
+            Collections.emptySet(),
+            row);
     int writeKey4 =
         getWriteKey(
-            generator, spec, DistributionMode.NONE, writeParallelism, Collections.emptySet(), row);
+            generator,
+            spec,
+            DistributionMode.ROUND_ROBIN,
+            writeParallelism,
+            Collections.emptySet(),
+            row);
 
     assertThat(writeKey1).isNotEqualTo(writeKey2);
     assertThat(writeKey3).isEqualTo(writeKey1);
@@ -77,6 +97,29 @@ class TestHashKeyGenerator {
     assertThat(getSubTaskId(writeKey2, writeParallelism, maxWriteParallelism)).isEqualTo(5);
     assertThat(getSubTaskId(writeKey3, writeParallelism, maxWriteParallelism)).isEqualTo(0);
     assertThat(getSubTaskId(writeKey4, writeParallelism, maxWriteParallelism)).isEqualTo(5);
+  }
+
+  @Test
+  void testDistributionModeNoneThrows() {
+    int writeParallelism = 10;
+    int maxWriteParallelism = 2;
+    HashKeyGenerator generator = new HashKeyGenerator(1, maxWriteParallelism);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+
+    GenericRowData row = GenericRowData.of(1, StringData.fromString("z"));
+    // NONE records are routed via the forward path and should never reach the key generator
+    assertThatThrownBy(
+            () ->
+                getWriteKey(
+                    generator,
+                    spec,
+                    DistributionMode.NONE,
+                    writeParallelism,
+                    Collections.emptySet(),
+                    row))
+        .isInstanceOf(RuntimeException.class)
+        .hasCauseInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("forward path");
   }
 
   @Test
@@ -130,7 +173,7 @@ class TestHashKeyGenerator {
         getWriteKey(
             generator,
             unpartitioned,
-            DistributionMode.NONE,
+            DistributionMode.ROUND_ROBIN,
             writeParallelism,
             equalityColumns,
             row1);
@@ -138,7 +181,7 @@ class TestHashKeyGenerator {
         getWriteKey(
             generator,
             unpartitioned,
-            DistributionMode.NONE,
+            DistributionMode.ROUND_ROBIN,
             writeParallelism,
             equalityColumns,
             row2);
@@ -146,7 +189,7 @@ class TestHashKeyGenerator {
         getWriteKey(
             generator,
             unpartitioned,
-            DistributionMode.NONE,
+            DistributionMode.ROUND_ROBIN,
             writeParallelism,
             equalityColumns,
             row3);
@@ -211,7 +254,7 @@ class TestHashKeyGenerator {
           getWriteKey(
               generator,
               PartitionSpec.unpartitioned(),
-              DistributionMode.NONE,
+              DistributionMode.ROUND_ROBIN,
               -1, // writeParallelism
               Collections.emptySet(),
               GenericRowData.of());
@@ -222,7 +265,7 @@ class TestHashKeyGenerator {
           getWriteKey(
               generator,
               PartitionSpec.unpartitioned(),
-              DistributionMode.NONE,
+              DistributionMode.ROUND_ROBIN,
               0, // writeParallelism
               Collections.emptySet(),
               GenericRowData.of());
@@ -243,7 +286,7 @@ class TestHashKeyGenerator {
           getWriteKey(
               generator,
               unpartitioned,
-              DistributionMode.NONE,
+              DistributionMode.ROUND_ROBIN,
               writeParallelism,
               Collections.emptySet(),
               row));
@@ -259,7 +302,7 @@ class TestHashKeyGenerator {
   }
 
   @Test
-  void testHashModeWithoutEqualityFieldsFallsBackToNone() throws Exception {
+  void testHashModeWithoutEqualityFieldsFallsBackToRoundRobin() throws Exception {
     int writeParallelism = 2;
     int maxWriteParallelism = 8;
     HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
@@ -301,12 +344,12 @@ class TestHashKeyGenerator {
             SCHEMA,
             GenericRowData.of(1, StringData.fromString("foo")),
             PartitionSpec.unpartitioned(),
-            DistributionMode.NONE,
+            DistributionMode.ROUND_ROBIN,
             writeParallelism);
 
     int writeKey1 = generator.generateKey(record);
     int writeKey2 = generator.generateKey(record);
-    // Assert that we are bucketing via NONE (round-robin)
+    // Assert that we are bucketing via ROUND_ROBIN
     assertThat(writeKey1).isNotEqualTo(writeKey2);
 
     // Schema has different id
@@ -385,7 +428,7 @@ class TestHashKeyGenerator {
             SCHEMA,
             GenericRowData.of(1, StringData.fromString("foo")),
             unpartitioned,
-            DistributionMode.NONE,
+            DistributionMode.ROUND_ROBIN,
             writeParallelism);
 
     int writeKey1 = generator.generateKey(record);

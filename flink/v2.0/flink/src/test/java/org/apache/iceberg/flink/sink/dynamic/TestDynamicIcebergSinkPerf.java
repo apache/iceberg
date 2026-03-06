@@ -137,7 +137,7 @@ class TestDynamicIcebergSinkPerf {
               SCHEMA,
               RowDataConverter.convert(SCHEMA, records.get(i)),
               PartitionSpec.unpartitioned(),
-              DistributionMode.NONE,
+              DistributionMode.ROUND_ROBIN,
               WRITE_PARALLELISM));
     }
 

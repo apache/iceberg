@@ -203,7 +203,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
               schema,
               converter(schema).toInternal(row.rowProvided),
               spec,
-              spec.isPartitioned() ? DistributionMode.HASH : DistributionMode.NONE,
+              spec.isPartitioned() ? DistributionMode.HASH : DistributionMode.ROUND_ROBIN,
               10);
       dynamicRecord.setUpsertMode(row.upsertMode);
       dynamicRecord.setEqualityFields(row.equalityFields);
@@ -1296,7 +1296,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     @Override
     DynamicIcebergSink instantiateSink(
-        Map<String, String> writeProperties, Configuration flinkConfig) {
+        Map<String, String> writeProperties, Configuration flinkConfig, boolean forwardOnly) {
       return new CommitHookDynamicIcebergSink(
           commitHook,
           CATALOG_EXTENSION.catalogLoader(),
@@ -1304,7 +1304,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           "uidPrefix",
           writeProperties,
           flinkConfig,
-          100);
+          100,
+          forwardOnly);
     }
   }
 
@@ -1320,14 +1321,16 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         String uidPrefix,
         Map<String, String> writeProperties,
         Configuration flinkConfig,
-        int cacheMaximumSize) {
+        int cacheMaximumSize,
+        boolean forwardOnly) {
       super(
           catalogLoader,
           snapshotProperties,
           uidPrefix,
           writeProperties,
           flinkConfig,
-          cacheMaximumSize);
+          cacheMaximumSize,
+          forwardOnly);
       this.commitHook = commitHook;
       this.overwriteMode = new FlinkWriteConf(writeProperties, flinkConfig).overwriteMode();
     }

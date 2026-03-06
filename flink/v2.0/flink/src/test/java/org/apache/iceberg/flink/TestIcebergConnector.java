@@ -468,7 +468,7 @@ public class TestIcebergConnector extends TestBase {
               schema,
               inputRecord,
               PartitionSpec.unpartitioned(),
-              DistributionMode.NONE,
+              DistributionMode.ROUND_ROBIN,
               1);
       out.collect(dynamicRecord);
     }
