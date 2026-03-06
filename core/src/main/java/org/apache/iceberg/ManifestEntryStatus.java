@@ -33,7 +33,7 @@ public enum ManifestEntryStatus {
   EXISTING(0),
   ADDED(1),
   DELETED(2),
-  /** v4 only: indicates an entry that has been replaced by a column update or DV change. */
+  // v4 only: indicates an entry that has been replaced by a column update or DV change.
   REPLACED(3);
 
   private final int id;
