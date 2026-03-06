@@ -53,6 +53,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.MetadataUpdate.UpgradeFormatVersion;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RetryableValidationException;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -634,7 +635,17 @@ public class CatalogHandlers {
 
                 // apply changes
                 TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(base);
-                request.updates().forEach(update -> update.applyTo(metadataBuilder));
+                try {
+                  request.updates().forEach(update -> update.applyTo(metadataBuilder));
+                } catch (RetryableValidationException e) {
+                  // Validation failed because the commit includes stale values (e.g. sequence
+                  // number or first-row-id behind the current table state). This is not a conflict.
+                  // Server-side retry won't help since the stale values are in the request itself.
+                  // Wrap as CommitFailedException so the client can retry with refreshed metadata.
+                  throw new ValidationFailureException(
+                      new CommitFailedException(
+                          e, "Validation failed, please retry: %s", e.getMessage()));
+                }
 
                 TableMetadata updated = metadataBuilder.build();
                 if (updated.changes().isEmpty()) {
