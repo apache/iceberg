@@ -753,9 +753,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             Types.NestedField.optional(1, "id", Types.IntegerType.get()),
             Types.NestedField.optional(2, "a", Types.IntegerType.get()),
             Types.NestedField.optional(3, "b", Types.IntegerType.get()));
-    PartitionSpec spec = PartitionSpec.builderFor(eqDeleteTestSchema).bucket("id", 1).build();
-
-    Table eqTestTable = createTable(EQ_CACHE_TABLE, eqDeleteTestSchema, spec);
+    Table eqTestTable =
+        createTable(EQ_CACHE_TABLE, eqDeleteTestSchema, PartitionSpec.unpartitioned());
 
     GenericRecord record = GenericRecord.create(eqDeleteTestSchema);
     List<Record> data = Lists.newArrayList();
@@ -767,7 +766,6 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         FileHelpers.writeDataFile(
             eqTestTable,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
-            TestHelpers.Row.of(0),
             data);
     eqTestTable.newAppend().appendFile(dataFile).commit();
 
@@ -787,21 +785,20 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         FileHelpers.writeDeleteFile(
             eqTestTable,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
-            TestHelpers.Row.of(0),
             deletes,
             deleteSchema);
     eqTestTable.newRowDelta().addDeletes(eqFile).commit();
 
     String tableRef = TableIdentifier.of("default", EQ_CACHE_TABLE).toString();
-    int expectedRows = 7;
+    int expectedRows = data.size() - deletes.size();
 
     // Narrow projection: Spark will not request a or b columns, so the delete columns are appended
-    // in metadata order [b, a]
+    // in identifier fields definition order [b, a]
     long narrowCount =
         spark.read().format("iceberg").load(tableRef).select("id").collectAsList().size();
 
     // Wide projection: Spark will request all columns, so the delete columns are already present in
-    // table order [a, b].
+    // table schema order [a, b].
     long wideCount =
         spark.read().format("iceberg").load(tableRef).select("*").collectAsList().size();
 
@@ -809,8 +806,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .as("Narrow projection should return %d rows after equality deletes", expectedRows)
         .isEqualTo(expectedRows);
     assertThat(wideCount)
-        .as("Wide projection should return the same row count as narrow projection")
-        .isEqualTo(narrowCount);
+        .as("Wide projection should return %d rows after equality deletes", expectedRows)
+        .isEqualTo(expectedRows);
   }
 
   private static final Schema PROJECTION_SCHEMA =

@@ -211,6 +211,8 @@ public abstract class DeleteFilter<T> {
       Set<Integer> ids = entry.getKey();
       Iterable<DeleteFile> deletes = entry.getValue();
 
+      // Canonicalize the delete schema by sorting fields by ID so that the same set of equality
+      // field IDs always produces the same schema, regardless of requiredSchema column ordering.
       Schema selectedSchema = TypeUtil.select(requiredSchema, ids);
       List<Types.NestedField> sortedFields = Lists.newArrayList(selectedSchema.columns());
       sortedFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
