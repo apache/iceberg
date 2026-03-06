@@ -414,6 +414,28 @@ public class TestSchemaUnionByFieldName {
   }
 
   @Test
+  // date -> Can promote to timestamp
+  public void testTypePromoteDateToTimestamp() {
+    Schema currentSchema = new Schema(required(1, "aCol", DateType.get()));
+    Schema newSchema = new Schema(required(1, "aCol", TimestampType.withoutZone()));
+
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
+    assertThat(applied.asStruct().fields()).hasSize(1);
+    assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(TimestampType.withoutZone());
+  }
+
+  @Test
+  public void testTypePromoteDateToTimestampWithZone() {
+    Schema currentSchema = new Schema(required(1, "aCol", DateType.get()));
+    Schema newSchema = new Schema(required(1, "aCol", TimestampType.withZone()));
+
+    assertThatThrownBy(() -> new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: aCol: date -> timestamptz");
+  }
+
+  @Test
   public void testAddPrimitiveToNestedStruct() {
     Schema schema =
         new Schema(
