@@ -348,11 +348,14 @@ public class SparkTable
       }
     }
 
-    return canDeleteUsingMetadata(deleteExpr);
+    String scanBranch =
+        SparkTableUtil.determineReadBranch(
+            sparkSession(), icebergTable, branch, CaseInsensitiveStringMap.empty());
+    return canDeleteUsingMetadata(deleteExpr, scanBranch);
   }
 
   // a metadata delete is possible iff matching files can be deleted entirely
-  private boolean canDeleteUsingMetadata(Expression deleteExpr) {
+  private boolean canDeleteUsingMetadata(Expression deleteExpr, String scanBranch) {
     boolean caseSensitive = SparkUtil.caseSensitive(sparkSession());
 
     if (ExpressionUtil.selectsPartitions(deleteExpr, table(), caseSensitive)) {
@@ -367,14 +370,14 @@ public class SparkTable
             .includeColumnStats()
             .ignoreResiduals();
 
-    if (branch != null) {
-      scan = scan.useRef(branch);
+    if (scanBranch != null) {
+      scan = scan.useRef(scanBranch);
     }
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Map<Integer, Evaluator> evaluators = Maps.newHashMap();
       StrictMetricsEvaluator metricsEvaluator =
-          new StrictMetricsEvaluator(SnapshotUtil.schemaFor(table(), branch), deleteExpr);
+          new StrictMetricsEvaluator(SnapshotUtil.schemaFor(table(), scanBranch), deleteExpr);
 
       return Iterables.all(
           tasks,
@@ -411,12 +414,10 @@ public class SparkTable
             .set("spark.app.id", sparkSession().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
 
-    if (SparkTableUtil.wapEnabled(table())) {
-      branch = SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
-    }
+    String writeBranch = SparkTableUtil.determineWriteBranch(sparkSession(), icebergTable, branch);
 
-    if (branch != null) {
-      deleteFiles.toBranch(branch);
+    if (writeBranch != null) {
+      deleteFiles.toBranch(writeBranch);
     }
 
     if (!CommitMetadata.commitProperties().isEmpty()) {

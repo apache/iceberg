@@ -24,9 +24,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -184,5 +186,33 @@ public class TestDeleteFrom extends CatalogTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1L, new byte[] {-29, -68, -47})),
         sql("SELECT * FROM %s where data = X'e3bcd1'", tableName));
+  }
+
+  @TestTemplate
+  public void testDeleteWithWapBranch() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+
+    spark.conf().set(SparkSQLProperties.WAP_BRANCH, "dev1");
+    try {
+      // all rows go into one file on the WAP branch; main stays empty
+      List<SimpleRecord> records =
+          Lists.newArrayList(
+              new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+      Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+      df.coalesce(1).writeTo(tableName).append();
+
+      // delete a subset of rows - canDeleteWhere and deleteWhere must both
+      // resolve the WAP branch so they scan and commit to the same branch
+      sql("DELETE FROM %s WHERE id = 1", tableName);
+
+      assertEquals(
+          "Should have deleted only the matching row on the WAP branch",
+          ImmutableList.of(row(2L, "b"), row(3L, "c")),
+          sql("SELECT * FROM %s VERSION AS OF 'dev1' ORDER BY id", tableName));
+    } finally {
+      spark.conf().unset(SparkSQLProperties.WAP_BRANCH);
+    }
   }
 }
