@@ -48,7 +48,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.ContextAwareTableCatalog;
+import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -468,12 +468,32 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   // Visible for testing
   Map<String, String> referencedByToQueryParam(
       Map<String, String> params, Map<String, Object> context) {
-    if (context.isEmpty() || !context.containsKey(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY)) {
+    List<TableIdentifier> viewChain = extractViewChain(context);
+    if (viewChain.isEmpty()) {
       return params;
     }
 
     Map<String, String> queryParams = Maps.newHashMap(params);
-    Object viewIdentifierObj = context.get(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY);
+    String referencedBy =
+        viewChain.stream()
+            .map(
+                ident ->
+                    RESTUtil.encodeNamespace(ident.namespace(), namespaceSeparator)
+                        + namespaceSeparator
+                        + RESTUtil.encodeString(ident.name()))
+            .collect(Collectors.joining(","));
+
+    queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
+
+    return queryParams;
+  }
+
+  private List<TableIdentifier> extractViewChain(Map<String, Object> context) {
+    if (context.isEmpty() || !context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY)) {
+      return List.of();
+    }
+
+    Object viewIdentifierObj = context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
 
     Preconditions.checkArgument(
         viewIdentifierObj instanceof List,
@@ -490,22 +510,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @SuppressWarnings("unchecked")
     List<TableIdentifier> viewChain = (List<TableIdentifier>) rawList;
-    if (viewChain.isEmpty()) {
-      return params;
-    }
-
-    String referencedBy =
-        viewChain.stream()
-            .map(
-                ident ->
-                    RESTUtil.encodeNamespace(ident.namespace(), namespaceSeparator)
-                        + namespaceSeparator
-                        + RESTUtil.encodeString(ident.name()))
-            .collect(Collectors.joining(","));
-
-    queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
-
-    return queryParams;
+    return viewChain;
   }
 
   /**

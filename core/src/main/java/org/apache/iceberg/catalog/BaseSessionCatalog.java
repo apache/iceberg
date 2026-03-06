@@ -62,7 +62,7 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     return task.apply(asCatalog(context));
   }
 
-  public class AsCatalog implements Catalog, ContextAwareTableCatalog, SupportsNamespaces {
+  public class AsCatalog implements Catalog, ContextAwareCatalog, SupportsNamespaces {
     private final SessionContext context;
 
     private AsCatalog(SessionContext context) {

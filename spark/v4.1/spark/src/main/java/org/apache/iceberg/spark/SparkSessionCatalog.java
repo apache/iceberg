@@ -63,7 +63,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
-    extends BaseCatalog implements CatalogExtension, ContextAwareTableCatalog {
+    extends BaseCatalog implements CatalogExtension, ContextAwareCatalog {
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
@@ -150,11 +150,14 @@ public class SparkSessionCatalog<
   public Table loadTable(Identifier ident, Map<String, Object> context)
       throws NoSuchTableException {
     try {
-      if (icebergCatalog instanceof ContextAwareTableCatalog && !context.isEmpty()) {
-        return ((ContextAwareTableCatalog) icebergCatalog).loadTable(ident, context);
-      } else {
-        return icebergCatalog.loadTable(ident);
+      if (!context.isEmpty()) {
+        Preconditions.checkArgument(
+            icebergCatalog instanceof ContextAwareCatalog,
+            "Catalog %s does not support context-aware table loading",
+            icebergCatalog.name());
+        return ((ContextAwareCatalog) icebergCatalog).loadTable(ident, context);
       }
+      return icebergCatalog.loadTable(ident);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident);
     }
@@ -169,12 +172,14 @@ public class SparkSessionCatalog<
   public Table loadTable(Identifier ident, String version, Map<String, Object> loadingContext)
       throws NoSuchTableException {
     try {
-      if (icebergCatalog instanceof ContextAwareTableCatalog && !loadingContext.isEmpty()) {
-        return ((ContextAwareTableCatalog) icebergCatalog)
-            .loadTable(ident, version, loadingContext);
-      } else {
-        return icebergCatalog.loadTable(ident, version);
+      if (!loadingContext.isEmpty()) {
+        Preconditions.checkArgument(
+            icebergCatalog instanceof ContextAwareCatalog,
+            "Catalog %s does not support context-aware table loading",
+            icebergCatalog.name());
+        return ((ContextAwareCatalog) icebergCatalog).loadTable(ident, version, loadingContext);
       }
+      return icebergCatalog.loadTable(ident, version);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, version);
     }
@@ -189,12 +194,14 @@ public class SparkSessionCatalog<
   public Table loadTable(Identifier ident, long timestamp, Map<String, Object> loadingContext)
       throws NoSuchTableException {
     try {
-      if (icebergCatalog instanceof ContextAwareTableCatalog && !loadingContext.isEmpty()) {
-        return ((ContextAwareTableCatalog) icebergCatalog)
-            .loadTable(ident, timestamp, loadingContext);
-      } else {
-        return icebergCatalog.loadTable(ident, timestamp);
+      if (!loadingContext.isEmpty()) {
+        Preconditions.checkArgument(
+            icebergCatalog instanceof ContextAwareCatalog,
+            "Catalog %s does not support context-aware table loading",
+            icebergCatalog.name());
+        return ((ContextAwareCatalog) icebergCatalog).loadTable(ident, timestamp, loadingContext);
       }
+      return icebergCatalog.loadTable(ident, timestamp);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, timestamp);
     }
@@ -485,10 +492,12 @@ public class SparkSessionCatalog<
   @Override
   public View loadView(Identifier ident, Map<String, Object> context) throws NoSuchViewException {
     if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
-      if (context != null
-          && !context.isEmpty()
-          && asViewCatalog instanceof ContextAwareTableCatalog) {
-        return ((ContextAwareTableCatalog) asViewCatalog).loadView(ident, context);
+      if (context != null && !context.isEmpty()) {
+        Preconditions.checkArgument(
+            asViewCatalog instanceof ContextAwareCatalog,
+            "Catalog %s does not support context-aware view loading",
+            asViewCatalog.name());
+        return ((ContextAwareCatalog) asViewCatalog).loadView(ident, context);
       }
       return asViewCatalog.loadView(ident);
     } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {

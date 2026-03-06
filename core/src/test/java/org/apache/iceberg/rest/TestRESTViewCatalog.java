@@ -42,7 +42,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.ContextAwareTableCatalog;
+import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -464,7 +464,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     // load the view with a referenced-by context
     List<TableIdentifier> viewChain = ImmutableList.of(TableIdentifier.of(ns, "outer_view"));
     Map<String, Object> viewContext =
-        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, viewChain);
+        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
 
     catalog.loadView(viewIdent, viewContext);
 
@@ -539,7 +539,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
         ImmutableList.of(
             TableIdentifier.of(ns, "outer_view"), TableIdentifier.of(ns, "inner_view"));
     Map<String, Object> viewContext =
-        ImmutableMap.of(ContextAwareTableCatalog.VIEW_IDENTIFIER_KEY, viewChain);
+        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
 
     catalog.loadView(viewIdent, viewContext);
 

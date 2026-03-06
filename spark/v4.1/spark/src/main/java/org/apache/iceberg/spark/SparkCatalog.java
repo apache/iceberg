@@ -121,7 +121,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalog {
+public class SparkCatalog extends BaseCatalog implements ContextAwareCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -600,10 +600,18 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
   public View loadView(Identifier ident, Map<String, Object> context) throws NoSuchViewException {
     if (null != asViewCatalog) {
       try {
-        org.apache.iceberg.view.View view =
-            (context != null && !context.isEmpty())
-                ? asViewCatalog.loadView(buildIdentifier(ident), context)
-                : asViewCatalog.loadView(buildIdentifier(ident));
+        org.apache.iceberg.view.View view;
+        if (context != null && !context.isEmpty()) {
+          Preconditions.checkArgument(
+              asViewCatalog instanceof org.apache.iceberg.catalog.ContextAwareCatalog,
+              "Catalog %s does not support context-aware view loading",
+              asViewCatalog.name());
+          view =
+              ((org.apache.iceberg.catalog.ContextAwareCatalog) asViewCatalog)
+                  .loadView(buildIdentifier(ident), context);
+        } else {
+          view = asViewCatalog.loadView(buildIdentifier(ident));
+        }
         return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);
@@ -955,13 +963,16 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
   }
 
   private org.apache.iceberg.Table load(TableIdentifier ident, Map<String, Object> context) {
-    if (icebergCatalog instanceof org.apache.iceberg.catalog.ContextAwareTableCatalog
-        && !context.isEmpty()) {
-      return ((org.apache.iceberg.catalog.ContextAwareTableCatalog) icebergCatalog)
+    if (!context.isEmpty()) {
+      Preconditions.checkArgument(
+          icebergCatalog instanceof org.apache.iceberg.catalog.ContextAwareCatalog,
+          "Catalog %s does not support context-aware table loading",
+          icebergCatalog.name());
+      return ((org.apache.iceberg.catalog.ContextAwareCatalog) icebergCatalog)
           .loadTable(ident, context);
-    } else {
-      return icebergCatalog.loadTable(ident);
     }
+
+    return icebergCatalog.loadTable(ident);
   }
 
   private Pair<String, List<String>> parseLocationString(String location) {

@@ -25,7 +25,7 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.View;
 
-public interface ContextAwareTableCatalog {
+public interface ContextAwareCatalog {
 
   Table loadTable(Identifier identifier, Map<String, Object> loadingContext)
       throws NoSuchTableException;
