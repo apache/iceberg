@@ -83,7 +83,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     Map<Integer, PartitionSpec> specs = table.specs();
     specs.forEach((specId, spec) -> specAsJsonMap.put(specId, PartitionSpecParser.toJson(spec)));
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
-    this.io = fileIO(table);
+    this.io = SerializableTable.copyOf(table.io());
     this.encryption = table.encryption();
     this.locationProviderTry = Try.of(table::locationProvider);
     this.refs = SerializableMap.copyOf(table.refs());
@@ -124,12 +124,12 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     }
   }
 
-  private FileIO fileIO(Table table) {
-    if (table.io() instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) table.io()).serializeConfWith(SerializableConfSupplier::new);
+  public static FileIO copyOf(FileIO fileIO) {
+    if (fileIO instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) fileIO).serializeConfWith(SerializableConfSupplier::new);
     }
 
-    return table.io();
+    return fileIO;
   }
 
   private Table lazyTable() {

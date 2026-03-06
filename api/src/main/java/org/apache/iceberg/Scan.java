@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -207,5 +208,14 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
   default ThisT minRowsRequested(long numRows) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement minRowsRequested");
+  }
+
+  /**
+   * The {@link FileIO} instance to use when reading data.
+   *
+   * @return the {@link FileIO} instance to use when reading data
+   */
+  default FileIO io() {
+    throw new UnsupportedOperationException("io() is not implemented: added in 1.11.0");
   }
 }
