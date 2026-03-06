@@ -109,7 +109,7 @@ public class TypeUtil {
    * <p>Unlike {@link #select(Schema, Set)}, which preserves the field ordering of the input schema,
    * this method always returns columns sorted by field ID.
    */
-  public static Schema selectOrdered(Schema schema, Set<Integer> fieldIds) {
+  public static Schema selectInIdOrder(Schema schema, Set<Integer> fieldIds) {
     Schema selected = select(schema, fieldIds);
     List<Types.NestedField> sorted = Lists.newArrayList(selected.columns());
     sorted.sort(Comparator.comparingInt(Types.NestedField::fieldId));

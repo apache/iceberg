@@ -210,7 +210,7 @@ public abstract class DeleteFilter<T> {
       Set<Integer> ids = entry.getKey();
       Iterable<DeleteFile> deletes = entry.getValue();
 
-      Schema deleteSchema = TypeUtil.selectOrdered(requiredSchema, ids);
+      Schema deleteSchema = TypeUtil.selectInIdOrder(requiredSchema, ids);
 
       // a projection to select and reorder fields of the file schema to match the delete rows
       StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);

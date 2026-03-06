@@ -318,14 +318,14 @@ public class TestTypeUtil {
   }
 
   @Test
-  public void testSelectOrdered() {
+  public void testSelectInIdOrder() {
     Schema schema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
             required(3, "b", Types.IntegerType.get()),
             required(2, "a", Types.IntegerType.get()));
 
-    Schema result = TypeUtil.selectOrdered(schema, Sets.newHashSet(2, 3));
+    Schema result = TypeUtil.selectInIdOrder(schema, Sets.newHashSet(2, 3));
 
     assertThat(result.columns()).hasSize(2);
     assertThat(result.columns().get(0).fieldId()).isEqualTo(2);
@@ -338,7 +338,7 @@ public class TestTypeUtil {
             required(3, "b", Types.IntegerType.get()),
             required(1, "id", Types.IntegerType.get()));
 
-    Schema resultReversed = TypeUtil.selectOrdered(schemaReversed, Sets.newHashSet(2, 3));
+    Schema resultReversed = TypeUtil.selectInIdOrder(schemaReversed, Sets.newHashSet(2, 3));
     assertThat(resultReversed.asStruct()).isEqualTo(result.asStruct());
   }
 
