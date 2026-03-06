@@ -18,7 +18,7 @@
 #
 
 # The format of this file is documented at
-# https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
+# https://github.com/apache/infrastructure-asfyaml/blob/main/README.md
 
 github:
   description: "Apache Iceberg"
@@ -32,6 +32,9 @@ github:
     merge: false
     squash: true
     rebase: true
+
+  # deprecated but still set for backward compatibility
+  del_branch_on_merge: true
 
   pull_requests:
     # auto-delete head branches after being merged
