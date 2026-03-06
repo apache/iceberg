@@ -105,7 +105,6 @@ public abstract class BaseFormatModelTests<T> {
     FileWriterBuilder<DataWriter<T>, Object> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, engineType(), encryptedFile);
 
-    DataFile dataFile;
     DataWriter<T> writer =
         writerBuilder
             .schema(schema)
@@ -122,7 +121,7 @@ public abstract class BaseFormatModelTests<T> {
       }
     }
 
-    dataFile = writer.toDataFile();
+    DataFile dataFile = writer.toDataFile();
 
     assertThat(dataFile).isNotNull();
     assertThat(dataFile.recordCount()).isEqualTo(engineRecords.size());
@@ -150,7 +149,6 @@ public abstract class BaseFormatModelTests<T> {
     FileWriterBuilder<DataWriter<Record>, Object> writerBuilder =
         FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile);
 
-    DataFile dataFile;
     DataWriter<Record> writer =
         writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
 
@@ -162,7 +160,7 @@ public abstract class BaseFormatModelTests<T> {
       }
     }
 
-    dataFile = writer.toDataFile();
+    DataFile dataFile = writer.toDataFile();
 
     assertThat(dataFile).isNotNull();
     assertThat(dataFile.recordCount()).isEqualTo(genericRecords.size());
@@ -190,7 +188,6 @@ public abstract class BaseFormatModelTests<T> {
     FileWriterBuilder<EqualityDeleteWriter<T>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, engineType(), encryptedFile);
 
-    DeleteFile deleteFile;
     EqualityDeleteWriter<T> writer =
         writerBuilder
             .schema(schema)
@@ -208,7 +205,7 @@ public abstract class BaseFormatModelTests<T> {
       }
     }
 
-    deleteFile = writer.toDeleteFile();
+    DeleteFile deleteFile = writer.toDeleteFile();
 
     assertThat(deleteFile).isNotNull();
     assertThat(deleteFile.recordCount()).isEqualTo(engineRecords.size());
@@ -237,7 +234,6 @@ public abstract class BaseFormatModelTests<T> {
     FileWriterBuilder<EqualityDeleteWriter<Record>, Object> writerBuilder =
         FormatModelRegistry.equalityDeleteWriteBuilder(fileFormat, Record.class, encryptedFile);
 
-    DeleteFile deleteFile;
     EqualityDeleteWriter<Record> writer =
         writerBuilder
             .schema(schema)
@@ -253,7 +249,7 @@ public abstract class BaseFormatModelTests<T> {
       }
     }
 
-    deleteFile = writer.toDeleteFile();
+    DeleteFile deleteFile = writer.toDeleteFile();
 
     assertThat(deleteFile).isNotNull();
     assertThat(deleteFile.recordCount()).isEqualTo(genericRecords.size());
@@ -295,7 +291,6 @@ public abstract class BaseFormatModelTests<T> {
                         .copy(DELETE_FILE_PATH.name(), d.path(), DELETE_FILE_POS.name(), d.pos()))
             .toList();
 
-    DeleteFile deleteFile;
     PositionDeleteWriter<T> writer = writerBuilder.spec(PartitionSpec.unpartitioned()).build();
     try (writer) {
       for (PositionDelete<T> delete : deletes) {
@@ -303,7 +298,7 @@ public abstract class BaseFormatModelTests<T> {
       }
     }
 
-    deleteFile = writer.toDeleteFile();
+    DeleteFile deleteFile = writer.toDeleteFile();
 
     assertThat(deleteFile).isNotNull();
     assertThat(deleteFile.recordCount()).isEqualTo(2);
