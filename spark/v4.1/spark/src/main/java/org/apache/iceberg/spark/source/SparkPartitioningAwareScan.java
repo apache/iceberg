@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -34,6 +35,7 @@ import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SparkDistributedDataScan;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -79,7 +81,15 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, readConf, projection, filters, scanReportSupplier);
+    super(
+        spark,
+        table instanceof BaseTable && null != scan && !(scan instanceof SparkDistributedDataScan)
+            ? new TableWithIO(table, scan::io)
+            : table,
+        readConf,
+        projection,
+        filters,
+        scanReportSupplier);
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
