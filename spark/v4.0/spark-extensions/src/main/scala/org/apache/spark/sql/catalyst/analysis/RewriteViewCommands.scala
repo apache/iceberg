@@ -19,6 +19,7 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.analysis.ViewSchemaMode
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.CreateView
@@ -54,7 +55,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
           ResolvedIdent(resolved),
           userSpecifiedColumns,
           comment,
-          _,
+          schemaMode,
           properties,
           Some(queryText),
           query,
@@ -63,6 +64,10 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
           _) =>
       val q = CTESubstitution.apply(query)
       verifyTemporaryObjectsDontExist(resolved, q)
+      val schemaModeStr = schemaMode match {
+        case mode: ViewSchemaMode => Some(mode.toString)
+        case _ => None
+      }
       CreateIcebergView(
         child = resolved,
         queryText = queryText,
@@ -72,7 +77,8 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         comment = comment,
         properties = properties,
         allowExisting = allowExisting,
-        replace = replace)
+        replace = replace,
+        viewSchemaMode = schemaModeStr)
 
     case view @ ShowViews(CurrentNamespace, pattern, output) =>
       if (ViewUtil.isViewCatalog(catalogManager.currentCatalog)) {
