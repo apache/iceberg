@@ -30,6 +30,7 @@ import org.apache.iceberg.exceptions.NoSuchPlanIdException;
 import org.apache.iceberg.exceptions.NoSuchPlanTaskException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.NoSuchWarehouseException;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
@@ -90,6 +91,10 @@ public class ErrorHandlers {
 
   public static Consumer<ErrorResponse> defaultErrorHandler() {
     return DefaultErrorHandler.INSTANCE;
+  }
+
+  public static Consumer<ErrorResponse> configErrorHandler() {
+    return ConfigErrorHandler.INSTANCE;
   }
 
   public static Consumer<ErrorResponse> oauthErrorHandler() {
@@ -289,6 +294,20 @@ public class ErrorHandlers {
     public void accept(ErrorResponse error) {
       if (error.code() == 409) {
         throw new NamespaceNotEmptyException("%s", error.message());
+      }
+
+      super.accept(error);
+    }
+  }
+
+  /** Request error handler for config endpoint. */
+  private static class ConfigErrorHandler extends DefaultErrorHandler {
+    private static final ErrorHandler INSTANCE = new ConfigErrorHandler();
+
+    @Override
+    public void accept(ErrorResponse error) {
+      if (error.code() == 404 && error.type() != null) {
+        throw new NoSuchWarehouseException("%s", error.message());
       }
 
       super.accept(error);
