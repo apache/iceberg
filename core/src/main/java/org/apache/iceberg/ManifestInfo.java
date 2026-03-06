@@ -128,10 +128,10 @@ interface ManifestInfo {
    * treated as deleted. This allows marking manifest entries as deleted without rewriting the
    * manifest file.
    */
-  ByteBuffer manifestDvBitmap();
+  ByteBuffer dvBitmap();
 
   /**
    * Returns the cardinality of the manifest deletion vector (number of entries marked as deleted).
    */
-  Long manifestDvCardinality();
+  Long dvCardinality();
 }
