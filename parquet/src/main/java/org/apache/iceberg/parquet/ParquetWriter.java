@@ -51,7 +51,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final Map<String, String> metadata;
   private final ParquetProperties props;
   private final CompressionCodecFactory.BytesInputCompressor compressor;
-  private final MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
   private final MetricsConfig metricsConfig;
   private final int columnIndexTruncateLength;
@@ -60,6 +59,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final Configuration conf;
   private final InternalFileEncryptor fileEncryptor;
 
+  private MessageType parquetSchema;
   private ColumnChunkPageWriteStore pageStore = null;
   private ColumnWriteStore writeStore;
   private long recordCount = 0;
@@ -134,6 +134,32 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public void add(T value) {
+    if (model instanceof WriterLazyInitializable lazy) {
+      if (lazy.needsInitialization()) {
+        model.write(0, value);
+        recordCount += 1;
+
+        if (!lazy.needsInitialization()) {
+          WriterLazyInitializable.InitializationResult result =
+              lazy.initialize(
+                  props, compressor, rowGroupOrdinal, columnIndexTruncateLength, fileEncryptor);
+          this.parquetSchema = result.getSchema();
+          this.pageStore.close();
+          this.pageStore = result.getPageStore();
+          this.writeStore.close();
+          this.writeStore = result.getWriteStore();
+
+          // Re-initialize the file writer with the new schema
+          ensureWriterInitialized();
+
+          // Buffered rows were already written with endRecord() calls
+          // in the lazy writer's initialization, so we don't call endRecord() here
+          checkSize();
+        }
+        return;
+      }
+    }
+
     recordCount += 1;
     model.write(0, value);
     writeStore.endRecord();
@@ -255,6 +281,24 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   public void close() throws IOException {
     if (!closed) {
       this.closed = true;
+
+      if (model instanceof WriterLazyInitializable lazy) {
+        // If initialization is not triggered with few data, lazy writer needs to initialize and
+        // process remaining buffered data
+        if (lazy.needsInitialization()) {
+          WriterLazyInitializable.InitializationResult result =
+              lazy.initialize(
+                  props, compressor, rowGroupOrdinal, columnIndexTruncateLength, fileEncryptor);
+          this.parquetSchema = result.getSchema();
+          this.pageStore.close();
+          this.pageStore = result.getPageStore();
+          this.writeStore.close();
+          this.writeStore = result.getWriteStore();
+
+          ensureWriterInitialized();
+        }
+      }
+
       flushRowGroup(true);
       writeStore.close();
       if (writer != null) {

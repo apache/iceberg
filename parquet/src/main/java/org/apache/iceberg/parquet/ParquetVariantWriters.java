@@ -275,8 +275,14 @@ class ParquetVariantWriters {
     @Override
     public void write(int repetitionLevel, VariantValue value) {
       if (typedWriter.types().contains(value.type())) {
-        typedWriter.write(repetitionLevel, value);
-        writeNull(valueWriter, repetitionLevel, valueDefinitionLevel);
+        try {
+          typedWriter.write(repetitionLevel, value);
+          writeNull(valueWriter, repetitionLevel, valueDefinitionLevel);
+        } catch (IllegalArgumentException e) {
+          // Fall back to value field if typed write fails (e.g., decimal scale mismatch)
+          valueWriter.write(repetitionLevel, value);
+          writeNull(typedWriter, repetitionLevel, typedDefinitionLevel);
+        }
       } else {
         valueWriter.write(repetitionLevel, value);
         writeNull(typedWriter, repetitionLevel, typedDefinitionLevel);
