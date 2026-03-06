@@ -132,6 +132,7 @@ public class ChannelTestBase {
   }
 
   protected void initConsumer() {
+    consumer.subscribe(ImmutableList.of(CTL_TOPIC_NAME));
     TopicPartition tp = new TopicPartition(CTL_TOPIC_NAME, 0);
     consumer.rebalance(ImmutableList.of(tp));
     consumer.updateBeginningOffsets(ImmutableMap.of(tp, 0L));
