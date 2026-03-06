@@ -26,6 +26,7 @@ import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -96,9 +97,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
-    FileIO io = new HadoopFileIO(sparkContext.hadoopConfiguration());
     InitialOffsetStore initialOffsetStore =
-        new InitialOffsetStore(table, checkpointLocation, fromTimestamp, io);
+        new InitialOffsetStore(
+            table, checkpointLocation, fromTimestamp, sparkContext.hadoopConfiguration());
     this.initialOffset = initialOffsetStore.initialOffset();
   }
 
@@ -255,9 +256,10 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     private final String initialOffsetLocation;
     private final long fromTimestamp;
 
-    InitialOffsetStore(Table table, String checkpointLocation, long fromTimestamp, FileIO io) {
+    InitialOffsetStore(
+        Table table, String checkpointLocation, long fromTimestamp, Configuration conf) {
       this.table = table;
-      this.io = io;
+      this.io = new HadoopFileIO(conf);
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
       this.fromTimestamp = fromTimestamp;
     }
