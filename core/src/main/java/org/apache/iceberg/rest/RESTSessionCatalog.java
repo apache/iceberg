@@ -596,12 +596,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     String planningModeClientConfig = properties().get(RESTCatalogProperties.SCAN_PLANNING_MODE);
     String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
 
-    // Validate that client and server configs don't conflict
-    // Only validate if BOTH are explicitly set (not null)
-    if (planningModeClientConfig != null && planningModeServerConfig != null) {
-      Preconditions.checkState(
-          planningModeClientConfig.equalsIgnoreCase(planningModeServerConfig),
-          "Scan planning mode mismatch for table %s: client config=%s, server config=%s",
+    // Warn if client and server configs conflict; server config takes precedence
+    if (planningModeClientConfig != null
+        && planningModeServerConfig != null
+        && !planningModeClientConfig.equalsIgnoreCase(planningModeServerConfig)) {
+      LOG.warn(
+          "Scan planning mode mismatch for table {}: client config={}, server config={}. "
+              + "Server config will take precedence.",
           finalIdentifier,
           planningModeClientConfig,
           planningModeServerConfig);
