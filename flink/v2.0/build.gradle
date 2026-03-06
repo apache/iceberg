@@ -187,6 +187,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     }
 
     integrationImplementation libs.flink20.connector.base
+    integrationImplementation libs.flink20.connector.files
     integrationImplementation libs.flink20.table.api.java.bridge
     integrationImplementation "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink20.get()}"
 
