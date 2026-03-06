@@ -116,6 +116,46 @@ public class TestCommitService extends TestBase {
     }
   }
 
+  @TestTemplate
+  public void testFailedCommitsTracked() {
+    FailingCommitService commitService = new FailingCommitService(table, 2, 10000, 1);
+    commitService.start();
+
+    for (int i = 0; i < 6; i++) {
+      commitService.offer(i);
+    }
+    commitService.close();
+
+    assertThat(commitService.results()).containsExactlyInAnyOrder(0, 1, 4, 5);
+    assertThat(commitService.failures()).containsExactlyInAnyOrder(2, 3);
+  }
+
+  private static class FailingCommitService extends BaseCommitService<Integer> {
+    private final Set<Integer> batchesToFail;
+    private int currentBatch = 0;
+
+    FailingCommitService(Table table, int rewritesPerCommit, int timeoutInMS, int... failBatches) {
+      super(table, rewritesPerCommit, timeoutInMS);
+      this.batchesToFail = Sets.newHashSet();
+      for (int batch : failBatches) {
+        batchesToFail.add(batch);
+      }
+    }
+
+    @Override
+    protected void commitOrClean(Set<Integer> batch) {
+      int batchNum = currentBatch++;
+      if (batchesToFail.contains(batchNum)) {
+        throw new RuntimeException("Simulated commit failure for batch " + batchNum);
+      }
+    }
+
+    @Override
+    protected void abortFileGroup(Integer group) {
+      // no-op for this test
+    }
+  }
+
   private static class CustomCommitService extends BaseCommitService<Integer> {
     private final Set<Integer> aborted = Sets.newConcurrentHashSet();
 
