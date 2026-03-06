@@ -59,7 +59,7 @@ public class FlinkSplitPlanner {
                 CombinedScanTask task = tasks.get(index);
                 String[] hostnames = null;
                 if (exposeLocality) {
-                  hostnames = Util.blockLocations(table.io(), task);
+                  hostnames = Util.blockLocations(task.io(), task);
                 }
                 splits[index] = new FlinkInputSplit(index, task, hostnames);
               });

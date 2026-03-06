@@ -326,7 +326,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             table.newScan().planFiles(),
             TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
             TableProperties.SPLIT_LOOKBACK_DEFAULT,
-            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT,
+            table.io());
 
     for (CombinedScanTask task : tasks) {
       try (EqualityDeleteRowReader reader =
@@ -667,7 +668,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             dateTable.newScan().planFiles(),
             TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
             TableProperties.SPLIT_LOOKBACK_DEFAULT,
-            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT,
+            table.io());
 
     ParquetBatchReadConf conf =
         ImmutableParquetBatchReadConf.builder()

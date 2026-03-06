@@ -36,6 +36,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.types.Types;
@@ -45,6 +46,7 @@ import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkPlanningUtil extends TestBaseWithCatalog {
+  private final FileIO io = Mockito.mock(FileIO.class);
 
   private static final Schema SCHEMA =
       new Schema(
@@ -65,7 +67,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
             new MockFileScanTask(mockDataFile(Row.of(1, "a")), SCHEMA, SPEC_1),
             new MockFileScanTask(mockDataFile(Row.of(2, "b")), SCHEMA, SPEC_1),
             new MockFileScanTask(mockDataFile(Row.of(3, "c")), SCHEMA, SPEC_1));
-    ScanTaskGroup<ScanTask> taskGroup = new BaseScanTaskGroup<>(tasks);
+    ScanTaskGroup<ScanTask> taskGroup = new BaseScanTaskGroup<>(tasks, io);
     List<ScanTaskGroup<ScanTask>> taskGroups = ImmutableList.of(taskGroup);
 
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
@@ -86,7 +88,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
                 mockDataFile(partition2), mockDeleteFiles(3, partition2), SCHEMA, SPEC_2),
             new MockFileScanTask(
                 mockDataFile(partition1), mockDeleteFiles(2, partition1), SCHEMA, SPEC_1));
-    ScanTaskGroup<ScanTask> taskGroup = new BaseScanTaskGroup<>(tasks);
+    ScanTaskGroup<ScanTask> taskGroup = new BaseScanTaskGroup<>(tasks, io);
     List<ScanTaskGroup<ScanTask>> taskGroups = ImmutableList.of(taskGroup);
 
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
@@ -115,7 +117,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
                 mockDeleteFiles(2, Row.of()),
                 SCHEMA,
                 PartitionSpec.unpartitioned()));
-    ScanTaskGroup<ScanTask> taskGroup1 = new BaseScanTaskGroup<>(tasks1);
+    ScanTaskGroup<ScanTask> taskGroup1 = new BaseScanTaskGroup<>(tasks1, io);
     List<ScanTask> tasks2 =
         ImmutableList.of(
             new MockFileScanTask(
@@ -133,7 +135,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
                 mockDeleteFiles(2, null),
                 SCHEMA,
                 PartitionSpec.unpartitioned()));
-    ScanTaskGroup<ScanTask> taskGroup2 = new BaseScanTaskGroup<>(tasks2);
+    ScanTaskGroup<ScanTask> taskGroup2 = new BaseScanTaskGroup<>(tasks2, io);
     List<ScanTaskGroup<ScanTask>> taskGroups = ImmutableList.of(taskGroup1, taskGroup2);
 
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
@@ -149,7 +151,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
             new MockDataTask(mockDataFile(Row.of(1, "a"))),
             new MockDataTask(mockDataFile(Row.of(2, "b"))),
             new MockDataTask(mockDataFile(Row.of(3, "c"))));
-    ScanTaskGroup<ScanTask> taskGroup = new BaseScanTaskGroup<>(tasks);
+    ScanTaskGroup<ScanTask> taskGroup = new BaseScanTaskGroup<>(tasks, io);
     List<ScanTaskGroup<ScanTask>> taskGroups = ImmutableList.of(taskGroup);
 
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);
@@ -161,7 +163,7 @@ public class TestSparkPlanningUtil extends TestBaseWithCatalog {
   @TestTemplate
   public void testUnknownTasks() {
     List<ScanTask> tasks = ImmutableList.of(new UnknownScanTask(), new UnknownScanTask());
-    ScanTaskGroup<ScanTask> taskGroup = new BaseScanTaskGroup<>(tasks);
+    ScanTaskGroup<ScanTask> taskGroup = new BaseScanTaskGroup<>(tasks, io);
     List<ScanTaskGroup<ScanTask>> taskGroups = ImmutableList.of(taskGroup);
 
     String[][] locations = SparkPlanningUtil.assignExecutors(taskGroups, EXECUTOR_LOCATIONS);

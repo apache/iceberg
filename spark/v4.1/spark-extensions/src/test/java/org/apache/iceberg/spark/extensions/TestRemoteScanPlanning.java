@@ -18,13 +18,24 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.source.SparkScanBuilder;
 import org.apache.iceberg.spark.sql.TestSelect;
+import org.apache.spark.sql.connector.read.Batch;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
@@ -45,5 +56,35 @@ public class TestRemoteScanPlanning extends TestSelect {
         SparkCatalogConfig.REST.catalogName() + ".default.binary_table"
       }
     };
+  }
+
+  @TestTemplate
+  public void fileIOIsPropagated() {
+    RESTCatalog catalog = new RESTCatalog();
+    catalog.setConf(new Configuration());
+    catalog.initialize(
+        "test",
+        ImmutableMap.<String, String>builder()
+            .putAll(restCatalog.properties())
+            .put(RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED, "true")
+            .build());
+    Table table = catalog.loadTable(tableIdent);
+
+    SparkScanBuilder builder = new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    verifyFileIOHasPlanId(builder.build().toBatch(), table);
+    verifyFileIOHasPlanId(builder.buildCopyOnWriteScan().toBatch(), table);
+    verifyFileIOHasPlanId(builder.buildMergeOnReadScan().toBatch(), table);
+  }
+
+  private void verifyFileIOHasPlanId(Batch batch, Table table) {
+    assertThat(batch)
+        .extracting("taskGroups")
+        .asInstanceOf(InstanceOfAssertFactories.list(ScanTaskGroup.class))
+        .allSatisfy(
+            group ->
+                assertThat(group.io().properties())
+                    .containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID));
+
+    assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
   }
 }

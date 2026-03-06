@@ -105,7 +105,7 @@ class SparkBatch implements Batch {
 
   private String[][] computePreferredLocations() {
     if (localityEnabled) {
-      return SparkPlanningUtil.fetchBlockLocations(table.io(), taskGroups);
+      return SparkPlanningUtil.fetchBlockLocations(taskGroups);
 
     } else if (executorCacheLocalityEnabled) {
       List<String> executorLocations = SparkUtil.executorLocations();

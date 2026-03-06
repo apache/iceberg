@@ -79,7 +79,14 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, readConf, projection, filters, scanReportSupplier);
+    super(
+        spark,
+        table,
+        () -> null != scan ? scan.io() : table.io(),
+        readConf,
+        projection,
+        filters,
+        scanReportSupplier);
 
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
@@ -203,7 +210,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
                 CloseableIterable.withNoopClose(tasks()),
                 adjustSplitSize(tasks(), scan.targetSplitSize()),
                 scan.splitLookback(),
-                scan.splitOpenFileCost());
+                scan.splitOpenFileCost(),
+                scan.io());
         this.taskGroups = Lists.newArrayList(plannedTaskGroups);
 
         LOG.debug(
@@ -218,7 +226,8 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
                 adjustSplitSize(tasks(), scan.targetSplitSize()),
                 scan.splitLookback(),
                 scan.splitOpenFileCost(),
-                groupingKeyType());
+                groupingKeyType(),
+                scan.io());
         StructLikeSet plannedGroupingKeys = collectGroupingKeys(plannedTaskGroups);
 
         LOG.debug(

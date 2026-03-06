@@ -26,7 +26,6 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.hadoop.Util;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.JavaHash;
@@ -39,14 +38,16 @@ class SparkPlanningUtil {
 
   private SparkPlanningUtil() {}
 
-  public static String[][] fetchBlockLocations(
-      FileIO io, List<? extends ScanTaskGroup<?>> taskGroups) {
+  public static String[][] fetchBlockLocations(List<? extends ScanTaskGroup<?>> taskGroups) {
     String[][] locations = new String[taskGroups.size()][];
 
     Tasks.range(taskGroups.size())
         .stopOnFailure()
         .executeWith(ThreadPools.getWorkerPool())
-        .run(index -> locations[index] = Util.blockLocations(io, taskGroups.get(index)));
+        .run(
+            index ->
+                locations[index] =
+                    Util.blockLocations(taskGroups.get(index).io(), taskGroups.get(index)));
 
     return locations;
   }

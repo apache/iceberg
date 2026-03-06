@@ -26,6 +26,7 @@ import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.Supplier;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -59,6 +60,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private static final Types.StructType EMPTY_GROUPING_KEY_TYPE = Types.StructType.of();
 
   private final Table table;
+  private final Supplier<FileIO> fileIO;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
   private final String projection;
@@ -78,10 +80,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
       Table table,
+      Supplier<FileIO> fileIO,
       SparkReadConf readConf,
       Schema projection,
       String checkpointLocation) {
     this.table = table;
+    this.fileIO = fileIO;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
     this.projection = SchemaParser.toJson(projection);
@@ -96,7 +100,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
     InitialOffsetStore initialOffsetStore =
-        new InitialOffsetStore(table, checkpointLocation, fromTimestamp);
+        new InitialOffsetStore(table, fileIO.get(), checkpointLocation, fromTimestamp);
     this.initialOffset = initialOffsetStore.initialOffset();
   }
 
@@ -144,7 +148,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         TableScanUtil.splitFiles(CloseableIterable.withNoopClose(fileScanTasks), splitSize);
     List<CombinedScanTask> combinedScanTasks =
         Lists.newArrayList(
-            TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
+            TableScanUtil.planTasks(
+                splitTasks, splitSize, splitLookback, splitOpenFileCost, fileIO.get()));
     String[][] locations = computePreferredLocations(combinedScanTasks);
 
     InputPartition[] partitions = new InputPartition[combinedScanTasks.size()];
@@ -165,7 +170,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   }
 
   private String[][] computePreferredLocations(List<CombinedScanTask> taskGroups) {
-    return localityPreferred ? SparkPlanningUtil.fetchBlockLocations(table.io(), taskGroups) : null;
+    return localityPreferred ? SparkPlanningUtil.fetchBlockLocations(taskGroups) : null;
   }
 
   @Override
@@ -253,9 +258,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     private final String initialOffsetLocation;
     private final Long fromTimestamp;
 
-    InitialOffsetStore(Table table, String checkpointLocation, Long fromTimestamp) {
+    InitialOffsetStore(Table table, FileIO fileIO, String checkpointLocation, Long fromTimestamp) {
       this.table = table;
-      this.io = table.io();
+      this.io = fileIO;
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
       this.fromTimestamp = fromTimestamp;
     }

@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Collection;
 import java.util.List;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -29,15 +30,36 @@ import org.apache.iceberg.util.TableScanUtil;
 public class BaseCombinedScanTask implements CombinedScanTask {
   private final FileScanTask[] tasks;
   private transient volatile List<FileScanTask> taskList = null;
+  private final FileIO fileIO;
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     BaseCombinedScanTask#BaseCombinedScanTask(FileIO, FileScanTask...)} instead.
+   */
+  @Deprecated
   public BaseCombinedScanTask(FileScanTask... tasks) {
-    Preconditions.checkNotNull(tasks, "tasks cannot be null");
-    this.tasks = tasks;
+    this(null, tasks);
   }
 
+  public BaseCombinedScanTask(FileIO fileIO, FileScanTask... tasks) {
+    Preconditions.checkNotNull(tasks, "tasks cannot be null");
+    this.tasks = tasks;
+    this.fileIO = SerializableTable.copyOf(fileIO);
+  }
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     BaseCombinedScanTask#BaseCombinedScanTask(List, FileIO)} instead.
+   */
+  @Deprecated
   public BaseCombinedScanTask(List<FileScanTask> tasks) {
+    this(tasks, null);
+  }
+
+  public BaseCombinedScanTask(List<FileScanTask> tasks, FileIO fileIO) {
     Preconditions.checkNotNull(tasks, "tasks cannot be null");
     this.tasks = TableScanUtil.mergeTasks(tasks).toArray(new FileScanTask[0]);
+    this.fileIO = SerializableTable.copyOf(fileIO);
   }
 
   @Override
@@ -79,5 +101,10 @@ public class BaseCombinedScanTask implements CombinedScanTask {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this).add("tasks", Joiner.on(", ").join(tasks)).toString();
+  }
+
+  @Override
+  public FileIO io() {
+    return fileIO;
   }
 }

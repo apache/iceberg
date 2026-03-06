@@ -34,6 +34,7 @@ import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -102,6 +103,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final Supplier<FileIO> fileIO;
   private final SparkSession spark;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
@@ -116,6 +118,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   SparkScan(
       SparkSession spark,
       Table table,
+      Supplier<FileIO> fileIO,
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
@@ -126,6 +129,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.fileIO = fileIO;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
     this.projection = projection;
@@ -176,7 +180,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-    return new SparkMicroBatchStream(sparkContext, table, readConf, projection, checkpointLocation);
+    return new SparkMicroBatchStream(
+        sparkContext, table, fileIO, readConf, projection, checkpointLocation);
   }
 
   @Override

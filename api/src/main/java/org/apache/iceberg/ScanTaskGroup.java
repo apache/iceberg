@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import org.apache.iceberg.io.FileIO;
 
 /**
  * A scan task that may include partial input files, multiple input files or both.
@@ -59,5 +60,14 @@ public interface ScanTaskGroup<T extends ScanTask> extends ScanTask {
   @Override
   default int filesCount() {
     return tasks().stream().mapToInt(ScanTask::filesCount).sum();
+  }
+
+  /**
+   * The {@link FileIO} instance to use when reading data.
+   *
+   * @return the {@link FileIO} instance to use when reading data
+   */
+  default FileIO io() {
+    throw new UnsupportedOperationException("io() is not implemented: added in 1.11.0");
   }
 }

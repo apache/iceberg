@@ -179,7 +179,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private Map<String, InputFile> inputFiles() {
     if (lazyInputFiles == null) {
       this.lazyInputFiles =
-          EncryptingFileIO.combine(table().io(), table().encryption())
+          EncryptingFileIO.combine(taskGroup.io(), table().encryption())
               .bulkDecrypt(
                   () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
     }

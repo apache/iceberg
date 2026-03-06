@@ -49,7 +49,7 @@ class SparkStagedScan extends SparkScan {
       Schema projection,
       String taskSetId,
       SparkReadConf readConf) {
-    super(spark, table, readConf, projection, ImmutableList.of(), null);
+    super(spark, table, table::io, readConf, projection, ImmutableList.of(), null);
     this.taskSetId = taskSetId;
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
@@ -74,7 +74,8 @@ class SparkStagedScan extends SparkScan {
           table(),
           taskSetId);
 
-      this.taskGroups = TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, openFileCost);
+      this.taskGroups =
+          TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, openFileCost, table().io());
     }
     return taskGroups;
   }

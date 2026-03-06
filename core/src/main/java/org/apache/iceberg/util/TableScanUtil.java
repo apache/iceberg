@@ -36,6 +36,7 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -82,8 +83,22 @@ public class TableScanUtil {
     return CloseableIterable.combine(splitTasks, tasks);
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     TableScanUtil#planTasks(CloseableIterable, long, int, long, FileIO)} instead.
+   */
+  @Deprecated
   public static CloseableIterable<CombinedScanTask> planTasks(
       CloseableIterable<FileScanTask> splitFiles, long splitSize, int lookback, long openFileCost) {
+    return planTasks(splitFiles, splitSize, lookback, openFileCost, null);
+  }
+
+  public static CloseableIterable<CombinedScanTask> planTasks(
+      CloseableIterable<FileScanTask> splitFiles,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      FileIO fileIO) {
 
     validatePlanningArguments(splitSize, lookback, openFileCost);
 
@@ -98,18 +113,39 @@ public class TableScanUtil {
         CloseableIterable.combine(
             new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
             splitFiles),
-        BaseCombinedScanTask::new);
+        tasks -> new BaseCombinedScanTask(tasks, fileIO));
+  }
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     TableScanUtil#planTaskGroups(List, long, int, long, FileIO)} instead.
+   */
+  @Deprecated
+  public static <T extends ScanTask> List<ScanTaskGroup<T>> planTaskGroups(
+      List<T> tasks, long splitSize, int lookback, long openFileCost) {
+    return planTaskGroups(tasks, splitSize, lookback, openFileCost, null);
   }
 
   public static <T extends ScanTask> List<ScanTaskGroup<T>> planTaskGroups(
-      List<T> tasks, long splitSize, int lookback, long openFileCost) {
+      List<T> tasks, long splitSize, int lookback, long openFileCost, FileIO fileIO) {
     return Lists.newArrayList(
-        planTaskGroups(CloseableIterable.withNoopClose(tasks), splitSize, lookback, openFileCost));
+        planTaskGroups(
+            CloseableIterable.withNoopClose(tasks), splitSize, lookback, openFileCost, fileIO));
+  }
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     TableScanUtil#planTaskGroups(CloseableIterable, long, int, long, FileIO)} instead.
+   */
+  @Deprecated
+  public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
+      CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost) {
+    return planTaskGroups(tasks, splitSize, lookback, openFileCost, null);
   }
 
   @SuppressWarnings("unchecked")
   public static <T extends ScanTask> CloseableIterable<ScanTaskGroup<T>> planTaskGroups(
-      CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost) {
+      CloseableIterable<T> tasks, long splitSize, int lookback, long openFileCost, FileIO fileIO) {
 
     validatePlanningArguments(splitSize, lookback, openFileCost);
 
@@ -134,7 +170,21 @@ public class TableScanUtil {
         CloseableIterable.combine(
             new BinPacking.PackingIterable<>(splitTasks, splitSize, lookback, weightFunc, true),
             splitTasks),
-        combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks)));
+        combinedTasks -> new BaseScanTaskGroup<>(mergeTasks(combinedTasks), fileIO));
+  }
+
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     TableScanUtil#planTaskGroups(List, long, int, long, Types.StructType, FileIO)} instead.
+   */
+  @Deprecated
+  public static <T extends PartitionScanTask> List<ScanTaskGroup<T>> planTaskGroups(
+      List<T> tasks,
+      long splitSize,
+      int lookback,
+      long openFileCost,
+      Types.StructType groupingKeyType) {
+    return planTaskGroups(tasks, splitSize, lookback, openFileCost, groupingKeyType, null);
   }
 
   @SuppressWarnings("unchecked")
@@ -143,7 +193,8 @@ public class TableScanUtil {
       long splitSize,
       int lookback,
       long openFileCost,
-      Types.StructType groupingKeyType) {
+      Types.StructType groupingKeyType,
+      FileIO fileIO) {
 
     validatePlanningArguments(splitSize, lookback, openFileCost);
 
@@ -181,7 +232,8 @@ public class TableScanUtil {
       List<T> groupingKeyTasks = entry.getValue();
       Iterables.addAll(
           taskGroups,
-          toTaskGroupIterable(groupingKey, groupingKeyTasks, splitSize, lookback, weightFunc));
+          toTaskGroupIterable(
+              groupingKey, groupingKeyTasks, splitSize, lookback, weightFunc, fileIO));
     }
 
     return taskGroups;
@@ -192,11 +244,12 @@ public class TableScanUtil {
       Iterable<T> tasks,
       long splitSize,
       int lookback,
-      Function<T, Long> weightFunc) {
+      Function<T, Long> weightFunc,
+      FileIO fileIO) {
 
     return Iterables.transform(
         new BinPacking.PackingIterable<>(tasks, splitSize, lookback, weightFunc, true),
-        combinedTasks -> new BaseScanTaskGroup<>(groupingKey, mergeTasks(combinedTasks)));
+        combinedTasks -> new BaseScanTaskGroup<>(groupingKey, mergeTasks(combinedTasks), fileIO));
   }
 
   @SuppressWarnings("unchecked")

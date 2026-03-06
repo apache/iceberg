@@ -95,7 +95,7 @@ class BaseIncrementalChangelogScan
   @Override
   public CloseableIterable<ScanTaskGroup<ChangelogScanTask>> planTasks() {
     return TableScanUtil.planTaskGroups(
-        planFiles(), targetSplitSize(), splitLookback(), splitOpenFileCost());
+        planFiles(), targetSplitSize(), splitLookback(), splitOpenFileCost(), io());
   }
 
   // builds a collection of changelog snapshots (oldest to newest)

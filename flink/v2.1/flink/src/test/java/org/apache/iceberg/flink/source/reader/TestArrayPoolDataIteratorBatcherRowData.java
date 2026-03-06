@@ -39,10 +39,13 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mockito;
 
 public class TestArrayPoolDataIteratorBatcherRowData {
+  private final FileIO io = Mockito.mock(FileIO.class);
 
   @TempDir protected Path temporaryFolder;
   private static final FileFormat FILE_FORMAT = FileFormat.PARQUET;
@@ -64,7 +67,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
             File.createTempFile("junit", null, temporaryFolder.toFile()),
             FILE_FORMAT,
             TestFixtures.SCHEMA);
-    CombinedScanTask combinedTask = new BaseCombinedScanTask(fileTask);
+    CombinedScanTask combinedTask = new BaseCombinedScanTask(io, fileTask);
     DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
     String splitId = "someSplitId";
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<RowData>>> recordBatchIterator =
@@ -108,7 +111,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
             File.createTempFile("junit", null, temporaryFolder.toFile()),
             FILE_FORMAT,
             TestFixtures.SCHEMA);
-    CombinedScanTask combinedTask = new BaseCombinedScanTask(fileTask);
+    CombinedScanTask combinedTask = new BaseCombinedScanTask(io, fileTask);
     DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
     String splitId = "someSplitId";
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<RowData>>> recordBatchIterator =
@@ -229,7 +232,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
             FILE_FORMAT,
             TestFixtures.SCHEMA);
     CombinedScanTask combinedTask =
-        new BaseCombinedScanTask(Arrays.asList(fileTask0, fileTask1, fileTask2));
+        new BaseCombinedScanTask(Arrays.asList(fileTask0, fileTask1, fileTask2), io);
 
     DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
     dataIterator.seek(1, 1);

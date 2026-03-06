@@ -62,7 +62,7 @@ class BaseIncrementalAppendScan
     CloseableIterable<FileScanTask> splitFiles =
         TableScanUtil.splitFiles(fileScanTasks, targetSplitSize());
     return TableScanUtil.planTasks(
-        splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost());
+        splitFiles, targetSplitSize(), splitLookback(), splitOpenFileCost(), io());
   }
 
   private CloseableIterable<FileScanTask> appendFilesFromSnapshots(List<Snapshot> snapshots) {
