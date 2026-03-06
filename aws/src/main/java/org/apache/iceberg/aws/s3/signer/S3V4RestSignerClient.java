@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
@@ -25,21 +27,18 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
@@ -77,57 +76,17 @@ public abstract class S3V4RestSignerClient
   static final String CACHE_CONTROL = "Cache-Control";
   static final String CACHE_CONTROL_PRIVATE = "private";
   static final String CACHE_CONTROL_NO_CACHE = "no-cache";
+  static final String SIGNED_HEADERS = "SignedHeaders";
+  static final String SIGNED_HEADERS_QUERY_PARAMETER = "X-Amz-SignedHeaders";
 
   @VisibleForTesting
-  static final Cache<S3SignRequest, SignedComponent> SIGNED_COMPONENT_CACHE =
+  static final Cache<Key, SignedComponent> SIGNED_COMPONENT_CACHE =
       Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).maximumSize(100).build();
 
   private static final AtomicInteger CACHE_HITS = new AtomicInteger();
   private static final AtomicInteger CACHE_MISSES = new AtomicInteger();
 
   private static final String SCOPE = "sign";
-
-  /**
-   * Headers which are not to be signed and so filtered out by the signer client before submitting
-   * signing requests to the signing service. They will not be in the cached request key.
-   */
-  public static final Set<String> UNSIGNED_HEADERS =
-      // Note: only Host and x-amz-* headers are required to be signed. Other headers are optional.
-      // Also see
-      // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html#create-canonical-request
-      // for guidelines about headers that are safe to exclude from signing.
-      ImmutableSet.of(
-          // Excluded by software.amazon.awssdk.http.auth.aws.internal.signer.V4CanonicalRequest
-          "connection",
-          "expect",
-          "transfer-encoding",
-          "user-agent",
-          "x-amzn-trace-id",
-          "x-forwarded-for",
-          // S3-specific headers
-          "range",
-          // Conditional headers
-          "if-match",
-          "if-modified-since",
-          "if-none-match",
-          "if-unmodified-since",
-          // Transient headers
-          "keep-alive",
-          "proxy-authenticate",
-          "proxy-authorization",
-          "referer",
-          "te",
-          "trailer",
-          "upgrade");
-
-  static final Predicate<Map.Entry<String, List<String>>> UNSIGNED_HEADERS_PREDICATE =
-      e -> {
-        String name = e.getKey().toLowerCase(Locale.ROOT);
-        return name.startsWith("amz-sdk-") || UNSIGNED_HEADERS.contains(name);
-      };
-
-  static final Predicate<Map.Entry<String, List<String>>> SIGNED_HEADERS_PREDICATE =
-      UNSIGNED_HEADERS_PREDICATE.negate();
 
   @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
   @VisibleForTesting
@@ -319,24 +278,18 @@ public abstract class S3V4RestSignerClient
     AwsS3V4SignerParams signerParams =
         extractSignerParams(AwsS3V4SignerParams.builder(), executionAttributes).build();
 
-    // Strip-off headers that should be signed
-    Map<String, List<String>> headersToSign =
-        request.headers().entrySet().stream()
-            .filter(SIGNED_HEADERS_PREDICATE)
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
     S3SignRequest remoteSigningRequest =
         ImmutableS3SignRequest.builder()
             .method(request.method().name())
             .region(signerParams.signingRegion().id())
             .uri(request.getUri())
-            .headers(headersToSign)
+            .headers(request.headers())
             .properties(requestPropertiesSupplier().get())
             .body(bodyAsString(request))
             .build();
 
-    SignedComponent cachedSignedComponent =
-        SIGNED_COMPONENT_CACHE.getIfPresent(remoteSigningRequest);
+    Key cacheKey = Key.from(remoteSigningRequest);
+    SignedComponent cachedSignedComponent = SIGNED_COMPONENT_CACHE.getIfPresent(cacheKey);
     SignedComponent signedComponent;
 
     if (null != cachedSignedComponent) {
@@ -357,14 +310,16 @@ public abstract class S3V4RestSignerClient
                   ErrorHandlers.defaultErrorHandler(),
                   responseHeadersConsumer);
 
-      signedComponent =
-          ImmutableSignedComponent.builder()
-              .headers(s3SignResponse.headers())
-              .signedURI(s3SignResponse.uri())
-              .build();
-
       if (canBeCached(responseHeaders)) {
-        SIGNED_COMPONENT_CACHE.put(remoteSigningRequest, signedComponent);
+        // determine the list of signed headers
+        signedComponent = buildComponent(s3SignResponse);
+        SIGNED_COMPONENT_CACHE.put(cacheKey, signedComponent);
+      } else {
+        signedComponent =
+            ImmutableSignedComponent.builder()
+                .headers(s3SignResponse.headers())
+                .signedURI(s3SignResponse.uri())
+                .build();
       }
     }
 
@@ -376,6 +331,60 @@ public abstract class S3V4RestSignerClient
     reconstructHeaders(signedComponent.headers(), mutableRequest);
 
     return mutableRequest.build();
+  }
+
+  /**
+   * Build a signed component from the response.
+   *
+   * @param s3SignResponse response
+   * @return the component
+   */
+  @VisibleForTesting
+  static SignedComponent buildComponent(final S3SignResponse s3SignResponse) {
+    final List<String> signedHeaderList = enumerateSignedHeaders(s3SignResponse);
+    // strip out everything from the response which was unsigned
+    Map<String, List<String>> signedHeaders =
+        s3SignResponse.headers().entrySet().stream()
+            .filter((entry) -> signedHeaderList.contains(entry.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    return ImmutableSignedComponent.builder()
+        .headers(signedHeaders)
+        .signedURI(s3SignResponse.uri())
+        .build();
+  }
+
+  /**
+   * Given a signing response from a server, extract the signed headers from the query parameters.
+   *
+   * @param response The signing response which contains the URI with signed headers.
+   * @return A list of signed header names.
+   */
+  @VisibleForTesting
+  static List<String> enumerateSignedHeaders(S3SignResponse response) {
+    String headerEnum = null;
+    final String query = response.uri().getQuery();
+    if (isNotEmpty(query)) {
+
+      Map<String, String> queryParams = Splitter.on('&').withKeyValueSeparator('=').split(query);
+      String signedHeaders = queryParams.get(SIGNED_HEADERS_QUERY_PARAMETER);
+
+      if (isNotEmpty(signedHeaders)) {
+        headerEnum = signedHeaders;
+      }
+    }
+    if (headerEnum == null) {
+      // nothing in the ? headers, look for it in response headers
+      final List<String> headers = response.headers().get(SIGNED_HEADERS);
+      if (headers != null) {
+        // there's an assumption here that there is only one.
+        headerEnum = headers.get(0);
+      }
+    }
+    if (headerEnum == null) {
+      LOG.warn("No signed headers found in response: {}", response);
+      return Collections.emptyList();
+    }
+    return Splitter.on(";").omitEmptyStrings().trimResults().splitToList(headerEnum);
   }
 
   @Override
@@ -426,6 +435,23 @@ public abstract class S3V4RestSignerClient
 
     if (signerParams.enableChunkedEncoding()) {
       throw new UnsupportedOperationException("Chunked encoding not supported");
+    }
+  }
+
+  @Value.Immutable
+  interface Key {
+    String method();
+
+    String region();
+
+    String uri();
+
+    static Key from(S3SignRequest request) {
+      return ImmutableKey.builder()
+          .method(request.method())
+          .region(request.region())
+          .uri(request.uri().toString())
+          .build();
     }
   }
 

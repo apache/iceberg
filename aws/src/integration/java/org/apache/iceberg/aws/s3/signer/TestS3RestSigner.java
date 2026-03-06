@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
-import static org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient.UNSIGNED_HEADERS_PREDICATE;
+import static org.apache.iceberg.aws.s3.signer.S3SignerServlet.UNSIGNED_HEADERS_PREDICATE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 

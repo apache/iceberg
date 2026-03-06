@@ -212,7 +212,8 @@ class TestS3V4RestSignerClient {
             .headers(response.headers())
             .signedURI(response.uri())
             .build();
-    S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.put(request, signedComponent);
+    S3V4RestSignerClient.SIGNED_COMPONENT_CACHE.put(
+        S3V4RestSignerClient.Key.from(request), signedComponent);
     return signedComponent;
   }
 

@@ -33,6 +33,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -42,6 +43,7 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
@@ -67,6 +69,25 @@ public class S3SignerServlet extends HttpServlet {
   private static final Logger LOG = LoggerFactory.getLogger(S3SignerServlet.class);
 
   static final Clock SIGNING_CLOCK = Clock.fixed(Instant.now(), ZoneId.of("UTC"));
+
+  /**
+   * Headers which are not to be signed and also filtered out by the signer client before caching
+   * the response.
+   */
+  public static final Set<String> UNSIGNED_HEADERS =
+      ImmutableSet.of(
+          "Content-Type",
+          "amz-sdk-invocation-id",
+          "amz-sdk-retry",
+          "if-match",
+          "if-modified-since",
+          "if-none-match",
+          "if-unmodified-since",
+          "range",
+          "referer",
+          "user-agent",
+          "x-amz-date",
+          "x-amz-content-sha256");
 
   private static final String POST = "POST";
 
@@ -166,6 +187,15 @@ public class S3SignerServlet extends HttpServlet {
     }
   }
 
+  static final Predicate<Map.Entry<String, List<String>>> UNSIGNED_HEADERS_PREDICATE =
+      e -> {
+        String name = e.getKey().toLowerCase(Locale.ROOT);
+        return name.startsWith("amz-sdk-") || UNSIGNED_HEADERS.contains(name);
+      };
+
+  static final Predicate<Map.Entry<String, List<String>>> SIGNED_HEADERS_PREDICATE =
+      UNSIGNED_HEADERS_PREDICATE.negate();
+
   private S3SignResponse signRequest(S3SignRequest request) {
     AwsS3V4SignerParams signingParams =
         AwsS3V4SignerParams.builder()
@@ -181,12 +211,12 @@ public class S3SignerServlet extends HttpServlet {
 
     Map<String, List<String>> unsignedHeaders =
         request.headers().entrySet().stream()
-            .filter(S3V4RestSignerClient.UNSIGNED_HEADERS_PREDICATE)
+            .filter(UNSIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     Map<String, List<String>> signedHeaders =
         request.headers().entrySet().stream()
-            .filter(S3V4RestSignerClient.SIGNED_HEADERS_PREDICATE)
+            .filter(SIGNED_HEADERS_PREDICATE)
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     SdkHttpFullRequest sign =
