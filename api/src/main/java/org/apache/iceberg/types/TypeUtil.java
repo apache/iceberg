@@ -19,6 +19,7 @@
 package org.apache.iceberg.types;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -100,6 +101,19 @@ public class TypeUtil {
     }
 
     return new Schema(ImmutableList.of(), schema.getAliases());
+  }
+
+  /**
+   * Selects fields from a schema by ID and returns them ordered by field ID.
+   *
+   * <p>Unlike {@link #select(Schema, Set)}, which preserves the field ordering of the input schema,
+   * this method always returns columns sorted by field ID.
+   */
+  public static Schema selectOrdered(Schema schema, Set<Integer> fieldIds) {
+    Schema selected = select(schema, fieldIds);
+    List<Types.NestedField> sorted = Lists.newArrayList(selected.columns());
+    sorted.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+    return new Schema(sorted);
   }
 
   public static Types.StructType select(Types.StructType struct, Set<Integer> fieldIds) {

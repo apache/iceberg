@@ -19,7 +19,6 @@
 package org.apache.iceberg.data;
 
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -211,12 +210,7 @@ public abstract class DeleteFilter<T> {
       Set<Integer> ids = entry.getKey();
       Iterable<DeleteFile> deletes = entry.getValue();
 
-      // Canonicalize the delete schema by sorting fields by ID so that the same set of equality
-      // field IDs always produces the same schema, regardless of requiredSchema column ordering.
-      Schema selectedSchema = TypeUtil.select(requiredSchema, ids);
-      List<Types.NestedField> sortedFields = Lists.newArrayList(selectedSchema.columns());
-      sortedFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
-      Schema deleteSchema = new Schema(sortedFields);
+      Schema deleteSchema = TypeUtil.selectOrdered(requiredSchema, ids);
 
       // a projection to select and reorder fields of the file schema to match the delete rows
       StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
