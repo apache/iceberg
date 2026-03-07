@@ -54,6 +54,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -1289,7 +1290,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     assertThat(dataFilesCount).as("Must have 2 files before UPDATE").isEqualTo("2");
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
-    DataFile dataFile = Iterables.getOnlyElement(snapshot.addedDataFiles(table.io()));
+    DataFile dataFile =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles());
     table.io().deleteFile(dataFile.location());
 
     // disable dynamic pruning and rely only on static predicate pushdown

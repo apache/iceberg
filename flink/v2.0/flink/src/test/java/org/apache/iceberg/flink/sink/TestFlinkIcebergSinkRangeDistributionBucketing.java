@@ -47,6 +47,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -202,7 +203,14 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
       // only keep the snapshots with added data files
       snapshots =
           snapshots.stream()
-              .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+              .filter(
+                  snapshot ->
+                      SnapshotChanges.builderFor(table)
+                          .snapshot(snapshot)
+                          .build()
+                          .addedDataFiles()
+                          .iterator()
+                          .hasNext())
               .collect(Collectors.toList());
 
       // Source rate limit per checkpoint cycle may not be super precise.
@@ -217,7 +225,12 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
 
       for (Snapshot snapshot : rangePartitionedCycles) {
         List<DataFile> addedDataFiles =
-            Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
+            Lists.newArrayList(
+                SnapshotChanges.builderFor(table)
+                    .snapshot(snapshot)
+                    .build()
+                    .addedDataFiles()
+                    .iterator());
         assertThat(addedDataFiles)
             .hasSizeLessThanOrEqualTo(maxAddedDataFilesPerCheckpoint(parallelism));
       }

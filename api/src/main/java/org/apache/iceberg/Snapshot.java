@@ -112,7 +112,9 @@ public interface Snapshot extends Serializable {
    *
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all data files added to the table in this snapshot.
+   * @deprecated will be removed in 2.0.0; use SnapshotChanges#builderFor(Table) instead
    */
+  @Deprecated
   Iterable<DataFile> addedDataFiles(FileIO io);
 
   /**
@@ -124,7 +126,9 @@ public interface Snapshot extends Serializable {
    *
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all data files removed from the table in this snapshot.
+   * @deprecated will be removed in 2.0.0; use SnapshotChanges#builderFor(Table) instead
    */
+  @Deprecated
   Iterable<DataFile> removedDataFiles(FileIO io);
 
   /**
@@ -135,7 +139,9 @@ public interface Snapshot extends Serializable {
    *
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all delete files added to the table in this snapshot
+   * @deprecated will be removed in 2.0.0; use SnapshotChanges#builderFor(Table) instead
    */
+  @Deprecated
   default Iterable<DeleteFile> addedDeleteFiles(FileIO io) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement addedDeleteFiles");
@@ -149,7 +155,9 @@ public interface Snapshot extends Serializable {
    *
    * @param io a {@link FileIO} instance used for reading files from storage
    * @return all delete files removed from the table in this snapshot
+   * @deprecated will be removed in 2.0.0; use SnapshotChanges#builderFor(Table) instead
    */
+  @Deprecated
   default Iterable<DeleteFile> removedDeleteFiles(FileIO io) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement removedDeleteFiles");

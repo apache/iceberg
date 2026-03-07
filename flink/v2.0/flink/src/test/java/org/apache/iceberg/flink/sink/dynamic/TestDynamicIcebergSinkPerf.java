@@ -38,6 +38,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -225,7 +226,8 @@ class TestDynamicIcebergSinkPerf {
       Table table = CATALOG_EXTENSION.catalog().loadTable(identifier);
       for (Snapshot snapshot : table.snapshots()) {
         long records = 0;
-        for (DataFile dataFile : snapshot.addedDataFiles(table.io())) {
+        for (DataFile dataFile :
+            SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles()) {
           records += dataFile.recordCount();
         }
 

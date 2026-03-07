@@ -36,6 +36,7 @@ import org.apache.iceberg.MicroBatches.MicroBatch;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
@@ -500,7 +501,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     // If snapshotSummary doesn't have SnapshotSummary.ADDED_FILES_PROP,
     // iterate through addedFiles iterator to find addedFilesCount.
     return addedFilesCount == -1
-        ? Iterables.size(snapshot.addedDataFiles(table.io()))
+        ? Iterables.size(
+            SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles())
         : addedFilesCount;
   }
 

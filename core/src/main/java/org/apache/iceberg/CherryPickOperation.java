@@ -41,7 +41,6 @@ import org.apache.iceberg.util.WapUtil;
 class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
 
   private final FileIO io;
-  private final Map<Integer, PartitionSpec> specsById;
   private Snapshot cherrypickSnapshot = null;
   private boolean requireFastForward = false;
   private PartitionSet replacedPartitions = null;
@@ -49,7 +48,6 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
   CherryPickOperation(String tableName, TableOperations ops) {
     super(tableName, ops);
     this.io = ops.io();
-    this.specsById = ops.current().specsById();
   }
 
   @Override
@@ -71,6 +69,9 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
     ValidationException.check(
         cherrypickSnapshot != null, "Cannot cherry-pick unknown snapshot ID: %s", snapshotId);
 
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(cherrypickSnapshot, ops().io(), current.specsById()).build();
+
     if (cherrypickSnapshot.operation().equals(DataOperations.APPEND)) {
       // this property is set on target snapshot that will get published
       String wapId = WapUtil.validateWapPublish(current, snapshotId);
@@ -82,7 +83,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(snapshotId));
 
       // Pick modifications from the snapshot
-      for (DataFile addedFile : cherrypickSnapshot.addedDataFiles(io)) {
+      for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);
       }
 
@@ -113,14 +114,14 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       failMissingDeletePaths();
 
       // copy adds from the picked snapshot
-      this.replacedPartitions = PartitionSet.create(specsById);
-      for (DataFile addedFile : cherrypickSnapshot.addedDataFiles(io)) {
+      this.replacedPartitions = PartitionSet.create(current.specsById());
+      for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);
         replacedPartitions.add(addedFile.specId(), addedFile.partition());
       }
 
       // copy deletes from the picked snapshot
-      for (DataFile deletedFile : cherrypickSnapshot.removedDataFiles(io)) {
+      for (DataFile deletedFile : changes.removedDataFiles()) {
         delete(deletedFile);
       }
 

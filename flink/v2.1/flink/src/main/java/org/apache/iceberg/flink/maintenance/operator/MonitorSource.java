@@ -129,7 +129,7 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
           if (snapshot != null) {
             if (!DataOperations.REPLACE.equals(snapshot.operation())) {
               LOG.debug("Reading snapshot {}", snapshot.snapshotId());
-              event.merge(new TableChange(snapshot, table.io()));
+              event.merge(new TableChange(snapshot, table));
             } else {
               LOG.debug("Skipping replace snapshot {}", snapshot.snapshotId());
             }
