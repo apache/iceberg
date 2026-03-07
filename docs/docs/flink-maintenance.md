@@ -126,7 +126,7 @@ TriggerLockFactory lockFactory = new ZkLockFactory(
 
 #### Flink-maintained lock
 
-Maintain the lock within Flink itself. This does not require configuring external systems. One prerequisite is that there are no parallel table maintenance jobs for a given table.
+Maintain the lock within Flink itself. This does not require configuring external systems. The only prerequisite is that there are no parallel table maintenance jobs for a given table.
 
 ### Quick Start
 
@@ -151,7 +151,7 @@ TriggerLockFactory lockFactory = new JdbcLockFactory(
     jdbcProps                                   // JDBC connection properties
 );
 
-// Option 1: With external lock factory
+// Option 1: With external lock factory (plan to deprecate this Option since 1.12)
 TableMaintenance.forTable(env, tableLoader, lockFactory)
 // Option 2: With Flink-managed lock (no external lock required)
 TableMaintenance.forTable(env, tableLoader)

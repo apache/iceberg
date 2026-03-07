@@ -45,6 +45,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.source.BoundedTableFactory;
 import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
@@ -79,8 +80,7 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
           + "'flink-maintenance.rewrite.schedule.data-file-size'='1',"
           + "'flink-maintenance.lock-check-delay-seconds'='60'";
   private static final String TABLE_PROPERTIES_COORDINATOR =
-      "'flink-maintenance.lock.jdbc.init-lock-table'='true',"
-          + "'flink-maintenance.rewrite.rewrite-all'='true',"
+      "'flink-maintenance.rewrite.rewrite-all'='true',"
           + "'flink-maintenance.rewrite.schedule.data-file-size'='1',"
           + "'flink-maintenance.lock-check-delay-seconds'='60'";
 
@@ -93,8 +93,15 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
   @Parameters(name = "catalogName={0}, baseNamespace={1}, userSqlHint={2}, lockType={3}")
   public static List<Object[]> parameters() {
     return Arrays.asList(
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), true, "jdbc"},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), false, "jdbc"},
+        new Object[] {
+          "testhadoop_basenamespace", Namespace.of("l0", "l1"), true, LockConfig.JdbcLockConfig.JDBC
+        },
+        new Object[] {
+          "testhadoop_basenamespace",
+          Namespace.of("l0", "l1"),
+          false,
+          LockConfig.JdbcLockConfig.JDBC
+        },
         new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), true, ""},
         new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), false, ""});
   }
@@ -131,7 +138,7 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
     if (userSqlHint) {
       sql("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
     } else {
-      if (lockType.equals("jdbc")) {
+      if (lockType.equals(LockConfig.JdbcLockConfig.JDBC)) {
         sql("CREATE TABLE %s (id int, data varchar) with (%s)", TABLE_NAME, TABLE_PROPERTIES);
       } else {
         sql(
@@ -163,7 +170,7 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
 
     // Redirect the records from source table to destination table.
     if (userSqlHint) {
-      if (lockType.equals("jdbc")) {
+      if (lockType.equals(LockConfig.JdbcLockConfig.JDBC)) {
         sql(
             "INSERT INTO %s /*+ OPTIONS(%s) */ SELECT id,data from sourceTable",
             TABLE_NAME, TABLE_PROPERTIES);
