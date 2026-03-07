@@ -52,6 +52,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.sink.dynamic.DynamicRecord;
 import org.apache.iceberg.flink.sink.dynamic.DynamicTableRecordGenerator;
+import org.apache.iceberg.flink.sink.dynamic.VariantAvroDynamicTableRecordGenerator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -400,6 +401,74 @@ public class TestIcebergConnector extends TestBase {
   }
 
   @TestTemplate
+  public void testVariantAvroDynamicIcebergSink() throws DatabaseAlreadyExistException {
+    Map<String, String> tableProps = createTableProps();
+    Map<String, String> dynamicTableProps = Maps.newHashMap(tableProps);
+    dynamicTableProps.put("use-dynamic-iceberg-sink", "true");
+    dynamicTableProps.put(
+        "dynamic-record-generator-impl", VariantAvroDynamicTableRecordGenerator.class.getName());
+
+    FlinkCatalogFactory factory = new FlinkCatalogFactory();
+    FlinkCatalog flinkCatalog =
+        (FlinkCatalog) factory.createCatalog(catalogName, tableProps, new Configuration());
+    flinkCatalog.createDatabase(
+        databaseName(), new CatalogDatabaseImpl(Maps.newHashMap(), null), true);
+
+    String avroSchema =
+        """
+      {
+        "type": "record",
+        "name": "TestSchema",
+        "fields": [
+          {
+            "name": "id",
+            "type": "long"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ]
+      }
+      """;
+
+    String avroSchemaId = "TestSchema:1";
+    // Create table with dynamic sink enabled
+    sql(
+        "CREATE TABLE %s (data VARIANT, `catalog-database` STRING, `catalog-table` STRING, avro_schema STRING, avro_schema_id STRING, branch STRING, `write-parallelism` INT) WITH %s",
+        TABLE_NAME + "_dynamic", toWithClause(dynamicTableProps));
+
+    // Insert data with database and table information
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(PARSE_JSON('{\"id\": 1, \"name\": \"AAA\"}'), '%s', '%s', '%s', '%s', 'main', 1), "
+            + "(PARSE_JSON('{\"id\": 2, \"name\": \"BBB\"}'), '%s', '%s', '%s', '%s', 'main', 1)",
+        TABLE_NAME + "_dynamic",
+        databaseName(),
+        tableName(),
+        avroSchema,
+        avroSchemaId,
+        databaseName(),
+        tableName(),
+        avroSchema,
+        avroSchemaId);
+
+    // Verify the table and data exists
+    ObjectPath objectPath = new ObjectPath(databaseName(), tableName());
+    assertThat(flinkCatalog.tableExists(objectPath)).isTrue();
+    Table table =
+        flinkCatalog
+            .getCatalogLoader()
+            .loadCatalog()
+            .loadTable(TableIdentifier.of(databaseName(), tableName()));
+
+    tableProps.put("catalog-database", databaseName());
+    sql("CREATE TABLE %s (id BIGINT, name STRING) WITH %s", tableName(), toWithClause(tableProps));
+    assertThat(sql("SELECT * FROM %s", tableName()))
+        .containsExactlyInAnyOrder(Row.of(1L, "AAA"), Row.of(2L, "BBB"));
+  }
+
+  @TestTemplate
   public void testMissingDynamicRecordGeneratorImpl() throws DatabaseAlreadyExistException {
     Map<String, String> tableProps = createTableProps();
     tableProps.put("use-dynamic-iceberg-sink", "true");
@@ -430,8 +499,8 @@ public class TestIcebergConnector extends TestBase {
     private int databaseFieldIndex = -1;
     private int tableFieldIndex = -1;
 
-    public SimpleRowDataTableRecordGenerator(RowType rowType) {
-      super(rowType);
+    public SimpleRowDataTableRecordGenerator(RowType rowType, Map<String, String> writeProps) {
+      super(rowType, writeProps);
     }
 
     @Override

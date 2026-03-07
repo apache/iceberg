@@ -284,9 +284,9 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
       ctor =
           DynConstructors.builder(DynamicTableRecordGenerator.class)
               .loader(IcebergTableSink.class.getClassLoader())
-              .impl(generatorImpl, RowType.class)
+              .impl(generatorImpl, RowType.class, Map.class)
               .buildChecked();
-      return ctor.newInstance(rowType);
+      return ctor.newInstance(rowType, writeProps);
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
           String.format("Class %s does not implement DynamicRecordGeneratorSQL", generatorImpl), e);
