@@ -254,6 +254,9 @@ public class ValueReaders {
       Integer projectionPos,
       ValueReader<?> fieldReader,
       Map<Integer, ?> idToConstant) {
+    if (projectionPos == null && !idToConstant.containsKey(fieldId)) {
+      return Pair.of(projectionPos, fieldReader);
+    }
     if (Objects.equals(fieldId, MetadataColumns.ROW_ID.fieldId())) {
       Long firstRowId = (Long) idToConstant.get(fieldId);
       return Pair.of(projectionPos, ValueReaders.rowIds(firstRowId, fieldReader));
