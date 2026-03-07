@@ -41,7 +41,6 @@ import org.apache.iceberg.util.WapUtil;
 class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
 
   private final FileIO io;
-  private final String tableName;
   private Snapshot cherrypickSnapshot = null;
   private boolean requireFastForward = false;
   private PartitionSet replacedPartitions = null;
@@ -49,7 +48,6 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
   CherryPickOperation(String tableName, TableOperations ops) {
     super(tableName, ops);
     this.io = ops.io();
-    this.tableName = tableName;
   }
 
   @Override
@@ -116,7 +114,7 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
       failMissingDeletePaths();
 
       // copy adds from the picked snapshot
-      this.replacedPartitions = PartitionSet.create(table.specs());
+      this.replacedPartitions = PartitionSet.create(current.specsById());
       for (DataFile addedFile : changes.addedDataFiles()) {
         add(addedFile);
         replacedPartitions.add(addedFile.specId(), addedFile.partition());
