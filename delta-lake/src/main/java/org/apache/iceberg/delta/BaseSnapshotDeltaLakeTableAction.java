@@ -18,20 +18,34 @@
  */
 package org.apache.iceberg.delta;
 
-import io.delta.standalone.DeltaLog;
-import io.delta.standalone.VersionLog;
-import io.delta.standalone.actions.Action;
-import io.delta.standalone.actions.AddFile;
-import io.delta.standalone.actions.RemoveFile;
-import io.delta.standalone.exceptions.DeltaStandaloneException;
+import io.delta.kernel.Scan;
+import io.delta.kernel.Snapshot;
+import io.delta.kernel.data.ColumnarBatch;
+import io.delta.kernel.data.FilteredColumnarBatch;
+import io.delta.kernel.data.Row;
+import io.delta.kernel.defaults.engine.DefaultEngine;
+import io.delta.kernel.engine.Engine;
+import io.delta.kernel.exceptions.KernelException;
+import io.delta.kernel.exceptions.TableNotFoundException;
+import io.delta.kernel.internal.DeltaHistoryManager;
+import io.delta.kernel.internal.DeltaLogActionUtils.DeltaAction;
+import io.delta.kernel.internal.TableImpl;
+import io.delta.kernel.internal.actions.AddFile;
+import io.delta.kernel.internal.actions.RemoveFile;
+import io.delta.kernel.internal.actions.RowBackedAction;
+import io.delta.kernel.internal.fs.Path;
+import io.delta.kernel.internal.util.VectorUtils;
+import io.delta.kernel.utils.CloseableIterator;
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
-import java.util.Iterator;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
@@ -84,7 +98,8 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   private static final String DELTA_TIMESTAMP_TAG_PREFIX = "delta-ts-";
   private final ImmutableMap.Builder<String, String> additionalPropertiesBuilder =
       ImmutableMap.builder();
-  private DeltaLog deltaLog;
+  private Engine deltaEngine;
+  private io.delta.kernel.Table deltaTable;
   private Catalog icebergCatalog;
   private final String deltaTableLocation;
   private TableIdentifier newTableIdentifier;
@@ -138,10 +153,10 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
 
   @Override
   public SnapshotDeltaLakeTable deltaLakeConfiguration(Configuration conf) {
-    this.deltaLog = DeltaLog.forTable(conf, deltaTableLocation);
+    this.deltaEngine = DefaultEngine.create(conf);
     this.deltaLakeFileIO = new HadoopFileIO(conf);
-    // get the earliest version available in the delta lake table
-    this.deltaStartVersion = deltaLog.getVersionAtOrAfterTimestamp(0L);
+    this.deltaTable = io.delta.kernel.Table.forPath(deltaEngine, deltaTableLocation);
+
     return this;
   }
 
@@ -151,15 +166,23 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         icebergCatalog != null && newTableIdentifier != null,
         "Iceberg catalog and identifier cannot be null. Make sure to configure the action with a valid Iceberg catalog and identifier.");
     Preconditions.checkArgument(
-        deltaLog != null && deltaLakeFileIO != null,
+        deltaTable != null && deltaEngine != null && deltaLakeFileIO != null,
         "Make sure to configure the action with a valid deltaLakeConfiguration");
-    Preconditions.checkArgument(
-        deltaLog.tableExists(),
-        "Delta Lake table does not exist at the given location: %s",
-        deltaTableLocation);
+    try {
+      // Validate table exists by attempting to load latest snapshot
+      this.deltaTable.getLatestSnapshot(deltaEngine);
+    } catch (TableNotFoundException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Delta Lake table does not exist at the given location: %s", deltaTableLocation),
+          e);
+    }
+    // get the earliest recreatable commit version available in the Delta Lake table
+    Path logPath = new Path(deltaTableLocation, "_delta_log");
+    deltaStartVersion = DeltaHistoryManager.getEarliestRecreatableCommit(deltaEngine, logPath);
     ImmutableSet.Builder<String> migratedDataFilesBuilder = ImmutableSet.builder();
-    io.delta.standalone.Snapshot updatedSnapshot = deltaLog.update();
-    Schema schema = convertDeltaLakeSchema(updatedSnapshot.getMetadata().getSchema());
+    Snapshot updatedSnapshot = deltaTable.getLatestSnapshot(deltaEngine);
+    Schema schema = convertDeltaLakeSchema(updatedSnapshot.getSchema());
     PartitionSpec partitionSpec = getPartitionSpecFromDeltaSnapshot(schema, updatedSnapshot);
     Transaction icebergTransaction =
         icebergCatalog.newCreateTableTransaction(
@@ -178,14 +201,11 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     long constructableStartVersion =
         commitInitialDeltaSnapshotToIcebergTransaction(
             updatedSnapshot.getVersion(), icebergTransaction, migratedDataFilesBuilder);
-    Iterator<VersionLog> versionLogIterator =
-        deltaLog.getChanges(
-            constructableStartVersion + 1, false // not throw exception when data loss detected
-            );
-    while (versionLogIterator.hasNext()) {
-      VersionLog versionLog = versionLogIterator.next();
+    for (long version = constructableStartVersion + 1;
+        version <= updatedSnapshot.getVersion();
+        version++) {
       commitDeltaVersionLogToIcebergTransaction(
-          versionLog, icebergTransaction, migratedDataFilesBuilder);
+          version, icebergTransaction, migratedDataFilesBuilder);
     }
     icebergTransaction.commitTransaction();
 
@@ -200,15 +220,14 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         .build();
   }
 
-  private Schema convertDeltaLakeSchema(io.delta.standalone.types.StructType deltaSchema) {
+  private Schema convertDeltaLakeSchema(io.delta.kernel.types.StructType deltaSchema) {
     Type converted =
         DeltaLakeDataTypeVisitor.visit(deltaSchema, new DeltaLakeTypeToType(deltaSchema));
     return new Schema(converted.asNestedType().asStructType().fields());
   }
 
-  private PartitionSpec getPartitionSpecFromDeltaSnapshot(
-      Schema schema, io.delta.standalone.Snapshot deltaSnapshot) {
-    List<String> partitionNames = deltaSnapshot.getMetadata().getPartitionColumns();
+  private PartitionSpec getPartitionSpecFromDeltaSnapshot(Schema schema, Snapshot deltaSnapshot) {
+    List<String> partitionNames = deltaSnapshot.getPartitionColumnNames();
     if (partitionNames.isEmpty()) {
       return PartitionSpec.unpartitioned();
     }
@@ -245,8 +264,9 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     long constructableStartVersion = deltaStartVersion;
     while (constructableStartVersion <= latestVersion) {
       try {
-        List<AddFile> initDataFiles =
-            deltaLog.getSnapshotForVersionAsOf(constructableStartVersion).getAllFiles();
+        Snapshot snapshot =
+            deltaTable.getSnapshotAsOfVersion(deltaEngine, constructableStartVersion);
+        List<AddFile> initDataFiles = getAddFilesFromSnapshot(snapshot);
         List<DataFile> filesToAdd = Lists.newArrayList();
         for (AddFile addFile : initDataFiles) {
           DataFile dataFile = buildDataFileFromAction(addFile, transaction.table());
@@ -261,7 +281,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         tagCurrentSnapshot(constructableStartVersion, transaction);
 
         return constructableStartVersion;
-      } catch (NotFoundException | IllegalArgumentException | DeltaStandaloneException e) {
+      } catch (NotFoundException | IllegalArgumentException | KernelException e) {
         constructableStartVersion++;
       }
     }
@@ -271,7 +291,38 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
   }
 
   /**
-   * Iterate through the {@code VersionLog} to determine the update type and commit the update to
+   * Returns all {@link AddFile} actions visible in the given Delta snapshot.
+   *
+   * <p>The snapshot is scanned to collect the set of data files that constitute the table state at
+   * that version.
+   *
+   * @param snapshot the Delta snapshot
+   * @return list of {@link AddFile} actions in the snapshot
+   */
+  private List<AddFile> getAddFilesFromSnapshot(Snapshot snapshot) {
+    List<AddFile> addFiles = Lists.newArrayList();
+    Scan scan = snapshot.getScanBuilder().build();
+    try (CloseableIterator<FilteredColumnarBatch> scanFileIter = scan.getScanFiles(deltaEngine)) {
+      while (scanFileIter.hasNext()) {
+        FilteredColumnarBatch batch = scanFileIter.next();
+        try (CloseableIterator<Row> rows = batch.getRows()) {
+          while (rows.hasNext()) {
+            Row scanFileRow = rows.next();
+            if (DeltaActionUtils.isAdd(scanFileRow)) {
+              addFiles.add(DeltaActionUtils.getAdd(scanFileRow));
+            }
+          }
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    return addFiles;
+  }
+
+  /**
+   * Iterate through the Delta Lake change log to determine the update type and commit the update to
    * the given {@code Transaction}.
    *
    * <p>There are 3 cases:
@@ -283,22 +334,19 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    *
    * <p>3. OverwriteFiles - when there are a mix of AddFile and RemoveFile (a DELETE/UPDATE)
    *
-   * @param versionLog the delta log version to commit to iceberg table transaction
+   * @param version the delta log version to commit to iceberg table transaction
    * @param transaction the iceberg table transaction to commit to
    */
   private void commitDeltaVersionLogToIcebergTransaction(
-      VersionLog versionLog,
+      long version,
       Transaction transaction,
       ImmutableSet.Builder<String> migratedDataFilesBuilder) {
     // Only need actions related to data change: AddFile and RemoveFile
-    List<Action> dataFileActions =
-        versionLog.getActions().stream()
-            .filter(action -> action instanceof AddFile || action instanceof RemoveFile)
-            .collect(Collectors.toList());
+    List<RowBackedAction> dataFileActions = getDataFileActions(version);
 
     List<DataFile> filesToAdd = Lists.newArrayList();
     List<DataFile> filesToRemove = Lists.newArrayList();
-    for (Action action : dataFileActions) {
+    for (RowBackedAction action : dataFileActions) {
       DataFile dataFile = buildDataFileFromAction(action, transaction.table());
       if (action instanceof AddFile) {
         filesToAdd.add(dataFile);
@@ -332,10 +380,46 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       transaction.newAppend().commit();
     }
 
-    tagCurrentSnapshot(versionLog.getVersion(), transaction);
+    tagCurrentSnapshot(version, transaction);
   }
 
-  private DataFile buildDataFileFromAction(Action action, Table table) {
+  /**
+   * Returns data file change actions ({@link AddFile} and {@link RemoveFile}) for the specified
+   * Delta Lake version.
+   *
+   * <p>This method reads the Delta change log using the Kernel getChanges API and extracts only
+   * file-level actions.
+   *
+   * @param version the Delta Lake version
+   * @return list of file add and remove actions for the version
+   */
+  private List<RowBackedAction> getDataFileActions(long version) {
+    List<RowBackedAction> dataFileActions = Lists.newArrayList();
+    TableImpl tableImpl = (TableImpl) deltaTable;
+    Set<DeltaAction> actions = Set.of(DeltaAction.ADD, DeltaAction.REMOVE);
+
+    try (CloseableIterator<ColumnarBatch> changes =
+        tableImpl.getChanges(deltaEngine, version, version, actions)) {
+      while (changes.hasNext()) {
+        ColumnarBatch batch = changes.next();
+        try (CloseableIterator<Row> rows = batch.getRows()) {
+          while (rows.hasNext()) {
+            Row row = rows.next();
+            if (DeltaActionUtils.isAdd(row)) {
+              dataFileActions.add(DeltaActionUtils.getAdd(row));
+            } else if (DeltaActionUtils.isRemove(row)) {
+              dataFileActions.add(DeltaActionUtils.getRemove(row));
+            }
+          }
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    return dataFileActions;
+  }
+
+  private DataFile buildDataFileFromAction(RowBackedAction action, Table table) {
     PartitionSpec spec = table.spec();
     String path;
     long fileSize;
@@ -346,22 +430,18 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
       AddFile addFile = (AddFile) action;
       path = addFile.getPath();
       nullableFileSize = addFile.getSize();
-      partitionValues = addFile.getPartitionValues();
+      partitionValues = extractPartitionValues(addFile);
     } else if (action instanceof RemoveFile) {
       RemoveFile removeFile = (RemoveFile) action;
       path = removeFile.getPath();
       nullableFileSize = removeFile.getSize().orElse(null);
-      partitionValues = removeFile.getPartitionValues();
+      partitionValues = extractPartitionValues(removeFile);
     } else {
       throw new ValidationException(
           "Unexpected action type for Delta Lake: %s", action.getClass().getSimpleName());
     }
 
-    String fullFilePath = getFullFilePath(path, deltaLog.getPath().toString());
-    // For unpartitioned table, the partitionValues should be an empty map rather than null
-    Preconditions.checkArgument(
-        partitionValues != null,
-        String.format("File %s does not specify a partitionValues", fullFilePath));
+    String fullFilePath = getFullFilePath(path, deltaTableLocation);
 
     FileFormat format = determineFileFormatFromPath(fullFilePath);
     InputFile file = deltaLakeFileIO.newInputFile(fullFilePath);
@@ -400,6 +480,28 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         .build();
   }
 
+  /**
+   * Extracts partition values from an AddFile action.
+   *
+   * @param addFile the AddFile action
+   * @return map of partition column names to values
+   */
+  private Map<String, String> extractPartitionValues(AddFile addFile) {
+    return VectorUtils.toJavaMap(addFile.getPartitionValues());
+  }
+
+  /**
+   * Extracts partition values from a RemoveFile action.
+   *
+   * @param removeFile the RemoveFile action
+   * @return map of partition column names to values, or empty map if not present
+   */
+  private Map<String, String> extractPartitionValues(RemoveFile removeFile) {
+    return removeFile.getPartitionValues().isPresent()
+        ? VectorUtils.toJavaMap(removeFile.getPartitionValues().get())
+        : Collections.emptyMap();
+  }
+
   private FileFormat determineFileFormatFromPath(String path) {
     if (path.endsWith(PARQUET_SUFFIX)) {
       return FileFormat.PARQUET;
@@ -416,9 +518,9 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     throw new ValidationException("Cannot get metrics from file format: %s", format);
   }
 
-  private Map<String, String> destTableProperties(
-      io.delta.standalone.Snapshot deltaSnapshot, String originalLocation) {
-    additionalPropertiesBuilder.putAll(deltaSnapshot.getMetadata().getConfiguration());
+  private Map<String, String> destTableProperties(Snapshot deltaSnapshot, String originalLocation) {
+    additionalPropertiesBuilder.putAll(
+        ((io.delta.kernel.internal.SnapshotImpl) deltaSnapshot).getMetadata().getConfiguration());
     additionalPropertiesBuilder.putAll(
         ImmutableMap.of(
             SNAPSHOT_SOURCE_PROP, DELTA_SOURCE_VALUE, ORIGINAL_LOCATION_PROP, originalLocation));
@@ -432,10 +534,11 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
     ManageSnapshots manageSnapshots = transaction.manageSnapshots();
     manageSnapshots.createTag(DELTA_VERSION_TAG_PREFIX + deltaVersion, currentSnapshotId);
 
-    Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
-    if (deltaVersionTimestamp != null) {
+    long deltaVersionTimestamp =
+        deltaTable.getSnapshotAsOfVersion(deltaEngine, deltaVersion).getTimestamp(deltaEngine);
+    if (deltaVersionTimestamp > 0) {
       manageSnapshots.createTag(
-          DELTA_TIMESTAMP_TAG_PREFIX + deltaVersionTimestamp.getTime(), currentSnapshotId);
+          DELTA_TIMESTAMP_TAG_PREFIX + deltaVersionTimestamp, currentSnapshotId);
     }
     manageSnapshots.commit();
   }

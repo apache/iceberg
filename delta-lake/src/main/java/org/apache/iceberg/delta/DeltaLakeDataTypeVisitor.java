@@ -18,19 +18,19 @@
  */
 package org.apache.iceberg.delta;
 
-import io.delta.standalone.types.ArrayType;
-import io.delta.standalone.types.DataType;
-import io.delta.standalone.types.MapType;
-import io.delta.standalone.types.StructField;
-import io.delta.standalone.types.StructType;
+import io.delta.kernel.types.ArrayType;
+import io.delta.kernel.types.DataType;
+import io.delta.kernel.types.MapType;
+import io.delta.kernel.types.StructField;
+import io.delta.kernel.types.StructType;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 abstract class DeltaLakeDataTypeVisitor<T> {
   public static <T> T visit(DataType type, DeltaLakeDataTypeVisitor<T> visitor) {
     if (type instanceof StructType) {
-      StructField[] fields = ((StructType) type).getFields();
-      List<T> fieldResults = Lists.newArrayListWithExpectedSize(fields.length);
+      List<StructField> fields = ((StructType) type).fields();
+      List<T> fieldResults = Lists.newArrayListWithExpectedSize(fields.size());
 
       for (StructField field : fields) {
         fieldResults.add(visitor.field(field, visit(field.getDataType(), visitor)));

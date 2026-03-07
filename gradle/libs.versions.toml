@@ -41,7 +41,7 @@ caffeine = "2.9.3"
 calcite = "1.41.0"
 comet = "0.12.0"
 datasketches = "6.2.0"
-delta-standalone = "3.3.2"
+delta-kernel = "4.0.0"
 delta-spark = "3.3.2"
 derby = "10.15.2.0"
 esotericsoftware-kryo = "4.0.3"
@@ -115,7 +115,8 @@ caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "c
 calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
 calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }
 datasketches = { module = "org.apache.datasketches:datasketches-java", version.ref = "datasketches" }
-delta-standalone = { module = "io.delta:delta-standalone_2.12", version.ref = "delta-standalone" }
+delta-kernel-api = { module = "io.delta:delta-kernel-api", version.ref = "delta-kernel" }
+delta-kernel-defaults = { module = "io.delta:delta-kernel-defaults", version.ref = "delta-kernel" }
 errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
 failsafe = { module = "dev.failsafe:failsafe", version.ref = "failsafe"}
 findbugs-jsr305 = { module = "com.google.code.findbugs:jsr305", version.ref = "findbugs-jsr305" }
