@@ -31,6 +31,7 @@ import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
 import org.apache.flink.runtime.operators.coordination.MockOperatorEventGateway;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
@@ -85,6 +86,26 @@ class TestLockRemoverOperation extends OperatorTestBase {
       assertThat(mockGateway.getEventsSent()).hasSize(0);
 
       testHarness.processWatermark(WATERMARK);
+      assertThat(mockGateway.getEventsSent()).hasSize(1);
+    }
+  }
+
+  @Test
+  void testProcessMaxWaterMark() throws Exception {
+    MockOperatorEventGateway mockGateway = new MockOperatorEventGateway();
+    LockRemoverOperator operator =
+        new LockRemoverOperator(null, mockGateway, DUMMY_TASK_NAME, Lists.newArrayList(TASKS[0]));
+    try (OneInputStreamOperatorTestHarness<TaskResult, Void> testHarness =
+        createHarness(operator)) {
+
+      testHarness.processElement(
+          new StreamRecord<>(new TaskResult(0, 0L, true, Lists.newArrayList())));
+      assertThat(mockGateway.getEventsSent()).hasSize(0);
+
+      testHarness.processWatermark(WATERMARK);
+      assertThat(mockGateway.getEventsSent()).hasSize(1);
+
+      testHarness.processWatermark(Watermark.MAX_WATERMARK);
       assertThat(mockGateway.getEventsSent()).hasSize(1);
     }
   }
