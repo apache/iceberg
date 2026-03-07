@@ -100,6 +100,76 @@ public class TestComparators {
         Comparators.forType(Types.UUIDType.get()),
         UUID.fromString("81873e7d-1374-4493-8e1d-9095eff7046c"),
         UUID.fromString("fd02441d-1423-4a3f-8785-c7dd5647e26b"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("00000000-0000-0000-0000-000000000000"),
+        UUID.fromString("60000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("60000000-0000-0000-0000-000000000000"),
+        UUID.fromString("70000000-0000-0000-0000-000000000000"));
+    // The following assertions fail prior to the introduction of unsigned UUID comparator.
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("70000000-0000-0000-0000-000000000000"),
+        UUID.fromString("80000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("80000000-0000-0000-0000-000000000000"),
+        UUID.fromString("90000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("90000000-0000-0000-0000-000000000000"),
+        UUID.fromString("a0000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("a0000000-0000-0000-0000-000000000000"),
+        UUID.fromString("f0000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        Comparators.forType(Types.UUIDType.get()),
+        UUID.fromString("ffffffff-ffff-ffff-ffff-fffffffffffe"),
+        UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"));
+  }
+
+  @Test
+  public void testSignedUuid() {
+    // Test the signed UUID comparator used for backward compatibility with legacy files.
+    // In signed comparison, UUIDs with high bit set (0x80...) are treated as negative,
+    // so they compare less than UUIDs without high bit set (0x00-0x7F...).
+    Comparator<UUID> signedCmp = Comparators.signedUUIDs();
+
+    // Within the "positive" range (0x00-0x7F), ordering is the same as unsigned
+    assertComparesCorrectly(
+        signedCmp,
+        UUID.fromString("00000000-0000-0000-0000-000000000000"),
+        UUID.fromString("40000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        signedCmp,
+        UUID.fromString("40000000-0000-0000-0000-000000000000"),
+        UUID.fromString("70000000-0000-0000-0000-000000000000"));
+
+    // Within the "negative" range (0x80-0xFF), ordering is the same as unsigned
+    assertComparesCorrectly(
+        signedCmp,
+        UUID.fromString("80000000-0000-0000-0000-000000000000"),
+        UUID.fromString("90000000-0000-0000-0000-000000000000"));
+    assertComparesCorrectly(
+        signedCmp,
+        UUID.fromString("c0000000-0000-0000-0000-000000000000"),
+        UUID.fromString("f0000000-0000-0000-0000-000000000000"));
+
+    // In signed comparison, 0x80... < 0x70... because the high bit is treated as negative.
+    // In unsigned comparison, 0x70... < 0x80... because bytes are compared as unsigned values.
+    UUID highBit = UUID.fromString("80000000-0000-0000-0000-000000000000");
+    UUID lowBit = UUID.fromString("70000000-0000-0000-0000-000000000000");
+    assertThat(signedCmp.compare(highBit, lowBit))
+        .as("In signed comparison, 0x80... should be less than 0x70...")
+        .isLessThan(0);
+
+    Comparator<UUID> unsignedCmp = Comparators.forType(Types.UUIDType.get());
+    assertThat(unsignedCmp.compare(highBit, lowBit))
+        .as("In unsigned comparison, 0x80... should be greater than 0x70...")
+        .isGreaterThan(0);
   }
 
   @Test
