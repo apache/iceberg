@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -211,6 +212,25 @@ public class TestMergeOnReadUpdate extends TestUpdate {
     assertThat(dvs).hasSize(1);
     assertThat(dvs.get(0).recordCount()).isEqualTo(3);
     assertThat(dvs).allMatch(dv -> FileFormat.fromFileName(dv.location()) == FileFormat.PUFFIN);
+  }
+
+  @TestTemplate
+  public void testMergeOnReadUpdateSetsSortOrderIdOnNewDataFiles() {
+    createAndInitTable(
+        "id INT, dep STRING",
+        "PARTITIONED BY (dep)",
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    sql("ALTER TABLE %s WRITE ORDERED BY id", tableName);
+
+    sql("UPDATE %s SET id = id + 10 WHERE id = 1", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(snapshot.addedDataFiles(table.io()))
+        .extracting(DataFile::sortOrderId)
+        .as("All new data files should carry the table sort order id")
+        .containsOnly(table.sortOrder().orderId());
   }
 
   private void initTable(String partitionedBy, DeleteGranularity deleteGranularity) {

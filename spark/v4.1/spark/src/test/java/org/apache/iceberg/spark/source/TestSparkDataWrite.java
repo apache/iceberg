@@ -602,6 +602,83 @@ public class TestSparkDataWrite {
     }
   }
 
+  @TestTemplate
+  public void testWriteDataFilesUnsortedTable() throws IOException {
+    File parent = temp.resolve(format.toString()).toFile();
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> expected = Lists.newArrayList(new SimpleRecord(1, "a"));
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    createBranch(table);
+    table.refresh();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks)
+          .extracting(task -> task.file().sortOrderId())
+          .as("All DataFiles should have unsorted sort order id")
+          .containsOnly(SortOrder.unsorted().orderId());
+    }
+  }
+
+  @TestTemplate
+  public void testWriteDataFilesAfterSortOrderChange() throws IOException {
+    File parent = temp.resolve(format.toString()).toFile();
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "a"));
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    table.refresh();
+    int unsortedId = SortOrder.unsorted().orderId();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks).extracting(task -> task.file().sortOrderId()).containsOnly(unsortedId);
+    }
+
+    table.replaceSortOrder().asc("id").commit();
+    int sortedId = table.sortOrder().orderId();
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    createBranch(table);
+    table.refresh();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks)
+          .extracting(task -> task.file().sortOrderId())
+          .as("Should contain both unsorted and sorted files")
+          .containsOnly(unsortedId, sortedId);
+    }
+  }
+
   public void partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType option) {
     File parent = temp.resolve(format.toString()).toFile();
     File location = new File(parent, "test");
