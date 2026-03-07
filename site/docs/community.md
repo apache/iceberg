@@ -34,20 +34,20 @@ Apache Iceberg mailing lists:
     - [Archive](https://lists.apache.org/list.html?dev@iceberg.apache.org)
     - [Subscribe](mailto:dev-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:dev-unsubscribe@iceberg.apache.org)
-* **Commits**: `commits@iceberg.apache.org` -- Github commit notifications
+* **Commits**: `commits@iceberg.apache.org` -- GitHub commit notifications
     - [Archive](https://lists.apache.org/list.html?commits@iceberg.apache.org)
     - [Subscribe](mailto:commits-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:commits-unsubscribe@iceberg.apache.org)
-* **Issues**: `issues@iceberg.apache.org` -- Github issue tracking
+* **Issues**: `issues@iceberg.apache.org` -- GitHub issue tracking
     - [Archive](https://lists.apache.org/list.html?issues@iceberg.apache.org)
     - [Subscribe](mailto:issues-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:issues-unsubscribe@iceberg.apache.org)
-* **CI Jobs**: `ci-jobs@iceberg.apache.org` -- GitHub actions notifications
+* **CI Jobs**: `ci-jobs@iceberg.apache.org` -- GitHub Actions notifications
     - [Archive](https://lists.apache.org/list.html?ci-jobs@iceberg.apache.org)
     - [Subscribe](mailto:ci-jobs-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:ci-jobs-unsubscribe@iceberg.apache.org)
 * **Private**: `private@iceberg.apache.org` -- private mailing list for the PMC to discuss sensitive issues related to the health of the project
-    - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org)
+    - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org) (PMC-only access)
 
 ### Slack
 
