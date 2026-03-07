@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
@@ -107,8 +108,9 @@ public class PartitionUtil {
       Types.StructType partitionType, PartitionSpec spec, StructLike partition) {
     StructProjection projection =
         StructProjection.createAllowMissing(spec.partitionType(), partitionType);
-    projection.wrap(partition);
-    return projection;
+    return partition instanceof PartitionData
+        ? projection.wrap(partition, partition.toString())
+        : projection.wrap(partition);
   }
 
   public static Map<Integer, PartitionSpec> indexSpecs(List<PartitionSpec> specs) {
