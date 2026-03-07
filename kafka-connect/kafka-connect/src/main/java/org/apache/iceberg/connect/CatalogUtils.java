@@ -24,17 +24,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.common.DynMethods.BoundMethod;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.kafka.connect.data.Struct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class CatalogUtils {
+public class CatalogUtils {
 
   private static final Logger LOG = LoggerFactory.getLogger(CatalogUtils.class.getName());
   private static final List<String> HADOOP_CONF_FILES =
@@ -92,6 +95,40 @@ class CatalogUtils {
           "Hadoop found on classpath but could not create config, proceeding without config", e);
     }
     return null;
+  }
+
+  public static Object extractFromRecordValue(Object recordValue, String fieldName) {
+    String[] fields = fieldName.split("\\.");
+    if (recordValue instanceof Struct) {
+      return getValueFromStruct((Struct) recordValue, fields, 0);
+    } else if (recordValue instanceof Map) {
+      return getValueFromMap((Map<?, ?>) recordValue, fields, 0);
+    } else {
+      throw new UnsupportedOperationException(
+          "Cannot extract value from type: " + recordValue.getClass().getName());
+    }
+  }
+
+  private static Object getValueFromStruct(Struct struct, String[] fields, int idx) {
+    Preconditions.checkArgument(idx < fields.length, "Invalid field index");
+    Object value = struct.get(fields[idx]);
+    if (value == null || idx == fields.length - 1) {
+      return value;
+    }
+
+    Preconditions.checkState(value instanceof Struct, "Expected a struct type");
+    return getValueFromStruct((Struct) value, fields, idx + 1);
+  }
+
+  private static Object getValueFromMap(Map<?, ?> map, String[] fields, int idx) {
+    Preconditions.checkArgument(idx < fields.length, "Invalid field index");
+    Object value = map.get(fields[idx]);
+    if (value == null || idx == fields.length - 1) {
+      return value;
+    }
+
+    Preconditions.checkState(value instanceof Map, "Expected a map type");
+    return getValueFromMap((Map<?, ?>) value, fields, idx + 1);
   }
 
   private CatalogUtils() {}

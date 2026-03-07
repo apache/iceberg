@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.connect.CatalogUtils;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.data.Record;
@@ -61,7 +62,13 @@ class IcebergWriter implements RecordWriter {
       // ignore tombstones...
       if (record.value() != null) {
         Record row = convertToRow(record);
-        writer.write(row);
+        String cdcField = config.tablesCdcField();
+        if (cdcField == null) {
+          writer.write(row);
+        } else {
+          Operation op = extractCdcOperation(record.value(), cdcField);
+          writer.write(new RecordWrapper(row, op));
+        }
       }
     } catch (Exception e) {
       throw new DataException(
@@ -72,6 +79,34 @@ class IcebergWriter implements RecordWriter {
               record.kafkaPartition(),
               record.kafkaOffset()),
           e);
+    }
+  }
+
+  private Operation extractCdcOperation(Object recordValue, String cdcField) {
+    Object opValue = CatalogUtils.extractFromRecordValue(recordValue, cdcField);
+
+    if (opValue == null) {
+      return config.upsertModeEnabled() ? Operation.UPDATE : Operation.INSERT;
+    }
+
+    String opStr = opValue.toString().trim().toUpperCase();
+    if (opStr.isEmpty()) {
+      return config.upsertModeEnabled() ? Operation.UPDATE : Operation.INSERT;
+    }
+
+    if (config.upsertModeEnabled() && opValue == Operation.INSERT) {
+      return Operation.UPDATE;
+    }
+
+    // TODO: define value mapping in config?
+
+    switch (opStr.charAt(0)) {
+      case 'U':
+        return Operation.UPDATE;
+      case 'D':
+        return Operation.DELETE;
+      default:
+        return config.upsertModeEnabled() ? Operation.UPDATE : Operation.INSERT;
     }
   }
 

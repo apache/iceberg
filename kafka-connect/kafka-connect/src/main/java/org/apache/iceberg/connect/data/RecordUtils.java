@@ -160,19 +160,49 @@ class RecordUtils {
 
     TaskWriter<Record> writer;
     if (table.spec().isUnpartitioned()) {
-      writer =
-          new UnpartitionedWriter<>(
-              table.spec(), format, writerFactory, fileFactory, table.io(), targetFileSize);
+      if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
+        writer =
+            new UnpartitionedWriter<>(
+                table.spec(), format, writerFactory, fileFactory, table.io(), targetFileSize);
+      } else {
+        writer =
+            new UnpartitionedDeltaWriter(
+                table.spec(),
+                format,
+                writerFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema(),
+                identifierFieldIds,
+                config.upsertModeEnabled(),
+                config.insertToUpdateModeEnabled());
+      }
     } else {
-      writer =
-          new PartitionedAppendWriter(
-              table.spec(),
-              format,
-              writerFactory,
-              fileFactory,
-              table.io(),
-              targetFileSize,
-              table.schema());
+      if (config.tablesCdcField() == null && !config.upsertModeEnabled()) {
+        writer =
+            new PartitionedAppendWriter(
+                table.spec(),
+                format,
+                writerFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema());
+      } else {
+        writer =
+            new PartitionedDeltaWriter(
+                table.spec(),
+                format,
+                writerFactory,
+                fileFactory,
+                table.io(),
+                targetFileSize,
+                table.schema(),
+                identifierFieldIds,
+                config.upsertModeEnabled(),
+                config.insertToUpdateModeEnabled());
+      }
     }
     return writer;
   }
