@@ -124,6 +124,10 @@ TriggerLockFactory lockFactory = new ZkLockFactory(
 );
 ```
 
+#### Flink-maintained lock
+
+Maintain the lock within Flink itself. This does not require configuring external systems. The only prerequisite is that there are no parallel table maintenance jobs for a given table.
+
 ### Quick Start
 
 The following example demonstrates the implementation of automated maintenance for an Iceberg table within a Flink environment.
@@ -147,7 +151,10 @@ TriggerLockFactory lockFactory = new JdbcLockFactory(
     jdbcProps                                   // JDBC connection properties
 );
 
+// Option 1: With external lock factory (plan to deprecate this Option since 1.12)
 TableMaintenance.forTable(env, tableLoader, lockFactory)
+// Option 2: With Flink-managed lock (no external lock required)
+TableMaintenance.forTable(env, tableLoader)
     .uidSuffix("my-maintenance-job")
     .rateLimit(Duration.ofMinutes(10))
     .lockCheckDelay(Duration.ofSeconds(10))
@@ -380,6 +387,12 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 | `flink-maintenance.lock.zookeeper.base-sleep-ms` | Base sleep between retries (ms) | `3000` |
 | `flink-maintenance.lock.zookeeper.max-sleep-ms`          | Maximum sleep time (ms) between retries. Caps the exponential backoff delay.  | `10000` |
 | `flink-maintenance.lock.zookeeper.retry-policy`          | Retry policy name for ZooKeeper client. Supported values include: ONE_TIME, N_TIME, BOUNDED_EXPONENTIAL_BACKOFF, UNTIL_ELAPSED, EXPONENTIAL_BACKOFF.  | `EXPONENTIAL_BACKOFF` |
+
+- COORDINATOR LOCK
+
+| Key | Description          | Default |
+|-----|----------------------|---------|
+| `flink-maintenance.lock.type` | Set to `` or not set |  |
 
 ### Best Practices
 
