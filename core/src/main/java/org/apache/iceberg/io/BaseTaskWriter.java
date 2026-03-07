@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -41,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructLikeUtil;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
@@ -185,6 +187,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private PartitioningWriter<PositionDelete<T>, DeleteWriteResult> posDeleteWriter;
     private Map<StructLike, PathOffset> insertedRowMap;
     private boolean closePosDeleteWriter;
+    private Set<StructLike> pendingDeleteKeys;
+    private Set<StructLike> pendingDeleteRows;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
       this(partition, schema, deleteSchema, DeleteGranularity.PARTITION, null);
@@ -217,6 +221,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
               : createPosDeleteWriter(partition, deleteGranularity);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
       this.partitionKey = partition;
+      this.pendingDeleteKeys = StructLikeSet.create(deleteSchema.asStruct());
+      this.pendingDeleteRows = StructLikeSet.create(schema.asStruct());
     }
 
     /** Wrap the data as a {@link StructLike}. */
@@ -289,8 +295,13 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param row the given row to delete.
      */
     public void delete(T row) throws IOException {
-      if (!internalPosDelete(structProjection.wrap(asStructLike(row)))) {
-        eqDeleteWriter.write(row);
+      StructLike key = structProjection.wrap(asStructLike(row));
+      if (!internalPosDelete(key)) {
+        StructLike rowStruct = asStructLike(row);
+        if (!pendingDeleteRows.contains(rowStruct)) {
+          pendingDeleteRows.add(StructLikeUtil.copy(rowStruct));
+          eqDeleteWriter.write(row);
+        }
       }
     }
 
@@ -301,8 +312,12 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param key is the projected data whose columns are the same as the equality fields.
      */
     public void deleteKey(T key) throws IOException {
-      if (!internalPosDelete(asStructLikeKey(key))) {
-        eqDeleteWriter.write(key);
+      StructLike keyStruct = asStructLikeKey(key);
+      if (!internalPosDelete(keyStruct)) {
+        if (!pendingDeleteKeys.contains(keyStruct)) {
+          pendingDeleteKeys.add(StructLikeUtil.copy(keyStruct));
+          eqDeleteWriter.write(key);
+        }
       }
     }
 
@@ -330,6 +345,16 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         if (insertedRowMap != null) {
           insertedRowMap.clear();
           insertedRowMap = null;
+        }
+
+        if (pendingDeleteKeys != null) {
+          pendingDeleteKeys.clear();
+          pendingDeleteKeys = null;
+        }
+
+        if (pendingDeleteRows != null) {
+          pendingDeleteRows.clear();
+          pendingDeleteRows = null;
         }
 
         // Add the completed pos-delete files.
