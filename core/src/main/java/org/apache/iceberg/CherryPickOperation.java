@@ -71,9 +71,8 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
     ValidationException.check(
         cherrypickSnapshot != null, "Cannot cherry-pick unknown snapshot ID: %s", snapshotId);
 
-    Table table = new BaseTable(ops(), tableName);
     SnapshotChanges changes =
-        SnapshotChanges.builderFor(table).snapshot(cherrypickSnapshot).build();
+        SnapshotChanges.builderFor(cherrypickSnapshot, ops().io(), current.specsById()).build();
 
     if (cherrypickSnapshot.operation().equals(DataOperations.APPEND)) {
       // this property is set on target snapshot that will get published

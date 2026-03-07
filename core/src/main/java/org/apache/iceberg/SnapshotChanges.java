@@ -31,15 +31,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.ParallelIterable;
-import org.apache.iceberg.util.ThreadPools;
 
 /**
  * Helper class for retrieving file changes in a snapshot with caching.
  *
  * <p>This class caches the results of file change detection operations, making it efficient to
- * query multiple file change types for the same snapshot. By default, manifests are read in
- * parallel using the worker pool. Use {@link Builder#executeWith(ExecutorService)} to provide a
- * custom executor.
+ * query multiple file change types for the same snapshot. By default, manifests are read
+ * single-threaded. Use {@link Builder#executeWith(ExecutorService)} to enable parallel manifest
+ * reading.
  */
 public class SnapshotChanges {
   private final Snapshot snapshot;
@@ -80,8 +79,12 @@ public class SnapshotChanges {
     return new Builder(snapshot, io, specsById);
   }
 
-  private ExecutorService workerPool() {
-    return executorService != null ? executorService : ThreadPools.getWorkerPool();
+  private <T> CloseableIterable<T> iterate(Iterable<CloseableIterable<T>> tasks) {
+    if (executorService != null) {
+      return new ParallelIterable<>(tasks, executorService);
+    } else {
+      return CloseableIterable.concat(tasks);
+    }
   }
 
   /** Returns all data files added to the table in this snapshot */
@@ -133,7 +136,7 @@ public class SnapshotChanges {
         Iterables.transform(relevantDataManifests, this::readDataManifest);
 
     try (CloseableIterable<Pair<ManifestEntry.Status, DataFile>> changedDataFiles =
-        new ParallelIterable<>(manifestReadTasks, workerPool())) {
+        iterate(manifestReadTasks)) {
       for (Pair<ManifestEntry.Status, DataFile> pair : changedDataFiles) {
         switch (pair.first()) {
           case ADDED:
@@ -184,7 +187,7 @@ public class SnapshotChanges {
         Iterables.transform(relevantDeleteManifests, this::readDeleteManifest);
 
     try (CloseableIterable<Pair<ManifestEntry.Status, DeleteFile>> changedDeleteFiles =
-        new ParallelIterable<>(manifestReadTasks, workerPool())) {
+        iterate(manifestReadTasks)) {
       for (Pair<ManifestEntry.Status, DeleteFile> pair : changedDeleteFiles) {
         switch (pair.first()) {
           case ADDED:

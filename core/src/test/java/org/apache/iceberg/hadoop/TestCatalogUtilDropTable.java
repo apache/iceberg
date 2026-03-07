@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -51,6 +50,7 @@ import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
@@ -227,13 +227,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     return snapshotSet.stream()
         .flatMap(
             snapshot ->
-                StreamSupport.stream(
-                    SnapshotChanges.builderFor(table)
-                        .snapshot(snapshot)
-                        .build()
-                        .addedDataFiles()
-                        .spliterator(),
-                    false))
+                Streams.stream(
+                    SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles()))
         .map(DataFile::location)
         .collect(Collectors.toSet());
   }
