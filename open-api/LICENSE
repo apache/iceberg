@@ -337,11 +337,9 @@ License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains code from the following projects:
+This product bundles Jackson JSON Processor.
 
---------------------------------------------------------------------------------
-Group: com.fasterxml.jackson  Name: jackson-bom  Version: 2.18.0
-Project URL (from POM): https://github.com/FasterXML/jackson-bom
+Project URL: https://github.com/FasterXML/jackson
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------

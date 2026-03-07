@@ -203,93 +203,166 @@
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Avro.
+This product bundles Apache Avro.
 
 Copyright: 2014-2020 The Apache Software Foundation.
-Home page: https://parquet.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://avro.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains the Jackson JSON processor.
+This product bundles Jackson JSON Processor.
 
 Copyright: 2007-2020 Tatu Saloranta and other contributors
-Home page: http://jackson.codehaus.org/
-License: http://www.apache.org/licenses/LICENSE-2.0.txt
+Project URL: https://github.com/FasterXML/jackson
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Parquet.
+This product bundles Apache Parquet.
 
 Copyright: 2014-2020 The Apache Software Foundation.
-Home page: https://parquet.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://parquet.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Thrift.
+This product bundles Apache Thrift.
 
 Copyright: 2006-2010 The Apache Software Foundation.
-Home page: https://thrift.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://thrift.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains fastutil.
+This product bundles Fastutil.
 
 Copyright: 2002-2014 Sebastiano Vigna
-Home page: http://fastutil.di.unimi.it/
-License: http://www.apache.org/licenses/LICENSE-2.0.html
+Project URL: http://fastutil.di.unimi.it/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache ORC.
+This product bundles Apache ORC.
 
 Copyright: 2013-2020 The Apache Software Foundation.
-Home page: https://orc.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://orc.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Hive's storage API via ORC.
+This product bundles Apache Datasketches.
+
+Project URL: https://datasketches.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Apache Hive.
 
 Copyright: 2013-2020 The Apache Software Foundation.
-Home page: https://hive.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://hive.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Airlift Aircompressor.
+This product bundles Airlift Aircompressor.
 
 Copyright: 2011-2020 Aircompressor authors.
-Home page: https://github.com/airlift/aircompressor
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://github.com/airlift/aircompressor
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google Guava.
+This product bundles Google GAX.
+
+Project URL: https://github.com/googleapis/gax-java
+License: BSD 3-Clause
+| Copyright 2016, Google Inc. All rights reserved.
+| 
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are
+| met:
+| 
+|     * Redistributions of source code must retain the above copyright
+| notice, this list of conditions and the following disclaimer.
+|     * Redistributions in binary form must reproduce the above
+| copyright notice, this list of conditions and the following disclaimer
+| in the documentation and/or other materials provided with the
+| distribution.
+|     * Neither the name of Google Inc. nor the names of its
+| contributors may be used to endorse or promote products derived from
+| this software without specific prior written permission.
+| 
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+| OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+| SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+| LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+| DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Auth Library.
+
+License: BSD 3-Clause
+| Copyright 2014, Google Inc. All rights reserved.
+| 
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are
+| met:
+| 
+|    * Redistributions of source code must retain the above copyright
+| notice, this list of conditions and the following disclaimer.
+|    * Redistributions in binary form must reproduce the above
+| copyright notice, this list of conditions and the following disclaimer
+| in the documentation and/or other materials provided with the
+| distribution.
+| 
+|    * Neither the name of Google Inc. nor the names of its
+| contributors may be used to endorse or promote products derived from
+| this software without specific prior written permission.
+| 
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+| OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+| SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+| LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+| DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Guava.
 
 Copyright: 2006-2020 The Guava Authors
-Home page: https://github.com/google/guava
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://github.com/google/guava
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google Error Prone Annotations.
+This product bundles Google Error Prone Annotations.
 
 Copyright: Copyright 2011-2019 The Error Prone Authors
-Home page: https://github.com/google/error-prone
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://github.com/google/error-prone
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains checkerframework checker-qual Annotations.
+This product bundles checkerframework checker-qual.
 
 Copyright: 2004-2020 the Checker Framework developers
-Home page: https://github.com/typetools/checker-framework
-License: https://github.com/typetools/checker-framework/blob/master/LICENSE.txt (MIT license)
-
-License text:
+Project URL: https://github.com/typetools/checker-framework
+License: MIT
 | The annotations are licensed under the MIT License.  (The text of this
 | license appears below.)  More specifically, all the parts of the Checker
 | Framework that you might want to include with your own program use the
@@ -320,22 +393,19 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Caffeine by Ben Manes.
+This product bundles Caffeine by Ben Manes.
 
 Copyright: 2014-2020 Ben Manes and contributors
-Home page: https://github.com/ben-manes/caffeine
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://github.com/ben-manes/caffeine
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google protobuf.
+This product bundles Google protobuf.
 
 Copyright: 2008 Google Inc.
-Home page: https://developers.google.com/protocol-buffers
-License: https://github.com/protocolbuffers/protobuf/blob/master/LICENSE (BSD)
-
-License text:
-
+Project URL: https://developers.google.com/protocol-buffers
+License: BSD 3-Clause
 | Copyright 2008 Google Inc.  All rights reserved.
 |
 | Redistribution and use in source and binary forms, with or without
@@ -371,14 +441,47 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains ThreeTen.
+This product bundles ThreeTen BP.
+
+Project URL: https://www.threeten.org/threetenbp
+License: BSD 3-Clause
+| Copyright (c) 2007-present, Stephen Colebourne & Michael Nascimento Santos.
+| 
+| All rights reserved.
+| 
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are met:
+| 
+| * Redistributions of source code must retain the above copyright notice,
+|   this list of conditions and the following disclaimer.
+| 
+| * Redistributions in binary form must reproduce the above copyright notice,
+|   this list of conditions and the following disclaimer in the documentation
+|   and/or other materials provided with the distribution.
+| 
+| * Neither the name of JSR-310 nor the names of its contributors
+|   may be used to endorse or promote products derived from this software
+|   without specific prior written permission.
+| 
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+| CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+| EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+| PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+| PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+| LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+| NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+| SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles ThreeTen Extra.
 
 Copyright: 2007-present, Stephen Colebourne & Michael Nascimento Santos.
-Home page: https://www.threeten.org/threeten-extra/
-License: https://github.com/ThreeTen/threeten-extra/blob/master/LICENSE.txt (BSD 3-clause)
-
-License text:
-
+Project URL: https://www.threeten.org/threeten-extra/
+License: BSD 3-Clause
 | All rights reserved.
 |
 | * Redistribution and use in source and binary forms, with or without
@@ -409,29 +512,29 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Project Nessie.
+This product bundles Project Nessie.
 
 Copyright: Copyright 2015-2025 Dremio Corporation
-Home page: https://projectnessie.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://projectnessie.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary includes code from Apache Commons.
+This product includes code from Apache Commons.
 
 * Core ArrayUtil.
 
 Copyright: 2020 The Apache Software Foundation
-Home page: https://commons.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://commons.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache HttpComponents Client.
+This product bundles Apache HttpComponents (core and client).
 
 Copyright: 1999-2022 The Apache Software Foundation.
-Home page: https://hc.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://hc.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -440,50 +543,48 @@ This product includes code from Apache HttpComponents Client.
 * retry and error handling logic in ExponentialHttpRequestRetryStrategy.java
 
 Copyright: 1999-2022 The Apache Software Foundation.
-Home page: https://hc.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://hc.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains failsafe.
+This product bundles failsafe.
 
 Copyright: Jonathan Halterman and friends
-Home page: https://failsafe.dev/
-License: https://www.apache.org/licenses/LICENSE-2.0.html
+Project URL: https://failsafe.dev/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Codehale Metrics.
+This product bundles Codahale Metrics.
 
 Copyright: (c) 2010-2013 Coda Hale, Yammer.com, 2014-2021 Dropwizard Team
-Home page: https://github.com/dropwizard/metrics
-License: https://www.apache.org/licenses/LICENSE-2.0.html
+Project URL: https://github.com/dropwizard/metrics
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains RoaringBitmap.
+This product bundles RoaringBitmap.
 
 Copyright: (c) 2013-... the RoaringBitmap authors
-Home page: https://github.com/RoaringBitmap/RoaringBitmap
-License: https://www.apache.org/licenses/LICENSE-2.0.html
+Project URL: https://github.com/RoaringBitmap/RoaringBitmap
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Eclipse Microprofile OpenAPI.
+This product bundles Eclipse Microprofile OpenAPI.
 
 Copyright: Copyright (c) 2017 Contributors to the Eclipse Foundation
-Home page: https://github.com/microprofile/microprofile-open-api
-License: https://www.apache.org/licenses/LICENSE-2.0.html
+Project URL: https://github.com/microprofile/microprofile-open-api
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Luben Zstd.
+This product bundles Luben Zstd.
 
 Copyright: Copyright (c) 2015-present, Luben Karavelov/ All rights reserved.
-Home page: https://github.com/luben/zstd-jni/
-License: BSD-2 License
-License text:
-
+Project URL: https://github.com/luben/zstd-jni/
+License: BSD 2-Clause
 | Zstd-jni: JNI bindings to Zstd Library
 | 
 | Copyright (c) 2015-present, Luben Karavelov/ All rights reserved.
@@ -510,3 +611,245 @@ License text:
 | ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 | (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 | SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Cloud BigQuery Client for Java.
+
+Project URL: https://github.com/googleapis/java-bigquery
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Alibaba Cloud Credentials for Java.
+
+Project URL: https://github.com/aliyun/credentials-java
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Alibaba Cloud Tea for Java.
+
+Project URL: https://github.com/aliyun/tea-java
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Gson.
+
+Project URL: https://github.com/google/gson/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Google API Common.
+
+License: BSD 3-Clause
+| Copyright 2016, Google Inc.
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are
+| met:
+| 
+|    * Redistributions of source code must retain the above copyright
+| notice, this list of conditions and the following disclaimer.
+|    * Redistributions in binary form must reproduce the above
+| copyright notice, this list of conditions and the following disclaimer
+| in the documentation and/or other materials provided with the
+| distribution.
+|    * Neither the name of Google Inc. nor the names of its
+| contributors may be used to endorse or promote products derived from
+| this software without specific prior written permission.
+| 
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+| OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+| SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+| LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+| DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Http Client.
+
+Project URL: https://www.google.com/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles OpenCensus.
+
+Project URL: https://github.com/census-instrumentation/opencensus-java
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles JaCoCo.
+
+Project URL: https://github.com/jacoco/jacoco/
+License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles JAXB.
+
+Project URL: http://jaxb.java.net/
+License: CDDL 1.1 - https://glassfish.java.net/public/CDDL+GPL_1_1.html
+
+--------------------------------------------------------------------------------
+
+This product bundles Okio.
+
+Project URL: https://github.com/square/okio
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles OkHttp.
+
+Project URL: https://github.com/square/okhttp
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Auto Value.
+
+Project URL: https://github.com/google/auto/tree/master/value
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles gRPC.
+
+Project URL: https://github.com/grpc/grpc-java
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Netty.
+
+Project URL: https://netty.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Google APIs.
+
+Project URL: https://github.com/googleapis/googleapis
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Cloud APIs for Java.
+
+Project URL: https://github.com/googleapis/google-cloud-java
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles JTS Topology Suite.
+
+Project URL: https://github.com/locationtech/jts
+License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles javax.annotation-api.
+
+Project URL: https://javaee.github.io/glassfish
+Project URL: http://jcp.org/en/jsr/detail?id=250
+License: CDDL - https://github.com/javaee/javax.annotation/blob/master/LICENSE
+
+--------------------------------------------------------------------------------
+
+This product bundles JSpecify.
+
+Project URL: https://github.com/jspecify/jspecify
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Animal Sniffer Annotations.
+
+License: MIT
+| The MIT License
+| 
+| Copyright (c) 2009 codehaus.org.
+| 
+| Permission is hereby granted, free of charge, to any person obtaining a copy
+| of this software and associated documentation files (the "Software"), to deal
+| in the Software without restriction, including without limitation the rights
+| to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+| copies of the Software, and to permit persons to whom the Software is
+| furnished to do so, subject to the following conditions:
+| 
+| The above copyright notice and this permission notice shall be included in
+| all copies or substantial portions of the Software.
+| 
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+| FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+| AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+| LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+| OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+| THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Android Annotations.
+
+Project URL: http://source.android.com/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Conscrypt (openjdk-uber).
+
+Project URL: https://conscrypt.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Perfmark.
+
+Project URL: https://github.com/perfmark/perfmark
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles org.json.
+
+Project URL: https://github.com/douglascrockford/JSON-java
+License: Public Domain - https://github.com/stleary/JSON-java/blob/master/LICENSE
+
+--------------------------------------------------------------------------------
+
+This product bundles Apache Arrow.
+
+Project URL: https://github.com/apache/arrow
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Google flatbuffers.
+
+Project URL: https://github.com/google/flatbuffers
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles OpenTelemetry.
+
+Project URL: https://opentelemetry.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Kotlin.
+
+Project URL: https://github.com/JetBrains/kotlin
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
