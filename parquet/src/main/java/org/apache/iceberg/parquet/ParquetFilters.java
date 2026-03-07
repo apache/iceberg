@@ -33,15 +33,20 @@ import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.filter2.predicate.Operators;
+import org.apache.parquet.filter2.predicate.SchemaCompatibilityValidator;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.MessageType;
 
 class ParquetFilters {
 
   private ParquetFilters() {}
 
-  static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
+  static FilterCompat.Filter convert(
+      Schema schema, Expression expr, MessageType type, boolean caseSensitive) {
     FilterPredicate pred =
         ExpressionVisitors.visit(expr, new ConvertFilterToParquet(schema, caseSensitive));
+    // Reading int96 timestamps in imported data is incompatible
+    SchemaCompatibilityValidator.validate(pred, type);
     // TODO: handle AlwaysFalse.INSTANCE
     if (pred != null && pred != AlwaysTrue.INSTANCE) {
       // FilterCompat will apply LogicalInverseRewriter

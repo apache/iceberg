@@ -26,6 +26,7 @@ import org.apache.iceberg.parquet.BasePageIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
+import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.PageReader;
 
 /**
@@ -36,6 +37,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   private final VectorizedPageIterator vectorizedPageIterator;
   private int batchSize;
+  private ParquetReadState readState;
 
   public VectorizedColumnIterator(
       ColumnDescriptor desc, String writerVersion, boolean setArrowValidityVector) {
@@ -51,10 +53,12 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     this.batchSize = batchSize;
   }
 
-  public Dictionary setRowGroupInfo(PageReader store, boolean allPagesDictEncoded) {
+  public Dictionary setRowGroupInfo(
+      PageReader store, boolean allPagesDictEncoded, ParquetReadState state) {
     // setPageSource can result in a data page read. If that happens, we need
     // to know in advance whether all the pages in the row group are dictionary encoded or not
     this.vectorizedPageIterator.setAllPagesDictEncoded(allPagesDictEncoded);
+    this.readState = state;
     super.setPageSource(store);
     return dictionary;
   }
@@ -64,167 +68,154 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     return vectorizedPageIterator;
   }
 
+  @Override
+  protected void advance() {
+    if (readState.getValuesToReadInPage() == 0) {
+      BasePageIterator pageIterator = pageIterator();
+      while (!pageIterator.hasNext()) {
+        DataPage page = pageSource.readPage();
+        if (page != null) {
+          pageIterator.setPage(page);
+          readState.resetForNewPage(page.getValueCount(), page.getFirstRowIndex().orElse(0L));
+          this.advanceNextPageCount += pageIterator.currentPageCount();
+        } else {
+          return;
+        }
+      }
+    }
+  }
+
   public boolean producesDictionaryEncodedVector() {
     return vectorizedPageIterator.producesDictionaryEncodedVector();
   }
 
   public abstract class BatchReader {
     public void nextBatch(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
-      int rowsReadSoFar = 0;
-      while (rowsReadSoFar < batchSize && hasNext()) {
+      readState.resetForNewBatch(batchSize);
+      while (readState.getRowsToReadInBatch() > 0 && hasNext()) {
         advance();
-        int rowsInThisBatch =
-            nextBatchOf(fieldVector, batchSize - rowsReadSoFar, rowsReadSoFar, typeWidth, holder);
-        rowsReadSoFar += rowsInThisBatch;
-        triplesRead += rowsInThisBatch;
-        fieldVector.setValueCount(rowsReadSoFar);
+        readState.setRowsWithSkipsInThisBatch(0);
+        nextBatchOf(fieldVector, typeWidth, holder, readState);
+        triplesRead += readState.getRowsWithSkipsInThisBatch();
+        fieldVector.setValueCount(batchSize - readState.getRowsToReadInBatch());
       }
     }
 
-    protected abstract int nextBatchOf(
-        FieldVector vector,
-        int expectedBatchSize,
-        int numValsInVector,
-        int typeWidth,
-        NullabilityHolder holder);
+    protected abstract void nextBatchOf(
+        FieldVector vector, int typeWidth, NullabilityHolder holder, ParquetReadState state);
   }
 
   public class IntegerBatchReader extends BatchReader {
     @Override
-    protected int nextBatchOf(
+    protected void nextBatchOf(
         final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
         final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .intPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+        NullabilityHolder holder,
+        ParquetReadState state) {
+      vectorizedPageIterator.intPageReader().nextBatch(vector, typeWidth, holder, state);
     }
   }
 
   public class DictionaryBatchReader extends BatchReader {
     @Override
-    protected int nextBatchOf(
+    protected void nextBatchOf(
         final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
         final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchDictionaryIds(
-          (IntVector) vector, expectedBatchSize, numValsInVector, holder);
+        NullabilityHolder holder,
+        ParquetReadState state) {
+      vectorizedPageIterator.nextBatchDictionaryIds((IntVector) vector, holder, state);
     }
   }
 
   public class LongBatchReader extends BatchReader {
     @Override
-    protected int nextBatchOf(
+    protected void nextBatchOf(
         final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
         final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .longPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+        NullabilityHolder holder,
+        ParquetReadState state) {
+      vectorizedPageIterator.longPageReader().nextBatch(vector, typeWidth, holder, state);
     }
   }
 
   public class TimestampMillisBatchReader extends BatchReader {
     @Override
-    protected int nextBatchOf(
+    protected void nextBatchOf(
         final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
         final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
+        NullabilityHolder holder,
+        ParquetReadState state) {
+      vectorizedPageIterator
           .timestampMillisPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+          .nextBatch(vector, typeWidth, holder, state);
     }
   }
 
   public class TimestampInt96BatchReader extends BatchReader {
     @Override
-    protected int nextBatchOf(
+    protected void nextBatchOf(
         final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
         final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .timestampInt96PageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+        NullabilityHolder holder,
+        ParquetReadState state) {
+      vectorizedPageIterator.timestampInt96PageReader().nextBatch(vector, typeWidth, holder, state);
     }
   }
 
   public class FloatBatchReader extends BatchReader {
     @Override
-    protected int nextBatchOf(
+    protected void nextBatchOf(
         final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
         final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .floatPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+        NullabilityHolder holder,
+        ParquetReadState state) {
+      vectorizedPageIterator.floatPageReader().nextBatch(vector, typeWidth, holder, state);
     }
   }
 
   public class DoubleBatchReader extends BatchReader {
     @Override
-    protected int nextBatchOf(
+    protected void nextBatchOf(
         final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
         final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .doublePageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+        NullabilityHolder holder,
+        ParquetReadState state) {
+      vectorizedPageIterator.doublePageReader().nextBatch(vector, typeWidth, holder, state);
     }
   }
 
   public class FixedSizeBinaryBatchReader extends BatchReader {
     @Override
-    protected int nextBatchOf(
+    protected void nextBatchOf(
         final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
         final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
+        NullabilityHolder holder,
+        ParquetReadState state) {
+      vectorizedPageIterator
           .fixedSizeBinaryPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+          .nextBatch(vector, typeWidth, holder, state);
     }
   }
 
   public class VarWidthTypeBatchReader extends BatchReader {
     @Override
-    protected int nextBatchOf(
+    protected void nextBatchOf(
         final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
         final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .varWidthTypePageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+        NullabilityHolder holder,
+        ParquetReadState state) {
+      vectorizedPageIterator.varWidthTypePageReader().nextBatch(vector, typeWidth, holder, state);
     }
   }
 
   public class BooleanBatchReader extends BatchReader {
     @Override
-    protected int nextBatchOf(
+    protected void nextBatchOf(
         final FieldVector vector,
-        final int expectedBatchSize,
-        final int numValsInVector,
         final int typeWidth,
-        NullabilityHolder holder) {
-      return vectorizedPageIterator
-          .booleanPageReader()
-          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+        NullabilityHolder holder,
+        ParquetReadState state) {
+      vectorizedPageIterator.booleanPageReader().nextBatch(vector, typeWidth, holder, state);
     }
   }
 

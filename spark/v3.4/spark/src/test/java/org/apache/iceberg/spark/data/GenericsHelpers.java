@@ -35,6 +35,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,6 +50,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.Seq;
 
@@ -57,6 +59,19 @@ public class GenericsHelpers {
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochMilli(0L).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+
+  public static void assertEqualsBatch(
+      Types.StructType struct,
+      Iterator<Record> expectedRecords,
+      ColumnarBatch batch,
+      Map<Integer, Object> idToConstant,
+      Integer batchFirstRowPos) {
+    for (int rowPos = 0; rowPos < batch.numRows(); rowPos++) {
+      InternalRow row = batch.getRow(rowPos);
+      Record expectedRecord = expectedRecords.next();
+      assertEqualsUnsafe(struct, expectedRecord, row, idToConstant, batchFirstRowPos + rowPos);
+    }
+  }
 
   public static void assertEqualsSafe(Types.StructType struct, Record expected, Row actual) {
     List<Types.NestedField> fields = struct.fields();

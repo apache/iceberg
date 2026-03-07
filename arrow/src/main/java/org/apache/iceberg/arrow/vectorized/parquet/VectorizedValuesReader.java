@@ -100,6 +100,41 @@ interface VectorizedValuesReader {
     throw new UnsupportedOperationException("readDoubles is not supported");
   }
 
+  /*
+   * Skips `total` values
+   */
+  default void skipBooleans(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipIntegers(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipLongs(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipFloats(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipDoubles(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipBinary(int total) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipFixedSizeBinary(int total, int len) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void skipBytes(int total) {
+    throw new UnsupportedOperationException();
+  }
+
   /**
    * Initialize the reader from a page. See {@link ValuesReader#initFromPage(int,
    * ByteBufferInputStream)}.

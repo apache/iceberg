@@ -135,12 +135,10 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       }
 
       int numLiveRows = batch.numRows();
-      long rowStartPosInBatch =
-          rowPositionColumnIndex == -1 ? -1 : vectors[rowPositionColumnIndex].getLong(0);
 
       if (hasIsDeletedColumn) {
         boolean[] isDeleted =
-            ColumnarBatchUtil.buildIsDeleted(vectors, deletes, rowStartPosInBatch, numLiveRows);
+            ColumnarBatchUtil.buildIsDeleted(vectors, deletes, rowPositionColumnIndex, numLiveRows);
         for (ColumnVector vector : vectors) {
           if (vector instanceof UpdatableDeletedColumnVector) {
             ((UpdatableDeletedColumnVector) vector).setValue(isDeleted);
@@ -148,7 +146,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         }
       } else {
         Pair<int[], Integer> pair =
-            ColumnarBatchUtil.buildRowIdMapping(vectors, deletes, rowStartPosInBatch, numLiveRows);
+            ColumnarBatchUtil.buildRowIdMapping(
+                vectors, deletes, rowPositionColumnIndex, numLiveRows);
         if (pair != null) {
           int[] rowIdMapping = pair.first();
           numLiveRows = pair.second();
