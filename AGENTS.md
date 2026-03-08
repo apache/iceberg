@@ -139,3 +139,30 @@ Project conventions, architecture, and coding patterns synthesized from 58,000+ 
 - Spec describes behavior, not implementation. RFC 2119: "MUST" = absolute, "SHOULD" = may reject.
 - Include client-side guidance. Consistent encoding terminology. 409 for "already exists", not 400.
 - Favor the client: required response fields reduce client complexity.
+
+## Commands
+
+- **Build (no tests):** `./gradlew build -x test -x integrationTest`
+- **Single test class:** `./gradlew :iceberg-core:test --tests org.apache.iceberg.TestTableMetadata`
+- **Single test method:** `./gradlew :iceberg-core:test --tests "org.apache.iceberg.TestTableMetadata.testJsonSerialization"`
+- **Spark-versioned module:** `./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:test --tests "org.apache.iceberg.spark.source.TestSparkReaderDeletes"`
+- **Format code:** `./gradlew spotlessApply`
+- **Check formatting:** `./gradlew spotlessCheck`
+- **API compatibility:** `./gradlew revApiCheck`
+
+## PR & Commit Conventions
+
+- One concern per PR. Unrelated whitespace, import, or formatting changes go in separate PRs.
+- Keep first version of a PR minimal — defer recovery, optimization, and edge cases to follow-ups.
+- Commit messages describe the *what* and *why*, not implementation details.
+- Apache License header required on all new files (enforced by spotless pre-commit hook).
+
+## Boundaries
+
+- **Never** modify `.asf.yaml`, `LICENSE`, `NOTICE`, or `versions.props` without explicit discussion.
+- **Never** add Jackson annotations to serialization classes — always use custom `XxxParser` classes.
+- **Never** break public API without an approved `revapi.yml` exception.
+- **Never** add Hadoop dependencies where `FileIO` abstractions exist.
+- **Never** commit secrets, credentials, or cloud-specific tokens.
+- **Ask first** before adding new third-party dependencies (license compatibility matters).
+- **Ask first** before promoting package-private classes/methods to public.
