@@ -16,21 +16,5 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink;
 
-import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.TestTemplate;
-
-public class TestIcebergConnectorSmoke extends TestIcebergConnector {
-
-  @Override
-  @TestTemplate
-  @Disabled("Not supported in the runtime integration test")
-  public void testCreateDynamicIcebergSink() throws DatabaseAlreadyExistException {}
-
-  @Override
-  @TestTemplate
-  @Disabled("Not supported in the runtime integration test")
-  public void testMissingDynamicRecordGeneratorImpl() throws DatabaseAlreadyExistException {}
-}
+// This file is intentionally minimal - BOM configuration is in root build.gradle
