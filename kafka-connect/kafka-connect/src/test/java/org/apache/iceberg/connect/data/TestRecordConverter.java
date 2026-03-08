@@ -444,6 +444,10 @@ public class TestRecordConverter {
               long val = converter.convertLong(input);
               assertThat(val).isEqualTo(expectedLong);
             });
+
+    // java.util.Date (e.g. from Confluent Avro converter for timestamp-millis)
+    long dateMillis = 1684393200000L;
+    assertThat(converter.convertLong(new Date(dateMillis))).isEqualTo(dateMillis);
   }
 
   @Test
