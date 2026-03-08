@@ -83,6 +83,9 @@ public class TableProperties {
           DEFAULT_PARTITION_SPEC,
           DEFAULT_SORT_ORDER);
 
+  /** A table property that documents the business meaning and usage context of this table. */
+  public static final String TABLE_COMMENT = "comment";
+
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
 
