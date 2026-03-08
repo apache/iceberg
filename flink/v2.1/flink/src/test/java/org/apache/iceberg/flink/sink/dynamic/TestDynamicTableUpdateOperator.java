@@ -132,6 +132,31 @@ class TestDynamicTableUpdateOperator {
     assertThat(catalog.loadTable(table).schema().schemaId()).isEqualTo(output.schema().schemaId());
   }
 
+  @Test
+  void testUnclosedS3FileIO() throws Exception {
+    DynamicTableUpdateOperator operator =
+            new DynamicTableUpdateOperator(
+                    CATALOG_EXTENSION.catalogLoader(),
+                    10,
+                    1000,
+                    10,
+                    TableCreator.DEFAULT,
+                    CASE_SENSITIVE,
+                    PRESERVE_COLUMNS);
+
+    operator.open(null); // Cria o catálogo e o S3FileIO internamente
+
+    DynamicRecordInternal input = new DynamicRecordInternal(
+            TABLE, "branch", SCHEMA1,
+            GenericRowData.of(1),
+            PartitionSpec.unpartitioned(),
+            42, false, Collections.emptySet());
+    operator.map(input);
+
+    // Propositalmente NÃO chama operator.close()
+    // O GC vai finalizar o objeto e o S3FileIO vai logar o warning de unclosed
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void testCaseInSensitivity(boolean caseSensitive) throws Exception {

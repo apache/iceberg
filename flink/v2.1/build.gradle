@@ -74,6 +74,15 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     testImplementation(libs.flink21.test.utilsjunit) {
       exclude group: 'junit'
     }
+    testImplementation project(':iceberg-aws')
+    testImplementation(platform(libs.awssdk.bom))
+    testImplementation "software.amazon.awssdk:s3"
+    testImplementation "software.amazon.awssdk:kms"
+    testImplementation "software.amazon.awssdk:sts"
+    testImplementation "software.amazon.awssdk:auth"
+    testImplementation libs.testcontainers
+    testImplementation libs.testcontainers.junit.jupiter
+    testImplementation libs.testcontainers.minio
     testImplementation(libs.flink21.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
