@@ -480,11 +480,7 @@ public class SparkSessionCatalog<
   @Override
   public View loadView(Identifier ident, Map<String, Object> context) throws NoSuchViewException {
     if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
-      if (context != null && !context.isEmpty()) {
-        Preconditions.checkArgument(
-            asViewCatalog instanceof ContextAwareCatalog,
-            "Catalog %s does not support context-aware view loading",
-            asViewCatalog.name());
+      if (context != null && !context.isEmpty() && asViewCatalog instanceof ContextAwareCatalog) {
         return ((ContextAwareCatalog) asViewCatalog).loadView(ident, context);
       }
       return asViewCatalog.loadView(ident);
