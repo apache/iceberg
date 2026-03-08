@@ -165,7 +165,8 @@ subprojects {
   if (testParallelism != null) {
     def numTestWorkers
     if (testParallelism.equalsIgnoreCase('auto')) {
-      numTestWorkers = Math.ceil(Runtime.getRuntime().availableProcessors() / 2.0) as int
+      // Cap at 4 to avoid memory pressure on CI runners (each fork uses up to 1500m heap)
+      numTestWorkers = Math.min(Math.ceil(Runtime.getRuntime().availableProcessors() / 2.0) as int, 4)
     } else {
       numTestWorkers = testParallelism as int
     }
