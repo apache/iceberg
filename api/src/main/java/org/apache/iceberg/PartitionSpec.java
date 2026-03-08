@@ -106,7 +106,7 @@ public class PartitionSpec implements Serializable {
 
     for (PartitionField field : fields) {
       builder.addField(
-          field.transform().toString(), field.sourceId(), field.fieldId(), field.name());
+          field.transform().toString(), field.sourceIds(), field.fieldId(), field.name());
     }
 
     return builder.build();
@@ -248,7 +248,7 @@ public class PartitionSpec implements Serializable {
     for (int i = 0; i < fields.length; i += 1) {
       PartitionField thisField = fields[i];
       PartitionField thatField = other.fields[i];
-      if (thisField.sourceId() != thatField.sourceId()
+      if (!thisField.sourceIds().equals(thatField.sourceIds())
           || !thisField.transform().toString().equals(thatField.transform().toString())
           || !thisField.name().equals(thatField.name())) {
         return false;
@@ -620,6 +620,17 @@ public class PartitionSpec implements Serializable {
       return this;
     }
 
+    Builder add(List<Integer> sourceIds, int fieldId, String name, Transform<?, ?> transform) {
+      checkAndAddPartitionName(name, sourceIds.get(0));
+      fields.add(new PartitionField(sourceIds, fieldId, name, transform));
+      lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
+      return this;
+    }
+
+    Builder add(List<Integer> sourceIds, String name, Transform<?, ?> transform) {
+      return add(sourceIds, nextFieldId(), name, transform);
+    }
+
     public PartitionSpec build() {
       return build(false);
     }
@@ -642,37 +653,39 @@ public class PartitionSpec implements Serializable {
   static void checkCompatibility(PartitionSpec spec, Schema schema, boolean allowMissingFields) {
     final Map<Integer, Integer> parents = TypeUtil.indexParents(schema.asStruct());
     for (PartitionField field : spec.fields) {
-      Type sourceType = schema.findType(field.sourceId());
       Transform<?, ?> transform = field.transform();
-      // In the case the underlying field is dropped, we cannot check if they are compatible
-      if (allowMissingFields && sourceType == null) {
-        continue;
-      }
-      // In the case of a Version 1 partition-spec field gets deleted,
-      // it is replaced with a void transform, see:
-      // https://iceberg.apache.org/spec/#partition-transforms
-      // We don't care about the source type since a VoidTransform is always compatible and skip the
-      // checks
-      if (!transform.equals(Transforms.alwaysNull())) {
-        ValidationException.check(
-            sourceType != null, "Cannot find source column for partition field: %s", field);
-        ValidationException.check(
-            sourceType.isPrimitiveType(),
-            "Cannot partition by non-primitive source field: %s",
-            sourceType);
-        ValidationException.check(
-            transform.canTransform(sourceType),
-            "Invalid source type %s for transform: %s",
-            sourceType,
-            transform);
-        // The only valid parent types for a PartitionField are StructTypes. This must be checked
-        // recursively.
-        Integer parentId = parents.get(field.sourceId());
-        while (parentId != null) {
-          Type parentType = schema.findType(parentId);
+      for (int srcId : field.sourceIds()) {
+        Type sourceType = schema.findType(srcId);
+        // In the case the underlying field is dropped, we cannot check if they are compatible
+        if (allowMissingFields && sourceType == null) {
+          continue;
+        }
+        // In the case of a Version 1 partition-spec field gets deleted,
+        // it is replaced with a void transform, see:
+        // https://iceberg.apache.org/spec/#partition-transforms
+        // We don't care about the source type since a VoidTransform is always compatible and skip
+        // the checks
+        if (!transform.equals(Transforms.alwaysNull())) {
           ValidationException.check(
-              parentType.isStructType(), "Invalid partition field parent: %s", parentType);
-          parentId = parents.get(parentId);
+              sourceType != null, "Cannot find source column for partition field: %s", field);
+          ValidationException.check(
+              sourceType.isPrimitiveType(),
+              "Cannot partition by non-primitive source field: %s",
+              sourceType);
+          ValidationException.check(
+              transform.canTransform(sourceType),
+              "Invalid source type %s for transform: %s",
+              sourceType,
+              transform);
+          // The only valid parent types for a PartitionField are StructTypes. This must be checked
+          // recursively.
+          Integer parentId = parents.get(srcId);
+          while (parentId != null) {
+            Type parentType = schema.findType(parentId);
+            ValidationException.check(
+                parentType.isStructType(), "Invalid partition field parent: %s", parentType);
+            parentId = parents.get(parentId);
+          }
         }
       }
     }
