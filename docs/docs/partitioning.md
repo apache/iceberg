@@ -92,3 +92,27 @@ Most importantly, queries no longer depend on a table's physical layout. With a 
 For details about all the supported hidden partition transformations, see the [Partition Transforms](../../spec.md#partition-transforms) section.
 
 For details about updating a table's partition spec, see the [partition evolution](evolution.md#partition-evolution) section.
+
+### Preserved whitespace in string partition values
+
+Iceberg preserves string partition values exactly as they are written by the engine, including any leading or trailing whitespace. Query engines use strict string equality for partition pruning, so a filter such as:
+`WHERE batch_date = '20260101'` will not match a stored partition value like: `'20260101 '`
+This can lead to unexpected pruning behavior or empty results when partition values contain non‑canonical whitespace. This behavior is consistent with Iceberg’s design principle of preserving user input without modification.
+
+#### Implications
+ - Partition values are stored exactly as provided by the writer.
+ - Engines rely on strict equality for pruning, so whitespace differences prevent matches.
+ - Trailing whitespace can cause queries to skip partitions even when the logical value appears identical.
+
+#### Best practices
+- Normalize or validate partition values during ingestion to avoid unintended whitespace.
+- Apply writer‑side transformations in the engine (for example, Spark or Flink) if normalization is desired.
+- Avoid using partition columns that may contain free‑form or user‑entered text without preprocessing.
+
+#### Troubleshooting
+
+If a query unexpectedly returns no results:
+
+- Inspect the table’s partition values using metadata tables or engine‑specific commands.
+- Check for leading or trailing whitespace in string partition columns.
+- Ensure ingestion pipelines produce canonicalized partition values.
