@@ -162,11 +162,11 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     } catch (CommitFailedException e) {
       throw e;
     } catch (RuntimeException persistFailure) {
-      boolean isAwsServiceException = persistFailure instanceof AwsServiceException;
+      boolean isDeterministicFailure = isDeterministicGlueFailure(persistFailure);
 
-      // If we got an exception we weren't expecting, or we got an AWS service exception
-      // but retries were performed, attempt to reconcile the actual commit status.
-      if (!isAwsServiceException || retryDetector.retried()) {
+      // If we got an exception we weren't expecting, or we got a deterministic AWS service
+      // exception but retries were performed, attempt to reconcile the actual commit status.
+      if (!isDeterministicFailure || retryDetector.retried()) {
         LOG.warn(
             "Received unexpected failure when committing to {}, validating if commit ended up succeeding.",
             fullTableName,
@@ -176,7 +176,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
 
       // If we got an AWS exception we would usually handle, but find we
       // succeeded on a retry that threw an exception, skip the exception.
-      if (commitStatus != CommitStatus.SUCCESS && isAwsServiceException) {
+      if (commitStatus == CommitStatus.FAILURE && persistFailure instanceof AwsServiceException) {
         handleAWSExceptions((AwsServiceException) persistFailure);
       }
 
@@ -348,6 +348,14 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
                       .build())
               .build());
     }
+  }
+
+  private static boolean isDeterministicGlueFailure(RuntimeException exception) {
+    return exception instanceof ConcurrentModificationException
+        || exception instanceof software.amazon.awssdk.services.glue.model.AlreadyExistsException
+        || exception instanceof EntityNotFoundException
+        || exception instanceof AccessDeniedException
+        || exception instanceof software.amazon.awssdk.services.glue.model.ValidationException;
   }
 
   private void handleAWSExceptions(AwsServiceException persistFailure) {
