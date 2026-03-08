@@ -36,6 +36,8 @@ import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SchemaUpdate.AddColumn;
 import org.apache.iceberg.connect.data.SchemaUpdate.MakeOptional;
 import org.apache.iceberg.connect.data.SchemaUpdate.UpdateType;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -126,8 +128,20 @@ class SchemaUtils {
         update -> updateSchema.addColumn(update.parentName(), update.name(), update.type()));
     updateTypes.forEach(update -> updateSchema.updateColumn(update.name(), update.type()));
     makeOptionals.forEach(update -> updateSchema.makeColumnOptional(update.name()));
-    updateSchema.commit();
-    LOG.info("Schema for table {} updated with new columns", table.name());
+    try {
+      updateSchema.commit();
+      LOG.info("Schema for table {} updated with new columns", table.name());
+    } catch (ValidationException | CommitFailedException e) {
+      // this can happen if the field already exists in the table, which is fine (other task
+      // committed the schema). No action required
+      LOG.info(
+          "Schema update for table {} skipped. Other task has already applied the change. Data will be written to table.",
+          table.name(),
+          e);
+    } catch (Exception e) {
+      LOG.error("Failed to update schema for table {}: {}", table.name(), e.getMessage(), e);
+      throw e;
+    }
   }
 
   private static boolean columnExists(org.apache.iceberg.Schema schema, AddColumn update) {
