@@ -40,3 +40,12 @@ The REST protocol is important for several reasons:
 - **Security**: The protocol supports secure table sharing using credential vending or remote signing.
 
 You can use the REST catalog protocol with any built-in catalog using translation in the `CatalogHandlers` class, or using the community maintained [`iceberg-rest-fixture`](https://hub.docker.com/r/apache/iceberg-rest-fixture) docker image.
+
+### Trusted Iceberg Client
+
+A **Trusted Iceberg Client** is a client implementation that a catalog operator trusts to correctly enforce
+restrictions and instructions returned by the REST Catalog server.
+
+In this model, the trusted client is entrusted to interpret server responses correctly and apply
+the required client-side behavior when reading or presenting data, so it does not expose data
+the user is not authorized to access.
