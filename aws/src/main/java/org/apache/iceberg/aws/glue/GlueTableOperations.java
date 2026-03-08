@@ -163,10 +163,11 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       throw e;
     } catch (RuntimeException persistFailure) {
       boolean isAwsServiceException = persistFailure instanceof AwsServiceException;
+      boolean isKnownCommitFailure = isKnownGlueCommitFailure(persistFailure);
 
-      // If we got an exception we weren't expecting, or we got an AWS service exception
-      // but retries were performed, attempt to reconcile the actual commit status.
-      if (!isAwsServiceException || retryDetector.retried()) {
+      // If we got an exception we weren't expecting, or we got a deterministic AWS service
+      // exception but retries were performed, attempt to reconcile the actual commit status.
+      if (!isKnownCommitFailure || retryDetector.retried()) {
         LOG.warn(
             "Received unexpected failure when committing to {}, validating if commit ended up succeeding.",
             fullTableName,
@@ -348,6 +349,28 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
                       .build())
               .build());
     }
+  }
+
+  /**
+   * Returns true if the exception is a known Glue exception that indicates the commit did not
+   * happen, so commit status check can be skipped:
+   *
+   * <ul>
+   *   <li>{@link ConcurrentModificationException}: another writer committed first
+   *   <li>{@link software.amazon.awssdk.services.glue.model.AlreadyExistsException}: table already
+   *       exists, create was rejected before any update
+   *   <li>{@link EntityNotFoundException}: table or database does not exist
+   *   <li>{@link AccessDeniedException}: request was rejected due to missing permissions
+   *   <li>{@link software.amazon.awssdk.services.glue.model.ValidationException}: request was
+   *       rejected due to invalid input
+   * </ul>
+   */
+  private static boolean isKnownGlueCommitFailure(RuntimeException exception) {
+    return exception instanceof ConcurrentModificationException
+        || exception instanceof software.amazon.awssdk.services.glue.model.AlreadyExistsException
+        || exception instanceof EntityNotFoundException
+        || exception instanceof AccessDeniedException
+        || exception instanceof software.amazon.awssdk.services.glue.model.ValidationException;
   }
 
   private void handleAWSExceptions(AwsServiceException persistFailure) {

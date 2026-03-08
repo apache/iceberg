@@ -46,6 +46,7 @@ import software.amazon.awssdk.services.glue.model.AccessDeniedException;
 import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GlueException;
+import software.amazon.awssdk.services.glue.model.OperationTimeoutException;
 import software.amazon.awssdk.services.glue.model.ValidationException;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -129,6 +130,32 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     assertThat(metadataFileCount(ops.current()))
         .as("No new metadata files should exist")
         .isEqualTo(2);
+  }
+
+  @Test
+  public void testOperationTimeoutExceptionAfterSuccessfulCommitPreservesMetadata() {
+    Table table = setupTable();
+    GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    TableMetadata metadataV2 = updateTable(table, ops);
+
+    GlueTableOperations spyOps = Mockito.spy(ops);
+
+    // Simulate an OperationTimeoutException after a successful commit
+    commitAndThrowException(ops, spyOps, OperationTimeoutException.builder().build());
+
+    // Shouldn't throw because the commit actually succeeds even though persistTable throws an
+    // OperationTimeoutException
+    spyOps.commit(metadataV2, metadataV1);
+    Mockito.verify(spyOps, Mockito.times(1)).refresh();
+
+    ops.refresh();
+    assertThat(ops.current()).as("Current metadata should have changed").isNotEqualTo(metadataV2);
+    assertThat(metadataFileExists(ops.current())).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("Commit should have been successful and new metadata file should be made")
+        .isEqualTo(3);
   }
 
   @Test
@@ -490,6 +517,12 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
   @SuppressWarnings("unchecked")
   private void commitAndThrowException(GlueTableOperations realOps, GlueTableOperations spyOps) {
+    commitAndThrowException(realOps, spyOps, new RuntimeException("Datacenter on fire"));
+  }
+
+  @SuppressWarnings("unchecked")
+  private void commitAndThrowException(
+      GlueTableOperations realOps, GlueTableOperations spyOps, RuntimeException exceptionToThrow) {
     Mockito.doAnswer(
             i -> {
               realOps.persistGlueTable(
@@ -497,7 +530,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
                   i.getArgument(1, Map.class),
                   i.getArgument(2, TableMetadata.class),
                   i.getArgument(3, RetryDetector.class));
-              throw new RuntimeException("Datacenter on fire");
+              throw exceptionToThrow;
             })
         .when(spyOps)
         .persistGlueTable(Mockito.any(), Mockito.anyMap(), Mockito.any(), Mockito.any());
