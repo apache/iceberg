@@ -75,6 +75,7 @@ jobs:
   # Test all flink versions with scala 2.12 for general validation.
   flink-scala-2-12-tests:
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     strategy:
       max-parallel: 15
       matrix:
