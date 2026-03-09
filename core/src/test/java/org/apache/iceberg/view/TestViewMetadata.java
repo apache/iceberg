@@ -1296,6 +1296,111 @@ public class TestViewMetadata {
   }
 
   @Test
+  public void concurrentReApplyOfSameViewChanges() {
+    // Simulates the scenario where the same changes are re-applied concurrently.
+    // First, create an initial view metadata with a schema and version.
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewVersion viewVersion =
+        ImmutableViewVersion.builder()
+            .versionId(1)
+            .schemaId(0)
+            .timestampMillis(System.currentTimeMillis())
+            .defaultNamespace(Namespace.of("ns"))
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .dialect("spark")
+                    .sql("select * from ns.tbl")
+                    .build())
+            .build();
+
+    ViewMetadata original =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(schema)
+            .addVersion(viewVersion)
+            .setCurrentVersionId(1)
+            .build();
+
+    // Now simulate a concurrent re-apply: build from the existing metadata and
+    // call setCurrentVersion with the same schema that already exists.
+    // This should succeed because the duplicate schema should still set lastAddedSchemaId.
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(original)
+            .setCurrentVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .schemaId(0)
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(Namespace.of("ns"))
+                    .addRepresentations(
+                        ImmutableSQLViewRepresentation.builder()
+                            .dialect("spark")
+                            .sql("select * from ns.tbl")
+                            .build())
+                    .build(),
+                schema)
+            .build();
+
+    assertThat(updated.schemas()).hasSize(1);
+    assertThat(updated.currentVersion().schemaId()).isEqualTo(0);
+  }
+
+  @Test
+  public void concurrentReApplyWithNewVersionButSameSchema() {
+    // When adding a new version that references a schema already present via LAST_ADDED,
+    // the duplicate schema detection should still allow the version to resolve the schema.
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewVersion viewVersion =
+        ImmutableViewVersion.builder()
+            .versionId(1)
+            .schemaId(0)
+            .timestampMillis(System.currentTimeMillis())
+            .defaultNamespace(Namespace.of("ns"))
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .dialect("spark")
+                    .sql("select * from ns.tbl")
+                    .build())
+            .build();
+
+    ViewMetadata original =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(schema)
+            .addVersion(viewVersion)
+            .setCurrentVersionId(1)
+            .build();
+
+    // Build from existing metadata and add a new version with the same schema.
+    // The version is different (different SQL) but the schema is the same.
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(original)
+            .setCurrentVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .schemaId(0)
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(Namespace.of("ns"))
+                    .addRepresentations(
+                        ImmutableSQLViewRepresentation.builder()
+                            .dialect("spark")
+                            .sql("select count(*) from ns.tbl")
+                            .build())
+                    .build(),
+                schema)
+            .build();
+
+    assertThat(updated.schemas()).hasSize(1);
+    assertThat(updated.currentVersion().schemaId()).isEqualTo(0);
+    assertThat(updated.currentVersion().representations())
+        .containsExactly(
+            ImmutableSQLViewRepresentation.builder()
+                .dialect("spark")
+                .sql("select count(*) from ns.tbl")
+                .build());
+  }
+
+  @Test
   public void currentViewVersionIsNeverExpired() {
     Map<String, String> properties = ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "1");
     ViewVersion viewVersionOne = newViewVersion(1, "select * from ns.tbl");

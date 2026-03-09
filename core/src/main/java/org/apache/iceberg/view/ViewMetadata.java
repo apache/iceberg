@@ -370,6 +370,7 @@ public interface ViewMetadata extends Serializable {
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
       if (schemasById.containsKey(newSchemaId)) {
         // this schema existed or was already added in the builder
+        this.lastAddedSchemaId = newSchemaId;
         return newSchemaId;
       }
 
