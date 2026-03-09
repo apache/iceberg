@@ -160,16 +160,19 @@ public class ThreadPools {
   }
 
   /**
-   * Force manual shutdown of the thread pools created via the {@link #newExitingWorkerPool(String,
-   * int)}.
+   * Shuts down all thread pools registered via {@link #newExitingWorkerPool(String, int)} or {@link
+   * #newExitingScheduledPool(String, int, Duration)} and removes the JVM shutdown hook.
    *
-   * <p>This method allows: (1) to stop thread pools manually, to avoid leaks in hot-reload
-   * environments; (2) opt-out of the standard shutdown mechanism to manage graceful service stops
-   * (and commit the last pending files, if the client application needs to react to shutdown hooks
-   * on its own).
+   * <p>This method is useful for:
    *
-   * <p>Please only call this method at the end of the intended usage of the library, and NEVER
-   * before, as this method will stop thread pools required for normal library workflows.
+   * <ul>
+   *   <li>Preventing thread pool leaks in hot-reload environments
+   *   <li>Managing graceful application shutdown when the application needs to handle its own
+   *       shutdown hooks (e.g. to commit pending files before exiting)
+   * </ul>
+   *
+   * <p>Only call this method at the end of the intended usage of the library. Calling it earlier
+   * will stop thread pools required for normal library workflows.
    */
   public static void shutdownThreadPools() {
     THREAD_POOL_MANAGER.shutdownAll();
