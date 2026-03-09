@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -34,6 +33,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.AfterEach;
@@ -125,7 +125,7 @@ public class TestBaseDeleteLoader {
    * HashMap as the cache backend.
    */
   private static class TrackingCacheDeleteLoader extends BaseDeleteLoader {
-    private final Map<String, Object> cache = new HashMap<>();
+    private final Map<String, Object> cache = Maps.newHashMap();
     private int loadCount = 0;
 
     TrackingCacheDeleteLoader(Function<DeleteFile, InputFile> loadInputFile) {
