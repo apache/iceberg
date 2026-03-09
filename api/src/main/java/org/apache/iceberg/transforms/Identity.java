@@ -148,7 +148,9 @@ class Identity<T> implements Transform<T, T> {
   @Override
   public UnboundPredicate<T> projectStrict(String name, BoundPredicate<T> predicate) {
     if (predicate.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+      // identity partition with a different transform filter (e.g. hours(ts) = X on identity(ts))
+      // is not supported for projection, so return null to indicate no projection is possible
+      return null;
     }
 
     if (predicate.isUnaryPredicate()) {
