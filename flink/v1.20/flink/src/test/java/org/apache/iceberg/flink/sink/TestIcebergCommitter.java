@@ -1164,6 +1164,83 @@ class TestIcebergCommitter extends TestBase {
     }
   }
 
+  @TestTemplate
+  public void testReplacePartitionsWithDeleteFiles() throws Exception {
+    assumeThat(formatVersion).as("Only support delete in format v2").isGreaterThanOrEqualTo(2);
+
+    FileWriterFactory<RowData> writerFactory = createFileWriterFactory();
+
+    // Create a committer with replacePartitions=true
+    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
+    IcebergCommitter committer =
+        new IcebergCommitter(
+            tableLoader,
+            branch,
+            Collections.singletonMap("flink.test", TestIcebergCommitter.class.getName()),
+            true,
+            10,
+            "sinkId",
+            metric,
+            false);
+
+    // Build a WriteResult that contains both data files and delete files
+    RowData row1 = SimpleDataUtil.createInsert(1, "aaa");
+    DataFile dataFile1 = writeDataFile("data-file-overwrite-1", ImmutableList.of(row1));
+
+    RowData delete1 = SimpleDataUtil.createDelete(1, "aaa");
+    DeleteFile deleteFile1 =
+        writeEqDeleteFile(
+            writerFactory, "delete-file-overwrite-1", ImmutableList.of(delete1), table.spec());
+
+    WriteResult withDeleteFiles =
+        WriteResult.builder().addDataFiles(dataFile1).addDeleteFiles(deleteFile1).build();
+
+    // This should succeed without throwing "Cannot overwrite partitions with delete files"
+    Committer.CommitRequest<IcebergCommittable> commitRequest =
+        buildCommitRequestFor(jobId, 1L, ImmutableList.of(withDeleteFiles));
+    committer.commit(Lists.newArrayList(commitRequest));
+
+    // Verify the commit succeeded - only data files should be committed, delete files dropped
+    assertSnapshotSize(1);
+  }
+
+  @TestTemplate
+  public void testReplacePartitionsOnEmptyTableWithDeleteFiles() throws Exception {
+    assumeThat(formatVersion).as("Only support delete in format v2").isGreaterThanOrEqualTo(2);
+
+    FileWriterFactory<RowData> writerFactory = createFileWriterFactory();
+
+    // Create a committer with replacePartitions=true
+    IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
+    IcebergCommitter committer =
+        new IcebergCommitter(
+            tableLoader,
+            branch,
+            Collections.singletonMap("flink.test", TestIcebergCommitter.class.getName()),
+            true,
+            10,
+            "sinkId",
+            metric,
+            false);
+
+    // Build a WriteResult with only delete files and no data files (empty table scenario)
+    RowData delete1 = SimpleDataUtil.createDelete(1, "aaa");
+    DeleteFile deleteFile1 =
+        writeEqDeleteFile(
+            writerFactory, "delete-file-empty-1", ImmutableList.of(delete1), table.spec());
+
+    WriteResult onlyDeleteFiles = WriteResult.builder().addDeleteFiles(deleteFile1).build();
+
+    // This should succeed without throwing "Cannot overwrite partitions with delete files"
+    Committer.CommitRequest<IcebergCommittable> commitRequest =
+        buildCommitRequestFor(jobId, 1L, ImmutableList.of(onlyDeleteFiles));
+    committer.commit(Lists.newArrayList(commitRequest));
+
+    // Verify the operation completed - delete files dropped and no data files means no commit
+    // needed
+    assertSnapshotSize(0);
+  }
+
   private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)
       throws IOException {
     ManifestWriter<DataFile> writer =

@@ -307,8 +307,19 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       String newFlinkJobId,
       String operatorId,
       long checkpointId) {
-    Preconditions.checkState(
-        summary.deleteFilesCount() == 0, "Cannot overwrite partitions with delete files.");
+    if (summary.deleteFilesCount() > 0) {
+      LOG.warn(
+          "Dropping {} delete files during dynamic partition overwrite. "
+              + "Delete files are not applicable in overwrite mode as the partitions are replaced.",
+          summary.deleteFilesCount());
+    }
+
+    if (summary.dataFilesCount() == 0) {
+      LOG.info(
+          "Skipping replace partitions commit with no data files for checkpoint {}.", checkpointId);
+      return;
+    }
+
     // Commit the overwrite transaction.
     ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
     for (WriteResult result : pendingResults.values()) {
