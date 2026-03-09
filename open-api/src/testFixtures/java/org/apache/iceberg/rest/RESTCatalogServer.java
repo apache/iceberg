@@ -97,8 +97,11 @@ public class RESTCatalogServer {
       LOG.info("No warehouse location set. Defaulting to temp location: {}", warehouseLocation);
     }
 
+    String envCatalogName = System.getenv("CATALOG_NAME");
     String catalogName =
-        PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
+        envCatalogName != null
+            ? envCatalogName
+            : PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
 
     LOG.info("Creating {} catalog with properties: {}", catalogName, catalogProperties);
     return new CatalogContext(
