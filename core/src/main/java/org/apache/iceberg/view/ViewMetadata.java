@@ -318,7 +318,12 @@ public interface ViewMetadata extends Serializable {
       versions.add(version);
       versionsById.put(version.versionId(), version);
 
-      if (null != lastAddedSchemaId && version.schemaId() == lastAddedSchemaId) {
+      boolean schemaAddedAsChange =
+          null != lastAddedSchemaId
+              && version.schemaId() == lastAddedSchemaId
+              && changes(MetadataUpdate.AddSchema.class)
+                  .anyMatch(added -> added.schema().schemaId() == lastAddedSchemaId);
+      if (schemaAddedAsChange) {
         changes.add(
             new MetadataUpdate.AddViewVersion(
                 ImmutableViewVersion.builder().from(version).schemaId(LAST_ADDED).build()));
@@ -369,7 +374,9 @@ public interface ViewMetadata extends Serializable {
     private int addSchemaInternal(Schema schema) {
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
       if (schemasById.containsKey(newSchemaId)) {
-        // this schema existed or was already added in the builder
+        // this schema existed or was already added in the builder.
+        // set lastAddedSchemaId so that LAST_ADDED references in addVersionInternal
+        // can be resolved during re-apply of the same changes.
         this.lastAddedSchemaId = newSchemaId;
         return newSchemaId;
       }

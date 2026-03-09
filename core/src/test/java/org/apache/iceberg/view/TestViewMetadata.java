@@ -1401,6 +1401,64 @@ public class TestViewMetadata {
   }
 
   @Test
+  public void reApplyAddSchemaAndAddViewVersionWithLastAdded() {
+    // Simulates the server-side re-apply scenario where AddSchema and
+    // AddViewVersion(schemaId=LAST_ADDED) are applied to metadata that already has the schema.
+    // This is the core scenario from issue #15008.
+    Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    ViewVersion viewVersion =
+        ImmutableViewVersion.builder()
+            .versionId(1)
+            .schemaId(0)
+            .timestampMillis(System.currentTimeMillis())
+            .defaultNamespace(Namespace.of("ns"))
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .dialect("spark")
+                    .sql("select * from ns.tbl")
+                    .build())
+            .build();
+
+    ViewMetadata original =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(schema)
+            .addVersion(viewVersion)
+            .setCurrentVersionId(1)
+            .build();
+
+    // Re-apply: addSchema with existing schema, then addVersion with LAST_ADDED schemaId
+    ViewVersion newVersion =
+        ImmutableViewVersion.builder()
+            .versionId(2)
+            .schemaId(-1) // LAST_ADDED
+            .timestampMillis(System.currentTimeMillis())
+            .defaultNamespace(Namespace.of("ns"))
+            .addRepresentations(
+                ImmutableSQLViewRepresentation.builder()
+                    .dialect("spark")
+                    .sql("select count(*) from ns.tbl")
+                    .build())
+            .build();
+
+    ViewMetadata updated =
+        ViewMetadata.buildFrom(original)
+            .addSchema(schema)
+            .addVersion(newVersion)
+            .setCurrentVersionId(2)
+            .build();
+
+    assertThat(updated.schemas()).hasSize(1);
+    assertThat(updated.currentVersion().schemaId()).isEqualTo(0);
+    assertThat(updated.currentVersion().representations())
+        .containsExactly(
+            ImmutableSQLViewRepresentation.builder()
+                .dialect("spark")
+                .sql("select count(*) from ns.tbl")
+                .build());
+  }
+
+  @Test
   public void currentViewVersionIsNeverExpired() {
     Map<String, String> properties = ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "1");
     ViewVersion viewVersionOne = newViewVersion(1, "select * from ns.tbl");
