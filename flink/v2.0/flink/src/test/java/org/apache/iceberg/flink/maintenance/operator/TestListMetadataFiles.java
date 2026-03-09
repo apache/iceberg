@@ -87,4 +87,36 @@ class TestListMetadataFiles extends OperatorTestBase {
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
     }
   }
+
+  @Test
+  void testMetadataFilesRefreshesTable() throws Exception {
+    Table table = createTable();
+    insert(table, 1, "a");
+
+    try (OneInputStreamOperatorTestHarness<Trigger, String> testHarness =
+        ProcessFunctionTestHarnesses.forProcessFunction(
+            new ListMetadataFiles(OperatorTestBase.DUMMY_TABLE_NAME, 0, tableLoader()))) {
+      testHarness.open();
+
+      // First trigger - should see 1 snapshot
+      OperatorTestBase.trigger(testHarness);
+      List<String> firstResult = testHarness.extractOutputValues();
+      assertThat(firstResult).isNotEmpty();
+
+      // Insert more data after the operator was opened - adds new snapshots with new manifests
+      insert(table, 2, "b");
+      insert(table, 3, "c");
+
+      // Second trigger - should see the new snapshots metadata files thanks to refresh()
+      OperatorTestBase.trigger(testHarness);
+      List<String> allResults = testHarness.extractOutputValues();
+
+      // The second trigger should produce more results than the first because there are
+      // now 3 snapshots instead of 1. Without table.refresh(), the operator would still
+      // see only 1 snapshot and produce the same number of files as the first trigger.
+      assertThat(allResults.size()).isGreaterThan(firstResult.size());
+
+      assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
+    }
+  }
 }
