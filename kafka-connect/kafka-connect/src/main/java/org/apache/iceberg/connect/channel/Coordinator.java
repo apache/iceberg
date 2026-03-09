@@ -163,14 +163,15 @@ class Coordinator extends Channel {
     }
   }
 
-  private static boolean isFatalException(Throwable t) {
-    while (t != null) {
-      if (t instanceof ProducerFencedException
-          || t instanceof OutOfOrderSequenceException
-          || t instanceof InvalidProducerEpochException) {
+  private static boolean isFatalException(Throwable throwable) {
+    Throwable cause = throwable;
+    while (cause != null) {
+      if (cause instanceof ProducerFencedException
+          || cause instanceof OutOfOrderSequenceException
+          || cause instanceof InvalidProducerEpochException) {
         return true;
       }
-      t = t.getCause();
+      cause = cause.getCause();
     }
     return false;
   }
