@@ -45,13 +45,19 @@ public interface ContextAwareCatalog {
    *       to innermost view last. For a single view reference, the list contains one element.
    * </ul>
    *
+   * <p>The default implementation throws {@link UnsupportedOperationException}. Implementations
+   * that support context-aware table loading should override this method.
+   *
    * @param identifier the table identifier to load
    * @param loadingContext additional context information as key-value pairs
    * @return the loaded table
    * @throws NoSuchTableException if the table does not exist
    */
-  Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext)
-      throws NoSuchTableException;
+  default Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext)
+      throws NoSuchTableException {
+    throw new UnsupportedOperationException(
+        "Context-aware table loading is not supported by this catalog");
+  }
 
   /**
    * Load a view with additional context information.
@@ -60,11 +66,11 @@ public interface ContextAwareCatalog {
    * that support context-aware view loading should override this method.
    *
    * @param identifier the view identifier to load
-   * @param viewContext additional context information as key-value pairs
+   * @param loadingContext additional context information as key-value pairs
    * @return the loaded view
    * @throws NoSuchViewException if the view does not exist
    */
-  default View loadView(TableIdentifier identifier, Map<String, Object> viewContext)
+  default View loadView(TableIdentifier identifier, Map<String, Object> loadingContext)
       throws NoSuchViewException {
     throw new UnsupportedOperationException(
         "Context-aware view loading is not supported by this catalog");

@@ -323,8 +323,8 @@ public class RESTCatalog
   }
 
   @Override
-  public View loadView(TableIdentifier identifier, Map<String, Object> viewContext) {
-    return sessionCatalog.loadView(context, identifier, viewContext);
+  public View loadView(TableIdentifier identifier, Map<String, Object> loadingContext) {
+    return sessionCatalog.loadView(context, identifier, loadingContext);
   }
 
   @Override

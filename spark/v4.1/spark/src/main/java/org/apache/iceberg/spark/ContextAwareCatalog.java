@@ -25,17 +25,56 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.View;
 
+/**
+ * Extension interface for Spark catalogs that support loading tables and views with additional
+ * context. The loading context can carry information such as the chain of views that reference a
+ * table, enabling catalogs to make context-aware decisions (e.g., scoped credential vending).
+ */
 public interface ContextAwareCatalog {
 
+  /**
+   * Load a table with additional context.
+   *
+   * @param identifier the table identifier
+   * @param loadingContext additional context as key-value pairs (e.g., view reference chain)
+   * @return the loaded table
+   * @throws NoSuchTableException if the table does not exist
+   */
   Table loadTable(Identifier identifier, Map<String, Object> loadingContext)
       throws NoSuchTableException;
 
+  /**
+   * Load a table at a specific version with additional context.
+   *
+   * @param identifier the table identifier
+   * @param version the version string (snapshot ID or reference name)
+   * @param loadingContext additional context as key-value pairs
+   * @return the loaded table at the specified version
+   * @throws NoSuchTableException if the table does not exist
+   */
   Table loadTable(Identifier identifier, String version, Map<String, Object> loadingContext)
       throws NoSuchTableException;
 
+  /**
+   * Load a table at a specific timestamp with additional context.
+   *
+   * @param identifier the table identifier
+   * @param timestamp the timestamp in microseconds
+   * @param loadingContext additional context as key-value pairs
+   * @return the loaded table as of the specified timestamp
+   * @throws NoSuchTableException if the table does not exist
+   */
   Table loadTable(Identifier identifier, long timestamp, Map<String, Object> loadingContext)
       throws NoSuchTableException;
 
+  /**
+   * Load a view with additional context.
+   *
+   * @param identifier the view identifier
+   * @param loadingContext additional context as key-value pairs (e.g., view reference chain)
+   * @return the loaded view
+   * @throws NoSuchViewException if the view does not exist
+   */
   View loadView(Identifier identifier, Map<String, Object> loadingContext)
       throws NoSuchViewException;
 }

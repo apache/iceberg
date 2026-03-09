@@ -85,6 +85,8 @@ import org.apache.spark.sql.connector.catalog.ViewInfo;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
@@ -116,6 +118,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>
  */
 public class SparkCatalog extends BaseCatalog implements ContextAwareCatalog {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -557,6 +560,12 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareCatalog {
               ((org.apache.iceberg.catalog.ContextAwareCatalog) asViewCatalog)
                   .loadView(buildIdentifier(ident), context);
         } else {
+          if (context != null && !context.isEmpty()) {
+            LOG.warn(
+                "Catalog {} does not support context-aware view loading, ignoring context for view {}",
+                asViewCatalog.name(),
+                ident);
+          }
           view = asViewCatalog.loadView(buildIdentifier(ident));
         }
         return new SparkView(catalogName, view);
@@ -901,6 +910,13 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareCatalog {
         && icebergCatalog instanceof org.apache.iceberg.catalog.ContextAwareCatalog) {
       return ((org.apache.iceberg.catalog.ContextAwareCatalog) icebergCatalog)
           .loadTable(ident, context);
+    }
+
+    if (!context.isEmpty()) {
+      LOG.warn(
+          "Catalog {} does not support context-aware table loading, ignoring context for table {}",
+          icebergCatalog.name(),
+          ident);
     }
 
     return icebergCatalog.loadTable(ident);

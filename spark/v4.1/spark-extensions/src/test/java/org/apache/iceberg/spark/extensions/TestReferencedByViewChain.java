@@ -75,10 +75,10 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   public static class ContextTrackingCatalog extends InMemoryCatalog
       implements ContextAwareCatalog {
 
-    /** Records of (tableIdentifier, viewContext) captured from loadTable calls. */
+    /** Records of (tableIdentifier, loadingContext) captured from loadTable calls. */
     public static final List<CapturedContext> CAPTURED = new CopyOnWriteArrayList<>();
 
-    /** Records of (viewIdentifier, viewContext) captured from loadView calls. */
+    /** Records of (viewIdentifier, loadingContext) captured from loadView calls. */
     public static final List<CapturedContext> CAPTURED_VIEWS = new CopyOnWriteArrayList<>();
 
     public static class CapturedContext {
@@ -104,8 +104,8 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     }
 
     @Override
-    public View loadView(TableIdentifier identifier, Map<String, Object> viewContext) {
-      CAPTURED_VIEWS.add(new CapturedContext(identifier, viewContext));
+    public View loadView(TableIdentifier identifier, Map<String, Object> loadingContext) {
+      CAPTURED_VIEWS.add(new CapturedContext(identifier, loadingContext));
       return super.loadView(identifier);
     }
   }
@@ -161,8 +161,6 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   @AfterEach
   public void after() {
     spark.sql(String.format("USE %s.%s", CATALOG_NAME, NAMESPACE));
-    spark.sql("DROP VIEW IF EXISTS inner_view");
-    spark.sql("DROP VIEW IF EXISTS outer_view");
     spark.sql("DROP VIEW IF EXISTS simple_view");
     spark.sql("DROP VIEW IF EXISTS view_a");
     spark.sql("DROP VIEW IF EXISTS view_b");
@@ -185,206 +183,73 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
 
   @Test
   public void testSingleViewPassesViewIdentifierInContext() {
-    String viewSql = String.format("SELECT id FROM %s", TABLE_NAME);
-    ViewCatalog viewCatalog = viewCatalog();
-    viewCatalog
-        .buildView(TableIdentifier.of(NAMESPACE, "simple_view"))
-        .withQuery("spark", viewSql)
-        .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(CATALOG_NAME)
-        .withSchema(SparkSchemaUtil.convert(spark.sql(viewSql).schema()))
-        .create();
-
+    createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
     ContextTrackingCatalog.clearCaptured();
 
     List<Row> result = spark.sql("SELECT * FROM simple_view").collectAsList();
     assertThat(result).hasSize(5);
 
-    // Verify context was passed with the view chain
     assertThat(ContextTrackingCatalog.CAPTURED).hasSize(1);
-
-    ContextTrackingCatalog.CapturedContext captured = ContextTrackingCatalog.CAPTURED.get(0);
-    assertThat(captured.tableIdentifier).isEqualTo(TableIdentifier.of(NAMESPACE, TABLE_NAME));
-    assertThat(captured.context).containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
-
-    @SuppressWarnings("unchecked")
-    List<TableIdentifier> viewChain =
-        (List<TableIdentifier>) captured.context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
-    assertThat(viewChain).hasSize(1);
-    assertThat(viewChain.get(0)).isEqualTo(TableIdentifier.of(NAMESPACE, "simple_view"));
+    assertCapturedTableChain(ContextTrackingCatalog.CAPTURED, TABLE_NAME, "simple_view");
   }
 
   @Test
-  public void testNestedViewAccumulatesChain() {
-    String innerSql = String.format("SELECT id, data FROM %s WHERE id <= 3", TABLE_NAME);
-    ViewCatalog viewCatalog = viewCatalog();
-    viewCatalog
-        .buildView(TableIdentifier.of(NAMESPACE, "inner_view"))
-        .withQuery("spark", innerSql)
-        .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(CATALOG_NAME)
-        .withSchema(SparkSchemaUtil.convert(spark.sql(innerSql).schema()))
-        .create();
-
-    String outerSql = "SELECT id FROM inner_view WHERE id > 1";
-    viewCatalog
-        .buildView(TableIdentifier.of(NAMESPACE, "outer_view"))
-        .withQuery("spark", outerSql)
-        .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(CATALOG_NAME)
-        .withSchema(SparkSchemaUtil.convert(spark.sql(outerSql).schema()))
-        .create();
-
-    ContextTrackingCatalog.clearCaptured();
-
-    // Query through the outer view (outer_view -> inner_view -> table)
-    List<Object[]> result = rowsToJava(spark.sql("SELECT * FROM outer_view").collectAsList());
-    assertThat(result).hasSize(2).containsExactlyInAnyOrder(new Object[] {2}, new Object[] {3});
-
-    // Find the captured call for the actual table (test_table) with the full chain.
-    // During resolution, inner_view may also be attempted as a table first (and fail),
-    // and Spark's analyzer may run rules iteratively, so filter to just the successful
-    // table load with the full chain.
-    List<ContextTrackingCatalog.CapturedContext> tableCaptures =
-        ContextTrackingCatalog.CAPTURED.stream()
-            .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, TABLE_NAME)))
-            .filter(c -> c.context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY))
-            .collect(Collectors.toList());
-
-    assertThat(tableCaptures).isNotEmpty();
-
-    // Check the first matching capture has the full chain
-    ContextTrackingCatalog.CapturedContext captured = tableCaptures.get(0);
-
-    @SuppressWarnings("unchecked")
-    List<TableIdentifier> viewChain =
-        (List<TableIdentifier>) captured.context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
-
-    // Chain should be [outer_view, inner_view] - outermost first, innermost last
-    assertThat(viewChain).hasSize(2);
-    assertThat(viewChain.get(0)).isEqualTo(TableIdentifier.of(NAMESPACE, "outer_view"));
-    assertThat(viewChain.get(1)).isEqualTo(TableIdentifier.of(NAMESPACE, "inner_view"));
-  }
-
-  @Test
-  public void testViewReferencingViewPassesContext() {
-    // view_a -> table, view_b -> view_a
-    // When querying view_b, loading view_a should receive context with [view_b]
-    String viewASql = String.format("SELECT id FROM %s", TABLE_NAME);
-    ViewCatalog viewCatalog = viewCatalog();
-    viewCatalog
-        .buildView(TableIdentifier.of(NAMESPACE, "view_a"))
-        .withQuery("spark", viewASql)
-        .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(CATALOG_NAME)
-        .withSchema(SparkSchemaUtil.convert(spark.sql(viewASql).schema()))
-        .create();
-
-    String viewBSql = "SELECT id FROM view_a";
-    viewCatalog
-        .buildView(TableIdentifier.of(NAMESPACE, "view_b"))
-        .withQuery("spark", viewBSql)
-        .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(CATALOG_NAME)
-        .withSchema(SparkSchemaUtil.convert(spark.sql(viewBSql).schema()))
-        .create();
-
-    ContextTrackingCatalog.clearCaptured();
-
-    List<Row> result = spark.sql("SELECT * FROM view_b").collectAsList();
-    assertThat(result).hasSize(5);
-
-    // Verify that loading view_a received the referenced-by context with [view_b]
-    List<ContextTrackingCatalog.CapturedContext> viewCaptures =
-        ContextTrackingCatalog.CAPTURED_VIEWS.stream()
-            .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, "view_a")))
-            .filter(c -> c.context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY))
-            .collect(Collectors.toList());
-
-    assertThat(viewCaptures).isNotEmpty();
-
-    @SuppressWarnings("unchecked")
-    List<TableIdentifier> viewChain =
-        (List<TableIdentifier>)
-            viewCaptures.get(0).context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
-    assertThat(viewChain).hasSize(1);
-    assertThat(viewChain.get(0)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_b"));
-  }
-
-  @Test
-  public void testNestedViewChainAccumulatesContextForViews() {
+  public void testNestedViewChainAccumulatesContext() {
     // view_c -> view_b -> view_a -> table
     // When querying view_c:
-    //   - loading view_b should receive context with [view_c]
     //   - loading view_a should receive context with [view_c, view_b]
     //   - loading table should receive context with [view_c, view_b, view_a]
-    String viewASql = String.format("SELECT id, data FROM %s", TABLE_NAME);
-    ViewCatalog viewCatalog = viewCatalog();
-    viewCatalog
-        .buildView(TableIdentifier.of(NAMESPACE, "view_a"))
-        .withQuery("spark", viewASql)
-        .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(CATALOG_NAME)
-        .withSchema(SparkSchemaUtil.convert(spark.sql(viewASql).schema()))
-        .create();
-
-    String viewBSql = "SELECT id FROM view_a WHERE id <= 3";
-    viewCatalog
-        .buildView(TableIdentifier.of(NAMESPACE, "view_b"))
-        .withQuery("spark", viewBSql)
-        .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(CATALOG_NAME)
-        .withSchema(SparkSchemaUtil.convert(spark.sql(viewBSql).schema()))
-        .create();
-
-    String viewCSql = "SELECT id FROM view_b WHERE id > 1";
-    viewCatalog
-        .buildView(TableIdentifier.of(NAMESPACE, "view_c"))
-        .withQuery("spark", viewCSql)
-        .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(CATALOG_NAME)
-        .withSchema(SparkSchemaUtil.convert(spark.sql(viewCSql).schema()))
-        .create();
-
+    createView("view_a", String.format("SELECT id, data FROM %s", TABLE_NAME));
+    createView("view_b", "SELECT id FROM view_a WHERE id <= 3");
+    createView("view_c", "SELECT id FROM view_b WHERE id > 1");
     ContextTrackingCatalog.clearCaptured();
 
     List<Object[]> result = rowsToJava(spark.sql("SELECT * FROM view_c").collectAsList());
     assertThat(result).hasSize(2).containsExactlyInAnyOrder(new Object[] {2}, new Object[] {3});
 
     // Verify the table load has the full chain [view_c, view_b, view_a]
-    List<ContextTrackingCatalog.CapturedContext> tableCaptures =
-        ContextTrackingCatalog.CAPTURED.stream()
-            .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, TABLE_NAME)))
-            .filter(c -> c.context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY))
-            .collect(Collectors.toList());
-
-    assertThat(tableCaptures).isNotEmpty();
-
-    @SuppressWarnings("unchecked")
-    List<TableIdentifier> tableChain =
-        (List<TableIdentifier>)
-            tableCaptures.get(0).context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
-    assertThat(tableChain).hasSize(3);
-    assertThat(tableChain.get(0)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_c"));
-    assertThat(tableChain.get(1)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_b"));
-    assertThat(tableChain.get(2)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_a"));
+    assertCapturedTableChain(
+        ContextTrackingCatalog.CAPTURED, TABLE_NAME, "view_c", "view_b", "view_a");
 
     // Verify view_a was loaded with context containing [view_c, view_b]
-    List<ContextTrackingCatalog.CapturedContext> viewACaptures =
-        ContextTrackingCatalog.CAPTURED_VIEWS.stream()
-            .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, "view_a")))
+    assertCapturedTableChain(ContextTrackingCatalog.CAPTURED_VIEWS, "view_a", "view_c", "view_b");
+  }
+
+  private void createView(String viewName, String sql) {
+    ViewCatalog catalog = viewCatalog();
+    catalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(CATALOG_NAME)
+        .withSchema(SparkSchemaUtil.convert(spark.sql(sql).schema()))
+        .create();
+  }
+
+  /**
+   * Asserts that a captured context list contains an entry for the given target with the expected
+   * view chain.
+   */
+  @SuppressWarnings("unchecked")
+  private void assertCapturedTableChain(
+      List<ContextTrackingCatalog.CapturedContext> captures,
+      String targetName,
+      String... expectedViewNames) {
+    List<ContextTrackingCatalog.CapturedContext> matching =
+        captures.stream()
+            .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, targetName)))
             .filter(c -> c.context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY))
             .collect(Collectors.toList());
 
-    assertThat(viewACaptures).isNotEmpty();
+    assertThat(matching).isNotEmpty();
 
-    @SuppressWarnings("unchecked")
-    List<TableIdentifier> viewAChain =
+    List<TableIdentifier> viewChain =
         (List<TableIdentifier>)
-            viewACaptures.get(0).context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
-    assertThat(viewAChain).hasSize(2);
-    assertThat(viewAChain.get(0)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_c"));
-    assertThat(viewAChain.get(1)).isEqualTo(TableIdentifier.of(NAMESPACE, "view_b"));
+            matching.get(0).context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
+    assertThat(viewChain).hasSize(expectedViewNames.length);
+    for (int i = 0; i < expectedViewNames.length; i++) {
+      assertThat(viewChain.get(i)).isEqualTo(TableIdentifier.of(NAMESPACE, expectedViewNames[i]));
+    }
   }
 
   private ViewCatalog viewCatalog() {

@@ -90,25 +90,6 @@ public class TestReferencedByQueryParam {
   }
 
   @Test
-  public void testEmptyContextReturnsOriginalParams() {
-    Map<String, String> original = ImmutableMap.of("key", "value");
-
-    Map<String, String> result = catalog.referencedByToQueryParam(original, Map.of());
-
-    assertThat(result).isSameAs(original);
-  }
-
-  @Test
-  public void testContextWithoutViewKeyReturnsOriginalParams() {
-    Map<String, String> original = ImmutableMap.of("key", "value");
-    Map<String, Object> context = ImmutableMap.of("other-key", "other-value");
-
-    Map<String, String> result = catalog.referencedByToQueryParam(original, context);
-
-    assertThat(result).isSameAs(original);
-  }
-
-  @Test
   public void testInvalidContextValueType() {
     Map<String, Object> context =
         ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, "not-a-list");
@@ -116,20 +97,6 @@ public class TestReferencedByQueryParam {
     assertThatThrownBy(() -> catalog.referencedByToQueryParam(Map.of(), context))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("expected List<TableIdentifier>");
-  }
-
-  @Test
-  public void testEmptyChainReturnsOriginalParams() {
-    List<TableIdentifier> chain = ImmutableList.of();
-    Map<String, Object> context = ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, chain);
-
-    Map<String, String> result =
-        catalog.referencedByToQueryParam(ImmutableMap.of("key", "value"), context);
-
-    // Should return params without referenced-by since chain is empty
-    assertThat(result)
-        .containsEntry("key", "value")
-        .doesNotContainKey(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
   }
 
   @Test

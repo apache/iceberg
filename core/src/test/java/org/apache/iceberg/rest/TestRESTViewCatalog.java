@@ -466,10 +466,10 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
     // load the view with a referenced-by context
     List<TableIdentifier> viewChain = ImmutableList.of(TableIdentifier.of(ns, "outer_view"));
-    Map<String, Object> viewContext =
+    Map<String, Object> loadingContext =
         ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
 
-    catalog.loadView(viewIdent, viewContext);
+    catalog.loadView(viewIdent, loadingContext);
 
     // The test adapter uses %2E as the namespace separator
     Mockito.verify(adapter)
@@ -541,10 +541,10 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     List<TableIdentifier> viewChain =
         ImmutableList.of(
             TableIdentifier.of(ns, "outer_view"), TableIdentifier.of(ns, "inner_view"));
-    Map<String, Object> viewContext =
+    Map<String, Object> loadingContext =
         ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
 
-    catalog.loadView(viewIdent, viewContext);
+    catalog.loadView(viewIdent, loadingContext);
 
     // verify the GET request includes comma-separated referenced-by chain
     // The test adapter uses %2E as the namespace separator

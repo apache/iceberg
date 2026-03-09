@@ -439,7 +439,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SessionContext context,
       TableIdentifier identifier,
       SnapshotMode mode,
-      Map<String, Object> viewContext,
+      Map<String, Object> loadingContext,
       Map<String, String> headers,
       Consumer<Map<String, String>> responseHeaders) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
@@ -448,7 +448,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         .withAuthSession(contextualSession)
         .get(
             paths.table(identifier),
-            paramsForLoadTable(mode, viewContext),
+            paramsForLoadTable(mode, loadingContext),
             LoadTableResponse.class,
             headers,
             ErrorHandlers.tableErrorHandler(),
@@ -456,8 +456,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   // Visible for testing
-  Map<String, String> paramsForLoadTable(SnapshotMode mode, Map<String, Object> viewContext) {
-    return referencedByToQueryParam(snapshotModeToParam(mode), viewContext);
+  Map<String, String> paramsForLoadTable(SnapshotMode mode, Map<String, Object> loadingContext) {
+    return referencedByToQueryParam(snapshotModeToParam(mode), loadingContext);
   }
 
   // Visible for testing
@@ -513,8 +513,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * can extract it and pass it as a query parameter to the loadCredentials endpoint.
    */
   private Map<String, String> injectReferencedBy(
-      Map<String, String> config, Map<String, Object> viewContext) {
-    Map<String, String> referencedByParam = referencedByToQueryParam(Map.of(), viewContext);
+      Map<String, String> config, Map<String, Object> loadingContext) {
+    Map<String, String> referencedByParam = referencedByToQueryParam(Map.of(), loadingContext);
     if (!referencedByParam.containsKey(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER)) {
       return config;
     }
@@ -533,7 +533,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public Table loadTable(
-      SessionContext context, TableIdentifier identifier, Map<String, Object> viewContext) {
+      SessionContext context, TableIdentifier identifier, Map<String, Object> loadingContext) {
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_TABLE,
@@ -557,7 +557,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               context,
               identifier,
               snapshotMode,
-              viewContext,
+              loadingContext,
               headersForLoadTable(cachedTable),
               responseHeaders::putAll);
 
@@ -584,7 +584,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   context,
                   baseIdent,
                   snapshotMode,
-                  viewContext,
+                  loadingContext,
                   headersForLoadTable(cachedTable),
                   responseHeaders::putAll);
 
@@ -609,7 +609,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     TableIdentifier finalIdentifier = loadedIdent;
-    Map<String, String> tableConf = injectReferencedBy(response.config(), viewContext);
+    Map<String, String> tableConf = injectReferencedBy(response.config(), loadingContext);
     AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     AuthSession tableSession =
         authManager.tableSession(finalIdentifier, tableConf, contextualSession);
@@ -626,7 +626,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                               context,
                               finalIdentifier,
                               SnapshotMode.ALL,
-                              viewContext,
+                              loadingContext,
                               Map.of(),
                               h -> {})
                           .tableMetadata()
@@ -1537,7 +1537,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public View loadView(
-      SessionContext context, TableIdentifier identifier, Map<String, Object> viewContext) {
+      SessionContext context, TableIdentifier identifier, Map<String, Object> loadingContext) {
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_VIEW,
@@ -1554,12 +1554,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             .withAuthSession(contextualSession)
             .get(
                 paths.view(identifier),
-                referencedByToQueryParam(Map.of(), viewContext),
+                referencedByToQueryParam(Map.of(), loadingContext),
                 LoadViewResponse.class,
                 Map.of(),
                 ErrorHandlers.viewErrorHandler());
 
-    Map<String, String> tableConf = injectReferencedBy(response.config(), viewContext);
+    Map<String, String> tableConf = injectReferencedBy(response.config(), loadingContext);
     AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
     ViewMetadata metadata = response.metadata();
 

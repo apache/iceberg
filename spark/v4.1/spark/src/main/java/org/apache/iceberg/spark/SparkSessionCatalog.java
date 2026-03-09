@@ -54,6 +54,8 @@ import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark catalog that can also load non-Iceberg tables.
@@ -64,6 +66,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
     extends BaseCatalog implements CatalogExtension, ContextAwareCatalog {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkSessionCatalog.class);
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
@@ -153,6 +156,12 @@ public class SparkSessionCatalog<
       if (!context.isEmpty() && icebergCatalog instanceof ContextAwareCatalog) {
         return ((ContextAwareCatalog) icebergCatalog).loadTable(ident, context);
       }
+      if (!context.isEmpty()) {
+        LOG.warn(
+            "Catalog {} does not support context-aware table loading, ignoring context for table {}",
+            icebergCatalog.name(),
+            ident);
+      }
       return icebergCatalog.loadTable(ident);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident);
@@ -171,6 +180,12 @@ public class SparkSessionCatalog<
       if (!loadingContext.isEmpty() && icebergCatalog instanceof ContextAwareCatalog) {
         return ((ContextAwareCatalog) icebergCatalog).loadTable(ident, version, loadingContext);
       }
+      if (!loadingContext.isEmpty()) {
+        LOG.warn(
+            "Catalog {} does not support context-aware table loading, ignoring context for table {}",
+            icebergCatalog.name(),
+            ident);
+      }
       return icebergCatalog.loadTable(ident, version);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, version);
@@ -188,6 +203,12 @@ public class SparkSessionCatalog<
     try {
       if (!loadingContext.isEmpty() && icebergCatalog instanceof ContextAwareCatalog) {
         return ((ContextAwareCatalog) icebergCatalog).loadTable(ident, timestamp, loadingContext);
+      }
+      if (!loadingContext.isEmpty()) {
+        LOG.warn(
+            "Catalog {} does not support context-aware table loading, ignoring context for table {}",
+            icebergCatalog.name(),
+            ident);
       }
       return icebergCatalog.loadTable(ident, timestamp);
     } catch (NoSuchTableException e) {
@@ -482,6 +503,12 @@ public class SparkSessionCatalog<
     if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
       if (context != null && !context.isEmpty() && asViewCatalog instanceof ContextAwareCatalog) {
         return ((ContextAwareCatalog) asViewCatalog).loadView(ident, context);
+      }
+      if (context != null && !context.isEmpty()) {
+        LOG.warn(
+            "Catalog {} does not support context-aware view loading, ignoring context for view {}",
+            asViewCatalog.name(),
+            ident);
       }
       return asViewCatalog.loadView(ident);
     } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
