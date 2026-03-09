@@ -272,7 +272,7 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.spec().fields()).as("Should not be partitioned").isEmpty();
     assertThat(table.properties())
         .doesNotContainKey(TableProperties.DEFAULT_FILE_FORMAT)
-        .containsEntry(TableProperties.TABLE_COMMENT, "Table doc");
+        .containsEntry(TableProperties.COMMENT, "Table doc");
   }
 
   @TestTemplate
