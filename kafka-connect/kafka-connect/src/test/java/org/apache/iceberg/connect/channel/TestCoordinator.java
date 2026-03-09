@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -49,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.jupiter.api.Test;
 
@@ -138,6 +140,58 @@ public class TestCoordinator extends ChannelTestBase {
     assertThat(producer.history()).hasSize(1);
 
     assertThat(table.snapshots()).isEmpty();
+  }
+
+  @Test
+  public void testCommitFatalProducerError() {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+    coordinator.start();
+
+    // init consumer after subscribe()
+    initConsumer();
+
+    coordinator.process();
+
+    assertThat(producer.transactionCommitted()).isTrue();
+    assertThat(producer.history()).hasSize(1);
+
+    byte[] bytes = producer.history().get(0).value();
+    Event commitRequest = AvroUtil.decode(bytes);
+    UUID commitId = ((StartCommit) commitRequest.payload()).commitId();
+
+    OffsetDateTime ts = EventTestUtil.now();
+
+    Event commitResponse =
+        new Event(
+            config.connectGroupId(),
+            new DataWritten(
+                StructType.of(),
+                commitId,
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
+                ImmutableList.of(EventTestUtil.createDataFile()),
+                ImmutableList.of()));
+    bytes = AvroUtil.encode(commitResponse);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+
+    Event commitReady =
+        new Event(
+            config.connectGroupId(),
+            new DataComplete(
+                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
+    bytes = AvroUtil.encode(commitReady);
+    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
+
+    // fence the producer to simulate a broker restart causing producer epoch bump,
+    // which makes beginTransaction() throw ProducerFencedException
+    producer.fenceProducer();
+
+    // the fatal exception should propagate rather than being silently swallowed
+    assertThatThrownBy(coordinator::process).isInstanceOf(ProducerFencedException.class);
   }
 
   private void assertCommitTable(int idx, UUID commitId, OffsetDateTime ts) {
