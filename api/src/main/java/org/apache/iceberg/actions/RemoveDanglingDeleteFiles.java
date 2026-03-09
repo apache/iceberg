@@ -33,7 +33,10 @@ public interface RemoveDanglingDeleteFiles
    * @param branch the branch name
    * @return this for method chaining
    */
-  RemoveDanglingDeleteFiles toBranch(String branch);
+  default RemoveDanglingDeleteFiles toBranch(String branch) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not support toBranch");
+  }
 
   /** An action that remove dangling deletes. */
   interface Result {
