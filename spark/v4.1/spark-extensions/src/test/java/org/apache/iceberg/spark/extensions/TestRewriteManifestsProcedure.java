@@ -473,6 +473,23 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testRewriteManifestsWithEmptySortBy() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array())",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("sort_by must not be empty when provided");
+  }
+
+  @TestTemplate
   public void testPartitionStatsIncrementalCompute() throws IOException {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",

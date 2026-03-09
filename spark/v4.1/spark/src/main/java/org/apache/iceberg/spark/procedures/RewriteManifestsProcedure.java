@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteManifests;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.actions.RewriteManifestsSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -115,6 +116,8 @@ class RewriteManifestsProcedure extends BaseProcedure {
           }
 
           if (sortBy != null) {
+            Preconditions.checkArgument(
+                sortBy.length > 0, "sort_by must not be empty when provided");
             action.sortBy(Arrays.asList(sortBy));
           }
 
