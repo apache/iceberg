@@ -2337,6 +2337,10 @@ components:
 
     Expression:
       oneOf:
+        - type: boolean
+          description: >
+            A literal boolean expression. `true` represents AlwaysTrue (match all rows)
+            and `false` represents AlwaysFalse (match no rows).
         - $ref: '#/components/schemas/TrueExpression'
         - $ref: '#/components/schemas/FalseExpression'
         - $ref: '#/components/schemas/AndOrExpression'
