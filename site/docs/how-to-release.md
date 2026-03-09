@@ -288,9 +288,23 @@ delivers high query performance for tables with tens of petabytes of data,
 along with atomic commits, concurrent writes, and SQL-compatible table
 evolution.
 
-This release can be downloaded from: https://www.apache.org/dyn/closer.cgi/iceberg/<TARBALL NAME WITHOUT .tar.gz>/<TARBALL NAME>
+The source release can be downloaded from:
+https://www.apache.org/dyn/closer.lua/iceberg/apache-iceberg-<VERSION>/apache-iceberg-<VERSION>.tar.gz
 
-Release notes: https://iceberg.apache.org/releases/#XYZ-release
+Signature:
+https://downloads.apache.org/iceberg/apache-iceberg-<VERSION>/apache-iceberg-<VERSION>.tar.gz.asc
+
+Checksum:
+https://downloads.apache.org/iceberg/apache-iceberg-<VERSION>/apache-iceberg-<VERSION>.tar.gz.sha512
+
+Project KEYS file:
+https://downloads.apache.org/iceberg/KEYS
+
+To verify the release, follow the instructions at:
+https://www.apache.org/dyn/closer.lua#verify
+
+Release notes:
+https://iceberg.apache.org/releases/#XYZ-release
 
 Java artifacts are available from Maven Central.
 
