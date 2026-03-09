@@ -563,7 +563,8 @@ class SchemaUpdate implements UpdateSchema {
 
     // apply schema changes
     Types.StructType struct =
-        TypeUtil.visit(schema, new ApplyChanges(deletes, updates, parentToAddedIds, moves, idToParent))
+        TypeUtil.visit(
+                schema, new ApplyChanges(deletes, updates, parentToAddedIds, moves, idToParent))
             .asNestedType()
             .asStructType();
 
@@ -716,7 +717,10 @@ class SchemaUpdate implements UpdateSchema {
     public Type map(Types.MapType map, Type kResult, Type valueResult) {
       // if any updates are intended for the key, throw an exception
       int keyId = map.fields().get(0).fieldId();
-      if (deletes.contains(keyId) && !deletes.contains(idToParent.get(keyId))) {
+      if (deletes.contains(idToParent.get(keyId))) {
+        return null;
+      }
+      if (deletes.contains(keyId)) {
         throw new IllegalArgumentException("Cannot delete map keys: " + map);
       } else if (updates.containsKey(keyId)) {
         throw new IllegalArgumentException("Cannot update map keys: " + map);
