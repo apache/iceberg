@@ -28,16 +28,31 @@ import org.apache.iceberg.io.LocationProvider;
 public interface TableOperations {
 
   /**
-   * Return the currently loaded table metadata, without checking for updates.
+   * Return the currently loaded table metadata.
    *
-   * @return table metadata
+   * <p>This method returns metadata that has been loaded into memory. After an initial load,
+   * subsequent calls return the cached metadata without accessing the underlying storage or
+   * metastore.
+   *
+   * <p>Callers should not make assumptions about when the initial load happens. After {@link
+   * #refresh()} or {@link #commit(TableMetadata, TableMetadata)}, this method returns metadata at
+   * least as fresh as what was loaded or committed.
+   *
+   * @return table metadata, possibly stale if not recently refreshed
    */
   TableMetadata current();
 
   /**
-   * Return the current table metadata after checking for updates.
+   * Load the latest table metadata from the underlying storage or metastore and return it.
    *
-   * @return table metadata
+   * <p>This method always reads the current metadata pointer from the catalog/metastore and loads
+   * the corresponding metadata file, ensuring that the returned metadata reflects the latest
+   * committed state of the table.
+   *
+   * <p>After this method returns, subsequent calls to {@link #current()} will return metadata that
+   * is at least as fresh as what was loaded by this call.
+   *
+   * @return the latest table metadata loaded from storage
    */
   TableMetadata refresh();
 
@@ -57,6 +72,10 @@ public interface TableOperations {
    * CommitStateUnknownException. This is important because downstream users of this API need to
    * know whether they can clean up the commit or not, if the state is unknown then it is not safe
    * to remove any files. All other exceptions will be treated as if the commit has failed.
+   *
+   * <p>After a successful commit, implementations must invalidate the cached metadata so that
+   * subsequent calls to {@link #current()} return metadata that is at least as fresh as the
+   * committed changes.
    *
    * @param base table metadata on which changes were based
    * @param metadata new table metadata with updates
