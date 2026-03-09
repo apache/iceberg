@@ -142,10 +142,6 @@ class Identity<T> implements Transform<T, T> {
 
   @Override
   public UnboundPredicate<T> project(String name, BoundPredicate<T> predicate) {
-    if (predicate.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(this, name, predicate);
-    }
-
     return projectStrict(name, predicate);
   }
 
