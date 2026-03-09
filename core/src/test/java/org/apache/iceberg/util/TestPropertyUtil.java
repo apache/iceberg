@@ -26,6 +26,37 @@ import org.junit.jupiter.api.Test;
 public class TestPropertyUtil {
 
   @Test
+  void propertiesWithPrefixStripsLiterally() {
+    // The prefix contains dots which are regex wildcards. Using replaceFirst(prefix, "")
+    // would treat dots as regex "any char", which is incorrect. substring(prefix.length())
+    // strips the prefix literally.
+    Map<String, String> properties =
+        Map.of(
+            "write.parquet.column.int_field", "false",
+            "write.parquet.column.string_field", "true",
+            "unrelated.key", "value");
+
+    Map<String, String> result =
+        PropertyUtil.propertiesWithPrefix(properties, "write.parquet.column.");
+
+    assertThat(result)
+        .containsExactlyInAnyOrderEntriesOf(
+            Map.of("int_field", "false", "string_field", "true"));
+  }
+
+  @Test
+  void propertiesWithPrefixHandlesRegexSpecialChars() {
+    // Prefix with regex-special characters that would cause PatternSyntaxException
+    // with replaceFirst but work correctly with substring
+    Map<String, String> properties = Map.of("prefix[0].key", "value");
+
+    Map<String, String> result =
+        PropertyUtil.propertiesWithPrefix(properties, "prefix[0].");
+
+    assertThat(result).containsExactlyInAnyOrderEntriesOf(Map.of("key", "value"));
+  }
+
+  @Test
   void mergeProperties() {
     Map<String, String> properties = Map.of("k1", "v1", "k2", "v2");
     Map<String, String> overrides = Map.of("k1", "v11", "k3", "v3");
