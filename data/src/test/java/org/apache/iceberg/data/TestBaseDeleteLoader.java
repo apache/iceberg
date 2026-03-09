@@ -122,7 +122,7 @@ public class TestBaseDeleteLoader {
 
   /**
    * A BaseDeleteLoader subclass that tracks cache keys and load counts for testing. Uses a simple
-   * HashMap as the cache backend.
+   * a map as the cache backend.
    */
   private static class TrackingCacheDeleteLoader extends BaseDeleteLoader {
     private final Map<String, Object> cache = Maps.newHashMap();
