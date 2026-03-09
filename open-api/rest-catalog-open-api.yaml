@@ -3654,7 +3654,7 @@ components:
 
             If this property is present, each listed column MUST have its specified
             projection or action applied. Columns not listed in required-column-projections
-            MAY be read as-is without any restrictions.
+            are not subject to any read restrictions.
 
             When this list is present:
 
