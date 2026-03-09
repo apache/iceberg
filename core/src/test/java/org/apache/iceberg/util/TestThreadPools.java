@@ -23,72 +23,73 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
-public class TestThreadPools {
+@Timeout(value = 30, unit = TimeUnit.SECONDS)
+class TestThreadPools {
 
-  @Test
-  public void testRemoveShutdownHook() {
-    try {
-      assertThat(ThreadPools.isShutdownHookRegistered()).isTrue();
-      ThreadPools.removeShutdownHook();
-      assertThat(ThreadPools.isShutdownHookRegistered()).isFalse();
-    } finally {
-      ThreadPools.initShutdownHook();
-    }
+  @AfterEach
+  void restoreShutdownHook() {
+    ThreadPools.initShutdownHook();
   }
 
   @Test
-  public void testThreadPoolManagerAddAndShutdown() throws Exception {
-    ThreadPools.ThreadPoolManager manager = new ThreadPools.ThreadPoolManager();
-
-    ExecutorService testExecutor = Executors.newFixedThreadPool(2);
-
-    Duration timeout = Duration.ofSeconds(5);
-    manager.addThreadPool(testExecutor, timeout);
-
-    manager.shutdownAll();
-
-    assertThat(testExecutor.isShutdown()).isTrue();
+  void testRemoveShutdownHook() {
+    assertThat(ThreadPools.isShutdownHookRegistered()).isTrue();
+    ThreadPools.removeShutdownHook();
+    assertThat(ThreadPools.isShutdownHookRegistered()).isFalse();
   }
 
   @Test
-  public void testThreadPoolManagerMultipleShutdowns() throws Exception {
-    ThreadPools.ThreadPoolManager manager = new ThreadPools.ThreadPoolManager();
+  void testNewExitingWorkerPoolShutdown() {
+    ExecutorService pool = ThreadPools.newExitingWorkerPool("test-exiting-pool", 2);
 
-    ExecutorService executor1 = Executors.newFixedThreadPool(1);
-    ExecutorService executor2 = Executors.newFixedThreadPool(1);
+    ThreadPools.shutdownThreadPools();
 
-    Duration timeout = Duration.ofSeconds(5);
-    manager.addThreadPool(executor1, timeout);
-    manager.addThreadPool(executor2, timeout);
-
-    manager.shutdownAll();
-
-    assertThat(executor1.isShutdown()).isTrue();
-    assertThat(executor2.isShutdown()).isTrue();
+    assertThat(pool.isShutdown()).isTrue();
   }
 
   @Test
-  public void testThreadPoolManagerShutdownNowCalled() throws Exception {
-    ThreadPools.ThreadPoolManager manager = new ThreadPools.ThreadPoolManager();
+  void testMultipleExitingPoolsShutdown() {
+    ExecutorService pool1 = ThreadPools.newExitingWorkerPool("test-pool-1", 1);
+    ExecutorService pool2 = ThreadPools.newExitingWorkerPool("test-pool-2", 1);
 
+    ThreadPools.shutdownThreadPools();
+
+    assertThat(pool1.isShutdown()).isTrue();
+    assertThat(pool2.isShutdown()).isTrue();
+  }
+
+  @Test
+  void testExitingScheduledPoolShutdown() {
+    ExecutorService scheduled =
+        ThreadPools.newExitingScheduledPool("test-scheduled", 1, Duration.ofSeconds(5));
+
+    ThreadPools.shutdownThreadPools();
+
+    assertThat(scheduled.isShutdown()).isTrue();
+  }
+
+  @Test
+  void testShutdownThreadPoolsInterruptsRunningTasks() throws Exception {
     final AtomicBoolean interrupted = new AtomicBoolean(false);
-    ExecutorService slowExecutor = Executors.newFixedThreadPool(1);
-
-    manager.addThreadPool(slowExecutor, Duration.ofMillis(50));
+    // Use a short termination timeout so shutdownThreadPools will call shutdownNow
+    ExecutorService slowPool =
+        ThreadPools.newExitingScheduledPool("test-slow-pool", 1, Duration.ofMillis(50));
 
     CountDownLatch threadStarted = new CountDownLatch(1);
     CountDownLatch threadInterrupted = new CountDownLatch(1);
 
-    slowExecutor.submit(
+    slowPool.submit(
         () -> {
           try {
             threadStarted.countDown();
             // NOTE: the test is NOT actually waiting for 60s, as it will be interrupted
-            // after 50ms due to the `shutdownAll` call below
+            // after 50ms due to the `shutdownThreadPools` call below
             Thread.sleep(60_000);
           } catch (InterruptedException e) {
             interrupted.set(true);
@@ -100,11 +101,11 @@ public class TestThreadPools {
     threadStarted.await();
 
     long start = System.nanoTime();
-    manager.shutdownAll();
+    ThreadPools.shutdownThreadPools();
     threadInterrupted.await();
     long end = System.nanoTime();
 
-    assertThat(slowExecutor.isShutdown()).isTrue();
+    assertThat(slowPool.isShutdown()).isTrue();
     assertThat(interrupted.get()).isTrue();
     assertThat(end - start).isGreaterThanOrEqualTo(50_000_000);
   }
