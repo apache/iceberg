@@ -49,15 +49,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.FieldSource;
 
 class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
+  private static final String[] LOCK_TYPES = new String[] {LockConfig.JdbcLockConfig.JDBC, ""};
 
   private Map<String, String> flinkConf;
-
-  private static Object[][] parameters() {
-    return new Object[][] {{LockConfig.JdbcLockConfig.JDBC}, {""}};
-  }
 
   @BeforeEach
   void before() throws IOException {
@@ -84,7 +81,7 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
   }
 
   @ParameterizedTest(name = "lockType = {0}")
-  @MethodSource("parameters")
+  @FieldSource("LOCK_TYPES")
   public void testCompactFileE2e(String lockType) throws Exception {
     setupLockConfig(lockType);
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
@@ -123,7 +120,7 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
   }
 
   @ParameterizedTest(name = "lockType = {0}")
-  @MethodSource("parameters")
+  @FieldSource("LOCK_TYPES")
   public void testTableMaintenanceOperatorAdded(String lockType) {
     setupLockConfig(lockType);
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
