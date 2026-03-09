@@ -21,6 +21,7 @@ package org.apache.iceberg.transforms;
 import java.io.ObjectStreamException;
 import java.util.Set;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -141,11 +142,19 @@ class Identity<T> implements Transform<T, T> {
 
   @Override
   public UnboundPredicate<T> project(String name, BoundPredicate<T> predicate) {
+    if (predicate.term() instanceof BoundTransform) {
+      return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+    }
+
     return projectStrict(name, predicate);
   }
 
   @Override
   public UnboundPredicate<T> projectStrict(String name, BoundPredicate<T> predicate) {
+    if (predicate.term() instanceof BoundTransform) {
+      return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+    }
+
     if (predicate.isUnaryPredicate()) {
       return Expressions.predicate(predicate.op(), name);
     } else if (predicate.isLiteralPredicate()) {

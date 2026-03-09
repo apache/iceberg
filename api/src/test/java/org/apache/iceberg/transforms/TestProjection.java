@@ -394,4 +394,29 @@ public class TestProjection {
             Projections.inclusive(partitionSpec).project(equal(truncate("string", 10), "abc"));
     assertThat(predicate.ref().name()).isEqualTo("string_trunc");
   }
+
+  @Test
+  public void testIdentityPartitionWithTransformFilter() {
+    // Regression test for https://github.com/apache/iceberg/issues/15502
+    // Filtering an identity-partitioned timestamp field using a different transform (e.g. hours())
+    // should not throw a ValidationException.
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "ts", Types.TimestampType.withZone()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("ts").build();
+
+    // Inclusive projection should return alwaysTrue when the transform doesn't match
+    Expression inclusiveProjection = Projections.inclusive(spec).project(equal(hour("ts"), 490674));
+    assertThat(inclusiveProjection).isEqualTo(Expressions.alwaysTrue());
+
+    // Strict projection should return alwaysFalse when the transform doesn't match
+    Expression strictProjection = Projections.strict(spec).project(equal(hour("ts"), 490674));
+    assertThat(strictProjection).isEqualTo(Expressions.alwaysFalse());
+
+    // Also verify bucket transform on identity-partitioned field
+    Expression bucketProjection = Projections.inclusive(spec).project(equal(bucket("ts", 10), 5));
+    assertThat(bucketProjection).isEqualTo(Expressions.alwaysTrue());
+  }
 }
