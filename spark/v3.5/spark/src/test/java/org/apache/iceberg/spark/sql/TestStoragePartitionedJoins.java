@@ -169,6 +169,75 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testJoinsWithBucketingOnStringColumn() throws NoSuchTableException {
+    checkJoin("string_col", "STRING", "bucket(8, string_col)");
+  }
+
+  @TestTemplate
+  public void testJoinsWithIdentityAndBucketOnStringColumn() throws NoSuchTableException {
+    // Regression test for GitHub issue #15349: SPJ with bucket partition key on String column
+    // Bucket transform produces Integer, but source column is String
+    String createTableStmt =
+        "CREATE TABLE %s (id BIGINT, dep STRING, user_id STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (dep, bucket(8, user_id))"
+            + "TBLPROPERTIES (%s)";
+
+    sql(createTableStmt, tableName, tablePropsAsString(TABLE_PROPERTIES));
+    sql(createTableStmt, tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES (1, 'software', 'user1'), (2, 'hr', 'user2'), (3, 'software', 'user3')",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, 'software', 'user1'), (2, 'hr', 'user2'), (4, 'software', 'user4')",
+        tableName(OTHER_TABLE_NAME));
+
+    assertPartitioningAwarePlan(
+        1, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT t1.id, t1.dep, t1.user_id "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id AND t1.dep = t2.dep AND t1.user_id = t2.user_id "
+            + "ORDER BY t1.id, t1.dep, t1.user_id",
+        tableName,
+        tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testJoinsWithBucketOnStringAndIdentityColumns() throws NoSuchTableException {
+    // Reproduces GitHub issue #15349: SPJ with bucket partition key on String column
+    // Bucket transform produces Integer, but source column is String
+    String createTableStmt =
+        "CREATE TABLE %s (id BIGINT, collected_date DATE, user_id STRING)"
+            + "USING iceberg "
+            + "PARTITIONED BY (collected_date, bucket(32, user_id))"
+            + "TBLPROPERTIES (%s)";
+
+    sql(createTableStmt, tableName, tablePropsAsString(TABLE_PROPERTIES));
+    sql(createTableStmt, tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+
+    sql(
+        "INSERT INTO %s VALUES (1, DATE '2024-01-01', 'user1'), (2, DATE '2024-01-02', 'user2')",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, DATE '2024-01-01', 'user1'), (3, DATE '2024-01-02', 'user3')",
+        tableName(OTHER_TABLE_NAME));
+
+    assertPartitioningAwarePlan(
+        1, /* expected num of shuffles with SPJ */
+        3, /* expected num of shuffles without SPJ */
+        "SELECT t1.id, t1.collected_date, t1.user_id "
+            + "FROM %s t1 "
+            + "INNER JOIN %s t2 "
+            + "ON t1.id = t2.id AND t1.collected_date = t2.collected_date AND t1.user_id = t2.user_id "
+            + "ORDER BY t1.id, t1.collected_date, t1.user_id",
+        tableName,
+        tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
   public void testJoinsWithBucketingOnBinaryColumn() throws NoSuchTableException {
     checkJoin("binary_col", "BINARY", "bucket(8, binary_col)");
   }
