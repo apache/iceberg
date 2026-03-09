@@ -270,6 +270,54 @@ public class TestParquet {
   }
 
   @Test
+  public void testColumnStatisticsDisabledForMultipleColumns() throws Exception {
+    Schema schema =
+        new Schema(
+            optional(1, "int_field", IntegerType.get()),
+            optional(2, "string_field", Types.StringType.get()),
+            optional(3, "long_field", Types.LongType.get()));
+
+    File file = createTempFile(temp);
+
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    for (int i = 1; i <= 5; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("int_field", i);
+      record.put("string_field", "test");
+      record.put("long_field", (long) i);
+      records.add(record);
+    }
+
+    write(
+        file,
+        schema,
+        ImmutableMap.<String, String>builder()
+            .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "false")
+            .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "string_field", "false")
+            .buildOrThrow(),
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+
+    InputFile inputFile = Files.localInput(file);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          boolean emptyStats = column.getStatistics().isEmpty();
+          if (column.getPath().toDotString().equals("int_field")) {
+            assertThat(emptyStats).as("int_field should not have statistics").isTrue();
+          } else if (column.getPath().toDotString().equals("string_field")) {
+            assertThat(emptyStats).as("string_field should not have statistics").isTrue();
+          } else if (column.getPath().toDotString().equals("long_field")) {
+            assertThat(emptyStats).as("long_field should have statistics").isFalse();
+          }
+        }
+      }
+    }
+  }
+
+  @Test
   public void testFooterMetricsWithNameMappingForFileWithoutIds() throws IOException {
     Schema schemaWithIds =
         new Schema(
