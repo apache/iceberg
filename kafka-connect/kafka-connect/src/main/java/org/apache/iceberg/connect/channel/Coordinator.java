@@ -60,6 +60,9 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.kafka.clients.admin.MemberDescription;
+import org.apache.kafka.common.errors.InvalidProducerEpochException;
+import org.apache.kafka.common.errors.OutOfOrderSequenceException;
+import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
@@ -149,10 +152,27 @@ class Coordinator extends Channel {
     try {
       doCommit(partialCommit);
     } catch (Exception e) {
+      if (isFatalException(e)) {
+        // fatal producer exceptions mean the producer is unrecoverable, so propagate
+        // the error to terminate the coordinator and trigger a task restart
+        throw e;
+      }
       LOG.warn("Commit failed, will try again next cycle", e);
     } finally {
       commitState.endCurrentCommit();
     }
+  }
+
+  private static boolean isFatalException(Throwable t) {
+    while (t != null) {
+      if (t instanceof ProducerFencedException
+          || t instanceof OutOfOrderSequenceException
+          || t instanceof InvalidProducerEpochException) {
+        return true;
+      }
+      t = t.getCause();
+    }
+    return false;
   }
 
   private void doCommit(boolean partialCommit) {

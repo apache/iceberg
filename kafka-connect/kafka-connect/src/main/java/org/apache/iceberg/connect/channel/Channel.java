@@ -44,6 +44,7 @@ import org.slf4j.LoggerFactory;
 abstract class Channel {
 
   private static final Logger LOG = LoggerFactory.getLogger(Channel.class);
+  private static final long CLOSE_TIMEOUT_MS = 30_000;
 
   private final String controlTopic;
   private final String connectGroupId;
@@ -160,8 +161,20 @@ abstract class Channel {
 
   void stop() {
     LOG.info("Channel stopping");
-    producer.close();
-    consumer.close();
-    admin.close();
+    try {
+      producer.close(Duration.ofMillis(CLOSE_TIMEOUT_MS));
+    } catch (Exception e) {
+      LOG.warn("Error closing producer", e);
+    }
+    try {
+      consumer.close(Duration.ofMillis(CLOSE_TIMEOUT_MS));
+    } catch (Exception e) {
+      LOG.warn("Error closing consumer", e);
+    }
+    try {
+      admin.close(Duration.ofMillis(CLOSE_TIMEOUT_MS));
+    } catch (Exception e) {
+      LOG.warn("Error closing admin", e);
+    }
   }
 }
