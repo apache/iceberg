@@ -563,7 +563,7 @@ class SchemaUpdate implements UpdateSchema {
 
     // apply schema changes
     Types.StructType struct =
-        TypeUtil.visit(schema, new ApplyChanges(deletes, updates, parentToAddedIds, moves))
+        TypeUtil.visit(schema, new ApplyChanges(deletes, updates, parentToAddedIds, moves, idToParent))
             .asNestedType()
             .asStructType();
 
@@ -588,6 +588,7 @@ class SchemaUpdate implements UpdateSchema {
 
   private static class ApplyChanges extends TypeUtil.SchemaVisitor<Type> {
     private final List<Integer> deletes;
+    private final Map<Integer, Integer> idToParent;
     private final Map<Integer, Types.NestedField> updates;
     private final Multimap<Integer, Integer> parentToAddedIds;
     private final Multimap<Integer, Move> moves;
@@ -596,11 +597,13 @@ class SchemaUpdate implements UpdateSchema {
         List<Integer> deletes,
         Map<Integer, Types.NestedField> updates,
         Multimap<Integer, Integer> parentToAddedIds,
-        Multimap<Integer, Move> moves) {
+        Multimap<Integer, Move> moves,
+        Map<Integer, Integer> idToParent) {
       this.deletes = deletes;
       this.updates = updates;
       this.parentToAddedIds = parentToAddedIds;
       this.moves = moves;
+      this.idToParent = idToParent;
     }
 
     @Override
@@ -713,7 +716,7 @@ class SchemaUpdate implements UpdateSchema {
     public Type map(Types.MapType map, Type kResult, Type valueResult) {
       // if any updates are intended for the key, throw an exception
       int keyId = map.fields().get(0).fieldId();
-      if (deletes.contains(keyId)) {
+      if (deletes.contains(keyId) && !deletes.contains(idToParent.get(keyId))) {
         throw new IllegalArgumentException("Cannot delete map keys: " + map);
       } else if (updates.containsKey(keyId)) {
         throw new IllegalArgumentException("Cannot update map keys: " + map);

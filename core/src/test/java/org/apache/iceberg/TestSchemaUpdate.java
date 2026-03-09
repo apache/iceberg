@@ -1171,6 +1171,39 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testDeleteMapField() {
+    Schema expectedNested =
+            new Schema(
+                    required(1, "id", Types.IntegerType.get()),
+                    optional(2, "data", Types.StringType.get()),
+                    optional(
+                            3,
+                            "preferences",
+                            Types.StructType.of(
+                                    required(8, "feature1", Types.BooleanType.get()),
+                                    optional(9, "feature2", Types.BooleanType.get())),
+                            "struct of named boolean options"),
+                    optional(
+                            5,
+                            "points",
+                            Types.ListType.ofOptional(
+                                    14,
+                                    Types.StructType.of(
+                                            required(15, "x", Types.LongType.get()),
+                                            required(16, "y", Types.LongType.get()))),
+                            "2-D cartesian points"),
+                    required(6, "doubles", Types.ListType.ofRequired(17, Types.DoubleType.get())));
+
+    Schema updatedNested =
+            new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .deleteColumn("locations")
+                    .deleteColumn("properties")
+                    .apply();
+
+    assertThat(updatedNested.asStruct()).isEqualTo(expectedNested.asStruct());
+  }
+
+  @Test
   public void testDeleteMapKey() {
     assertThatThrownBy(
             () ->
