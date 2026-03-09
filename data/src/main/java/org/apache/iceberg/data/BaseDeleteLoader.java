@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
@@ -108,7 +109,12 @@ public class BaseDeleteLoader implements DeleteLoader {
   private Iterable<StructLike> getOrReadEqDeletes(DeleteFile deleteFile, Schema projection) {
     long estimatedSize = estimateEqDeletesSize(deleteFile, projection);
     if (canCache(estimatedSize)) {
-      String cacheKey = deleteFile.location();
+      String cacheKey =
+          deleteFile.location()
+              + "#"
+              + projection.columns().stream()
+                  .map(field -> String.valueOf(field.fieldId()))
+                  .collect(Collectors.joining(","));
       return getOrLoad(cacheKey, () -> readEqDeletes(deleteFile, projection), estimatedSize);
     } else {
       return readEqDeletes(deleteFile, projection);
