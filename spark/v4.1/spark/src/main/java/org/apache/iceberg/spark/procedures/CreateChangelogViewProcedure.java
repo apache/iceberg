@@ -302,7 +302,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Column changeType = df.col(MetadataColumns.CHANGE_TYPE.name());
     Column changeOrdinal = df.col(MetadataColumns.CHANGE_ORDINAL.name());
     Column[] extraColumns =
-        netChanges ? new Column[] {changeOrdinal, changeType} : new Column[] {changeType};
+        netChanges ? new Column[] {changeOrdinal, changeType.desc()} : new Column[] {changeType};
 
     Column[] sortSpec = new Column[repartitionSpec.length + extraColumns.length];
 

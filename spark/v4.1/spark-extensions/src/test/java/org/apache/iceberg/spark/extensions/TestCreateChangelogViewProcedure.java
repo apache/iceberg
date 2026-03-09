@@ -647,8 +647,8 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         "Rows should match",
         ImmutableList.of(
             row(1, "a", 12, INSERT, 0, snap1.snapshotId()),
-            row(3, "c", 15, INSERT, 2, snap3.snapshotId()),
-            row(2, "e", 12, INSERT, 2, snap3.snapshotId())),
+            row(2, "e", 12, INSERT, 0, snap1.snapshotId()),
+            row(3, "c", 15, INSERT, 2, snap3.snapshotId())),
         sql("select * from %s order by _change_ordinal, data", viewName));
 
     // test with snap2 and snap3
@@ -676,6 +676,53 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
                     catalogName, tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Not support net changes with update images");
+  }
+
+  @TestTemplate
+  public void testNetChangesWithInitialMergeInto() {
+    // use an unpartitioned table to ensure COW carries over all rows in the same file
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+
+    // initial MERGE INTO (first write into an empty table)
+    sql(
+        "MERGE INTO %s t USING (SELECT * FROM VALUES (1, 'a'), (2, 'b'), (3, 'c') AS t(id, data)) s "
+            + "ON t.id = s.id "
+            + "WHEN NOT MATCHED THEN INSERT *",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    // second MERGE INTO: update id=1, insert id=4
+    // COW rewrites the file, carrying over rows (2, 'b') and (3, 'c')
+    sql(
+        "MERGE INTO %s t USING (SELECT * FROM VALUES (1, 'aa'), (4, 'd') AS t(id, data)) s "
+            + "ON t.id = s.id "
+            + "WHEN MATCHED THEN UPDATE SET * "
+            + "WHEN NOT MATCHED THEN INSERT *",
+        tableName);
+
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // query changelog with net_changes
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', net_changes => true)",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+
+    // rows (2, 'b') and (3, 'c') were inserted in snap1 and carried over in snap2;
+    // they should have ordinal 0 (from snap1), not ordinal 1 (from snap2)
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(2, "b", INSERT, 0, snap1.snapshotId()),
+            row(3, "c", INSERT, 0, snap1.snapshotId()),
+            row(1, "aa", INSERT, 1, snap2.snapshotId()),
+            row(4, "d", INSERT, 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id", viewName));
   }
 
   @TestTemplate
