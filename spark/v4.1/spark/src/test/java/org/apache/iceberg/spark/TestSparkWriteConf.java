@@ -451,6 +451,26 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testExtraSnapshotMetadataPersistedOnDelete() {
+    String propertyKey = "test-key";
+    String propertyValue = "session-value";
+
+    // insert data first so that DELETE has rows to remove
+    spark.sql(
+        String.format(
+            "INSERT INTO %s VALUES (1, 'a', DATE '2021-01-01', TIMESTAMP '2021-01-01 00:00:00')",
+            tableName));
+
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.snapshot-property." + propertyKey, propertyValue),
+        () -> {
+          spark.sql(String.format("DELETE FROM %s WHERE id = 1", tableName));
+          Table table = validationCatalog.loadTable(tableIdent);
+          assertThat(table.currentSnapshot().summary()).containsEntry(propertyKey, propertyValue);
+        });
+  }
+
+  @TestTemplate
   public void testDataPropsDefaultsAsDeleteProps() {
     List<List<Map<String, String>>> propertiesSuites =
         Lists.newArrayList(
