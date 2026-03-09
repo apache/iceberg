@@ -424,14 +424,93 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   @TestTemplate
   public void testUnpartitionedTable() {
     setupUnpartitionedTable();
+
+    // Add delete files first (seq num 1)
     table
         .newRowDelta()
         .addDeletes(FILE_UNPARTITIONED_POS_DELETE)
         .addDeletes(FILE_UNPARTITIONED_EQ_DELETE)
         .commit();
+    // Add data file second (seq num 2) - delete files have lesser seq num
     table.newAppend().appendFile(FILE_UNPARTITIONED).commit();
+
     RemoveDanglingDeleteFiles.Result result =
         SparkActions.get().removeDanglingDeleteFiles(table).execute();
-    assertThat(result.removedDeleteFiles()).as("No-op for unpartitioned tables").isEmpty();
+
+    // Both delete files should be detected as dangling since they have
+    // sequence numbers less than the data file's sequence number
+    Set<CharSequence> removedDeleteFiles =
+        StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
+            .map(DeleteFile::location)
+            .collect(Collectors.toSet());
+    assertThat(removedDeleteFiles)
+        .as("Expected dangling delete files to be removed for unpartitioned table")
+        .hasSize(2)
+        .containsExactlyInAnyOrder(
+            FILE_UNPARTITIONED_POS_DELETE.location(), FILE_UNPARTITIONED_EQ_DELETE.location());
+  }
+
+  @TestTemplate
+  public void testUnpartitionedTableNoDanglingDeletes() {
+    setupUnpartitionedTable();
+
+    // Add data file first (seq num 1)
+    table.newAppend().appendFile(FILE_UNPARTITIONED).commit();
+    // Add delete files second (seq num 2) - they are not dangling
+    table
+        .newRowDelta()
+        .addDeletes(FILE_UNPARTITIONED_POS_DELETE)
+        .addDeletes(FILE_UNPARTITIONED_EQ_DELETE)
+        .commit();
+
+    RemoveDanglingDeleteFiles.Result result =
+        SparkActions.get().removeDanglingDeleteFiles(table).execute();
+    assertThat(result.removedDeleteFiles())
+        .as("No dangling deletes when delete files have higher sequence numbers")
+        .isEmpty();
+  }
+
+  @TestTemplate
+  public void testWithBranch() {
+    setupPartitionedTable();
+
+    // Add data files to main branch
+    table.newAppend().appendFile(FILE_B).appendFile(FILE_C).appendFile(FILE_D).commit();
+
+    // Create a branch from the current state
+    table
+        .manageSnapshots()
+        .createBranch("test-branch", table.currentSnapshot().snapshotId())
+        .commit();
+
+    // Add delete files to the branch (these will be dangling on the branch since
+    // partition A has no data files)
+    table
+        .newRowDelta()
+        .toBranch("test-branch")
+        .addDeletes(FILE_A_POS_DELETES)
+        .addDeletes(FILE_B_POS_DELETES)
+        .addDeletes(FILE_A_EQ_DELETES)
+        .addDeletes(FILE_B_EQ_DELETES)
+        .commit();
+
+    // Add more data files to the branch
+    table.newAppend().toBranch("test-branch").appendFile(FILE_A2).appendFile(FILE_B2).commit();
+
+    // Run the action on the branch
+    RemoveDanglingDeleteFiles.Result result =
+        SparkActions.get().removeDanglingDeleteFiles(table).toBranch("test-branch").execute();
+
+    // Delete files in partition A should be removed because there are no data files
+    // in partition A with a lesser sequence number on the branch
+    Set<CharSequence> removedDeleteFiles =
+        StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
+            .map(DeleteFile::location)
+            .collect(Collectors.toSet());
+    assertThat(removedDeleteFiles)
+        .as("Expected dangling delete files for partition A to be removed")
+        .hasSize(2)
+        .containsExactlyInAnyOrder(
+            FILE_A_POS_DELETES.location(), FILE_A_EQ_DELETES.location());
   }
 }
