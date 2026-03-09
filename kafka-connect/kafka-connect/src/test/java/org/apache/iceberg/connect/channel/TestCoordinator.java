@@ -191,7 +191,9 @@ public class TestCoordinator extends ChannelTestBase {
     producer.fenceProducer();
 
     // the fatal exception should propagate rather than being silently swallowed
-    assertThatThrownBy(coordinator::process).isInstanceOf(ProducerFencedException.class);
+    assertThatThrownBy(coordinator::process)
+        .isInstanceOf(ProducerFencedException.class)
+        .hasMessageContaining("fenced");
   }
 
   private void assertCommitTable(int idx, UUID commitId, OffsetDateTime ts) {
