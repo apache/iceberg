@@ -47,6 +47,7 @@ import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
 public class TableMigrationUtil {
+  private static final String HIVE_DEFAULT_PARTITION = "__HIVE_DEFAULT_PARTITION__";
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
@@ -159,6 +160,7 @@ public class TableMigrationUtil {
           spec.fields().stream()
               .map(PartitionField::name)
               .map(partition::get)
+              .map(value -> HIVE_DEFAULT_PARTITION.equals(value) ? null : value)
               .collect(Collectors.toList());
 
       Path partitionDir = new Path(partitionUri);

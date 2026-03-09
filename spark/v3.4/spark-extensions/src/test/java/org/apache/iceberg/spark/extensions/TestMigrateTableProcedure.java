@@ -210,6 +210,36 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testMigratePartitionedTableWithNullPartition() throws IOException {
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet "
+            + "PARTITIONED BY (data) LOCATION '%s'",
+        tableName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, null)", tableName);
+    Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
+
+    assertThat(result).as("Should have added two files").isEqualTo(2L);
+
+    assertEquals(
+        "Should have expected rows for IS NULL query",
+        ImmutableList.of(row(2L, null)),
+        sql("SELECT * FROM %s WHERE data IS NULL ORDER BY id", tableName));
+
+    assertEquals(
+        "Should have expected rows for IS NOT NULL query",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s WHERE data IS NOT NULL ORDER BY id", tableName));
+
+    assertEquals(
+        "Should have all expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, null)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
   public void testMigrateEmptyPartitionedTable() throws Exception {
     assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();

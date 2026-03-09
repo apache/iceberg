@@ -94,6 +94,23 @@ class TestTableMigrationUtil {
         .hasRootCauseInstanceOf(FileNotFoundException.class);
   }
 
+  @Test
+  void testListPartitionWithHiveDefaultPartition() throws IOException {
+    Path partitionPath = tempTableLocation.resolve("id=__HIVE_DEFAULT_PARTITION__");
+    String partitionUri = partitionPath.toUri().toString();
+    java.nio.file.Files.createDirectories(partitionPath);
+    writePartitionFile(partitionPath.toFile());
+
+    Map<String, String> hiveNullPartition = Map.of("id", "__HIVE_DEFAULT_PARTITION__");
+    List<DataFile> dataFiles =
+        TableMigrationUtil.listPartition(
+            hiveNullPartition, partitionUri, FORMAT, SPEC, CONF, MetricsConfig.getDefault(), null);
+    assertThat(dataFiles).hasSize(1);
+    assertThat(dataFiles.get(0).partition().get(0, Integer.class))
+        .as("Hive default partition value should be converted to null")
+        .isNull();
+  }
+
   private static void writePartitionFile(File outputDir) throws IOException {
     Iterable<GenericData.Record> records = RandomAvroData.generate(SCHEMA, 1000, 54310);
     File testFile = new File(outputDir, "junit" + System.nanoTime() + ".parquet");
