@@ -1182,6 +1182,34 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testDeleteMapColumn() {
+    // Deleting an entire map column should succeed
+    Schema updated =
+        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).deleteColumn("locations").apply();
+    assertThat(updated.findField("locations")).isNull();
+  }
+
+  @Test
+  public void testDeleteSimpleMapColumn() {
+    // Deleting a simple map<string, string> column should succeed
+    Schema updated =
+        new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).deleteColumn("properties").apply();
+    assertThat(updated.findField("properties")).isNull();
+  }
+
+  @Test
+  public void testDeleteMapValue() {
+    // Deleting a map's value field should fail
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .deleteColumn("locations.value")
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot delete value type from map");
+  }
+
+  @Test
   public void testAddFieldToMapKey() {
     assertThatThrownBy(
             () ->

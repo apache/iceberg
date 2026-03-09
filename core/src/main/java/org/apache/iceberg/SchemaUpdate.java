@@ -591,6 +591,7 @@ class SchemaUpdate implements UpdateSchema {
     private final Map<Integer, Types.NestedField> updates;
     private final Multimap<Integer, Integer> parentToAddedIds;
     private final Multimap<Integer, Move> moves;
+    private boolean fieldDeleted = false;
 
     private ApplyChanges(
         List<Integer> deletes,
@@ -601,6 +602,20 @@ class SchemaUpdate implements UpdateSchema {
       this.updates = updates;
       this.parentToAddedIds = parentToAddedIds;
       this.moves = moves;
+    }
+
+    @Override
+    public void beforeField(Types.NestedField field) {
+      if (deletes.contains(field.fieldId())) {
+        this.fieldDeleted = true;
+      }
+    }
+
+    @Override
+    public void afterField(Types.NestedField field) {
+      if (deletes.contains(field.fieldId())) {
+        this.fieldDeleted = false;
+      }
     }
 
     @Override
@@ -687,6 +702,11 @@ class SchemaUpdate implements UpdateSchema {
 
     @Override
     public Type list(Types.ListType list, Type elementResult) {
+      // if the parent field containing this list is being deleted, skip validation
+      if (fieldDeleted) {
+        return list;
+      }
+
       // use field to apply updates
       Types.NestedField elementField = list.fields().get(0);
       Type elementType = field(elementField, elementResult);
@@ -711,6 +731,11 @@ class SchemaUpdate implements UpdateSchema {
 
     @Override
     public Type map(Types.MapType map, Type kResult, Type valueResult) {
+      // if the parent field containing this map is being deleted, skip validation
+      if (fieldDeleted) {
+        return map;
+      }
+
       // if any updates are intended for the key, throw an exception
       int keyId = map.fields().get(0).fieldId();
       if (deletes.contains(keyId)) {
