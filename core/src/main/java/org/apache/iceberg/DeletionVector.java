@@ -21,13 +21,10 @@ package org.apache.iceberg;
 import org.apache.iceberg.types.Types;
 
 /**
- * Metadata about a deletion vector (DV) associated with a data file entry.
+ * Metadata about a deletion vector.
  *
- * <p>In the combined entry model, each DATA entry may optionally carry DV information. The DV
- * content is stored at the specified location, offset, and size.
- *
- * <p>This struct may only be defined when content_type is DATA (0), and must be null for all other
- * content types.
+ * <p>Tracks where a DV blob can be read. The DV blob follows the format defined by the
+ * deletion-vector-v1 blob type in the Puffin spec.
  */
 interface DeletionVector {
   Types.NestedField LOCATION =
@@ -44,7 +41,10 @@ interface DeletionVector {
           "Length of the referenced DV content stored in the file");
   Types.NestedField CARDINALITY =
       Types.NestedField.required(
-          156, "cardinality", Types.LongType.get(), "Cardinality of the deletion vector");
+          156,
+          "cardinality",
+          Types.LongType.get(),
+          "Number of set bits (deleted rows) in the vector");
 
   static Types.StructType schema() {
     return Types.StructType.of(LOCATION, OFFSET, SIZE_IN_BYTES, CARDINALITY);
@@ -59,6 +59,6 @@ interface DeletionVector {
   /** Returns the size in bytes of the deletion vector content. */
   long sizeInBytes();
 
-  /** Returns the cardinality (number of deleted positions) of the deletion vector. */
+  /** Returns the number of set bits (deleted rows) in the vector. */
   long cardinality();
 }

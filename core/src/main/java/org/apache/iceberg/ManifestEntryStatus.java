@@ -18,22 +18,12 @@
  */
 package org.apache.iceberg;
 
-/**
- * Status of an entry in a manifest file.
- *
- * <p>This is a top-level enum to avoid duplication across manifest entry types (v3 ManifestEntry
- * and v4 TrackingInfo).
- *
- * <p>For v4: Only ADDED and EXISTING entries are considered live for scan planning. DELETED and
- * REPLACED entries are used for change detection but are not live. REPLACED may only be used for
- * entries that have had data column updates or deletion vector changes, and every REPLACED entry
- * will have a corresponding EXISTING entry for the same location.
- */
-public enum ManifestEntryStatus {
+/** Status of an entry in a manifest file. */
+enum ManifestEntryStatus {
   EXISTING(0),
   ADDED(1),
   DELETED(2),
-  // v4 only: indicates an entry that has been replaced by a column update or DV change.
+  /** Indicates an entry that has been replaced by a column update or DV change. Added in v4. */
   REPLACED(3);
 
   private final int id;

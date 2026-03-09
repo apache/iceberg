@@ -21,13 +21,7 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.types.Types;
 
-/**
- * Information about a manifest entry in a v4 root manifest.
- *
- * <p>This encapsulates added/existing/deleted/replaced file and row counts, min_sequence_number,
- * and the manifest deletion vector. This must be defined when the content_type is a manifest (3 or
- * 4), and null otherwise.
- */
+/** Summary information about a manifest referenced by a v4 root manifest entry. */
 interface ManifestInfo {
   Types.NestedField ADDED_FILES_COUNT =
       Types.NestedField.required(
@@ -59,26 +53,18 @@ interface ManifestInfo {
           "min_sequence_number",
           Types.LongType.get(),
           "Minimum sequence number of files in this manifest");
-
-  Types.NestedField MANIFEST_DV_BITMAP =
-      Types.NestedField.required(
-          162,
-          "bitmap",
-          Types.BinaryType.get(),
-          "Serialized deletion vector bitmap for manifest entries");
-  Types.NestedField MANIFEST_DV_CARDINALITY =
-      Types.NestedField.required(
-          163,
-          "cardinality",
-          Types.LongType.get(),
-          "Number of entries marked as deleted in the manifest DV bitmap");
-
-  Types.NestedField MANIFEST_DV =
+  Types.NestedField INLINE_DV =
       Types.NestedField.optional(
-          151,
-          "manifest_dv",
-          Types.StructType.of(MANIFEST_DV_BITMAP, MANIFEST_DV_CARDINALITY),
-          "Deletion vector for marking manifest entries as deleted without rewriting");
+          162,
+          "inline_dv",
+          Types.BinaryType.get(),
+          "Inline deletion vector for marking manifest entries as deleted without rewriting");
+  Types.NestedField INLINE_DV_CARDINALITY =
+      Types.NestedField.optional(
+          163,
+          "inline_dv_cardinality",
+          Types.LongType.get(),
+          "Number of entries marked as deleted in the inline DV");
 
   static Types.StructType schema() {
     return Types.StructType.of(
@@ -91,7 +77,8 @@ interface ManifestInfo {
         DELETED_ROWS_COUNT,
         REPLACED_ROWS_COUNT,
         MIN_SEQUENCE_NUMBER,
-        MANIFEST_DV);
+        INLINE_DV,
+        INLINE_DV_CARDINALITY);
   }
 
   /** Returns the number of files added by this manifest. */
@@ -121,17 +108,9 @@ interface ManifestInfo {
   /** Returns the minimum sequence number of files in this manifest. */
   long minSequenceNumber();
 
-  /**
-   * Returns the manifest deletion vector bitmap.
-   *
-   * <p>When present, each set bit position corresponds to an entry in the manifest that should be
-   * treated as deleted. This allows marking manifest entries as deleted without rewriting the
-   * manifest file.
-   */
-  ByteBuffer dvBitmap();
+  /** Returns the inline deletion vector bitmap, or null if not present. */
+  ByteBuffer inlineDV();
 
-  /**
-   * Returns the cardinality of the manifest deletion vector (number of entries marked as deleted).
-   */
-  Long dvCardinality();
+  /** Returns the number of entries marked as deleted in the inline DV, or null if not present. */
+  Long inlineDVCardinality();
 }

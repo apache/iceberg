@@ -20,15 +20,10 @@ package org.apache.iceberg;
 
 /** Content type stored in a file. */
 public enum FileContent {
-  /** Data file content. Stored in data manifests since v1. */
   DATA(0),
-  /** Position delete file content. Added in v2. */
   POSITION_DELETES(1),
-  /** Equality delete file content. Added in v2. */
   EQUALITY_DELETES(2),
-  /** Data manifest content, referencing data files in a root manifest. Added in v4. */
   DATA_MANIFEST(3),
-  /** Delete manifest content, referencing delete files in a root manifest. Added in v4. */
   DELETE_MANIFEST(4);
 
   private final int id;
