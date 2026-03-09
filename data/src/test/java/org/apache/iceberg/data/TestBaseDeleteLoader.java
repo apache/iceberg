@@ -121,8 +121,8 @@ public class TestBaseDeleteLoader {
   }
 
   /**
-   * A BaseDeleteLoader subclass that tracks cache keys and load counts for testing. Uses a simple
-   * a map as the cache backend.
+   * A BaseDeleteLoader subclass that tracks cache keys and load counts for testing. Uses a simple a
+   * map as the cache backend.
    */
   private static class TrackingCacheDeleteLoader extends BaseDeleteLoader {
     private final Map<String, Object> cache = Maps.newHashMap();
