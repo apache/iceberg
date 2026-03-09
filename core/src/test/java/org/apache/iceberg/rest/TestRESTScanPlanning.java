@@ -996,9 +996,10 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
 
     TableScan tableScan = table.newScan();
-    assertThat(tableScan.io().properties())
-        .isSameAs(table.io().properties())
-        .doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    assertThatThrownBy(tableScan::io)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid FileIO: planFiles() must be called first");
+
     // make sure remote scan planning is called and FileIO gets the planId
     assertThat(tableScan.planFiles()).hasSize(1);
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
@@ -1006,9 +1007,10 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     String planId = tableScan.io().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID);
 
     TableScan newScan = table.newScan();
-    assertThat(newScan.io().properties())
-        .isSameAs(table.io().properties())
-        .doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    assertThatThrownBy(newScan::io)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid FileIO: planFiles() must be called first");
+
     // make sure remote scan planning is called and FileIO gets the planId
     assertThat(newScan.planFiles()).hasSize(1);
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);

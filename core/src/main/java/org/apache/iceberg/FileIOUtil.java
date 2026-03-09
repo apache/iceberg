@@ -25,10 +25,10 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableSupplier;
 
-public class SerializableFileIO {
-  private SerializableFileIO() {}
+public class FileIOUtil {
+  private FileIOUtil() {}
 
-  public static FileIO copyOf(FileIO fileIO) {
+  public static FileIO wrap(FileIO fileIO) {
     if (fileIO instanceof HadoopConfigurable) {
       ((HadoopConfigurable) fileIO).serializeConfWith(SerializableConfSupplier::new);
     }

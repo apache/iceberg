@@ -131,14 +131,16 @@ class RESTTableScan extends DataTableScan {
         tableIdentifier,
         resourcePaths,
         supportedEndpoints,
-        io(),
+        null != fileIOForPlanId ? fileIOForPlanId : tableIO,
         catalogProperties,
         hadoopConf);
   }
 
   @Override
   public FileIO io() {
-    return null != fileIOForPlanId ? fileIOForPlanId : tableIO;
+    Preconditions.checkState(
+        null != fileIOForPlanId, "Invalid FileIO: planFiles() must be called first");
+    return fileIOForPlanId;
   }
 
   @Override
@@ -190,8 +192,9 @@ class RESTTableScan extends DataTableScan {
 
     this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
-    if (null != planId && !response.credentials().isEmpty()) {
-      this.fileIOForPlanId = fileIOForPlanId(response.credentials());
+    if (null != planId) {
+      this.fileIOForPlanId =
+          !response.credentials().isEmpty() ? fileIOForPlanId(response.credentials()) : tableIo;
     }
 
     switch (planStatus) {
@@ -275,9 +278,8 @@ class RESTTableScan extends DataTableScan {
           response.planStatus(),
           planId);
 
-      if (!response.credentials().isEmpty()) {
-        this.fileIOForPlanId = fileIOForPlanId(response.credentials());
-      }
+      this.fileIOForPlanId =
+          !response.credentials().isEmpty() ? fileIOForPlanId(response.credentials()) : tableIo;
 
       return scanTasksIterable(response.planTasks(), response.fileScanTasks());
     } catch (FailsafeException e) {
