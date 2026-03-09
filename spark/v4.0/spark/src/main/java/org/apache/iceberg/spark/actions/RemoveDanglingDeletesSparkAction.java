@@ -122,8 +122,7 @@ class RemoveDanglingDeletesSparkAction
   @Override
   protected Dataset<Row> loadMetadataTable(Table tbl, MetadataTableType type) {
     if (branch != null && !SnapshotRef.MAIN_BRANCH.equals(branch)) {
-      Preconditions.checkArgument(
-          tbl.snapshot(branch) != null, "Cannot find branch %s", branch);
+      Preconditions.checkArgument(tbl.snapshot(branch) != null, "Cannot find branch %s", branch);
       return SparkTableUtil.loadMetadataTable(
           spark(), tbl, type, ImmutableMap.of(SparkReadOptions.BRANCH, branch));
     }

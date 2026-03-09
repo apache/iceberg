@@ -510,7 +510,6 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     assertThat(removedDeleteFiles)
         .as("Expected dangling delete files for partition A to be removed")
         .hasSize(2)
-        .containsExactlyInAnyOrder(
-            FILE_A_POS_DELETES.location(), FILE_A_EQ_DELETES.location());
+        .containsExactlyInAnyOrder(FILE_A_POS_DELETES.location(), FILE_A_EQ_DELETES.location());
   }
 }
