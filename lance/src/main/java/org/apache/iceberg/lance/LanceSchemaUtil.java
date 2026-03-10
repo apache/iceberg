@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.lance;
 
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.arrow.vector.types.DateUnit;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
@@ -28,6 +27,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -35,21 +35,22 @@ import org.apache.iceberg.types.Types;
  * Utility class for converting between Iceberg Schema and Arrow Schema.
  *
  * <p>Lance format is built on top of Apache Arrow, so the schema conversion goes through Arrow as
- * an intermediate representation: Iceberg Schema <-> Arrow Schema <-> Lance Schema.
+ * an intermediate representation: Iceberg Schema &lt;-&gt; Arrow Schema &lt;-&gt; Lance Schema.
  */
 public class LanceSchemaUtil {
 
   private LanceSchemaUtil() {}
 
   /**
-   * Convert an Iceberg {@link Schema} to an Arrow {@link org.apache.arrow.vector.types.pojo.Schema}.
+   * Convert an Iceberg {@link Schema} to an Arrow {@link
+   * org.apache.arrow.vector.types.pojo.Schema}.
    *
    * @param icebergSchema the Iceberg schema to convert
    * @return the equivalent Arrow schema
    */
   public static org.apache.arrow.vector.types.pojo.Schema toArrow(Schema icebergSchema) {
     Preconditions.checkNotNull(icebergSchema, "Iceberg schema cannot be null");
-    List<Field> fields = new ArrayList<>();
+    List<Field> fields = Lists.newArrayList();
     for (Types.NestedField icebergField : icebergSchema.columns()) {
       fields.add(toArrowField(icebergField));
     }
@@ -57,14 +58,15 @@ public class LanceSchemaUtil {
   }
 
   /**
-   * Convert an Arrow {@link org.apache.arrow.vector.types.pojo.Schema} to an Iceberg {@link Schema}.
+   * Convert an Arrow {@link org.apache.arrow.vector.types.pojo.Schema} to an Iceberg {@link
+   * Schema}.
    *
    * @param arrowSchema the Arrow schema to convert
    * @return the equivalent Iceberg schema
    */
   public static Schema toIceberg(org.apache.arrow.vector.types.pojo.Schema arrowSchema) {
     Preconditions.checkNotNull(arrowSchema, "Arrow schema cannot be null");
-    List<Types.NestedField> icebergFields = new ArrayList<>();
+    List<Types.NestedField> icebergFields = Lists.newArrayList();
     int fieldId = 1;
     for (Field arrowField : arrowSchema.getFields()) {
       icebergFields.add(toIcebergField(fieldId, arrowField));
@@ -73,15 +75,13 @@ public class LanceSchemaUtil {
     return new Schema(icebergFields);
   }
 
-  /**
-   * Convert a single Iceberg field to an Arrow field.
-   */
+  /** Convert a single Iceberg field to an Arrow field. */
   static Field toArrowField(Types.NestedField icebergField) {
     ArrowType arrowType = toArrowType(icebergField.type());
     boolean nullable = icebergField.isOptional();
 
     if (icebergField.type().isStructType()) {
-      List<Field> children = new ArrayList<>();
+      List<Field> children = Lists.newArrayList();
       for (Types.NestedField child : icebergField.type().asStructType().fields()) {
         children.add(toArrowField(child));
       }
@@ -89,28 +89,23 @@ public class LanceSchemaUtil {
     } else if (icebergField.type().isListType()) {
       Types.ListType listType = icebergField.type().asListType();
       Field elementField = toArrowField(listType.fields().get(0));
-      List<Field> children = new ArrayList<>();
+      List<Field> children = Lists.newArrayList();
       children.add(elementField);
       return new Field(icebergField.name(), new FieldType(nullable, arrowType, null), children);
     } else if (icebergField.type().isMapType()) {
       Types.MapType mapType = icebergField.type().asMapType();
       Field keyField =
           new Field("key", new FieldType(false, toArrowType(mapType.keyType()), null), null);
-      Field valueField = toArrowField(
-          Types.NestedField.of(
-              mapType.valueId(),
-              mapType.isValueOptional(),
-              "value",
-              mapType.valueType()));
-      List<Field> entryChildren = new ArrayList<>();
+      Field valueField =
+          toArrowField(
+              Types.NestedField.of(
+                  mapType.valueId(), mapType.isValueOptional(), "value", mapType.valueType()));
+      List<Field> entryChildren = Lists.newArrayList();
       entryChildren.add(keyField);
       entryChildren.add(valueField);
       Field entryField =
-          new Field(
-              "entries",
-              new FieldType(false, new ArrowType.Struct(), null),
-              entryChildren);
-      List<Field> children = new ArrayList<>();
+          new Field("entries", new FieldType(false, new ArrowType.Struct(), null), entryChildren);
+      List<Field> children = Lists.newArrayList();
       children.add(entryField);
       return new Field(icebergField.name(), new FieldType(nullable, arrowType, null), children);
     }
@@ -118,9 +113,7 @@ public class LanceSchemaUtil {
     return new Field(icebergField.name(), new FieldType(nullable, arrowType, null), null);
   }
 
-  /**
-   * Convert an Iceberg type to the corresponding Arrow type.
-   */
+  /** Convert an Iceberg type to the corresponding Arrow type. */
   static ArrowType toArrowType(Type type) {
     switch (type.typeId()) {
       case BOOLEAN:
@@ -167,9 +160,7 @@ public class LanceSchemaUtil {
     }
   }
 
-  /**
-   * Convert a single Arrow field to an Iceberg nested field.
-   */
+  /** Convert a single Arrow field to an Iceberg nested field. */
   static Types.NestedField toIcebergField(int fieldId, Field arrowField) {
     Type icebergType = toIcebergType(fieldId, arrowField);
     boolean isOptional = arrowField.isNullable();
@@ -180,9 +171,7 @@ public class LanceSchemaUtil {
     }
   }
 
-  /**
-   * Convert an Arrow type/field to the corresponding Iceberg type.
-   */
+  /** Convert an Arrow type/field to the corresponding Iceberg type. */
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static Type toIcebergType(int fieldId, Field arrowField) {
     ArrowType arrowType = arrowField.getType();
@@ -253,7 +242,7 @@ public class LanceSchemaUtil {
           fieldId + 1, fieldId + 2, Types.StringType.get(), Types.StringType.get());
     } else if (arrowType instanceof ArrowType.Struct) {
       List<Field> children = arrowField.getChildren();
-      List<Types.NestedField> structFields = new ArrayList<>();
+      List<Types.NestedField> structFields = Lists.newArrayList();
       int childId = fieldId + 1;
       if (children != null) {
         for (Field child : children) {
@@ -267,9 +256,7 @@ public class LanceSchemaUtil {
     throw new UnsupportedOperationException("Unsupported Arrow type: " + arrowType);
   }
 
-  /**
-   * Calculate the next available field ID after processing a field (and all its descendants).
-   */
+  /** Calculate the next available field ID after processing a field (and all its descendants). */
   private static int nextFieldId(int currentId, Field field) {
     int nextId = currentId + 1;
     if (field.getChildren() != null) {

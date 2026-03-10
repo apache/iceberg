@@ -96,9 +96,7 @@ public class LanceMetrics {
     return result;
   }
 
-  /**
-   * A mutable metrics collector that accumulates statistics during data writing.
-   */
+  /** A mutable metrics collector that accumulates statistics during data writing. */
   public static class MetricsCollector {
     private long rowCount = 0;
     private final Map<Integer, Long> columnSizes = Maps.newHashMap();
@@ -154,7 +152,8 @@ public class LanceMetrics {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void updateLowerBound(int fieldId, Object value) {
       Object current = lowerBounds.get(fieldId);
-      if (current == null || (value instanceof Comparable && ((Comparable) value).compareTo(current) < 0)) {
+      if (current == null
+          || (value instanceof Comparable && ((Comparable) value).compareTo(current) < 0)) {
         lowerBounds.put(fieldId, value);
       }
     }
@@ -168,7 +167,8 @@ public class LanceMetrics {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void updateUpperBound(int fieldId, Object value) {
       Object current = upperBounds.get(fieldId);
-      if (current == null || (value instanceof Comparable && ((Comparable) value).compareTo(current) > 0)) {
+      if (current == null
+          || (value instanceof Comparable && ((Comparable) value).compareTo(current) > 0)) {
         upperBounds.put(fieldId, value);
       }
     }

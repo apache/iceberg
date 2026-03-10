@@ -22,7 +22,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -32,6 +31,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -86,11 +86,10 @@ public class LanceIterable<D> implements CloseableIterable<D> {
    */
   @SuppressWarnings("unchecked")
   private List<D> readAll() throws IOException {
-    List<D> records = new ArrayList<>();
+    List<D> records = Lists.newArrayList();
 
     try (BufferedReader reader =
-        new BufferedReader(
-            new InputStreamReader(inputFile.newStream(), StandardCharsets.UTF_8))) {
+        new BufferedReader(new InputStreamReader(inputFile.newStream(), StandardCharsets.UTF_8))) {
       // Read header
       String headerLine = reader.readLine();
       if (headerLine == null || !headerLine.startsWith("LANCE_V1")) {
@@ -143,9 +142,7 @@ public class LanceIterable<D> implements CloseableIterable<D> {
     return records;
   }
 
-  /**
-   * Parse a string value into the appropriate Java type.
-   */
+  /** Parse a string value into the appropriate Java type. */
   private Object parseValue(String raw, org.apache.iceberg.types.Type type) {
     switch (type.typeId()) {
       case BOOLEAN:
@@ -166,9 +163,7 @@ public class LanceIterable<D> implements CloseableIterable<D> {
     }
   }
 
-  /**
-   * A CloseableIterator backed by a List.
-   */
+  /** A CloseableIterator backed by a List. */
   private static class ListCloseableIterator<E> implements CloseableIterator<E> {
     private final Iterator<E> delegate;
 

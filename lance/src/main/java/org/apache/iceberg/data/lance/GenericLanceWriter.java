@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.data.lance;
 
-import java.io.IOException;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.io.FileAppender;

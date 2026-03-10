@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
@@ -31,6 +30,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -70,7 +70,7 @@ public class TestLanceDataReader {
     File testFile = writeTestData("test_read.lance", 5);
     InputFile inputFile = org.apache.iceberg.Files.localInput(testFile);
 
-    List<GenericRecord> records = new ArrayList<>();
+    List<GenericRecord> records = Lists.newArrayList();
     try (CloseableIterable<GenericRecord> iterable =
         new LanceIterable<>(inputFile, SIMPLE_SCHEMA, SIMPLE_SCHEMA)) {
       iterable.forEach(records::add);
@@ -87,7 +87,7 @@ public class TestLanceDataReader {
     File testFile = writeTestData("test_read_builder.lance", 3);
     InputFile inputFile = org.apache.iceberg.Files.localInput(testFile);
 
-    List<GenericRecord> records = new ArrayList<>();
+    List<GenericRecord> records = Lists.newArrayList();
     try (CloseableIterable<GenericRecord> iterable =
         Lance.read(inputFile).schema(SIMPLE_SCHEMA).build()) {
       iterable.forEach(records::add);
@@ -122,7 +122,7 @@ public class TestLanceDataReader {
 
     // Read
     InputFile inputFile = org.apache.iceberg.Files.localInput(testFile);
-    List<GenericRecord> results = new ArrayList<>();
+    List<GenericRecord> results = Lists.newArrayList();
     try (CloseableIterable<GenericRecord> iterable =
         new LanceIterable<>(inputFile, SIMPLE_SCHEMA, SIMPLE_SCHEMA)) {
       iterable.forEach(results::add);
@@ -150,7 +150,7 @@ public class TestLanceDataReader {
     }
 
     InputFile inputFile = org.apache.iceberg.Files.localInput(testFile);
-    List<GenericRecord> results = new ArrayList<>();
+    List<GenericRecord> results = Lists.newArrayList();
     try (CloseableIterable<GenericRecord> iterable =
         new LanceIterable<>(inputFile, SIMPLE_SCHEMA, SIMPLE_SCHEMA)) {
       iterable.forEach(results::add);
@@ -167,7 +167,7 @@ public class TestLanceDataReader {
     File testFile = writeTestData("test_read_empty.lance", 0);
     InputFile inputFile = org.apache.iceberg.Files.localInput(testFile);
 
-    List<GenericRecord> results = new ArrayList<>();
+    List<GenericRecord> results = Lists.newArrayList();
     try (CloseableIterable<GenericRecord> iterable =
         new LanceIterable<>(inputFile, SIMPLE_SCHEMA, SIMPLE_SCHEMA)) {
       iterable.forEach(results::add);
@@ -182,7 +182,7 @@ public class TestLanceDataReader {
     File testFile = writeTestData("test_read_large.lance", numRecords);
     InputFile inputFile = org.apache.iceberg.Files.localInput(testFile);
 
-    List<GenericRecord> results = new ArrayList<>();
+    List<GenericRecord> results = Lists.newArrayList();
     try (CloseableIterable<GenericRecord> iterable =
         new LanceIterable<>(inputFile, SIMPLE_SCHEMA, SIMPLE_SCHEMA)) {
       iterable.forEach(results::add);

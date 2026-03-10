@@ -90,7 +90,8 @@ public class TestLanceSchemaUtil {
     assertThat(((ArrowType.Date) fields.get(0).getType()).getUnit()).isEqualTo(DateUnit.DAY);
 
     assertThat(fields.get(1).getType()).isInstanceOf(ArrowType.Time.class);
-    assertThat(((ArrowType.Time) fields.get(1).getType()).getUnit()).isEqualTo(TimeUnit.MICROSECOND);
+    assertThat(((ArrowType.Time) fields.get(1).getType()).getUnit())
+        .isEqualTo(TimeUnit.MICROSECOND);
 
     assertThat(fields.get(2).getType()).isInstanceOf(ArrowType.Timestamp.class);
     ArrowType.Timestamp ts = (ArrowType.Timestamp) fields.get(2).getType();
@@ -133,9 +134,7 @@ public class TestLanceSchemaUtil {
     Schema schema =
         new Schema(
             Types.NestedField.optional(
-                1,
-                "list_col",
-                Types.ListType.ofOptional(2, Types.StringType.get())),
+                1, "list_col", Types.ListType.ofOptional(2, Types.StringType.get())),
             Types.NestedField.optional(
                 3,
                 "struct_col",
@@ -169,20 +168,25 @@ public class TestLanceSchemaUtil {
     // Verify field names and types match
     assertThat(roundTripped.columns()).hasSize(3);
     assertThat(roundTripped.columns().get(0).name()).isEqualTo("id");
-    assertThat(roundTripped.columns().get(0).type().typeId()).isEqualTo(Types.IntegerType.get().typeId());
+    assertThat(roundTripped.columns().get(0).type().typeId())
+        .isEqualTo(Types.IntegerType.get().typeId());
     assertThat(roundTripped.columns().get(1).name()).isEqualTo("name");
-    assertThat(roundTripped.columns().get(1).type().typeId()).isEqualTo(Types.StringType.get().typeId());
+    assertThat(roundTripped.columns().get(1).type().typeId())
+        .isEqualTo(Types.StringType.get().typeId());
     assertThat(roundTripped.columns().get(2).name()).isEqualTo("value");
-    assertThat(roundTripped.columns().get(2).type().typeId()).isEqualTo(Types.DoubleType.get().typeId());
+    assertThat(roundTripped.columns().get(2).type().typeId())
+        .isEqualTo(Types.DoubleType.get().typeId());
   }
 
   @Test
   public void testNullSchemaThrows() {
     assertThatThrownBy(() -> LanceSchemaUtil.toArrow(null))
-        .isInstanceOf(NullPointerException.class);
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Iceberg schema cannot be null");
 
     assertThatThrownBy(() -> LanceSchemaUtil.toIceberg(null))
-        .isInstanceOf(NullPointerException.class);
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Arrow schema cannot be null");
   }
 
   @Test
@@ -192,8 +196,7 @@ public class TestLanceSchemaUtil {
             Types.NestedField.optional(
                 1,
                 "map_col",
-                Types.MapType.ofOptional(
-                    2, 3, Types.StringType.get(), Types.IntegerType.get())));
+                Types.MapType.ofOptional(2, 3, Types.StringType.get(), Types.IntegerType.get())));
 
     org.apache.arrow.vector.types.pojo.Schema arrowSchema = LanceSchemaUtil.toArrow(schema);
     List<Field> fields = arrowSchema.getFields();

@@ -145,8 +145,7 @@ public class TestLanceMetrics {
 
   @Test
   public void testNullBoundsMap() {
-    Metrics metrics =
-        LanceMetrics.createMetrics(10L, TEST_SCHEMA, null, null, null, null, null);
+    Metrics metrics = LanceMetrics.createMetrics(10L, TEST_SCHEMA, null, null, null, null, null);
 
     assertThat(metrics.recordCount()).isEqualTo(10);
     assertThat(metrics.lowerBounds()).isNull();

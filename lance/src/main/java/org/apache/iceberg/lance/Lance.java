@@ -21,7 +21,6 @@ package org.apache.iceberg.lance;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -77,9 +76,7 @@ public class Lance {
     return new DataWriteBuilder(file);
   }
 
-  /**
-   * Builder for creating Lance file writers.
-   */
+  /** Builder for creating Lance file writers. */
   public static class WriteBuilder {
     private final OutputFile file;
     private Schema schema = null;
@@ -127,9 +124,7 @@ public class Lance {
     }
   }
 
-  /**
-   * Builder for creating Lance file readers.
-   */
+  /** Builder for creating Lance file readers. */
   @SuppressWarnings("UnusedVariable")
   public static class ReadBuilder {
     private final InputFile file;
@@ -184,9 +179,7 @@ public class Lance {
     }
   }
 
-  /**
-   * Builder for creating Lance data file writers that produce DataWriter instances.
-   */
+  /** Builder for creating Lance data file writers that produce DataWriter instances. */
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;

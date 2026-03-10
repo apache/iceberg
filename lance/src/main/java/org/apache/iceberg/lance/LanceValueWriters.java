@@ -20,7 +20,6 @@ package org.apache.iceberg.lance;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -28,7 +27,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;

@@ -120,7 +120,8 @@ public class LanceValueReaders {
       } else if (rawValue instanceof ByteBuffer) {
         return (ByteBuffer) rawValue;
       }
-      throw new IllegalArgumentException("Expected byte[] or ByteBuffer, got: " + rawValue.getClass());
+      throw new IllegalArgumentException(
+          "Expected byte[] or ByteBuffer, got: " + rawValue.getClass());
     };
   }
 
@@ -133,7 +134,8 @@ public class LanceValueReaders {
       } else if (rawValue instanceof ByteBuffer) {
         bb = ((ByteBuffer) rawValue).duplicate();
       } else {
-        throw new IllegalArgumentException("Expected byte[] or ByteBuffer for UUID, got: " + rawValue.getClass());
+        throw new IllegalArgumentException(
+            "Expected byte[] or ByteBuffer for UUID, got: " + rawValue.getClass());
       }
       long msb = bb.getLong();
       long lsb = bb.getLong();
@@ -162,7 +164,9 @@ public class LanceValueReaders {
     };
   }
 
-  /** Returns a reader for timestamp without timezone (microseconds since epoch -> LocalDateTime). */
+  /**
+   * Returns a reader for timestamp without timezone (microseconds since epoch -> LocalDateTime).
+   */
   public static ValueReader<LocalDateTime> timestamps() {
     return rawValue -> {
       if (rawValue instanceof Number) {
