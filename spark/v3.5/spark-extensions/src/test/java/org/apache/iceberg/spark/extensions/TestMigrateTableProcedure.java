@@ -223,6 +223,12 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
 
     assertThat(result).as("Should have added two files").isEqualTo(2L);
 
+    // Verify partition metadata stores null, not the Hive default partition string
+    assertEquals(
+        "Should have one file with null partition in metadata",
+        ImmutableList.of(row((String) null)),
+        sql("SELECT partition.data FROM %s.files WHERE partition.data IS NULL", tableName));
+
     assertEquals(
         "Should have expected rows for IS NULL query",
         ImmutableList.of(row(2L, null)),
