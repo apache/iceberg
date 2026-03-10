@@ -27,6 +27,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -275,5 +278,48 @@ public class TestSnapshotProducer extends TestBase {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @TestTemplate
+  public void testSnapshotTimestampsAreMonotonicallyIncreasing() {
+    assumeThat(formatVersion)
+        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_MONOTONIC_TIMESTAMPS);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot first = table.currentSnapshot();
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot second = table.currentSnapshot();
+    assertThat(second.timestampMillis())
+        .as("V4 snapshot timestamps must be strictly increasing")
+        .isGreaterThan(first.timestampMillis());
+
+    table.newFastAppend().appendFile(FILE_C).commit();
+    Snapshot third = table.currentSnapshot();
+    assertThat(third.timestampMillis())
+        .as("V4 snapshot timestamps must be strictly increasing")
+        .isGreaterThan(second.timestampMillis());
+  }
+
+  @TestTemplate
+  public void testV4LamportClockFastForwardsDriftedClock() {
+    assumeThat(formatVersion)
+        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_MONOTONIC_TIMESTAMPS);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long firstTs = table.currentSnapshot().timestampMillis();
+
+    // simulate clock drift: wall clock reports a time far in the past
+    long driftedTime = firstTs - 10_000;
+    Clock driftedClock = Clock.fixed(Instant.ofEpochMilli(driftedTime), ZoneOffset.UTC);
+    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
+    ((SnapshotProducer<?>) append).setClock(driftedClock);
+    append.commit();
+
+    long secondTs = table.currentSnapshot().timestampMillis();
+    assertThat(secondTs)
+        .as(
+            "Lamport clock should fast-forward past the drifted wall clock to the last snapshot timestamp + 1 ms")
+        .isEqualTo(firstTs + 1);
   }
 }
