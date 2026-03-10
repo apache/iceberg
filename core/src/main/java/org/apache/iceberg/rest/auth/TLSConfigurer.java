@@ -34,7 +34,7 @@ public interface TLSConfigurer {
   }
 
   default HostnameVerificationPolicy hostnameVerificationPolicy() {
-    return HostnameVerificationPolicy.BOTH;
+    return HostnameVerificationPolicy.CLIENT;
   }
 
   default HostnameVerifier hostnameVerifier() {
