@@ -313,7 +313,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     int rewrittenDeleteFilesCount =
         (int)
-            rewriteManifestResult.toRewrite().stream().filter(e -> e instanceof DeleteFile).count();
+            rewriteManifestResult.toRewrite().stream()
+                .filter(e -> e instanceof DeleteFile)
+                .distinct()
+                .count();
 
     ImmutableRewriteTablePath.Result.Builder builder =
         ImmutableRewriteTablePath.Result.builder()

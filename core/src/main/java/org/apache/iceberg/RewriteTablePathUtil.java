@@ -463,8 +463,8 @@ public class RewriteTablePathUtil {
         // Rewrite inline so the manifest records the actual file size, which changes because
         // embedded data file paths are rewritten. The staging path is deterministic, so
         // duplicates across manifests simply overwrite with identical content.
-        String staging = stagingPath(file.location(), sourcePrefix, stagingLocation);
-        OutputFile outputFile = io.newOutputFile(staging);
+        String stagingPath = stagingPath(file.location(), sourcePrefix, stagingLocation);
+        OutputFile outputFile = io.newOutputFile(stagingPath);
         try {
           rewritePositionDeleteFile(
               file, outputFile, io, spec, sourcePrefix, targetPrefix, posDeleteReaderWriter);
@@ -472,7 +472,7 @@ public class RewriteTablePathUtil {
           throw new UncheckedIOException(
               "Failed to rewrite position delete file " + file.location(), e);
         }
-        long actualSize = io.newInputFile(staging).getLength();
+        long actualSize = io.newInputFile(stagingPath).getLength();
         DeleteFile posDeleteFile =
             newPositionDeleteEntry(file, spec, sourcePrefix, targetPrefix, actualSize);
         appendEntryWithFile(entry, writer, posDeleteFile);
@@ -480,7 +480,7 @@ public class RewriteTablePathUtil {
         // 1) deleted position delete files
         // 2) entries not changed by snapshotIds
         if (entry.isLive() && snapshotIds.contains(entry.snapshotId())) {
-          result.copyPlan().add(Pair.of(staging, posDeleteFile.location()));
+          result.copyPlan().add(Pair.of(stagingPath, posDeleteFile.location()));
         }
         result.toRewrite().add(file.copy());
         return result;
