@@ -23,6 +23,7 @@ import dev.failsafe.FailsafeException;
 import dev.failsafe.RetryPolicy;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
@@ -270,7 +271,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
                 }
               } catch (IOException e) {
                 LOG.error("Failed to stream range: {}", range, e);
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
               }
             });
   }

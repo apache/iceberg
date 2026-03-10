@@ -142,13 +142,25 @@ public class S3FileIO
 
   @Override
   public InputFile newInputFile(String path) {
-    return S3InputFile.fromLocation(path, clientForStoragePath(path), metrics, executorService());
+    return S3InputFile.fromLocation(
+        path,
+        clientForStoragePath(path),
+        metrics,
+        executorService(
+            "iceberg-s3fileio-read",
+            clientForStoragePath(ROOT_PREFIX).s3FileIOProperties().readThreads()));
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
     return S3InputFile.fromLocation(
-        path, length, clientForStoragePath(path), metrics, executorService());
+        path,
+        length,
+        clientForStoragePath(path),
+        metrics,
+        executorService(
+            "iceberg-s3fileio-read",
+            clientForStoragePath(ROOT_PREFIX).s3FileIOProperties().readThreads()));
   }
 
   @Override
@@ -198,7 +210,10 @@ public class S3FileIO
     if (s3FileIOProperties.deleteTags() != null && !s3FileIOProperties.deleteTags().isEmpty()) {
       Tasks.foreach(paths)
           .noRetry()
-          .executeWith(executorService())
+          .executeWith(
+              executorService(
+                  "iceberg-s3fileio-delete",
+                  clientForStoragePath(ROOT_PREFIX).s3FileIOProperties().deleteThreads()))
           .suppressFailureWhenFinished()
           .onFailure(
               (path, exc) ->
@@ -226,7 +241,10 @@ public class S3FileIO
         if (bucketToObjects.get(bucket).size() == client.s3FileIOProperties().deleteBatchSize()) {
           Set<String> keys = Sets.newHashSet(bucketToObjects.get(bucket));
           Future<List<String>> deletionTask =
-              executorService().submit(() -> deleteBatch(client, bucket, keys));
+              executorService(
+                      "iceberg-s3fileio-delete",
+                      clientForStoragePath(ROOT_PREFIX).s3FileIOProperties().deleteThreads())
+                  .submit(() -> deleteBatch(client, bucket, keys));
           deletionTasks.add(deletionTask);
           bucketToObjects.removeAll(bucket);
         }
@@ -238,7 +256,9 @@ public class S3FileIO
         String bucket = bucketToObjectsEntry.getKey();
         Collection<String> keys = bucketToObjectsEntry.getValue();
         Future<List<String>> deletionTask =
-            executorService()
+            executorService(
+                    "iceberg-s3fileio-delete",
+                    clientForStoragePath(ROOT_PREFIX).s3FileIOProperties().deleteThreads())
                 .submit(() -> deleteBatch(clientForStoragePath("s3://" + bucket), bucket, keys));
         deletionTasks.add(deletionTask);
       }
@@ -428,14 +448,11 @@ public class S3FileIO
     return clientByPrefix;
   }
 
-  private ExecutorService executorService() {
+  private ExecutorService executorService(String name, int size) {
     if (executorService == null) {
       synchronized (S3FileIO.class) {
         if (executorService == null) {
-          executorService =
-              ThreadPools.newExitingWorkerPool(
-                  "iceberg-s3fileio-delete",
-                  clientForStoragePath(ROOT_PREFIX).s3FileIOProperties().deleteThreads());
+          executorService = ThreadPools.newExitingWorkerPool(name, size);
         }
       }
     }
