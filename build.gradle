@@ -922,6 +922,34 @@ project(':iceberg-parquet') {
   }
 }
 
+project(':iceberg-lance') {
+  test {
+    useJUnitPlatform()
+  }
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+
+    implementation(libs.arrow.vector) {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+    implementation(libs.arrow.memory.netty) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'io.netty', module: 'netty-buffer'
+    }
+
+    runtimeOnly libs.netty.buffer
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+  }
+}
+
 project(':iceberg-arrow') {
   test {
     useJUnitPlatform()
