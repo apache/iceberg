@@ -113,8 +113,8 @@ public class ManifestFiles {
    * @param manifest a ManifestFile
    * @param io a FileIO
    * @return a manifest reader
-   * @deprecated since 1.11.0, will be removed in 2.0.0; use {@link #readPaths(ManifestFile, FileIO,
-   *     Map)} instead.
+   * @deprecated since 1.10.0, will be removed in 1.12.0; use {@link #readPaths(ManifestFile,
+   *     FileIO, Map)} instead.
    */
   @Deprecated
   public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
@@ -131,7 +131,7 @@ public class ManifestFiles {
    * @param manifest a ManifestFile
    * @param io a FileIO
    * @return a manifest reader
-   * @deprecated since 1.11.0, will be removed in 2.0.0; use {@link #read(ManifestFile, FileIO,
+   * @deprecated since 1.10.0, will be removed in 1.12.0; use {@link #read(ManifestFile, FileIO,
    *     Map)} instead. Reading partition specs from manifest file metadata will not be supported
    *     for non-Avro manifest formats.
    */
@@ -327,7 +327,8 @@ public class ManifestFiles {
   }
 
   /**
-   * @deprecated use {@link #open(ManifestFile, FileIO, Map)} instead
+   * @deprecated since 1.10.0, will be removed in 1.12.0; use {@link #open(ManifestFile, FileIO,
+   *     Map)} instead.
    */
   @Deprecated
   static ManifestReader<?> open(ManifestFile manifest, FileIO io) {

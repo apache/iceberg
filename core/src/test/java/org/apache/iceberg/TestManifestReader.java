@@ -233,4 +233,15 @@ public class TestManifestReader extends TestBase {
       assertThat(file.splitOffsets()).isNull();
     }
   }
+
+  @SuppressWarnings("deprecation")
+  @TestTemplate
+  public void testDeprecatedReadWithoutSpecsById() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 1000L, FILE_A));
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
+      assertThat(entry.status()).isEqualTo(Status.EXISTING);
+      assertThat(entry.file().location()).isEqualTo(FILE_A.location());
+    }
+  }
 }
