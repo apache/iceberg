@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
@@ -31,6 +30,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -53,8 +53,7 @@ public class TestLanceReadProjection {
     OutputFile outputFile = org.apache.iceberg.Files.localOutput(testFile);
 
     // Write with full schema
-    try (FileAppender<GenericRecord> appender =
-        new LanceFileAppender<>(outputFile, FULL_SCHEMA)) {
+    try (FileAppender<GenericRecord> appender = new LanceFileAppender<>(outputFile, FULL_SCHEMA)) {
       GenericRecord record = GenericRecord.create(FULL_SCHEMA);
       record.setField("id", 1);
       record.setField("name", "Alice");
@@ -77,7 +76,7 @@ public class TestLanceReadProjection {
             Types.NestedField.optional(2, "name", Types.StringType.get()));
 
     InputFile inputFile = org.apache.iceberg.Files.localInput(testFile);
-    List<GenericRecord> results = new ArrayList<>();
+    List<GenericRecord> results = Lists.newArrayList();
     try (CloseableIterable<GenericRecord> iterable =
         new LanceIterable<>(inputFile, FULL_SCHEMA, projectedSchema)) {
       iterable.forEach(results::add);
@@ -100,8 +99,7 @@ public class TestLanceReadProjection {
     File testFile = tempDir.resolve("test_single_col.lance").toFile();
     OutputFile outputFile = org.apache.iceberg.Files.localOutput(testFile);
 
-    try (FileAppender<GenericRecord> appender =
-        new LanceFileAppender<>(outputFile, FULL_SCHEMA)) {
+    try (FileAppender<GenericRecord> appender = new LanceFileAppender<>(outputFile, FULL_SCHEMA)) {
       for (int i = 0; i < 5; i++) {
         GenericRecord record = GenericRecord.create(FULL_SCHEMA);
         record.setField("id", i);
@@ -117,7 +115,7 @@ public class TestLanceReadProjection {
         new Schema(Types.NestedField.optional(3, "value", Types.DoubleType.get()));
 
     InputFile inputFile = org.apache.iceberg.Files.localInput(testFile);
-    List<GenericRecord> results = new ArrayList<>();
+    List<GenericRecord> results = Lists.newArrayList();
     try (CloseableIterable<GenericRecord> iterable =
         new LanceIterable<>(inputFile, FULL_SCHEMA, projectedSchema)) {
       iterable.forEach(results::add);
@@ -135,8 +133,7 @@ public class TestLanceReadProjection {
     File testFile = tempDir.resolve("test_full_proj.lance").toFile();
     OutputFile outputFile = org.apache.iceberg.Files.localOutput(testFile);
 
-    try (FileAppender<GenericRecord> appender =
-        new LanceFileAppender<>(outputFile, FULL_SCHEMA)) {
+    try (FileAppender<GenericRecord> appender = new LanceFileAppender<>(outputFile, FULL_SCHEMA)) {
       GenericRecord record = GenericRecord.create(FULL_SCHEMA);
       record.setField("id", 99);
       record.setField("name", "test");
@@ -147,7 +144,7 @@ public class TestLanceReadProjection {
 
     // Project full schema (same as file schema)
     InputFile inputFile = org.apache.iceberg.Files.localInput(testFile);
-    List<GenericRecord> results = new ArrayList<>();
+    List<GenericRecord> results = Lists.newArrayList();
     try (CloseableIterable<GenericRecord> iterable =
         new LanceIterable<>(inputFile, FULL_SCHEMA, FULL_SCHEMA)) {
       iterable.forEach(results::add);
@@ -181,7 +178,7 @@ public class TestLanceReadProjection {
             Types.NestedField.optional(4, "category", Types.StringType.get()));
 
     InputFile inputFile = org.apache.iceberg.Files.localInput(testFile);
-    List<GenericRecord> results = new ArrayList<>();
+    List<GenericRecord> results = Lists.newArrayList();
     try (CloseableIterable<GenericRecord> iterable =
         Lance.read(inputFile).schema(FULL_SCHEMA).project(projectedSchema).build()) {
       iterable.forEach(results::add);

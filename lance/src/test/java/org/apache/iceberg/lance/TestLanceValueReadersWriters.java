@@ -27,9 +27,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -38,7 +38,7 @@ public class TestLanceValueReadersWriters {
 
   @Test
   public void testBooleanRoundTrip() {
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.booleans().write(true, 0, buffer);
     assertThat(buffer.get(0)).isEqualTo(true);
 
@@ -48,7 +48,7 @@ public class TestLanceValueReadersWriters {
 
   @Test
   public void testIntegerRoundTrip() {
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.ints().write(42, 0, buffer);
     assertThat(buffer.get(0)).isEqualTo(42);
 
@@ -58,7 +58,7 @@ public class TestLanceValueReadersWriters {
 
   @Test
   public void testLongRoundTrip() {
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.longs().write(Long.MAX_VALUE, 0, buffer);
 
     Long result = LanceValueReaders.longs().read(buffer.get(0));
@@ -67,7 +67,7 @@ public class TestLanceValueReadersWriters {
 
   @Test
   public void testFloatRoundTrip() {
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.floats().write(3.14f, 0, buffer);
 
     Float result = LanceValueReaders.floats().read(buffer.get(0));
@@ -76,7 +76,7 @@ public class TestLanceValueReadersWriters {
 
   @Test
   public void testDoubleRoundTrip() {
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.doubles().write(2.718281828, 0, buffer);
 
     Double result = LanceValueReaders.doubles().read(buffer.get(0));
@@ -85,7 +85,7 @@ public class TestLanceValueReadersWriters {
 
   @Test
   public void testStringRoundTrip() {
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.strings().write("hello world", 0, buffer);
 
     String result = LanceValueReaders.strings().read(buffer.get(0));
@@ -95,7 +95,7 @@ public class TestLanceValueReadersWriters {
   @Test
   public void testBinaryRoundTrip() {
     byte[] original = {0x01, 0x02, 0x03, 0x04};
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.byteBuffers().write(ByteBuffer.wrap(original), 0, buffer);
 
     ByteBuffer result = LanceValueReaders.byteBuffers().read(buffer.get(0));
@@ -107,7 +107,7 @@ public class TestLanceValueReadersWriters {
   @Test
   public void testUuidRoundTrip() {
     UUID original = UUID.randomUUID();
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.uuids().write(original, 0, buffer);
 
     UUID result = LanceValueReaders.uuids().read(buffer.get(0));
@@ -117,7 +117,7 @@ public class TestLanceValueReadersWriters {
   @Test
   public void testDateRoundTrip() {
     LocalDate original = LocalDate.of(2025, 3, 10);
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.dates().write(original, 0, buffer);
 
     // Writer converts to epoch days (int)
@@ -128,7 +128,7 @@ public class TestLanceValueReadersWriters {
   @Test
   public void testTimeRoundTrip() {
     LocalTime original = LocalTime.of(14, 30, 45);
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.times().write(original, 0, buffer);
 
     LocalTime result = LanceValueReaders.times().read(buffer.get(0));
@@ -138,7 +138,7 @@ public class TestLanceValueReadersWriters {
   @Test
   public void testTimestampRoundTrip() {
     LocalDateTime original = LocalDateTime.of(2025, 3, 10, 14, 30, 45);
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.timestamps().write(original, 0, buffer);
 
     LocalDateTime result = LanceValueReaders.timestamps().read(buffer.get(0));
@@ -148,7 +148,7 @@ public class TestLanceValueReadersWriters {
   @Test
   public void testTimestampTzRoundTrip() {
     OffsetDateTime original = OffsetDateTime.of(2025, 3, 10, 14, 30, 45, 0, ZoneOffset.UTC);
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.timestampTzs().write(original, 0, buffer);
 
     OffsetDateTime result = LanceValueReaders.timestampTzs().read(buffer.get(0));
@@ -158,7 +158,7 @@ public class TestLanceValueReadersWriters {
   @Test
   public void testDecimalRoundTrip() {
     BigDecimal original = new BigDecimal("12345.678900");
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LanceValueWriters.decimals().write(original, 0, buffer);
 
     BigDecimal result = LanceValueReaders.decimals().read(buffer.get(0));
@@ -169,7 +169,7 @@ public class TestLanceValueReadersWriters {
   public void testForTypeBoolean() {
     LanceValueWriters.ValueWriter<Object> writer =
         LanceValueWriters.forType(Types.BooleanType.get());
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     writer.write(false, 0, buffer);
     assertThat(buffer.get(0)).isEqualTo(false);
 
@@ -182,7 +182,7 @@ public class TestLanceValueReadersWriters {
   public void testForTypeString() {
     LanceValueWriters.ValueWriter<Object> writer =
         LanceValueWriters.forType(Types.StringType.get());
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     writer.write("test", 0, buffer);
 
     LanceValueReaders.ValueReader<Object> reader =
@@ -194,7 +194,7 @@ public class TestLanceValueReadersWriters {
   public void testForTypeTimestampWithZone() {
     LanceValueWriters.ValueWriter<Object> writer =
         LanceValueWriters.forType(Types.TimestampType.withZone());
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     OffsetDateTime value = OffsetDateTime.of(2025, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     writer.write(value, 0, buffer);
 
@@ -207,7 +207,7 @@ public class TestLanceValueReadersWriters {
   public void testForTypeTimestampWithoutZone() {
     LanceValueWriters.ValueWriter<Object> writer =
         LanceValueWriters.forType(Types.TimestampType.withoutZone());
-    List<Object> buffer = new ArrayList<>();
+    List<Object> buffer = Lists.newArrayList();
     LocalDateTime value = LocalDateTime.of(2025, 6, 15, 12, 0, 0);
     writer.write(value, 0, buffer);
 

@@ -21,7 +21,6 @@ package org.apache.iceberg.lance;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
@@ -29,6 +28,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -60,7 +60,7 @@ public class LanceFileAppender<D> implements FileAppender<D> {
     this.outputFile = outputFile;
     this.schema = schema;
     this.metricsCollector = new LanceMetrics.MetricsCollector();
-    this.bufferedRecords = new ArrayList<>();
+    this.bufferedRecords = Lists.newArrayList();
   }
 
   @Override
@@ -76,9 +76,7 @@ public class LanceFileAppender<D> implements FileAppender<D> {
     }
   }
 
-  /**
-   * Collect per-column metrics from a GenericRecord.
-   */
+  /** Collect per-column metrics from a GenericRecord. */
   private void collectRecordMetrics(GenericRecord record) {
     for (Types.NestedField field : schema.columns()) {
       int fieldId = field.fieldId();
@@ -101,9 +99,7 @@ public class LanceFileAppender<D> implements FileAppender<D> {
     }
   }
 
-  /**
-   * Estimate the serialized size of a value in bytes.
-   */
+  /** Estimate the serialized size of a value in bytes. */
   private long estimateSize(Object value) {
     if (value instanceof String || value instanceof CharSequence) {
       return value.toString().length();
