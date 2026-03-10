@@ -111,7 +111,8 @@ class TestIcebergSinkCompact extends TestFlinkIcebergSinkBase {
   private List<DataFile> getDataFiles(Snapshot snapshot, Table table) throws IOException {
     List<DataFile> dataFiles = Lists.newArrayList();
     for (ManifestFile dataManifest : snapshot.dataManifests(table.io())) {
-      try (ManifestReader<DataFile> reader = ManifestFiles.read(dataManifest, table.io())) {
+      try (ManifestReader<DataFile> reader =
+          ManifestFiles.read(dataManifest, table.io(), table.specs())) {
         reader.iterator().forEachRemaining(dataFiles::add);
       }
     }

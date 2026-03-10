@@ -491,7 +491,8 @@ public class TestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals(
@@ -603,7 +604,8 @@ public class TestBase {
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
 
@@ -629,7 +631,7 @@ public class TestBase {
       Iterator<DeleteFile> expectedFiles,
       Iterator<ManifestEntry.Status> statuses) {
     for (ManifestEntry<DeleteFile> entry :
-        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs()).entries()) {
       DeleteFile file = entry.file();
       DeleteFile expected = expectedFiles.next();
 
@@ -787,12 +789,13 @@ public class TestBase {
     }
   }
 
-  static void validateManifestEntries(
+  void validateManifestEntries(
       ManifestFile manifest,
       Iterator<Long> ids,
       Iterator<DataFile> expectedFiles,
       Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry :
+        ManifestFiles.read(manifest, FILE_IO, table.specs()).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
@@ -846,8 +849,8 @@ public class TestBase {
     return Iterators.forArray(files);
   }
 
-  static Iterator<DataFile> files(ManifestFile manifest) {
-    return ManifestFiles.read(manifest, FILE_IO).iterator();
+  Iterator<DataFile> files(ManifestFile manifest) {
+    return ManifestFiles.read(manifest, FILE_IO, table.specs()).iterator();
   }
 
   static long recordCount(ContentFile<?>... files) {
