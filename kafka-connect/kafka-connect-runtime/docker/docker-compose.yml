@@ -19,26 +19,45 @@ volumes:
   data: {}
 
 services:
-  minio:
-    image: minio/minio
-    hostname: minio
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    hostname: seaweedfs
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
     ports:
-      - 9000:9000
-      - 9001:9001
+      - 8333:8333   # S3 API
+      - 23646:23646 # Admin UI
     volumes:
       - data:/data
-    command: server /data --console-address ":9001"
+    command: "mini -dir=/data"
 
   create-bucket:
-    image: minio/mc
+    image: amazon/aws-cli:latest
     depends_on:
-      - minio
+      - seaweedfs
     volumes:
       - data:/data
-    entrypoint: mc mb /data/bucket
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_REGION=us-east-1
+    entrypoint: |
+      /bin/sh -c "
+      until aws --endpoint-url http://seaweedfs:8333 s3 mb s3://bucket 2>/dev/null; do echo '...waiting for SeaweedFS...' && sleep 1; done;
+      aws --endpoint-url http://seaweedfs:8333 s3api put-bucket-policy \
+        --bucket bucket \
+        --policy '{
+          \"Version\": \"2012-10-17\",
+          \"Statement\": [{
+            \"Sid\": \"public\",
+            \"Effect\": \"Allow\",
+            \"Principal\": \"*\",
+            \"Action\": \"s3:*\",
+            \"Resource\": [\"arn:aws:s3:::bucket\", \"arn:aws:s3:::bucket/*\"]
+          }]
+        }';
+      "
 
   iceberg:
     image: apache/iceberg-rest-fixture
@@ -52,10 +71,10 @@ services:
       - CATALOG_WAREHOUSE=s3://bucket/warehouse/
       - CATALOG_URI=jdbc:sqlite:file:/tmp/iceberg_rest_mode=memory
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_ENDPOINT=http://minio:9000
+      - CATALOG_S3_ENDPOINT=http://seaweedfs:8333
       - CATALOG_S3_PATH__STYLE__ACCESS=true
-      - CATALOG_S3_ACCESS__KEY__ID=minioadmin
-      - CATALOG_S3_SECRET__ACCESS__KEY=minioadmin
+      - CATALOG_S3_ACCESS__KEY__ID=admin
+      - CATALOG_S3_SECRET__ACCESS__KEY=password
 
   kafka:
     image: confluentinc/cp-kafka:7.8.1

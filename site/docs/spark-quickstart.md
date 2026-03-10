@@ -46,7 +46,7 @@ services:
       iceberg_net:
     depends_on:
       - rest
-      - minio
+      - seaweedfs
     volumes:
       - ./warehouse:/home/iceberg/warehouse
       - ./notebooks:/home/iceberg/notebooks/notebooks
@@ -72,27 +72,33 @@ services:
       - AWS_REGION=us-east-1
       - CATALOG_WAREHOUSE=s3://warehouse/
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_ENDPOINT=http://minio:9000
-  minio:
-    image: minio/minio
-    container_name: minio
+      - CATALOG_S3_ENDPOINT=http://seaweedfs:8333
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs
     environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=password
-      - MINIO_DOMAIN=minio
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
     networks:
       iceberg_net:
         aliases:
-          - warehouse.minio
+          - warehouse.seaweedfs
     ports:
-      - 9001:9001
-      - 9000:9000
-    command: ["server", "/data", "--console-address", ":9001"]
-  mc:
+      - 8333:8333   # S3 API
+      - 23646:23646 # Admin UI
+    command: "mini -dir=/data"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8333/status"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+      start_period: 5s
+  create-bucket:
+    image: amazon/aws-cli:latest
+    container_name: create-bucket
     depends_on:
-      - minio
-    image: minio/mc
-    container_name: mc
+      seaweedfs:
+        condition: service_healthy
     networks:
       iceberg_net:
     environment:
@@ -101,11 +107,19 @@ services:
       - AWS_REGION=us-east-1
     entrypoint: |
       /bin/sh -c "
-      until (/usr/bin/mc alias set minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
-      /usr/bin/mc rm -r --force minio/warehouse;
-      /usr/bin/mc mb minio/warehouse;
-      /usr/bin/mc policy set public minio/warehouse;
-      tail -f /dev/null
+      aws --endpoint-url http://seaweedfs:8333 s3 mb s3://warehouse;
+      aws --endpoint-url http://seaweedfs:8333 s3api put-bucket-policy \
+        --bucket warehouse \
+        --policy '{
+          \"Version\": \"2012-10-17\",
+          \"Statement\": [{
+            \"Sid\": \"public\",
+            \"Effect\": \"Allow\",
+            \"Principal\": \"*\",
+            \"Action\": \"s3:*\",
+            \"Resource\": [\"arn:aws:s3:::warehouse\", \"arn:aws:s3:::warehouse/*\"]
+          }]
+        }';
       "
 networks:
   iceberg_net:
