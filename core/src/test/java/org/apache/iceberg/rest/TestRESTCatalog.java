@@ -3874,6 +3874,74 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
+  @Test
+  public void testRegisterTableOverwriteTrueSupported() throws Exception {
+    File warehouse = new File(temp.toFile(), "overwrite-supported-warehouse");
+
+    InMemoryCatalog overwriteCatalog =
+        new InMemoryCatalog() {
+          @Override
+          public Table registerTable(
+              TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
+            if (overwrite && tableExists(identifier)) {
+              dropTable(identifier, false);
+            }
+
+            return registerTable(identifier, metadataFileLocation);
+          }
+        };
+
+    overwriteCatalog.initialize(
+        "overwrite-catalog",
+        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(overwriteCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    try {
+      catalog.createNamespace(TABLE.namespace());
+
+      Table sourceTable = catalog.createTable(TABLE, SCHEMA);
+      String metadataLocation =
+          ((HasTableOperations) sourceTable).operations().current().metadataFileLocation();
+
+      TableIdentifier target = TableIdentifier.of(TABLE.namespace(), "table_register_true_success");
+      Table initialTargetTable =
+          catalog.createTable(
+              target,
+              SCHEMA,
+              PartitionSpec.unpartitioned(),
+              ImmutableMap.of("format-version", "2"));
+      String initialMetadataLocation =
+          ((HasTableOperations) initialTargetTable).operations().current().metadataFileLocation();
+
+      Table overwritten = catalog.registerTable(target, metadataLocation, true);
+
+      assertThat(((HasTableOperations) overwritten).operations().current().metadataFileLocation())
+          .isEqualTo(metadataLocation)
+          .isNotEqualTo(initialMetadataLocation);
+
+      verify(adapter)
+          .execute(
+              matches(
+                  HTTPMethod.POST,
+                  RESOURCE_PATHS.register(target.namespace()),
+                  Map.of(),
+                  Map.of(),
+                  requestObj ->
+                      requestObj instanceof RegisterTableRequest request
+                          && request.name().equals(target.name())
+                          && request.metadataLocation().equals(metadataLocation)
+                          && request.overwrite()),
+              eq(LoadTableResponse.class),
+              any(),
+              any());
+    } finally {
+      catalog.close();
+      overwriteCatalog.close();
+    }
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
