@@ -35,6 +35,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -122,6 +123,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private SnapshotAncestryValidator snapshotAncestryValidator =
       SnapshotAncestryValidator.NON_VALIDATING;
 
+  private Clock clock = Clock.systemUTC();
   private ExecutorService workerPool;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
@@ -337,7 +339,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         sequenceNumber,
         snapshotId(),
         parentSnapshotId,
-        System.currentTimeMillis(),
+        snapshotTimestampMillis(parentSnapshot),
         operation(),
         summary(base),
         base.currentSchemaId(),
@@ -660,6 +662,31 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected ManifestReader<DeleteFile> newDeleteManifestReader(ManifestFile manifest) {
     return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById());
+  }
+
+  @VisibleForTesting
+  void setClock(Clock newClock) {
+    this.clock = newClock;
+  }
+
+  /**
+   * Generates the snapshot timestamp in milliseconds.
+   *
+   * <p>For format version 4 and above, this implements the Lamport clock algorithm to guarantee
+   * monotonically increasing snapshot timestamps. For older format versions, this returns the
+   * current wall clock time.
+   *
+   * @param parentSnapshot the parent snapshot on the target branch, or null if there is no parent
+   * @return the snapshot timestamp in milliseconds
+   */
+  private long snapshotTimestampMillis(Snapshot parentSnapshot) {
+    long now = clock.millis();
+    if (base.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_MONOTONIC_TIMESTAMPS
+        && parentSnapshot != null) {
+      return Math.max(now, parentSnapshot.timestampMillis() + 1);
+    }
+
+    return now;
   }
 
   protected long snapshotId() {
