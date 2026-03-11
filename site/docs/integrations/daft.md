@@ -51,8 +51,8 @@ catalog:
   default:
     # URL to the Iceberg REST server Docker container
     uri: http://localhost:8181
-    # URL and credentials for the MinIO Docker container
-    s3.endpoint: http://localhost:9000
+    # URL and credentials for the SeaweedFS Docker container
+    s3.endpoint: http://localhost:8333
     s3.access-key-id: admin
     s3.secret-access-key: password
 ```
@@ -63,10 +63,10 @@ Here is how the Iceberg table `demo.nyc.taxis` can be loaded into Daft:
 import daft
 from pyiceberg.catalog import load_catalog
 
-# Configure Daft to use the local MinIO Docker container for any S3 operations
+# Configure Daft to use the local SeaweedFS Docker container for any S3 operations
 daft.set_planning_config(
     default_io_config=daft.io.IOConfig(
-        s3=daft.io.S3Config(endpoint_url="http://localhost:9000"),
+        s3=daft.io.S3Config(endpoint_url="http://localhost:8333"),
     )
 )
 

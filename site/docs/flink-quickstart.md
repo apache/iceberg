@@ -31,7 +31,7 @@ The quickstart includes:
 
 * A local Flink cluster (Job Manager and Task Manager)
 * Iceberg REST Catalog
-* MinIO (local S3 storage)
+* SeaweedFS (local S3 storage)
 
 ![An overview of the Flink quickstart containers](/assets/images/flink-quickstart.excalidraw.png)
 
@@ -65,7 +65,7 @@ CREATE CATALOG iceberg_catalog WITH (
   'uri'                  = 'http://iceberg-rest:8181',
   'warehouse'            = 's3://warehouse/',
   'io-impl'              = 'org.apache.iceberg.aws.s3.S3FileIO',
-  's3.endpoint'          = 'http://minio:9000',
+  's3.endpoint'          = 'http://seaweedfs:8333',
   's3.access-key-id'     = 'admin',
   's3.secret-access-key' = 'password',
   's3.path-style-access' = 'true'
@@ -150,7 +150,7 @@ CREATE TABLE taxis_inline_config (
     'uri'                  = 'http://iceberg-rest:8181',
     'warehouse'            = 's3://warehouse/',
     'io-impl'              = 'org.apache.iceberg.aws.s3.S3FileIO',
-    's3.endpoint'          = 'http://minio:9000',
+    's3.endpoint'          = 'http://seaweedfs:8333',
     's3.access-key-id'     = 'admin',
     's3.secret-access-key' = 'password',
     's3.path-style-access' = 'true'

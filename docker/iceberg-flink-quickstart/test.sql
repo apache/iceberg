@@ -18,7 +18,7 @@ CREATE CATALOG iceberg_catalog WITH (
   'uri'                  = 'http://iceberg-rest:8181',
   'warehouse'            = 's3://warehouse/',
   'io-impl'              = 'org.apache.iceberg.aws.s3.S3FileIO',
-  's3.endpoint'          = 'http://minio:9000',
+  's3.endpoint'          = 'http://seaweedfs:8333',
   's3.access-key-id'     = 'admin',
   's3.secret-access-key' = 'password',
   's3.path-style-access' = 'true'
