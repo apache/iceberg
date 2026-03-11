@@ -528,7 +528,6 @@ project(':iceberg-aws') {
     testImplementation libs.sqlite.jdbc
     testImplementation libs.testcontainers
     testImplementation libs.testcontainers.junit.jupiter
-    testImplementation libs.testcontainers.minio
     testImplementation libs.httpcomponents.httpclient5
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
