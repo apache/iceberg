@@ -51,6 +51,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
+import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.spark.TimeTravel.AsOfTimestamp;
 import org.apache.iceberg.spark.TimeTravel.AsOfVersion;
@@ -103,6 +104,7 @@ public class SparkTable extends BaseSparkTable
   private final String branch; // set if table is loaded for specific branch
   private final TimeTravel timeTravel; // set if table is loaded for time travel
   private final Set<TableCapability> capabilities;
+  private SparkWriteConf lazyWriteConf = null;
 
   public SparkTable(Table table) {
     this(table, null /* main branch */);
@@ -138,6 +140,13 @@ public class SparkTable extends BaseSparkTable
 
   public SparkTable copyWithBranch(String newBranch) {
     return new SparkTable(table(), newBranch);
+  }
+
+  private SparkWriteConf writeConf() {
+    if (lazyWriteConf == null) {
+      this.lazyWriteConf = new SparkWriteConf(spark(), table());
+    }
+    return lazyWriteConf;
   }
 
   public Long snapshotId() {
@@ -277,6 +286,11 @@ public class SparkTable extends BaseSparkTable
 
     if (branch != null) {
       deleteFiles.toBranch(branch);
+    }
+
+    Map<String, String> extraSnapshotMetadata = writeConf().extraSnapshotMetadata();
+    if (!extraSnapshotMetadata.isEmpty()) {
+      extraSnapshotMetadata.forEach(deleteFiles::set);
     }
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
