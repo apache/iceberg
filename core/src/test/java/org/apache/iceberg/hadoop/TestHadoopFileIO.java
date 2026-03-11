@@ -88,22 +88,20 @@ public class TestHadoopFileIO {
         .isEqualTo(totalFiles);
   }
 
-  /**
-   * Dir deletion doesn't actually surface until the iterator() call.
-   */
+  /** Dir deletion doesn't actually surface until the iterator() call. */
   @Test
   public void testListDirDeletedBeforeListing() {
     tempDir.delete();
     final Iterable<FileInfo> listing = hadoopFileIO.listPrefix(tempDir.toURI().toString());
-    assertThatThrownBy(() -> listing.iterator())
-        .isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> listing.iterator()).isInstanceOf(NotFoundException.class);
   }
 
   @Test
   public void testListEmptyDir() {
     final String prefix = tempDir.toURI().toString();
     final Iterable<FileInfo> listing = hadoopFileIO.listPrefix(prefix);
-    assertThat(listing.iterator()).describedAs("Listing iterator %s", listing)
+    assertThat(listing.iterator())
+        .describedAs("Listing iterator %s", listing)
         .matches(c -> !c.hasNext());
   }
 

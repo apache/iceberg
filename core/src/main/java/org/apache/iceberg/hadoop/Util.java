@@ -149,7 +149,7 @@ public class Util {
   /** Random IO policy chain: {@value}. */
   public static final String RANDOM_READS = "random, adaptive";
 
-  /** Read chain for recent parquet/orc libraries: {@value}.*/
+  /** Read chain for recent parquet/orc libraries: {@value}. */
   public static final String VECTOR_READS = "vector, " + RANDOM_READS;
 
   /** Adaptive reads: inefficient compared to declaring the read strategy. */
@@ -163,6 +163,7 @@ public class Util {
 
   /** Parquet files: {@value}. */
   public static final String PARQUET_READS = "parquet," + VECTOR_READS;
+
   /** ORC files: {@value}. */
   public static final String ORC_READS = "orc," + VECTOR_READS;
 
