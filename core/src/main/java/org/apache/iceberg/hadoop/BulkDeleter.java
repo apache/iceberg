@@ -280,6 +280,7 @@ final class BulkDeleter {
 
     /**
      * Is the queue empty?
+     *
      * @return true if there are no files to delete.
      */
     boolean isEmpty() {
