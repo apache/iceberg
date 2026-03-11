@@ -85,7 +85,7 @@ class RESTTableScan extends DataTableScan {
   private final Object hadoopConf;
   private final FileIO tableIO;
   private String planId = null;
-  private FileIO fileIOForPlanId = null;
+  private FileIO scanFileIO = null;
 
   RESTTableScan(
       Table table,
@@ -131,7 +131,7 @@ class RESTTableScan extends DataTableScan {
         tableIdentifier,
         resourcePaths,
         supportedEndpoints,
-        null != fileIOForPlanId ? fileIOForPlanId : tableIO,
+        null != scanFileIO ? scanFileIO : tableIO,
         catalogProperties,
         hadoopConf);
   }
@@ -139,8 +139,8 @@ class RESTTableScan extends DataTableScan {
   @Override
   public FileIO io() {
     Preconditions.checkState(
-        null != fileIOForPlanId, "Invalid FileIO: planFiles() must be called first");
-    return fileIOForPlanId;
+        null != scanFileIO, "Cannot use FileIO because planFiles() must be called first");
+    return scanFileIO;
   }
 
   @Override
@@ -193,8 +193,8 @@ class RESTTableScan extends DataTableScan {
     this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
     if (null != planId) {
-      this.fileIOForPlanId =
-          !response.credentials().isEmpty() ? fileIOForPlanId(response.credentials()) : tableIo;
+      this.scanFileIO =
+          !response.credentials().isEmpty() ? fileIOForPlanId(response.credentials()) : tableIO;
     }
 
     switch (planStatus) {
@@ -278,8 +278,8 @@ class RESTTableScan extends DataTableScan {
           response.planStatus(),
           planId);
 
-      this.fileIOForPlanId =
-          !response.credentials().isEmpty() ? fileIOForPlanId(response.credentials()) : tableIo;
+      this.scanFileIO =
+          !response.credentials().isEmpty() ? fileIOForPlanId(response.credentials()) : tableIO;
 
       return scanTasksIterable(response.planTasks(), response.fileScanTasks());
     } catch (FailsafeException e) {
@@ -321,9 +321,9 @@ class RESTTableScan extends DataTableScan {
   /** Cancels the plan on the server (if supported) and closes the plan-scoped FileIO */
   private void cleanupPlanResources() {
     cancelPlan();
-    if (null != fileIOForPlanId) {
+    if (null != scanFileIO) {
       FILEIO_TRACKER.invalidate(this);
-      this.fileIOForPlanId = null;
+      this.scanFileIO = null;
     }
   }
 

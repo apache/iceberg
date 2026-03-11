@@ -210,11 +210,7 @@ public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
         this.getClass().getName() + " doesn't implement minRowsRequested");
   }
 
-  /**
-   * The {@link FileIO} instance to use when reading data files for this scan.
-   *
-   * @return the {@link FileIO} instance to use when reading data files for this scan
-   */
+  /** Returns the {@link FileIO} instance to use when reading data files for this scan. */
   default FileIO io() {
     throw new UnsupportedOperationException("io() is not implemented: added in 1.11.0");
   }
