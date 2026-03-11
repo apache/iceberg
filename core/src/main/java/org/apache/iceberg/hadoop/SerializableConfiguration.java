@@ -22,9 +22,10 @@ import java.io.Serializable;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SerializableSupplier;
 
 /** Wraps a {@link Configuration} object in a {@link Serializable} layer. */
-public class SerializableConfiguration implements Serializable {
+public class SerializableConfiguration implements SerializableSupplier<Configuration> {
   private final Map<String, String> confAsMap;
   private transient volatile Configuration hadoopConf = null;
 
@@ -33,6 +34,7 @@ public class SerializableConfiguration implements Serializable {
     hadoopConf.forEach(entry -> confAsMap.put(entry.getKey(), entry.getValue()));
   }
 
+  @Override
   public Configuration get() {
     if (hadoopConf == null) {
       synchronized (this) {

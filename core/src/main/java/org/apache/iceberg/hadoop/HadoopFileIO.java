@@ -66,7 +66,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   public HadoopFileIO() {}
 
   public HadoopFileIO(Configuration hadoopConf) {
-    this(new SerializableConfiguration(hadoopConf)::get);
+    this(new SerializableConfiguration(hadoopConf));
   }
 
   public HadoopFileIO(SerializableSupplier<Configuration> hadoopConf) {
@@ -115,7 +115,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @Override
   public void setConf(Configuration conf) {
-    this.hadoopConf = new SerializableConfiguration(conf)::get;
+    this.hadoopConf = new SerializableConfiguration(conf);
   }
 
   @Override
@@ -125,7 +125,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     if (hadoopConf == null) {
       synchronized (this) {
         if (hadoopConf == null) {
-          this.hadoopConf = new SerializableConfiguration(new Configuration())::get;
+          this.hadoopConf = new SerializableConfiguration(new Configuration());
         }
       }
     }
