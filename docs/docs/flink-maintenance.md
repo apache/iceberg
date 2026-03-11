@@ -302,19 +302,50 @@ public class TableMaintenanceJob {
 
 Apache Iceberg Sink V2 for Flink allows automatic execution of maintenance tasks after data is committed to the table, using the addPostCommitTopology(...) method.
 
+#### DataStream API
+
+##### Builder
+
+```java
+IcebergSink.forRowData(dataStream)
+    .table(table)
+    .tableLoader(tableLoader)
+    .rewriteDataFiles(true, Map.of(
+        RewriteDataFilesConfig.MAX_BYTES, "1073741824"))
+    .expireSnapshots(true, Map.of(
+        ExpireSnapshotsConfig.RETAIN_LAST, "5",
+        ExpireSnapshotsConfig.MAX_SNAPSHOT_AGE_SECONDS, "604800"))
+    .deleteOrphanFiles(true, Map.of(
+        DeleteOrphanFilesConfig.MIN_AGE_SECONDS, "259200"))
+    .append();
+```
+
+##### Config
+
+All maintenance tasks are configured through string properties:
+
 ```java
 Map<String, String> flinkConf = new HashMap<>();
 
-// Enable compaction and maintenance features
-flinkConf.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), "true");
+// Enable maintenance tasks
+flinkConf.put("flink-maintenance.rewrite.enabled", "true");
+flinkConf.put("flink-maintenance.expire-snapshots.enabled", "true");
+flinkConf.put("flink-maintenance.delete-orphan-files.enabled", "true");
+
+// Configure rewrite data files
+flinkConf.put("flink-maintenance.rewrite.max-bytes", "1073741824");
+
+// Configure expire snapshots
+flinkConf.put("flink-maintenance.expire-snapshots.retain-last", "5");
+flinkConf.put("flink-maintenance.expire-snapshots.max-snapshot-age-seconds", "604800");
+
+// Configure delete orphan files
+flinkConf.put("flink-maintenance.delete-orphan-files.min-age-seconds", "259200");
 
 // Configure JDBC lock settings
-flinkConf.put(LockConfig.LOCK_TYPE_OPTION.key(), LockConfig.JdbcLockConfig.JDBC);
-flinkConf.put(LockConfig.JdbcLockConfig.JDBC_URI_OPTION.key(), "jdbc:postgresql://localhost:5432/iceberg");
-flinkConf.put(LockConfig.LOCK_ID_OPTION.key(), "catalog.db.table");
-
-// Add any other maintenance-related options here as needed
-// ...
+flinkConf.put("flink-maintenance.lock.type", "jdbc");
+flinkConf.put("flink-maintenance.lock.jdbc.uri", "jdbc:postgresql://localhost:5432/iceberg");
+flinkConf.put("flink-maintenance.lock.lock-id", "catalog.db.table");
 
 IcebergSink.forRowData(dataStream)
     .table(table)
@@ -328,9 +359,20 @@ IcebergSink.forRowData(dataStream)
 You can enable maintenance and configure locks using SQL before executing writes:
 
 ```sql
--- Enable Iceberg V2 Sink and compaction (maintenance)
+-- Enable Iceberg V2 Sink and maintenance tasks
 SET 'table.exec.iceberg.use.v2.sink' = 'true';
-SET 'compaction-enabled' = 'true';
+SET 'flink-maintenance.rewrite.enabled' = 'true';
+SET 'flink-maintenance.expire-snapshots.enabled' = 'true';
+SET 'flink-maintenance.delete-orphan-files.enabled' = 'true';
+
+-- Configure rewrite data files
+SET 'flink-maintenance.rewrite.max-bytes' = '1073741824';
+
+-- Configure expire snapshots
+SET 'flink-maintenance.expire-snapshots.retain-last' = '5';
+
+-- Configure delete orphan files
+SET 'flink-maintenance.delete-orphan-files.min-age-seconds' = '259200';
 
 -- Configure maintenance lock (JDBC)
 SET 'flink-maintenance.lock.type' = 'jdbc';
@@ -352,7 +394,13 @@ CREATE TABLE db.tbl (
   'catalog-name' = 'my_catalog',
   'catalog-database' = 'db',
   'catalog-table' = 'tbl',
-  'compaction-enabled' = 'true',
+  'flink-maintenance.rewrite.enabled' = 'true',
+  'flink-maintenance.expire-snapshots.enabled' = 'true',
+  'flink-maintenance.delete-orphan-files.enabled' = 'true',
+
+  'flink-maintenance.rewrite.max-bytes' = '1073741824',
+  'flink-maintenance.expire-snapshots.retain-last' = '5',
+  'flink-maintenance.delete-orphan-files.min-age-seconds' = '259200',
 
   'flink-maintenance.lock.type' = 'jdbc',
   'flink-maintenance.lock.lock-id' = 'catalog.db.table',
@@ -361,9 +409,64 @@ CREATE TABLE db.tbl (
 );
 ```
 
+### IcebergSink Maintenance Configuration (SQL)
+
+These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Builder.set()` / `setAll()`.
+
+#### Enable Flags
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.rewrite.enabled` | Enable compaction (rewrite data files) | `false` |
+| `flink-maintenance.expire-snapshots.enabled` | Enable expire snapshots | `false` |
+| `flink-maintenance.delete-orphan-files.enabled` | Enable delete orphan files | `false` |
+
+#### Rewrite Data Files Configuration
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.rewrite.schedule.commit-count` | Trigger after N commits | `10` |
+| `flink-maintenance.rewrite.schedule.data-file-count` | Trigger after N data files | `1000` |
+| `flink-maintenance.rewrite.schedule.data-file-size` | Trigger after total data file size (bytes) | `107374182400` (100GB) |
+| `flink-maintenance.rewrite.schedule.interval-second` | Trigger after time interval (seconds) | `600` |
+| `flink-maintenance.rewrite.max-bytes` | Maximum bytes to rewrite per execution | `Long.MAX_VALUE` |
+| `flink-maintenance.rewrite.partial-progress.enabled` | Enable partial progress commits | `false` |
+| `flink-maintenance.rewrite.partial-progress.max-commits` | Maximum commits for partial progress | `10` |
+
+#### Expire Snapshots Configuration
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.expire-snapshots.schedule.commit-count` | Trigger after N commits | `10` |
+| `flink-maintenance.expire-snapshots.schedule.data-file-count` | Trigger after N data files | `1000` |
+| `flink-maintenance.expire-snapshots.schedule.data-file-size` | Trigger after total data file size (bytes) | `107374182400` (100GB) |
+| `flink-maintenance.expire-snapshots.schedule.interval-second` | Trigger after time interval (seconds) | `600` |
+| `flink-maintenance.expire-snapshots.max-snapshot-age-seconds` | Maximum age of snapshots to retain (seconds) | Not set |
+| `flink-maintenance.expire-snapshots.retain-last` | Minimum number of snapshots to retain | Not set |
+| `flink-maintenance.expire-snapshots.delete-batch-size` | Batch size for deleting expired files | `1000` |
+| `flink-maintenance.expire-snapshots.clean-expired-metadata` | Remove expired metadata (partition specs, schemas) | Not set |
+| `flink-maintenance.expire-snapshots.planning-worker-pool-size` | Worker pool size for planning | Shared pool |
+
+#### Delete Orphan Files Configuration
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.delete-orphan-files.schedule.commit-count` | Trigger after N commits | `10` |
+| `flink-maintenance.delete-orphan-files.schedule.data-file-count` | Trigger after N data files | `1000` |
+| `flink-maintenance.delete-orphan-files.schedule.data-file-size` | Trigger after total data file size (bytes) | `107374182400` (100GB) |
+| `flink-maintenance.delete-orphan-files.schedule.interval-second` | Trigger after time interval (seconds) | `600` |
+| `flink-maintenance.delete-orphan-files.min-age-seconds` | Minimum age of files to consider for deletion (seconds) | `259200` (3 days) |
+| `flink-maintenance.delete-orphan-files.delete-batch-size` | Batch size for deleting orphan files | `1000` |
+| `flink-maintenance.delete-orphan-files.location` | Location to start recursive listing | Table location |
+| `flink-maintenance.delete-orphan-files.use-prefix-listing` | Use prefix listing for file discovery | `false` |
+| `flink-maintenance.delete-orphan-files.planning-worker-pool-size` | Worker pool size for planning | Shared pool |
+| `flink-maintenance.delete-orphan-files.equal-schemes` | Equivalent schemes (format: `s3n=s3,s3a=s3`) | Not set |
+| `flink-maintenance.delete-orphan-files.equal-authorities` | Equivalent authorities (format: `auth1=auth2`) | Not set |
+| `flink-maintenance.delete-orphan-files.prefix-mismatch-mode` | Behavior on prefix mismatch: `ERROR`, `IGNORE`, `DELETE` | `ERROR` |
+
 ### Lock Configuration (SQL)
 
-These keys are used in SQL (SET or table WITH options) and are applicable when writing with compaction enabled.
+These keys are used in SQL (SET or table WITH options) and are applicable when writing with maintenance enabled.
 
 - JDBC
 
