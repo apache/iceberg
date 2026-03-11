@@ -3683,6 +3683,63 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
   }
 
+  @Test
+  public void testSequenceNumberConflictThrowsCommitFailed() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
+
+    DataFile fileOnMain =
+        DataFiles.builder(SPEC)
+            .withPath("/path/commit-test-file1.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("id_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    catalog.loadTable(TABLE).newFastAppend().appendFile(fileOnMain).commit();
+
+    DataFile fileOnAnotherBranch =
+        DataFiles.builder(SPEC)
+            .withPath("/path/commit-test-conflicting.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("id_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    // Before the next commit is processed by the server, advance the server's lastSequenceNumber
+    // by committing to a different branch. This simulates a concurrent request to a different
+    // branch
+    // that "beats" the commit to main.
+    Mockito.doAnswer(
+            invocation -> {
+              backendCatalog
+                  .loadTable(TABLE)
+                  .newFastAppend()
+                  .appendFile(fileOnAnotherBranch)
+                  .toBranch("other")
+                  .commit();
+              return invocation.callRealMethod();
+            })
+        .when(adapter)
+        .execute(matches(HTTPMethod.POST, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+
+    DataFile anotherFileOnMain =
+        DataFiles.builder(SPEC)
+            .withPath("/path/commit-test-file2.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("id_bucket=0")
+            .withRecordCount(1)
+            .build();
+
+    assertThatThrownBy(
+            () -> catalog.loadTable(TABLE).newFastAppend().appendFile(anotherFileOnMain).commit())
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Validation failed, please retry");
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);

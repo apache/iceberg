@@ -208,18 +208,18 @@ public class FindFiles {
       }
 
       // when snapshot is not null
-      CloseableIterable<ManifestEntry<DataFile>> entries =
-          new ManifestGroup(ops.io(), snapshot.dataManifests(ops.io()))
-              .specsById(ops.current().specsById())
-              .filterData(rowFilter)
-              .filterFiles(fileFilter)
-              .filterPartitions(partitionFilter)
-              .ignoreDeleted()
-              .caseSensitive(caseSensitive)
-              .planWith(executorService)
-              .entries();
-
-      return CloseableIterable.transform(entries, entry -> entry.file().copy(includeColumnStats));
+      return new ManifestGroup(ops.io(), snapshot.dataManifests(ops.io()))
+          .specsById(ops.current().specsById())
+          .filterData(rowFilter)
+          .filterFiles(fileFilter)
+          .filterPartitions(partitionFilter)
+          .ignoreDeleted()
+          .caseSensitive(caseSensitive)
+          .planWith(executorService)
+          .entries(
+              entries ->
+                  CloseableIterable.transform(
+                      entries, entry -> entry.file().copy(includeColumnStats)));
     }
   }
 }

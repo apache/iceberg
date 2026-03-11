@@ -79,19 +79,10 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
 
   protected BaseSparkScanBuilder(
       SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
-    this(spark, table, schema, null, options);
-  }
-
-  protected BaseSparkScanBuilder(
-      SparkSession spark,
-      Table table,
-      Schema schema,
-      String branch,
-      CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
     this.schema = schema;
-    this.readConf = new SparkReadConf(spark, table, branch, options);
+    this.readConf = new SparkReadConf(spark, table, options);
     this.caseSensitive = readConf.caseSensitive();
     this.projection = schema;
   }

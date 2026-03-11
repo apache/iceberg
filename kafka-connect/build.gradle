@@ -17,6 +17,11 @@
  * under the License.
  */
 
+// disable publishing from empty grouping project
+afterEvaluate {
+  tasks.matching { it.group == 'publishing' }.each { it.enabled = false }
+}
+
 project(':iceberg-kafka-connect:iceberg-kafka-connect-events') {
   dependencies {
     api project(':iceberg-api')

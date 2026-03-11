@@ -529,7 +529,8 @@ public class TestDeleteFiles extends TestBase {
         .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
         .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
     assertThat(delete2.allManifests(FILE_IO)).isEmpty();
-    assertThat(delete2.removedDataFiles(FILE_IO)).isEmpty();
+    assertThat(SnapshotChanges.builderFor(table).snapshot(delete2).build().removedDataFiles())
+        .isEmpty();
   }
 
   @Test

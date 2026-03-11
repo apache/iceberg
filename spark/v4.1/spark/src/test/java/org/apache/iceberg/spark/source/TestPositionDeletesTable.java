@@ -409,7 +409,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     // Add position deletes for both partitions
     Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileA, "b");
+    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileB, "b");
 
     tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
 
@@ -455,7 +455,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     Pair<List<PositionDelete<?>>, DeleteFile> deletesA =
         deleteFile(tab, dataFileA, new Object[] {"aa"}, new Object[] {"a"});
     Pair<List<PositionDelete<?>>, DeleteFile> deletesB =
-        deleteFile(tab, dataFileA, new Object[] {"bb"}, new Object[] {"b"});
+        deleteFile(tab, dataFileB, new Object[] {"bb"}, new Object[] {"b"});
     tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
 
     // Prepare expected values
@@ -496,7 +496,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     DataFile dataFileB = dataFile(tab, "b");
     tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
     Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileA, "b");
+    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileB, "b");
     tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
 
     // Switch partition spec from (data) to (id)
@@ -508,7 +508,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     tab.newAppend().appendFile(dataFile10).appendFile(dataFile99).commit();
 
     Pair<List<PositionDelete<?>>, DeleteFile> deletes10 = deleteFile(tab, dataFile10, 10);
-    Pair<List<PositionDelete<?>>, DeleteFile> deletes99 = deleteFile(tab, dataFile10, 99);
+    Pair<List<PositionDelete<?>>, DeleteFile> deletes99 = deleteFile(tab, dataFile99, 99);
     tab.newRowDelta().addDeletes(deletes10.second()).addDeletes(deletes99.second()).commit();
 
     // Query partition of old spec

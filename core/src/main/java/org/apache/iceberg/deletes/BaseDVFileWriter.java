@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
@@ -29,8 +30,8 @@ import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.DeleteWriteResult;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.BlobMetadata;
@@ -51,7 +52,7 @@ public class BaseDVFileWriter implements DVFileWriter {
   private static final String REFERENCED_DATA_FILE_KEY = "referenced-data-file";
   private static final String CARDINALITY_KEY = "cardinality";
 
-  private final OutputFileFactory fileFactory;
+  private final Supplier<OutputFile> dvOutputFile;
   private final Function<String, PositionDeleteIndex> loadPreviousDeletes;
   private final Map<String, Deletes> deletesByPath = Maps.newHashMap();
   private final Map<String, BlobMetadata> blobsByPath = Maps.newHashMap();
@@ -59,7 +60,13 @@ public class BaseDVFileWriter implements DVFileWriter {
 
   public BaseDVFileWriter(
       OutputFileFactory fileFactory, Function<String, PositionDeleteIndex> loadPreviousDeletes) {
-    this.fileFactory = fileFactory;
+    this(() -> fileFactory.newOutputFile().encryptingOutputFile(), loadPreviousDeletes);
+  }
+
+  public BaseDVFileWriter(
+      Supplier<OutputFile> dvOutputFile,
+      Function<String, PositionDeleteIndex> loadPreviousDeletes) {
+    this.dvOutputFile = dvOutputFile;
     this.loadPreviousDeletes = loadPreviousDeletes;
   }
 
@@ -69,6 +76,17 @@ public class BaseDVFileWriter implements DVFileWriter {
         deletesByPath.computeIfAbsent(path, key -> new Deletes(path, spec, partition));
     PositionDeleteIndex positions = deletes.positions();
     positions.delete(pos);
+  }
+
+  @Override
+  public void delete(
+      String path,
+      PositionDeleteIndex positionDeleteIndex,
+      PartitionSpec spec,
+      StructLike partition) {
+    Deletes deletes =
+        deletesByPath.computeIfAbsent(path, key -> new Deletes(path, spec, partition));
+    deletes.positions().merge(positionDeleteIndex);
   }
 
   @Override
@@ -148,7 +166,7 @@ public class BaseDVFileWriter implements DVFileWriter {
   }
 
   private PuffinWriter newWriter() {
-    EncryptedOutputFile outputFile = fileFactory.newOutputFile();
+    OutputFile outputFile = dvOutputFile.get();
     return Puffin.write(outputFile).createdBy(IcebergBuild.fullVersion()).build();
   }
 

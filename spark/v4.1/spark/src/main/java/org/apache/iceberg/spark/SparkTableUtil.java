@@ -44,6 +44,7 @@ import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -65,7 +66,6 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -79,8 +79,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -975,19 +973,12 @@ public class SparkTableUtil {
   }
 
   private static void deleteManifests(FileIO io, List<ManifestFile> manifests) {
-    if (io instanceof SupportsBulkOperations) {
-      ((SupportsBulkOperations) io).deleteFiles(Lists.transform(manifests, ManifestFile::path));
-    } else {
-      Tasks.foreach(manifests)
-          .executeWith(ThreadPools.getWorkerPool())
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .run(item -> io.deleteFile(item.path()));
-    }
+    CatalogUtil.deleteFiles(io, Lists.transform(manifests, ManifestFile::path), "manifests");
   }
 
   public static Dataset<Row> loadTable(SparkSession spark, Table table, long snapshotId) {
-    SparkTable sparkTable = new SparkTable(table, snapshotId, false);
+    TimeTravel timeTravel = TimeTravel.version(String.valueOf(snapshotId));
+    SparkTable sparkTable = SparkTable.create(table, timeTravel);
     DataSourceV2Relation relation = createRelation(sparkTable, ImmutableMap.of());
     Preconditions.checkArgument(
         spark instanceof org.apache.spark.sql.classic.SparkSession,
@@ -1006,7 +997,7 @@ public class SparkTableUtil {
   public static Dataset<Row> loadMetadataTable(
       SparkSession spark, Table table, MetadataTableType type, Map<String, String> extraOptions) {
     Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
-    SparkTable sparkMetadataTable = new SparkTable(metadataTable, false);
+    SparkTable sparkMetadataTable = new SparkTable(metadataTable);
     DataSourceV2Relation relation = createRelation(sparkMetadataTable, extraOptions);
     Preconditions.checkArgument(
         spark instanceof org.apache.spark.sql.classic.SparkSession,
@@ -1024,8 +1015,26 @@ public class SparkTableUtil {
         sparkTable, Option.empty(), Option.empty(), options, Option.empty());
   }
 
-  public static String determineWriteBranch(SparkSession spark, Table table, String branch) {
-    return determineWriteBranch(spark, table, branch, CaseInsensitiveStringMap.empty());
+  public static void validateWriteBranch(
+      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
+    validateBranch(spark, branch, determineWriteBranch(spark, table, branch, options));
+  }
+
+  public static void validateReadBranch(
+      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
+    validateBranch(spark, branch, determineReadBranch(spark, table, branch, options));
+  }
+
+  private static void validateBranch(SparkSession spark, String branch, String targetBranch) {
+    Preconditions.checkArgument(
+        Objects.equal(branch, targetBranch) || Spark3Util.extensionsEnabled(spark),
+        "Must enable Iceberg extensions to use branching via options or SQL: operation targets branch `%s`",
+        targetBranch);
+  }
+
+  public static String determineWriteBranch(
+      SparkSession spark, SparkTable sparkTable, CaseInsensitiveStringMap options) {
+    return determineWriteBranch(spark, sparkTable.table(), sparkTable.branch(), options);
   }
 
   /**
@@ -1067,6 +1076,11 @@ public class SparkTableUtil {
     }
 
     return branch;
+  }
+
+  public static String determineReadBranch(
+      SparkSession spark, SparkTable sparkTable, CaseInsensitiveStringMap options) {
+    return determineReadBranch(spark, sparkTable.table(), sparkTable.branch(), options);
   }
 
   /**
@@ -1122,7 +1136,7 @@ public class SparkTableUtil {
     return wapBranch;
   }
 
-  public static boolean wapEnabled(Table table) {
+  private static boolean wapEnabled(Table table) {
     return PropertyUtil.propertyAsBoolean(
         table.properties(),
         TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,

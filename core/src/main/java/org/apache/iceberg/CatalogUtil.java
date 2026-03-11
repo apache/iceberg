@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynClasses;
@@ -34,6 +35,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsBulkOperations;
@@ -128,23 +130,18 @@ public class CatalogUtil {
       deleteFiles(io, manifestsToDelete);
     }
 
-    deleteFiles(io, Iterables.transform(manifestsToDelete, ManifestFile::path), "manifest", true);
-    deleteFiles(io, manifestListsToDelete, "manifest list", true);
+    deleteFiles(io, Iterables.transform(manifestsToDelete, ManifestFile::path), "manifest");
+    deleteFiles(io, manifestListsToDelete, "manifest list");
     deleteFiles(
         io,
         Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),
-        "previous metadata",
-        true);
+        "previous metadata");
     deleteFiles(
-        io,
-        Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path),
-        "statistics",
-        true);
+        io, Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path), "statistics");
     deleteFiles(
         io,
         Iterables.transform(metadata.partitionStatisticsFiles(), PartitionStatisticsFile::path),
-        "partition statistics",
-        true);
+        "partition statistics");
     deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
 
@@ -202,6 +199,18 @@ public class CatalogUtil {
   }
 
   /**
+   * Helper to delete files. Bulk deletion is used if possible, otherwise deletions are done
+   * concurrently for non-bulk FileIO.
+   *
+   * @param io FileIO for deletes
+   * @param files files to delete
+   * @param type type of files being deleted
+   */
+  public static void deleteFiles(FileIO io, Iterable<String> files, String type) {
+    deleteFiles(io, files, type, true);
+  }
+
+  /**
    * Helper to delete files. Bulk deletion is used if possible.
    *
    * @param io FileIO for deletes
@@ -211,28 +220,29 @@ public class CatalogUtil {
    */
   public static void deleteFiles(
       FileIO io, Iterable<String> files, String type, boolean concurrent) {
-    if (io instanceof SupportsBulkOperations) {
+    if (io instanceof SupportsBulkOperations bulkIO) {
       try {
-        SupportsBulkOperations bulkIO = (SupportsBulkOperations) io;
         bulkIO.deleteFiles(files);
+      } catch (BulkDeletionFailureException e) {
+        LOG.warn("Failed to bulk delete {} {} files", e.numberFailedObjects(), type, e);
       } catch (RuntimeException e) {
         LOG.warn("Failed to bulk delete {} files", type, e);
       }
     } else {
       if (concurrent) {
-        deleteFiles(io, files, type);
+        concurrentlyDeleteFiles(io, files, type);
       } else {
         files.forEach(file -> deleteFile(io, file, type));
       }
     }
   }
 
-  private static void deleteFiles(FileIO io, Iterable<String> files, String type) {
+  private static void concurrentlyDeleteFiles(FileIO io, Iterable<String> files, String type) {
     Tasks.foreach(files)
         .executeWith(ThreadPools.getWorkerPool())
         .noRetry()
         .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete {} file {}", type, file, exc))
+        .onFailure((file, exc) -> LOG.warn("Failed to delete {} file: {}", type, file, exc))
         .run(io::deleteFile);
   }
 
@@ -586,21 +596,12 @@ public class CatalogUtil {
       // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
       // be removed
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      if (io instanceof SupportsBulkOperations) {
-        ((SupportsBulkOperations) io)
-            .deleteFiles(
-                Iterables.transform(
-                    removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
-      } else {
-        Tasks.foreach(removedPreviousMetadataFiles)
-            .noRetry()
-            .suppressFailureWhenFinished()
-            .onFailure(
-                (previousMetadataFile, exc) ->
-                    LOG.warn(
-                        "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-            .run(previousMetadataFile -> io.deleteFile(previousMetadataFile.file()));
-      }
+      deleteFiles(
+          io,
+          removedPreviousMetadataFiles.stream()
+              .map(TableMetadata.MetadataLogEntry::file)
+              .collect(Collectors.toSet()),
+          "metadata");
     }
   }
 }

@@ -77,7 +77,6 @@ import org.apache.iceberg.spark.source.metrics.TotalDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
@@ -102,12 +101,12 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final Schema schema;
   private final SparkSession spark;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
   private final Schema projection;
   private final List<Expression> filters;
-  private final String branch;
   private final Supplier<ScanReport> scanReportSupplier;
 
   // lazy variables
@@ -116,34 +115,33 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   SparkScan(
       SparkSession spark,
       Table table,
+      Schema schema,
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier) {
-    Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
-    SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, projection);
-
     this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
+    this.schema = schema;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
     this.projection = projection;
     this.filters = filters != null ? filters : Collections.emptyList();
-    this.branch = readConf.branch();
     this.scanReportSupplier = scanReportSupplier;
+    SparkSchemaUtil.validateMetadataColumnReferences(schema, projection);
   }
 
   protected Table table() {
     return table;
   }
 
-  protected String branch() {
-    return branch;
-  }
-
   protected boolean caseSensitive() {
     return caseSensitive;
+  }
+
+  protected Schema schema() {
+    return schema;
   }
 
   protected Schema projection() {
@@ -187,9 +185,22 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return readSchema;
   }
 
+  /**
+   * Reports the default stats.
+   *
+   * <p>Note that the default implementation is based on task groups and read schema and is good
+   * enough when the scan doesn't apply to a particular snapshot (e.g. incremental scan). Regular
+   * batch scans are expected to override this behavior to leverage snapshot information.
+   *
+   * @return the default stats estimates
+   * @see SparkBatchQueryScan
+   * @see SparkCopyOnWriteScan
+   */
   @Override
   public Statistics estimateStatistics() {
-    return estimateStatistics(SnapshotUtil.latestSnapshot(table, branch));
+    long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
+    long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
+    return new Stats(sizeInBytes, rowsCount, Collections.emptyMap());
   }
 
   protected Statistics estimateStatistics(Snapshot snapshot) {

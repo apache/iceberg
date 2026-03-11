@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.annotation.Experimental;
 import org.apache.flink.api.common.SupportsConcurrentExecutionAttempts;
 import org.apache.flink.api.common.functions.FlatMapFunction;
@@ -77,7 +78,6 @@ import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.TableMaintenance;
-import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
 import org.apache.iceberg.flink.maintenance.operator.LockFactoryBuilder;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
 import org.apache.iceberg.flink.sink.shuffle.DataStatisticsOperatorFactory;
@@ -270,12 +270,18 @@ public class IcebergSink
           RewriteDataFiles.builder().config(rewriteDataFilesConfig);
 
       LockConfig lockConfig = flinkMaintenanceConfig.createLockConfig();
-      TriggerLockFactory triggerLockFactory = LockFactoryBuilder.build(lockConfig, table.name());
       String tableMaintenanceUid = String.format("TableMaintenance : %s", suffix);
       TableMaintenance.Builder builder =
-          TableMaintenance.forChangeStream(tableChangeStream, tableLoader, triggerLockFactory)
-              .uidSuffix(tableMaintenanceUid)
-              .add(rewriteBuilder);
+          StringUtils.isNotEmpty(lockConfig.lockType())
+              ? TableMaintenance.forChangeStream(
+                      tableChangeStream,
+                      tableLoader,
+                      LockFactoryBuilder.build(lockConfig, table.name()))
+                  .uidSuffix(tableMaintenanceUid)
+                  .add(rewriteBuilder)
+              : TableMaintenance.forChangeStream(tableChangeStream, tableLoader)
+                  .uidSuffix(tableMaintenanceUid)
+                  .add(rewriteBuilder);
 
       builder
           .rateLimit(Duration.ofSeconds(flinkMaintenanceConfig.rateLimit()))
