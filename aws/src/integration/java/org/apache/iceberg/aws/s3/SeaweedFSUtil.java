@@ -31,7 +31,7 @@ import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 public class SeaweedFSUtil {
   public static final String IMAGE = "chrislusf/seaweedfs";
-  public static final String LATEST_TAG = "latest";
+  public static final String LATEST_TAG = "4.17";
   public static final int S3_PORT = 8333;
   private static final String DEFAULT_ACCESS_KEY = "admin";
   private static final String DEFAULT_SECRET_KEY = "password";
