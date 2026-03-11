@@ -25,6 +25,7 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFA
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +45,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -54,6 +56,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.relocated.com.google.common.math.LongMath;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
@@ -93,7 +97,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final AtomicInteger dvMergeAttempt = new AtomicInteger(0);
 
   // update data
-  private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private Long newDataFilesDataSequenceNumber;
   private final List<DeleteFile> v2Deletes = Lists.newArrayList();
   private final Map<String, List<DeleteFile>> dvsByReferencedFile = Maps.newLinkedHashMap();
@@ -104,9 +107,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
 
-  // cache new data manifests after writing
+  // accumulates data files and auto-flushes to manifests when threshold is reached
+  private final FlushingDataFileAccumulator dataFileAccumulator;
+
+  // cache new data manifests after writing (for remaining unflushed files at commit time)
   private final List<ManifestFile> cachedNewDataManifests = Lists.newLinkedList();
-  private boolean hasNewDataFiles = false;
+  // tracks whether unflushed data files have changed since last manifest write
+  private boolean hasPendingDataFileChanges = false;
 
   // cache new manifests for delete files
   private final List<ManifestFile> cachedNewDeleteManifests = Lists.newLinkedList();
@@ -114,7 +121,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private boolean caseSensitive = true;
 
+  // estimate of bytes per column in a manifest entry
+  private static final int ESTIMATED_BYTES_PER_METRIC_COLUMN = 30;
+
   MergingSnapshotProducer(String tableName, TableOperations ops) {
+    this(tableName, ops, computeFlushThreshold(ThreadPools.WORKER_THREAD_POOL_SIZE, ops.current()));
+  }
+
+  MergingSnapshotProducer(String tableName, TableOperations ops, long flushThreshold) {
     super(ops);
     this.tableName = tableName;
     long targetSizeBytes =
@@ -127,11 +141,42 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             .propertyAsBoolean(
                 TableProperties.MANIFEST_MERGE_ENABLED,
                 TableProperties.MANIFEST_MERGE_ENABLED_DEFAULT);
+    this.dataFileAccumulator =
+        new FlushingDataFileAccumulator(
+            flushThreshold,
+            (files, specId) ->
+                writeDataManifests(files, newDataFilesDataSequenceNumber, spec(specId)),
+            this::newManifestReader);
     this.mergeManager = new DataFileMergeManager(targetSizeBytes, minCountToMerge, mergeEnabled);
     this.filterManager = new DataFileFilterManager();
     this.deleteMergeManager =
         new DeleteFileMergeManager(targetSizeBytes, minCountToMerge, mergeEnabled);
     this.deleteFilterManager = new DeleteFileFilterManager();
+  }
+
+  /**
+   * Computes the flush threshold based on manifest target size, schema width, and available
+   * parallelism. Sizes the FlushingDataFileAccumulator so each flush produces enough entries to
+   * fill one manifest per worker thread, keeping all writers saturated.
+   */
+  @VisibleForTesting
+  static long computeFlushThreshold(int workerPoolSize, TableMetadata metadata) {
+    long targetManifestSizeInBytes =
+        metadata.propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    int metricsColumnsLimit =
+        metadata.propertyAsInt(
+            TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
+            TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT);
+    int metricsColumnsCount = TypeUtil.getProjectedIds(metadata.schema()).size();
+    // protect against division by zero
+    int effectiveColumns = Math.max(1, Math.min(metricsColumnsCount, metricsColumnsLimit));
+    long estimatedBytesPerEntry = (long) ESTIMATED_BYTES_PER_METRIC_COLUMN * effectiveColumns;
+    return Math.max(
+        LongMath.divide(
+            workerPoolSize * targetManifestSizeInBytes,
+            estimatedBytesPerEntry,
+            RoundingMode.CEILING),
+        MIN_FILE_GROUP_SIZE);
   }
 
   @Override
@@ -152,7 +197,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected PartitionSpec dataSpec() {
-    Set<Integer> specIds = newDataFilesBySpec.keySet();
+    Set<Integer> specIds = dataFileAccumulator.specIds();
     Preconditions.checkState(
         !specIds.isEmpty(), "Cannot determine partition specs: no data files have been added");
     Preconditions.checkState(
@@ -165,10 +210,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return deleteExpression;
   }
 
-  protected List<DataFile> addedDataFiles() {
-    return newDataFilesBySpec.values().stream()
-        .flatMap(Set::stream)
-        .collect(ImmutableList.toImmutableList());
+  protected CloseableIterable<DataFile> addedDataFiles() {
+    return dataFileAccumulator.allAddedFiles();
   }
 
   protected void failAnyDelete() {
@@ -228,7 +271,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected boolean addsDataFiles() {
-    return !newDataFilesBySpec.isEmpty();
+    return dataFileAccumulator.hasFiles();
   }
 
   protected boolean addsDeleteFiles() {
@@ -246,11 +289,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         file.specId(),
         file.location());
 
-    DataFileSet dataFiles =
-        newDataFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DataFileSet.create());
-    if (dataFiles.add(Delegates.suppressFirstRowId(file))) {
+    if (dataFileAccumulator.offer(Delegates.suppressFirstRowId(file), spec.specId())) {
       addedDataFilesSummary.addedFile(spec, file);
-      hasNewDataFiles = true;
+      hasPendingDataFileChanges = dataFileAccumulator.hasPendingFiles();
     }
   }
 
@@ -1074,6 +1115,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private void cleanUncommittedAppends(Set<ManifestFile> committed) {
+    // flushed data manifests are written during add() and reused across retries
+    dataFileAccumulator.deleteUncommitted(committed, this::deleteFile);
     deleteUncommitted(cachedNewDataManifests, committed, true /* clear manifests */);
     deleteUncommitted(cachedNewDeleteManifests, committed, true /* clear manifests */);
     // rewritten manifests are always owned by the table
@@ -1088,33 +1131,37 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private Iterable<ManifestFile> prepareNewDataManifests() {
-    Iterable<ManifestFile> newManifests;
-    if (!newDataFilesBySpec.isEmpty()) {
-      List<ManifestFile> dataFileManifests = newDataFilesAsManifests();
-      newManifests = Iterables.concat(dataFileManifests, appendManifests, rewrittenAppendManifests);
-    } else {
-      newManifests = Iterables.concat(appendManifests, rewrittenAppendManifests);
-    }
+    Iterable<ManifestFile> pendingManifests =
+        dataFileAccumulator.hasPendingFiles() ? pendingDataFilesAsManifests() : ImmutableList.of();
+
+    Iterable<ManifestFile> newManifests =
+        Iterables.concat(
+            dataFileAccumulator.flushedManifests(),
+            pendingManifests,
+            appendManifests,
+            rewrittenAppendManifests);
 
     return Iterables.transform(
         newManifests,
         manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
   }
 
-  private List<ManifestFile> newDataFilesAsManifests() {
-    if (hasNewDataFiles && !cachedNewDataManifests.isEmpty()) {
+  private List<ManifestFile> pendingDataFilesAsManifests() {
+    if (hasPendingDataFileChanges && !cachedNewDataManifests.isEmpty()) {
       cachedNewDataManifests.forEach(file -> deleteFile(file.path()));
       cachedNewDataManifests.clear();
     }
 
     if (cachedNewDataManifests.isEmpty()) {
-      newDataFilesBySpec.forEach(
-          (specId, dataFiles) -> {
-            List<ManifestFile> newDataManifests =
-                writeDataManifests(dataFiles, newDataFilesDataSequenceNumber, spec(specId));
-            cachedNewDataManifests.addAll(newDataManifests);
-          });
-      this.hasNewDataFiles = false;
+      dataFileAccumulator
+          .pendingBySpec()
+          .forEach(
+              (specId, dataFiles) -> {
+                List<ManifestFile> newDataManifests =
+                    writeDataManifests(dataFiles, newDataFilesDataSequenceNumber, spec(specId));
+                cachedNewDataManifests.addAll(newDataManifests);
+              });
+      this.hasPendingDataFileChanges = false;
     }
 
     return cachedNewDataManifests;

@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.DeleteFileSet;
@@ -39,6 +42,10 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
 
   protected BaseOverwriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
+  }
+
+  BaseOverwriteFiles(String tableName, TableOperations ops, int flushThreshold) {
+    super(tableName, ops, flushThreshold);
   }
 
   @Override
@@ -147,16 +154,20 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
       StrictMetricsEvaluator metrics =
           new StrictMetricsEvaluator(base.schema(), rowFilter, isCaseSensitive());
 
-      for (DataFile file : addedDataFiles()) {
-        // the real test is that the strict or metrics test matches the file, indicating that all
-        // records in the file match the filter. inclusive is used to avoid testing the metrics,
-        // which is more complicated
-        ValidationException.check(
-            inclusive.eval(file.partition())
-                && (strict.eval(file.partition()) || metrics.eval(file)),
-            "Cannot append file with rows that do not match filter: %s: %s",
-            rowFilter,
-            file.location());
+      try (CloseableIterable<DataFile> addedFiles = addedDataFiles()) {
+        for (DataFile file : addedFiles) {
+          // the real test is that the strict or metrics test matches the file, indicating that all
+          // records in the file match the filter. inclusive is used to avoid testing the metrics,
+          // which is more complicated
+          ValidationException.check(
+              inclusive.eval(file.partition())
+                  && (strict.eval(file.partition()) || metrics.eval(file)),
+              "Cannot append file with rows that do not match filter: %s: %s",
+              rowFilter,
+              file.location());
+        }
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to read added data files for validation");
       }
     }
 

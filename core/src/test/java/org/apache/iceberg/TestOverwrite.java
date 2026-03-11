@@ -36,6 +36,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -334,5 +335,58 @@ public class TestOverwrite extends TestBase {
         .hasMessageStartingWith("Cannot append file with rows that do not match filter");
 
     assertThat(latestSnapshot(base, branch).snapshotId()).isEqualTo(baseId);
+  }
+
+  @TestTemplate
+  public void testOverwriteAutoFlushWithDelete() {
+    TestTables.TestTableOperations ops = ((TestTables.TestTable) table).ops();
+    ops.failCommits(1);
+
+    List<DataFile> newFiles = Lists.newArrayList();
+    for (int i = 0; i < 5; i++) {
+      newFiles.add(newDataFile(table, "date=2018-06-08"));
+    }
+
+    BaseOverwriteFiles overwrite = new BaseOverwriteFiles(TABLE_NAME, ops, 3);
+    overwrite.deleteFile(FILE_0_TO_4);
+    newFiles.forEach(overwrite::addFile);
+    Snapshot snapshot = commit(table, overwrite, branch);
+
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    assertThat(snapshot.summary())
+        .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "5")
+        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "1");
+
+    // 1 flushed (3 files) + 1 remaining (2 files) + 1 existing with delete
+    List<ManifestFile> manifests = snapshot.dataManifests(table.io());
+    assertThat(manifests).hasSize(3);
+    validateManifest(
+        manifests.get(0),
+        dataSeqsRepeat(2L, 3),
+        fileSeqsRepeat(2L, 3),
+        idsRepeat(snapshot.snapshotId(), 3),
+        newFiles.subList(0, 3).iterator(),
+        statusesRepeat(Status.ADDED, 3));
+
+    validateManifest(
+        manifests.get(1),
+        dataSeqsRepeat(2L, 3),
+        fileSeqsRepeat(2L, 3),
+        idsRepeat(snapshot.snapshotId(), 3),
+        newFiles.subList(3, 5).iterator(),
+        statusesRepeat(Status.ADDED, 2));
+
+    validateManifest(
+        manifests.get(2),
+        dataSeqsRepeat(1L, 2),
+        fileSeqsRepeat(1L, 2),
+        ids(snapshot.snapshotId(), snapshot.parentId()),
+        files(FILE_0_TO_4, FILE_5_TO_9),
+        statuses(Status.DELETED, Status.EXISTING));
+
+    // FILE_5_TO_9 survives from setup, FILE_0_TO_4 deleted, 5 new files added
+    List<DataFile> expectedFiles = Lists.newArrayList(newFiles);
+    expectedFiles.add(FILE_5_TO_9);
+    validateBranchFiles(table, branch, expectedFiles);
   }
 }
