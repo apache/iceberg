@@ -37,8 +37,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Testcontainers
 public class TestSeaweedFSUtil {
-  @Container
-  private static final GenericContainer<?> SEAWEEDFS = SeaweedFSUtil.createContainer();
+  @Container private static final GenericContainer<?> SEAWEEDFS = SeaweedFSUtil.createContainer();
 
   @Test
   void validateS3ConditionalWrites() {

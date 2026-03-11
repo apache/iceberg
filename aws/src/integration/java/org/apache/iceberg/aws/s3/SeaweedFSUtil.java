@@ -45,10 +45,8 @@ public class SeaweedFSUtil {
 
   @SuppressWarnings("resource")
   public static GenericContainer<?> createContainer(String tag, AwsCredentials credentials) {
-    String accessKey =
-        credentials != null ? credentials.accessKeyId() : DEFAULT_ACCESS_KEY;
-    String secretKey =
-        credentials != null ? credentials.secretAccessKey() : DEFAULT_SECRET_KEY;
+    String accessKey = credentials != null ? credentials.accessKeyId() : DEFAULT_ACCESS_KEY;
+    String secretKey = credentials != null ? credentials.secretAccessKey() : DEFAULT_SECRET_KEY;
 
     GenericContainer<?> container =
         new GenericContainer<>(IMAGE + ":" + tag)
@@ -57,17 +55,13 @@ public class SeaweedFSUtil {
             .withEnv("AWS_ACCESS_KEY_ID", accessKey)
             .withEnv("AWS_SECRET_ACCESS_KEY", secretKey)
             .waitingFor(
-                new HttpWaitStrategy()
-                    .forPort(S3_PORT)
-                    .forPath("/status")
-                    .forStatusCode(200));
+                new HttpWaitStrategy().forPort(S3_PORT).forPath("/status").forStatusCode(200));
 
     return container;
   }
 
   public static String getS3URL(GenericContainer<?> container) {
-    return String.format(
-        "http://%s:%d", container.getHost(), container.getMappedPort(S3_PORT));
+    return String.format("http://%s:%d", container.getHost(), container.getMappedPort(S3_PORT));
   }
 
   public static S3Client createS3Client(GenericContainer<?> container) {
@@ -77,8 +71,7 @@ public class SeaweedFSUtil {
   public static S3Client createS3Client(
       GenericContainer<?> container, boolean legacyMd5PluginEnabled) {
     URI uri = URI.create(getS3URL(container));
-    String accessKey =
-        container.getEnvMap().getOrDefault("AWS_ACCESS_KEY_ID", DEFAULT_ACCESS_KEY);
+    String accessKey = container.getEnvMap().getOrDefault("AWS_ACCESS_KEY_ID", DEFAULT_ACCESS_KEY);
     String secretKey =
         container.getEnvMap().getOrDefault("AWS_SECRET_ACCESS_KEY", DEFAULT_SECRET_KEY);
 

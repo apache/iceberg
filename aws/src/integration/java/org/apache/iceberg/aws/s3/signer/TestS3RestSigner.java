@@ -382,8 +382,8 @@ public class TestS3RestSigner {
    * payload signing <a
    * href="https://github.com/aws/aws-sdk-java-v2/blob/ee30e19bf6618462a9a5ec1b3beac1e29013379b/core/auth/src/main/java/software/amazon/awssdk/auth/signer/internal/AbstractAwsS3V4Signer.java#L281">here</a>.
    *
-   * <p>However, we run SeaweedFS with <b>http</b> and don't have a means to disable payload signing in
-   * order to achieve the same signature in the {@link ValidatingSigner#sign(SdkHttpFullRequest,
+   * <p>However, we run SeaweedFS with <b>http</b> and don't have a means to disable payload signing
+   * in order to achieve the same signature in the {@link ValidatingSigner#sign(SdkHttpFullRequest,
    * ExecutionAttributes)} check above.
    */
   private static class CustomAwsS3V4Signer extends AbstractAwsS3V4Signer {
