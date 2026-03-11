@@ -107,6 +107,37 @@ public class ExpireSnapshots {
       return this;
     }
 
+    public Builder config(ExpireSnapshotsConfig expireSnapshotsConfig) {
+      this.scheduleOnCommitCount(expireSnapshotsConfig.scheduleOnCommitCount())
+          .scheduleOnDataFileCount(expireSnapshotsConfig.scheduleOnDataFileCount())
+          .scheduleOnDataFileSize(expireSnapshotsConfig.scheduleOnDataFileSize())
+          .scheduleOnInterval(Duration.ofSeconds(expireSnapshotsConfig.scheduleOnIntervalSecond()));
+
+      this.deleteBatchSize(expireSnapshotsConfig.deleteBatchSize());
+
+      Long maxSnapshotAgeSec = expireSnapshotsConfig.maxSnapshotAgeSeconds();
+      if (maxSnapshotAgeSec != null) {
+        this.maxSnapshotAge(Duration.ofSeconds(maxSnapshotAgeSec));
+      }
+
+      Integer retain = expireSnapshotsConfig.retainLast();
+      if (retain != null) {
+        this.retainLast(retain);
+      }
+
+      Boolean cleanMetadata = expireSnapshotsConfig.cleanExpiredMetadata();
+      if (cleanMetadata != null) {
+        this.cleanExpiredMetadata(cleanMetadata);
+      }
+
+      Integer poolSize = expireSnapshotsConfig.planningWorkerPoolSize();
+      if (poolSize != null) {
+        this.planningWorkerPoolSize(poolSize);
+      }
+
+      return this;
+    }
+
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       Preconditions.checkNotNull(tableLoader(), "TableLoader should not be null");

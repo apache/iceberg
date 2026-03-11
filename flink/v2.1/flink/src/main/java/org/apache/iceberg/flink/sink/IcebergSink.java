@@ -73,6 +73,9 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFilesConfig;
+import org.apache.iceberg.flink.maintenance.api.ExpireSnapshots;
+import org.apache.iceberg.flink.maintenance.api.ExpireSnapshotsConfig;
 import org.apache.iceberg.flink.maintenance.api.FlinkMaintenanceConfig;
 import org.apache.iceberg.flink.maintenance.api.LockConfig;
 import org.apache.iceberg.flink.maintenance.api.MaintenanceTaskBuilder;
@@ -631,14 +634,88 @@ public class IcebergSink
     }
 
     /**
-     * Adds a maintenance task to run after each commit. Can be called multiple times to add
-     * multiple tasks.
+     * Enables or disables compaction (rewriting data files) as a post-commit maintenance task.
      *
-     * @param task the maintenance task builder to add
-     * @return {@link Builder} to connect the iceberg table.
+     * @param enabled whether to enable compaction
+     * @see RewriteDataFilesConfig for the default config.
+     * @deprecated See {@code rewriteDatafiles(..)}
      */
-    public Builder maintenance(MaintenanceTaskBuilder<?> task) {
-      maintenanceTasks.add(task);
+    @Deprecated
+    public Builder compaction(boolean enabled) {
+      writeOptions.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), Boolean.toString(enabled));
+      return this;
+    }
+
+    /**
+     * Enables or disables compaction (rewriting data files) as a post-commit maintenance task.
+     *
+     * @param enabled whether to enable compaction
+     * @see RewriteDataFilesConfig for the default config.
+     */
+    public Builder rewriteDataFiles(boolean enabled) {
+      writeOptions.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), Boolean.toString(enabled));
+      return this;
+    }
+
+    /**
+     * Enables or disables compaction (rewriting data files) as a post-commit maintenance task.
+     *
+     * @param enabled whether to enable compaction
+     * @param config task-specific configuration, see {@link RewriteDataFilesConfig} for available
+     *     keys
+     */
+    public Builder rewriteDataFiles(boolean enabled, Map<String, String> config) {
+      rewriteDataFiles(enabled);
+      writeOptions.putAll(config);
+      return this;
+    }
+
+    /**
+     * Enables or disables expire snapshots as a post-commit maintenance task.
+     *
+     * @param enabled whether to enable expire snapshots
+     * @see ExpireSnapshotsConfig for the default config.
+     */
+    public Builder expireSnapshots(boolean enabled) {
+      writeOptions.put(FlinkWriteOptions.EXPIRE_SNAPSHOTS_ENABLE.key(), Boolean.toString(enabled));
+      return this;
+    }
+
+    /**
+     * Enables or disables expire snapshots as a post-commit maintenance task.
+     *
+     * @param enabled whether to enable expire snapshots
+     * @param config task-specific configuration, see {@link ExpireSnapshotsConfig} for available
+     *     keys
+     */
+    public Builder expireSnapshots(boolean enabled, Map<String, String> config) {
+      expireSnapshots(enabled);
+      writeOptions.putAll(config);
+      return this;
+    }
+
+    /**
+     * Enables or disables delete orphan files as a post-commit maintenance task.
+     *
+     * @param enabled whether to enable delete orphan files
+     * @see DeleteOrphanFilesConfig for the default config.
+     */
+    public Builder deleteOrphanFiles(boolean enabled) {
+      writeOptions.put(
+          FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE.key(), Boolean.toString(enabled));
+      return this;
+    }
+
+    /**
+     * Enables or disables delete orphan files as a post-commit maintenance task.
+     *
+     * @param enabled whether to enable delete orphan files
+     * @param config task-specific configuration, see {@link DeleteOrphanFilesConfig} for available
+     *     keys.
+     */
+    public Builder deleteOrphanFiles(boolean enabled, Map<String, String> config) {
+      deleteOrphanFiles(enabled);
+      writeOptions.putAll(config);
       return this;
     }
 
@@ -698,12 +775,24 @@ public class IcebergSink
       FlinkMaintenanceConfig flinkMaintenanceConfig =
           new FlinkMaintenanceConfig(table, writeOptions, readableConfig);
 
-      // If the "compactMode" option is configured,
-      // add it as a separate maintenance task
       if (flinkWriteConf.compactMode()) {
         RewriteDataFilesConfig rewriteDataFilesConfig =
             flinkMaintenanceConfig.createRewriteDataFilesConfig();
         maintenanceTasks.add(RewriteDataFiles.builder().config(rewriteDataFilesConfig));
+      }
+
+      if (flinkWriteConf.expireSnapshotsMode()) {
+        ExpireSnapshotsConfig expireSnapshotsConfig =
+            flinkMaintenanceConfig.createExpireSnapshotsConfig();
+        maintenanceTasks.add(ExpireSnapshots.builder().config(expireSnapshotsConfig));
+      }
+
+      if (flinkWriteConf.deleteOrphanFilesMode()) {
+        DeleteOrphanFilesConfig deleteOrphanFilesConfig =
+            flinkMaintenanceConfig.createDeleteOrphanFilesConfig();
+        maintenanceTasks.add(
+            org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.builder()
+                .config(deleteOrphanFilesConfig));
       }
 
       Set<String> equalityFieldColumnsSet =

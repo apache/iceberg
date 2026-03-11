@@ -189,6 +189,41 @@ public class DeleteOrphanFiles {
       return this;
     }
 
+    public Builder config(DeleteOrphanFilesConfig deleteOrphanFilesConfig) {
+      this.scheduleOnCommitCount(deleteOrphanFilesConfig.scheduleOnCommitCount())
+          .scheduleOnDataFileCount(deleteOrphanFilesConfig.scheduleOnDataFileCount())
+          .scheduleOnDataFileSize(deleteOrphanFilesConfig.scheduleOnDataFileSize())
+          .scheduleOnInterval(
+              Duration.ofSeconds(deleteOrphanFilesConfig.scheduleOnIntervalSecond()));
+
+      this.minAge(Duration.ofSeconds(deleteOrphanFilesConfig.minAgeSeconds()))
+          .deleteBatchSize(deleteOrphanFilesConfig.deleteBatchSize())
+          .usePrefixListing(deleteOrphanFilesConfig.usePrefixListing())
+          .prefixMismatchMode(deleteOrphanFilesConfig.prefixMismatchMode());
+
+      String loc = deleteOrphanFilesConfig.location();
+      if (loc != null) {
+        this.location(loc);
+      }
+
+      Integer poolSize = deleteOrphanFilesConfig.planningWorkerPoolSize();
+      if (poolSize != null) {
+        this.planningWorkerPoolSize(poolSize);
+      }
+
+      Map<String, String> schemes = deleteOrphanFilesConfig.equalSchemes();
+      if (schemes != null) {
+        this.equalSchemes(schemes);
+      }
+
+      Map<String, String> authorities = deleteOrphanFilesConfig.equalAuthorities();
+      if (authorities != null) {
+        this.equalAuthorities(authorities);
+      }
+
+      return this;
+    }
+
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       tableLoader().open();
