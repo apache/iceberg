@@ -18,18 +18,10 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
-public class TestS3FileIOWithLegacyMinIO extends TestS3FileIO {
-  @Override
-  protected MinIOContainer createMinIOContainer() {
-    MinIOContainer container = MinioUtil.createContainer(MinioUtil.LEGACY_TAG, null);
-    container.start();
-    return container;
-  }
-
+public class TestS3FileIOWithLegacyMd5 extends TestS3FileIO {
   @Override
   protected boolean legacyMd5PluginEnabled() {
     return true;

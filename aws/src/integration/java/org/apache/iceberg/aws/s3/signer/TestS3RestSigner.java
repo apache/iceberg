@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
-import org.apache.iceberg.aws.s3.MinioUtil;
+import org.apache.iceberg.aws.s3.SeaweedFSUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
@@ -46,7 +46,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -87,8 +87,9 @@ public class TestS3RestSigner {
           AwsBasicCredentials.create("accessKeyId", "secretAccessKey"));
 
   @Container
-  private static final MinIOContainer MINIO_CONTAINER =
-      MinioUtil.createContainer(MinioUtil.LATEST_TAG, CREDENTIALS_PROVIDER.resolveCredentials());
+  private static final GenericContainer<?> SEAWEEDFS_CONTAINER =
+      SeaweedFSUtil.createContainer(
+          SeaweedFSUtil.LATEST_TAG, CREDENTIALS_PROVIDER.resolveCredentials());
 
   private static Server httpServer;
   private static ValidatingSigner validatingSigner;
@@ -96,7 +97,7 @@ public class TestS3RestSigner {
 
   @BeforeAll
   public static void beforeClass() throws Exception {
-    assertThat(MINIO_CONTAINER.isRunning()).isTrue();
+    assertThat(SEAWEEDFS_CONTAINER.isRunning()).isTrue();
 
     if (null == httpServer) {
       httpServer = initHttpServer();
@@ -154,7 +155,7 @@ public class TestS3RestSigner {
 
   @BeforeEach
   public void before() throws Exception {
-    MINIO_CONTAINER.start();
+    SEAWEEDFS_CONTAINER.start();
     s3 =
         S3Client.builder()
             .region(REGION)
@@ -163,7 +164,7 @@ public class TestS3RestSigner {
                 s3ClientBuilder ->
                     s3ClientBuilder.httpClientBuilder(
                         software.amazon.awssdk.http.apache.ApacheHttpClient.builder()))
-            .endpointOverride(URI.create(MINIO_CONTAINER.getS3URL()))
+            .endpointOverride(URI.create(SeaweedFSUtil.getS3URL(SEAWEEDFS_CONTAINER)))
             .forcePathStyle(true) // OSX won't resolve subdomains
             .overrideConfiguration(
                 c -> c.putAdvancedOption(SdkAdvancedClientOption.SIGNER, validatingSigner))
@@ -251,7 +252,7 @@ public class TestS3RestSigner {
 
   @AfterEach
   public void after() {
-    MINIO_CONTAINER.stop();
+    SEAWEEDFS_CONTAINER.stop();
   }
 
   @Test
@@ -381,7 +382,7 @@ public class TestS3RestSigner {
    * payload signing <a
    * href="https://github.com/aws/aws-sdk-java-v2/blob/ee30e19bf6618462a9a5ec1b3beac1e29013379b/core/auth/src/main/java/software/amazon/awssdk/auth/signer/internal/AbstractAwsS3V4Signer.java#L281">here</a>.
    *
-   * <p>However, we run Minio with <b>http</b> and don't have a means to disable payload signing in
+   * <p>However, we run SeaweedFS with <b>http</b> and don't have a means to disable payload signing in
    * order to achieve the same signature in the {@link ValidatingSigner#sign(SdkHttpFullRequest,
    * ExecutionAttributes)} check above.
    */

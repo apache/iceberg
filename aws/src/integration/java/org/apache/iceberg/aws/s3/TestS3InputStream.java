@@ -29,7 +29,7 @@ import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -41,9 +41,9 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Testcontainers
 public class TestS3InputStream {
-  @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
+  @Container private static final GenericContainer<?> SEAWEEDFS = SeaweedFSUtil.createContainer();
 
-  private final S3Client s3 = MinioUtil.createS3Client(MINIO);
+  private final S3Client s3 = SeaweedFSUtil.createS3Client(SEAWEEDFS);
   private final Random random = new Random(1);
 
   @BeforeEach

@@ -52,7 +52,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -77,10 +77,10 @@ public class TestS3OutputStream {
   private static final String BUCKET = "test-bucket";
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
-  @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
+  @Container private static final GenericContainer<?> SEAWEEDFS = SeaweedFSUtil.createContainer();
   @TempDir private static Path tmpDir = null;
 
-  private final S3Client s3 = MinioUtil.createS3Client(MINIO);
+  private final S3Client s3 = SeaweedFSUtil.createS3Client(SEAWEEDFS);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3));
   private final Random random = new Random(1);
   @TempDir private Path newTmpDirectory;
