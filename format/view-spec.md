@@ -480,7 +480,7 @@ The materialized view metadata JSON file looks as follows:
 ```
 s3://bucket/warehouse/default.db/event_agg_mv/metadata/00001-(uuid).metadata.json
 ```
-```
+```json
 {
   "view-uuid": "b2a12651-3038-4a72-8a31-5027ab84da35",
   "format-version" : 1,
