@@ -132,7 +132,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     } else {
       LOG.warn(
           "Reading partition spec from manifest file metadata is deprecated and will be "
-              + "removed in a future release. Pass specsById to avoid reading from file metadata: {}",
+              + "removed in the 1.12.0 release. Pass specsById to avoid reading from file metadata: {}",
           file.location());
       this.spec = readPartitionSpec(file);
     }
