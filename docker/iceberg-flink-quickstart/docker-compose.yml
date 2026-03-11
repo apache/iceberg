@@ -98,7 +98,7 @@ services:
 
   # SeaweedFS for S3-compatible object storage (mini mode)
   seaweedfs:
-    image: chrislusf/seaweedfs
+    image: chrislusf/seaweedfs:4.17
     hostname: seaweedfs
     environment:
       AWS_ACCESS_KEY_ID: admin

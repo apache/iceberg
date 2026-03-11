@@ -20,7 +20,7 @@ volumes:
 
 services:
   seaweedfs:
-    image: chrislusf/seaweedfs:4.16
+    image: chrislusf/seaweedfs:4.17
     hostname: seaweedfs
     environment:
       - AWS_ACCESS_KEY_ID=admin
