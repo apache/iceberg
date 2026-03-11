@@ -65,10 +65,10 @@ public class InternalRowConverter extends CustomOrderSchemaVisitor<Object> {
   @Override
   public Object struct(Types.StructType struct, Iterable<Object> fieldResults) {
     GenericInternalRow internalRow = new GenericInternalRow(struct.fields().size());
-    int i = 0;
+    int idx = 0;
     for (Object fieldResult : fieldResults) {
-      internalRow.update(i, fieldResult);
-      i++;
+      internalRow.update(idx, fieldResult);
+      idx++;
     }
 
     return internalRow;
