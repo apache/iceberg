@@ -83,7 +83,7 @@ class RESTTableScan extends DataTableScan {
   private final ParserContext parserContext;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
-  private final FileIO tableIo;
+  private final FileIO tableIO;
   private String planId = null;
   private FileIO fileIOForPlanId = null;
 
@@ -97,7 +97,7 @@ class RESTTableScan extends DataTableScan {
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
-      FileIO tableIo,
+      FileIO tableIO,
       Map<String, String> catalogProperties,
       Object hadoopConf) {
     super(table, schema, context);
@@ -113,7 +113,7 @@ class RESTTableScan extends DataTableScan {
             .add("specsById", table.specs())
             .add("caseSensitive", context().caseSensitive())
             .build();
-    this.tableIo = tableIo;
+    this.tableIO = tableIO;
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
   }
@@ -138,7 +138,7 @@ class RESTTableScan extends DataTableScan {
 
   @Override
   protected FileIO io() {
-    return null != fileIOForPlanId ? fileIOForPlanId : tableIo;
+    return null != fileIOForPlanId ? fileIOForPlanId : tableIO;
   }
 
   @Override
