@@ -299,41 +299,43 @@ public class TestHadoopFileIO {
   @Test
   public void testBulkDeleteLargerContext() {
 
+    final Path root = new Path("/");
+
     // stub delete with page size of two, path #3 will be rejected on a deleteBatch() call
     final StubBulkDelete stubBulkDelete = new StubBulkDelete(2, 3);
-    final BulkDeleter.DeleteContext context = new BulkDeleter.DeleteContext(stubBulkDelete);
+    final BulkDeleter.DeleteContext context = new BulkDeleter.DeleteContext(root, stubBulkDelete);
     assertThat(context.pageSize()).isEqualTo(2);
     assertThat(context.size()).isEqualTo(0);
-    assertThat(context.pageIsComplete()).isFalse();
+    assertThat(context.pageSizeReached()).isFalse();
     // add one path, assert state changes
-    final Path p1 = new Path("/p1");
+    final Path p1 = new Path(root, "p1");
     context.add(p1);
     assertThat(context.size()).isEqualTo(1);
-    assertThat(context.pageIsComplete()).isFalse();
+    assertThat(context.pageSizeReached()).isFalse();
     // add a second path, the page is now complete
-    final Path p2 = new Path("/p2");
+    final Path p2 = new Path(root, "p2");
     context.add(p2);
-    assertThat(context.pageIsComplete()).isTrue();
+    assertThat(context.pageSizeReached()).isTrue();
     // take a snapshot, it has the expected size and the context is reset
     final Set<Path> snapshot = context.snapshotDeletedFiles();
     assertThat(snapshot).hasSize(2);
     assertThat(context.size()).isEqualTo(0);
-    assertThat(context.pageIsComplete()).isFalse();
+    assertThat(context.pageSizeReached()).isFalse();
     // perform the delete
-    assertThat(context.deleteBatch(snapshot)).isEmpty();
-    final Path p3 = new Path("/p3");
+    assertThat(context.deleteBatch(snapshot).failures()).isEmpty();
+    final Path p3 = new Path(root, "p3");
     context.add(p3);
-    final Path p4 = new Path("/p4");
+    final Path p4 = new Path(root, "p4");
     context.add(p4);
-    assertThat(context.pageIsComplete()).isTrue();
+    assertThat(context.pageSizeReached()).isTrue();
     // delete all without a snapshot (as is done at the end of deleteFiles());
     // this is going report a failure.
-    assertThat(context.deleteBatch(context.deletedFiles()))
+    assertThat(context.deleteBatch(context.deletedFiles()).failures())
         .hasSize(1)
         .allSatisfy(
             r -> {
-              assertThat(r.getKey()).isEqualTo(p3);
-              assertThat(r.getValue()).isEqualTo("simulated failure");
+              assertThat(r.path()).isEqualTo(p3);
+              assertThat(r.errorText()).isEqualTo("simulated failure");
             });
     // still deleted everything
     assertThat(stubBulkDelete.deleteCount).isEqualTo(4);
