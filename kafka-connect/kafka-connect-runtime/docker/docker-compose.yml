@@ -20,7 +20,7 @@ volumes:
 
 services:
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
+    image: chrislusf/seaweedfs:4.16
     hostname: seaweedfs
     environment:
       - AWS_ACCESS_KEY_ID=admin
@@ -33,7 +33,7 @@ services:
     command: "mini -dir=/data"
 
   create-bucket:
-    image: amazon/aws-cli:latest
+    image: amazon/aws-cli
     depends_on:
       - seaweedfs
     volumes:

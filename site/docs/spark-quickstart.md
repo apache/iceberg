@@ -74,7 +74,7 @@ services:
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
       - CATALOG_S3_ENDPOINT=http://seaweedfs:8333
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
+    image: chrislusf/seaweedfs
     container_name: seaweedfs
     environment:
       - AWS_ACCESS_KEY_ID=admin
@@ -94,7 +94,7 @@ services:
       retries: 10
       start_period: 5s
   create-bucket:
-    image: amazon/aws-cli:latest
+    image: amazon/aws-cli
     container_name: create-bucket
     depends_on:
       seaweedfs:

@@ -98,7 +98,7 @@ services:
 
   # SeaweedFS for S3-compatible object storage (mini mode)
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
+    image: chrislusf/seaweedfs
     hostname: seaweedfs
     environment:
       AWS_ACCESS_KEY_ID: admin
@@ -117,7 +117,7 @@ services:
 
   # Create the warehouse bucket
   create-bucket:
-    image: amazon/aws-cli:latest
+    image: amazon/aws-cli
     depends_on:
       seaweedfs:
         condition: service_healthy
