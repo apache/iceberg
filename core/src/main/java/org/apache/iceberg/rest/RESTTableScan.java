@@ -192,10 +192,8 @@ class RESTTableScan extends DataTableScan {
 
     this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
-    if (null != planId) {
-      this.scanFileIO =
-          !response.credentials().isEmpty() ? fileIOForPlanId(response.credentials()) : tableIO;
-    }
+    this.scanFileIO =
+        !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : tableIO;
 
     switch (planStatus) {
       case COMPLETED:
@@ -215,14 +213,17 @@ class RESTTableScan extends DataTableScan {
     }
   }
 
-  private FileIO fileIOForPlanId(List<Credential> storageCredentials) {
+  private FileIO scanFileIO(List<Credential> storageCredentials) {
+    ImmutableMap.Builder<String, String> builder =
+        ImmutableMap.<String, String>builder().putAll(catalogProperties);
+    if (null != planId) {
+      builder.put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId);
+    }
+
     FileIO ioForScan =
         CatalogUtil.loadFileIO(
             catalogProperties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL),
-            ImmutableMap.<String, String>builder()
-                .putAll(catalogProperties)
-                .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId)
-                .buildKeepingLast(),
+            builder.buildKeepingLast(),
             hadoopConf,
             storageCredentials.stream()
                 .map(c -> StorageCredential.create(c.prefix(), c.config()))
@@ -279,7 +280,7 @@ class RESTTableScan extends DataTableScan {
           planId);
 
       this.scanFileIO =
-          !response.credentials().isEmpty() ? fileIOForPlanId(response.credentials()) : tableIO;
+          !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : tableIO;
 
       return scanTasksIterable(response.planTasks(), response.fileScanTasks());
     } catch (FailsafeException e) {
