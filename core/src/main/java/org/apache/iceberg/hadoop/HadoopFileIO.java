@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.hadoop;
 
-import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -226,11 +225,10 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   /**
    * This class is a simple adaptor to allow for using Hadoop's RemoteIterator as an Iterator.
-   * Implements {@code Closeable.close()}, forwarding to the delgater class if it implements it.
-   * <p>Note: current wrapping of this class in listPrefix means close() can't actually be reached.
+   *
    * @param <E> element type
    */
-  private static final class AdaptingIterator<E> implements Iterator<E>, RemoteIterator<E>, Closeable {
+  private static class AdaptingIterator<E> implements Iterator<E>, RemoteIterator<E> {
     private final RemoteIterator<E> delegate;
 
     AdaptingIterator(RemoteIterator<E> delegate) {
@@ -253,18 +251,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
-    }
-
-    @Override
-    public void close() throws IOException {
-      if (delegate instanceof Closeable closeable) {
-        closeable.close();
-      }
-    }
-
-    @Override
-    public String toString() {
-      return "AdaptingIterator{delegate=" + delegate + '}';
     }
   }
 }

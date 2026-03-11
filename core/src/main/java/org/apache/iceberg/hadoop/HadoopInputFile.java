@@ -191,10 +191,12 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
         builder.withFileStatus(stat);
       }
       if (length != null) {
+        // S3A is happy with this in lieu of a file status.
         // Use the string option for consistent interpretation across versions.
-        builder.opt(Options.OpenFileOptions.FS_OPTION_OPENFILE_LENGTH, length.toString());
+        builder.opt(Options.OpenFileOptions.FS_OPTION_OPENFILE_LENGTH, Long.toString(length));
       }
       // read policy controls how read() calls are mapped to GET ranges.
+      // this is potentially the most significant tuning.
       builder.opt(
           Options.OpenFileOptions.FS_OPTION_OPENFILE_READ_POLICY, determineReadPolicy(path));
       return HadoopStreams.wrap(await(builder.build()));

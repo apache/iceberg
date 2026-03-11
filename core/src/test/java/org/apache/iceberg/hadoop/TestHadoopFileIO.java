@@ -21,7 +21,6 @@ package org.apache.iceberg.hadoop;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -85,14 +84,8 @@ public class TestHadoopFileIO {
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    final Iterable<FileInfo> listing = hadoopFileIO.listPrefix(parent.toUri().toString());
-    assertThat(Streams.stream(listing).count()).isEqualTo(totalFiles);
-    // the iterator from listPrefix is closeable, so close it.
-    // a no-op with most filesystems iterators.
-    assertThat(listing)
-        .describedAs("Listing iterator %s", listing)
-        .isInstanceOf(Closeable.class);
-    ((Closeable) listing).close();
+    assertThat(Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count())
+        .isEqualTo(totalFiles);
   }
 
   /**

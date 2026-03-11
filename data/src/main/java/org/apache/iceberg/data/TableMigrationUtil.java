@@ -178,7 +178,7 @@ public class TableMigrationUtil {
       if (format.contains("avro")) {
         task.run(
             index -> {
-              Metrics metrics = getAvroMetrics(fileStatus.get(index).getPath(), conf);
+              Metrics metrics = getAvroMetrics(fileStatus.get(index), conf);
               datafiles[index] =
                   buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "avro");
             });
@@ -186,15 +186,14 @@ public class TableMigrationUtil {
         task.run(
             index -> {
               Metrics metrics =
-                  getParquetMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+                  getParquetMetrics(fileStatus.get(index), conf, metricsSpec, mapping);
               datafiles[index] =
                   buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "parquet");
             });
       } else if (format.contains("orc")) {
         task.run(
             index -> {
-              Metrics metrics =
-                  getOrcMetrics(fileStatus.get(index).getPath(), conf, metricsSpec, mapping);
+              Metrics metrics = getOrcMetrics(fileStatus.get(index), conf, metricsSpec, mapping);
               datafiles[index] =
                   buildDataFile(fileStatus.get(index), partitionValues, spec, metrics, "orc");
             });
@@ -211,32 +210,34 @@ public class TableMigrationUtil {
     }
   }
 
-  private static Metrics getAvroMetrics(Path path, Configuration conf) {
+  private static Metrics getAvroMetrics(FileStatus stat, Configuration conf) {
     try {
-      InputFile file = HadoopInputFile.fromPath(path, conf);
+      InputFile file = HadoopInputFile.fromStatus(stat, conf);
       long rowCount = Avro.rowCount(file);
       return new Metrics(rowCount, null, null, null, null);
     } catch (UncheckedIOException e) {
-      throw new RuntimeException("Unable to read Avro file: " + path, e);
+      throw new RuntimeException("Unable to read Avro file: " + stat.getPath(), e);
     }
   }
 
   private static Metrics getParquetMetrics(
-      Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
+      FileStatus stat, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
     try {
-      InputFile file = HadoopInputFile.fromPath(path, conf);
+      InputFile file = HadoopInputFile.fromStatus(stat, conf);
       return ParquetUtil.fileMetrics(file, metricsSpec, mapping);
     } catch (UncheckedIOException e) {
-      throw new RuntimeException("Unable to read the metrics of the Parquet file: " + path, e);
+      throw new RuntimeException(
+          "Unable to read the metrics of the Parquet file: " + stat.getPath(), e);
     }
   }
 
   private static Metrics getOrcMetrics(
-      Path path, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
+      FileStatus stat, Configuration conf, MetricsConfig metricsSpec, NameMapping mapping) {
     try {
-      return OrcMetrics.fromInputFile(HadoopInputFile.fromPath(path, conf), metricsSpec, mapping);
+      return OrcMetrics.fromInputFile(HadoopInputFile.fromStatus(stat, conf), metricsSpec, mapping);
     } catch (UncheckedIOException e) {
-      throw new RuntimeException("Unable to read the metrics of the Orc file: " + path, e);
+      throw new RuntimeException(
+          "Unable to read the metrics of the Orc file: " + stat.getPath(), e);
     }
   }
 
