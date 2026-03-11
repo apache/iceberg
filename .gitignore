@@ -78,3 +78,9 @@ derby.log
 
 # sdkman
 .sdkmanrc
+
+# lance design doc
+iceberg-lance-format-design.md
+
+.codebuddy
+
