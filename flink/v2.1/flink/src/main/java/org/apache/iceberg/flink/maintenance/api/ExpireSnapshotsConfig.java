@@ -56,7 +56,7 @@ public class ExpireSnapshotsConfig {
   public static final ConfigOption<Long> SCHEDULE_ON_INTERVAL_SECOND_OPTION =
       ConfigOptions.key(SCHEDULE_ON_INTERVAL_SECOND)
           .longType()
-          .defaultValue(10 * 60L) // Default is 10 minutes
+          .defaultValue(60 * 60L) // Default is 1 hour
           .withDescription(
               "The time interval (in seconds) between two consecutive expire snapshots operations.");
 
