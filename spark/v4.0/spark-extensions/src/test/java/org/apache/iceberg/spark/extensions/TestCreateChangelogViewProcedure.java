@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,6 +31,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.procedures.CreateChangelogViewProcedure;
 import org.apache.spark.sql.types.StructField;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -690,5 +692,162 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Identifier field is required as table contains unorderable columns: [data]");
+  }
+
+  @TestTemplate
+  public void testScdType2BasicInsertUpdateDelete() {
+    createTableWithIdentifierField();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (1, 'b')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', scd_type2 => true)",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+    List<Object[]> rows = sql("SELECT * FROM %s ORDER BY _change_ordinal", viewName);
+
+    assertThat(rows).hasSize(3);
+
+    Timestamp ts1 = new Timestamp(snap1.timestampMillis());
+    Timestamp ts2 = new Timestamp(snap2.timestampMillis());
+    Timestamp ts3 = new Timestamp(snap3.timestampMillis());
+
+    // INSERT row: valid from snap1 to snap2
+    assertThat(rows.get(0))
+        .containsExactly(1, "a", INSERT, 0, snap1.snapshotId(), ts1, ts2, false);
+    // UPDATE_AFTER row: valid from snap2 to snap3
+    assertThat(rows.get(1))
+        .containsExactly(1, "b", UPDATE_AFTER, 1, snap2.snapshotId(), ts2, ts3, false);
+    // DELETE row: valid from snap3, _valid_to is NULL, _is_current = false
+    assertThat(rows.get(2))
+        .containsExactly(1, "b", DELETE, 2, snap3.snapshotId(), ts3, null, false);
+  }
+
+  @TestTemplate
+  public void testScdType2CurrentRows() {
+    // Use a table partitioned by id so INSERT OVERWRITE only affects id=1's partition
+    sql("CREATE TABLE %s (id INT NOT NULL, data STRING) USING iceberg", tableName);
+    sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+
+    // Update only id=1 (partition-level overwrite, id=2 is untouched)
+    sql("INSERT OVERWRITE %s VALUES (1, 'c')", tableName);
+    table.refresh();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', scd_type2 => true)",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+    List<Object[]> currentRows =
+        sql(
+            "SELECT id FROM %s WHERE %s = true ORDER BY id",
+            viewName, CreateChangelogViewProcedure.IS_CURRENT_COL);
+
+    // id=1's UPDATE_AFTER row should be current; id=2's INSERT row should also be current
+    assertThat(currentRows).hasSize(2);
+    assertThat(currentRows.get(0)[0]).isEqualTo(1);
+    assertThat(currentRows.get(1)[0]).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testScdType2HardDelete() {
+    createTableWithIdentifierField();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', scd_type2 => true)",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+    List<Object[]> rows = sql("SELECT * FROM %s ORDER BY _change_ordinal", viewName);
+
+    assertThat(rows).hasSize(2);
+
+    // DELETE row: _valid_to IS NULL, _is_current = false
+    Object[] deleteRow = rows.get(1);
+    assertThat(deleteRow[2]).isEqualTo(DELETE);
+    assertThat(deleteRow[6]).isNull(); // _valid_to
+    assertThat(deleteRow[7]).isEqualTo(false); // _is_current
+  }
+
+  @TestTemplate
+  public void testScdType2RequiresIdentifierColumns() {
+    createTableWithTwoColumns();
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', scd_type2 => true)",
+                    catalogName, tableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("SCD Type-2 requires identifier columns to be set");
+  }
+
+  @TestTemplate
+  public void testScdType2IncompatibleWithNetChanges() {
+    createTableWithIdentifierField();
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.create_changelog_view(table => '%s', identifier_columns => array('id'), scd_type2 => true, net_changes => true)",
+                    catalogName, tableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot use net_changes with scd_type2");
+  }
+
+  @TestTemplate
+  public void testScdType2OutputSchema() {
+    createTableWithIdentifierField();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', scd_type2 => true)",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+    var df = spark.sql("SELECT * FROM " + viewName);
+    var fieldNames =
+        Arrays.stream(df.schema().fields()).map(StructField::name).collect(Collectors.toList());
+
+    assertThat(fieldNames)
+        .containsExactly(
+            "id",
+            "data",
+            "_change_type",
+            "_change_ordinal",
+            "_commit_snapshot_id",
+            CreateChangelogViewProcedure.VALID_FROM_COL,
+            CreateChangelogViewProcedure.VALID_TO_COL,
+            CreateChangelogViewProcedure.IS_CURRENT_COL);
   }
 }
