@@ -647,74 +647,67 @@ public class IcebergSink
     }
 
     /**
-     * Enables or disables compaction (rewriting data files) as a post-commit maintenance task.
+     * Enables rewriting data files (compaction) as a post-commit maintenance task.
      *
-     * @param enabled whether to enable compaction
      * @see RewriteDataFilesConfig for the default config.
      */
-    public Builder rewriteDataFiles(boolean enabled) {
-      writeOptions.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), Boolean.toString(enabled));
+    public Builder rewriteDataFiles() {
+      writeOptions.put(FlinkWriteOptions.COMPACTION_ENABLE.key(), "true");
       return this;
     }
 
     /**
-     * Enables or disables compaction (rewriting data files) as a post-commit maintenance task.
+     * Enables rewriting data files (compaction) as a post-commit maintenance task.
      *
-     * @param enabled whether to enable compaction
      * @param config task-specific configuration, see {@link RewriteDataFilesConfig} for available
      *     keys
      */
-    public Builder rewriteDataFiles(boolean enabled, Map<String, String> config) {
-      rewriteDataFiles(enabled);
+    public Builder rewriteDataFiles(Map<String, String> config) {
+      rewriteDataFiles();
       writeOptions.putAll(config);
       return this;
     }
 
     /**
-     * Enables or disables expire snapshots as a post-commit maintenance task.
+     * Enables expire snapshots as a post-commit maintenance task.
      *
-     * @param enabled whether to enable expire snapshots
      * @see ExpireSnapshotsConfig for the default config.
      */
-    public Builder expireSnapshots(boolean enabled) {
-      writeOptions.put(FlinkWriteOptions.EXPIRE_SNAPSHOTS_ENABLE.key(), Boolean.toString(enabled));
+    public Builder expireSnapshots() {
+      writeOptions.put(FlinkWriteOptions.EXPIRE_SNAPSHOTS_ENABLE.key(), "true");
       return this;
     }
 
     /**
      * Enables or disables expire snapshots as a post-commit maintenance task.
      *
-     * @param enabled whether to enable expire snapshots
      * @param config task-specific configuration, see {@link ExpireSnapshotsConfig} for available
      *     keys
      */
-    public Builder expireSnapshots(boolean enabled, Map<String, String> config) {
-      expireSnapshots(enabled);
+    public Builder expireSnapshots(Map<String, String> config) {
+      expireSnapshots();
       writeOptions.putAll(config);
       return this;
     }
 
     /**
-     * Enables or disables delete orphan files as a post-commit maintenance task.
+     * Enables delete orphan files as a post-commit maintenance task.
      *
-     * @param enabled whether to enable delete orphan files
      * @see DeleteOrphanFilesConfig for the default config.
      */
-    public Builder deleteOrphanFiles(boolean enabled) {
-      writeOptions.put(
-          FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE.key(), Boolean.toString(enabled));
+    public Builder deleteOrphanFiles() {
+      writeOptions.put(FlinkWriteOptions.DELETE_ORPHAN_FILES_ENABLE.key(), "true");
       return this;
     }
 
     /**
-     * Enables or disables delete orphan files as a post-commit maintenance task.
+     * Enables delete orphan files as a post-commit maintenance task.
      *
-     * @param enabled whether to enable delete orphan files
      * @param config task-specific configuration, see {@link DeleteOrphanFilesConfig} for available
      *     keys.
      */
-    public Builder deleteOrphanFiles(boolean enabled, Map<String, String> config) {
-      deleteOrphanFiles(enabled);
+    public Builder deleteOrphanFiles(Map<String, String> config) {
+      deleteOrphanFiles();
       writeOptions.putAll(config);
       return this;
     }

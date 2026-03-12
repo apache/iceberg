@@ -302,9 +302,9 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
         .setAll(flinkConf)
         .table(table)
         .tableLoader(tableLoader)
-        .rewriteDataFiles(true, compactionConfig)
-        .expireSnapshots(true, expireConfig)
-        .deleteOrphanFiles(true, orphanConfig)
+        .rewriteDataFiles(compactionConfig)
+        .expireSnapshots(expireConfig)
+        .deleteOrphanFiles(orphanConfig)
         .append();
 
     env.execute("Test All Maintenance E2E");
