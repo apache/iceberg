@@ -65,7 +65,8 @@ val df = spark.readStream
 
 ### Asynchronous Micro-Batch Planning
 
-If users are experiencing bottlenecks due to waiting for micro-batch planning to complete before starting to process data, they can enable asynchronous micro-batch planning by setting `async-micro-batch-planning-enabled` to `true`. With this option enabled, Spark will start processing the current micro-batch while planning the next micro-batches in parallel. This can help improve query throughput by reducing idle time between micro-batches. Users should weigh the tradeoffs which include higher memory usage and detection delay dependent on the polling thread.
+Users can enable asynchronous micro-batch planning by setting `async-micro-batch-planning-enabled` to true. With this option enabled, Iceberg will start processing the current micro-batch while planning the next micro-batches in parallel.
+This can help improve query throughput by reducing idle time between micro-batches. Users should weigh the tradeoffs, which include higher memory usage and increased snapshot detection latency.
 
 Users can also set additional options to control the behavior of asynchronous micro-batch planning, found in the [spark configuration](spark-configuration.md#read-options).
 
