@@ -76,14 +76,12 @@ class RESTTableScan extends DataTableScan {
   private final RESTClient client;
   private final Map<String, String> headers;
   private final TableOperations operations;
-  private final Table table;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
   private final Set<Endpoint> supportedEndpoints;
   private final ParserContext parserContext;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
-  private final FileIO tableIO;
   private String planId = null;
   private FileIO scanFileIO = null;
 
@@ -97,11 +95,9 @@ class RESTTableScan extends DataTableScan {
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
-      FileIO tableIO,
       Map<String, String> catalogProperties,
       Object hadoopConf) {
     super(table, schema, context);
-    this.table = table;
     this.client = client;
     this.headers = headers;
     this.operations = operations;
@@ -113,7 +109,6 @@ class RESTTableScan extends DataTableScan {
             .add("specsById", table.specs())
             .add("caseSensitive", context().caseSensitive())
             .build();
-    this.tableIO = tableIO;
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
   }
@@ -131,7 +126,6 @@ class RESTTableScan extends DataTableScan {
         tableIdentifier,
         resourcePaths,
         supportedEndpoints,
-        null != scanFileIO ? scanFileIO : tableIO,
         catalogProperties,
         hadoopConf);
   }
@@ -139,7 +133,7 @@ class RESTTableScan extends DataTableScan {
   @Override
   public FileIO io() {
     Preconditions.checkState(
-        null != scanFileIO, "Cannot use FileIO because planFiles() must be called first");
+        null != scanFileIO, "FileIO is not available: planFiles() must be called first");
     return scanFileIO;
   }
 
@@ -172,7 +166,7 @@ class RESTTableScan extends DataTableScan {
           .withEndSnapshotId(endSnapshotId)
           .withUseSnapshotSchema(true);
     } else if (snapshotId != null) {
-      boolean useSnapShotSchema = snapshotId != table.currentSnapshot().snapshotId();
+      boolean useSnapShotSchema = snapshotId != table().currentSnapshot().snapshotId();
       builder.withSnapshotId(snapshotId).withUseSnapshotSchema(useSnapShotSchema);
     }
 
@@ -193,7 +187,7 @@ class RESTTableScan extends DataTableScan {
     this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
     this.scanFileIO =
-        !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : tableIO;
+        !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : table().io();
 
     switch (planStatus) {
       case COMPLETED:
@@ -220,10 +214,11 @@ class RESTTableScan extends DataTableScan {
       builder.put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId);
     }
 
+    Map<String, String> properties = builder.buildKeepingLast();
     FileIO ioForScan =
         CatalogUtil.loadFileIO(
             catalogProperties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL),
-            builder.buildKeepingLast(),
+            properties,
             hadoopConf,
             storageCredentials.stream()
                 .map(c -> StorageCredential.create(c.prefix(), c.config()))
@@ -280,7 +275,7 @@ class RESTTableScan extends DataTableScan {
           planId);
 
       this.scanFileIO =
-          !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : tableIO;
+          !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : table().io();
 
       return scanTasksIterable(response.planTasks(), response.fileScanTasks());
     } catch (FailsafeException e) {
@@ -322,10 +317,8 @@ class RESTTableScan extends DataTableScan {
   /** Cancels the plan on the server (if supported) and closes the plan-scoped FileIO */
   private void cleanupPlanResources() {
     cancelPlan();
-    if (null != scanFileIO) {
-      FILEIO_TRACKER.invalidate(this);
-      this.scanFileIO = null;
-    }
+    FILEIO_TRACKER.invalidate(this);
+    this.scanFileIO = null;
   }
 
   @VisibleForTesting

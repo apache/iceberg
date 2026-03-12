@@ -998,7 +998,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     TableScan tableScan = table.newScan();
     assertThatThrownBy(tableScan::io)
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot use FileIO because planFiles() must be called first");
+        .hasMessage("FileIO is not available: planFiles() must be called first");
 
     // make sure remote scan planning is called and FileIO gets the planId
     assertThat(tableScan.planFiles()).hasSize(1);
@@ -1009,7 +1009,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     TableScan newScan = table.newScan();
     assertThatThrownBy(newScan::io)
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Cannot use FileIO because planFiles() must be called first");
+        .hasMessage("FileIO is not available: planFiles() must be called first");
 
     // make sure remote scan planning is called and FileIO gets the planId
     assertThat(newScan.planFiles()).hasSize(1);
