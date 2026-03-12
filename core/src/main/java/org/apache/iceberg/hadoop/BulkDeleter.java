@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.hadoop;
 
-import static java.util.Objects.requireNonNull;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
@@ -204,8 +202,8 @@ final class BulkDeleter {
      * @param bulkDelete bulk delete operation.
      */
     DeleteContext(Path fsRoot, BulkDelete bulkDelete) {
-      this.fsRoot = requireNonNull(fsRoot);
-      this.bulkDelete = requireNonNull(bulkDelete);
+      this.fsRoot = Preconditions.checkNotNull(fsRoot, "null filesystem root path");
+      this.bulkDelete = Preconditions.checkNotNull(bulkDelete, "null filesystem bulk deleter");
       this.pageSize = bulkDelete.pageSize();
       Preconditions.checkArgument(pageSize > 0, "Page size must be greater than zero");
     }
