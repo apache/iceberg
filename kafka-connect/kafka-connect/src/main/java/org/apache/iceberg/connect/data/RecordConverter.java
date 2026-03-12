@@ -37,9 +37,11 @@ import java.time.temporal.Temporal;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
@@ -53,7 +55,6 @@ import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -479,39 +480,35 @@ class RecordConverter {
       return Variant.from((ByteBuffer) value);
     }
 
-    List<String> allFieldNames =
-        collectFieldNames(value).stream().distinct().sorted().collect(Collectors.toList());
-    VariantMetadata metadata =
-        allFieldNames.isEmpty() ? Variants.emptyMetadata() : Variants.metadata(allFieldNames);
+    Set<String> fieldNames = new HashSet<>();
+    collectFieldNames(value, fieldNames);
+    List<String> allFieldNames = fieldNames.stream().sorted().collect(Collectors.toList());
+    VariantMetadata metadata = Variants.metadata(allFieldNames);
     VariantValue variantValue = objectToVariantValue(value, metadata);
     return Variant.of(metadata, variantValue);
   }
 
   /**
-   * Collects all field names (map keys) from the entire object tree. Used to build a single
-   * VariantMetadata for the whole Variant (required for nested maps).
+   * Collects all field names (map keys) from the entire object tree into the given set. Used to
+   * build a single VariantMetadata for the whole Variant (required for nested maps).
    */
-  private static List<String> collectFieldNames(Object value) {
+  private static void collectFieldNames(Object value, Set<String> names) {
     if (value == null) {
-      return List.of();
+      return;
     }
     if (value instanceof Map) {
       Map<?, ?> map = (Map<?, ?>) value;
-      List<String> names = Lists.newArrayList();
       map.keySet().stream().map(Object::toString).forEach(names::add);
       for (Object v : map.values()) {
-        names.addAll(collectFieldNames(v));
+        collectFieldNames(v, names);
       }
-      return names;
+      return;
     }
     if (value instanceof Collection) {
-      List<String> names = Lists.newArrayList();
       for (Object element : (Collection<?>) value) {
-        names.addAll(collectFieldNames(element));
+        collectFieldNames(element, names);
       }
-      return names;
     }
-    return List.of();
   }
 
   /**
