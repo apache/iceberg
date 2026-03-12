@@ -179,8 +179,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     if (scdType2) {
       Preconditions.checkArgument(!netChanges, "Cannot use net_changes with scd_type2");
       Preconditions.checkArgument(
-          identifierColumns.length > 0,
-          "SCD Type-2 requires identifier columns to be set");
+          identifierColumns.length > 0, "SCD Type-2 requires identifier columns to be set");
       Table table = loadSparkTable(tableIdent).table();
       df = computeScdType2(identifierColumns, df, table);
     } else if (shouldComputeUpdateImages(input)) {
@@ -212,8 +211,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return applyChangelogIterator(df, repartitionSpec);
   }
 
-  private Dataset<Row> computeScdType2(
-      String[] identifierColumns, Dataset<Row> df, Table table) {
+  private Dataset<Row> computeScdType2(String[] identifierColumns, Dataset<Row> df, Table table) {
     // Step 1: compute update images (UPDATE_BEFORE / UPDATE_AFTER)
     df = computeUpdateImages(identifierColumns, df);
 
@@ -245,15 +243,15 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
             VALID_FROM_COL,
             functions.callUDF("__iceberg_snapshot_timestamp", df.col(snapshotIdCol)));
 
-    // Step 5: compute _valid_to = LEAD(_valid_from) OVER (PARTITION BY id_cols ORDER BY _change_ordinal)
+    // Step 5: compute _valid_to = LEAD(_valid_from) OVER (PARTITION BY id_cols ORDER BY
+    // _change_ordinal)
     String changeOrdinalCol = MetadataColumns.CHANGE_ORDINAL.name();
     Column[] partitionCols =
         Arrays.stream(identifierColumns)
             .map(c -> dfWithValidFrom.col(delimitedName(c)))
             .toArray(Column[]::new);
     WindowSpec window =
-        Window.partitionBy(partitionCols)
-            .orderBy(dfWithValidFrom.col(changeOrdinalCol).asc());
+        Window.partitionBy(partitionCols).orderBy(dfWithValidFrom.col(changeOrdinalCol).asc());
     Dataset<Row> dfWithValidTo =
         dfWithValidFrom.withColumn(
             VALID_TO_COL, functions.lead(dfWithValidFrom.col(VALID_FROM_COL), 1).over(window));
