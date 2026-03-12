@@ -1473,6 +1473,64 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     inputDF.coalesce(1).writeTo(target).append();
   }
 
+  @TestTemplate
+  public void testPartitionDeleteWithWapBranch() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "PARTITIONED BY (data) "
+            + "TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+
+    sql("INSERT INTO %s VALUES (2, 'a'), (2, 'b')", tableName);
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "dev1"),
+        () -> {
+          sql("INSERT INTO %s VALUES (1, 'a'), (2, 'a')", tableName);
+
+          sql("DELETE FROM %s WHERE data = 'a'", tableName);
+
+          assertEquals(
+              "Main branch should keep all original data",
+              ImmutableList.of(row(2L, "a"), row(2L, "b")),
+              sql("SELECT * FROM %s.branch_main ORDER BY id, data", tableName));
+
+          assertEquals(
+              "WAP branch should have data=a row deleted",
+              ImmutableList.of(row(2L, "b")),
+              sql("SELECT * FROM %s VERSION AS OF 'dev1' ORDER BY id, data", tableName));
+        });
+  }
+
+  @TestTemplate
+  public void testNonPartitionDeleteWithWapBranch() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "PARTITIONED BY (data) "
+            + "TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+
+    sql("INSERT INTO %s VALUES (2, 'a'), (2, 'b')", tableName);
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "dev1"),
+        () -> {
+          sql("INSERT INTO %s VALUES (1, 'a'), (2, 'a')", tableName);
+
+          sql("DELETE FROM %s WHERE id = 2", tableName);
+
+          assertEquals(
+              "Main branch should keep all original data",
+              ImmutableList.of(row(2L, "a"), row(2L, "b")),
+              sql("SELECT * FROM %s.branch_main ORDER BY id, data", tableName));
+
+          assertEquals(
+              "WAP branch should have id=2 row deleted",
+              ImmutableList.of(row(1L, "a")),
+              sql("SELECT * FROM %s VERSION AS OF 'dev1' ORDER BY id, data", tableName));
+        });
+  }
+
   private RowLevelOperationMode mode(Table table) {
     String modeName = table.properties().getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
     return RowLevelOperationMode.fromName(modeName);

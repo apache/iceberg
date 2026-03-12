@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.spark.TimeTravel;
@@ -233,7 +234,12 @@ public class SparkTable extends BaseSparkTable
             .includeColumnStats()
             .ignoreResiduals();
 
-    if (snapshot != null) {
+    String targetBranch =
+        SparkTableUtil.determineReadBranch(
+            spark(), table(), branch, CaseInsensitiveStringMap.empty());
+    if (targetBranch != null) {
+      scan = scan.useRef(targetBranch);
+    } else if (snapshot != null) {
       scan = scan.useSnapshot(snapshot.snapshotId());
     }
 
@@ -275,8 +281,11 @@ public class SparkTable extends BaseSparkTable
             .set("spark.app.id", spark().sparkContext().applicationId())
             .deleteFromRowFilter(deleteExpr);
 
-    if (branch != null) {
-      deleteFiles.toBranch(branch);
+    String targetBranch =
+        SparkTableUtil.determineWriteBranch(
+            spark(), table(), branch, CaseInsensitiveStringMap.empty());
+    if (targetBranch != null) {
+      deleteFiles.toBranch(targetBranch);
     }
 
     if (!CommitMetadata.commitProperties().isEmpty()) {
