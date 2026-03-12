@@ -498,7 +498,11 @@ class RecordConverter {
     }
     if (value instanceof Map) {
       Map<?, ?> map = (Map<?, ?>) value;
-      map.keySet().stream().map(Object::toString).forEach(names::add);
+      for (Object k : map.keySet()) {
+        if (k != null && k instanceof String) {
+          names.add((String) k);
+        }
+      }
       for (Object v : map.values()) {
         collectFieldNames(v, names);
       }
@@ -547,7 +551,12 @@ class RecordConverter {
     if (value instanceof Map) {
       Map<?, ?> map = (Map<?, ?>) value;
       ShreddedObject object = Variants.object(metadata);
-      map.forEach((k, v) -> object.put(k.toString(), objectToVariantValue(v, metadata)));
+      map.forEach(
+          (k, v) -> {
+            if (k != null && k instanceof String) {
+              object.put((String) k, objectToVariantValue(v, metadata));
+            }
+          });
       return object;
     }
     throw new IllegalArgumentException("Cannot convert to variant: " + value.getClass().getName());
