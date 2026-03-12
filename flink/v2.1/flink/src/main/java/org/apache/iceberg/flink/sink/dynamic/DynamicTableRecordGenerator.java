@@ -33,22 +33,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public abstract class DynamicTableRecordGenerator implements DynamicRecordGenerator<RowData> {
 
   private final RowType rowType;
-  private final Map<String, String> writeProps;
+  private final Map<String, String> writeProperties;
 
-  public DynamicTableRecordGenerator(RowType rowType, Map<String, String> writeProps) {
+  public DynamicTableRecordGenerator(RowType rowType, Map<String, String> writeProperties) {
     this.rowType = rowType;
-    this.writeProps = writeProps;
+    this.writeProperties = writeProperties;
   }
 
-  public RowType rowType() {
+  protected RowType rowType() {
     return rowType;
   }
 
-  public Map<String, String> writeProps() {
-    return writeProps;
+  protected Map<String, String> writeProperties() {
+    return writeProperties;
   }
 
-  protected Map<String, Integer> getFieldPositionIndex() {
+  protected Map<String, Integer> fieldNameToPositionMapping() {
     Map<String, Integer> fieldNameToPosition = Maps.newHashMap();
     List<RowType.RowField> fields = rowType.getFields();
 
@@ -63,7 +63,12 @@ public abstract class DynamicTableRecordGenerator implements DynamicRecordGenera
   protected void validateRequiredFieldAndType(String columnName, LogicalType expectedType) {
     int fieldIndex = rowType.getFieldIndex(columnName);
 
-    Preconditions.checkArgument(fieldIndex != -1, "Missing column %s", columnName);
+    Preconditions.checkArgument(
+        fieldIndex != -1,
+        "Missing column %s.Expected column %s of type %s.",
+        columnName,
+        columnName,
+        expectedType);
 
     LogicalType actualType = rowType.getTypeAt(fieldIndex);
     Preconditions.checkArgument(
