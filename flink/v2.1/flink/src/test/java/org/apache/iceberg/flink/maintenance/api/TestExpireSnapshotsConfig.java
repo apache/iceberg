@@ -85,7 +85,7 @@ public class TestExpireSnapshotsConfig extends OperatorTestBase {
     assertThat(config.retainLast()).isNull();
     assertThat(config.deleteBatchSize())
         .isEqualTo(ExpireSnapshotsConfig.DELETE_BATCH_SIZE_OPTION.defaultValue());
-    assertThat(config.cleanExpiredMetadata()).isNull();
+    assertThat(config.cleanExpiredMetadata()).isFalse();
     assertThat(config.planningWorkerPoolSize()).isNull();
   }
 }

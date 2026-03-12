@@ -87,7 +87,7 @@ public class ExpireSnapshotsConfig {
   public static final ConfigOption<Boolean> CLEAN_EXPIRED_METADATA_OPTION =
       ConfigOptions.key(CLEAN_EXPIRED_METADATA)
           .booleanType()
-          .noDefaultValue()
+          .defaultValue(false)
           .withDescription(
               "Whether to clean expired metadata such as partition specs and schemas.");
 
@@ -165,8 +165,12 @@ public class ExpireSnapshotsConfig {
   }
 
   public Boolean cleanExpiredMetadata() {
-    String value = confParser.stringConf().option(CLEAN_EXPIRED_METADATA).parseOptional();
-    return value != null ? Boolean.parseBoolean(value) : null;
+    return confParser
+        .booleanConf()
+        .option(CLEAN_EXPIRED_METADATA)
+        .flinkConfig(CLEAN_EXPIRED_METADATA_OPTION)
+        .defaultValue(CLEAN_EXPIRED_METADATA_OPTION.defaultValue())
+        .parse();
   }
 
   public Integer planningWorkerPoolSize() {
