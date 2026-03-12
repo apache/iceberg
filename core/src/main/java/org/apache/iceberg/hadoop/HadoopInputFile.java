@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.hadoop;
 
-import static org.apache.iceberg.hadoop.Util.await;
-import static org.apache.iceberg.hadoop.Util.determineReadPolicy;
-
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
@@ -198,8 +195,8 @@ public class HadoopInputFile implements InputFile, NativelyEncryptedFile {
       // read policy controls how read() calls are mapped to GET ranges.
       // this is potentially the most significant tuning.
       builder.opt(
-          Options.OpenFileOptions.FS_OPTION_OPENFILE_READ_POLICY, determineReadPolicy(path));
-      return HadoopStreams.wrap(await(builder.build()));
+          Options.OpenFileOptions.FS_OPTION_OPENFILE_READ_POLICY, Util.determineReadPolicy(path));
+      return HadoopStreams.wrap(Util.await(builder.build()));
     } catch (FileNotFoundException e) {
       throw new NotFoundException(e, "Failed to open input stream for file: %s", path);
     } catch (IOException e) {
