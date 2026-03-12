@@ -498,13 +498,12 @@ class RecordConverter {
     }
     if (value instanceof Map) {
       Map<?, ?> map = (Map<?, ?>) value;
-      for (Object k : map.keySet()) {
+      for (Map.Entry<?, ?> entry : map.entrySet()) {
+        Object k = entry.getKey();
         if (k != null && k instanceof String) {
           names.add((String) k);
+          collectFieldNames(entry.getValue(), names);
         }
-      }
-      for (Object v : map.values()) {
-        collectFieldNames(v, names);
       }
       return;
     }
