@@ -310,12 +310,12 @@ Apache Iceberg Sink V2 for Flink allows automatic execution of maintenance tasks
 IcebergSink.forRowData(dataStream)
     .table(table)
     .tableLoader(tableLoader)
-    .rewriteDataFiles(true, Map.of(
+    .rewriteDataFiles(Map.of(
         RewriteDataFilesConfig.MAX_BYTES, "1073741824"))
-    .expireSnapshots(true, Map.of(
+    .expireSnapshots(Map.of(
         ExpireSnapshotsConfig.RETAIN_LAST, "5",
         ExpireSnapshotsConfig.MAX_SNAPSHOT_AGE_SECONDS, "604800"))
-    .deleteOrphanFiles(true, Map.of(
+    .deleteOrphanFiles(Map.of(
         DeleteOrphanFilesConfig.MIN_AGE_SECONDS, "259200"))
     .append();
 ```
