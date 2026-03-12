@@ -1069,7 +1069,7 @@ class RemoteSignRequest(BaseModel):
     )
     provider: str | None = Field(
         None,
-        description='The storage provider for which the request is to be signed. For backwards compatibility, if this is not specified, the provider is assumed to be AWS S3.',
+        description='The storage provider for which the request is to be signed. The provider should correspond to the scheme used for a storage native URI. For example `s3` for AWS S3 paths. For backwards compatibility, if this is not specified, the provider is assumed to be `s3`.',
     )
 
 
