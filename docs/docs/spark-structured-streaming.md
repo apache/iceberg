@@ -63,6 +63,12 @@ val df = spark.readStream
 !!! info
     Note: In addition to limiting micro-batch sizes on queries that use the default trigger (i.e. `Trigger.ProcessingTime`), rate limiting options can be applied to queries that use `Trigger.AvailableNow` to split one-time processing of all available source data into multiple micro-batches for better query scalability. Rate limiting options will be ignored when using the deprecated `Trigger.Once` trigger.
 
+### Asynchronous Micro-Batch Planning
+
+If users are experiencing bottlenecks due to waiting for micro-batch planning to complete before starting to process data, they can enable asynchronous micro-batch planning by setting `async-micro-batch-planning-enabled` to `true`. With this option enabled, Spark will start processing the current micro-batch while planning the next micro-batches in parallel. This can help improve query throughput by reducing idle time between micro-batches. Users should weigh the tradeoffs which include higher memory usage and detection delay dependent on the polling thread.
+
+Users can also set additional options to control the behavior of asynchronous micro-batch planning, found in the [spark configuration](spark-configuration.md#read-options).
+
 ## Streaming Writes
 
 To write values from streaming query to Iceberg table, use `DataStreamWriter`:

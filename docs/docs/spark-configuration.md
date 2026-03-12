@@ -196,6 +196,7 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.executor-cache.locality.enabled      | false                                                          | Enables locality-aware executor cache usage                                                                                     |
 | spark.sql.iceberg.merge-schema                         | false                                                          | Enables modifying the table schema to match the write schema. Only adds columns missing columns                                 |
 | spark.sql.iceberg.report-column-stats                  | true                                                           | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
+| spark.sql.iceberg.async-micro-batch-planning-enabled   | false                                                          | Enables asynchronous microbatch planning to reduce planning latency by pre-fetching file scan tasks                             |
 
 ### Read options
 
@@ -220,6 +221,10 @@ spark.read
 | stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used                                                             |
 | streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch                                                                                                                                        |
 | streaming-max-rows-per-micro-batch  | INT_MAX | "Soft maximum" number of rows per microbatch; always includes all rows in next unprocessed file, excludes additional files if their inclusion would exceed the soft max limit |
+| async-micro-batch-planning-enabled      | false                     | Enables asynchronous microbatch planning to reduce planning latency by pre-fetching file scan tasks                                                                           |
+| streaming-snapshot-polling-interval-ms  | 30000                     | Overrides the polling time for async planner to refresh and detect new snapshots. Only affects when async-micro-batch-planning-enabled is set                                 |
+| async-queue-preload-file-limit          | 100                       | Overrides the number of files loaded to background queue initially. Tune to prevent queue starvation. Only affects when async-micro-batch-planning-enabled is set             |
+| async-queue-preload-row-limit           | 100000                    | Overrides the number of rows loaded to background queue initially. Tune to prevent queue starvation. Only affects when async-micro-batch-planning-enabled is set              |
 
 ### Write options
 
