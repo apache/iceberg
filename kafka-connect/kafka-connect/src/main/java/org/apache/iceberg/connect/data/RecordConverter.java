@@ -578,11 +578,8 @@ class RecordConverter {
     if (value instanceof Short) {
       return Variants.of((Short) value);
     }
-    Number num = value;
-    if (num.doubleValue() == num.longValue()) {
-      return Variants.of(num.longValue());
-    }
-    return Variants.of(num.doubleValue());
+    throw new IllegalArgumentException(
+        "Cannot convert Number to variant (unknown type): " + value.getClass().getName());
   }
 
   @SuppressWarnings("JavaUtilDate")
