@@ -213,11 +213,13 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
   private Dataset<Row> computeScdType2(String[] identifierColumns, Dataset<Row> df, Table table) {
     // Step 1: compute update images (UPDATE_BEFORE / UPDATE_AFTER)
-    df = computeUpdateImages(identifierColumns, df);
+    Dataset<Row> withUpdates = computeUpdateImages(identifierColumns, df);
 
     // Step 2: filter out UPDATE_BEFORE rows — they are intermediate artifacts
     String changeTypeCol = MetadataColumns.CHANGE_TYPE.name();
-    df = df.filter(df.col(changeTypeCol).notEqual(ChangelogOperation.UPDATE_BEFORE.name()));
+    Dataset<Row> withoutUpdateBefore =
+        withUpdates.filter(
+            withUpdates.col(changeTypeCol).notEqual(ChangelogOperation.UPDATE_BEFORE.name()));
 
     // Step 3: build a Map<snapshotId, committedAt (epoch ms)> from table metadata
     Map<Long, Long> snapshotTimestamps = Maps.newHashMap();
@@ -239,9 +241,10 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
     String snapshotIdCol = MetadataColumns.COMMIT_SNAPSHOT_ID.name();
     Dataset<Row> dfWithValidFrom =
-        df.withColumn(
+        withoutUpdateBefore.withColumn(
             VALID_FROM_COL,
-            functions.callUDF("__iceberg_snapshot_timestamp", df.col(snapshotIdCol)));
+            functions.callUDF(
+                "__iceberg_snapshot_timestamp", withoutUpdateBefore.col(snapshotIdCol)));
 
     // Step 5: compute _valid_to = LEAD(_valid_from) OVER (PARTITION BY id_cols ORDER BY
     // _change_ordinal)
