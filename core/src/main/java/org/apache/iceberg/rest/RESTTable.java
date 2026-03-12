@@ -18,26 +18,37 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.BatchScanAdapter;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ImmutableTableScanContext;
 import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
+  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
+
   private final RESTClient client;
   private final Supplier<Map<String, String>> headers;
   private final MetricsReporter reporter;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
-  private final Set<Endpoint> supportedEndpoints;
+  private final boolean supportsAsync;
+  private final boolean supportsCancel;
+  private final boolean supportsFetchTasks;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
 
@@ -49,7 +60,9 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
       Supplier<Map<String, String>> headers,
       TableIdentifier tableIdentifier,
       ResourcePaths resourcePaths,
-      Set<Endpoint> supportedEndpoints,
+      boolean supportsAsync,
+      boolean supportsCancel,
+      boolean supportsFetchTasks,
       Map<String, String> catalogProperties,
       Object hadoopConf) {
     super(ops, name, reporter);
@@ -58,25 +71,44 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
     this.headers = headers;
     this.tableIdentifier = tableIdentifier;
     this.resourcePaths = resourcePaths;
-    this.supportedEndpoints = supportedEndpoints;
+    this.supportsAsync = supportsAsync;
+    this.supportsCancel = supportsCancel;
+    this.supportsFetchTasks = supportsFetchTasks;
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
   }
 
   @Override
   public TableScan newScan() {
+    String planTableScanPath = resourcePaths.planTableScan(tableIdentifier);
+    Function<String, String> planPath = id -> resourcePaths.plan(tableIdentifier, id);
+    String fetchScanTasksPath = resourcePaths.fetchScanTasks(tableIdentifier);
+
+    BiFunction<List<StorageCredential>, Map<String, String>, FileIO> fileIOFactory =
+        (credentials, extraProps) ->
+            CatalogUtil.loadFileIO(
+                catalogProperties.getOrDefault(
+                    CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL),
+                ImmutableMap.<String, String>builder()
+                    .putAll(catalogProperties)
+                    .putAll(extraProps)
+                    .buildKeepingLast(),
+                hadoopConf,
+                credentials);
+
     return new RESTTableScan(
         this,
         schema(),
         ImmutableTableScanContext.builder().metricsReporter(reporter).build(),
         client,
-        headers.get(),
-        operations(),
-        tableIdentifier,
-        resourcePaths,
-        supportedEndpoints,
-        catalogProperties,
-        hadoopConf);
+        headers,
+        planTableScanPath,
+        planPath,
+        fetchScanTasksPath,
+        supportsAsync,
+        supportsCancel,
+        supportsFetchTasks,
+        fileIOFactory);
   }
 
   @Override

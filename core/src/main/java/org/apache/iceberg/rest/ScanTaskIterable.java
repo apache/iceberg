@@ -30,9 +30,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
@@ -56,18 +56,16 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
   private final AtomicBoolean shutdown = new AtomicBoolean(false);
   private final ExecutorService executorService;
   private final RESTClient client;
-  private final ResourcePaths resourcePaths;
-  private final TableIdentifier tableIdentifier;
-  private final Map<String, String> headers;
+  private final String fetchScanTasksPath;
+  private final Supplier<Map<String, String>> headers;
   private final ParserContext parserContext;
 
   ScanTaskIterable(
       List<String> initialPlanTasks,
       List<FileScanTask> initialFileScanTasks,
       RESTClient client,
-      ResourcePaths resourcePaths,
-      TableIdentifier tableIdentifier,
-      Map<String, String> headers,
+      String fetchScanTasksPath,
+      Supplier<Map<String, String>> headers,
       ExecutorService executorService,
       ParserContext parserContext) {
 
@@ -77,8 +75,7 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
     this.initialFileScanTasks = new ConcurrentLinkedQueue<>(initialFileScanTasks);
 
     this.client = client;
-    this.resourcePaths = resourcePaths;
-    this.tableIdentifier = tableIdentifier;
+    this.fetchScanTasksPath = fetchScanTasksPath;
     this.headers = headers;
     this.executorService = executorService;
     this.parserContext = parserContext;
@@ -221,10 +218,10 @@ class ScanTaskIterable implements CloseableIterable<FileScanTask> {
       FetchScanTasksRequest request = new FetchScanTasksRequest(planTask);
 
       return client.post(
-          resourcePaths.fetchScanTasks(tableIdentifier),
+          fetchScanTasksPath,
           request,
           FetchScanTasksResponse.class,
-          headers,
+          headers.get(),
           ErrorHandlers.planTaskHandler(),
           stringStringMap -> {},
           parserContext);

@@ -1091,11 +1091,11 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     RESTTable table = restTableFor(catalog, "async_not_supported");
     setParserContext(table);
 
-    // Should fail with UnsupportedOperationException when trying to fetch async plan result
-    // because V1_FETCH_TABLE_SCAN_PLAN endpoint is not supported
+    // Should fail with IllegalStateException when trying to fetch async plan result
+    // because the server does not support fetching plan results
     assertThatThrownBy(restTableScanFor(table)::planFiles)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Server does not support endpoint: %s", Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid plan status SUBMITTED: server does not support async scan planning");
   }
 
   @Test
@@ -1117,12 +1117,11 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     setParserContext(table);
     RESTTableScan scan = restTableScanFor(table);
 
-    // Should fail with UnsupportedOperationException when trying to fetch paginated tasks
-    // because V1_FETCH_TABLE_SCAN_PLAN_TASKS endpoint is not supported
+    // Should fail with IllegalStateException when trying to fetch paginated tasks
+    // because the server does not support fetching scan tasks
     assertThatThrownBy(scan::planFiles)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Server does not support endpoint: %s", Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Server returned plan tasks but does not support fetching scan tasks");
   }
 
   @Test
