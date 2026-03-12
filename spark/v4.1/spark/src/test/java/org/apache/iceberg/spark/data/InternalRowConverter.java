@@ -30,12 +30,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.TypeUtil.CustomOrderSchemaVisitor;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -45,90 +42,35 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
 /** Converts Iceberg Record to Spark InternalRow for testing. */
-public class InternalRowConverter extends CustomOrderSchemaVisitor<Object> {
+public class InternalRowConverter {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  private Object currentValue;
+  private InternalRowConverter() {}
 
   public static InternalRow convert(Schema schema, Record record) {
-    InternalRowConverter internalRowConverter = new InternalRowConverter();
-    internalRowConverter.currentValue = record;
-    return (InternalRow) TypeUtil.visit(schema, internalRowConverter);
+    return convert(schema.asStruct(), record);
   }
 
-  @Override
-  public Object schema(Schema schema, Supplier<Object> structResult) {
-    return structResult.get();
-  }
-
-  @Override
-  public Object struct(Types.StructType struct, Iterable<Object> fieldResults) {
+  private static InternalRow convert(Types.StructType struct, Record record) {
     GenericInternalRow internalRow = new GenericInternalRow(struct.fields().size());
-    int idx = 0;
-    for (Object fieldResult : fieldResults) {
-      internalRow.update(idx, fieldResult);
-      idx++;
+    List<Types.NestedField> fields = struct.fields();
+    for (int i = 0; i < fields.size(); i += 1) {
+      Types.NestedField field = fields.get(i);
+
+      Type fieldType = field.type();
+      internalRow.update(i, convert(fieldType, record.get(i)));
     }
 
     return internalRow;
   }
 
-  @Override
-  public Object field(Types.NestedField field, Supplier<Object> fieldResult) {
-    Record record = (Record) currentValue;
-    int position = record.struct().fields().indexOf(field);
-    Object value = record.get(position);
-
-    if (value == null) {
-      return null;
-    }
-    currentValue = value;
-    Object result = fieldResult.get();
-    currentValue = record;
-    return result;
-  }
-
-  @Override
-  public Object list(Types.ListType list, Supplier<Object> elementResult) {
-    List<?> listValue = (List<?>) currentValue;
-
-    Object[] result = new Object[listValue.size()];
-    for (int i = 0; i < listValue.size(); i += 1) {
-      currentValue = listValue.get(i);
-      result[i] = elementResult.get();
-    }
-
-    return new GenericArrayData(result);
-  }
-
-  @Override
-  public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-    Map<?, ?> mapValue = (Map<?, ?>) currentValue;
-    Object[] keysArray = new Object[mapValue.size()];
-    Object[] valuesArray = new Object[mapValue.size()];
-    int idx = 0;
-    for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
-      currentValue = entry.getKey();
-      keysArray[idx] = keyResult.get();
-
-      currentValue = entry.getValue();
-      valuesArray[idx] = valueResult.get();
-      idx++;
-    }
-    return new ArrayBasedMapData(
-        new GenericArrayData(keysArray), new GenericArrayData(valuesArray));
-  }
-
-  @Override
-  public Object primitive(Type.PrimitiveType primitive) {
-    Object value = currentValue;
-
+  private static Object convert(Type type, Object value) {
     if (value == null) {
       return null;
     }
 
-    switch (primitive.typeId()) {
+    switch (type.typeId()) {
       case BOOLEAN:
       case INTEGER:
       case LONG:
@@ -138,7 +80,7 @@ public class InternalRowConverter extends CustomOrderSchemaVisitor<Object> {
       case DATE:
         return (int) ChronoUnit.DAYS.between(EPOCH_DAY, (LocalDate) value);
       case TIMESTAMP:
-        Types.TimestampType timestampType = (Types.TimestampType) primitive;
+        Types.TimestampType timestampType = (Types.TimestampType) type;
         if (timestampType.shouldAdjustToUTC()) {
           return ChronoUnit.MICROS.between(EPOCH, (OffsetDateTime) value);
         } else {
@@ -157,11 +99,33 @@ public class InternalRowConverter extends CustomOrderSchemaVisitor<Object> {
             buffer.arrayOffset() + buffer.remaining());
       case DECIMAL:
         return Decimal.apply((BigDecimal) value);
+      case STRUCT:
+        return convert((Types.StructType) type, (Record) value);
+      case LIST:
+        List<?> list = (List<?>) value;
+        Object[] convertedArray = new Object[list.size()];
+        for (int i = 0; i < convertedArray.length; i++) {
+          convertedArray[i] = convert(type.asListType().elementType(), list.get(i));
+        }
+        return new GenericArrayData(convertedArray);
+      case MAP:
+        Map<?, ?> map = (Map<?, ?>) value;
+        Object[] keysArray = new Object[map.size()];
+        Object[] valuesArray = new Object[map.size()];
+        int idx = 0;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+          keysArray[idx] = convert(type.asMapType().keyType(), entry.getKey());
+          valuesArray[idx] = convert(type.asMapType().valueType(), entry.getValue());
+          idx++;
+        }
+        return new ArrayBasedMapData(
+            new GenericArrayData(keysArray), new GenericArrayData(valuesArray));
+        // TIME is not supported by Spark, VARIANT not yet implemented
       case VARIANT:
       case TIME:
       default:
         throw new UnsupportedOperationException(
-            "Unsupported type for conversion to InternalRow: " + primitive);
+            "Unsupported type for conversion to InternalRow: " + type);
     }
   }
 }
