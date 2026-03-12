@@ -712,8 +712,7 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     Timestamp ts3 = new Timestamp(snap3.timestampMillis());
 
     // INSERT row: valid from snap1 to snap2
-    assertThat(rows.get(0))
-        .containsExactly(1, "a", INSERT, 0, snap1.snapshotId(), ts1, ts2, false);
+    assertThat(rows.get(0)).containsExactly(1, "a", INSERT, 0, snap1.snapshotId(), ts1, ts2, false);
     // UPDATE_AFTER row: valid from snap2 to snap3
     assertThat(rows.get(1))
         .containsExactly(1, "b", UPDATE_AFTER, 1, snap2.snapshotId(), ts2, ts3, false);
