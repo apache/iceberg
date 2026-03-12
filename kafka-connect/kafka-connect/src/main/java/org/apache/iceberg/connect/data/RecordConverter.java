@@ -537,9 +537,6 @@ class RecordConverter {
     if (value instanceof byte[]) {
       return Variants.of(ByteBuffer.wrap((byte[]) value));
     }
-    if (value instanceof BigDecimal) {
-      return Variants.of((BigDecimal) value);
-    }
     if (value instanceof UUID) {
       return Variants.ofUUID((UUID) value);
     }
@@ -560,6 +557,9 @@ class RecordConverter {
   }
 
   private static VariantValue numberToVariantValue(Number value) {
+    if (value instanceof BigDecimal) {
+      return Variants.of((BigDecimal) value);
+    }
     if (value instanceof Integer) {
       return Variants.of((Integer) value);
     }
