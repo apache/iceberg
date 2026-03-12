@@ -407,6 +407,7 @@ public class TestIcebergConnector extends TestBase {
     dynamicTableProps.put("use-dynamic-iceberg-sink", "true");
     dynamicTableProps.put(
         "dynamic-record-generator-impl", VariantAvroDynamicTableRecordGenerator.class.getName());
+    dynamicTableProps.put("table.props.key1", "val1");
 
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     FlinkCatalog flinkCatalog =
@@ -461,6 +462,7 @@ public class TestIcebergConnector extends TestBase {
             .getCatalogLoader()
             .loadCatalog()
             .loadTable(TableIdentifier.of(databaseName(), tableName()));
+    assertThat(table.properties()).containsEntry("key1", "val1");
 
     tableProps.put("catalog-database", databaseName());
     sql("CREATE TABLE %s (id BIGINT, name STRING) WITH %s", tableName(), toWithClause(tableProps));

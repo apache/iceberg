@@ -18,16 +18,29 @@
  */
 package org.apache.iceberg.flink.data;
 
+import java.util.List;
+import java.util.Map;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
+import org.apache.flink.table.data.GenericArrayData;
+import org.apache.flink.table.data.GenericMapData;
 import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RawValueData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.table.types.logical.ArrayType;
+import org.apache.flink.table.types.logical.DecimalType;
+import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
+import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.variant.BinaryVariantAccessorUtils;
 import org.apache.flink.types.variant.Variant;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class VariantRowDataWrapper implements RowData {
 
@@ -149,55 +162,23 @@ public class VariantRowDataWrapper implements RowData {
 
   @Override
   public ArrayData getArray(int pos) {
-    //    ArrayType arrayType = (ArrayType) rowType.getTypeAt(pos);
-    //    LogicalType elementType = arrayType.getElementType();
-    //
-    //    String fieldName = getFieldNameByIndex(pos);
-    //    Variant arrayVariant = variantData.getField(fieldName);
-    //
-    //    if (arrayVariant != null) {
-    //        Preconditions.checkArgument(arrayVariant.getType().equals(Variant.Type.ARRAY),
-    //                "Expected Array type, but got " + arrayVariant.getType());
-    //        int arraySize = arrayVariant.getArraySize();
-    //        Object[] elements = new Object[arraySize];
-    //
-    //        for (int i=0;i< arraySize;i++) {
-    //            Variant element = arrayVariant.getElement(i);
-    //            elements[i] = element == null ? null : getElementValue(elementType, element);
-    //        }
-    //
-    //        return new GenericArrayData(elements);
-    //    }
-    //
-    //    return null;
-    throw new UnsupportedOperationException("Array Type is not supported yet.");
+    ArrayType arrayType = (ArrayType) rowType.getTypeAt(pos);
+    LogicalType elementType = arrayType.getElementType();
+
+    String fieldName = getFieldNameByIndex(pos);
+    Variant arrayVariant = variantData.getField(fieldName);
+
+    return getArrayData(arrayVariant, elementType);
   }
 
   @Override
   public MapData getMap(int pos) {
-    //    MapType mapType = (MapType) rowType.getTypeAt(pos);
-    //    LogicalType keyType = mapType.getKeyType();
-    //    LogicalType valueType = mapType.getValueType();
-    //
-    //    Preconditions.checkArgument(keyType instanceof VarCharType,
-    //            "Map with STRING key types are only supported in Variant to RowData conversion");
-    //
-    //    String mapFieldName = getFieldNameByIndex(pos);
-    //    Variant mapVariant = variantData.getField(mapFieldName);
-    //
-    //    Map<Object, Object> mapData = Maps.newHashMap();
-    //    if (mapVariant != null) {
-    //        List<String> keys = mapVariant.getFieldNames();
-    //        for (String key: keys) {
-    //            mapData.put(StringData.fromString(key), getElementValue(valueType,
-    // mapVariant.getField(key)));
-    //        }
-    //
-    //        return new GenericMapData(mapData);
-    //    }
-    //
-    //    return null;
-    throw new UnsupportedOperationException("Map Type is not supported yet.");
+    MapType mapType = (MapType) rowType.getTypeAt(pos);
+
+    String mapFieldName = getFieldNameByIndex(pos);
+    Variant mapVariant = variantData.getField(mapFieldName);
+
+    return getMapData(mapVariant, mapType);
   }
 
   @Override
@@ -214,7 +195,7 @@ public class VariantRowDataWrapper implements RowData {
     return variantData.getField(fieldName);
   }
 
-  /* private Object getElementValue(LogicalType elementType, Variant variant) {
+  private Object getElementValue(LogicalType elementType, Variant variant) {
     LogicalTypeRoot root = elementType.getTypeRoot();
 
     switch (root) {
@@ -247,11 +228,59 @@ public class VariantRowDataWrapper implements RowData {
       case BINARY:
       case VARBINARY:
         return variant.getBytes();
+      case ARRAY:
+        ArrayType arrayType = (ArrayType) elementType;
+        LogicalType innerElementType = arrayType.getElementType();
+        return getArrayData(variant, innerElementType);
+      case MAP:
+        return getMapData(variant, (MapType) elementType);
+      case ROW:
+        VariantRowDataWrapper rowDataWrapper = new VariantRowDataWrapper((RowType) elementType);
+        return rowDataWrapper.wrap(variant);
       default:
         throw new UnsupportedOperationException(
             "Unsupported Element type in Array/Map type:" + elementType);
     }
-  }*/
+  }
+
+  private MapData getMapData(Variant variant, MapType mapType) {
+    LogicalType keyType = mapType.getKeyType();
+    LogicalType valueType = mapType.getValueType();
+
+    Preconditions.checkArgument(
+        keyType instanceof VarCharType,
+        "Map with STRING key types are only supported in Variant to RowData conversion");
+
+    Map<Object, Object> mapData = Maps.newHashMap();
+    if (variant != null) {
+      List<String> keys = BinaryVariantAccessorUtils.fieldNames(variant);
+      for (String key : keys) {
+        mapData.put(StringData.fromString(key), getElementValue(valueType, variant.getField(key)));
+      }
+
+      return new GenericMapData(mapData);
+    }
+
+    return null;
+  }
+
+  private ArrayData getArrayData(Variant variant, LogicalType innerElementType) {
+    if (variant != null) {
+      Preconditions.checkArgument(
+          variant.getType().equals(Variant.Type.ARRAY),
+          "Expected Array type, but got " + variant.getType());
+      int arraySize = BinaryVariantAccessorUtils.arraySize(variant);
+      Object[] elements = new Object[arraySize];
+
+      for (int i = 0; i < arraySize; i++) {
+        Variant element = variant.getElement(i);
+        elements[i] = element == null ? null : getElementValue(innerElementType, element);
+      }
+
+      return new GenericArrayData(elements);
+    }
+    return null;
+  }
 
   private int getIntValue(Variant variant) {
     switch (variant.getType()) {
@@ -307,7 +336,8 @@ public class VariantRowDataWrapper implements RowData {
   }
 
   private static String errMsg(Variant variant, String type) {
-    return String.format("Failed to read Variant %s as %s", variant.toJson(), type);
+    return String.format(
+        "Failed to read Variant %s of type %s as %s", variant.toJson(), variant.getType(), type);
   }
 
   private String getFieldNameByIndex(int pos) {

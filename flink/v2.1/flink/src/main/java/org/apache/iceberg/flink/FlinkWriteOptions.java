@@ -117,4 +117,11 @@ public class FlinkWriteOptions {
 
   public static final ConfigOption<Integer> VARIANT_INFERENCE_BUFFER_SIZE =
       ConfigOptions.key("variant-inference-buffer-size").intType().noDefaultValue();
+
+  public static final ConfigOption<Integer> CACHE_MAX_SIZE =
+      ConfigOptions.key("cache-max-size")
+          .intType()
+          .defaultValue(100)
+          .withDescription(
+              "Maximum size of the caches used in Dynamic Sink for table data and serializers.");
 }
