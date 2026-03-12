@@ -104,7 +104,6 @@ public class SparkTable extends BaseSparkTable
   private final String branch; // set if table is loaded for specific branch
   private final TimeTravel timeTravel; // set if table is loaded for time travel
   private final Set<TableCapability> capabilities;
-  private SparkWriteConf lazyWriteConf = null;
 
   public SparkTable(Table table) {
     this(table, null /* main branch */);
@@ -140,13 +139,6 @@ public class SparkTable extends BaseSparkTable
 
   public SparkTable copyWithBranch(String newBranch) {
     return new SparkTable(table(), newBranch);
-  }
-
-  private SparkWriteConf writeConf() {
-    if (lazyWriteConf == null) {
-      this.lazyWriteConf = new SparkWriteConf(spark(), table());
-    }
-    return lazyWriteConf;
   }
 
   public Long snapshotId() {
@@ -288,7 +280,8 @@ public class SparkTable extends BaseSparkTable
       deleteFiles.toBranch(branch);
     }
 
-    Map<String, String> extraSnapshotMetadata = writeConf().extraSnapshotMetadata();
+    SparkWriteConf writeConf = new SparkWriteConf(spark(), table());
+    Map<String, String> extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     if (!extraSnapshotMetadata.isEmpty()) {
       extraSnapshotMetadata.forEach(deleteFiles::set);
     }
