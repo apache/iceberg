@@ -55,7 +55,7 @@ class RESTTableScan extends DataTableScan {
   private static final Logger LOG = LoggerFactory.getLogger(RESTTableScan.class);
   private static final long MIN_SLEEP_MS = 1000; // Initial delay
   private static final long MAX_SLEEP_MS = 60 * 1000; // Max backoff delay (1 minute)
-  private static final int MAX_ATTEMPTS = 10; // Max number of poll checks
+  private static final int MAX_RETRIES = 10; // Max number of poll retries
   private static final long MAX_WAIT_TIME_MS = 5 * 60 * 1000; // Total maximum duration (5 minutes)
   private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
@@ -229,7 +229,7 @@ class RESTTableScan extends DataTableScan {
     AtomicReference<FetchPlanningResultResponse> result = new AtomicReference<>();
     Tasks.foreach(planId)
         .exponentialBackoff(MIN_SLEEP_MS, MAX_SLEEP_MS, MAX_WAIT_TIME_MS, SCALE_FACTOR)
-        .retry(MAX_ATTEMPTS)
+        .retry(MAX_RETRIES)
         .onlyRetryOn(NotCompleteException.class)
         .onFailure(
             (id, err) -> {
