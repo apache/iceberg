@@ -43,14 +43,28 @@ import org.apache.spark.unsafe.types.VariantVal;
 /**
  * Analyzes variant data across buffered rows to determine an optimal shredding schema.
  *
+ * <p>Determinism contract: for a given set of variant values (regardless of row arrival order),
+ * this analyzer produces the same shredded schema.
+ *
  * <ul>
- *   <li>shred to the most common type
+ *   <li>Object fields use a TreeMap, so field ordering is alphabetical and deterministic.
+ *   <li>Type selection picks the most common type with explicit tie-break priority (see
+ *       TIE_BREAK_PRIORITY), not enum ordinal.
+ *   <li>Integer types (INT8/16/32/64) and decimal types (DECIMAL4/8/16) are each promoted to the
+ *       widest observed before competing with other types.
+ *   <li>Fields below MIN_FIELD_FREQUENCY frequency are pruned. Above MAX_SHREDDED_FIELDS fields,
+ *       the most frequent are kept with alphabetical tie-breaking.
  * </ul>
+ *
+ * <p>This contract holds within a single batch. Different batches with different distributions may
+ * produce different layouts; cross-batch stability requires schema pinning (not yet implemented).
  */
 public class VariantShreddingAnalyzer {
   private static final String TYPED_VALUE = "typed_value";
   private static final String VALUE = "value";
   private static final String ELEMENT = "element";
+  private static final double MIN_FIELD_FREQUENCY = 0.10;
+  private static final int MAX_SHREDDED_FIELDS = 300;
 
   public VariantShreddingAnalyzer() {}
 
@@ -68,7 +82,16 @@ public class VariantShreddingAnalyzer {
     }
 
     PathNode root = buildPathTree(variantValues);
-    return buildTypedValue(root, root.info.getMostCommonType());
+    PhysicalType rootType = root.info.getMostCommonType();
+    if (rootType == null) {
+      return null;
+    }
+
+    if (rootType == PhysicalType.OBJECT) {
+      pruneInfrequentFields(root, variantValues.size());
+    }
+
+    return buildTypedValue(root, rootType);
   }
 
   private static List<VariantValue> extractVariantValues(
@@ -101,6 +124,45 @@ public class VariantShreddingAnalyzer {
     }
 
     return root;
+  }
+
+  private static void pruneInfrequentFields(PathNode node, int totalRows) {
+    if (node.objectChildren.isEmpty()) {
+      return;
+    }
+
+    // Remove fields below frequency threshold
+    node.objectChildren
+        .entrySet()
+        .removeIf(
+            entry -> {
+              FieldInfo info = entry.getValue().info;
+              return info != null
+                  && ((double) info.observationCount / totalRows) < MIN_FIELD_FREQUENCY;
+            });
+
+    // Cap at MAX_SHREDDED_FIELDS, keep the most frequently observed
+    if (node.objectChildren.size() > MAX_SHREDDED_FIELDS) {
+      List<Map.Entry<String, PathNode>> sorted =
+          new java.util.ArrayList<>(node.objectChildren.entrySet());
+      sorted.sort(
+          (a, b) -> {
+            int cmp =
+                Integer.compare(
+                    b.getValue().info.observationCount, a.getValue().info.observationCount);
+            return cmp != 0 ? cmp : a.getKey().compareTo(b.getKey());
+          });
+      Set<String> keep = Sets.newHashSet();
+      for (int i = 0; i < MAX_SHREDDED_FIELDS; i++) {
+        keep.add(sorted.get(i).getKey());
+      }
+      node.objectChildren.entrySet().removeIf(entry -> !keep.contains(entry.getKey()));
+    }
+
+    // Recurse into remaining children
+    for (PathNode child : node.objectChildren.values()) {
+      pruneInfrequentFields(child, totalRows);
+    }
   }
 
   private static void traverse(PathNode node, VariantValue value) {
@@ -145,6 +207,10 @@ public class VariantShreddingAnalyzer {
     }
 
     Type typedValue = buildTypedValue(node, commonType);
+    if (typedValue == null) {
+      return null;
+    }
+
     return Types.buildGroup(Type.Repetition.REQUIRED)
         .optional(PrimitiveType.PrimitiveTypeName.BINARY)
         .named(VALUE)
@@ -186,6 +252,9 @@ public class VariantShreddingAnalyzer {
   private static Type createArrayTypedValue(PathNode node) {
     PathNode elementNode = node.arrayElement;
     PhysicalType elementType = elementNode.info.getMostCommonType();
+    if (elementType == null) {
+      return null;
+    }
     Type elementTypedValue = buildTypedValue(elementNode, elementType);
 
     GroupType elementGroup =
@@ -211,7 +280,7 @@ public class VariantShreddingAnalyzer {
 
   /** Use DECIMAL with maximum precision and scale as the shredding type */
   private static Type createDecimalTypedValue(FieldInfo info) {
-    int maxPrecision = info.maxDecimalPrecision;
+    int maxPrecision = info.maxDecimalIntegerDigits + info.maxDecimalScale;
     int maxScale = info.maxDecimalScale;
 
     if (maxPrecision <= 9) {
@@ -292,10 +361,44 @@ public class VariantShreddingAnalyzer {
   private static class FieldInfo {
     private final Set<PhysicalType> observedTypes = Sets.newHashSet();
     private final Map<PhysicalType, Integer> typeCounts = Maps.newHashMap();
-    private int maxDecimalPrecision = 0;
     private int maxDecimalScale = 0;
+    private int maxDecimalIntegerDigits = 0;
+    private int observationCount = 0;
+
+    private static final Map<PhysicalType, Integer> INTEGER_PRIORITY =
+        Map.of(
+            PhysicalType.INT8, 0,
+            PhysicalType.INT16, 1,
+            PhysicalType.INT32, 2,
+            PhysicalType.INT64, 3);
+
+    private static final Map<PhysicalType, Integer> DECIMAL_PRIORITY =
+        Map.of(
+            PhysicalType.DECIMAL4, 0,
+            PhysicalType.DECIMAL8, 1,
+            PhysicalType.DECIMAL16, 2);
+
+    private static final Map<PhysicalType, Integer> TIE_BREAK_PRIORITY =
+        Map.ofEntries(
+            Map.entry(PhysicalType.BOOLEAN_TRUE, 0),
+            Map.entry(PhysicalType.INT8, 1),
+            Map.entry(PhysicalType.INT16, 2),
+            Map.entry(PhysicalType.INT32, 3),
+            Map.entry(PhysicalType.INT64, 4),
+            Map.entry(PhysicalType.FLOAT, 5),
+            Map.entry(PhysicalType.DOUBLE, 6),
+            Map.entry(PhysicalType.DECIMAL4, 7),
+            Map.entry(PhysicalType.DECIMAL8, 8),
+            Map.entry(PhysicalType.DECIMAL16, 9),
+            Map.entry(PhysicalType.DATE, 10),
+            Map.entry(PhysicalType.TIME, 11),
+            Map.entry(PhysicalType.TIMESTAMPTZ, 12),
+            Map.entry(PhysicalType.TIMESTAMPNTZ, 13),
+            Map.entry(PhysicalType.BINARY, 14),
+            Map.entry(PhysicalType.STRING, 15));
 
     void observe(VariantValue value) {
+      observationCount++;
       // Use BOOLEAN_TRUE for both TRUE/FALSE values
       PhysicalType type =
           value.type() == PhysicalType.BOOLEAN_FALSE ? PhysicalType.BOOLEAN_TRUE : value.type();
@@ -311,7 +414,7 @@ public class VariantShreddingAnalyzer {
         Object decimalValue = primitive.get();
         if (decimalValue instanceof BigDecimal) {
           BigDecimal bd = (BigDecimal) decimalValue;
-          maxDecimalPrecision = Math.max(maxDecimalPrecision, bd.precision());
+          maxDecimalIntegerDigits = Math.max(maxDecimalIntegerDigits, bd.precision() - bd.scale());
           maxDecimalScale = Math.max(maxDecimalScale, bd.scale());
         }
       }
@@ -332,12 +435,14 @@ public class VariantShreddingAnalyzer {
 
         if (isIntegerType(type)) {
           integerTotalCount += count;
-          if (mostCapableInteger == null || type.ordinal() > mostCapableInteger.ordinal()) {
+          if (mostCapableInteger == null
+              || INTEGER_PRIORITY.get(type) > INTEGER_PRIORITY.get(mostCapableInteger)) {
             mostCapableInteger = type;
           }
         } else if (isDecimalType(type)) {
           decimalTotalCount += count;
-          if (mostCapableDecimal == null || type.ordinal() > mostCapableDecimal.ordinal()) {
+          if (mostCapableDecimal == null
+              || DECIMAL_PRIORITY.get(type) > DECIMAL_PRIORITY.get(mostCapableDecimal)) {
             mostCapableDecimal = type;
           }
         } else {
@@ -357,7 +462,7 @@ public class VariantShreddingAnalyzer {
       return combinedCounts.entrySet().stream()
           .max(
               Map.Entry.<PhysicalType, Integer>comparingByValue()
-                  .thenComparingInt(entry -> entry.getKey().ordinal()))
+                  .thenComparingInt(entry -> TIE_BREAK_PRIORITY.getOrDefault(entry.getKey(), -1)))
           .map(Map.Entry::getKey)
           .orElse(null);
     }

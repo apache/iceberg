@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileScanTask;
@@ -48,6 +49,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -572,9 +574,272 @@ public class TestVariantShredding extends CatalogTestBase {
     GroupType value =
         field(
             "value",
-            shreddedPrimitive(
-                PrimitiveType.PrimitiveTypeName.INT64, LogicalTypeAnnotation.decimalType(6, 18)));
+            optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+                .length(16)
+                .as(LogicalTypeAnnotation.decimalType(6, 21))
+                .named("typed_value"));
     GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(value));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testDataRoundTripWithShredding() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    String values =
+        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
+            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}')),"
+            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    GroupType name =
+        field(
+            "name",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType age =
+        field(
+            "age",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age, name));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+
+    // Verify that we can read the data back correctly
+    List<Object[]> rows =
+        sql(
+            "SELECT id, variant_get(address, '$.name', 'string'),"
+                + " variant_get(address, '$.age', 'int')"
+                + " FROM %s ORDER BY id",
+            tableName);
+    assertThat(rows).hasSize(3);
+    assertThat(rows.get(0)[0]).isEqualTo(1);
+    assertThat(rows.get(0)[1]).isEqualTo("Alice");
+    assertThat(rows.get(0)[2]).isEqualTo(30);
+    assertThat(rows.get(1)[0]).isEqualTo(2);
+    assertThat(rows.get(1)[1]).isEqualTo("Bob");
+    assertThat(rows.get(1)[2]).isEqualTo(25);
+    assertThat(rows.get(2)[0]).isEqualTo(3);
+    assertThat(rows.get(2)[1]).isEqualTo("Charlie");
+    assertThat(rows.get(2)[2]).isEqualTo(35);
+  }
+
+  @TestTemplate
+  public void testMultipleVariantsWithShredding() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    // Recreate table with SCHEMA2 (address + metadata variant columns)
+    validationCatalog.dropTable(tableIdent, true);
+    validationCatalog.createTable(
+        tableIdent, SCHEMA2, null, Map.of(TableProperties.FORMAT_VERSION, "3"));
+
+    String values =
+        "(1, parse_json('{\"city\": \"NYC\"}'), parse_json('{\"source\": \"web\"}')),"
+            + " (2, parse_json('{\"city\": \"LA\"}'), parse_json('{\"source\": \"app\"}')),"
+            + " (3, parse_json('{\"city\": \"SF\"}'), parse_json('{\"source\": \"api\"}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    GroupType city =
+        field(
+            "city",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(city));
+
+    GroupType source =
+        field(
+            "source",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType metadata = variant("metadata", 3, Type.Repetition.REQUIRED, objectFields(source));
+    MessageType expectedSchema = parquetSchema(address, metadata);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testVariantWithNullValues() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    String values =
+        "(1, parse_json('null'))," + " (2, parse_json('null'))," + " (3, parse_json('null'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testArrayOfNullElementsWithShredding() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    sql(
+        "INSERT INTO %s VALUES (1, parse_json('[null, null, null]')), "
+            + "(2, parse_json('[null]'))",
+        tableName);
+
+    // Array elements are all null, element type is null, falls back to unshredded
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED);
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testMixedNullAndNonNullVariantValues() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+
+    String values =
+        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
+            + " (2, null),"
+            + " (3, parse_json('{\"name\": \"Charlie\", \"age\": 35}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    GroupType name =
+        field(
+            "name",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType age =
+        field(
+            "age",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    GroupType address = variant("address", 2, Type.Repetition.OPTIONAL, objectFields(age, name));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+
+    long rowCount = spark.read().format("iceberg").load(tableName).count();
+    assertThat(rowCount).isEqualTo(3);
+  }
+
+  @TestTemplate
+  public void testWriteOptionOverridesSessionConfig() throws IOException, NoSuchTableException {
+    // Disable shredding at session level
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "false");
+
+    // Enable shredding via per-write option
+    String query =
+        "SELECT 1 as id, parse_json('{\"name\": \"Alice\", \"age\": 30}') as address"
+            + " UNION ALL SELECT 2, parse_json('{\"name\": \"Bob\", \"age\": 25}')"
+            + " UNION ALL SELECT 3, parse_json('{\"name\": \"Charlie\", \"age\": 35}')";
+    spark.sql(query).writeTo(tableName).option("shred-variants", "true").append();
+
+    GroupType name =
+        field(
+            "name",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType age =
+        field(
+            "age",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age, name));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testDefaultShreddingEnabled() throws IOException {
+    // Not setting SHRED_VARIANTS - default (true) should activate shredding
+    String values =
+        "(1, parse_json('{\"name\": \"Alice\", \"age\": 30}')),"
+            + " (2, parse_json('{\"name\": \"Bob\", \"age\": 25}'))";
+    sql("INSERT INTO %s VALUES %s", tableName, values);
+
+    GroupType name =
+        field(
+            "name",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType age =
+        field(
+            "age",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.INT32, LogicalTypeAnnotation.intType(8, true)));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(age, name));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testInfrequentFieldPruning() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+    spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "11");
+
+    StringBuilder valuesBuilder = new StringBuilder();
+    for (int i = 1; i <= 11; i++) {
+      if (i > 1) {
+        valuesBuilder.append(", ");
+      }
+      if (i == 1) {
+        // Only the first row has rare_field
+        valuesBuilder.append(
+            String.format(
+                "(%d, parse_json('{\"name\": \"User%d\", \"rare_field\": \"rare\"}'))", i, i));
+      } else {
+        valuesBuilder.append(String.format("(%d, parse_json('{\"name\": \"User%d\"}'))", i, i));
+      }
+    }
+    sql("INSERT INTO %s VALUES %s", tableName, valuesBuilder.toString());
+
+    // rare_field appears in 1/11 rows, should be pruned
+    // name appears in 11/11 rows and should be kept
+    GroupType name =
+        field(
+            "name",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(name));
+    MessageType expectedSchema = parquetSchema(address);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    verifyParquetSchema(table, expectedSchema);
+  }
+
+  @TestTemplate
+  public void testMixedTypeTieBreaking() throws IOException {
+    spark.conf().set(SparkSQLProperties.SHRED_VARIANTS, "true");
+    spark.conf().set(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "10");
+
+    StringBuilder valuesBuilder = new StringBuilder();
+    for (int i = 1; i <= 10; i++) {
+      if (i > 1) {
+        valuesBuilder.append(", ");
+      }
+      if (i <= 5) {
+        valuesBuilder.append(String.format("(%d, parse_json('{\"val\": %d}'))", i, i));
+      } else {
+        valuesBuilder.append(String.format("(%d, parse_json('{\"val\": \"text%d\"}'))", i, i));
+      }
+    }
+    sql("INSERT INTO %s VALUES %s", tableName, valuesBuilder.toString());
+
+    // 5 ints + 5 strings is a tie so STRING wins (higher TIE_BREAK_PRIORITY)
+    GroupType val =
+        field(
+            "val",
+            shreddedPrimitive(
+                PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType()));
+    GroupType address = variant("address", 2, Type.Repetition.REQUIRED, objectFields(val));
     MessageType expectedSchema = parquetSchema(address);
 
     Table table = validationCatalog.loadTable(tableIdent);
