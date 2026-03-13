@@ -32,6 +32,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -44,7 +45,7 @@ class TestHashKeyGenerator {
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.required(2, "data", Types.StringType.get()));
 
-  private static final String BRANCH = "main";
+  private static final String BRANCH = SnapshotRef.MAIN_BRANCH;
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of("default", "table");
 
   @Test
@@ -156,6 +157,48 @@ class TestHashKeyGenerator {
     assertThat(getSubTaskId(writeKey1, writeParallelism, maxWriteParallelism)).isEqualTo(1);
     assertThat(getSubTaskId(writeKey2, writeParallelism, maxWriteParallelism)).isEqualTo(1);
     assertThat(getSubTaskId(writeKey3, writeParallelism, maxWriteParallelism)).isEqualTo(0);
+  }
+
+  @Test
+  void testHashModeWithPartitionFieldAndEqualityField() throws Exception {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 4).build();
+
+    GenericRowData row1 = GenericRowData.of(1, StringData.fromString("foo"));
+    GenericRowData row2 = GenericRowData.of(1, StringData.fromString("bar"));
+    Set<String> equalityColumns = Sets.newHashSet("id", "data");
+
+    int writeKey1 =
+        getWriteKey(
+            generator, spec, DistributionMode.HASH, writeParallelism, equalityColumns, row1);
+    int writeKey2 =
+        getWriteKey(
+            generator, spec, DistributionMode.HASH, writeParallelism, equalityColumns, row2);
+
+    assertThat(writeKey1).isEqualTo(writeKey2);
+  }
+
+  @Test
+  void testHashModeWithPartitionFieldNotInEqualityFieldsFails() {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 4).build();
+    Set<String> equalityColumns = Collections.singleton("data");
+
+    GenericRowData row = GenericRowData.of(1, StringData.fromString("foo"));
+
+    assertThatThrownBy(
+            () ->
+                getWriteKey(
+                    generator, spec, DistributionMode.HASH, writeParallelism, equalityColumns, row))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("partition field")
+        .hasMessageContaining(spec.fields().get(0).toString())
+        .hasMessageContaining("should be included in equality fields");
   }
 
   @Test

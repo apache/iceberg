@@ -178,7 +178,7 @@ public class StatsUtil {
 
       int fieldId = StatsUtil.statsFieldIdForField(field.fieldId());
       if (fieldId >= 0) {
-        Types.StructType structType = FieldStatistic.fieldStatsFor(field.type(), fieldId + 1);
+        Types.StructType structType = FieldStatistic.fieldStatsFor(field.type(), fieldId);
         return optional(fieldId, Integer.toString(field.fieldId()), structType);
       } else {
         skippedFieldIds.add(field.fieldId());

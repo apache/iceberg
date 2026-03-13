@@ -37,6 +37,27 @@
             <h1>Apache Iceberg™</h1>
             <h3>The open table format for analytic datasets.</h3>
             <hr class="intro-divider" />
+              <!-- Iceberg Summit 2026 Box -->
+              <div class="summit-box">
+                <h4 style="margin-bottom: 10px; color: white;">Iceberg Summit 2026</h4>
+                <div class="summit-links" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                  <div class="summit-link-item" style="flex: 1; min-width: 200px; max-width: 280px; background: linear-gradient(135deg, #0969da 0%, #0a8fd6 100%); padding: 15px; border-radius: 8px; text-align: center;">
+                    <a href="https://sessionize.com/iceberg-summit-2026" target="_blank" style="text-decoration: none; color: white;">
+                      <div style="font-size: 15px; font-weight: bold; margin-bottom: 8px;">Submit Your Talk</div>
+                      <div style="font-size: 15px; font-weight: bold; margin-bottom: 8px; opacity: 0.9;">Due: January 18, 2026</div>
+                      <div id="cfp-countdown" style="font-size: 15px; font-weight: bold; font-family: monospace;"></div>
+                    </a>
+                  </div>
+                  <div class="summit-link-item" style="flex: 1; min-width: 200px; max-width: 280px; background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%); padding: 15px; border-radius: 8px; text-align: center;">
+                    <a href="https://www.icebergsummit.org/" target="_blank" style="text-decoration: none; color: white;">
+                      <div style="font-size: 15px; font-weight: bold; margin-bottom: 8px;">Event Details</div>
+                      <div style="font-size: 15px; font-weight: bold;">April 8-9, 2026</div>
+                      <div style="font-size: 15px; font-weight: bold; margin-top: 3px;">San Francisco, CA</div>
+                    </a>
+                  </div>
+                </div>
+              </div>
+              <br />
               <ul class="list-inline intro-social-buttons">
                 {% for social in config.extra.social %}
                 <li>
@@ -309,6 +330,34 @@
   <script
     src="assets/javascript/termynal.js"
     data-termynal-container="#termynal|#termynal-data-compaction|#termynal-expressive-sql|#termynal-time-travel">
+  </script>
+  
+  <!-- Countdown Timer for CFP -->
+  <script>
+    function updateCountdown() {
+      // Set CFP deadline to January 18, 2026 at midnight PST (08:00 UTC)
+      const cfpDeadline = new Date('2026-01-18T08:00:00Z').getTime();
+      const now = new Date().getTime();
+      const distance = cfpDeadline - now;
+      
+      const countdownElement = document.getElementById('cfp-countdown');
+      
+      if (distance < 0) {
+        countdownElement.innerHTML = "CFP Closed. See you at Summit!";
+        return;
+      }
+      
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+      
+      countdownElement.innerHTML = days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+    }
+    
+    // Update countdown every second
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
   </script>
 {% endblock %}
 

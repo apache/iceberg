@@ -158,7 +158,11 @@ public class FlinkSink {
     private Function<String, DataStream<RowData>> inputCreator = null;
     private TableLoader tableLoader;
     private Table table;
-    @Deprecated private TableSchema tableSchema;
+
+    @SuppressWarnings("deprecation")
+    @Deprecated
+    private TableSchema tableSchema;
+
     private ResolvedSchema resolvedSchema;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
@@ -239,6 +243,7 @@ public class FlinkSink {
       return this;
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;

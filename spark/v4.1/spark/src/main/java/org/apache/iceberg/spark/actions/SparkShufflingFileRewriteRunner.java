@@ -31,7 +31,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFunctionCatalog;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SortOrderUtil;
@@ -104,12 +103,7 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
 
   @Override
   public void doRewrite(String groupId, RewriteFileGroup fileGroup) {
-    Dataset<Row> scanDF =
-        spark()
-            .read()
-            .format("iceberg")
-            .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
-            .load(groupId);
+    Dataset<Row> scanDF = spark().read().format("iceberg").load(groupId);
 
     Dataset<Row> sortedDF =
         sortedDF(
@@ -122,7 +116,6 @@ abstract class SparkShufflingFileRewriteRunner extends SparkDataFileRewriteRunne
     sortedDF
         .write()
         .format("iceberg")
-        .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
         .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, fileGroup.maxOutputFileSize())
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
         .option(SparkWriteOptions.OUTPUT_SPEC_ID, fileGroup.outputSpecId())

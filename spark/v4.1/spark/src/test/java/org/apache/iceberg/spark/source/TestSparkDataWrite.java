@@ -87,7 +87,7 @@ public class TestSparkDataWrite {
   public static Object[][] parameters() {
     return new Object[][] {
       new Object[] {FileFormat.PARQUET, null},
-      new Object[] {FileFormat.PARQUET, "main"},
+      new Object[] {FileFormat.PARQUET, SnapshotRef.MAIN_BRANCH},
       new Object[] {FileFormat.PARQUET, "testBranch"},
       new Object[] {FileFormat.AVRO, null},
       new Object[] {FileFormat.ORC, "testBranch"}
@@ -148,7 +148,7 @@ public class TestSparkDataWrite {
     assertThat(actual).hasSameSizeAs(expected).isEqualTo(expected);
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         // TODO: avro not support split
         if (!format.equals(FileFormat.AVRO)) {
           assertThat(file.splitOffsets()).as("Split offsets not present").isNotNull();
@@ -397,7 +397,7 @@ public class TestSparkDataWrite {
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         files.add(file);
       }
     }
@@ -624,7 +624,7 @@ public class TestSparkDataWrite {
     List<DataFile> files = Lists.newArrayList();
     for (ManifestFile manifest :
         SnapshotUtil.latestSnapshot(table, branch).allManifests(table.io())) {
-      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io(), table.specs())) {
         files.add(file);
       }
     }
@@ -685,7 +685,7 @@ public class TestSparkDataWrite {
 
     Table spyTable = spy(table);
     when(spyTable.newAppend()).thenReturn(spyAppend);
-    SparkTable sparkTable = new SparkTable(spyTable, false);
+    SparkTable sparkTable = new SparkTable(spyTable);
 
     String manualTableName = "unknown_exception";
     ManualSource.setTable(manualTableName, sparkTable);

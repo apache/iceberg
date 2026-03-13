@@ -52,7 +52,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   private final Table table;
   private final IncrementalChangelogScan scan;
   private final SparkReadConf readConf;
-  private final Schema expectedSchema;
+  private final Schema projection;
   private final List<Expression> filters;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
@@ -66,21 +66,20 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
       Table table,
       IncrementalChangelogScan scan,
       SparkReadConf readConf,
-      Schema expectedSchema,
-      List<Expression> filters,
-      boolean emptyScan) {
+      Schema projection,
+      List<Expression> filters) {
 
-    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
+    SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), projection);
 
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.scan = scan;
     this.readConf = readConf;
-    this.expectedSchema = expectedSchema;
+    this.projection = projection;
     this.filters = filters != null ? filters : Collections.emptyList();
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
-    if (emptyScan) {
+    if (scan == null) {
       this.taskGroups = Collections.emptyList();
     }
   }
@@ -95,7 +94,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   @Override
   public StructType readSchema() {
     if (expectedSparkType == null) {
-      this.expectedSparkType = SparkSchemaUtil.convert(expectedSchema);
+      this.expectedSparkType = SparkSchemaUtil.convert(projection);
     }
 
     return expectedSparkType;
@@ -109,7 +108,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         readConf,
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
-        expectedSchema,
+        projection,
         hashCode());
   }
 
@@ -129,23 +128,11 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   public String description() {
     return String.format(
         Locale.ROOT,
-        "%s [fromSnapshotId=%d, toSnapshotId=%d, filters=%s]",
+        "IcebergChangelogScan(table=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s)",
         table,
         startSnapshotId,
         endSnapshotId,
-        Spark3Util.describe(filters));
-  }
-
-  @Override
-  public String toString() {
-    return String.format(
-        Locale.ROOT,
-        "IcebergChangelogScan(table=%s, type=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s)",
-        table,
-        expectedSchema.asStruct(),
-        startSnapshotId,
-        endSnapshotId,
-        Spark3Util.describe(filters));
+        filtersDesc());
   }
 
   @Override
@@ -160,8 +147,9 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
 
     SparkChangelogScan that = (SparkChangelogScan) o;
     return table.name().equals(that.table.name())
+        && Objects.equals(table.uuid(), that.table.uuid())
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field IDs
-        && filters.toString().equals(that.filters.toString())
+        && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId);
   }
@@ -169,6 +157,10 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   @Override
   public int hashCode() {
     return Objects.hash(
-        table.name(), readSchema(), filters.toString(), startSnapshotId, endSnapshotId);
+        table.name(), table.uuid(), readSchema(), filtersDesc(), startSnapshotId, endSnapshotId);
+  }
+
+  private String filtersDesc() {
+    return Spark3Util.describe(filters);
   }
 }

@@ -86,7 +86,7 @@ public class TestDeleteFrom extends CatalogTestBase {
     String prefix = "snapshot_id_";
     assertThatThrownBy(() -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot delete from table at a specific snapshot");
+        .hasMessageStartingWith("Cannot modify table with time travel");
   }
 
   @TestTemplate
@@ -161,5 +161,28 @@ public class TestDeleteFrom extends CatalogTestBase {
         "Should have expected rows",
         ImmutableList.of(),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testDeleteFromTablePartitionedByVarbinary() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data binary) USING iceberg PARTITIONED BY (data)",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES(1, X'e3bcd1'), (2, X'bcd1')", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, new byte[] {-29, -68, -47}), row(2L, new byte[] {-68, -47})),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("DELETE FROM %s WHERE data = X'bcd1'", tableName);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, new byte[] {-29, -68, -47})),
+        sql("SELECT * FROM %s", tableName));
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, new byte[] {-29, -68, -47})),
+        sql("SELECT * FROM %s where data = X'e3bcd1'", tableName));
   }
 }

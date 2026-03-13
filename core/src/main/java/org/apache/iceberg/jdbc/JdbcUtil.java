@@ -21,6 +21,7 @@ package org.apache.iceberg.jdbc;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
@@ -45,6 +46,7 @@ final class JdbcUtil {
       JdbcCatalog.PROPERTY_PREFIX + "init-catalog-tables";
 
   static final String RETRYABLE_STATUS_CODES = "retryable_status_codes";
+  private static final String POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505";
 
   enum SchemaVersion {
     V0,
@@ -520,6 +522,12 @@ final class JdbcUtil {
     Properties result = new Properties();
     result.putAll(PropertyUtil.propertiesWithPrefix(properties, prefix));
     return result;
+  }
+
+  static boolean isConstraintViolation(SQLException ex) {
+    return ex instanceof SQLIntegrityConstraintViolationException
+        || POSTGRES_UNIQUE_VIOLATION_SQLSTATE.equals(ex.getSQLState())
+        || (ex.getMessage() != null && ex.getMessage().contains("constraint failed"));
   }
 
   private static int update(

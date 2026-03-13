@@ -20,15 +20,16 @@ package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.PlanningMode.LOCAL;
 
-import java.util.Map;
 import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Util;
-import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 /**
  * A class for common Iceberg configs for Spark reads.
@@ -57,18 +58,24 @@ public class SparkReadConf {
   private final SparkSession spark;
   private final Table table;
   private final String branch;
+  private final CaseInsensitiveStringMap options;
   private final SparkConfParser confParser;
 
-  public SparkReadConf(SparkSession spark, Table table, Map<String, String> readOptions) {
-    this(spark, table, null, readOptions);
+  public SparkReadConf(SparkSession spark, Table table) {
+    this(spark, table, CaseInsensitiveStringMap.empty());
+  }
+
+  public SparkReadConf(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
+    this(spark, table, null, options);
   }
 
   public SparkReadConf(
-      SparkSession spark, Table table, String branch, Map<String, String> readOptions) {
+      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
     this.branch = branch;
-    this.confParser = new SparkConfParser(spark, table, readOptions);
+    this.options = options;
+    this.confParser = new SparkConfParser(spark, table, options);
   }
 
   public boolean caseSensitive() {
@@ -85,54 +92,12 @@ public class SparkReadConf {
         .parse();
   }
 
-  public Long snapshotId() {
-    return confParser.longConf().option(SparkReadOptions.SNAPSHOT_ID).parseOptional();
-  }
-
-  public Long asOfTimestamp() {
-    return confParser.longConf().option(SparkReadOptions.AS_OF_TIMESTAMP).parseOptional();
-  }
-
   public Long startSnapshotId() {
     return confParser.longConf().option(SparkReadOptions.START_SNAPSHOT_ID).parseOptional();
   }
 
   public Long endSnapshotId() {
     return confParser.longConf().option(SparkReadOptions.END_SNAPSHOT_ID).parseOptional();
-  }
-
-  public String branch() {
-    String optionBranch = confParser.stringConf().option(SparkReadOptions.BRANCH).parseOptional();
-    ValidationException.check(
-        branch == null || optionBranch == null || optionBranch.equals(branch),
-        "Must not specify different branches in both table identifier and read option, "
-            + "got [%s] in identifier and [%s] in options",
-        branch,
-        optionBranch);
-    String inputBranch = branch != null ? branch : optionBranch;
-    if (inputBranch != null) {
-      return inputBranch;
-    }
-
-    boolean wapEnabled =
-        PropertyUtil.propertyAsBoolean(
-            table.properties(), TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, false);
-    if (wapEnabled) {
-      String wapBranch = spark.conf().get(SparkSQLProperties.WAP_BRANCH, null);
-      if (wapBranch != null && table.refs().containsKey(wapBranch)) {
-        return wapBranch;
-      }
-    }
-
-    return null;
-  }
-
-  public String tag() {
-    return confParser.stringConf().option(SparkReadOptions.TAG).parseOptional();
-  }
-
-  public String scanTaskSetId() {
-    return confParser.stringConf().option(SparkReadOptions.SCAN_TASK_SET_ID).parseOptional();
   }
 
   public boolean streamingSkipDeleteSnapshots() {
@@ -292,7 +257,9 @@ public class SparkReadConf {
   }
 
   public boolean distributedPlanningEnabled() {
-    return dataPlanningMode() != LOCAL || deletePlanningMode() != LOCAL;
+    return table instanceof SupportsDistributedScanPlanning distributed
+        && distributed.allowDistributedPlanning()
+        && (dataPlanningMode() != LOCAL || deletePlanningMode() != LOCAL);
   }
 
   public PlanningMode dataPlanningMode() {
@@ -374,5 +341,37 @@ public class SparkReadConf {
         .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
         .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
+  }
+
+  public boolean identifierFieldsRely() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.IDENTIFIER_FIELDS_RELY)
+        .tableProperty(TableProperties.IDENTIFIER_FIELDS_RELY)
+        .defaultValue(TableProperties.IDENTIFIER_FIELDS_RELY_DEFAULT)
+        .parse();
+  }
+
+  public Pair<Long, Long> incrementalAppendScanBoundaries() {
+    Long startSnapshotId = startSnapshotId();
+    Long endSnapshotId = endSnapshotId();
+    Long startTimestamp = startTimestamp();
+    Long endTimestamp = endTimestamp();
+
+    Preconditions.checkArgument(
+        startTimestamp == null && endTimestamp == null,
+        "Only changelog scans support `%s` and `%s`. Use `%s` and `%s` for incremental scans.",
+        SparkReadOptions.START_TIMESTAMP,
+        SparkReadOptions.END_TIMESTAMP,
+        SparkReadOptions.START_SNAPSHOT_ID,
+        SparkReadOptions.END_SNAPSHOT_ID);
+
+    Preconditions.checkArgument(
+        startSnapshotId != null,
+        "Cannot set only `%s` for incremental scans. Please, set `%s` too.",
+        SparkReadOptions.END_SNAPSHOT_ID,
+        SparkReadOptions.START_SNAPSHOT_ID);
+
+    return Pair.of(startSnapshotId, endSnapshotId);
   }
 }

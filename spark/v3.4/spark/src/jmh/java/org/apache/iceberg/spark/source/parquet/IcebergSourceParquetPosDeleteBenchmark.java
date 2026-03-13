@@ -28,8 +28,8 @@ import org.openjdk.jmh.annotations.Param;
  * A benchmark that evaluates the non-vectorized read and vectorized read with pos-delete in the
  * Spark data source for Iceberg.
  *
- * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-3.3: <code>
- *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3:jmh
+ * <p>This class uses a dataset with a flat schema. To run this benchmark for spark-3.4: <code>
+ *   ./gradlew -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-3.4:jmh
  *       -PjmhIncludeRegex=IcebergSourceParquetPosDeleteBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-parquet-pos-delete-benchmark-result.txt
  * </code>

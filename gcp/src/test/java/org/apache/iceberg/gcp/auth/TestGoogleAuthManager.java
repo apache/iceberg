@@ -33,7 +33,9 @@ import com.google.auth.oauth2.GoogleCredentials;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.Map;
@@ -61,19 +63,22 @@ public class TestGoogleAuthManager {
   @Mock private RESTClient restClient;
   @Mock private GoogleCredentials credentials;
   @Mock private GoogleCredentials credentialsFromFile;
+  @Mock private GoogleCredentials credentialsFromJson;
 
   private GoogleAuthManager authManager;
   private MockedStatic<GoogleCredentials> mockedStaticCredentials;
 
   @TempDir File tempDir;
   private File credentialFile;
+  private String credentialJson;
 
   @BeforeEach
   public void beforeEach() throws IOException {
     authManager = new GoogleAuthManager(MANAGER_NAME);
     mockedStaticCredentials = Mockito.mockStatic(GoogleCredentials.class);
     credentialFile = new File(tempDir, "fake-creds.json");
-    Files.write(credentialFile.toPath(), "{\"type\": \"service_account\"}".getBytes());
+    credentialJson = "{\"type\": \"service_account\"}";
+    Files.write(credentialFile.toPath(), credentialJson.getBytes(StandardCharsets.UTF_8));
   }
 
   @AfterEach
@@ -105,6 +110,27 @@ public class TestGoogleAuthManager {
 
     assertThat(session).isInstanceOf(GoogleAuthSession.class);
     verify(credentialsFromFile).createScoped(ImmutableList.of("scope1", "scope2"));
+  }
+
+  @Test
+  public void buildsCatalogSessionFromCredentialsJson() {
+    String customScopes = "scope1,scope2";
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GoogleAuthManager.GCP_CREDENTIALS_JSON_PROPERTY,
+            credentialJson,
+            GoogleAuthManager.GCP_SCOPES_PROPERTY,
+            customScopes);
+
+    mockedStaticCredentials
+        .when(() -> GoogleCredentials.fromStream(any(InputStream.class)))
+        .thenReturn(credentialsFromJson);
+    when(credentialsFromJson.createScoped(anyList())).thenReturn(credentials);
+
+    AuthSession session = authManager.catalogSession(restClient, properties);
+
+    assertThat(session).isInstanceOf(GoogleAuthSession.class);
+    verify(credentialsFromJson).createScoped(ImmutableList.of("scope1", "scope2"));
   }
 
   @Test
@@ -140,6 +166,20 @@ public class TestGoogleAuthManager {
     assertThatThrownBy(() -> authManager.catalogSession(restClient, properties))
         .isInstanceOf(UncheckedIOException.class)
         .hasMessageContaining("Failed to load Google credentials");
+  }
+
+  @Test
+  public void throwsIllegalArgumentExceptionOnMultipleCredentials() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GoogleAuthManager.GCP_CREDENTIALS_PATH_PROPERTY,
+            credentialFile.getAbsolutePath(),
+            GoogleAuthManager.GCP_CREDENTIALS_JSON_PROPERTY,
+            credentialJson);
+
+    assertThatThrownBy(() -> authManager.catalogSession(restClient, properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot specify both gcp.auth.credentials-path and gcp.auth.credentials-json");
   }
 
   @Test

@@ -33,6 +33,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.events.AvroUtil;
 import org.apache.iceberg.connect.events.CommitComplete;
 import org.apache.iceberg.connect.events.CommitToTable;
@@ -189,7 +190,7 @@ public class TestCoordinator extends ChannelTestBase {
             new DataWritten(
                 StructType.of(),
                 commitId,
-                new TableReference("catalog", ImmutableList.of("db"), "tbl"),
+                TableReference.of("catalog", TableIdentifier.of("db", "tbl"), null),
                 dataFiles,
                 deleteFiles));
     bytes = AvroUtil.encode(commitResponse);

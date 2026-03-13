@@ -318,6 +318,31 @@ public class TestTypeUtil {
   }
 
   @Test
+  public void testSelectInIdOrder() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(3, "b", Types.IntegerType.get()),
+            required(2, "a", Types.IntegerType.get()));
+
+    Schema result = TypeUtil.selectInIdOrder(schema, Sets.newHashSet(2, 3));
+
+    assertThat(result.columns()).hasSize(2);
+    assertThat(result.columns().get(0).fieldId()).isEqualTo(2);
+    assertThat(result.columns().get(1).fieldId()).isEqualTo(3);
+
+    // verify that different input orderings produce the same result
+    Schema schemaReversed =
+        new Schema(
+            required(2, "a", Types.IntegerType.get()),
+            required(3, "b", Types.IntegerType.get()),
+            required(1, "id", Types.IntegerType.get()));
+
+    Schema resultReversed = TypeUtil.selectInIdOrder(schemaReversed, Sets.newHashSet(2, 3));
+    assertThat(resultReversed.asStruct()).isEqualTo(result.asStruct());
+  }
+
+  @Test
   public void testProjectMap() {
     // We can't partially project keys because it changes key equality
     Schema schema =

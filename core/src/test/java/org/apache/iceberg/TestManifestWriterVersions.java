@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -64,6 +65,9 @@ public class TestManifestWriterVersions {
           .hour("timestamp")
           .bucket("id", 16)
           .build();
+
+  private static final Map<Integer, PartitionSpec> SPECS_BY_ID =
+      ImmutableMap.of(SPEC.specId(), SPEC);
 
   private static final long SEQUENCE_NUMBER = 34L;
   private static final long SNAPSHOT_ID = 987134631982734L;
@@ -465,7 +469,7 @@ public class TestManifestWriterVersions {
   private List<ManifestEntry<DataFile>> readManifestAsList(ManifestFile manifest)
       throws IOException {
     try (CloseableIterable<ManifestEntry<DataFile>> reader =
-        ManifestFiles.read(manifest, io).entries()) {
+        ManifestFiles.read(manifest, io, SPECS_BY_ID).entries()) {
       return Lists.newArrayList(Iterables.transform(reader, ManifestEntry::copy));
     }
   }
@@ -491,7 +495,7 @@ public class TestManifestWriterVersions {
 
   private ManifestEntry<DeleteFile> readDeleteManifest(ManifestFile manifest) throws IOException {
     try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
-        ManifestFiles.readDeleteManifest(manifest, io, null).entries()) {
+        ManifestFiles.readDeleteManifest(manifest, io, SPECS_BY_ID).entries()) {
       List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
       assertThat(entries).hasSize(1);
       return entries.get(0);

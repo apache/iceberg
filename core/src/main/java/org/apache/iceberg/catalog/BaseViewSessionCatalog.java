@@ -84,6 +84,11 @@ public abstract class BaseViewSessionCatalog extends BaseSessionCatalog
     }
 
     @Override
+    public View registerView(TableIdentifier identifier, String metadataFileLocation) {
+      return BaseViewSessionCatalog.this.registerView(context, identifier, metadataFileLocation);
+    }
+
+    @Override
     public void initialize(String name, Map<String, String> properties) {
       throw new UnsupportedOperationException(
           this.getClass().getSimpleName() + " doesn't support initialization");

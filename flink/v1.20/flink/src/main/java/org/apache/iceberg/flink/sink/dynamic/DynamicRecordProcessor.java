@@ -45,6 +45,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
   private final long cacheRefreshMs;
   private final int inputSchemasPerTableCacheMaximumSize;
   private final TableCreator tableCreator;
+  private final boolean caseSensitive;
 
   private transient TableMetadataCache tableCache;
   private transient HashKeyGenerator hashKeyGenerator;
@@ -57,19 +58,21 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       DynamicRecordGenerator<T> generator,
       CatalogLoader catalogLoader,
       boolean immediateUpdate,
-      boolean dropUnusedColumns,
       int cacheMaximumSize,
       long cacheRefreshMs,
       int inputSchemasPerTableCacheMaximumSize,
-      TableCreator tableCreator) {
+      TableCreator tableCreator,
+      boolean caseSensitive,
+      boolean dropUnusedColumns) {
     this.generator = generator;
     this.catalogLoader = catalogLoader;
     this.immediateUpdate = immediateUpdate;
-    this.dropUnusedColumns = dropUnusedColumns;
     this.cacheMaximumSize = cacheMaximumSize;
     this.cacheRefreshMs = cacheRefreshMs;
     this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
     this.tableCreator = tableCreator;
+    this.caseSensitive = caseSensitive;
+    this.dropUnusedColumns = dropUnusedColumns;
   }
 
   @Override
@@ -78,12 +81,17 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
     Catalog catalog = catalogLoader.loadCatalog();
     this.tableCache =
         new TableMetadataCache(
-            catalog, cacheMaximumSize, cacheRefreshMs, inputSchemasPerTableCacheMaximumSize);
+            catalog,
+            cacheMaximumSize,
+            cacheRefreshMs,
+            inputSchemasPerTableCacheMaximumSize,
+            caseSensitive,
+            dropUnusedColumns);
     this.hashKeyGenerator =
         new HashKeyGenerator(
             cacheMaximumSize, getRuntimeContext().getTaskInfo().getMaxNumberOfParallelSubtasks());
     if (immediateUpdate) {
-      updater = new TableUpdater(tableCache, catalog, dropUnusedColumns);
+      updater = new TableUpdater(tableCache, catalog, caseSensitive, dropUnusedColumns);
     } else {
       updateStream =
           new OutputTag<>(
@@ -109,7 +117,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
 
     TableMetadataCache.ResolvedSchemaInfo foundSchema =
         exists
-            ? tableCache.schema(data.tableIdentifier(), data.schema(), dropUnusedColumns)
+            ? tableCache.schema(data.tableIdentifier(), data.schema())
             : TableMetadataCache.NOT_FOUND;
 
     PartitionSpec foundSpec = exists ? tableCache.spec(data.tableIdentifier(), data.spec()) : null;

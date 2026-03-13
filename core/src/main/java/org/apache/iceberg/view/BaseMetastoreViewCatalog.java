@@ -298,4 +298,28 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       return super.replaceTransaction();
     }
   }
+
+  @Override
+  public View registerView(TableIdentifier identifier, String metadataFileLocation) {
+    Preconditions.checkArgument(
+        identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+    Preconditions.checkArgument(
+        metadataFileLocation != null && !metadataFileLocation.isEmpty(),
+        "Cannot register an empty metadata file location as a view");
+
+    if (viewExists(identifier)) {
+      throw new AlreadyExistsException("View already exists: %s", identifier);
+    }
+
+    if (tableExists(identifier)) {
+      throw new AlreadyExistsException("Table with same name already exists: %s", identifier);
+    }
+
+    ViewOperations ops = newViewOps(identifier);
+    ViewMetadata metadata =
+        ViewMetadataParser.read(((BaseViewOperations) ops).io(), metadataFileLocation);
+    ops.commit(null, metadata);
+
+    return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
+  }
 }

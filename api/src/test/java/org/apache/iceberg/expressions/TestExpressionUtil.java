@@ -19,6 +19,8 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 import java.time.LocalDate;
@@ -33,6 +35,7 @@ import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -1069,6 +1072,22 @@ public class TestExpressionUtil {
                 PartitionSpec.builderFor(SCHEMA).day("ts").build(),
                 true))
         .as("Should not select partitions, on hour not day boundary")
+        .isFalse();
+  }
+
+  @Test
+  public void testSelectsPartitionsWithUnpartitionedTable() {
+    Table table = mock(Table.class);
+    Map<Integer, PartitionSpec> specs =
+        ImmutableMap.of(
+            0,
+            PartitionSpec.unpartitioned(),
+            1,
+            PartitionSpec.builderFor(SCHEMA).identity("val").build());
+    when(table.specs()).thenReturn(specs);
+
+    assertThat(ExpressionUtil.selectsPartitions(Expressions.lessThan("id", 1L), table, true))
+        .as("Should return false for unpartitioned table (no partition boundaries to select)")
         .isFalse();
   }
 

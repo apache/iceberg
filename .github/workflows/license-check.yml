@@ -20,6 +20,9 @@
 name: "Run License Check"
 on: pull_request
 
+permissions:
+  contents: read
+
 jobs:
   rat:
     runs-on: ubuntu-24.04

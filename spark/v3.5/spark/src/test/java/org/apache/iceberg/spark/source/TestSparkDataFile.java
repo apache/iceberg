@@ -183,7 +183,8 @@ public class TestSparkDataFile {
     assertThat(manifests).hasSize(1);
 
     List<DataFile> dataFiles = Lists.newArrayList();
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifests.get(0), table.io(), table.specs())) {
       for (DataFile dataFile : reader) {
         checkDataFile(dataFile.copy(), DataFiles.builder(dataFilesSpec).copy(dataFile).build());
         dataFiles.add(dataFile.copy());

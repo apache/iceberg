@@ -27,6 +27,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -38,10 +39,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * BaseTable using a {@link StaticTableOperations}. This way no Catalog related calls are needed
  * when reading the table data after deserialization.
  */
-public class BaseTable implements Table, HasTableOperations, Serializable {
+public class BaseTable
+    implements Table, HasTableOperations, Serializable, SupportsDistributedScanPlanning {
   private final TableOperations ops;
   private final String name;
-  private final MetricsReporter reporter;
+  private MetricsReporter reporter;
 
   public BaseTable(TableOperations ops, String name) {
     this(ops, name, LoggingMetricsReporter.instance());
@@ -56,6 +58,10 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   public MetricsReporter reporter() {
     return reporter;
+  }
+
+  public void combineMetricsReporter(MetricsReporter metricsReporter) {
+    this.reporter = MetricsReporters.combine(this.reporter, metricsReporter);
   }
 
   @Override
@@ -88,6 +94,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public IncrementalChangelogScan newIncrementalChangelogScan() {
     return new BaseIncrementalChangelogScan(this);
+  }
+
+  @Override
+  public PartitionStatisticsScan newPartitionStatisticsScan() {
+    return new BasePartitionStatisticsScan(this);
   }
 
   @Override

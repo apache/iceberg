@@ -32,7 +32,10 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -43,6 +46,7 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.AfterEach;
@@ -110,7 +114,10 @@ public class TestSelect extends CatalogTestBase {
     List<Object[]> expected =
         ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
-    assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @TestTemplate
@@ -121,7 +128,10 @@ public class TestSelect extends CatalogTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     table.updateProperties().set("read.split.target-size", "1024").commit();
     spark.sql("REFRESH TABLE " + tableName);
-    assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
 
     // Query failed when `SPLIT_SIZE` < 0
     table.updateProperties().set(SPLIT_SIZE, "-1").commit();
@@ -161,16 +171,21 @@ public class TestSelect extends CatalogTestBase {
 
     // verify that LIMIT is properly applied in case SupportsPushDownLimit.isPartiallyPushed() is
     // ever overridden in SparkScanBuilder
-    assertThat(sql("SELECT * FROM %s LIMIT 1", tableName)).containsExactly(first);
-    assertThat(sql("SELECT * FROM %s LIMIT 2", tableName)).containsExactly(first, second);
-    assertThat(sql("SELECT * FROM %s LIMIT 3", tableName)).containsExactly(first, second, third);
+    assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 1", tableName)).containsExactly(first);
+    assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 2", tableName))
+        .containsExactly(first, second);
+    assertThat(sql("SELECT * FROM %s ORDER BY id LIMIT 3", tableName))
+        .containsExactly(first, second, third);
   }
 
   @TestTemplate
   public void testProjection() {
     List<Object[]> expected = ImmutableList.of(row(1L), row(2L), row(3L));
 
-    assertEquals("Should return all expected rows", expected, sql("SELECT id FROM %s", tableName));
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT id FROM %s ORDER BY id", tableName));
 
     assertThat(scanEventCount).as("Should create only one scan").isEqualTo(1);
     assertThat(lastScanEvent.filter())
@@ -402,7 +417,7 @@ public class TestSelect extends CatalogTestBase {
 
     List<Object[]> expected =
         Arrays.asList(row(1L, "a", 1.0f), row(2L, "b", 2.0f), row(3L, "c", Float.NaN));
-    assertThat(sql("SELECT * FROM %s", tableName)).containsExactlyElementsOf(expected);
+    assertThat(sql("SELECT * FROM %s", tableName)).containsExactlyInAnyOrderElementsOf(expected);
 
     // change schema on the table and add more data
     sql("ALTER TABLE %s DROP COLUMN float", tableName);
@@ -628,6 +643,29 @@ public class TestSelect extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testFixedInFilter() {
+    // Create table programmatically with fixed type since Spark SQL DDL doesn't support it
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.required(2, "fixed", Types.FixedType.ofLength(2)));
+
+    TableIdentifier fixedTableIdent = TableIdentifier.of(tableIdent.namespace(), "fixed_table");
+    validationCatalog.createTable(fixedTableIdent, schema, PartitionSpec.unpartitioned());
+
+    String fixedTableName = tableName("fixed_table");
+    sql("INSERT INTO %s VALUES (1, X'0000'), (2, X'1111'), (3, X'0011')", fixedTableName);
+    List<Object[]> expected = ImmutableList.of(row(2L, new byte[] {0x11, 0x11}));
+
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT id, fixed FROM %s WHERE fixed > X'0011'", fixedTableName));
+
+    sql("DROP TABLE IF EXISTS %s", fixedTableName);
+  }
+
+  @TestTemplate
   public void testComplexTypeFilter() {
     String complexTypeTableName = tableName("complex_table");
     sql(
@@ -678,24 +716,25 @@ public class TestSelect extends CatalogTestBase {
             + "(2, false, 2, 2L, 2.2, 2.4, '2.6', to_date('2022-02-02'), to_timestamp('2022-02-02T00:00:00')), "
             + "(3, true, 3, 3L, 3.3, 3.6, '3.9', to_date('2023-03-03'), to_timestamp('2023-03-03T00:00:00'))",
         tableName);
-    assertThat(sql("SELECT id FROM %s where id > 1", tableName)).containsExactly(row(2L), row(3L));
+    assertThat(sql("SELECT id FROM %s where id > 1", tableName))
+        .containsExactlyInAnyOrder(row(2L), row(3L));
     assertThat(sql("SELECT id, boolean FROM %s where boolean = true", tableName))
-        .containsExactly(row(1L, true), row(3L, true));
+        .containsExactlyInAnyOrder(row(1L, true), row(3L, true));
     assertThat(sql("SELECT long FROM %s where long > 1", tableName))
-        .containsExactly(row(2L), row(3L));
+        .containsExactlyInAnyOrder(row(2L), row(3L));
     assertThat(sql("SELECT float FROM %s where float > 1.1f", tableName))
-        .containsExactly(row(2.2f), row(3.3f));
+        .containsExactlyInAnyOrder(row(2.2f), row(3.3f));
     assertThat(sql("SELECT double FROM %s where double > 1.3", tableName))
-        .containsExactly(row(2.4d), row(3.6d));
+        .containsExactlyInAnyOrder(row(2.4d), row(3.6d));
     assertThat(sql("SELECT string FROM %s where string > '1.5'", tableName))
-        .containsExactly(row("2.6"), row("3.9"));
+        .containsExactlyInAnyOrder(row("2.6"), row("3.9"));
     java.sql.Date dateOne = java.sql.Date.valueOf("2022-02-02");
     java.sql.Date dateTwo = java.sql.Date.valueOf("2023-03-03");
     assertThat(sql("SELECT date FROM %s where date > to_date('2021-01-01')", tableName))
-        .containsExactly(row(dateOne), row(dateTwo));
+        .containsExactlyInAnyOrder(row(dateOne), row(dateTwo));
     assertThat(
             sql("SELECT timestamp FROM %s where timestamp > to_timestamp('2021-01-01')", tableName))
-        .containsExactly(
+        .containsExactlyInAnyOrder(
             row(new Timestamp(dateOne.getTime())), row(new Timestamp(dateTwo.getTime())));
 
     sql("DROP TABLE IF EXISTS %s", tableName);

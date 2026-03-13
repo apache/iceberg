@@ -32,7 +32,6 @@ import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.PayloadType;
 import org.apache.iceberg.connect.events.StartCommit;
-import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
@@ -101,7 +100,7 @@ class Worker extends Channel {
                         new DataWritten(
                             writeResult.partitionStruct(),
                             commitId,
-                            TableReference.of(config.catalogName(), writeResult.tableIdentifier()),
+                            writeResult.tableReference(),
                             writeResult.dataFiles(),
                             writeResult.deleteFiles())))
             .collect(Collectors.toList());

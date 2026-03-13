@@ -203,7 +203,7 @@ public class TableMigrationUtil {
       }
       return Arrays.asList(datafiles);
     } catch (IOException e) {
-      throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);
+      throw new UncheckedIOException("Unable to list files in partition: " + partitionUri, e);
     } finally {
       if (service != null) {
         service.shutdown();

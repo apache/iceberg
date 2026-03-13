@@ -44,6 +44,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.avro.Avro;
@@ -578,7 +579,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
                 parentSnapshot.schemaId(),
                 parentSnapshot.sequenceNumber()),
             row(
-                DateTimeUtils.toJavaTimestamp(currentSnapshot.timestampMillis() * 1000),
+                DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 currentSnapshot.snapshotId(),
                 currentSnapshot.schemaId(),
@@ -597,8 +598,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
         "Result should match the latest snapshot entry",
         ImmutableList.of(
             row(
-                DateTimeUtils.toJavaTimestamp(
-                    tableMetadata.currentSnapshot().timestampMillis() * 1000),
+                DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
                 tableMetadata.metadataFileLocation(),
                 tableMetadata.currentSnapshot().snapshotId(),
                 tableMetadata.currentSnapshot().schemaId(),
@@ -749,7 +749,9 @@ public class TestMetadataTables extends ExtensionsTestBase {
             .collectAsList();
     assertThat(mainBranch)
         .hasSize(1)
-        .containsExactly(RowFactory.create("main", "BRANCH", currentSnapshotId, null, null, null));
+        .containsExactly(
+            RowFactory.create(
+                SnapshotRef.MAIN_BRANCH, "BRANCH", currentSnapshotId, null, null, null));
     assertThat(mainBranch.get(0).schema().fieldNames())
         .containsExactly(
             "name",
@@ -817,7 +819,7 @@ public class TestMetadataTables extends ExtensionsTestBase {
             .collectAsList();
     assertThat(mainBranchProjection)
         .hasSize(1)
-        .containsExactly(RowFactory.create("main", "BRANCH"));
+        .containsExactly(RowFactory.create(SnapshotRef.MAIN_BRANCH, "BRANCH"));
     assertThat(mainBranchProjection.get(0).schema().fieldNames()).containsExactly("name", "type");
 
     List<Row> testBranchProjection =

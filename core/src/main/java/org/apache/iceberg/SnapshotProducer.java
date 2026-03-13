@@ -645,6 +645,34 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return true;
   }
 
+  /**
+   * Builds a snapshot summary with manifest counts.
+   *
+   * @param manifests the list of manifests in the new snapshot
+   * @param replacedManifestsCount the count of manifests that were replaced (rewritten)
+   * @return a summary builder with manifest count metrics set
+   */
+  protected SnapshotSummary.Builder buildManifestCountSummary(
+      List<ManifestFile> manifests, int replacedManifestsCount) {
+    SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
+    int manifestsCreated = 0;
+    int manifestsKept = 0;
+
+    for (ManifestFile manifest : manifests) {
+      if (snapshotId() == manifest.snapshotId()) {
+        manifestsCreated++;
+      } else if (null != manifest.snapshotId()) {
+        manifestsKept++;
+      }
+    }
+
+    summaryBuilder.set(SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(manifestsCreated));
+    summaryBuilder.set(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(manifestsKept));
+    summaryBuilder.set(
+        SnapshotSummary.REPLACED_MANIFESTS_COUNT, String.valueOf(replacedManifestsCount));
+    return summaryBuilder;
+  }
+
   protected List<ManifestFile> writeDataManifests(Collection<DataFile> files, PartitionSpec spec) {
     return writeDataManifests(files, null /* inherit data seq */, spec);
   }
@@ -698,9 +726,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     try (RollingManifestWriter<DeleteFile> closableWriter = writer) {
       for (DeleteFile file : files) {
-        Preconditions.checkArgument(
-            file instanceof Delegates.PendingDeleteFile,
-            "Invalid delete file: must be PendingDeleteFile");
         if (file.dataSequenceNumber() != null) {
           closableWriter.add(file, file.dataSequenceNumber());
         } else {

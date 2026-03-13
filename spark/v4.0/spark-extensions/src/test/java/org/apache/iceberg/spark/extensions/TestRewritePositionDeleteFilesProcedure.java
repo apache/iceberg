@@ -239,6 +239,7 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
     Map<String, String> summary = snapshotSummary();
     assertThat(summary)
         .containsKey(CatalogProperties.APP_ID)
+        .containsKey(CatalogProperties.APP_NAME)
         .containsEntry(EnvironmentContext.ENGINE_NAME, "spark")
         .hasEntrySatisfying(
             EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("4.0"));

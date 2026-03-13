@@ -97,12 +97,28 @@ public class ManifestFiles {
    *
    * @param manifest a ManifestFile
    * @param io a FileIO
+   * @param specsById a Map from spec ID to partition spec
    * @return a manifest reader
    */
-  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
+  public static CloseableIterable<String> readPaths(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
     return CloseableIterable.transform(
-        read(manifest, io, null).select(ImmutableList.of("file_path")).liveEntries(),
+        read(manifest, io, specsById).select(ImmutableList.of("file_path")).liveEntries(),
         entry -> entry.file().location());
+  }
+
+  /**
+   * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
+   *
+   * @param manifest a ManifestFile
+   * @param io a FileIO
+   * @return a manifest reader
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #readPaths(ManifestFile,
+   *     FileIO, Map)} instead.
+   */
+  @Deprecated
+  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
+    return readPaths(manifest, io, null);
   }
 
   /**
@@ -115,7 +131,11 @@ public class ManifestFiles {
    * @param manifest a ManifestFile
    * @param io a FileIO
    * @return a manifest reader
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #read(ManifestFile, FileIO,
+   *     Map)} instead. Reading partition specs from manifest file metadata will not be supported
+   *     for non-Avro manifest formats.
    */
+  @Deprecated
   public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io) {
     return read(manifest, io, null);
   }
@@ -306,6 +326,11 @@ public class ManifestFiles {
     return AvroEncoderUtil.decode(manifestData);
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link #open(ManifestFile, FileIO,
+   *     Map)} instead.
+   */
+  @Deprecated
   static ManifestReader<?> open(ManifestFile manifest, FileIO io) {
     return open(manifest, io, null);
   }

@@ -141,7 +141,6 @@ make serve-dev
 This development mode:
 - **Only builds `nightly` and `latest` versions** - Skips all historical versions
 - **Significantly reduces build time** - Typically 5-10x faster than building all versions
-- **Uses the `--dirty` flag** - Only rebuilds changed files for even faster iteration
 - **Perfect for iterative development** - Great for working on documentation content
 
 The development mode sets the `ICEBERG_DEV_MODE=true` environment variable and uses a simplified mkdocs configuration (`mkdocs-dev.yml`) that only includes the most recent versions.

@@ -19,6 +19,7 @@
 package org.apache.iceberg.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -27,6 +28,7 @@ import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
 public class TestEncryptionUtil {
@@ -50,6 +52,21 @@ public class TestEncryptionUtil {
         .isNotInstanceOf(Thread.currentThread().getContextClassLoader().getClass());
 
     assertThat(kmsClientObj.getClass().getClassLoader()).isSameAs(customClassLoader);
+  }
+
+  @Test
+  public void testInvalidTypeAndImpl() {
+    assertThatThrownBy(
+            () ->
+                EncryptionUtil.createKmsClient(
+                    ImmutableMap.of(
+                        CatalogProperties.ENCRYPTION_KMS_TYPE,
+                        CatalogProperties.ENCRYPTION_KMS_TYPE_AWS,
+                        CatalogProperties.ENCRYPTION_KMS_IMPL,
+                        CatalogProperties.ENCRYPTION_KMS_IMPL_AWS)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set both KMS type (aws) and KMS impl (org.apache.iceberg.aws.AwsKeyManagementClient)");
   }
 
   static class UnitTestCustomClassLoader extends ClassLoader {

@@ -24,7 +24,6 @@ import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
@@ -337,7 +336,6 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
         JdbcUtil.namespaceToString(namespace));
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     if (from.equals(to)) {
@@ -363,9 +361,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     int updatedRecords =
         execute(
             err -> {
-              // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-              if (err instanceof SQLIntegrityConstraintViolationException
-                  || (err.getMessage() != null && err.getMessage().contains("constraint failed"))) {
+              if (JdbcUtil.isConstraintViolation(err)) {
                 throw new AlreadyExistsException("Table already exists: %s", to);
               }
             },
@@ -713,9 +709,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     int updatedRecords =
         execute(
             err -> {
-              // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-              if (err instanceof SQLIntegrityConstraintViolationException
-                  || (err.getMessage() != null && err.getMessage().contains("constraint failed"))) {
+              if (JdbcUtil.isConstraintViolation(err)) {
                 throw new AlreadyExistsException(
                     "Cannot rename %s to %s. View already exists", from, to);
               }

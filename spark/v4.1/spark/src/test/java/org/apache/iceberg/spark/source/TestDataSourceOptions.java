@@ -24,6 +24,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.RoundingMode;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -66,6 +68,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestDataSourceOptions extends TestBaseWithCatalog {
 
+  private static final SimpleDateFormat TIMESTAMP_FORMAT =
+      new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA =
       new Schema(
@@ -252,29 +256,28 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
                 spark
                     .read()
                     .format("iceberg")
-                    .option("snapshot-id", snapshotIds.get(3).toString())
+                    .option(SparkReadOptions.VERSION_AS_OF, snapshotIds.get(3).toString())
                     .option("start-snapshot-id", snapshotIds.get(3).toString())
                     .load(tableLocation)
                     .explain())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot set start-snapshot-id and end-snapshot-id for incremental scans when either snapshot-id or as-of-timestamp is set");
+        .hasMessage("Cannot use time travel in incremental scan");
 
     // end-snapshot-id and as-of-timestamp are both configured.
+    long snapshotTimestamp = table.snapshot(snapshotIds.get(3)).timestampMillis();
+    String formattedTimestamp = TIMESTAMP_FORMAT.format(new Date(snapshotTimestamp));
+
     assertThatThrownBy(
             () ->
                 spark
                     .read()
                     .format("iceberg")
-                    .option(
-                        SparkReadOptions.AS_OF_TIMESTAMP,
-                        Long.toString(table.snapshot(snapshotIds.get(3)).timestampMillis()))
+                    .option(SparkReadOptions.TIMESTAMP_AS_OF, formattedTimestamp)
                     .option("end-snapshot-id", snapshotIds.get(2).toString())
                     .load(tableLocation)
                     .explain())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot set start-snapshot-id and end-snapshot-id for incremental scans when either snapshot-id or as-of-timestamp is set");
+        .hasMessage("Cannot use time travel in incremental scan");
 
     // only end-snapshot-id is configured.
     assertThatThrownBy(
@@ -287,7 +290,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
                     .explain())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot set only end-snapshot-id for incremental scans. Please, set start-snapshot-id too.");
+            "Cannot set only `end-snapshot-id` for incremental scans. Please, set `start-snapshot-id` too.");
 
     // test (1st snapshot, current snapshot] incremental scan.
     Dataset<Row> unboundedIncrementalResult =

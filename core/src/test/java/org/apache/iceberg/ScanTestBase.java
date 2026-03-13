@@ -238,6 +238,17 @@ public abstract class ScanTestBase<
                 .build())
         .commit();
 
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data/b.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(1)
+                .withSortOrderId(1)
+                .build())
+        .commit();
+
     TableScan scan = table.newScan();
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       for (FileScanTask fileScanTask : tasks) {

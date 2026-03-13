@@ -127,6 +127,14 @@ The value of these properties are not persisted as a part of the table metadata.
 | -------------- | -------- |--------------------------------------------------------------------------------------------------------------------------------------|
 | format-version | 2        | Table's format version as defined in the [Spec](../../spec.md#format-versioning). Defaults to 2 since version 1.4.0. |
 
+### Informational properties
+
+Informational properties can be set to provide additional context about a table. They can be useful for documentation, discovery, and integration with external tools. They do not affect read/write behavior or query semantics.
+
+| Property | Default    | Description                                                                                                         |
+| -------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| comment  | (not set)  | A table-level description that documents the business meaning and usage context. |
+
 ### Compatibility flags
 
 | Property                                      | Default  | Description                                                   |
@@ -190,6 +198,7 @@ Required and optional properties to include while using `google` authentication
 | Property                   | Default                                          | Description                                      |
 |----------------------------|--------------------------------------------------|--------------------------------------------------|
 | `gcp.auth.credentials-path`| Application Default Credentials (ADC)            | Path to a service account JSON key file.         |
+| `gcp.auth.credentials-json` | Application Default Credentials (ADC)            | JSON string of a service account credential.     |
 | `gcp.auth.scopes`          | `https://www.googleapis.com/auth/cloud-platform` | Comma-separated list of OAuth scopes to request. |
 
 ### Lock catalog properties

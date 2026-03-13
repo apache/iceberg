@@ -43,6 +43,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -445,7 +446,10 @@ public class TestNessieTable extends BaseTestIceberg {
     List<String> metadataVersionFiles = metadataVersionFiles(tableLocation);
     assertThat(1).isEqualTo(metadataVersionFiles.size());
     ImmutableTableReference tableReference =
-        ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
+        ImmutableTableReference.builder()
+            .reference(SnapshotRef.MAIN_BRANCH)
+            .name(TABLE_NAME)
+            .build();
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
     try {
       api.createNamespace().namespace(DB_NAME).refName(tableReference.getReference()).create();
@@ -517,7 +521,10 @@ public class TestNessieTable extends BaseTestIceberg {
     List<String> metadataVersionFiles = metadataVersionFiles(tableLocation);
     assertThat(1).isEqualTo(metadataVersionFiles.size());
     ImmutableTableReference tableReference =
-        ImmutableTableReference.builder().reference("main").name(TABLE_NAME).build();
+        ImmutableTableReference.builder()
+            .reference(SnapshotRef.MAIN_BRANCH)
+            .name(TABLE_NAME)
+            .build();
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, tableReference.toString());
     try {
       api.createNamespace().namespace(DB_NAME).refName(tableReference.getReference()).create();
