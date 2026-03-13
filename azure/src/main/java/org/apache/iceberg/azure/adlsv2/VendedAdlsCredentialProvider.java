@@ -180,15 +180,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
   }
 
   private Map<String, String> credentialsQueryParams() {
-    Map<String, String> queryParams = Maps.newHashMap();
-    if (null != planId) {
-      queryParams.put("planId", planId);
-    }
-    String referencedBy = properties.get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
-    if (referencedBy != null) {
-      queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
-    }
-    return queryParams.isEmpty() ? null : queryParams;
+    return RESTUtil.credentialsQueryParams(planId, properties);
   }
 
   private void checkCredential(Credential credential, String property) {

@@ -20,7 +20,7 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.iceberg.catalog.Namespace
 import org.apache.iceberg.catalog.TableIdentifier
-import org.apache.iceberg.spark.ContextAwareCatalog
+import org.apache.iceberg.spark.ContextAwareTableCatalog
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
@@ -76,38 +76,56 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       // Build List<TableIdentifier> from the view chain.
       // Each chain element is [catalog, ns1, ns2, ..., viewName] — skip the catalog (first element)
       // since TableIdentifier only contains namespace + name.
-      val viewIdentifiers = viewChain.map { parts =>
-        val nsParts = parts.drop(1).init // drop catalog, then drop name
-        val ns = Namespace.of(nsParts: _*)
-        TableIdentifier.of(ns, parts.last)
-      }
-      val context = new java.util.HashMap[String, Object]()
-      context.put(
-        org.apache.iceberg.catalog.ContextAwareCatalog.VIEW_IDENTIFIER_KEY,
-        viewIdentifiers.asJava)
-      try {
-        catalog match {
-          case contextAwareCatalog: ContextAwareCatalog =>
-            val table = contextAwareCatalog.loadTable(tableIdent, context)
-            DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
-          case catalog if catalog.asTableCatalog.isInstanceOf[ContextAwareCatalog] =>
-            val table =
-              catalog.asTableCatalog
-                .asInstanceOf[ContextAwareCatalog]
-                .loadTable(tableIdent, context)
-            DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
-          case _ =>
-            val table = catalog.asTableCatalog.loadTable(tableIdent)
-            DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
+      // Filter to only include views from the same catalog as the target table.
+      val targetCatalogName = catalog.name()
+      val viewIdentifiers = viewChain
+        .filter(parts => parts.headOption.contains(targetCatalogName))
+        .map { parts =>
+          val nsParts = parts.drop(1).init // drop catalog, then drop name
+          val ns = Namespace.of(nsParts: _*)
+          TableIdentifier.of(ns, parts.last)
         }
-      } catch {
-        case _: NoSuchTableException =>
-          // The target might be a view, not a table. Try loading as a view
-          // and recursively resolve with the accumulated chain.
-          ViewUtil
-            .loadView(catalog, tableIdent, context)
-            .map(view => createViewRelation(tableParts, view, Some(viewChain)))
-            .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
+      if (viewIdentifiers.isEmpty) {
+        // No views from the same catalog — load without context but handle view fallback
+        try {
+          val table = catalog.asTableCatalog.loadTable(tableIdent)
+          DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
+        } catch {
+          case _: NoSuchTableException =>
+            ViewUtil
+              .loadView(catalog, tableIdent)
+              .map(view => createViewRelation(tableParts, view, Some(viewChain)))
+              .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
+        }
+      } else {
+        val context = new java.util.HashMap[String, Object]()
+        context.put(
+          org.apache.iceberg.catalog.ContextAwareCatalog.VIEW_IDENTIFIER_KEY,
+          viewIdentifiers.asJava)
+        try {
+          catalog match {
+            case contextAwareCatalog: ContextAwareTableCatalog =>
+              val table = contextAwareCatalog.loadTable(tableIdent, context)
+              DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
+            case catalog if catalog.asTableCatalog.isInstanceOf[ContextAwareTableCatalog] =>
+              val table =
+                catalog.asTableCatalog
+                  .asInstanceOf[ContextAwareTableCatalog]
+                  .loadTable(tableIdent, context)
+              DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
+            case _ =>
+              val table = catalog.asTableCatalog.loadTable(tableIdent)
+              DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
+          }
+        } catch {
+          case _: NoSuchTableException =>
+            // The target might be a view, not a table. Try loading as a view
+            // and recursively resolve with the accumulated chain.
+            ViewUtil
+              .loadView(catalog, tableIdent, context)
+              .map(view => createViewRelation(tableParts, view, Some(viewChain)))
+              .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
+        }
       }
 
     case c @ CreateIcebergView(
@@ -158,8 +176,10 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
     // Apply any necessary rewrites to preserve correct resolution
     val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
-    // Build the view chain: prepend existing chain (from outer views) with the current view
-    val currentViewParts = viewCatalogAndNamespace ++ Seq(nameParts.last)
+    // Build the view chain: append the current view's qualified name to the existing chain.
+    // Use the view's own catalog and namespace to ensure a fully qualified chain entry,
+    // since nameParts may be unqualified (e.g., just ["view_name"]).
+    val currentViewParts = viewCatalogAndNamespace :+ nameParts.last
     val viewChain: Seq[Seq[String]] = existingChain match {
       case Some(chain) => chain :+ currentViewParts
       case None => Seq(currentViewParts)

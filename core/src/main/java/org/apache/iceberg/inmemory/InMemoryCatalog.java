@@ -33,6 +33,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -62,7 +63,7 @@ import org.apache.iceberg.view.ViewUtil;
  * effects. It uses {@link InMemoryFileIO}.
  */
 public class InMemoryCatalog extends BaseMetastoreViewCatalog
-    implements SupportsNamespaces, Closeable {
+    implements SupportsNamespaces, ContextAwareCatalog, Closeable {
   private static final Joiner SLASH = Joiner.on("/");
   private static final Joiner DOT = Joiner.on(".");
 
@@ -336,6 +337,18 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     namespaces.clear();
     tables.clear();
     views.clear();
+  }
+
+  @Override
+  public org.apache.iceberg.Table loadTable(
+      TableIdentifier identifier, Map<String, Object> loadingContext) {
+    return loadTable(identifier);
+  }
+
+  @Override
+  public org.apache.iceberg.view.View loadView(
+      TableIdentifier identifier, Map<String, Object> loadingContext) {
+    return loadView(identifier);
   }
 
   @Override

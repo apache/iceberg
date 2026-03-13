@@ -18,7 +18,7 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.iceberg.spark.ContextAwareCatalog
+import org.apache.iceberg.spark.ContextAwareTableCatalog
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.View
@@ -40,7 +40,7 @@ object ViewUtil {
       catalog: CatalogPlugin,
       ident: Identifier,
       context: java.util.Map[String, Object]): Option[View] = catalog match {
-    case contextAware: ContextAwareCatalog =>
+    case contextAware: ContextAwareTableCatalog =>
       try {
         Option(contextAware.loadView(ident, context))
       } catch {

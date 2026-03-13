@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.UUIDUtil;
 
@@ -385,5 +386,28 @@ public class RESTUtil {
    */
   public static Map<String, String> idempotencyHeaders() {
     return ImmutableMap.of(IDEMPOTENCY_KEY_HEADER, UUIDUtil.generateUuidV7().toString());
+  }
+
+  /**
+   * Builds query parameters for credential endpoints, including planId and referenced-by if
+   * present.
+   *
+   * @param planId the scan plan ID, or null if not set
+   * @param properties configuration properties that may contain a referenced-by value
+   * @return a map of query parameters, or null if no parameters are needed
+   */
+  public static Map<String, String> credentialsQueryParams(
+      String planId, Map<String, String> properties) {
+    Map<String, String> queryParams = Maps.newHashMap();
+    if (planId != null) {
+      queryParams.put(RESTCatalogProperties.PLAN_ID_QUERY_PARAMETER, planId);
+    }
+
+    String referencedBy = properties.get(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
+    if (referencedBy != null) {
+      queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
+    }
+
+    return queryParams.isEmpty() ? null : queryParams;
   }
 }

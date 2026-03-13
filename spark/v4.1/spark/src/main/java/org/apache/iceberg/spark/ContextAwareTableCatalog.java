@@ -30,7 +30,7 @@ import org.apache.spark.sql.connector.catalog.View;
  * context. The loading context can carry information such as the chain of views that reference a
  * table, enabling catalogs to make context-aware decisions (e.g., scoped credential vending).
  */
-public interface ContextAwareCatalog {
+public interface ContextAwareTableCatalog {
 
   /**
    * Load a table with additional context.

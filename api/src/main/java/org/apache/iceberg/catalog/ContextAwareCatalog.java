@@ -21,8 +21,6 @@ package org.apache.iceberg.catalog;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.view.View;
 
 /**
@@ -45,16 +43,11 @@ public interface ContextAwareCatalog {
    *       to innermost view last. For a single view reference, the list contains one element.
    * </ul>
    *
-   * <p>The default implementation throws {@link UnsupportedOperationException}. Implementations
-   * that support context-aware table loading should override this method.
-   *
    * @param identifier the table identifier to load
    * @param loadingContext additional context information as key-value pairs
    * @return the loaded table
-   * @throws NoSuchTableException if the table does not exist
    */
-  default Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext)
-      throws NoSuchTableException {
+  default Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext) {
     throw new UnsupportedOperationException(
         "Context-aware table loading is not supported by this catalog");
   }
@@ -62,16 +55,11 @@ public interface ContextAwareCatalog {
   /**
    * Load a view with additional context information.
    *
-   * <p>The default implementation throws {@link UnsupportedOperationException}. Implementations
-   * that support context-aware view loading should override this method.
-   *
    * @param identifier the view identifier to load
    * @param loadingContext additional context information as key-value pairs
    * @return the loaded view
-   * @throws NoSuchViewException if the view does not exist
    */
-  default View loadView(TableIdentifier identifier, Map<String, Object> loadingContext)
-      throws NoSuchViewException {
+  default View loadView(TableIdentifier identifier, Map<String, Object> loadingContext) {
     throw new UnsupportedOperationException(
         "Context-aware view loading is not supported by this catalog");
   }

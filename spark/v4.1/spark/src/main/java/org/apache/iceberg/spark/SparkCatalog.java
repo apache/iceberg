@@ -117,7 +117,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog implements ContextAwareCatalog {
+public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalog {
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
@@ -131,6 +131,7 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareCatalog {
   private Catalog icebergCatalog = null;
   private SupportsNamespaces asNamespaceCatalog = null;
   private ViewCatalog asViewCatalog = null;
+  private org.apache.iceberg.catalog.ContextAwareCatalog asContextAwareCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
 
@@ -553,12 +554,8 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareCatalog {
     if (null != asViewCatalog) {
       try {
         org.apache.iceberg.view.View view;
-        if (context != null
-            && !context.isEmpty()
-            && asViewCatalog instanceof org.apache.iceberg.catalog.ContextAwareCatalog) {
-          view =
-              ((org.apache.iceberg.catalog.ContextAwareCatalog) asViewCatalog)
-                  .loadView(buildIdentifier(ident), context);
+        if (context != null && !context.isEmpty() && asContextAwareCatalog != null) {
+          view = asContextAwareCatalog.loadView(buildIdentifier(ident), context);
         } else {
           if (context != null && !context.isEmpty()) {
             LOG.warn(
@@ -784,6 +781,10 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareCatalog {
       this.asViewCatalog = (ViewCatalog) catalog;
     }
 
+    if (catalog instanceof org.apache.iceberg.catalog.ContextAwareCatalog) {
+      this.asContextAwareCatalog = (org.apache.iceberg.catalog.ContextAwareCatalog) catalog;
+    }
+
     EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "spark");
     EnvironmentContext.put(
         EnvironmentContext.ENGINE_VERSION, sparkSession.sparkContext().version());
@@ -906,10 +907,8 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareCatalog {
 
   private org.apache.iceberg.Table loadIcebergTable(
       TableIdentifier ident, Map<String, Object> context) {
-    if (!context.isEmpty()
-        && icebergCatalog instanceof org.apache.iceberg.catalog.ContextAwareCatalog) {
-      return ((org.apache.iceberg.catalog.ContextAwareCatalog) icebergCatalog)
-          .loadTable(ident, context);
+    if (!context.isEmpty() && asContextAwareCatalog != null) {
+      return asContextAwareCatalog.loadTable(ident, context);
     }
 
     if (!context.isEmpty()) {
