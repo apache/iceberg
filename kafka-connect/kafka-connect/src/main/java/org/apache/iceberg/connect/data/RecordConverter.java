@@ -37,7 +37,6 @@ import java.time.temporal.Temporal;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,6 +55,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types.DecimalType;
@@ -480,7 +480,7 @@ class RecordConverter {
       return Variant.from((ByteBuffer) value);
     }
 
-    Set<String> fieldNames = new HashSet<>();
+    Set<String> fieldNames = Sets.newHashSet();
     collectFieldNames(value, fieldNames);
     List<String> allFieldNames = fieldNames.stream().sorted().collect(Collectors.toList());
     VariantMetadata metadata = Variants.metadata(allFieldNames);
@@ -499,9 +499,9 @@ class RecordConverter {
     if (value instanceof Map) {
       Map<?, ?> map = (Map<?, ?>) value;
       for (Map.Entry<?, ?> entry : map.entrySet()) {
-        Object k = entry.getKey();
-        if (k != null && k instanceof String) {
-          names.add((String) k);
+        Object key = entry.getKey();
+        if (key != null && key instanceof String) {
+          names.add((String) key);
           collectFieldNames(entry.getValue(), names);
         }
       }
@@ -522,6 +522,33 @@ class RecordConverter {
     if (value == null) {
       return Variants.ofNull();
     }
+    VariantValue primitive = primitiveToVariantValue(value);
+    if (primitive != null) {
+      return primitive;
+    }
+    if (value instanceof Collection) {
+      ValueArray array = Variants.array();
+      for (Object element : (Collection<?>) value) {
+        array.add(objectToVariantValue(element, metadata));
+      }
+      return array;
+    }
+    if (value instanceof Map) {
+      Map<?, ?> map = (Map<?, ?>) value;
+      ShreddedObject object = Variants.object(metadata);
+      map.forEach(
+          (key, val) -> {
+            if (key != null && key instanceof String) {
+              object.put((String) key, objectToVariantValue(val, metadata));
+            }
+          });
+      return object;
+    }
+    throw new IllegalArgumentException("Cannot convert to variant: " + value.getClass().getName());
+  }
+
+  /** Converts a primitive or primitive-like value to VariantValue; returns null if not supported. */
+  private static VariantValue primitiveToVariantValue(Object value) {
     if (value instanceof Boolean) {
       return Variants.of((Boolean) value);
     }
@@ -540,25 +567,7 @@ class RecordConverter {
     if (value instanceof UUID) {
       return Variants.ofUUID((UUID) value);
     }
-    if (value instanceof Collection) {
-      ValueArray array = Variants.array();
-      for (Object element : (Collection<?>) value) {
-        array.add(objectToVariantValue(element, metadata));
-      }
-      return array;
-    }
-    if (value instanceof Map) {
-      Map<?, ?> map = (Map<?, ?>) value;
-      ShreddedObject object = Variants.object(metadata);
-      map.forEach(
-          (k, v) -> {
-            if (k != null && k instanceof String) {
-              object.put((String) k, objectToVariantValue(v, metadata));
-            }
-          });
-      return object;
-    }
-    throw new IllegalArgumentException("Cannot convert to variant: " + value.getClass().getName());
+    return null;
   }
 
   private static VariantValue numberToVariantValue(Number value) {
