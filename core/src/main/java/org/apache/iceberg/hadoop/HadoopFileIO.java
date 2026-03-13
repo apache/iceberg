@@ -69,6 +69,11 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     this(new SerializableConfiguration(hadoopConf));
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link
+   *     HadoopFileIO#HadoopFileIO(Configuration)} instead.
+   */
+  @Deprecated
   public HadoopFileIO(SerializableSupplier<Configuration> hadoopConf) {
     this.hadoopConf = hadoopConf;
   }
@@ -133,6 +138,10 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     return hadoopConf.get();
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0.
+   */
+  @Deprecated
   @Override
   public void serializeConfWith(
       Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
