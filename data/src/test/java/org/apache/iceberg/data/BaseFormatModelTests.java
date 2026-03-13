@@ -21,10 +21,13 @@ package org.apache.iceberg.data;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_PATH;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
@@ -38,6 +41,10 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.formats.FileWriterBuilder;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
@@ -46,6 +53,7 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -89,7 +97,12 @@ public abstract class BaseFormatModelTests<T> {
 
   @AfterEach
   void after() {
-    fileIO.deleteFile(encryptedFile.encryptingOutputFile());
+    try {
+      fileIO.deleteFile(encryptedFile.encryptingOutputFile());
+    } catch (NotFoundException ignored) {
+      // ignore if file not create
+    }
+
     this.encryptedFile = null;
     if (fileIO != null) {
       fileIO.close();
@@ -165,25 +178,9 @@ public abstract class BaseFormatModelTests<T> {
   void testDataWriterGenericWriteEngineRead(FileFormat fileFormat, DataGenerator dataGenerator)
       throws IOException {
     Schema schema = dataGenerator.schema();
-    FileWriterBuilder<DataWriter<Record>, Object> writerBuilder =
-        FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile);
-
-    DataWriter<Record> writer =
-        writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
 
     List<Record> genericRecords = dataGenerator.generateRecords();
-
-    try (writer) {
-      for (Record record : genericRecords) {
-        writer.write(record);
-      }
-    }
-
-    DataFile dataFile = writer.toDataFile();
-
-    assertThat(dataFile).isNotNull();
-    assertThat(dataFile.recordCount()).isEqualTo(genericRecords.size());
-    assertThat(dataFile.format()).isEqualTo(fileFormat);
+    writeGenericRecords(fileFormat, schema, genericRecords);
 
     // Read back and verify
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
@@ -365,6 +362,306 @@ public abstract class BaseFormatModelTests<T> {
       readRecords = ImmutableList.copyOf(reader);
     }
     DataTestHelpers.assertEquals(schema.asStruct(), expected, readRecords);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FORMAT_AND_GENERATOR")
+  /** Write with Generic Record, read with projected engine type T (narrow schema) */
+  void testReaderBuilderProjection(FileFormat fileFormat, DataGenerator dataGenerator)
+      throws IOException {
+    Schema fullSchema = dataGenerator.schema();
+
+    List<Types.NestedField> columns = fullSchema.columns();
+    Schema projectedSchema = new Schema(columns.get(columns.size() - 1));
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    writeGenericRecords(fileFormat, fullSchema, genericRecords);
+
+    List<Record> projectedGenericRecords = projectRecords(genericRecords, projectedSchema);
+    List<T> expectedEngineRecords =
+        convertToEngineRecords(projectedGenericRecords, projectedSchema);
+
+    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
+    List<T> readRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(projectedSchema)
+            .engineProjection(engineSchema(projectedSchema))
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertEquals(projectedSchema, expectedEngineRecords, readRecords);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FORMAT_AND_GENERATOR")
+  void testReaderBuilderFilter(FileFormat fileFormat, DataGenerator dataGenerator)
+      throws IOException {
+
+    // Avro does not support filter push down
+    // Skip this test for Avro to avoid false failures.
+    assumeThat(fileFormat != FileFormat.AVRO).isTrue();
+
+    Schema schema = dataGenerator.schema();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    writeGenericRecords(fileFormat, schema, genericRecords);
+
+    // Construct a filter condition that is smaller than the minimum value to achieve file-level
+    // filtering.
+    Types.NestedField firstField = schema.columns().get(0);
+    Expression filter = filterFieldExpression(firstField, schema, genericRecords);
+
+    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
+    List<T> readRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .engineProjection(engineSchema(schema))
+            .filter(filter)
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertThat(readRecords).isEmpty();
+  }
+
+  @ParameterizedTest
+  @FieldSource("FORMAT_AND_GENERATOR")
+  /**
+   * Write with Generic Record, then read using an upper-cased column name in the filter to verify
+   * caseSensitive behavior.
+   */
+  void testReaderBuilderCaseSensitive(FileFormat fileFormat, DataGenerator dataGenerator)
+      throws IOException {
+
+    // Avro does not support filter push down; caseSensitive has no effect on it.
+    // Skip this test for Avro to avoid false failures.
+    assumeThat(fileFormat != FileFormat.AVRO).isTrue();
+
+    Schema schema = dataGenerator.schema();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    writeGenericRecords(fileFormat, schema, genericRecords);
+
+    // Build a filter using the upper-cased name of the first column.
+    Types.NestedField firstField = schema.columns().get(0);
+    Object filterValue = genericRecords.get(0).getField(firstField.name());
+    Expression upperCaseFilter = Expressions.equal(firstField.name().toUpperCase(), filterValue);
+
+    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
+
+    // caseSensitive=false: upper-cased column name must be resolved correctly.
+    List<T> readRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .engineProjection(engineSchema(schema))
+            .filter(upperCaseFilter)
+            .caseSensitive(false)
+            .build()) {
+      readRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertThat(readRecords).isNotEmpty();
+
+    // caseSensitive=true: upper-cased column name cannot be resolved → must throw.
+    assertThatThrownBy(
+            () -> {
+              try (CloseableIterable<T> reader =
+                  FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+                      .project(schema)
+                      .engineProjection(engineSchema(schema))
+                      .filter(upperCaseFilter)
+                      .caseSensitive(true)
+                      .build()) {
+                ImmutableList.copyOf(reader);
+              }
+            })
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field '%s'", firstField.name().toUpperCase());
+  }
+
+  @ParameterizedTest
+  @FieldSource("FORMAT_AND_GENERATOR")
+  /**
+   * Write with Generic Record, then read using split to verify that the split range is respected.
+   * Reading with a zero-length split at the end of the file should return no records, while reading
+   * with the full file range should return all records.
+   */
+  void testReaderBuilderSplit(FileFormat fileFormat, DataGenerator dataGenerator)
+      throws IOException {
+    Schema schema = dataGenerator.schema();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    writeGenericRecords(fileFormat, schema, genericRecords);
+
+    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
+    long fileLength = inputFile.getLength();
+
+    // split(fileLength, 0): empty range at the end of the file → no records should be returned
+    List<T> emptyReadRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .engineProjection(engineSchema(schema))
+            .split(fileLength, 0)
+            .build()) {
+      emptyReadRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertThat(emptyReadRecords).isEmpty();
+
+    // split(0, fileLength): full file range → all records should be returned
+    List<T> fullReadRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .engineProjection(engineSchema(schema))
+            .split(0, fileLength)
+            .build()) {
+      fullReadRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertEquals(schema, convertToEngineRecords(genericRecords, schema), fullReadRecords);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FORMAT_AND_GENERATOR")
+  /**
+   * Verifies the contract of recordsPerBatch: recordsPerBatch is a hint for vectorized readers. The
+   * total number of records returned must be unaffected regardless of the batch size value.
+   */
+  void testReaderBuilderRecordsPerBatch(FileFormat fileFormat, DataGenerator dataGenerator)
+      throws IOException {
+
+    // Avro does not support batch reading.
+    assumeThat(fileFormat != FileFormat.AVRO).isTrue();
+
+    Schema schema = dataGenerator.schema();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    writeGenericRecords(fileFormat, schema, genericRecords);
+
+    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
+    List<T> expectedEngineRecords = convertToEngineRecords(genericRecords, schema);
+
+    List<T> smallBatchRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .engineProjection(engineSchema(schema))
+            .recordsPerBatch(1)
+            .build()) {
+      smallBatchRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertEquals(schema, expectedEngineRecords, smallBatchRecords);
+
+    List<T> largeBatchRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .engineProjection(engineSchema(schema))
+            .recordsPerBatch(genericRecords.size() + 1)
+            .build()) {
+      largeBatchRecords = ImmutableList.copyOf(reader);
+    }
+
+    assertEquals(schema, expectedEngineRecords, largeBatchRecords);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FORMAT_AND_GENERATOR")
+  /** Verifies the contract of reuseContainers */
+  void testReaderBuilderReuseContainers(FileFormat fileFormat, DataGenerator dataGenerator)
+      throws IOException {
+
+    // Orc does not support batch reading.
+    assumeThat(fileFormat != FileFormat.ORC).isTrue();
+
+    Schema schema = dataGenerator.schema();
+
+    List<Record> genericRecords = dataGenerator.generateRecords();
+    // Need at least 2 records to verify container reuse
+    assumeThat(genericRecords.size() >= 2).isTrue();
+    writeGenericRecords(fileFormat, schema, genericRecords);
+
+    InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
+
+    // Without reuseContainers: every record must be a distinct object instance
+    List<T> noReuseRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .engineProjection(engineSchema(schema))
+            .build()) {
+      noReuseRecords = ImmutableList.copyOf(reader);
+    }
+
+    for (int i = 0; i < noReuseRecords.size() - 1; i++) {
+      assertThat(noReuseRecords.get(i)).isNotSameAs(noReuseRecords.get(i + 1));
+    }
+
+    // With reuseContainers: all collected elements must be the same object instance
+    List<T> reuseRecords;
+    try (CloseableIterable<T> reader =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
+            .project(schema)
+            .engineProjection(engineSchema(schema))
+            .reuseContainers()
+            .build()) {
+      reuseRecords = ImmutableList.copyOf(reader);
+    }
+
+    T first = reuseRecords.get(0);
+    for (int i = 1; i < reuseRecords.size(); i++) {
+      assertThat(reuseRecords.get(i)).isSameAs(first);
+    }
+  }
+
+  private void writeGenericRecords(FileFormat fileFormat, Schema schema, List<Record> records)
+      throws IOException {
+    FileWriterBuilder<DataWriter<Record>, Object> writerBuilder =
+        FormatModelRegistry.dataWriteBuilder(fileFormat, Record.class, encryptedFile);
+
+    DataWriter<Record> writer =
+        writerBuilder.schema(schema).spec(PartitionSpec.unpartitioned()).build();
+
+    try (writer) {
+      for (Record record : records) {
+        writer.write(record);
+      }
+    }
+
+    DataFile dataFile = writer.toDataFile();
+    assertThat(dataFile).isNotNull();
+    assertThat(dataFile.recordCount()).isEqualTo(records.size());
+    assertThat(dataFile.format()).isEqualTo(fileFormat);
+  }
+
+  private List<Record> projectRecords(List<Record> records, Schema projectedSchema) {
+    return records.stream()
+        .map(
+            record -> {
+              Record projected = GenericRecord.create(projectedSchema.asStruct());
+              for (Types.NestedField field : projectedSchema.columns()) {
+                projected.setField(field.name(), record.getField(field.name()));
+              }
+              return projected;
+            })
+        .collect(Collectors.toList());
+  }
+
+  private Expression filterFieldExpression(
+      Types.NestedField firstField, Schema schema, List<Record> records) {
+    Object minValue =
+        records.stream()
+            .map(r -> (Comparable) r.getField(firstField.name()))
+            .min(Comparator.naturalOrder())
+            .get();
+    return Expressions.lessThan(firstField.name(), minValue);
   }
 
   private List<T> convertToEngineRecords(List<Record> records, Schema schema) {
