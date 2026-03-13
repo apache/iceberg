@@ -53,18 +53,18 @@ interface ManifestInfo {
           "min_sequence_number",
           Types.LongType.get(),
           "Minimum sequence number of files in this manifest");
-  Types.NestedField INLINE_DV =
+  Types.NestedField DV =
       Types.NestedField.optional(
           162,
-          "inline_dv",
+          "dv",
           Types.BinaryType.get(),
-          "Inline deletion vector for marking manifest entries as deleted without rewriting");
-  Types.NestedField INLINE_DV_CARDINALITY =
+          "Deletion vector for marking manifest entries as deleted without rewriting");
+  Types.NestedField DV_CARDINALITY =
       Types.NestedField.optional(
           163,
-          "inline_dv_cardinality",
+          "dv_cardinality",
           Types.LongType.get(),
-          "Number of entries marked as deleted in the inline DV");
+          "Number of entries marked as deleted in the DV");
 
   static Types.StructType schema() {
     return Types.StructType.of(
@@ -77,8 +77,8 @@ interface ManifestInfo {
         DELETED_ROWS_COUNT,
         REPLACED_ROWS_COUNT,
         MIN_SEQUENCE_NUMBER,
-        INLINE_DV,
-        INLINE_DV_CARDINALITY);
+        DV,
+        DV_CARDINALITY);
   }
 
   /** Returns the number of files added by this manifest. */
@@ -108,9 +108,9 @@ interface ManifestInfo {
   /** Returns the minimum sequence number of files in this manifest. */
   long minSequenceNumber();
 
-  /** Returns the inline deletion vector bitmap, or null if not present. */
-  ByteBuffer inlineDV();
+  /** Returns the deletion vector bitmap, or null if not present. */
+  ByteBuffer dv();
 
-  /** Returns the number of entries marked as deleted in the inline DV, or null if not present. */
-  Long inlineDVCardinality();
+  /** Returns the number of entries marked as deleted in the DV, or null if not present. */
+  Long dvCardinality();
 }
