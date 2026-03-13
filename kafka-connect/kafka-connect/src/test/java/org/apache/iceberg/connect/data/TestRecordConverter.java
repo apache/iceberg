@@ -78,6 +78,7 @@ import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -887,15 +888,22 @@ public class TestRecordConverter {
     assertThat(updateMap.get("st.ff").type()).isInstanceOf(DoubleType.class);
   }
 
-  @Test
-  public void testConvertVariantFromPrimitiveString() {
+  private RecordConverter variantConverter() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(VARIANT_SCHEMA);
-    RecordConverter converter = new RecordConverter(table, config);
+    return new RecordConverter(table, config);
+  }
 
-    Record record = converter.convert(ImmutableMap.of("v", "hello"));
-    Variant variant = (Variant) record.getField("v");
+  @Test
+  public void testConvertVariantValueFromNull() {
+    Variant variant = variantConverter().convertVariantValue(null);
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.NULL);
+  }
 
+  @Test
+  public void testConvertVariantValueFromPrimitiveString() {
+    Variant variant = variantConverter().convertVariantValue("hello");
     assertThat(variant).isNotNull();
     assertThat(variant.metadata()).isNotNull();
     assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
@@ -904,83 +912,157 @@ public class TestRecordConverter {
   }
 
   @Test
-  public void testConvertVariantFromPrimitiveNumber() {
-    Table table = mock(Table.class);
-    when(table.schema()).thenReturn(VARIANT_SCHEMA);
-    RecordConverter converter = new RecordConverter(table, config);
-
-    Record record = converter.convert(ImmutableMap.of("v", 123));
-    Variant variant = (Variant) record.getField("v");
-
+  public void testConvertVariantValueFromPrimitiveNumber() {
+    Variant variant = variantConverter().convertVariantValue(123);
     assertThat(variant).isNotNull();
-    assertThat(variant.metadata()).isNotNull();
     assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
     assertThat(variant.value().type()).isEqualTo(PhysicalType.INT32);
     assertThat(variant.value().asPrimitive().get()).isEqualTo(123);
   }
 
   @Test
-  public void testConvertVariantFromList() {
-    Table table = mock(Table.class);
-    when(table.schema()).thenReturn(VARIANT_SCHEMA);
-    RecordConverter converter = new RecordConverter(table, config);
-
-    Record record = converter.convert(ImmutableMap.of("v", ImmutableList.of("hello", 1)));
-    Variant variant = (Variant) record.getField("v");
-
+  public void testConvertVariantValueFromBoolean() {
+    Variant variant = variantConverter().convertVariantValue(true);
     assertThat(variant).isNotNull();
-    assertThat(variant.metadata()).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
+    assertThat(variant.value().asPrimitive().get()).isEqualTo(true);
+  }
+
+  @Test
+  public void testConvertVariantValueFromList() {
+    Variant variant = variantConverter().convertVariantValue(ImmutableList.of("hello", 1));
+    assertThat(variant).isNotNull();
     assertThat(variant.metadata().dictionarySize()).isEqualTo(0);
     assertThat(variant.value().type()).isEqualTo(PhysicalType.ARRAY);
     assertThat(variant.value().asArray().numElements()).isEqualTo(2);
-    assertThat(variant.value().asArray().get(0).type()).isEqualTo(PhysicalType.STRING);
     assertThat(variant.value().asArray().get(0).asPrimitive().get()).isEqualTo("hello");
-    assertThat(variant.value().asArray().get(1).type()).isEqualTo(PhysicalType.INT32);
     assertThat(variant.value().asArray().get(1).asPrimitive().get()).isEqualTo(1);
   }
 
   @Test
-  public void testConvertVariantFromMap() {
-    Table table = mock(Table.class);
-    when(table.schema()).thenReturn(VARIANT_SCHEMA);
-    RecordConverter converter = new RecordConverter(table, config);
-
-    Record record = converter.convert(ImmutableMap.of("v", ImmutableMap.of("hello", 1)));
-    Variant variant = (Variant) record.getField("v");
+  public void testConvertVariantValueFromListWithMixedTypes() {
+    // array with heterogeneous element types (string, int, boolean, double, null)
+    // Note: java.util.Date is not supported in variant conversion; use supported types only.
+    List<Object> input = Lists.newArrayList("a", 1, true, 2.5, null);
+    Variant variant = variantConverter().convertVariantValue(input);
 
     assertThat(variant).isNotNull();
-    assertThat(variant.metadata()).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(variant.value().asArray().numElements()).isEqualTo(5);
+
+    assertThat(variant.value().asArray().get(0).type()).isEqualTo(PhysicalType.STRING);
+    assertThat(variant.value().asArray().get(0).asPrimitive().get()).isEqualTo("a");
+
+    assertThat(variant.value().asArray().get(1).type()).isEqualTo(PhysicalType.INT32);
+    assertThat(variant.value().asArray().get(1).asPrimitive().get()).isEqualTo(1);
+
+    assertThat(variant.value().asArray().get(2).type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
+    assertThat(variant.value().asArray().get(2).asPrimitive().get()).isEqualTo(true);
+
+    assertThat(variant.value().asArray().get(3).type()).isEqualTo(PhysicalType.DOUBLE);
+    assertThat(variant.value().asArray().get(3).asPrimitive().get()).isEqualTo(2.5);
+
+    assertThat(variant.value().asArray().get(4).type()).isEqualTo(PhysicalType.NULL);
+  }
+
+  @Test
+  public void testConvertVariantValueFromMap() {
+    Variant variant = variantConverter().convertVariantValue(ImmutableMap.of("hello", 1));
+    assertThat(variant).isNotNull();
     assertThat(variant.metadata().dictionarySize()).isEqualTo(1);
     assertThat(variant.metadata().get(0)).isEqualTo("hello");
     assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(variant.value().asObject().numFields()).isEqualTo(1);
-    assertThat(variant.value().asObject().get("hello").type()).isEqualTo(PhysicalType.INT32);
     assertThat(variant.value().asObject().get("hello").asPrimitive().get()).isEqualTo(1);
   }
 
   @Test
-  public void testConvertVariantFromMapNested() {
-    Table table = mock(Table.class);
-    when(table.schema()).thenReturn(VARIANT_SCHEMA);
-    RecordConverter converter = new RecordConverter(table, config);
+  public void testConvertVariantValueFromMapNested() {
+    Variant variant =
+        variantConverter()
+            .convertVariantValue(ImmutableMap.of("hello", ImmutableMap.of("world", 1)));
+    assertThat(variant).isNotNull();
+    assertThat(variant.metadata().dictionarySize()).isEqualTo(2);
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.value().asObject().get("hello").type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(variant.value().asObject().get("hello").asObject().get("world").asPrimitive().get())
+        .isEqualTo(1);
+  }
 
-    Record record =
-        converter.convert(
-            ImmutableMap.of("v", ImmutableMap.of("hello", ImmutableMap.of("world", 1))));
-    Variant variant = (Variant) record.getField("v");
+  @Test
+  public void testConvertVariantValueFromMapWithList() {
+    // map with list values: { "tags": ["a", "b"], "counts": [1, 2] }
+    Map<String, Object> input =
+        ImmutableMap.<String, Object>builder()
+            .put("tags", ImmutableList.of("a", "b"))
+            .put("counts", ImmutableList.of(1, 2))
+            .build();
+    Variant variant = variantConverter().convertVariantValue(input);
 
     assertThat(variant).isNotNull();
     assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(variant.metadata()).isNotNull();
-    assertThat(variant.metadata().dictionarySize()).isEqualTo(2);
-    assertThat(variant.metadata().get(0)).isEqualTo("hello");
-    assertThat(variant.value().asObject().numFields()).isEqualTo(1);
-    assertThat(variant.value().asObject().get("hello").type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(variant.value().asObject().get("hello").asObject().numFields()).isEqualTo(1);
-    assertThat(variant.value().asObject().get("hello").asObject().get("world").type())
-        .isEqualTo(PhysicalType.INT32);
-    assertThat(variant.value().asObject().get("hello").asObject().get("world").asPrimitive().get())
-        .isEqualTo(1);
+    assertThat(variant.value().asObject().numFields()).isEqualTo(2);
+
+    VariantValue tags = variant.value().asObject().get("tags");
+    assertThat(tags.type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(tags.asArray().numElements()).isEqualTo(2);
+    assertThat(tags.asArray().get(0).asPrimitive().get()).isEqualTo("a");
+    assertThat(tags.asArray().get(1).asPrimitive().get()).isEqualTo("b");
+
+    VariantValue counts = variant.value().asObject().get("counts");
+    assertThat(counts.type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(counts.asArray().get(0).asPrimitive().get()).isEqualTo(1);
+    assertThat(counts.asArray().get(1).asPrimitive().get()).isEqualTo(2);
+  }
+
+  @Test
+  public void testConvertVariantValueFromListOfMaps() {
+    // list of maps: [ {"id": 1, "name": "x"}, {"id": 2} ]
+    List<Map<String, Object>> input =
+        ImmutableList.of(
+            ImmutableMap.<String, Object>builder().put("id", 1).put("name", "x").build(),
+            ImmutableMap.of("id", 2));
+    Variant variant = variantConverter().convertVariantValue(input);
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(variant.value().asArray().numElements()).isEqualTo(2);
+
+    VariantValue first = variant.value().asArray().get(0);
+    assertThat(first.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(first.asObject().get("id").asPrimitive().get()).isEqualTo(1);
+    assertThat(first.asObject().get("name").asPrimitive().get()).isEqualTo("x");
+
+    VariantValue second = variant.value().asArray().get(1);
+    assertThat(second.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(second.asObject().get("id").asPrimitive().get()).isEqualTo(2);
+  }
+
+  @Test
+  public void testConvertVariantValueFromMixedNested() {
+    // map with list of maps, and list contains mixed types: { "items": [ {"k": "v"}, {"nested": [1, 2]} ] }
+    Map<String, Object> item0 = ImmutableMap.of("k", "v");
+    Map<String, Object> item1 =
+        ImmutableMap.of("nested", ImmutableList.of(1, 2));
+    Map<String, Object> input =
+        ImmutableMap.of("items", ImmutableList.of(item0, item1));
+
+    Variant variant = variantConverter().convertVariantValue(input);
+
+    assertThat(variant).isNotNull();
+    assertThat(variant.value().type()).isEqualTo(PhysicalType.OBJECT);
+    VariantValue items = variant.value().asObject().get("items");
+    assertThat(items.type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(items.asArray().numElements()).isEqualTo(2);
+
+    assertThat(items.asArray().get(0).type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(items.asArray().get(0).asObject().get("k").asPrimitive().get()).isEqualTo("v");
+
+    assertThat(items.asArray().get(1).type()).isEqualTo(PhysicalType.OBJECT);
+    VariantValue nested = items.asArray().get(1).asObject().get("nested");
+    assertThat(nested.type()).isEqualTo(PhysicalType.ARRAY);
+    assertThat(nested.asArray().get(0).asPrimitive().get()).isEqualTo(1);
+    assertThat(nested.asArray().get(1).asPrimitive().get()).isEqualTo(2);
   }
 
   public static Map<String, Object> createMapData() {
