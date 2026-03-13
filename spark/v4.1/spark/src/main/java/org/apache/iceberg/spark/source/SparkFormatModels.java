@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Map;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroFormatModel;
+import org.apache.iceberg.formats.BaseFormatModel;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.orc.ORCFormatModel;
 import org.apache.iceberg.parquet.ParquetFormatModel;
+import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
@@ -30,6 +34,7 @@ import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
+import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -48,7 +53,7 @@ public class SparkFormatModels {
         ParquetFormatModel.create(
             InternalRow.class,
             StructType.class,
-            SparkParquetWriters::buildWriter,
+            new SparkParquetWriterFunction(),
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
                 SparkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant)));
 
@@ -86,4 +91,32 @@ public class SparkFormatModels {
   }
 
   private SparkFormatModels() {}
+
+  /**
+   * Writer function that checks for variant shredding conditions and returns a writer that performs
+   * variant shredding if needed.
+   */
+  private static class SparkParquetWriterFunction
+      implements BaseFormatModel.WriterFunction<ParquetValueWriter<?>, StructType, MessageType> {
+
+    @Override
+    public ParquetValueWriter<?> write(
+        Schema icebergSchema, MessageType fileSchema, StructType engineSchema) {
+      return SparkParquetWriters.buildWriter(icebergSchema, fileSchema, engineSchema);
+    }
+
+    @Override
+    public ParquetValueWriter<?> write(
+        Schema icebergSchema,
+        MessageType fileSchema,
+        StructType engineSchema,
+        Map<String, String> writeProperties) {
+      if (SparkParquetWriterWithVariantShredding.shouldUseVariantShredding(
+          writeProperties, icebergSchema)) {
+        return new SparkParquetWriterWithVariantShredding(
+            engineSchema, fileSchema, writeProperties);
+      }
+      return SparkParquetWriters.buildWriter(icebergSchema, fileSchema, engineSchema);
+    }
+  }
 }
