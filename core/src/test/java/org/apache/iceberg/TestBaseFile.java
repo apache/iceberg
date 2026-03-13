@@ -37,8 +37,10 @@ public class TestBaseFile {
                 .withSplitOffsets(ImmutableList.of(4L, 128L))
                 .build();
 
+    // Prime the cached list returned by splitOffsets().
     assertThat(file.splitOffsets()).containsExactly(4L, 128L);
 
+    // Simulate Avro reusing the same instance and repopulating field 14 through put/set.
     file.put(14, ImmutableList.of(8L, 64L, 192L));
 
     assertThat(file.splitOffsets()).containsExactly(8L, 64L, 192L);

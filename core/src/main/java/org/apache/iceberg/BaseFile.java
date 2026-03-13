@@ -363,6 +363,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         return;
       case 14:
         this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        // Avro readers can reuse BaseFile instances and repopulate field values through put/set.
+        // Reset the cached view so subsequent splitOffsets() calls reflect the new array.
         this.splitOffsetsList = null;
         return;
       case 15:
