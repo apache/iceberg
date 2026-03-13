@@ -547,7 +547,9 @@ class RecordConverter {
     throw new IllegalArgumentException("Cannot convert to variant: " + value.getClass().getName());
   }
 
-  /** Converts a primitive or primitive-like value to VariantValue; returns null if not supported. */
+  /**
+   * Converts a primitive or primitive-like value to VariantValue; returns null if not supported.
+   */
   private static VariantValue primitiveToVariantValue(Object value) {
     if (value instanceof Boolean) {
       return Variants.of((Boolean) value);

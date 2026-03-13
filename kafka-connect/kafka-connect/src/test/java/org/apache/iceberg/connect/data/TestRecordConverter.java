@@ -1040,12 +1040,11 @@ public class TestRecordConverter {
 
   @Test
   public void testConvertVariantValueFromMixedNested() {
-    // map with list of maps, and list contains mixed types: { "items": [ {"k": "v"}, {"nested": [1, 2]} ] }
+    // map with list of maps, and list contains mixed types: { "items": [ {"k": "v"}, {"nested": [1,
+    // 2]} ] }
     Map<String, Object> item0 = ImmutableMap.of("k", "v");
-    Map<String, Object> item1 =
-        ImmutableMap.of("nested", ImmutableList.of(1, 2));
-    Map<String, Object> input =
-        ImmutableMap.of("items", ImmutableList.of(item0, item1));
+    Map<String, Object> item1 = ImmutableMap.of("nested", ImmutableList.of(1, 2));
+    Map<String, Object> input = ImmutableMap.of("items", ImmutableList.of(item0, item1));
 
     Variant variant = variantConverter().convertVariantValue(input);
 
