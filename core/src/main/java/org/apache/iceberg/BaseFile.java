@@ -88,6 +88,9 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   // cached schema
   private transient Schema avroSchema = null;
 
+  // cached split offsets list
+  private transient List<Long> splitOffsetsList = null;
+
   // struct type that corresponds to the positions used for internalGet and internalSet
   private static final Types.StructType BASE_TYPE =
       Types.StructType.of(
@@ -531,7 +534,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   @Override
   public List<Long> splitOffsets() {
     if (hasWellDefinedOffsets()) {
-      return ArrayUtil.toUnmodifiableLongList(splitOffsets);
+      if (splitOffsetsList == null) {
+        splitOffsetsList = ArrayUtil.toUnmodifiableLongList(splitOffsets);
+      }
+      return splitOffsetsList;
     }
 
     return null;
