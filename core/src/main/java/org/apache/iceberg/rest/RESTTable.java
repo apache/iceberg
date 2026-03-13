@@ -21,8 +21,8 @@ package org.apache.iceberg.rest;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.BatchScanAdapter;
@@ -37,6 +37,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.util.PropertyUtil;
 
 class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
@@ -80,21 +82,38 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
 
   @Override
   public TableScan newScan() {
-    String planTableScanPath = resourcePaths.planTableScan(tableIdentifier);
-    Function<String, String> planPath = id -> resourcePaths.plan(tableIdentifier, id);
-    String fetchScanTasksPath = resourcePaths.fetchScanTasks(tableIdentifier);
+    BiFunction<List<Credential>, String, FileIO> fileIOFactory =
+        (credentials, scanPlanId) -> {
+          Map<String, String> props =
+              scanPlanId != null
+                  ? ImmutableMap.<String, String>builder()
+                      .putAll(catalogProperties)
+                      .put(RESTCatalogProperties.REST_SCAN_PLAN_ID, scanPlanId)
+                      .buildKeepingLast()
+                  : catalogProperties;
+          List<StorageCredential> storageCredentials =
+              credentials.stream()
+                  .map(c -> StorageCredential.create(c.prefix(), c.config()))
+                  .collect(Collectors.toList());
+          return CatalogUtil.loadFileIO(
+              catalogProperties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL),
+              props,
+              hadoopConf,
+              storageCredentials);
+        };
 
-    BiFunction<List<StorageCredential>, Map<String, String>, FileIO> fileIOFactory =
-        (credentials, extraProps) ->
-            CatalogUtil.loadFileIO(
-                catalogProperties.getOrDefault(
-                    CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL),
-                ImmutableMap.<String, String>builder()
-                    .putAll(catalogProperties)
-                    .putAll(extraProps)
-                    .buildKeepingLast(),
-                hadoopConf,
-                credentials);
+    RESTScanContext scanContext =
+        new RESTScanContext(
+            resourcePaths,
+            tableIdentifier,
+            supportsAsync,
+            supportsCancel,
+            supportsFetchTasks,
+            PropertyUtil.propertyAsLong(
+                catalogProperties,
+                RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
+                RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS_DEFAULT),
+            fileIOFactory);
 
     return new RESTTableScan(
         this,
@@ -102,13 +121,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
         ImmutableTableScanContext.builder().metricsReporter(reporter).build(),
         client,
         headers,
-        planTableScanPath,
-        planPath,
-        fetchScanTasksPath,
-        supportsAsync,
-        supportsCancel,
-        supportsFetchTasks,
-        fileIOFactory);
+        scanContext);
   }
 
   @Override

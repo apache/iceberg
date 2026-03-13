@@ -24,7 +24,6 @@ import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -37,10 +36,8 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.TableScanContext;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
@@ -48,7 +45,6 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,14 +69,8 @@ class RESTTableScan extends DataTableScan {
 
   private final RESTClient client;
   private final Supplier<Map<String, String>> headers;
-  private final String planTableScanPath;
-  private final Function<String, String> planPath;
-  private final String fetchScanTasksPath;
-  private final boolean supportsAsync;
-  private final boolean supportsCancel;
-  private final boolean supportsFetchTasks;
-  private final ParserContext parserContext;
-  private final BiFunction<List<StorageCredential>, Map<String, String>, FileIO> fileIOFactory;
+  private final RESTScanContext scanContext;
+  private volatile ParserContext parserContext;
   private String planId = null;
   private FileIO scanFileIO = null;
   private boolean useSnapshotSchema = false;
@@ -91,28 +81,22 @@ class RESTTableScan extends DataTableScan {
       TableScanContext context,
       RESTClient client,
       Supplier<Map<String, String>> headers,
-      String planTableScanPath,
-      Function<String, String> planPath,
-      String fetchScanTasksPath,
-      boolean supportsAsync,
-      boolean supportsCancel,
-      boolean supportsFetchTasks,
-      BiFunction<List<StorageCredential>, Map<String, String>, FileIO> fileIOFactory) {
+      RESTScanContext scanContext) {
     super(table, schema, context);
     this.client = client;
     this.headers = headers;
-    this.planTableScanPath = planTableScanPath;
-    this.planPath = planPath;
-    this.fetchScanTasksPath = fetchScanTasksPath;
-    this.supportsAsync = supportsAsync;
-    this.supportsCancel = supportsCancel;
-    this.supportsFetchTasks = supportsFetchTasks;
-    this.parserContext =
-        ParserContext.builder()
-            .add("specsById", table.specs())
-            .add("caseSensitive", context().caseSensitive())
-            .build();
-    this.fileIOFactory = fileIOFactory;
+    this.scanContext = scanContext;
+  }
+
+  private ParserContext parserContext() {
+    if (parserContext == null) {
+      this.parserContext =
+          ParserContext.builder()
+              .add("specsById", table().specs())
+              .add("caseSensitive", context().caseSensitive())
+              .build();
+    }
+    return parserContext;
   }
 
   @Override
@@ -120,17 +104,7 @@ class RESTTableScan extends DataTableScan {
       Table refinedTable, Schema refinedSchema, TableScanContext refinedContext) {
     RESTTableScan scan =
         new RESTTableScan(
-            refinedTable,
-            refinedSchema,
-            refinedContext,
-            client,
-            headers,
-            operations,
-            tableIdentifier,
-            resourcePaths,
-            supportedEndpoints,
-            catalogProperties,
-            hadoopConf);
+            refinedTable, refinedSchema, refinedContext, client, headers, scanContext);
     scan.useSnapshotSchema = useSnapshotSchema;
     return scan;
   }
@@ -197,13 +171,13 @@ class RESTTableScan extends DataTableScan {
   private CloseableIterable<FileScanTask> planTableScan(PlanTableScanRequest planTableScanRequest) {
     PlanTableScanResponse response =
         client.post(
-            planTableScanPath,
+            scanContext.planTableScanPath(),
             planTableScanRequest,
             PlanTableScanResponse.class,
             headers.get(),
             ErrorHandlers.tableErrorHandler(),
             stringStringMap -> {},
-            parserContext);
+            parserContext());
 
     this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
@@ -215,8 +189,9 @@ class RESTTableScan extends DataTableScan {
         return scanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
         Preconditions.checkState(
-            supportsAsync,
-            "Invalid plan status SUBMITTED: server does not support async scan planning");
+            scanContext.supportsAsync(),
+            "Invalid plan status %s: server does not support async scan planning",
+            PlanStatus.SUBMITTED);
         return fetchPlanningResult();
       case FAILED:
         throw new IllegalStateException(failureMessage(planId, response.errorResponse()));
@@ -226,27 +201,14 @@ class RESTTableScan extends DataTableScan {
     }
   }
 
-  private FileIO scanFileIO(List<Credential> storageCredentials) {
-    Map<String, String> extraProps =
-        planId != null
-            ? ImmutableMap.of(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId)
-            : ImmutableMap.of();
-    FileIO ioForScan =
-        fileIOFactory.apply(
-            storageCredentials.stream()
-                .map(c -> StorageCredential.create(c.prefix(), c.config()))
-                .collect(Collectors.toList()),
-            extraProps);
+  private FileIO scanFileIO(List<Credential> credentials) {
+    FileIO ioForScan = scanContext.createFileIO(credentials, planId);
     FILEIO_TRACKER.put(this, ioForScan);
     return ioForScan;
   }
 
   private CloseableIterable<FileScanTask> fetchPlanningResult() {
-    long maxWaitTimeMs =
-        PropertyUtil.propertyAsLong(
-            catalogProperties,
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS_DEFAULT);
+    long maxWaitTimeMs = scanContext.pollTimeoutMs();
     Preconditions.checkArgument(
         maxWaitTimeMs > 0,
         "Invalid value for %s: %s (must be positive)",
@@ -269,12 +231,12 @@ class RESTTableScan extends DataTableScan {
               id -> {
                 FetchPlanningResultResponse response =
                     client.get(
-                        resourcePaths.plan(tableIdentifier, id),
-                        headers,
+                        scanContext.planPath(id),
+                        headers.get(),
                         FetchPlanningResultResponse.class,
-                        headers,
+                        headers.get(),
                         ErrorHandlers.planErrorHandler(),
-                        parserContext);
+                        parserContext());
 
                 switch (response.planStatus()) {
                   case COMPLETED:
@@ -336,7 +298,7 @@ class RESTTableScan extends DataTableScan {
       List<String> planTasks, List<FileScanTask> fileScanTasks) {
     if (planTasks != null && !planTasks.isEmpty()) {
       Preconditions.checkState(
-          supportsFetchTasks,
+          scanContext.supportsFetchTasks(),
           "Server returned plan tasks but does not support fetching scan tasks");
     }
 
@@ -345,10 +307,10 @@ class RESTTableScan extends DataTableScan {
             planTasks,
             fileScanTasks == null ? List.of() : fileScanTasks,
             client,
-            fetchScanTasksPath,
+            scanContext.fetchScanTasksPath(),
             headers,
             planExecutor(),
-            parserContext),
+            parserContext()),
         this::cancelPlan);
   }
 
@@ -362,13 +324,17 @@ class RESTTableScan extends DataTableScan {
   @VisibleForTesting
   @SuppressWarnings("checkstyle:RegexpMultiline")
   public boolean cancelPlan() {
-    if (planId == null || !supportsCancel) {
+    if (planId == null || !scanContext.supportsCancel()) {
       return false;
     }
 
     try {
       client.delete(
-          planPath.apply(planId), Map.of(), null, headers.get(), ErrorHandlers.planErrorHandler());
+          scanContext.planPath(planId),
+          Map.of(),
+          null,
+          headers.get(),
+          ErrorHandlers.planErrorHandler());
       this.planId = null;
       return true;
     } catch (Exception e) {
