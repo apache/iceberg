@@ -66,7 +66,6 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1046,8 +1045,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.REST_SCAN_PLANNING_ENABLED,
-            "true"));
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
 
     Table table = restTableFor(catalog, "file_io_propagation");
 
@@ -1125,7 +1124,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   @Test
   public void serverConfigTakesPrecedenceOnMismatch() {
-    // Client=SERVER, Server=CLIENT → server wins → effective=CLIENT → returns BaseTable
+    // Client=SERVER, Server=CLIENT
     CatalogWithAdapter catalogWithAdapter1 =
         catalogWithModes(
             RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
@@ -1141,7 +1140,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     assertThat(table1).isNotInstanceOf(RESTTable.class);
     assertThat(table1).isInstanceOf(BaseTable.class);
 
-    // Client=CLIENT, Server=SERVER → server wins → effective=SERVER → returns RESTTable
+    // Client=CLIENT, Server=SERVER
     CatalogWithAdapter catalogWithAdapter2 =
         catalogWithModes(
             RESTCatalogProperties.ScanPlanningMode.CLIENT.modeName(),

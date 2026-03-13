@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public final class RESTCatalogProperties {
 
@@ -78,8 +80,11 @@ public final class RESTCatalogProperties {
 
       throw new IllegalArgumentException(
           String.format(
-              "Invalid scan planning mode: %s. Valid values are: %s, %s",
-              mode, CLIENT.modeName(), SERVER.modeName()));
+              "Invalid scan planning mode: %s. Valid values are: %s",
+              mode,
+              Arrays.stream(values())
+                  .map(ScanPlanningMode::modeName)
+                  .collect(Collectors.joining(", "))));
     }
   }
 }
