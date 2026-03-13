@@ -363,6 +363,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         return;
       case 14:
         this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        this.splitOffsetsList = null;
         return;
       case 15:
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
