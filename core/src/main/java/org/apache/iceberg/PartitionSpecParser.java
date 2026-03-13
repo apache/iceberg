@@ -30,8 +30,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PartitionSpecParser {
+  private static final Logger LOG = LoggerFactory.getLogger(PartitionSpecParser.class);
+
   private PartitionSpecParser() {}
 
   private static final String SPEC_ID = "spec-id";
@@ -158,12 +162,13 @@ public class PartitionSpecParser {
 
         if (element.has(SOURCE_ID)) {
           int sourceId = JsonUtil.getInt(SOURCE_ID, element);
-          Preconditions.checkArgument(
-              sourceIds.get(0).equals(sourceId),
-              "Conflicting source-id (%s) and source-ids (%s) in partition field: %s",
-              sourceId,
-              sourceIds,
-              element);
+          if (!sourceIds.get(0).equals(sourceId)) {
+            LOG.warn(
+                "Conflicting source-id ({}) and source-ids ({}) in partition field: {}",
+                sourceId,
+                sourceIds,
+                element);
+          }
         }
 
         // partition field ids are missing in old PartitionSpec, they always auto-increment from
