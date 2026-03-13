@@ -19,10 +19,18 @@
 package org.apache.iceberg.connect;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
@@ -33,10 +41,14 @@ import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.ComposeContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 
 public class TestContext {
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestContext.class);
 
   private static volatile TestContext instance;
 
@@ -50,6 +62,9 @@ public class TestContext {
   private static final String AWS_SECRET_KEY = "minioadmin";
   private static final String AWS_REGION = "us-east-1";
 
+  private static final File COMPOSE_FILE = new File("./docker/docker-compose.yml");
+  private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
+
   public static synchronized TestContext instance() {
     if (instance == null) {
       instance = new TestContext();
@@ -58,11 +73,139 @@ public class TestContext {
   }
 
   private TestContext() {
+    ContainerRuntimeUtil.RuntimeType runtime = ContainerRuntimeUtil.detectRuntime();
+    ContainerRuntimeUtil.ComposeType compose = ContainerRuntimeUtil.detectCompose();
+
+    if (runtime == ContainerRuntimeUtil.RuntimeType.PODMAN) {
+      ContainerRuntimeUtil.configurePodman();
+    }
+
+    if (compose == ContainerRuntimeUtil.ComposeType.PODMAN_COMPOSE) {
+      startWithPodmanCompose();
+    } else {
+      startWithComposeContainer();
+    }
+  }
+
+  private void startWithComposeContainer() {
+    LOG.info("Starting compose environment using Testcontainers ComposeContainer");
     ComposeContainer container =
-        new ComposeContainer(new File("./docker/docker-compose.yml"))
-            .withStartupTimeout(Duration.ofMinutes(2))
+        new ComposeContainer(COMPOSE_FILE)
+            .withStartupTimeout(STARTUP_TIMEOUT)
             .waitingFor("connect", Wait.forHttp("/connectors"));
     container.start();
+  }
+
+  private void startWithPodmanCompose() {
+    LOG.info("Starting compose environment using podman compose");
+    List<String> composeBase = podmanComposeBaseCommand();
+
+    try {
+      List<String> upCommand = new ArrayList<>(composeBase);
+      upCommand.add("-f");
+      upCommand.add(COMPOSE_FILE.getAbsolutePath());
+      upCommand.add("up");
+      upCommand.add("-d");
+
+      ProcessBuilder upBuilder = new ProcessBuilder(upCommand);
+      upBuilder.redirectErrorStream(true);
+      Process upProcess = upBuilder.start();
+      try (BufferedReader reader =
+          new BufferedReader(
+              new InputStreamReader(upProcess.getInputStream(), StandardCharsets.UTF_8))) {
+        reader.lines().forEach(line -> LOG.info("compose: {}", line));
+      }
+
+      if (!upProcess.waitFor(STARTUP_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
+          || upProcess.exitValue() != 0) {
+        throw new RuntimeException(
+            "Failed to start compose environment, exit code: " + upProcess.exitValue());
+      }
+
+      waitForConnectService();
+
+      // Register shutdown hook for cleanup
+      Runtime.getRuntime()
+          .addShutdownHook(
+              new Thread(
+                  () -> {
+                    try {
+                      LOG.info("Stopping compose environment");
+                      List<String> downCommand = new ArrayList<>(composeBase);
+                      downCommand.add("-f");
+                      downCommand.add(COMPOSE_FILE.getAbsolutePath());
+                      downCommand.add("down");
+                      downCommand.add("-v");
+
+                      ProcessBuilder downBuilder = new ProcessBuilder(downCommand);
+                      downBuilder.redirectErrorStream(true);
+                      Process downProcess = downBuilder.start();
+                      downProcess.waitFor(60, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                      LOG.warn("Error stopping compose environment", e);
+                    }
+                  }));
+    } catch (RuntimeException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to start compose environment", e);
+    }
+  }
+
+  @SuppressWarnings("JavaUtilDate")
+  private void waitForConnectService() {
+    long deadline = System.currentTimeMillis() + STARTUP_TIMEOUT.toMillis();
+    String connectUrl = "http://localhost:" + CONNECT_PORT + "/connectors";
+
+    LOG.info("Waiting for Kafka Connect to be ready at {}", connectUrl);
+    while (System.currentTimeMillis() < deadline) {
+      try {
+        HttpURLConnection conn = (HttpURLConnection) new URL(connectUrl).openConnection();
+        conn.setConnectTimeout(1000);
+        conn.setReadTimeout(1000);
+        conn.setRequestMethod("GET");
+        int responseCode = conn.getResponseCode();
+        conn.disconnect();
+        if (responseCode == 200) {
+          LOG.info("Kafka Connect is ready");
+          return;
+        }
+      } catch (Exception e) {
+        // service not ready yet
+      }
+
+      try {
+        Thread.sleep(1000);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException("Interrupted while waiting for connect service", e);
+      }
+    }
+
+    throw new RuntimeException(
+        "Connect service did not become ready within " + STARTUP_TIMEOUT.toSeconds() + " seconds");
+  }
+
+  private static List<String> podmanComposeBaseCommand() {
+    // Prefer "podman compose" (built-in subcommand) over standalone "podman-compose"
+    try {
+      ProcessBuilder pb = new ProcessBuilder("podman", "compose", "version");
+      pb.redirectErrorStream(true);
+      Process process = pb.start();
+      process.getInputStream().readAllBytes();
+      if (process.waitFor(10, TimeUnit.SECONDS) && process.exitValue() == 0) {
+        List<String> cmd = new ArrayList<>();
+        cmd.add("podman");
+        cmd.add("compose");
+        return cmd;
+      }
+    } catch (Exception e) {
+      // fall through
+    }
+
+    List<String> cmd = new ArrayList<>();
+    cmd.add("podman-compose");
+    return cmd;
   }
 
   public void startConnector(KafkaConnectUtils.Config config) {

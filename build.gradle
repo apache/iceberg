@@ -183,6 +183,25 @@ subprojects {
     }
   }
 
+  // Forward container runtime environment variables to test JVMs.
+  // This enables Podman support: set DOCKER_HOST to the Podman socket
+  // (e.g. unix:///run/user/1000/podman/podman.sock on Linux, or the
+  // output of `podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}'` on macOS).
+  // Set TESTCONTAINERS_RYUK_DISABLED=true if Ryuk is not supported in your environment.
+  tasks.withType(Test).configureEach {
+    def containerEnvVars = [
+      'DOCKER_HOST',
+      'TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE',
+      'TESTCONTAINERS_RYUK_DISABLED'
+    ]
+    containerEnvVars.each { varName ->
+      def value = System.getenv(varName)
+      if (value != null) {
+        environment varName, value
+      }
+    }
+  }
+
   configurations {
     testImplementation.extendsFrom compileOnly
 
