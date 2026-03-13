@@ -58,7 +58,7 @@ interface ManifestInfo {
           162,
           "dv",
           Types.BinaryType.get(),
-          "Deletion vector for marking manifest entries as deleted without rewriting");
+          "Deletion vector for manifest entries");
   Types.NestedField DV_CARDINALITY =
       Types.NestedField.optional(
           163,
