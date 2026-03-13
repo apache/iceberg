@@ -20,12 +20,16 @@ package org.apache.iceberg;
 
 import java.io.Serializable;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.transforms.Transform;
 
 /** Represents a single field in a {@link PartitionSpec}. */
 public class PartitionField implements Serializable {
+  private static final Joiner COMMA = Joiner.on(", ");
+
   private final List<Integer> sourceIds;
   private final int fieldId;
   private final String name;
@@ -44,6 +48,10 @@ public class PartitionField implements Serializable {
 
   /** Returns the field id of the source field in the {@link PartitionSpec spec's} table schema. */
   public int sourceId() {
+    Preconditions.checkState(
+        sourceIds.size() == 1,
+        "Use sourceIds() for multi-argument transforms, found %s source ids",
+        sourceIds.size());
     return sourceIds.get(0);
   }
 
@@ -74,10 +82,7 @@ public class PartitionField implements Serializable {
 
   @Override
   public String toString() {
-    if (sourceIds.size() == 1) {
-      return fieldId + ": " + name + ": " + transform + "(" + sourceIds.get(0) + ")";
-    }
-    return fieldId + ": " + name + ": " + transform + "(" + sourceIds + ")";
+    return fieldId + ": " + name + ": " + transform + "(" + COMMA.join(sourceIds) + ")";
   }
 
   @Override

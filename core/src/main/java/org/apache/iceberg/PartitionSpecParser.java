@@ -156,6 +156,16 @@ public class PartitionSpecParser {
           sourceIds.add(sourceIdsNode.get(i).asInt());
         }
 
+        if (element.has(SOURCE_ID)) {
+          int sourceId = JsonUtil.getInt(SOURCE_ID, element);
+          Preconditions.checkArgument(
+              sourceIds.get(0).equals(sourceId),
+              "Conflicting source-id (%s) and source-ids (%s) in partition field: %s",
+              sourceId,
+              sourceIds,
+              element);
+        }
+
         // partition field ids are missing in old PartitionSpec, they always auto-increment from
         // PARTITION_DATA_ID_START
         if (element.has(FIELD_ID)) {

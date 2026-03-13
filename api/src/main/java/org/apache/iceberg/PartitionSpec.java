@@ -198,7 +198,7 @@ public class PartitionSpec implements Serializable {
   }
 
   private Type resultType(PartitionField field) {
-    Type sourceType = schema.findType(field.sourceId());
+    Type sourceType = schema.findType(field.sourceIds().get(0));
     if (sourceType == null) {
       // When the source field has been dropped, the source type has been lost
       // Transforms with a fixed result type still work, so use unknown for source
@@ -303,7 +303,9 @@ public class PartitionSpec implements Serializable {
               Multimaps.newListMultimap(
                   Maps.newHashMap(), () -> Lists.newArrayListWithCapacity(fields.length));
           for (PartitionField field : fields) {
-            multiMap.put(field.sourceId(), field);
+            for (int sourceId : field.sourceIds()) {
+              multiMap.put(sourceId, field);
+            }
           }
           this.fieldsBySourceId = multiMap;
         }
@@ -322,7 +324,7 @@ public class PartitionSpec implements Serializable {
     Set<Integer> sourceIds = Sets.newHashSet();
     for (PartitionField field : fields()) {
       if (field.transform().isIdentity()) {
-        sourceIds.add(field.sourceId());
+        sourceIds.addAll(field.sourceIds());
       }
     }
 
@@ -433,15 +435,17 @@ public class PartitionSpec implements Serializable {
     }
 
     private void checkForRedundantPartitions(PartitionField field) {
-      Map.Entry<Integer, String> dedupKey =
-          new AbstractMap.SimpleEntry<>(field.sourceId(), field.transform().dedupName());
-      PartitionField partitionField = dedupFields.get(dedupKey);
-      Preconditions.checkArgument(
-          partitionField == null,
-          "Cannot add redundant partition: %s conflicts with %s",
-          partitionField,
-          field);
-      dedupFields.put(dedupKey, field);
+      for (int sourceId : field.sourceIds()) {
+        Map.Entry<Integer, String> dedupKey =
+            new AbstractMap.SimpleEntry<>(sourceId, field.transform().dedupName());
+        PartitionField partitionField = dedupFields.get(dedupKey);
+        Preconditions.checkArgument(
+            partitionField == null,
+            "Cannot add redundant partition: %s conflicts with %s",
+            partitionField,
+            field);
+        dedupFields.put(dedupKey, field);
+      }
     }
 
     public Builder caseSensitive(boolean sensitive) {
