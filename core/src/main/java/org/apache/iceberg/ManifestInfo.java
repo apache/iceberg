@@ -55,10 +55,7 @@ interface ManifestInfo {
           "Minimum sequence number of files in this manifest");
   Types.NestedField DV =
       Types.NestedField.optional(
-          162,
-          "dv",
-          Types.BinaryType.get(),
-          "Deletion vector for manifest entries");
+          162, "dv", Types.BinaryType.get(), "Deletion vector for manifest entries");
   Types.NestedField DV_CARDINALITY =
       Types.NestedField.optional(
           163,
