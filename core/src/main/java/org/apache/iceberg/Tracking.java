@@ -79,7 +79,7 @@ interface Tracking {
   }
 
   /** Returns the status of the entry. */
-  ManifestEntryStatus status();
+  EntryStatus status();
 
   /** Returns the snapshot ID where the file was added or deleted. */
   Long snapshotId();

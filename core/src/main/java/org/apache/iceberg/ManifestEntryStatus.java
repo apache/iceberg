@@ -19,7 +19,7 @@
 package org.apache.iceberg;
 
 /** Status of an entry in a manifest file. */
-enum ManifestEntryStatus {
+enum EntryStatus {
   EXISTING(0),
   ADDED(1),
   DELETED(2),
@@ -28,7 +28,7 @@ enum ManifestEntryStatus {
 
   private final int id;
 
-  ManifestEntryStatus(int id) {
+  EntryStatus(int id) {
     this.id = id;
   }
 
