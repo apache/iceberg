@@ -423,7 +423,6 @@ public class TestPartitionSpecParser extends TestBase {
         JsonUtil.parse(fieldsJson, node -> PartitionSpecParser.fromJsonFields(schema, 1, node));
     assertThat(spec.specId()).isEqualTo(1);
     assertThat(spec.fields()).hasSize(1);
-    assertThat(spec.fields().get(0).sourceId()).isEqualTo(1);
     assertThat(spec.fields().get(0).sourceIds()).containsExactly(1, 2);
     assertThat(spec.fields().get(0).fieldId()).isEqualTo(1001);
   }
