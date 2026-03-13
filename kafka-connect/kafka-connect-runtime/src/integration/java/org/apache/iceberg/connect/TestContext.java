@@ -26,7 +26,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,6 +34,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -101,7 +101,7 @@ public class TestContext {
     List<String> composeBase = podmanComposeBaseCommand();
 
     try {
-      List<String> upCommand = new ArrayList<>(composeBase);
+      List<String> upCommand = Lists.newArrayList(composeBase);
       upCommand.add("-f");
       upCommand.add(COMPOSE_FILE.getAbsolutePath());
       upCommand.add("up");
@@ -131,7 +131,7 @@ public class TestContext {
                   () -> {
                     try {
                       LOG.info("Stopping compose environment");
-                      List<String> downCommand = new ArrayList<>(composeBase);
+                      List<String> downCommand = Lists.newArrayList(composeBase);
                       downCommand.add("-f");
                       downCommand.add(COMPOSE_FILE.getAbsolutePath());
                       downCommand.add("down");
@@ -194,7 +194,7 @@ public class TestContext {
       Process process = pb.start();
       process.getInputStream().readAllBytes();
       if (process.waitFor(10, TimeUnit.SECONDS) && process.exitValue() == 0) {
-        List<String> cmd = new ArrayList<>();
+        List<String> cmd = Lists.newArrayList();
         cmd.add("podman");
         cmd.add("compose");
         return cmd;
@@ -203,7 +203,7 @@ public class TestContext {
       // fall through
     }
 
-    List<String> cmd = new ArrayList<>();
+    List<String> cmd = Lists.newArrayList();
     cmd.add("podman-compose");
     return cmd;
   }
