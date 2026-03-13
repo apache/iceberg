@@ -137,17 +137,15 @@ class RESTTableScan extends DataTableScan {
 
   @Override
   public TableScan useRef(String name) {
-    RESTTableScan scan = (RESTTableScan) super.useRef(name);
     SnapshotRef ref = table().refs().get(name);
-    scan.useSnapshotSchema = ref != null && ref.isTag();
-    return scan;
+    this.useSnapshotSchema = ref != null && ref.isTag();
+    return super.useRef(name);
   }
 
   @Override
   public TableScan useSnapshot(long snapshotId) {
-    RESTTableScan scan = (RESTTableScan) super.useSnapshot(snapshotId);
-    scan.useSnapshotSchema = true;
-    return scan;
+    this.useSnapshotSchema = true;
+    return super.useSnapshot(snapshotId);
   }
 
   @Override
