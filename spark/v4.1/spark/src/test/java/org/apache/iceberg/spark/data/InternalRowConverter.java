@@ -70,62 +70,46 @@ public class InternalRowConverter {
       return null;
     }
 
-    switch (type.typeId()) {
-      case BOOLEAN:
-      case INTEGER:
-      case LONG:
-      case FLOAT:
-      case DOUBLE:
-        return value;
-      case DATE:
-        return (int) ChronoUnit.DAYS.between(EPOCH_DAY, (LocalDate) value);
-      case TIMESTAMP:
-        Types.TimestampType timestampType = (Types.TimestampType) type;
-        if (timestampType.shouldAdjustToUTC()) {
-          return ChronoUnit.MICROS.between(EPOCH, (OffsetDateTime) value);
-        } else {
-          return ChronoUnit.MICROS.between(EPOCH, ((LocalDateTime) value).atZone(ZoneId.of("UTC")));
-        }
-      case STRING:
-        return UTF8String.fromString((String) value);
-      case UUID:
-        return UTF8String.fromString(value.toString());
-      case FIXED:
-      case BINARY:
+    return switch (type.typeId()) {
+      case BOOLEAN, INTEGER, LONG, FLOAT, DOUBLE -> value;
+      case DATE -> (int) ChronoUnit.DAYS.between(EPOCH_DAY, (LocalDate) value);
+      case TIMESTAMP ->
+          ((Types.TimestampType) type).shouldAdjustToUTC()
+              ? ChronoUnit.MICROS.between(EPOCH, (OffsetDateTime) value)
+              : ChronoUnit.MICROS.between(EPOCH, ((LocalDateTime) value).atZone(ZoneId.of("UTC")));
+      case STRING -> UTF8String.fromString((String) value);
+      case UUID -> UTF8String.fromString(value.toString());
+      case FIXED, BINARY -> {
         ByteBuffer buffer = (ByteBuffer) value;
-        return Arrays.copyOfRange(
+        yield Arrays.copyOfRange(
             buffer.array(),
             buffer.arrayOffset() + buffer.position(),
             buffer.arrayOffset() + buffer.remaining());
-      case DECIMAL:
-        return Decimal.apply((BigDecimal) value);
-      case STRUCT:
-        return convert((Types.StructType) type, (Record) value);
-      case LIST:
-        List<?> list = (List<?>) value;
-        Object[] convertedArray = new Object[list.size()];
-        for (int i = 0; i < convertedArray.length; i++) {
-          convertedArray[i] = convert(type.asListType().elementType(), list.get(i));
-        }
-        return new GenericArrayData(convertedArray);
-      case MAP:
-        Map<?, ?> map = (Map<?, ?>) value;
-        Object[] keysArray = new Object[map.size()];
-        Object[] valuesArray = new Object[map.size()];
-        int idx = 0;
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-          keysArray[idx] = convert(type.asMapType().keyType(), entry.getKey());
-          valuesArray[idx] = convert(type.asMapType().valueType(), entry.getValue());
-          idx++;
-        }
-        return new ArrayBasedMapData(
-            new GenericArrayData(keysArray), new GenericArrayData(valuesArray));
+      }
+      case DECIMAL -> Decimal.apply((BigDecimal) value);
+      case STRUCT -> convert((Types.StructType) type, (Record) value);
+      case LIST ->
+          new GenericArrayData(
+              ((List<?>) value)
+                  .stream()
+                      .map(element -> convert(type.asListType().elementType(), element))
+                      .toArray());
+      case MAP ->
+          new ArrayBasedMapData(
+              new GenericArrayData(
+                  ((Map<?, ?>) value)
+                      .keySet().stream()
+                          .map(o -> convert(type.asMapType().keyType(), o))
+                          .toArray()),
+              new GenericArrayData(
+                  ((Map<?, ?>) value)
+                      .values().stream()
+                          .map(o -> convert(type.asMapType().valueType(), o))
+                          .toArray()));
         // TIME is not supported by Spark, VARIANT not yet implemented
-      case VARIANT:
-      case TIME:
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported type for conversion to InternalRow: " + type);
-    }
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported type for conversion to InternalRow: " + type);
+    };
   }
 }
