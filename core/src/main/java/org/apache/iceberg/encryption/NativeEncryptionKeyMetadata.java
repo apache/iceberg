@@ -27,4 +27,21 @@ public interface NativeEncryptionKeyMetadata extends EncryptionKeyMetadata {
 
   /** Additional authentication data as a {@link ByteBuffer} */
   ByteBuffer aadPrefix();
+
+  /** Encrypted file length */
+  default Long fileLength() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement fileLength");
+  }
+
+  /**
+   * Copy this key metadata and set the file length.
+   *
+   * @param length length of the encrypted file in bytes
+   * @return a copy of this key metadata (key and AAD) with the file length
+   */
+  default NativeEncryptionKeyMetadata copyWithLength(long length) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement copyWithLength");
+  }
 }

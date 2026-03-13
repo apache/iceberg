@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
 public class TestS3URI {
+  private static final String S3_DIRECTORY_BUCKET = "directory-bucket-usw2-az1--x-s3";
 
   @Test
   public void testLocationParsing() {
@@ -95,5 +96,47 @@ public class TestS3URI {
     assertThat(uri1.bucket()).isEqualTo("access-point");
     assertThat(uri1.key()).isEqualTo("path/to/file");
     assertThat(uri1.toString()).isEqualTo(p1);
+  }
+
+  @Test
+  public void testS3URIUseS3DirectoryBucket() {
+    assertThat(
+            new S3URI(String.format("s3://%s/path/to/file", S3_DIRECTORY_BUCKET))
+                .useS3DirectoryBucket())
+        .isTrue();
+    assertThat(new S3URI("s3://bucket/path/to/file").useS3DirectoryBucket()).isFalse();
+    assertThat(
+            new S3URI("s3://bucket/path/to/file", ImmutableMap.of("bucket", S3_DIRECTORY_BUCKET))
+                .useS3DirectoryBucket())
+        .isTrue();
+    assertThat(
+            new S3URI("s3://bucket/path/to/file", ImmutableMap.of("bucket", "bucket2"))
+                .useS3DirectoryBucket())
+        .isFalse();
+  }
+
+  @Test
+  public void testS3URIToDirectoryPath() {
+    assertThat(new S3URI("s3://bucket/path/to/file").toDirectoryPath().location())
+        .isEqualTo("s3://bucket/path/to/file/");
+    assertThat(new S3URI("s3://bucket/path/to/file/").toDirectoryPath().location())
+        .isEqualTo("s3://bucket/path/to/file/");
+    assertThat(new S3URI("s3a://bucket/path/to/file").toDirectoryPath().location())
+        .isEqualTo("s3a://bucket/path/to/file/");
+    assertThat(
+            new S3URI(String.format("s3://%s/path/to/file", S3_DIRECTORY_BUCKET))
+                .toDirectoryPath()
+                .location())
+        .isEqualTo(String.format("s3://%s/path/to/file/", S3_DIRECTORY_BUCKET));
+    assertThat(
+            new S3URI("s3://bucket/path/to/file", ImmutableMap.of("bucket", S3_DIRECTORY_BUCKET))
+                .toDirectoryPath()
+                .location())
+        .isEqualTo(String.format("s3://%s/path/to/file/", S3_DIRECTORY_BUCKET));
+    assertThat(
+            new S3URI("s3://bucket/path/to/file", ImmutableMap.of("bucket", "bucket2"))
+                .toDirectoryPath()
+                .location())
+        .isEqualTo("s3://bucket2/path/to/file/");
   }
 }

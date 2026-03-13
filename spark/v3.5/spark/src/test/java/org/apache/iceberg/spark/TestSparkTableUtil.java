@@ -68,11 +68,14 @@ public class TestSparkTableUtil {
     MetricsConfig config = MetricsConfig.fromProperties(metricsConfig);
     MetricsConfig deserialized = KryoHelpers.roundTripSerialize(config);
 
-    assertThat(deserialized.columnMode("col1").toString())
+    assertThat(deserialized.columnMode("col1"))
+        .asString()
         .isEqualTo(MetricsModes.Full.get().toString());
-    assertThat(deserialized.columnMode("col2").toString())
+    assertThat(deserialized.columnMode("col2"))
+        .asString()
         .isEqualTo(MetricsModes.Truncate.withLength(16).toString());
-    assertThat(deserialized.columnMode("col3").toString())
+    assertThat(deserialized.columnMode("col3"))
+        .asString()
         .isEqualTo(MetricsModes.Counts.get().toString());
   }
 
@@ -90,11 +93,14 @@ public class TestSparkTableUtil {
     MetricsConfig config = MetricsConfig.fromProperties(metricsConfig);
     MetricsConfig deserialized = TestHelpers.roundTripSerialize(config);
 
-    assertThat(deserialized.columnMode("col1").toString())
+    assertThat(deserialized.columnMode("col1"))
+        .asString()
         .isEqualTo(MetricsModes.Full.get().toString());
-    assertThat(deserialized.columnMode("col2").toString())
+    assertThat(deserialized.columnMode("col2"))
+        .asString()
         .isEqualTo(MetricsModes.Truncate.withLength(16).toString());
-    assertThat(deserialized.columnMode("col3").toString())
+    assertThat(deserialized.columnMode("col3"))
+        .asString()
         .isEqualTo(MetricsModes.Counts.get().toString());
   }
 }

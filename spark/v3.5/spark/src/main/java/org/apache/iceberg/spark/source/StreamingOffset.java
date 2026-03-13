@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
@@ -134,8 +135,11 @@ class StreamingOffset extends Offset {
   @Override
   public String toString() {
     return String.format(
+        Locale.ROOT,
         "Streaming Offset[%d: position (%d) scan_all_files (%b)]",
-        snapshotId, position, scanAllFiles);
+        snapshotId,
+        position,
+        scanAllFiles);
   }
 
   private static StreamingOffset fromJsonNode(JsonNode node) {

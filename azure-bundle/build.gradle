@@ -19,13 +19,14 @@
 
 project(":iceberg-azure-bundle") {
 
-  apply plugin: 'io.github.goooler.shadow'
+  apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
   dependencies {
     implementation platform(libs.azuresdk.bom)
     implementation "com.azure:azure-storage-file-datalake"
+    implementation "com.azure:azure-security-keyvault-keys"
     implementation "com.azure:azure-identity"
   }
 

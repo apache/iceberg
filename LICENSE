@@ -209,7 +209,7 @@ This product includes a gradle wrapper.
 
 Copyright: 2010-2019 Gradle Authors.
 Home page: https://github.com/gradle/gradle
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -219,7 +219,7 @@ This product includes code from Apache Avro.
 
 Copyright: 2014-2017 The Apache Software Foundation.
 Home page: https://avro.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -229,10 +229,11 @@ This product includes code from Apache Parquet.
 * DynConstructors.java
 * IOUtil.java readFully and tests
 * ByteBufferInputStream implementations and tests
+* implementation of VectorizedByteStreamSplitValuesReader
 
 Copyright: 2014-2017 The Apache Software Foundation.
 Home page: https://parquet.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -242,7 +243,7 @@ This product includes code from Cloudera Kite.
 
 Copyright: 2013-2017 Cloudera Inc.
 Home page: https://kitesdk.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -256,7 +257,7 @@ This product includes code from Presto.
 
 Copyright: 2016 Facebook and contributors
 Home page: https://prestodb.io/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -266,7 +267,7 @@ This product includes code from Apache iBATIS.
 
 Copyright: 2004 Clinton Begin
 Home page: https://ibatis.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -276,7 +277,7 @@ This product includes code from Apache Hive.
 
 Copyright: 2011-2018 The Apache Software Foundation
 Home page: https://hive.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -288,20 +289,24 @@ This product includes code from Apache Spark.
 * casting logic in AssignmentAlignmentSupport
 * implementation of SetAccumulator.
 * Connector expressions.
+* implementation of VectorizedDeltaEncodedValuesReader
+* implementation of VectorizedDeltaLengthByteArrayValuesReader
+* implementation of VectorizedDeltaByteArrayValuesReader
 
 Copyright: 2011-2018 The Apache Software Foundation
 Home page: https://spark.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
 This product includes code from Delta Lake.
 
 * AssignmentAlignmentSupport is an independent development but UpdateExpressionsSupport in Delta was used as a reference.
+* RoaringPositionBitmap is a Java implementation of RoaringBitmapArray in Delta.
 
 Copyright: 2020 The Delta Lake Project Authors.
 Home page: https://delta.io/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -311,7 +316,7 @@ This product includes code from Apache Commons.
 
 Copyright: 2020 The Apache Software Foundation
 Home page: https://commons.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -321,7 +326,7 @@ This product includes code from Apache HttpComponents Client.
 
 Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://hc.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -330,7 +335,8 @@ This product includes code from Apache Flink.
 * Parameterized test at class level logic in ParameterizedTestExtension.java
 * Parameter provider annotation for parameterized tests in Parameters.java
 * Parameter field annotation for parameterized tests in Parameter.java
+* Primary key validation logic in FlinkSchemaUtil.java
 
 Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://flink.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0

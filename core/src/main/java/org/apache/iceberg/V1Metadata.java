@@ -24,8 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
 
 class V1Metadata {
@@ -52,10 +50,7 @@ class V1Metadata {
    * <p>This is used to maintain compatibility with v1 by writing manifest list files with the old
    * schema, instead of writing a sequence number into metadata files in v1 tables.
    */
-  static class IndexedManifestFile implements ManifestFile, IndexedRecord {
-    private static final org.apache.avro.Schema AVRO_SCHEMA =
-        AvroSchemaUtil.convert(MANIFEST_LIST_SCHEMA, "manifest_file");
-
+  static class ManifestFileWrapper implements ManifestFile, StructLike {
     private ManifestFile wrapped = null;
 
     public ManifestFile wrap(ManifestFile file) {
@@ -64,17 +59,21 @@ class V1Metadata {
     }
 
     @Override
-    public org.apache.avro.Schema getSchema() {
-      return AVRO_SCHEMA;
+    public int size() {
+      return MANIFEST_LIST_SCHEMA.columns().size();
     }
 
     @Override
-    public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot modify IndexedManifestFile wrapper via put");
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify ManifestFileWrapper wrapper via set");
     }
 
     @Override
-    public Object get(int pos) {
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
       switch (pos) {
         case 0:
           return path();
@@ -236,34 +235,38 @@ class V1Metadata {
   }
 
   /** Wrapper used to write a ManifestEntry to v1 metadata. */
-  static class IndexedManifestEntry implements ManifestEntry<DataFile>, IndexedRecord {
-    private final org.apache.avro.Schema avroSchema;
-    private final IndexedDataFile fileWrapper;
+  static class ManifestEntryWrapper implements ManifestEntry<DataFile>, StructLike {
+    private final int size;
+    private final DataFileWrapper fileWrapper;
     private ManifestEntry<DataFile> wrapped = null;
 
-    IndexedManifestEntry(Types.StructType partitionType) {
-      this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
-      this.fileWrapper = new IndexedDataFile(avroSchema.getField("data_file").schema());
+    ManifestEntryWrapper() {
+      this.size = entrySchema(Types.StructType.of()).columns().size();
+      this.fileWrapper = new DataFileWrapper();
     }
 
-    public IndexedManifestEntry wrap(ManifestEntry<DataFile> entry) {
+    public ManifestEntryWrapper wrap(ManifestEntry<DataFile> entry) {
       this.wrapped = entry;
       return this;
     }
 
     @Override
-    public org.apache.avro.Schema getSchema() {
-      return avroSchema;
+    public int size() {
+      return size;
     }
 
     @Override
-    public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot modify IndexedManifestEntry wrapper via put");
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify ManifestEntryWrapper wrapper via set");
     }
 
     @Override
-    public Object get(int i) {
-      switch (i) {
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
+      switch (pos) {
         case 0:
           return wrapped.status().id();
         case 1:
@@ -275,7 +278,7 @@ class V1Metadata {
           }
           return null;
         default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
     }
 
@@ -330,32 +333,44 @@ class V1Metadata {
     }
   }
 
-  static class IndexedDataFile implements DataFile, IndexedRecord {
+  static class DataFileWrapper implements DataFile, StructLike {
     private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
 
-    private final org.apache.avro.Schema avroSchema;
-    private final IndexedStructLike partitionWrapper;
+    private final int size;
     private DataFile wrapped = null;
 
-    IndexedDataFile(org.apache.avro.Schema avroSchema) {
-      this.avroSchema = avroSchema;
-      this.partitionWrapper = new IndexedStructLike(avroSchema.getField("partition").schema());
+    DataFileWrapper() {
+      this.size = dataFileSchema(Types.StructType.of()).fields().size();
     }
 
-    IndexedDataFile wrap(DataFile file) {
+    DataFileWrapper wrap(DataFile file) {
       this.wrapped = file;
       return this;
     }
 
     @Override
-    public Object get(int pos) {
+    public int size() {
+      return size;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot modify DataFileWrapper wrapper via set");
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    private Object get(int pos) {
       switch (pos) {
         case 0:
-          return wrapped.path().toString();
+          return wrapped.location();
         case 1:
           return wrapped.format() != null ? wrapped.format().toString() : null;
         case 2:
-          return partitionWrapper.wrap(wrapped.partition());
+          return wrapped.partition();
         case 3:
           return wrapped.recordCount();
         case 4:
@@ -385,16 +400,6 @@ class V1Metadata {
     }
 
     @Override
-    public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot modify IndexedDataFile wrapper via put");
-    }
-
-    @Override
-    public org.apache.avro.Schema getSchema() {
-      return avroSchema;
-    }
-
-    @Override
     public Long pos() {
       return null;
     }
@@ -416,7 +421,7 @@ class V1Metadata {
 
     @Override
     public CharSequence path() {
-      return wrapped.path();
+      return wrapped.location();
     }
 
     @Override

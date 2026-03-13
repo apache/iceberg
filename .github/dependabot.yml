@@ -24,9 +24,6 @@ updates:
     schedule:
       interval: "weekly"
       day: "sunday"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
   - package-ecosystem: "gradle"
     directory: "/"
     schedule:

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.spark.sql.catalyst.expressions.And
@@ -40,18 +39,18 @@ import org.apache.spark.sql.types.BooleanType
  */
 object ExtendedSimplifyConditionalsInPredicate extends Rule[LogicalPlan] {
 
-  override def apply(plan: LogicalPlan): LogicalPlan = plan.transformWithPruning(
-    _.containsAnyPattern(CASE_WHEN, IF)) {
+  override def apply(plan: LogicalPlan): LogicalPlan =
+    plan.transformWithPruning(_.containsAnyPattern(CASE_WHEN, IF)) {
 
-    case u @ UpdateIcebergTable(_, _, Some(cond), _) =>
-      u.copy(condition = Some(simplifyConditional(cond)))
+      case u @ UpdateIcebergTable(_, _, Some(cond), _) =>
+        u.copy(condition = Some(simplifyConditional(cond)))
 
-    case m @ MergeIntoIcebergTable(_, _, mergeCond, matchedActions, notMatchedActions, _) =>
-      m.copy(
-        mergeCondition = simplifyConditional(mergeCond),
-        matchedActions = simplifyConditional(matchedActions),
-        notMatchedActions = simplifyConditional(notMatchedActions))
-  }
+      case m @ MergeIntoIcebergTable(_, _, mergeCond, matchedActions, notMatchedActions, _) =>
+        m.copy(
+          mergeCondition = simplifyConditional(mergeCond),
+          matchedActions = simplifyConditional(matchedActions),
+          notMatchedActions = simplifyConditional(notMatchedActions))
+    }
 
   private def simplifyConditional(e: Expression): Expression = e match {
     case And(left, right) => And(simplifyConditional(left), simplifyConditional(right))
@@ -61,8 +60,9 @@ object ExtendedSimplifyConditionalsInPredicate extends Rule[LogicalPlan] {
     case If(cond, FalseLiteral, falseValue) =>
       And(Not(Coalesce(Seq(cond, FalseLiteral))), falseValue)
     case If(cond, TrueLiteral, falseValue) => Or(cond, falseValue)
-    case CaseWhen(Seq((cond, trueValue)),
-    Some(FalseLiteral) | Some(Literal(null, BooleanType)) | None) =>
+    case CaseWhen(
+          Seq((cond, trueValue)),
+          Some(FalseLiteral) | Some(Literal(null, BooleanType)) | None) =>
       And(cond, trueValue)
     case CaseWhen(Seq((cond, trueValue)), Some(TrueLiteral)) =>
       Or(Not(Coalesce(Seq(cond, FalseLiteral))), trueValue)
@@ -72,9 +72,10 @@ object ExtendedSimplifyConditionalsInPredicate extends Rule[LogicalPlan] {
       Or(cond, elseValue)
     case e if e.dataType == BooleanType => e
     case e =>
-      assert(e.dataType != BooleanType,
+      assert(
+        e.dataType != BooleanType,
         "Expected a Boolean type expression in ExtendedSimplifyConditionalsInPredicate, " +
-        s"but got the type `${e.dataType.catalogString}` in `${e.sql}`.")
+          s"but got the type `${e.dataType.catalogString}` in `${e.sql}`.")
       e
   }
 

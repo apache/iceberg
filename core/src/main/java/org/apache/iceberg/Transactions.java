@@ -30,6 +30,12 @@ public final class Transactions {
     return new BaseTransaction(tableName, ops, TransactionType.CREATE_OR_REPLACE_TABLE, start);
   }
 
+  public static Transaction createOrReplaceTableTransaction(
+      String tableName, TableOperations ops, TableMetadata start, MetricsReporter reporter) {
+    return new BaseTransaction(
+        tableName, ops, TransactionType.CREATE_OR_REPLACE_TABLE, start, reporter);
+  }
+
   public static Transaction replaceTableTransaction(
       String tableName, TableOperations ops, TableMetadata start) {
     return new BaseTransaction(tableName, ops, TransactionType.REPLACE_TABLE, start);

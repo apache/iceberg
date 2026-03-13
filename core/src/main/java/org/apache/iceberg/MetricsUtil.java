@@ -20,11 +20,13 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -32,8 +34,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.BaseFieldStats;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class MetricsUtil {
@@ -54,7 +60,8 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         metrics.lowerBounds(),
-        metrics.upperBounds());
+        metrics.upperBounds(),
+        metrics.originalTypes());
   }
 
   /**
@@ -72,7 +79,8 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nullValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.lowerBounds(), excludedFieldIds),
-        copyWithoutKeys(metrics.upperBounds(), excludedFieldIds));
+        copyWithoutKeys(metrics.upperBounds(), excludedFieldIds),
+        copyWithoutKeys(metrics.originalTypes(), excludedFieldIds));
   }
 
   private static <K, V> Map<K, V> copyWithoutKeys(Map<K, V> map, Set<K> keys) {
@@ -101,11 +109,25 @@ public class MetricsUtil {
       return Maps.newHashMap();
     }
 
+    Map<Integer, Integer> parents = TypeUtil.indexParents(inputSchema.asStruct());
+
     return fieldMetrics
+        .filter(metrics -> !inMapOrList(inputSchema, parents, metrics.id()))
         .filter(
             metrics ->
                 metricsMode(inputSchema, metricsConfig, metrics.id()) != MetricsModes.None.get())
         .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
+  }
+
+  private static boolean inMapOrList(Schema schema, Map<Integer, Integer> parents, int id) {
+    Integer current = id;
+    while ((current = parents.get(current)) != null) {
+      if (schema.findField(current).type().typeId() != Type.TypeID.STRUCT) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /** Extract MetricsMode for the given field id from metrics config. */
@@ -346,18 +368,21 @@ public class MetricsUtil {
         String colName = idToName.get(id);
 
         fields.add(
-            Types.NestedField.of(
-                nextId.incrementAndGet(),
-                true,
-                colName,
-                Types.StructType.of(
-                    READABLE_METRIC_COLS.stream()
-                        .map(
-                            m ->
-                                optional(
-                                    nextId.incrementAndGet(), m.name(), m.colType(field), m.doc()))
-                        .collect(Collectors.toList())),
-                String.format("Metrics for column %s", colName)));
+            Types.NestedField.optional(colName)
+                .withId(nextId.incrementAndGet())
+                .ofType(
+                    Types.StructType.of(
+                        READABLE_METRIC_COLS.stream()
+                            .map(
+                                m ->
+                                    optional(
+                                        nextId.incrementAndGet(),
+                                        m.name(),
+                                        m.colType(field),
+                                        m.doc()))
+                            .collect(Collectors.toList())))
+                .withDoc(String.format("Metrics for column %s", colName))
+                .build());
       }
     }
 
@@ -455,5 +480,64 @@ public class MetricsUtil {
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("StructWithReadableMetrics is read only");
     }
+  }
+
+  public static ContentStats fromMetrics(Schema schema, Metrics metrics) {
+    if (null == metrics) {
+      return null;
+    }
+
+    BaseContentStats.Builder builder = BaseContentStats.builder().withTableSchema(schema);
+    Map<Integer, BaseFieldStats.Builder<Object>> map = Maps.newHashMap();
+    mergeCountMetric(map, metrics.valueCounts(), BaseFieldStats.Builder::valueCount);
+    mergeCountMetric(map, metrics.nullValueCounts(), BaseFieldStats.Builder::nullValueCount);
+    mergeCountMetric(map, metrics.nanValueCounts(), BaseFieldStats.Builder::nanValueCount);
+    mergeBoundMetric(
+        map, metrics.lowerBounds(), metrics.originalTypes(), BaseFieldStats.Builder::lowerBound);
+    mergeBoundMetric(
+        map, metrics.upperBounds(), metrics.originalTypes(), BaseFieldStats.Builder::upperBound);
+
+    map.values().forEach(fieldStats -> builder.withFieldStats(fieldStats.build()));
+
+    return builder.build();
+  }
+
+  private static void mergeCountMetric(
+      Map<Integer, BaseFieldStats.Builder<Object>> fieldStatsById,
+      Map<Integer, Long> counts,
+      BiFunction<BaseFieldStats.Builder<Object>, Long, BaseFieldStats.Builder<Object>> setter) {
+    if (counts == null) {
+      return;
+    }
+
+    counts.forEach(
+        (id, value) ->
+            fieldStatsById.merge(
+                id,
+                setter.apply(BaseFieldStats.builder().fieldId(id), value),
+                (oldVal, newVal) -> setter.apply(oldVal, value)));
+  }
+
+  private static void mergeBoundMetric(
+      Map<Integer, BaseFieldStats.Builder<Object>> fieldStatsById,
+      Map<Integer, ByteBuffer> bounds,
+      Map<Integer, Type> originalTypes,
+      BiFunction<BaseFieldStats.Builder<Object>, Object, BaseFieldStats.Builder<Object>> setter) {
+    if (bounds == null || originalTypes == null) {
+      return;
+    }
+
+    bounds.entrySet().stream()
+        .filter(entry -> originalTypes.get(entry.getKey()) != null)
+        .forEach(
+            entry -> {
+              Integer id = entry.getKey();
+              Type type = originalTypes.get(id);
+              Object boundValue = Conversions.fromByteBuffer(type, entry.getValue());
+              fieldStatsById.merge(
+                  id,
+                  setter.apply(BaseFieldStats.builder().fieldId(id).type(type), boundValue),
+                  (oldVal, newVal) -> setter.apply(oldVal.type(type), boundValue));
+            });
   }
 }

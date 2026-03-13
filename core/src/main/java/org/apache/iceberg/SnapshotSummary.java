@@ -25,6 +25,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner.MapJoiner;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.ScanTaskUtil;
 
 public class SnapshotSummary {
   public static final String ADDED_FILES_PROP = "added-data-files";
@@ -35,6 +37,8 @@ public class SnapshotSummary {
   public static final String REMOVED_EQ_DELETE_FILES_PROP = "removed-equality-delete-files";
   public static final String ADD_POS_DELETE_FILES_PROP = "added-position-delete-files";
   public static final String REMOVED_POS_DELETE_FILES_PROP = "removed-position-delete-files";
+  public static final String ADDED_DVS_PROP = "added-dvs";
+  public static final String REMOVED_DVS_PROP = "removed-dvs";
   public static final String REMOVED_DELETE_FILES_PROP = "removed-delete-files";
   public static final String TOTAL_DELETE_FILES_PROP = "total-delete-files";
   public static final String ADDED_RECORDS_PROP = "added-records";
@@ -58,6 +62,10 @@ public class SnapshotSummary {
   public static final String SOURCE_SNAPSHOT_ID_PROP = "source-snapshot-id";
   public static final String REPLACE_PARTITIONS_PROP = "replace-partitions";
   public static final String EXTRA_METADATA_PREFIX = "snapshot-property.";
+  public static final String CREATED_MANIFESTS_COUNT = "manifests-created";
+  public static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
+  public static final String KEPT_MANIFESTS_COUNT = "manifests-kept";
+  public static final String PROCESSED_MANIFEST_ENTRY_COUNT = "entries-processed";
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 
@@ -221,6 +229,8 @@ public class SnapshotSummary {
     private int removedEqDeleteFiles = 0;
     private int addedPosDeleteFiles = 0;
     private int removedPosDeleteFiles = 0;
+    private int addedDVs = 0;
+    private int removedDVs = 0;
     private int addedDeleteFiles = 0;
     private int removedDeleteFiles = 0;
     private long addedRecords = 0L;
@@ -242,6 +252,8 @@ public class SnapshotSummary {
       this.removedPosDeleteFiles = 0;
       this.addedDeleteFiles = 0;
       this.removedDeleteFiles = 0;
+      this.addedDVs = 0;
+      this.removedDVs = 0;
       this.addedRecords = 0L;
       this.deletedRecords = 0L;
       this.addedPosDeletes = 0L;
@@ -261,6 +273,8 @@ public class SnapshotSummary {
           removedPosDeleteFiles > 0, builder, REMOVED_POS_DELETE_FILES_PROP, removedPosDeleteFiles);
       setIf(addedDeleteFiles > 0, builder, ADDED_DELETE_FILES_PROP, addedDeleteFiles);
       setIf(removedDeleteFiles > 0, builder, REMOVED_DELETE_FILES_PROP, removedDeleteFiles);
+      setIf(addedDVs > 0, builder, ADDED_DVS_PROP, addedDVs);
+      setIf(removedDVs > 0, builder, REMOVED_DVS_PROP, removedDVs);
       setIf(addedRecords > 0, builder, ADDED_RECORDS_PROP, addedRecords);
       setIf(deletedRecords > 0, builder, DELETED_RECORDS_PROP, deletedRecords);
 
@@ -275,15 +289,20 @@ public class SnapshotSummary {
     }
 
     void addedFile(ContentFile<?> file) {
-      this.addedSize += file.fileSizeInBytes();
+      this.addedSize += ScanTaskUtil.contentSizeInBytes(file);
       switch (file.content()) {
         case DATA:
           this.addedFiles += 1;
           this.addedRecords += file.recordCount();
           break;
         case POSITION_DELETES:
+          DeleteFile deleteFile = (DeleteFile) file;
+          if (ContentFileUtil.isDV(deleteFile)) {
+            this.addedDVs += 1;
+          } else {
+            this.addedPosDeleteFiles += 1;
+          }
           this.addedDeleteFiles += 1;
-          this.addedPosDeleteFiles += 1;
           this.addedPosDeletes += file.recordCount();
           break;
         case EQUALITY_DELETES:
@@ -298,15 +317,20 @@ public class SnapshotSummary {
     }
 
     void removedFile(ContentFile<?> file) {
-      this.removedSize += file.fileSizeInBytes();
+      this.removedSize += ScanTaskUtil.contentSizeInBytes(file);
       switch (file.content()) {
         case DATA:
           this.removedFiles += 1;
           this.deletedRecords += file.recordCount();
           break;
         case POSITION_DELETES:
+          DeleteFile deleteFile = (DeleteFile) file;
+          if (ContentFileUtil.isDV(deleteFile)) {
+            this.removedDVs += 1;
+          } else {
+            this.removedPosDeleteFiles += 1;
+          }
           this.removedDeleteFiles += 1;
-          this.removedPosDeleteFiles += 1;
           this.removedPosDeletes += file.recordCount();
           break;
         case EQUALITY_DELETES:
@@ -343,6 +367,8 @@ public class SnapshotSummary {
       this.removedEqDeleteFiles += other.removedEqDeleteFiles;
       this.addedPosDeleteFiles += other.addedPosDeleteFiles;
       this.removedPosDeleteFiles += other.removedPosDeleteFiles;
+      this.addedDVs += other.addedDVs;
+      this.removedDVs += other.removedDVs;
       this.addedDeleteFiles += other.addedDeleteFiles;
       this.removedDeleteFiles += other.removedDeleteFiles;
       this.addedSize += other.addedSize;

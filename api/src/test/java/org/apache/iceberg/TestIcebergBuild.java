@@ -19,7 +19,11 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
@@ -35,6 +39,34 @@ public class TestIcebergBuild {
                 + " (commit "
                 + IcebergBuild.gitCommitId()
                 + ")");
+  }
+
+  @Test
+  public void testVersionNotUnspecified() {
+    assertThat(IcebergBuild.version()).isNotEqualTo("unspecified");
+  }
+
+  @Test
+  public void testVersionMatchesSystemProperty() {
+    assumeThat(System.getProperty("project.version")).isNotNull();
+    assertThat(IcebergBuild.version())
+        .as("IcebergBuild.version() should match system property project.version")
+        .isEqualTo(System.getProperty("project.version"));
+  }
+
+  /**
+   * This test is for Source Releases. When we have a source release we use a version.txt file in
+   * the parent directory of this module to actually set the "version" which should be included in
+   * the gradle build properties used by IcebergBuild.
+   */
+  @Test
+  public void testVersionMatchesFile() throws IOException {
+    Path versionPath = Paths.get("../version.txt").toAbsolutePath();
+    assumeThat(java.nio.file.Files.exists(versionPath)).isTrue();
+    String versionText = java.nio.file.Files.readString(versionPath).trim();
+    assertThat(IcebergBuild.version())
+        .as("IcebergBuild.version() should match version file")
+        .isEqualTo(versionText);
   }
 
   @Test

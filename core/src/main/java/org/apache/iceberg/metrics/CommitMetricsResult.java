@@ -34,7 +34,9 @@ public interface CommitMetricsResult {
   String ADDED_DELETE_FILES = "added-delete-files";
   String ADDED_EQ_DELETE_FILES = "added-equality-delete-files";
   String ADDED_POS_DELETE_FILES = "added-positional-delete-files";
+  String ADDED_DVS = "added-dvs";
   String REMOVED_POS_DELETE_FILES = "removed-positional-delete-files";
+  String REMOVED_DVS = "removed-dvs";
   String REMOVED_EQ_DELETE_FILES = "removed-equality-delete-files";
   String REMOVED_DELETE_FILES = "removed-delete-files";
   String TOTAL_DELETE_FILES = "total-delete-files";
@@ -50,6 +52,10 @@ public interface CommitMetricsResult {
   String ADDED_EQ_DELETES = "added-equality-deletes";
   String REMOVED_EQ_DELETES = "removed-equality-deletes";
   String TOTAL_EQ_DELETES = "total-equality-deletes";
+  String KEPT_MANIFESTS_COUNT = "manifests-kept";
+  String CREATED_MANIFESTS_COUNT = "manifests-created";
+  String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
+  String PROCESSED_MANIFEST_ENTRY_COUNT = "manifest-entries-processed";
 
   @Nullable
   TimerResult totalDuration();
@@ -76,6 +82,12 @@ public interface CommitMetricsResult {
   CounterResult addedPositionalDeleteFiles();
 
   @Nullable
+  @Value.Default
+  default CounterResult addedDVs() {
+    return null;
+  }
+
+  @Nullable
   CounterResult removedDeleteFiles();
 
   @Nullable
@@ -83,6 +95,12 @@ public interface CommitMetricsResult {
 
   @Nullable
   CounterResult removedPositionalDeleteFiles();
+
+  @Nullable
+  @Value.Default
+  default CounterResult removedDVs() {
+    return null;
+  }
 
   @Nullable
   CounterResult totalDeleteFiles();
@@ -123,6 +141,30 @@ public interface CommitMetricsResult {
   @Nullable
   CounterResult totalEqualityDeletes();
 
+  @Nullable
+  @Value.Default
+  default CounterResult manifestsCreated() {
+    return null;
+  }
+
+  @Nullable
+  @Value.Default
+  default CounterResult manifestsReplaced() {
+    return null;
+  }
+
+  @Nullable
+  @Value.Default
+  default CounterResult manifestsKept() {
+    return null;
+  }
+
+  @Nullable
+  @Value.Default
+  default CounterResult manifestEntriesProcessed() {
+    return null;
+  }
+
   static CommitMetricsResult from(
       CommitMetrics commitMetrics, Map<String, String> snapshotSummary) {
     Preconditions.checkArgument(null != commitMetrics, "Invalid commit metrics: null");
@@ -136,6 +178,7 @@ public interface CommitMetricsResult {
         .addedDeleteFiles(counterFrom(snapshotSummary, SnapshotSummary.ADDED_DELETE_FILES_PROP))
         .addedPositionalDeleteFiles(
             counterFrom(snapshotSummary, SnapshotSummary.ADD_POS_DELETE_FILES_PROP))
+        .addedDVs(counterFrom(snapshotSummary, SnapshotSummary.ADDED_DVS_PROP))
         .addedEqualityDeleteFiles(
             counterFrom(snapshotSummary, SnapshotSummary.ADD_EQ_DELETE_FILES_PROP))
         .removedDeleteFiles(counterFrom(snapshotSummary, SnapshotSummary.REMOVED_DELETE_FILES_PROP))
@@ -143,6 +186,7 @@ public interface CommitMetricsResult {
             counterFrom(snapshotSummary, SnapshotSummary.REMOVED_EQ_DELETE_FILES_PROP))
         .removedPositionalDeleteFiles(
             counterFrom(snapshotSummary, SnapshotSummary.REMOVED_POS_DELETE_FILES_PROP))
+        .removedDVs(counterFrom(snapshotSummary, SnapshotSummary.REMOVED_DVS_PROP))
         .totalDeleteFiles(counterFrom(snapshotSummary, SnapshotSummary.TOTAL_DELETE_FILES_PROP))
         .addedRecords(counterFrom(snapshotSummary, SnapshotSummary.ADDED_RECORDS_PROP))
         .removedRecords(counterFrom(snapshotSummary, SnapshotSummary.DELETED_RECORDS_PROP))
@@ -163,6 +207,11 @@ public interface CommitMetricsResult {
         .removedEqualityDeletes(
             counterFrom(snapshotSummary, SnapshotSummary.REMOVED_EQ_DELETES_PROP))
         .totalEqualityDeletes(counterFrom(snapshotSummary, SnapshotSummary.TOTAL_EQ_DELETES_PROP))
+        .manifestsCreated(counterFrom(snapshotSummary, SnapshotSummary.CREATED_MANIFESTS_COUNT))
+        .manifestsReplaced(counterFrom(snapshotSummary, SnapshotSummary.REPLACED_MANIFESTS_COUNT))
+        .manifestsKept(counterFrom(snapshotSummary, SnapshotSummary.KEPT_MANIFESTS_COUNT))
+        .manifestEntriesProcessed(
+            counterFrom(snapshotSummary, SnapshotSummary.PROCESSED_MANIFEST_ENTRY_COUNT))
         .build();
   }
 

@@ -51,8 +51,18 @@ public interface ContentFile<F> {
    */
   FileContent content();
 
-  /** Returns fully qualified path to the file, suitable for constructing a Hadoop Path. */
+  /**
+   * Returns fully qualified path to the file, suitable for constructing a Hadoop Path.
+   *
+   * @deprecated since 1.7.0, will be removed in 2.0.0; use {@link #location()} instead.
+   */
+  @Deprecated
   CharSequence path();
+
+  /** Return the fully qualified path to the file. */
+  default String location() {
+    return path().toString();
+  }
 
   /** Returns format of the file. */
   FileFormat format();
@@ -154,6 +164,13 @@ public interface ContentFile<F> {
    * status EXISTING or DELETED (older Iceberg versions).
    */
   default Long fileSequenceNumber() {
+    return null;
+  }
+
+  /**
+   * Returns the starting row ID to assign to new rows in the data file (with _row_id set to null).
+   */
+  default Long firstRowId() {
     return null;
   }
 

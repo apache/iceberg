@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.data;
 
+import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestFileWriterFactory;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestGenericFileWriterFactory extends TestFileWriterFactory<Record> {
 
@@ -39,7 +42,6 @@ public class TestGenericFileWriterFactory extends TestFileWriterFactory<Record> 
         .deleteFileFormat(format())
         .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
         .equalityDeleteRowSchema(equalityDeleteRowSchema)
-        .positionDeleteRowSchema(positionDeleteRowSchema)
         .build();
   }
 
@@ -57,4 +59,9 @@ public class TestGenericFileWriterFactory extends TestFileWriterFactory<Record> 
     records.forEach(set::add);
     return set;
   }
+
+  @Disabled("Position deletes with row data are no longer supported")
+  @Override
+  @TestTemplate
+  public void testPositionDeleteWriterWithRow() throws IOException {}
 }

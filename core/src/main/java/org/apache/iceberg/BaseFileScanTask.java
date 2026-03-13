@@ -23,6 +23,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.ScanTaskUtil;
 
 public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile>
     implements FileScanTask {
@@ -79,7 +80,7 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     if (deletesSizeBytes == 0L && deletes.length > 0) {
       long size = 0L;
       for (DeleteFile deleteFile : deletes) {
-        size += deleteFile.fileSizeInBytes();
+        size += ScanTaskUtil.contentSizeInBytes(deleteFile);
       }
       this.deletesSizeBytes = size;
     }
@@ -175,16 +176,14 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     @Override
     public SplitScanTask merge(ScanTask other) {
       SplitScanTask that = (SplitScanTask) other;
+      // don't use deletesSizeBytes() here so that deletesSizeBytes is only calculated once after
+      // merging rather than for each task before merging
       return new SplitScanTask(offset, len + that.length(), fileScanTask, deletesSizeBytes);
     }
 
     private long deletesSizeBytes() {
       if (deletesSizeBytes == 0L && fileScanTask.filesCount() > 1) {
-        long size = 0L;
-        for (DeleteFile deleteFile : fileScanTask.deletes()) {
-          size += deleteFile.fileSizeInBytes();
-        }
-        this.deletesSizeBytes = size;
+        this.deletesSizeBytes = ScanTaskUtil.contentSizeInBytes(fileScanTask.deletes());
       }
 
       return deletesSizeBytes;

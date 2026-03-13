@@ -20,6 +20,7 @@ package org.apache.iceberg.data;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.ByteBuffers;
 
 public class GenericRecord implements Record, StructLike {
   private static final LoadingCache<StructType, Map<String, Integer>> NAME_MAP_CACHE =
@@ -68,8 +70,21 @@ public class GenericRecord implements Record, StructLike {
   private GenericRecord(GenericRecord toCopy) {
     this.struct = toCopy.struct;
     this.size = toCopy.size;
-    this.values = Arrays.copyOf(toCopy.values, toCopy.values.length);
+    this.values = new Object[toCopy.values.length];
+    for (int i = 0; i < this.values.length; i++) {
+      this.values[i] = deepCopyValue(toCopy.values[i]);
+    }
     this.nameToPos = toCopy.nameToPos;
+  }
+
+  private Object deepCopyValue(Object value) {
+    if (value instanceof ByteBuffer) {
+      return ByteBuffers.copy((ByteBuffer) value);
+    } else if (value instanceof GenericRecord) {
+      return ((GenericRecord) value).copy();
+    } else {
+      return value;
+    }
   }
 
   private GenericRecord(GenericRecord toCopy, Map<String, Object> overwrite) {

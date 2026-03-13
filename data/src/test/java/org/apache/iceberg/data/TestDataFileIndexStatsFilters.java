@@ -30,14 +30,19 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
+import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -116,12 +121,12 @@ public class TestDataFileIndexStatsFilters {
   }
 
   @Test
-  public void testPositionDeletePlanningPath() throws IOException {
+  public void testPositionDeletePlanninglocation() throws IOException {
     table.newAppend().appendFile(dataFile).commit();
 
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
-    deletes.add(Pair.of(dataFile.path(), 0L));
-    deletes.add(Pair.of(dataFile.path(), 1L));
+    deletes.add(Pair.of(dataFile.location(), 0L));
+    deletes.add(Pair.of(dataFile.location(), 1L));
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(table, Files.localOutput(createTempFile()), deletes);
@@ -223,6 +228,153 @@ public class TestDataFileIndexStatsFilters {
     assertThat(task.deletes())
         .as("Should not have delete file, filtered by data column stats")
         .isEmpty();
+  }
+
+  @Test
+  public void testEqualityDeletePlanningStatsUserFilter() throws IOException {
+    table.newAppend().appendFile(dataFile).commit();
+
+    List<Record> deletes = Lists.newArrayList();
+    Schema deleteRowSchema = table.schema().select("data");
+    Record delete = GenericRecord.create(deleteRowSchema);
+    deletes.add(delete.copy("data", "a"));
+    deletes.add(delete.copy("data", "b"));
+    deletes.add(delete.copy("data", "c"));
+
+    DeleteFile posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(createTempFile()), deletes, deleteRowSchema);
+
+    table.newRowDelta().addDeletes(posDeletes).commit();
+
+    Expression expr = Expressions.greaterThanOrEqual("data", "d");
+
+    List<FileScanTask> tasks;
+    try (CloseableIterable<FileScanTask> tasksIterable = table.newScan().filter(expr).planFiles()) {
+      tasks = Lists.newArrayList(tasksIterable);
+    }
+
+    assertThat(tasks).as("Should produce one task").hasSize(1);
+    FileScanTask task = tasks.get(0);
+    assertThat(task.deletes())
+        .as("Should have excluded the delete file because it cannot match the scan.")
+        .isEmpty();
+  }
+
+  @Test
+  public void testEqualityDeletePlanningStatsUserFilterIgnoreResidual() throws IOException {
+    table.newAppend().appendFile(dataFile).commit();
+
+    List<Record> deletes = Lists.newArrayList();
+    Schema deleteRowSchema = table.schema().select("data");
+    Record delete = GenericRecord.create(deleteRowSchema);
+    deletes.add(delete.copy("data", "a"));
+    deletes.add(delete.copy("data", "b"));
+    deletes.add(delete.copy("data", "c"));
+
+    DeleteFile posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(createTempFile()), deletes, deleteRowSchema);
+
+    table.newRowDelta().addDeletes(posDeletes).commit();
+
+    Expression expr = Expressions.greaterThanOrEqual("data", "d");
+
+    List<FileScanTask> tasks;
+    try (CloseableIterable<FileScanTask> tasksIterable =
+        table.newScan().filter(expr).ignoreResiduals().planFiles()) {
+      tasks = Lists.newArrayList(tasksIterable);
+    }
+
+    assertThat(tasks).as("Should produce one task").hasSize(1);
+    FileScanTask task = tasks.get(0);
+    assertThat(task.deletes())
+        .as("Should have one delete file, ignoreResiduals prevents filtering out the delete file")
+        .hasSize(1);
+  }
+
+  @Test
+  public void testEqualityDeletePlanningStatsPartitionPruningIgnoreResidual() throws IOException {
+    table.updateSpec().addField("category").commit();
+
+    PartitionData partitionData = new PartitionData(table.spec().partitionType());
+
+    DataFile evenFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(createTempFile()),
+            evenRecords,
+            partitionData.copyFor(Row.of("even")));
+    DataFile oddFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(createTempFile()),
+            oddRecords,
+            partitionData.copyFor(Row.of("odd")));
+
+    table.newAppend().appendFile(evenFile).appendFile(oddFile).commit();
+
+    Schema deleteRowSchema = table.schema().select("data");
+    Record delete = GenericRecord.create(deleteRowSchema);
+
+    List<Record> oddDeletes = Lists.newArrayList();
+    oddDeletes.add(delete.copy("data", "a"));
+    oddDeletes.add(delete.copy("data", "c"));
+
+    List<Record> evenDeletes = Lists.newArrayList();
+    evenDeletes.add(delete.copy("data", "b"));
+
+    DeleteFile oddDeleteFile =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(createTempFile()),
+            partitionData.copyFor(Row.of("odd")),
+            oddDeletes,
+            deleteRowSchema);
+
+    DeleteFile evenDeleteFile =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(createTempFile()),
+            partitionData.copyFor(Row.of("even")),
+            evenDeletes,
+            deleteRowSchema);
+
+    // Create a manifest that only has deletes for the "odd" partition
+    table.newRowDelta().addDeletes(oddDeleteFile).commit();
+
+    // Create a manifest which has deletes for both "even" and "odd" partitions
+    table.newRowDelta().addDeletes(oddDeleteFile).addDeletes(evenDeleteFile).commit();
+
+    Expression expr = Expressions.equal("category", "even");
+
+    InMemoryMetricsReporter reporter = new InMemoryMetricsReporter();
+    List<FileScanTask> tasks;
+    try (CloseableIterable<FileScanTask> tasksIterable =
+        table.newScan().filter(expr).metricsReporter(reporter).ignoreResiduals().planFiles()) {
+      tasks = Lists.newArrayList(tasksIterable);
+    }
+
+    assertThat(tasks).as("Should produce one task since we filtered out one partition").hasSize(1);
+    FileScanTask task = tasks.get(0);
+    assertThat(task.partition()).isEqualTo(partitionData.copyFor(Row.of("even")));
+    assertThat(task.deletes())
+        .as("Should have one delete file, ignoreResiduals prevents filtering out the delete file")
+        .hasSize(1);
+
+    ScanMetricsResult scanReport = reporter.scanReport().scanMetrics();
+    assertThat(scanReport.totalDeleteManifests().value())
+        .as("Should be 2 delete manifests, one for odds and one with both odds and evens")
+        .isEqualTo(2);
+    assertThat(scanReport.skippedDeleteManifests().value())
+        .as("The manifest with only odd deletes should be skipped")
+        .isEqualTo(1);
+    assertThat(scanReport.equalityDeleteFiles().value())
+        .as("The even deletefile entry should be scanned")
+        .isEqualTo(1);
+    assertThat(scanReport.skippedDeleteFiles().value())
+        .as("The odd deletefile entry should be skipped")
+        .isEqualTo(1);
   }
 
   @Test
@@ -383,7 +535,7 @@ public class TestDataFileIndexStatsFilters {
         writePosDeletes(
             evenPartition,
             ImmutableList.of(
-                Pair.of(dataFileWithEvenRecords.path(), 0L),
+                Pair.of(dataFileWithEvenRecords.location(), 0L),
                 Pair.of("some-other-file.parquet", 0L)));
     table
         .newRowDelta()
@@ -396,8 +548,8 @@ public class TestDataFileIndexStatsFilters {
         writePosDeletes(
             evenPartition,
             ImmutableList.of(
-                Pair.of(dataFileWithEvenRecords.path(), 1L),
-                Pair.of(dataFileWithEvenRecords.path(), 2L)));
+                Pair.of(dataFileWithEvenRecords.location(), 1L),
+                Pair.of(dataFileWithEvenRecords.location(), 2L)));
     table
         .newRowDelta()
         .addDeletes(pathPosDeletes.first())
@@ -437,7 +589,7 @@ public class TestDataFileIndexStatsFilters {
   }
 
   private boolean coversDataFile(FileScanTask task, DataFile file) {
-    return task.file().path().toString().equals(file.path().toString());
+    return task.file().location().toString().equals(file.location().toString());
   }
 
   private void assertDeletes(FileScanTask task, DeleteFile... expectedDeleteFiles) {
@@ -446,12 +598,12 @@ public class TestDataFileIndexStatsFilters {
     assertThat(actualDeletePaths.size()).isEqualTo(expectedDeleteFiles.length);
 
     for (DeleteFile expectedDeleteFile : expectedDeleteFiles) {
-      assertThat(actualDeletePaths.contains(expectedDeleteFile.path())).isTrue();
+      assertThat(actualDeletePaths.contains(expectedDeleteFile.location())).isTrue();
     }
   }
 
   private CharSequenceSet deletePaths(FileScanTask task) {
-    return CharSequenceSet.of(Iterables.transform(task.deletes(), ContentFile::path));
+    return CharSequenceSet.of(Iterables.transform(task.deletes(), ContentFile::location));
   }
 
   private List<FileScanTask> planTasks() throws IOException {
@@ -488,7 +640,7 @@ public class TestDataFileIndexStatsFilters {
     return FileHelpers.writeDeleteFile(table, out, partition, deletes);
   }
 
-  private File createTempFile() throws IOException {
-    return File.createTempFile("junit", null, tempDir);
+  private File createTempFile() {
+    return new File(tempDir, "junit" + System.nanoTime());
   }
 }

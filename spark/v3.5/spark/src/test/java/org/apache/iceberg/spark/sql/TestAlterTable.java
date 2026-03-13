@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -153,6 +155,16 @@ public class TestAlterTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testAddColumnWithDefaultValuesUnsupported() throws InterruptedException {
+    assumeThat(catalogName).isNotEqualTo("spark_catalog");
+    assertThatThrownBy(
+            () -> sql("ALTER TABLE %s ADD COLUMN col_with_default int DEFAULT 123", tableName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Cannot add column col_with_default since setting default values in Spark is currently unsupported");
+  }
+
+  @TestTemplate
   public void testDropColumn() {
     sql("ALTER TABLE %s DROP COLUMN data", tableName);
 
@@ -275,6 +287,10 @@ public class TestAlterTable extends CatalogTestBase {
 
   @TestTemplate
   public void testTableRename() {
+    assumeThat(catalogConfig.get(ICEBERG_CATALOG_TYPE))
+        .as(
+            "need to fix https://github.com/apache/iceberg/issues/11154 before enabling this for the REST catalog")
+        .isNotEqualTo(ICEBERG_CATALOG_TYPE_REST);
     assumeThat(validationCatalog)
         .as("Hadoop catalog does not support rename")
         .isNotInstanceOf(HadoopCatalog.class);
@@ -296,15 +312,15 @@ public class TestAlterTable extends CatalogTestBase {
   public void testSetTableProperties() {
     sql("ALTER TABLE %s SET TBLPROPERTIES ('prop'='value')", tableName);
 
-    assertThat(validationCatalog.loadTable(tableIdent).properties().get("prop"))
+    assertThat(validationCatalog.loadTable(tableIdent).properties())
         .as("Should have the new table property")
-        .isEqualTo("value");
+        .containsEntry("prop", "value");
 
     sql("ALTER TABLE %s UNSET TBLPROPERTIES ('prop')", tableName);
 
-    assertThat(validationCatalog.loadTable(tableIdent).properties().get("prop"))
+    assertThat(validationCatalog.loadTable(tableIdent).properties())
         .as("Should not have the removed table property")
-        .isNull();
+        .doesNotContainKey("prop");
 
     String[] reservedProperties = new String[] {"sort-order", "identifier-fields"};
     for (String reservedProp : reservedProperties) {

@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.MicroBatches.MicroBatch;
@@ -32,10 +31,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestMicroBatchBuilder extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @BeforeEach
   public void setupTableProperties() {
@@ -162,13 +157,6 @@ public class TestMicroBatchBuilder extends TestBase {
     appendFiles.commit();
   }
 
-  private static void delete(DeleteFiles deleteFiles, List<DataFile> deletes) {
-    for (DataFile f : deletes) {
-      deleteFiles.deleteFile(f);
-    }
-    deleteFiles.commit();
-  }
-
   private static List<DataFile> files(String... names) {
     return Lists.transform(Lists.newArrayList(names), TestMicroBatchBuilder::file);
   }
@@ -178,7 +166,7 @@ public class TestMicroBatchBuilder extends TestBase {
         Iterables.transform(
             tasks,
             t -> {
-              String path = t.file().path().toString();
+              String path = t.file().location();
               return path.split("\\.")[0];
             });
     return Lists.newArrayList(filesToRead);

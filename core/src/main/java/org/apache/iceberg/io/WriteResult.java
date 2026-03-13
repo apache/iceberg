@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -31,12 +32,17 @@ public class WriteResult implements Serializable {
   private DataFile[] dataFiles;
   private DeleteFile[] deleteFiles;
   private CharSequence[] referencedDataFiles;
+  private DeleteFile[] rewrittenDeleteFiles;
 
   private WriteResult(
-      List<DataFile> dataFiles, List<DeleteFile> deleteFiles, CharSequenceSet referencedDataFiles) {
+      List<DataFile> dataFiles,
+      List<DeleteFile> deleteFiles,
+      CharSequenceSet referencedDataFiles,
+      List<DeleteFile> rewrittenDeleteFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
     this.referencedDataFiles = referencedDataFiles.toArray(new CharSequence[0]);
+    this.rewrittenDeleteFiles = rewrittenDeleteFiles.toArray(new DeleteFile[0]);
   }
 
   public DataFile[] dataFiles() {
@@ -51,6 +57,10 @@ public class WriteResult implements Serializable {
     return referencedDataFiles;
   }
 
+  public DeleteFile[] rewrittenDeleteFiles() {
+    return rewrittenDeleteFiles;
+  }
+
   public static Builder builder() {
     return new Builder();
   }
@@ -59,18 +69,20 @@ public class WriteResult implements Serializable {
     private final List<DataFile> dataFiles;
     private final List<DeleteFile> deleteFiles;
     private final CharSequenceSet referencedDataFiles;
+    private final List<DeleteFile> rewrittenDeleteFiles;
 
     private Builder() {
       this.dataFiles = Lists.newArrayList();
       this.deleteFiles = Lists.newArrayList();
       this.referencedDataFiles = CharSequenceSet.empty();
+      this.rewrittenDeleteFiles = Lists.newArrayList();
     }
 
     public Builder add(WriteResult result) {
       addDataFiles(result.dataFiles);
       addDeleteFiles(result.deleteFiles);
       addReferencedDataFiles(result.referencedDataFiles);
-
+      addRewrittenDeleteFiles(result.rewrittenDeleteFiles);
       return this;
     }
 
@@ -109,8 +121,28 @@ public class WriteResult implements Serializable {
       return this;
     }
 
-    public WriteResult build() {
-      return new WriteResult(dataFiles, deleteFiles, referencedDataFiles);
+    public Builder addRewrittenDeleteFiles(DeleteFile... files) {
+      Collections.addAll(rewrittenDeleteFiles, files);
+      return this;
     }
+
+    public Builder addRewrittenDeleteFiles(Iterable<DeleteFile> files) {
+      Iterables.addAll(rewrittenDeleteFiles, files);
+      return this;
+    }
+
+    public WriteResult build() {
+      return new WriteResult(dataFiles, deleteFiles, referencedDataFiles, rewrittenDeleteFiles);
+    }
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("dataFiles", dataFiles)
+        .add("deleteFiles", deleteFiles)
+        .add("referencedDataFiles", referencedDataFiles)
+        .add("rewrittenDeleteFiles", rewrittenDeleteFiles)
+        .toString();
   }
 }

@@ -31,6 +31,11 @@ public interface BoundTerm<T> extends Bound<T>, Term {
   /** Returns the type produced by this expression. */
   Type type();
 
+  /** Returns whether values produced by this expression may be null. */
+  default boolean producesNull() {
+    return true;
+  }
+
   /** Returns a {@link Comparator} for values produced by this term. */
   default Comparator<T> comparator() {
     return Comparators.forType(type().asPrimitiveType());

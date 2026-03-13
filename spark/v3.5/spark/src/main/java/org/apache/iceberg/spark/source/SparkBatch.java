@@ -28,8 +28,14 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
+import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
+import org.apache.iceberg.spark.OrcBatchReadConf;
+import org.apache.iceberg.spark.ParquetBatchReadConf;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -50,6 +56,7 @@ class SparkBatch implements Batch {
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
+  private final boolean cacheDeleteFilesOnExecutors;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -70,6 +77,7 @@ class SparkBatch implements Batch {
     this.localityEnabled = readConf.localityEnabled();
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
+    this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
   }
 
   @Override
@@ -91,7 +99,8 @@ class SparkBatch implements Batch {
               branch,
               expectedSchemaString,
               caseSensitive,
-              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE);
+              locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
+              cacheDeleteFilesOnExecutors);
     }
 
     return partitions;
@@ -113,17 +122,29 @@ class SparkBatch implements Batch {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    if (useParquetBatchReads()) {
-      int batchSize = readConf.parquetBatchSize();
-      return new SparkColumnarReaderFactory(batchSize);
+    if (useCometBatchReads()) {
+      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.COMET));
+
+    } else if (useParquetBatchReads()) {
+      return new SparkColumnarReaderFactory(parquetBatchReadConf(ParquetReaderType.ICEBERG));
 
     } else if (useOrcBatchReads()) {
-      int batchSize = readConf.orcBatchSize();
-      return new SparkColumnarReaderFactory(batchSize);
+      return new SparkColumnarReaderFactory(orcBatchReadConf());
 
     } else {
       return new SparkRowReaderFactory();
     }
+  }
+
+  private ParquetBatchReadConf parquetBatchReadConf(ParquetReaderType readerType) {
+    return ImmutableParquetBatchReadConf.builder()
+        .batchSize(readConf.parquetBatchSize())
+        .readerType(readerType)
+        .build();
+  }
+
+  private OrcBatchReadConf orcBatchReadConf() {
+    return ImmutableOrcBatchReadConf.builder().batchSize(readConf.orcBatchSize()).build();
   }
 
   // conditions for using Parquet batch reads:
@@ -152,6 +173,20 @@ class SparkBatch implements Batch {
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
     return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
+  }
+
+  private boolean useCometBatchReads() {
+    return readConf.parquetVectorizationEnabled()
+        && readConf.parquetReaderType() == ParquetReaderType.COMET
+        && expectedSchema.columns().stream().allMatch(this::supportsCometBatchReads)
+        && taskGroups.stream().allMatch(this::supportsParquetBatchReads);
+  }
+
+  private boolean supportsCometBatchReads(Types.NestedField field) {
+    return field.type().isPrimitiveType()
+        && !field.type().typeId().equals(Type.TypeID.UUID)
+        && field.fieldId() != MetadataColumns.ROW_ID.fieldId()
+        && field.fieldId() != MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId();
   }
 
   // conditions for using ORC batch reads:

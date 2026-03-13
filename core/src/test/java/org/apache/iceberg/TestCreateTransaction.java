@@ -23,11 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -38,16 +34,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestCreateTransaction extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testCreateTransaction() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Transaction txn = TestTables.beginCreate(tableDir, "test_create", SCHEMA, unpartitioned());
 
     assertThat(TestTables.readMetadata("test_create")).isNull();
@@ -68,9 +57,6 @@ public class TestCreateTransaction extends TestBase {
 
   @TestTemplate
   public void testCreateTransactionAndUpdateSchema() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Transaction txn = TestTables.beginCreate(tableDir, "test_create", SCHEMA, unpartitioned());
 
     assertThat(TestTables.readMetadata("test_create")).isNull();
@@ -105,9 +91,6 @@ public class TestCreateTransaction extends TestBase {
 
   @TestTemplate
   public void testCreateAndAppendWithTransaction() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Transaction txn = TestTables.beginCreate(tableDir, "test_append", SCHEMA, unpartitioned());
 
     assertThat(TestTables.readMetadata("test_append")).isNull();
@@ -134,9 +117,6 @@ public class TestCreateTransaction extends TestBase {
 
   @TestTemplate
   public void testCreateAndAppendWithTable() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Transaction txn = TestTables.beginCreate(tableDir, "test_append", SCHEMA, unpartitioned());
 
     assertThat(TestTables.readMetadata("test_append"))
@@ -167,9 +147,6 @@ public class TestCreateTransaction extends TestBase {
 
   @TestTemplate
   public void testCreateAndUpdatePropertiesWithTransaction() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Transaction txn = TestTables.beginCreate(tableDir, "test_properties", SCHEMA, unpartitioned());
 
     assertThat(TestTables.readMetadata("test_properties")).isNull();
@@ -196,9 +173,6 @@ public class TestCreateTransaction extends TestBase {
 
   @TestTemplate
   public void testCreateAndUpdatePropertiesWithTable() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Transaction txn = TestTables.beginCreate(tableDir, "test_properties", SCHEMA, unpartitioned());
 
     assertThat(TestTables.readMetadata("test_properties")).isNull();
@@ -227,9 +201,6 @@ public class TestCreateTransaction extends TestBase {
 
   @TestTemplate
   public void testCreateDetectsUncommittedChange() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Transaction txn =
         TestTables.beginCreate(tableDir, "uncommitted_change", SCHEMA, unpartitioned());
 
@@ -245,9 +216,6 @@ public class TestCreateTransaction extends TestBase {
 
   @TestTemplate
   public void testCreateDetectsUncommittedChangeOnCommit() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Transaction txn =
         TestTables.beginCreate(tableDir, "uncommitted_change", SCHEMA, unpartitioned());
 
@@ -263,9 +231,6 @@ public class TestCreateTransaction extends TestBase {
 
   @TestTemplate
   public void testCreateTransactionConflict() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Transaction txn = TestTables.beginCreate(tableDir, "test_conflict", SCHEMA, SPEC);
 
     // append in the transaction to ensure a manifest file is created

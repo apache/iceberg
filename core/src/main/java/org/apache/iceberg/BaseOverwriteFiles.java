@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -26,11 +25,12 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 
 public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     implements OverwriteFiles {
-  private final Set<DataFile> deletedDataFiles = Sets.newHashSet();
+  private final DataFileSet deletedDataFiles = DataFileSet.create();
   private boolean validateAddedFilesMatchOverwriteFilter = false;
   private Long startingSnapshotId = null;
   private Expression conflictDetectionFilter = null;
@@ -68,6 +68,20 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
   @Override
   public OverwriteFiles addFile(DataFile file) {
     add(file);
+    return this;
+  }
+
+  @Override
+  public OverwriteFiles deleteFiles(
+      DataFileSet dataFilesToDelete, DeleteFileSet deleteFilesToDelete) {
+    for (DataFile dataFile : dataFilesToDelete) {
+      deleteFile(dataFile);
+    }
+
+    for (DeleteFile deleteFile : deleteFilesToDelete) {
+      delete(deleteFile);
+    }
+
     return this;
   }
 
@@ -142,7 +156,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
                 && (strict.eval(file.partition()) || metrics.eval(file)),
             "Cannot append file with rows that do not match filter: %s: %s",
             rowFilter,
-            file.path());
+            file.location());
       }
     }
 

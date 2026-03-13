@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
@@ -266,5 +267,47 @@ public class TestDates {
     Transform<Integer, Integer> day = Transforms.day();
     Type dayResultType = day.getResultType(type);
     assertThat(dayResultType).isEqualTo(Types.DateType.get());
+  }
+
+  @Test
+  public void testUnknownUnsupportedYear() {
+    assertThatThrownBy(() -> Transforms.year(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    Transform<Object, Integer> year = Transforms.year();
+    assertThatThrownBy(() -> year.bind(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    assertThat(year.canTransform(Types.UnknownType.get())).isFalse();
+  }
+
+  @Test
+  public void testUnknownUnsupportedMonth() {
+    assertThatThrownBy(() -> Transforms.month(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    Transform<Object, Integer> month = Transforms.month();
+    assertThatThrownBy(() -> month.bind(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    assertThat(month.canTransform(Types.UnknownType.get())).isFalse();
+  }
+
+  @Test
+  public void testUnknownUnsupportedDay() {
+    assertThatThrownBy(() -> Transforms.day(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    Transform<Object, Integer> day = Transforms.day();
+    assertThatThrownBy(() -> day.bind(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    assertThat(day.canTransform(Types.UnknownType.get())).isFalse();
   }
 }

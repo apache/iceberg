@@ -276,11 +276,13 @@ class SchemaUtils {
               valueSchema.fields().stream()
                   .map(
                       field ->
-                          NestedField.of(
-                              nextId(),
-                              config.schemaForceOptional() || field.schema().isOptional(),
-                              field.name(),
-                              toIcebergType(field.schema())))
+                          NestedField.builder()
+                              .isOptional(
+                                  config.schemaForceOptional() || field.schema().isOptional())
+                              .withId(nextId())
+                              .ofType(toIcebergType(field.schema()))
+                              .withName(field.name())
+                              .build())
                   .collect(Collectors.toList());
           return StructType.of(structFields);
         case STRING:

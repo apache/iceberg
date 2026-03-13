@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 
@@ -56,6 +57,8 @@ public class MetadataColumns {
   public static final int PARTITION_COLUMN_ID = Integer.MAX_VALUE - 5;
   public static final String PARTITION_COLUMN_NAME = "_partition";
   public static final String PARTITION_COLUMN_DOC = "Partition to which a row belongs to";
+  public static final int CONTENT_OFFSET_COLUMN_ID = Integer.MAX_VALUE - 6;
+  public static final int CONTENT_SIZE_IN_BYTES_COLUMN_ID = Integer.MAX_VALUE - 7;
 
   // IDs Integer.MAX_VALUE - (101-200) are used for reserved columns
   public static final NestedField DELETE_FILE_PATH =
@@ -91,13 +94,27 @@ public class MetadataColumns {
           "_commit_snapshot_id",
           Types.LongType.get(),
           "Commit snapshot ID");
+  public static final NestedField ROW_ID =
+      NestedField.optional(
+          Integer.MAX_VALUE - 107,
+          "_row_id",
+          Types.LongType.get(),
+          "Implicit row ID that is automatically assigned");
+  public static final NestedField LAST_UPDATED_SEQUENCE_NUMBER =
+      NestedField.optional(
+          Integer.MAX_VALUE - 108,
+          "_last_updated_sequence_number",
+          Types.LongType.get(),
+          "Sequence number when the row was last updated");
 
   private static final Map<String, NestedField> META_COLUMNS =
       ImmutableMap.of(
           FILE_PATH.name(), FILE_PATH,
           ROW_POSITION.name(), ROW_POSITION,
           IS_DELETED.name(), IS_DELETED,
-          SPEC_ID.name(), SPEC_ID);
+          SPEC_ID.name(), SPEC_ID,
+          ROW_ID.name(), ROW_ID,
+          LAST_UPDATED_SEQUENCE_NUMBER.name(), LAST_UPDATED_SEQUENCE_NUMBER);
 
   private static final Set<Integer> META_IDS =
       ImmutableSet.of(
@@ -105,7 +122,9 @@ public class MetadataColumns {
           ROW_POSITION.fieldId(),
           IS_DELETED.fieldId(),
           SPEC_ID.fieldId(),
-          PARTITION_COLUMN_ID);
+          PARTITION_COLUMN_ID,
+          ROW_ID.fieldId(),
+          LAST_UPDATED_SEQUENCE_NUMBER.fieldId());
 
   public static Set<Integer> metadataFieldIds() {
     return META_IDS;
@@ -133,5 +152,9 @@ public class MetadataColumns {
 
   public static boolean nonMetadataColumn(String name) {
     return !isMetadataColumn(name);
+  }
+
+  public static Schema schemaWithRowLineage(Schema schema) {
+    return TypeUtil.join(schema, new Schema(ROW_ID, LAST_UPDATED_SEQUENCE_NUMBER));
   }
 }

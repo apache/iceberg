@@ -19,6 +19,7 @@
 package org.apache.iceberg.types;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -100,6 +101,19 @@ public class TypeUtil {
     }
 
     return new Schema(ImmutableList.of(), schema.getAliases());
+  }
+
+  /**
+   * Selects fields from a schema by ID and returns them ordered by field ID.
+   *
+   * <p>Unlike {@link #select(Schema, Set)}, which preserves the field ordering of the input schema,
+   * this method always returns columns sorted by field ID.
+   */
+  public static Schema selectInIdOrder(Schema schema, Set<Integer> fieldIds) {
+    Schema selected = select(schema, fieldIds);
+    List<Types.NestedField> sorted = Lists.newArrayList(selected.columns());
+    sorted.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+    return new Schema(sorted);
   }
 
   public static Types.StructType select(Types.StructType struct, Set<Integer> fieldIds) {
@@ -220,6 +234,30 @@ public class TypeUtil {
 
   public static Map<Integer, Integer> indexParents(Types.StructType struct) {
     return ImmutableMap.copyOf(visit(struct, new IndexParents()));
+  }
+
+  /**
+   * Searches in the given schema for all ancestor fields of the given field ID. If the field ID is
+   * defined in a nested type, then all of its ancestor fields are returned. If the field ID is not
+   * nested, an empty list is returned.
+   *
+   * @param schema The schema to search for the field ID
+   * @param fieldId The field ID to find the parents of
+   * @return A list of all ancestor fields of the given field ID if the field ID points to a nested
+   *     field. If the field ID is not a nested field, then an empty list is returned.
+   */
+  public static List<Types.NestedField> ancestorFields(Schema schema, int fieldId) {
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
+    List<Types.NestedField> parents = Lists.newArrayList();
+    if (idToParent.containsKey(fieldId)) {
+      Integer parentId = idToParent.get(fieldId);
+      while (parentId != null) {
+        parents.add(schema.findField(parentId));
+        parentId = idToParent.get(parentId);
+      }
+    }
+
+    return parents;
   }
 
   /**
@@ -395,6 +433,10 @@ public class TypeUtil {
     return visit(schema, new FindTypeVisitor(predicate));
   }
 
+  public static Type find(Type type, Predicate<Type> predicate) {
+    return visit(type, new FindTypeVisitor(predicate));
+  }
+
   public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {
     // Warning! Before changing this function, make sure that the type change doesn't introduce
     // compatibility problems in partitioning.
@@ -534,7 +576,17 @@ public class TypeUtil {
       case FIXED:
         return ((Types.FixedType) type).length();
       case BINARY:
+      case VARIANT:
         return 80;
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // 80 bytes is an approximate size for a polygon or linestring with 4 to 5 coordinates.
+        // This is a reasonable estimate for the size of a geometry or geography object without
+        // additional details.
+        return 80;
+      case UNKNOWN:
+        // Consider Unknown as null
+        return 0;
       case DECIMAL:
         // 12 (header) + (12 + 12 + 4) (BigInteger) + 4 (scale) = 44 bytes
         return 44;
@@ -561,6 +613,52 @@ public class TypeUtil {
   /** Interface for passing a function that assigns column IDs from the previous Id. */
   public interface GetID {
     int get(int oldId);
+  }
+
+  /**
+   * Creates a function that reassigns specified field IDs.
+   *
+   * <p>This is useful for merging schemas where some field IDs in one schema might conflict with
+   * IDs already in use by another schema. The function will reassign the provided IDs to new unused
+   * IDs, while preserving other IDs.
+   *
+   * @param conflictingIds the set of conflicting field IDs that should be reassigned
+   * @param allUsedIds the set of field IDs that are already in use and cannot be reused
+   * @return a function that reassigns conflicting field IDs while preserving others
+   */
+  public static GetID reassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
+    return new ReassignConflictingIds(conflictingIds, allUsedIds);
+  }
+
+  private static class ReassignConflictingIds implements GetID {
+    private final Set<Integer> conflictingIds;
+    private final Set<Integer> allUsedIds;
+    private final AtomicInteger nextId;
+
+    private ReassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
+      this.conflictingIds = conflictingIds;
+      this.allUsedIds = allUsedIds;
+      this.nextId = new AtomicInteger();
+    }
+
+    @Override
+    public int get(int oldId) {
+      if (conflictingIds.contains(oldId)) {
+        return nextAvailableId();
+      } else {
+        return oldId;
+      }
+    }
+
+    private int nextAvailableId() {
+      int candidateId = nextId.incrementAndGet();
+
+      while (allUsedIds.contains(candidateId)) {
+        candidateId = nextId.incrementAndGet();
+      }
+
+      return candidateId;
+    }
   }
 
   public static class SchemaVisitor<T> {
@@ -610,6 +708,18 @@ public class TypeUtil {
 
     public T map(Types.MapType map, T keyResult, T valueResult) {
       return null;
+    }
+
+    /**
+     * @deprecated will be removed in 2.0.0; use {@link #variant(Types.VariantType)} instead.
+     */
+    @Deprecated
+    public T variant() {
+      return variant(Types.VariantType.get());
+    }
+
+    public T variant(Types.VariantType variant) {
+      throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
     public T primitive(Type.PrimitiveType primitive) {
@@ -675,6 +785,9 @@ public class TypeUtil {
 
         return visitor.map(map, keyResult, valueResult);
 
+      case VARIANT:
+        return visitor.variant(type.asVariantType());
+
       default:
         return visitor.primitive(type.asPrimitiveType());
     }
@@ -699,6 +812,10 @@ public class TypeUtil {
 
     public T map(Types.MapType map, Supplier<T> keyResult, Supplier<T> valueResult) {
       return null;
+    }
+
+    public T variant(Types.VariantType variant) {
+      throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
     public T primitive(Type.PrimitiveType primitive) {
@@ -776,6 +893,9 @@ public class TypeUtil {
             map,
             new VisitFuture<>(map.keyType(), visitor),
             new VisitFuture<>(map.valueType(), visitor));
+
+      case VARIANT:
+        return visitor.variant(type.asVariantType());
 
       default:
         return visitor.primitive(type.asPrimitiveType());

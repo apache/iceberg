@@ -202,10 +202,19 @@ public class TestMetricsTruncation {
     String test5 = "\uDBFF\uDFFF\uDBFF\uDFFF";
     String test6 = "\uD800\uDFFF\uD800\uDFFF";
     // Increment the previous character
-    String test6_2_expected = "\uD801\uDC00";
+    String test6_1_expected = "\uD801\uDC00";
     String test7 = "\uD83D\uDE02\uD83D\uDE02\uD83D\uDE02";
     String test7_2_expected = "\uD83D\uDE02\uD83D\uDE03";
     String test7_1_expected = "\uD83D\uDE03";
+
+    // Increment the max UTF-8 character will overflow
+    String test8 = "a\uDBFF\uDFFFc";
+    String test8_2_expected = "b";
+
+    // Increment skip invalid Unicode scalar values [Character.MIN_SURROGATE,
+    // Character.MAX_SURROGATE]
+    String test9 = "a" + (char) (Character.MIN_SURROGATE - 1) + "b";
+    String test9_2_expected = "a" + (char) (Character.MAX_SURROGATE + 1);
 
     Comparator<CharSequence> cmp = Literal.of(test1).comparator();
     assertThat(cmp.compare(truncateStringMax(Literal.of(test1), 4).value(), test1))
@@ -254,10 +263,10 @@ public class TestMetricsTruncation {
     assertThat(truncateStringMax(Literal.of(test5), 1))
         .as("An upper bound doesn't exist since the first two characters are max UTF-8 characters")
         .isNull();
-    assertThat(cmp.compare(truncateStringMax(Literal.of(test6), 2).value(), test6))
+    assertThat(cmp.compare(truncateStringMax(Literal.of(test6), 1).value(), test6))
         .as("Truncated upper bound should be greater than or equal to the actual upper bound")
         .isGreaterThanOrEqualTo(0);
-    assertThat(cmp.compare(truncateStringMax(Literal.of(test6), 1).value(), test6_2_expected))
+    assertThat(cmp.compare(truncateStringMax(Literal.of(test6), 1).value(), test6_1_expected))
         .as(
             "Test 4 byte UTF-8 character increment. Output must have one character with "
                 + "the first character incremented")
@@ -272,6 +281,25 @@ public class TestMetricsTruncation {
     assertThat(cmp.compare(truncateStringMax(Literal.of(test7), 1).value(), test7_1_expected))
         .as(
             "Test input with multiple 4 byte UTF-8 character where the first unicode character should be incremented")
+        .isEqualTo(0);
+
+    assertThat(cmp.compare(truncateStringMax(Literal.of(test8), 2).value(), test8))
+        .as("Truncated upper bound should be greater than or equal to the actual upper bound")
+        .isGreaterThanOrEqualTo(0);
+    assertThat(cmp.compare(truncateStringMax(Literal.of(test8), 2).value(), test8_2_expected))
+        .as(
+            "Test the last character is the 4-byte max UTF-8 character after truncated where the second-to-last "
+                + "character should be incremented")
+        .isEqualTo(0);
+
+    assertThat(cmp.compare(truncateStringMax(Literal.of(test9), 2).value(), test9))
+        .as("Truncated upper bound should be greater than or equal to the actual upper bound")
+        .isGreaterThanOrEqualTo(0);
+
+    assertThat(cmp.compare(truncateStringMax(Literal.of(test9), 2).value(), test9_2_expected))
+        .as(
+            "Test the last character is `Character.MIN_SURROGATE - 1` after truncated, it should be incremented to "
+                + "next valid Unicode scalar value `Character.MAX_SURROGATE + 1`")
         .isEqualTo(0);
   }
 }

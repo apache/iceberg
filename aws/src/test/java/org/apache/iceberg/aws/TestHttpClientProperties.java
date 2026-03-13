@@ -20,8 +20,11 @@ package org.apache.iceberg.aws;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 
 import java.util.Map;
+import org.apache.iceberg.aws.HttpClientCache.ManagedHttpClient;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -40,16 +43,21 @@ public class TestHttpClientProperties {
     properties.put(HttpClientProperties.CLIENT_TYPE, "urlconnection");
     HttpClientProperties httpProperties = new HttpClientProperties(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
-    ArgumentCaptor<SdkHttpClient.Builder> httpClientBuilderCaptor =
-        ArgumentCaptor.forClass(SdkHttpClient.Builder.class);
+    ArgumentCaptor<SdkHttpClient> httpClientCaptor = ArgumentCaptor.forClass(SdkHttpClient.class);
 
     httpProperties.applyHttpClientConfigurations(mockS3ClientBuilder);
-    Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
-    SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
+    Mockito.verify(mockS3ClientBuilder).httpClient(httpClientCaptor.capture());
+    SdkHttpClient capturedHttpClient = httpClientCaptor.getValue();
 
-    assertThat(capturedHttpClientBuilder)
-        .as("Should use url connection http client")
-        .isInstanceOf(UrlConnectionHttpClient.Builder.class);
+    assertThat(capturedHttpClient)
+        .as("Should use managed SDK http client")
+        .isInstanceOf(ManagedHttpClient.class);
+
+    // Verify the underlying delegate is UrlConnectionHttpClient
+    ManagedHttpClient managedClient = (ManagedHttpClient) capturedHttpClient;
+    assertThat(managedClient.httpClient())
+        .as("Underlying client should be UrlConnectionHttpClient")
+        .isInstanceOf(UrlConnectionHttpClient.class);
   }
 
   @Test
@@ -58,15 +66,21 @@ public class TestHttpClientProperties {
     properties.put(HttpClientProperties.CLIENT_TYPE, "apache");
     HttpClientProperties httpProperties = new HttpClientProperties(properties);
     S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
-    ArgumentCaptor<SdkHttpClient.Builder> httpClientBuilderCaptor =
-        ArgumentCaptor.forClass(SdkHttpClient.Builder.class);
+    ArgumentCaptor<SdkHttpClient> httpClientCaptor = ArgumentCaptor.forClass(SdkHttpClient.class);
 
     httpProperties.applyHttpClientConfigurations(mockS3ClientBuilder);
-    Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
-    SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
-    assertThat(capturedHttpClientBuilder)
-        .as("Should use apache http client")
-        .isInstanceOf(ApacheHttpClient.Builder.class);
+    Mockito.verify(mockS3ClientBuilder).httpClient(httpClientCaptor.capture());
+    SdkHttpClient capturedHttpClient = httpClientCaptor.getValue();
+
+    assertThat(capturedHttpClient)
+        .as("Should use managed SDK http client")
+        .isInstanceOf(ManagedHttpClient.class);
+
+    // Verify the underlying delegate is ApacheHttpClient
+    ManagedHttpClient managedClient = (ManagedHttpClient) capturedHttpClient;
+    assertThat(managedClient.httpClient())
+        .as("Underlying client should be ApacheHttpClient")
+        .isInstanceOf(ApacheHttpClient.class);
   }
 
   @Test
@@ -79,5 +93,30 @@ public class TestHttpClientProperties {
     assertThatThrownBy(() -> httpProperties.applyHttpClientConfigurations(s3ClientBuilder))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unrecognized HTTP client type test");
+  }
+
+  @Test
+  public void testApacheHttpClientConfiguredAsSharedResource() {
+    Map<String, String> properties = Maps.newHashMap();
+    ApacheHttpClientConfigurations apacheConfig = ApacheHttpClientConfigurations.create(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+
+    apacheConfig.configureHttpClientBuilder(mockS3ClientBuilder);
+
+    // Verify that httpClient() is called with a managed client (as a shared resource)
+    verify(mockS3ClientBuilder).httpClient(any(ManagedHttpClient.class));
+  }
+
+  @Test
+  public void testUrlConnectionHttpClientConfiguredAsSharedResource() {
+    Map<String, String> properties = Maps.newHashMap();
+    UrlConnectionHttpClientConfigurations urlConfig =
+        UrlConnectionHttpClientConfigurations.create(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+
+    urlConfig.configureHttpClientBuilder(mockS3ClientBuilder);
+
+    // Verify that httpClient() is called with a managed client (as a shared resource)
+    verify(mockS3ClientBuilder).httpClient(any(ManagedHttpClient.class));
   }
 }

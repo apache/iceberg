@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.DistributionMode
@@ -35,8 +34,9 @@ import org.apache.spark.sql.connector.catalog.TableCatalog
 case class SetWriteDistributionAndOrderingExec(
     catalog: TableCatalog,
     ident: Identifier,
-    distributionMode: DistributionMode,
-    sortOrder: Seq[(Term, SortDirection, NullOrder)]) extends LeafV2CommandExec {
+    distributionMode: Option[DistributionMode],
+    sortOrder: Seq[(Term, SortDirection, NullOrder)])
+    extends LeafV2CommandExec {
 
   import CatalogV2Implicits._
 
@@ -56,14 +56,18 @@ case class SetWriteDistributionAndOrderingExec(
         }
         orderBuilder.commit()
 
-        txn.updateProperties()
-          .set(WRITE_DISTRIBUTION_MODE, distributionMode.modeName())
-          .commit()
+        distributionMode.foreach { mode =>
+          txn
+            .updateProperties()
+            .set(WRITE_DISTRIBUTION_MODE, mode.modeName())
+            .commit()
+        }
 
         txn.commitTransaction()
 
       case table =>
-        throw new UnsupportedOperationException(s"Cannot set write order of non-Iceberg table: $table")
+        throw new UnsupportedOperationException(
+          s"Cannot set write order of non-Iceberg table: $table")
     }
 
     Nil
@@ -71,9 +75,11 @@ case class SetWriteDistributionAndOrderingExec(
 
   override def simpleString(maxFields: Int): String = {
     val tableIdent = s"${catalog.name}.${ident.quoted}"
-    val order = sortOrder.map {
-      case (term, direction, nullOrder) => s"$term $direction $nullOrder"
-    }.mkString(", ")
+    val order = sortOrder
+      .map { case (term, direction, nullOrder) =>
+        s"$term $direction $nullOrder"
+      }
+      .mkString(", ")
     s"SetWriteDistributionAndOrdering $tableIdent $distributionMode $order"
   }
 }

@@ -36,6 +36,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -239,7 +240,7 @@ public class TestS3FileIOProperties {
   }
 
   @Test
-  public void s3RemoteSigningEnabledWithUserAgent() {
+  public void s3RemoteSigningEnabledWithUserAgentAndRetryPolicy() {
     String uri = "http://localhost:12345";
     Map<String, String> properties =
         ImmutableMap.of(
@@ -249,6 +250,7 @@ public class TestS3FileIOProperties {
 
     s3Properties.applySignerConfiguration(builder);
     s3Properties.applyUserAgentConfigurations(builder);
+    s3Properties.applyRetryConfigurations(builder);
 
     Optional<String> userAgent =
         builder.overrideConfiguration().advancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX);
@@ -260,6 +262,9 @@ public class TestS3FileIOProperties {
     S3V4RestSignerClient signerClient = (S3V4RestSignerClient) signer.get();
     assertThat(signerClient.baseSignerUri()).isEqualTo(uri);
     assertThat(signerClient.properties()).isEqualTo(properties);
+
+    Optional<RetryPolicy> retryPolicy = builder.overrideConfiguration().retryPolicy();
+    assertThat(retryPolicy).isPresent().get().isInstanceOf(RetryPolicy.class);
   }
 
   @Test
@@ -285,7 +290,7 @@ public class TestS3FileIOProperties {
     S3ClientBuilder builder = S3Client.builder();
 
     s3Properties.applyS3AccessGrantsConfigurations(builder);
-    assertThat(builder.plugins().size()).isEqualTo(1);
+    assertThat(builder.plugins()).hasSize(1);
   }
 
   @Test
@@ -297,7 +302,7 @@ public class TestS3FileIOProperties {
     S3ClientBuilder builder = S3Client.builder();
 
     s3Properties.applyS3AccessGrantsConfigurations(builder);
-    assertThat(builder.plugins().size()).isEqualTo(0);
+    assertThat(builder.plugins()).hasSize(0);
 
     // Implicitly false
     properties = ImmutableMap.of();
@@ -305,6 +310,14 @@ public class TestS3FileIOProperties {
     builder = S3Client.builder();
 
     s3Properties.applyS3AccessGrantsConfigurations(builder);
-    assertThat(builder.plugins().size()).isEqualTo(0);
+    assertThat(builder.plugins()).hasSize(0);
+  }
+
+  @Test
+  public void testIsTreatS3DirectoryBucketListPrefixAsDirectoryEnabled() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(S3FileIOProperties.S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY, "false");
+    S3FileIOProperties properties = new S3FileIOProperties(map);
+    assertThat(properties.isS3DirectoryBucketListPrefixAsDirectory()).isEqualTo(false);
   }
 }

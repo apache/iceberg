@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.apache.iceberg.rest.RESTCatalogAdapter.Route.CONFIG;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
@@ -50,13 +53,17 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
 
           @Override
           public <T extends RESTResponse> T handleRequest(
-              Route route, Map<String, String> vars, Object body, Class<T> responseType) {
-            if (CONFIG == route) {
+              Route route,
+              Map<String, String> vars,
+              HTTPRequest httpRequest,
+              Class<T> responseType,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (Route.CONFIG == route) {
               // simulate a legacy server that doesn't send back supported endpoints
               return castResponse(responseType, ConfigResponse.builder().build());
             }
 
-            return super.handleRequest(route, vars, body, responseType);
+            return super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
           }
         };
 
@@ -66,7 +73,7 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
     servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
     servletContext.setHandler(new GzipHandler());
 
-    this.httpServer = new Server(0);
+    this.httpServer = new Server(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
     httpServer.setHandler(servletContext);
     httpServer.start();
 
@@ -89,7 +96,44 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
             "credential",
             "catalog:12345",
             // assume that the server supports view endpoints
-            RESTSessionCatalog.VIEW_ENDPOINTS_SUPPORTED,
-            "true"));
+            RESTCatalogProperties.VIEW_ENDPOINTS_SUPPORTED,
+            "true",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key1",
+            "catalog-default-key1",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key2",
+            "catalog-default-key2",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key3",
+            "catalog-default-key3",
+            CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3",
+            "catalog-override-key3",
+            CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4",
+            "catalog-override-key4"));
+  }
+
+  @Override
+  public void registerView() {
+    // Older client doesn't support the newer endpoint.
+    assertThatThrownBy(super::registerView)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Server does not support endpoint: POST /v1/{prefix}/namespaces/{namespace}/register-view");
+  }
+
+  @Override
+  public void registerExistingView() {
+    // Older client doesn't support the newer endpoint.
+    assertThatThrownBy(super::registerExistingView)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Server does not support endpoint: POST /v1/{prefix}/namespaces/{namespace}/register-view");
+  }
+
+  @Override
+  public void registerViewThatAlreadyExistsAsTable() {
+    // Older client doesn't support the newer endpoint.
+    assertThatThrownBy(super::registerViewThatAlreadyExistsAsTable)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Server does not support endpoint: POST /v1/{prefix}/namespaces/{namespace}/register-view");
   }
 }

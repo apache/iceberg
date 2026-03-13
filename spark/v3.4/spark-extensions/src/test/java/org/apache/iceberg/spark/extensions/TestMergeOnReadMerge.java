@@ -19,9 +19,16 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.PlanningMode;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -29,55 +36,109 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestMergeOnReadMerge extends TestMerge {
-
-  public TestMergeOnReadMerge(
-      String catalogName,
-      String implementation,
-      Map<String, String> config,
-      String fileFormat,
-      boolean vectorized,
-      String distributionMode,
-      boolean fanoutEnabled,
-      String branch,
-      PlanningMode planningMode) {
-    super(
-        catalogName,
-        implementation,
-        config,
-        fileFormat,
-        vectorized,
-        distributionMode,
-        fanoutEnabled,
-        branch,
-        planningMode);
-  }
 
   @Override
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
-        TableProperties.FORMAT_VERSION,
-        "2",
-        TableProperties.MERGE_MODE,
-        RowLevelOperationMode.MERGE_ON_READ.modeName());
+        TableProperties.MERGE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName());
   }
 
-  @Test
+  @TestTemplate
   public void testMergeDeleteFileGranularity() {
+    assumeThat(formatVersion).isEqualTo(2);
     checkMergeDeleteGranularity(DeleteGranularity.FILE);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeDeletePartitionGranularity() {
+    assumeThat(formatVersion).isEqualTo(2);
     checkMergeDeleteGranularity(DeleteGranularity.PARTITION);
   }
 
+  @TestTemplate
+  public void testMergeWithDVAndHistoricalPositionDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+    createTableWithDeleteGranularity(
+        "id INT, dep STRING", "PARTITIONED BY (dep)", DeleteGranularity.PARTITION);
+    createBranchIfNeeded();
+    createOrReplaceView(
+        "source", IntStream.rangeClosed(1, 9).boxed().collect(Collectors.toList()), Encoders.INT());
+    append(
+        commitTarget(),
+        "{ \"id\": 1, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 2, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 3, \"dep\": \"hr\" }");
+    append(
+        commitTarget(),
+        "{ \"id\": 4, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 5, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 6, \"dep\": \"hr\" }");
+
+    // Produce partition scoped deletes for the two modified files
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.value and (id = 1 or id = 4) "
+            + "WHEN MATCHED THEN "
+            + " DELETE "
+            + "WHEN NOT MATCHED THEN "
+            + " INSERT (id, dep) VALUES (-1, 'other')",
+        commitTarget());
+
+    // Produce 1 file-scoped deletes for the second update
+    Map<String, String> fileGranularityProps =
+        ImmutableMap.of(TableProperties.DELETE_GRANULARITY, DeleteGranularity.FILE.toString());
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(fileGranularityProps));
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.value and id = 5 "
+            + "WHEN MATCHED THEN "
+            + " UPDATE SET id = id + 2 "
+            + "WHEN NOT MATCHED THEN "
+            + " INSERT (id, dep) VALUES (-1, 'other')",
+        commitTarget());
+
+    Map<String, String> updateFormatProperties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(updateFormatProperties));
+
+    // Produce a DV which will contain 3 positions from the second data file
+    // 2 existing deleted positions from the earlier file-scoped and partition-scoped deletes
+    // and 1 new deleted position
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.value and id = 6 "
+            + "WHEN MATCHED THEN "
+            + " UPDATE SET id = id + 1 "
+            + "WHEN NOT MATCHED THEN "
+            + " INSERT (id, dep) VALUES (-1, 'other')",
+        commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Set<DeleteFile> deleteFiles =
+        TestHelpers.deleteFiles(table, SnapshotUtil.latestSnapshot(table, branch));
+    List<DeleteFile> dvs =
+        deleteFiles.stream().filter(ContentFileUtil::isDV).collect(Collectors.toList());
+    assertThat(dvs).hasSize(1);
+    assertThat(dvs).allMatch(dv -> dv.recordCount() == 3);
+    assertThat(dvs).allMatch(dv -> FileFormat.fromFileName(dv.location()) == FileFormat.PUFFIN);
+  }
+
   private void checkMergeDeleteGranularity(DeleteGranularity deleteGranularity) {
-    createAndInitTable("id INT, dep STRING", "PARTITIONED BY (dep)", null /* empty */);
+    createTableWithDeleteGranularity(
+        "id INT, dep STRING", "PARTITIONED BY (dep)", deleteGranularity);
 
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.DataOperations.OVERWRITE;
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
 import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
@@ -49,9 +50,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -72,42 +75,21 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
-  public TestUpdate(
-      String catalogName,
-      String implementation,
-      Map<String, String> config,
-      String fileFormat,
-      boolean vectorized,
-      String distributionMode,
-      boolean fanoutEnabled,
-      String branch,
-      PlanningMode planningMode) {
-    super(
-        catalogName,
-        implementation,
-        config,
-        fileFormat,
-        vectorized,
-        distributionMode,
-        fanoutEnabled,
-        branch,
-        planningMode);
-  }
-
-  @BeforeClass
+  @BeforeAll
   public static void setupSparkConf() {
     spark.conf().set("spark.sql.shuffle.partitions", "4");
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS updated_id");
@@ -115,7 +97,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS deleted_employee");
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithVectorizedReads() {
     assumeThat(supportsVectorization()).isTrue();
 
@@ -134,7 +116,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testCoalesceUpdate() {
     createAndInitTable("id INT, dep STRING");
 
@@ -182,6 +164,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       // AQE detects that all shuffle blocks are small and processes them in 1 task
       // otherwise, there would be 200 tasks writing to the table
       validateProperty(snapshot, SnapshotSummary.ADDED_FILES_PROP, "1");
+    } else if (mode(table) == MERGE_ON_READ && formatVersion >= 3) {
+      validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
+      validateProperty(snapshot, SnapshotSummary.ADDED_DVS_PROP, "4");
     } else {
       // MoR UPDATE requests the deleted records to be range distributed by partition and `_file`
       // each task contains only 1 file and therefore writes only 1 shuffle block
@@ -191,13 +176,12 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "1");
     }
 
-    Assert.assertEquals(
-        "Row count must match",
-        200L,
-        scalarSql("SELECT COUNT(*) FROM %s WHERE id = -1", commitTarget()));
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s WHERE id = -1", commitTarget()))
+        .as("Row count must match")
+        .isEqualTo(200L);
   }
 
-  @Test
+  @TestTemplate
   public void testSkewUpdate() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -256,13 +240,12 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
     }
 
-    Assert.assertEquals(
-        "Row count must match",
-        200L,
-        scalarSql("SELECT COUNT(*) FROM %s WHERE id = -1", commitTarget()));
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s WHERE id = -1", commitTarget()))
+        .as("Row count must match")
+        .isEqualTo(200L);
   }
 
-  @Test
+  @TestTemplate
   public void testExplain() {
     createAndInitTable("id INT, dep STRING");
 
@@ -274,7 +257,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("EXPLAIN UPDATE %s SET dep = 'invalid' WHERE true", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 1 snapshot", 1, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 1 snapshot").hasSize(1);
 
     assertEquals(
         "Should have expected rows",
@@ -282,16 +265,16 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateEmptyTable() {
-    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
+    assumeThat(branch).as("Custom branch does not exist for empty table").isNotEqualTo("test");
     createAndInitTable("id INT, dep STRING");
 
     sql("UPDATE %s SET dep = 'invalid' WHERE id IN (1)", commitTarget());
     sql("UPDATE %s SET id = -1 WHERE dep = 'hr'", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 2 snapshots").hasSize(2);
 
     assertEquals(
         "Should have expected rows",
@@ -299,9 +282,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateNonExistingCustomBranch() {
-    Assume.assumeTrue("Test only applicable to custom branch", "test".equals(branch));
+    assumeThat(branch).as("Test only applicable to custom branch").isEqualTo("test");
     createAndInitTable("id INT, dep STRING");
 
     assertThatThrownBy(() -> sql("UPDATE %s SET dep = 'invalid' WHERE id IN (1)", commitTarget()))
@@ -309,7 +292,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         .hasMessage("Cannot use branch (does not exist): test");
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithAlias() {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"a\" }");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -317,7 +300,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("UPDATE %s AS t SET t.dep = 'invalid'", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 2 snapshots").hasSize(2);
 
     assertEquals(
         "Should have expected rows",
@@ -325,7 +308,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateAlignsAssignments() {
     createAndInitTable("id INT, c1 INT, c2 INT");
 
@@ -340,7 +323,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithUnsupportedPartitionPredicate() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -356,7 +339,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithDynamicFileFiltering() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -370,7 +353,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("UPDATE %s SET id = cast('-1' AS INT) WHERE id = 2", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 3 snapshots").hasSize(3);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
@@ -385,7 +368,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id, dep", commitTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateNonExistingRecords() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -396,7 +379,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("UPDATE %s SET id = -1 WHERE id > 10", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 2 snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 2 snapshots").hasSize(2);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
@@ -411,7 +394,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithoutCondition() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -433,16 +416,18 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         });
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 4 snapshots").hasSize(4);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
 
-    Assert.assertEquals("Operation must match", OVERWRITE, currentSnapshot.operation());
+    assertThat(currentSnapshot.operation()).as("Operation must match").isEqualTo(OVERWRITE);
     if (mode(table) == COPY_ON_WRITE) {
-      Assert.assertEquals("Operation must match", OVERWRITE, currentSnapshot.operation());
+      assertThat(currentSnapshot.operation()).as("Operation must match").isEqualTo(OVERWRITE);
       validateProperty(currentSnapshot, CHANGED_PARTITION_COUNT_PROP, "2");
       validateProperty(currentSnapshot, DELETED_FILES_PROP, "3");
       validateProperty(currentSnapshot, ADDED_FILES_PROP, ImmutableSet.of("2", "3"));
+    } else if (mode(table) == MERGE_ON_READ && formatVersion >= 3) {
+      validateMergeOnRead(currentSnapshot, "2", "3", "2");
     } else {
       validateMergeOnRead(currentSnapshot, "2", "2", "2");
     }
@@ -453,7 +438,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY dep ASC", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithNullConditions() {
     createAndInitTable("id INT, dep STRING");
 
@@ -486,7 +471,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithInAndNotInConditions() {
     createAndInitTable("id INT, dep STRING");
 
@@ -516,9 +501,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithMultipleRowGroupsParquet() throws NoSuchTableException {
-    Assume.assumeTrue(fileFormat.equalsIgnoreCase("parquet"));
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
 
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -540,15 +525,15 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     df.coalesce(1).writeTo(tableName).append();
     createBranchIfNeeded();
 
-    Assert.assertEquals(200, spark.table(commitTarget()).count());
+    assertThat(spark.table(commitTarget()).count()).isEqualTo(200);
 
     // update a record from one of two row groups and copy over the second one
     sql("UPDATE %s SET id = -1 WHERE id IN (200, 201)", commitTarget());
 
-    Assert.assertEquals(200, spark.table(commitTarget()).count());
+    assertThat(spark.table(commitTarget()).count()).isEqualTo(200);
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateNestedStructFields() {
     createAndInitTable(
         "id INT, s STRUCT<c1:INT,c2:STRUCT<a:ARRAY<INT>,m:MAP<STRING, STRING>>>",
@@ -581,7 +566,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithUserDefinedDistribution() {
     createAndInitTable("id INT, c2 INT, c3 INT");
     sql("ALTER TABLE %s ADD PARTITION FIELD bucket(8, c3)", tableName);
@@ -618,13 +603,13 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public synchronized void testUpdateWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
-    Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    assumeThat(catalogName).isNotEqualToIgnoringCase("testhadoop");
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
-    Assume.assumeTrue(cachingCatalogEnabled());
+    assumeThat(cachingCatalogEnabled()).isTrue();
 
     createAndInitTable("id INT, dep STRING");
 
@@ -647,9 +632,11 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql("UPDATE %s SET id = -1 WHERE id = 1", commitTarget());
 
@@ -669,9 +656,11 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
                   return;
@@ -685,7 +674,6 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                   }
 
                   appendFiles.commit();
-                  sleep(10);
                 }
 
                 barrier.incrementAndGet();
@@ -704,17 +692,17 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    assertThat(executorService.awaitTermination(2, TimeUnit.MINUTES)).as("Timeout").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public synchronized void testUpdateWithSnapshotIsolation()
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
-    Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    assumeThat(catalogName).isNotEqualToIgnoringCase("testhadoop");
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
-    Assume.assumeTrue(cachingCatalogEnabled());
+    assumeThat(cachingCatalogEnabled()).isTrue();
 
     createAndInitTable("id INT, dep STRING");
 
@@ -737,9 +725,11 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql("UPDATE %s SET id = -1 WHERE id = 1", tableName);
 
@@ -759,9 +749,11 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
                   return;
@@ -775,7 +767,6 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
                   }
 
                   appendFiles.commit();
-                  sleep(10);
                 }
 
                 barrier.incrementAndGet();
@@ -790,10 +781,10 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    assertThat(executorService.awaitTermination(2, TimeUnit.MINUTES)).as("Timeout").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithInferredCasts() {
     createAndInitTable("id INT, s STRING", "{ \"id\": 1, \"s\": \"value\" }");
 
@@ -805,7 +796,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateModifiesNullStruct() {
     createAndInitTable("id INT, s STRUCT<n1:INT,n2:INT>", "{ \"id\": 1, \"s\": null }");
 
@@ -817,7 +808,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateRefreshesRelationCache() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -842,7 +833,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("UPDATE %s SET id = -1 WHERE id = 1", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 3 snapshots").hasSize(3);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
@@ -864,7 +855,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     spark.sql("UNCACHE TABLE tmp");
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithInSubquery() {
     createAndInitTable("id INT, dep STRING");
 
@@ -914,7 +905,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithInSubqueryAndDynamicFileFiltering() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -932,7 +923,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql("UPDATE %s SET id = -1 WHERE id IN (SELECT * FROM updated_id)", commitTarget());
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 3 snapshots").hasSize(3);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
@@ -947,7 +938,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id, dep", commitTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithSelfSubquery() {
     createAndInitTable("id INT, dep STRING");
 
@@ -983,7 +974,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id, dep", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithMultiColumnInSubquery() {
     createAndInitTable("id INT, dep STRING");
 
@@ -1007,7 +998,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithNotInSubquery() {
     createAndInitTable("id INT, dep STRING");
 
@@ -1045,7 +1036,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithExistSubquery() {
     createAndInitTable("id INT, dep STRING");
 
@@ -1097,7 +1088,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id, dep", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithNotExistsSubquery() {
     createAndInitTable("id INT, dep STRING");
 
@@ -1140,7 +1131,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id, dep", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithScalarSubquery() {
     createAndInitTable("id INT, dep STRING");
 
@@ -1167,7 +1158,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateThatRequiresGroupingBeforeWrite() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -1205,14 +1196,15 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       spark.conf().set("spark.sql.shuffle.partitions", "1");
 
       sql("UPDATE %s t SET id = -1 WHERE id IN (SELECT * FROM updated_id)", commitTarget());
-      Assert.assertEquals(
-          "Should have expected num of rows", 12L, spark.table(commitTarget()).count());
+      assertThat(spark.table(commitTarget()).count())
+          .as("Should have expected num of rows")
+          .isEqualTo(12L);
     } finally {
       spark.conf().set("spark.sql.shuffle.partitions", originalNumOfShufflePartitions);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithVectorization() {
     createAndInitTable("id INT, dep STRING");
 
@@ -1235,7 +1227,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateModifyPartitionSourceField() throws NoSuchTableException {
     createAndInitTable("id INT, dep STRING, country STRING");
 
@@ -1275,10 +1267,10 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     sql(
         "UPDATE %s SET id = -1 WHERE id IN (10, 11, 12, 13, 14, 15, 16, 17, 18, 19)",
         commitTarget());
-    Assert.assertEquals(30L, scalarSql("SELECT count(*) FROM %s WHERE id = -1", selectTarget()));
+    assertThat(scalarSql("SELECT count(*) FROM %s WHERE id = -1", selectTarget())).isEqualTo(30L);
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithStaticPredicatePushdown() {
     createAndInitTable("id INT, dep STRING");
 
@@ -1295,11 +1287,13 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
     Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
     String dataFilesCount = snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP);
-    Assert.assertEquals("Must have 2 files before UPDATE", "2", dataFilesCount);
+    assertThat(dataFilesCount).as("Must have 2 files before UPDATE").isEqualTo("2");
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
-    DataFile dataFile = Iterables.getOnlyElement(snapshot.addedDataFiles(table.io()));
-    table.io().deleteFile(dataFile.path().toString());
+    DataFile dataFile =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles());
+    table.io().deleteFile(dataFile.location());
 
     // disable dynamic pruning and rely only on static predicate pushdown
     withSQLConf(
@@ -1309,7 +1303,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithInvalidUpdates() {
     createAndInitTable(
         "id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>",
@@ -1324,7 +1318,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining("Updating nested fields is only supported for structs");
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithConflictingAssignments() {
     createAndInitTable(
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>", "{ \"id\": 0, \"s\": null }");
@@ -1347,7 +1341,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         .hasMessageStartingWith("Updates are in conflict for these columns");
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithInvalidAssignments() {
     createAndInitTable(
         "id INT NOT NULL, s STRUCT<n1:INT NOT NULL,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL",
@@ -1385,7 +1379,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateWithNonDeterministicCondition() {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"hr\" }");
 
@@ -1396,7 +1390,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
             "nondeterministic expressions are only allowed in Project, Filter, Aggregate or Window");
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateOnNonIcebergTableNotSupported() {
     createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
 
@@ -1405,9 +1399,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         .hasMessage("UPDATE TABLE is not supported temporarily.");
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateToWAPBranch() {
-    Assume.assumeTrue("WAP branch only works for table identifier without branch", branch == null);
+    assumeThat(branch).as("WAP branch only works for table identifier without branch").isNull();
 
     createAndInitTable(
         "id INT, dep STRING", "{ \"id\": 1, \"dep\": \"hr\" }\n" + "{ \"id\": 2, \"dep\": \"a\" }");
@@ -1419,42 +1413,36 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
         () -> {
           sql("UPDATE %s SET dep='hr' WHERE dep='a'", tableName);
-          Assert.assertEquals(
-              "Should have expected num of rows when reading table",
-              2L,
-              sql("SELECT * FROM %s WHERE dep='hr'", tableName).size());
-          Assert.assertEquals(
-              "Should have expected num of rows when reading WAP branch",
-              2L,
-              sql("SELECT * FROM %s.branch_wap WHERE dep='hr'", tableName).size());
-          Assert.assertEquals(
-              "Should not modify main branch",
-              1L,
-              sql("SELECT * FROM %s.branch_main WHERE dep='hr'", tableName).size());
+          assertThat(sql("SELECT * FROM %s WHERE dep='hr'", tableName))
+              .as("Should have expected num of rows when reading table")
+              .hasSize(2);
+          assertThat(sql("SELECT * FROM %s.branch_wap WHERE dep='hr'", tableName))
+              .as("Should have expected num of rows when reading WAP branch")
+              .hasSize(2);
+          assertThat(sql("SELECT * FROM %s.branch_main WHERE dep='hr'", tableName))
+              .as("Should not modify main branch")
+              .hasSize(1);
         });
 
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
         () -> {
           sql("UPDATE %s SET dep='b' WHERE dep='hr'", tableName);
-          Assert.assertEquals(
-              "Should have expected num of rows when reading table with multiple writes",
-              2L,
-              sql("SELECT * FROM %s WHERE dep='b'", tableName).size());
-          Assert.assertEquals(
-              "Should have expected num of rows when reading WAP branch with multiple writes",
-              2L,
-              sql("SELECT * FROM %s.branch_wap WHERE dep='b'", tableName).size());
-          Assert.assertEquals(
-              "Should not modify main branch with multiple writes",
-              0L,
-              sql("SELECT * FROM %s.branch_main WHERE dep='b'", tableName).size());
+          assertThat(sql("SELECT * FROM %s WHERE dep='b'", tableName))
+              .as("Should have expected num of rows when reading table with multiple writes")
+              .hasSize(2);
+          assertThat(sql("SELECT * FROM %s.branch_wap WHERE dep='b'", tableName))
+              .as("Should have expected num of rows when reading WAP branch with multiple writes")
+              .hasSize(2);
+          assertThat(sql("SELECT * FROM %s.branch_main WHERE dep='b'", tableName))
+              .as("Should not modify main branch with multiple writes")
+              .hasSize(0);
         });
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateToWapBranchWithTableBranchIdentifier() {
-    Assume.assumeTrue("Test must have branch name part in table identifier", branch != null);
+    assumeThat(branch).as("Test must have branch name part in table identifier").isNotNull();
 
     createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"hr\" }");
     sql(

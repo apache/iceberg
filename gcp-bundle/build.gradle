@@ -19,13 +19,17 @@
 
 project(":iceberg-gcp-bundle") {
 
-  apply plugin: 'io.github.goooler.shadow'
+  apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
   dependencies {
     implementation platform(libs.google.libraries.bom)
     implementation "com.google.cloud:google-cloud-storage"
+    implementation "com.google.cloud:google-cloud-bigquery"
+    implementation "com.google.cloud:google-cloud-core"
+    implementation "com.google.cloud:google-cloud-kms"
+    implementation libs.gcs.analytics.core
   }
 
   shadowJar {

@@ -47,6 +47,12 @@ class RemoveIds extends OrcSchemaVisitor<TypeDescription> {
   }
 
   @Override
+  public TypeDescription variant(
+      TypeDescription variant, TypeDescription metadata, TypeDescription value) {
+    return removeIcebergAttributes(variant.clone());
+  }
+
+  @Override
   public TypeDescription primitive(TypeDescription primitive) {
     return removeIcebergAttributes(primitive.clone());
   }

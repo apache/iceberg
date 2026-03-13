@@ -56,7 +56,7 @@ abstract class BaseChangelogContentScanTask<
     return MoreObjects.toStringHelper(this)
         .add("change_ordinal", changeOrdinal)
         .add("commit_snapshot_id", commitSnapshotId)
-        .add("file", file().path())
+        .add("file", file().location())
         .add("partition_data", file().partition())
         .add("residual", residual())
         .toString();
@@ -142,7 +142,7 @@ abstract class BaseChangelogContentScanTask<
       return MoreObjects.toStringHelper(this)
           .add("change_ordinal", changeOrdinal())
           .add("commit_snapshot_id", commitSnapshotId())
-          .add("file", file().path())
+          .add("file", file().location())
           .add("partition_data", file().partition())
           .add("offset", offset)
           .add("length", length)

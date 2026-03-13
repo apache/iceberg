@@ -24,14 +24,24 @@ import java.util.Map;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.GetDatabaseRequest;
+import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+@EnabledIfEnvironmentVariables({
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_ACCESS_KEY_ID, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_SESSION_TOKEN, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_REGION, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_TEST_BUCKET, matches = ".*")
+})
 public class TestDefaultAwsClientFactory {
 
   @Test
@@ -86,6 +96,18 @@ public class TestDefaultAwsClientFactory {
     AwsClientFactory factory = AwsClientFactories.from(properties);
     DynamoDbClient dynamoDbClient = factory.dynamo();
     assertThatThrownBy(dynamoDbClient::listTables)
+        .cause()
+        .isInstanceOf(SdkClientException.class)
+        .hasMessageContaining("Unable to execute HTTP request: unknown");
+  }
+
+  @Test
+  public void testKmsEndpointOverride() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsProperties.KMS_ENDPOINT, "https://unknown:1234");
+    AwsClientFactory factory = AwsClientFactories.from(properties);
+    KmsClient kmsClient = factory.kms();
+    assertThatThrownBy(kmsClient::listKeys)
         .cause()
         .isInstanceOf(SdkClientException.class)
         .hasMessageContaining("Unable to execute HTTP request: unknown");

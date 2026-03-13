@@ -109,12 +109,12 @@ public class TestOrcMetrics extends TestMetrics {
 
   @Override
   protected <T> void assertBounds(
-      int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
+      int fieldId, Type type, T lowerBound, T upperBound, MetricsWithStats metricsWithStats) {
     if (isBinaryType(type)) {
-      assertThat(metrics.lowerBounds()).doesNotContainKey(fieldId);
-      assertThat(metrics.upperBounds()).doesNotContainKey(fieldId);
+      assertThat(metricsWithStats.metrics().lowerBounds()).doesNotContainKey(fieldId);
+      assertThat(metricsWithStats.metrics().upperBounds()).doesNotContainKey(fieldId);
       return;
     }
-    super.assertBounds(fieldId, type, lowerBound, upperBound, metrics);
+    super.assertBounds(fieldId, type, lowerBound, upperBound, metricsWithStats);
   }
 }

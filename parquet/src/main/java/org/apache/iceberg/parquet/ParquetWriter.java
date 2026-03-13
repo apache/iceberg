@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -34,9 +34,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.crypto.InternalFileEncryptor;
-import org.apache.parquet.hadoop.CodecFactory;
 import org.apache.parquet.hadoop.ColumnChunkPageWriteStore;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
@@ -46,10 +46,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   private static final Metrics EMPTY_METRICS = new Metrics(0L, null, null, null, null);
 
+  private final Schema schema;
   private final long targetRowGroupSize;
   private final Map<String, String> metadata;
   private final ParquetProperties props;
-  private final CodecFactory.BytesCompressor compressor;
+  private final CompressionCodecFactory.BytesInputCompressor compressor;
   private final MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
   private final MetricsConfig metricsConfig;
@@ -75,21 +76,23 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       Configuration conf,
       OutputFile output,
       Schema schema,
+      MessageType parquetSchema,
       long rowGroupSize,
       Map<String, String> metadata,
-      Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
+      BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc,
       CompressionCodecName codec,
       ParquetProperties properties,
       MetricsConfig metricsConfig,
       ParquetFileWriter.Mode writeMode,
       FileEncryptionProperties encryptionProperties) {
+    this.schema = schema;
     this.targetRowGroupSize = rowGroupSize;
     this.props = properties;
     this.metadata = ImmutableMap.copyOf(metadata);
     this.compressor =
         new ParquetCodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
-    this.parquetSchema = ParquetSchemaUtil.convert(schema, "table");
-    this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
+    this.parquetSchema = parquetSchema;
+    this.model = (ParquetValueWriter<T>) createWriterFunc.apply(schema, parquetSchema);
     this.metricsConfig = metricsConfig;
     this.columnIndexTruncateLength =
         conf.getInt(COLUMN_INDEX_TRUNCATE_LENGTH, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
@@ -141,7 +144,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   public Metrics metrics() {
     Preconditions.checkState(closed, "Cannot return metrics for unclosed writer");
     if (writer != null) {
-      return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig);
+      return ParquetMetrics.metrics(
+          schema, parquetSchema, metricsConfig, writer.getFooter(), model.metrics());
     }
     return EMPTY_METRICS;
   }

@@ -18,20 +18,14 @@
  */
 package org.apache.iceberg.spark.sql;
 
-import java.util.Map;
 import org.apache.iceberg.Table;
-import org.junit.Before;
+import org.junit.jupiter.api.BeforeEach;
 
 public class TestPartitionedWritesToBranch extends PartitionedWritesTestBase {
 
   private static final String BRANCH = "test";
 
-  public TestPartitionedWritesToBranch(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   @Override
   public void createTables() {
     super.createTables();

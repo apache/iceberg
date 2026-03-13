@@ -100,8 +100,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("range");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "range");
 
     SortOrder expected =
         SortOrder.builderFor(table.schema())
@@ -124,8 +123,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("range");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "range");
 
     SortOrder expected =
         SortOrder.builderFor(table.schema())
@@ -148,8 +146,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("range");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "range");
 
     SortOrder expected =
         SortOrder.builderFor(table.schema())
@@ -173,8 +170,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("range");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "range");
 
     assertThat(table.sortOrder()).as("Table must be sorted").isNotEqualTo(SortOrder.unsorted());
 
@@ -182,8 +178,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String newDistributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(newDistributionMode).as("New distribution mode must match").isEqualTo("none");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "none");
 
     assertThat(table.sortOrder()).as("New sort order must match").isEqualTo(SortOrder.unsorted());
   }
@@ -200,8 +195,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("none");
+    assertThat(table.properties()).doesNotContainKey(TableProperties.WRITE_DISTRIBUTION_MODE);
 
     SortOrder expected =
         SortOrder.builderFor(table.schema())
@@ -210,6 +204,25 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
             .asc(bucket("id", 16))
             .asc("id")
             .build();
+    assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testSetWriteLocallyOrderedToPartitionedTable() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, category string) USING iceberg PARTITIONED BY (id)",
+        tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.sortOrder().isUnsorted()).as("Table should start unsorted").isTrue();
+
+    sql("ALTER TABLE %s WRITE LOCALLY ORDERED BY category DESC", tableName);
+
+    table.refresh();
+
+    assertThat(table.properties()).doesNotContainKey(TableProperties.WRITE_DISTRIBUTION_MODE);
+
+    SortOrder expected =
+        SortOrder.builderFor(table.schema()).withOrderId(1).desc("category").build();
     assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(expected);
   }
 
@@ -225,8 +238,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("hash");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "hash");
 
     SortOrder expected = SortOrder.builderFor(table.schema()).withOrderId(1).asc("id").build();
     assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(expected);
@@ -244,11 +256,16 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("hash");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "hash");
 
     SortOrder expected = SortOrder.builderFor(table.schema()).withOrderId(1).asc("id").build();
     assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(expected);
+
+    sql("ALTER TABLE %s WRITE LOCALLY ORDERED BY id", tableName);
+
+    table.refresh();
+
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "hash");
   }
 
   @TestTemplate
@@ -263,8 +280,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("hash");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "hash");
 
     assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(SortOrder.unsorted());
   }
@@ -281,8 +297,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("hash");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "hash");
 
     assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(SortOrder.unsorted());
   }
@@ -299,8 +314,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("hash");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "hash");
 
     assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(SortOrder.unsorted());
   }
@@ -317,8 +331,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("hash");
+    assertThat(table.properties()).containsEntry(TableProperties.WRITE_DISTRIBUTION_MODE, "hash");
 
     SortOrder expected = SortOrder.builderFor(table.schema()).withOrderId(1).asc("id").build();
     assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(expected);

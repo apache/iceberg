@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg;
 
-import java.util.Arrays;
+import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
+
 import java.util.List;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -27,8 +28,8 @@ public class TestLocalFilterFiles
     extends FilterFilesTestBase<TableScan, FileScanTask, CombinedScanTask> {
 
   @Parameters(name = "formatVersion = {0}")
-  public static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+  protected static List<Integer> formatVersions() {
+    return ALL_VERSIONS;
   }
 
   @Override

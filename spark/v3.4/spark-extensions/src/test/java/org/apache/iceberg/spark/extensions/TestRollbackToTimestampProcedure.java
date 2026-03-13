@@ -18,35 +18,35 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
-import org.junit.After;
-import org.junit.Assume;
-import org.junit.Test;
+import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRollbackToTimestampProcedure extends ExtensionsTestBase {
 
-  public TestRollbackToTimestampProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTimestampUsingPositionalArgs() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -84,7 +84,7 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTimestampUsingNamedArgs() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -122,7 +122,7 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTimestampRefreshesRelationCache() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -165,7 +165,7 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
     sql("UNCACHE TABLE tmp");
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTimestampWithQuotedIdentifiers() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -211,9 +211,9 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testRollbackToTimestampWithoutExplicitCatalog() {
-    Assume.assumeTrue("Working only with the session catalog", "spark_catalog".equals(catalogName));
+    assumeThat(catalogName).as("Working only with the session catalog").isEqualTo("spark_catalog");
 
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -252,7 +252,40 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
+  public void testRollbackToTimestampBeforeOrEqualToOldestSnapshot() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot firstSnapshot = table.currentSnapshot();
+    Timestamp beforeFirstSnapshot =
+        Timestamp.from(Instant.ofEpochMilli(firstSnapshot.timestampMillis() - 1));
+    Timestamp exactFirstSnapshot =
+        Timestamp.from(Instant.ofEpochMilli(firstSnapshot.timestampMillis()));
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp(timestamp => TIMESTAMP '%s', table => '%s')",
+                    catalogName, beforeFirstSnapshot, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot roll back, no valid snapshot older than: %s",
+            beforeFirstSnapshot.toInstant().toEpochMilli());
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp(timestamp => TIMESTAMP '%s', table => '%s')",
+                    catalogName, exactFirstSnapshot, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot roll back, no valid snapshot older than: %s",
+            exactFirstSnapshot.toInstant().toEpochMilli());
+  }
+
+  @TestTemplate
   public void testInvalidRollbackToTimestampCases() {
     String timestamp = "TIMESTAMP '2007-12-03T10:15:30'";
 
@@ -266,8 +299,14 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
 
     assertThatThrownBy(
             () -> sql("CALL %s.custom.rollback_to_timestamp('n', 't', %s)", catalogName, timestamp))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.rollback_to_timestamp not found");
+        .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters()).containsEntry("error", "'CALL'");
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName))
         .isInstanceOf(AnalysisException.class)

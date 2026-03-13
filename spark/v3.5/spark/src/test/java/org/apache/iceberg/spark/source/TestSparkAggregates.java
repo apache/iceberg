@@ -51,23 +51,17 @@ public class TestSparkAggregates {
           Max max = new Max(namedReference);
           Expression expectedMax = Expressions.max(unquoted);
           Expression actualMax = SparkAggregates.convert(max);
-          assertThat(String.valueOf(actualMax))
-              .as("Max must match")
-              .isEqualTo(expectedMax.toString());
+          assertThat(actualMax).asString().isEqualTo(expectedMax.toString());
 
           Min min = new Min(namedReference);
           Expression expectedMin = Expressions.min(unquoted);
           Expression actualMin = SparkAggregates.convert(min);
-          assertThat(String.valueOf(actualMin))
-              .as("Min must match")
-              .isEqualTo(expectedMin.toString());
+          assertThat(actualMin).asString().isEqualTo(expectedMin.toString());
 
           Count count = new Count(namedReference, false);
           Expression expectedCount = Expressions.count(unquoted);
           Expression actualCount = SparkAggregates.convert(count);
-          assertThat(String.valueOf(actualCount))
-              .as("Count must match")
-              .isEqualTo(expectedCount.toString());
+          assertThat(actualCount).asString().isEqualTo(expectedCount.toString());
 
           Count countDistinct = new Count(namedReference, true);
           Expression convertedCountDistinct = SparkAggregates.convert(countDistinct);
@@ -76,9 +70,7 @@ public class TestSparkAggregates {
           CountStar countStar = new CountStar();
           Expression expectedCountStar = Expressions.countStar();
           Expression actualCountStar = SparkAggregates.convert(countStar);
-          assertThat(String.valueOf(actualCountStar))
-              .as("CountStar must match")
-              .isEqualTo(expectedCountStar.toString());
+          assertThat(actualCountStar).asString().isEqualTo(expectedCountStar.toString());
         });
   }
 }

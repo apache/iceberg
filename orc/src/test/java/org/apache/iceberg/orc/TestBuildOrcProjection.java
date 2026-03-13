@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 import org.junit.jupiter.api.Test;
@@ -162,6 +163,33 @@ public class TestBuildOrcProjection {
 
     assertThatThrownBy(() -> ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Field 4 of type long is required and was not found.");
+        .hasMessage("Missing required field: b.d (long)");
+  }
+
+  @Test
+  public void testRequiredNestedFieldWithDefaultMissingInFile() {
+    Schema baseSchema =
+        new Schema(
+            required(1, "a", Types.IntegerType.get()),
+            required(2, "b", Types.StructType.of(required(3, "c", Types.LongType.get()))));
+    TypeDescription baseOrcSchema = ORCSchemaUtil.convert(baseSchema);
+
+    Schema evolvedSchema =
+        new Schema(
+            required(1, "a", Types.IntegerType.get()),
+            required(
+                2,
+                "b",
+                Types.StructType.of(
+                    required(3, "c", Types.LongType.get()),
+                    Types.NestedField.required("d")
+                        .withId(4)
+                        .ofType(Types.LongType.get())
+                        .withInitialDefault(Literal.of(34L))
+                        .build())));
+
+    assertThatThrownBy(() -> ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("ORC cannot read default value for field b.d (long): 34");
   }
 }

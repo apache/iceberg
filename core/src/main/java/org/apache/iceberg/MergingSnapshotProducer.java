@@ -30,29 +30,37 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,24 +78,27 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // delete files can be added in "overwrite" or "delete" operations
   private static final Set<String> VALIDATE_ADDED_DELETE_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE);
+  // DVs can be added in "overwrite", "delete", and "replace" operations
+  private static final Set<String> VALIDATE_ADDED_DVS_OPERATIONS =
+      ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE, DataOperations.REPLACE);
 
   private final String tableName;
-  private final TableOperations ops;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final ManifestMergeManager<DataFile> mergeManager;
   private final ManifestFilterManager<DataFile> filterManager;
   private final ManifestMergeManager<DeleteFile> deleteMergeManager;
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
+  private final AtomicInteger dvMergeAttempt = new AtomicInteger(0);
 
   // update data
-  private final Map<PartitionSpec, List<DataFile>> newDataFilesBySpec = Maps.newHashMap();
-  private final CharSequenceSet newDataFilePaths = CharSequenceSet.empty();
-  private final CharSequenceSet newDeleteFilePaths = CharSequenceSet.empty();
+  private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private Long newDataFilesDataSequenceNumber;
-  private final Map<Integer, List<DeleteFileHolder>> newDeleteFilesBySpec = Maps.newHashMap();
+  private final List<DeleteFile> v2Deletes = Lists.newArrayList();
+  private final Map<String, List<DeleteFile>> dvsByReferencedFile = Maps.newLinkedHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
-  private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
+  private final SnapshotSummary.Builder addedDataFilesSummary = SnapshotSummary.builder();
+  private final SnapshotSummary.Builder addedDeleteFilesSummary = SnapshotSummary.builder();
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
 
@@ -104,7 +115,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   MergingSnapshotProducer(String tableName, TableOperations ops) {
     super(ops);
     this.tableName = tableName;
-    this.ops = ops;
     long targetSizeBytes =
         ops.current()
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
@@ -140,18 +150,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected PartitionSpec dataSpec() {
-    Set<PartitionSpec> specs = dataSpecs();
+    Set<Integer> specIds = newDataFilesBySpec.keySet();
     Preconditions.checkState(
-        specs.size() == 1,
+        !specIds.isEmpty(), "Cannot determine partition specs: no data files have been added");
+    Preconditions.checkState(
+        specIds.size() == 1,
         "Cannot return a single partition spec: data files with different partition specs have been added");
-    return specs.iterator().next();
-  }
-
-  protected Set<PartitionSpec> dataSpecs() {
-    Set<PartitionSpec> specs = newDataFilesBySpec.keySet();
-    Preconditions.checkState(
-        !specs.isEmpty(), "Cannot determine partition specs: no data files have been added");
-    return ImmutableSet.copyOf(specs);
+    return spec(Iterables.getOnlyElement(specIds));
   }
 
   protected Expression rowFilter() {
@@ -159,12 +164,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected List<DataFile> addedDataFiles() {
-    return ImmutableList.copyOf(
-        newDataFilesBySpec.values().stream().flatMap(List::stream).collect(Collectors.toList()));
-  }
-
-  protected Map<PartitionSpec, List<DataFile>> addedDataFilesBySpec() {
-    return ImmutableMap.copyOf(newDataFilesBySpec);
+    return newDataFilesBySpec.values().stream()
+        .flatMap(Set::stream)
+        .collect(ImmutableList.toImmutableList());
   }
 
   protected void failAnyDelete() {
@@ -228,51 +230,87 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected boolean addsDeleteFiles() {
-    return !newDeleteFilesBySpec.isEmpty();
+    return !v2Deletes.isEmpty()
+        || dvsByReferencedFile.values().stream().anyMatch(dvs -> !dvs.isEmpty());
   }
 
   /** Add a data file to the new snapshot. */
   protected void add(DataFile file) {
     Preconditions.checkNotNull(file, "Invalid data file: null");
-    if (newDataFilePaths.add(file.path())) {
-      PartitionSpec fileSpec = ops.current().spec(file.specId());
-      Preconditions.checkArgument(
-          fileSpec != null,
-          "Cannot find partition spec %s for data file: %s",
-          file.specId(),
-          file.path());
+    PartitionSpec spec = spec(file.specId());
+    Preconditions.checkArgument(
+        spec != null,
+        "Cannot find partition spec %s for data file: %s",
+        file.specId(),
+        file.location());
 
-      addedFilesSummary.addedFile(fileSpec, file);
+    DataFileSet dataFiles =
+        newDataFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DataFileSet.create());
+    if (dataFiles.add(Delegates.suppressFirstRowId(file))) {
+      addedDataFilesSummary.addedFile(spec, file);
       hasNewDataFiles = true;
-      List<DataFile> newDataFiles =
-          newDataFilesBySpec.computeIfAbsent(fileSpec, ignored -> Lists.newArrayList());
-      newDataFiles.add(file);
     }
+  }
+
+  private PartitionSpec spec(int specId) {
+    return ops().current().spec(specId);
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
-    Preconditions.checkNotNull(file, "Invalid delete file: null");
-    add(new DeleteFileHolder(file));
+    addInternal(Delegates.pendingDeleteFile(file, null));
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file, long dataSequenceNumber) {
-    Preconditions.checkNotNull(file, "Invalid delete file: null");
-    add(new DeleteFileHolder(file, dataSequenceNumber));
+    addInternal(Delegates.pendingDeleteFile(file, dataSequenceNumber));
   }
 
-  private void add(DeleteFileHolder fileHolder) {
-    int specId = fileHolder.deleteFile().specId();
-    PartitionSpec fileSpec = ops.current().spec(specId);
-    List<DeleteFileHolder> deleteFiles =
-        newDeleteFilesBySpec.computeIfAbsent(specId, s -> Lists.newArrayList());
-
-    if (newDeleteFilePaths.add(fileHolder.deleteFile().path())) {
-      deleteFiles.add(fileHolder);
-      addedFilesSummary.addedFile(fileSpec, fileHolder.deleteFile());
-      hasNewDeleteFiles = true;
+  private void addInternal(DeleteFile file) {
+    validateNewDeleteFile(file);
+    PartitionSpec spec = spec(file.specId());
+    Preconditions.checkArgument(
+        spec != null,
+        "Cannot find partition spec %s for delete file: %s",
+        file.specId(),
+        file.location());
+    hasNewDeleteFiles = true;
+    if (ContentFileUtil.isDV(file)) {
+      List<DeleteFile> dvsForReferencedFile =
+          dvsByReferencedFile.computeIfAbsent(
+              file.referencedDataFile(), newFile -> Lists.newArrayList());
+      dvsForReferencedFile.add(file);
+    } else {
+      v2Deletes.add(file);
     }
+  }
+
+  protected void validateNewDeleteFile(DeleteFile file) {
+    Preconditions.checkNotNull(file, "Invalid delete file: null");
+    switch (formatVersion()) {
+      case 1:
+        throw new IllegalArgumentException("Deletes are supported in V2 and above");
+      case 2:
+        Preconditions.checkArgument(
+            file.content() == FileContent.EQUALITY_DELETES || !ContentFileUtil.isDV(file),
+            "Must not use DVs for position deletes in V2: %s",
+            ContentFileUtil.dvDesc(file));
+        break;
+      case 3:
+      case 4:
+        Preconditions.checkArgument(
+            file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
+            "Must use DVs for position deletes in V%s: %s",
+            formatVersion(),
+            file.location());
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported format version: " + formatVersion());
+    }
+  }
+
+  private int formatVersion() {
+    return ops().current().formatVersion();
   }
 
   /** Add all files in a manifest to the new snapshot. */
@@ -280,18 +318,22 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Preconditions.checkArgument(
         manifest.content() == ManifestContent.DATA, "Cannot append delete manifest: %s", manifest);
     if (canInheritSnapshotId() && manifest.snapshotId() == null) {
+      Preconditions.checkArgument(
+          manifest.firstRowId() == null,
+          "Cannot append manifest with assigned first_row_id: %s",
+          manifest.firstRowId());
       appendedManifestsSummary.addedManifest(manifest);
       appendManifests.add(manifest);
     } else {
-      // the manifest must be rewritten with this update's snapshot ID
+      // the manifest must be rewritten with this update's snapshot ID and null first_row_ids
       ManifestFile copiedManifest = copyManifest(manifest);
       rewrittenAppendManifests.add(copiedManifest);
     }
   }
 
   private ManifestFile copyManifest(ManifestFile manifest) {
-    TableMetadata current = ops.current();
-    InputFile toCopy = ops.io().newInputFile(manifest);
+    TableMetadata current = ops().current();
+    InputFile toCopy = ops().io().newInputFile(manifest);
     EncryptedOutputFile newManifestFile = newManifestOutputFile();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
@@ -323,7 +365,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting files that can contain records matching partitions %s: %s",
             partitionSet,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -354,7 +396,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting files that can contain records matching %s: %s",
             conflictDetectionFilter,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -395,7 +437,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Set<Long> newSnapshots = history.second();
 
     ManifestGroup manifestGroup =
-        new ManifestGroup(ops.io(), manifests, ImmutableList.of())
+        new ManifestGroup(ops().io(), manifests, ImmutableList.of())
             .caseSensitive(caseSensitive)
             .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
             .specsById(base.specsById())
@@ -518,7 +560,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         deletes.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         dataFilter,
-        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::location));
   }
 
   /**
@@ -538,7 +580,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         deletes.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         partitionSet,
-        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::location));
   }
 
   /**
@@ -558,7 +600,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Snapshot parent) {
     // if there is no current table state, return empty delete file index
     if (parent == null || base.formatVersion() < 2) {
-      return DeleteFileIndex.builderFor(ops.io(), ImmutableList.of())
+      return DeleteFileIndex.builderFor(ops().io(), ImmutableList.of())
           .specsById(base.specsById())
           .build();
     }
@@ -596,7 +638,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting deleted files that can contain records matching %s: %s",
             dataFilter,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -625,7 +667,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting deleted files that can apply to records matching %s: %s",
             partitionSet,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -666,7 +708,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Set<Long> newSnapshots = history.second();
 
     ManifestGroup manifestGroup =
-        new ManifestGroup(ops.io(), manifests, ImmutableList.of())
+        new ManifestGroup(ops().io(), manifests, ImmutableList.of())
             .caseSensitive(caseSensitive)
             .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
             .filterManifestEntries(entry -> entry.status().equals(ManifestEntry.Status.DELETED))
@@ -705,10 +747,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Expression dataFilter,
       PartitionSet partitionSet) {
     DeleteFileIndex.Builder builder =
-        DeleteFileIndex.builderFor(ops.io(), deleteManifests)
+        DeleteFileIndex.builderFor(ops().io(), deleteManifests)
             .afterSequenceNumber(startingSequenceNumber)
             .caseSensitive(caseSensitive)
-            .specsById(ops.current().specsById());
+            .specsById(ops().current().specsById());
 
     if (dataFilter != null) {
       builder.filterData(dataFilter);
@@ -746,12 +788,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Set<Long> newSnapshots = history.second();
 
     ManifestGroup matchingDeletesGroup =
-        new ManifestGroup(ops.io(), manifests, ImmutableList.of())
+        new ManifestGroup(ops().io(), manifests, ImmutableList.of())
             .filterManifestEntries(
                 entry ->
                     entry.status() != ManifestEntry.Status.ADDED
                         && newSnapshots.contains(entry.snapshotId())
-                        && requiredDataFiles.contains(entry.file().path()))
+                        && requiredDataFiles.contains(entry.file().location()))
             .specsById(base.specsById())
             .ignoreExisting();
 
@@ -765,7 +807,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         throw new ValidationException(
             "Cannot commit, missing data files: %s",
             Iterators.toString(
-                Iterators.transform(deletes, entry -> entry.file().path().toString())));
+                Iterators.transform(deletes, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -773,6 +815,58 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
+  // validates there are no concurrently added DVs for referenced data files
+  protected void validateAddedDVs(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Expression conflictDetectionFilter,
+      Snapshot parent) {
+    // skip if there is no current table state or this operation doesn't add new DVs
+    if (parent == null || dvsByReferencedFile.isEmpty()) {
+      return;
+    }
+
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(
+            base,
+            startingSnapshotId,
+            VALIDATE_ADDED_DVS_OPERATIONS,
+            ManifestContent.DELETES,
+            parent);
+    List<ManifestFile> newDeleteManifests = history.first();
+    Set<Long> newSnapshotIds = history.second();
+
+    Tasks.foreach(newDeleteManifests)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPool())
+        .run(manifest -> validateAddedDVs(manifest, conflictDetectionFilter, newSnapshotIds));
+  }
+
+  private void validateAddedDVs(
+      ManifestFile manifest, Expression conflictDetectionFilter, Set<Long> newSnapshotIds) {
+    try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
+        ManifestFiles.readDeleteManifest(manifest, ops().io(), ops().current().specsById())
+            .filterRows(conflictDetectionFilter)
+            .caseSensitive(caseSensitive)
+            .liveEntries()) {
+
+      for (ManifestEntry<DeleteFile> entry : entries) {
+        DeleteFile file = entry.file();
+        if (newSnapshotIds.contains(entry.snapshotId()) && ContentFileUtil.isDV(file)) {
+          ValidationException.check(
+              !dvsByReferencedFile.containsKey(file.referencedDataFile()),
+              "Found concurrently added DV for %s: %s",
+              file.referencedDataFile(),
+              ContentFileUtil.dvDesc(file));
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  // returns newly added manifests and snapshot IDs between the starting and parent snapshots
   private Pair<List<ManifestFile>, Set<Long>> validationHistory(
       TableMetadata base,
       Long startingSnapshotId,
@@ -791,13 +885,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       if (matchingOperations.contains(currentSnapshot.operation())) {
         newSnapshots.add(currentSnapshot.snapshotId());
         if (content == ManifestContent.DATA) {
-          for (ManifestFile manifest : currentSnapshot.dataManifests(ops.io())) {
+          for (ManifestFile manifest : currentSnapshot.dataManifests(ops().io())) {
             if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
               manifests.add(manifest);
             }
           }
         } else {
-          for (ManifestFile manifest : currentSnapshot.deleteManifests(ops.io())) {
+          for (ManifestFile manifest : currentSnapshot.deleteManifests(ops().io())) {
             if (manifest.snapshotId() == currentSnapshot.snapshotId()) {
               manifests.add(manifest);
             }
@@ -818,7 +912,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   @Override
   protected Map<String, String> summary() {
     summaryBuilder.setPartitionSummaryLimit(
-        ops.current()
+        ops()
+            .current()
             .propertyAsInt(
                 TableProperties.WRITE_PARTITION_SUMMARY_LIMIT,
                 TableProperties.WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT));
@@ -831,7 +926,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     List<ManifestFile> filtered =
         filterManager.filterManifests(
             SnapshotUtil.schemaFor(base, targetBranch()),
-            snapshot != null ? snapshot.dataManifests(ops.io()) : null);
+            snapshot != null ? snapshot.dataManifests(ops().io()) : null);
     long minDataSequenceNumber =
         filtered.stream()
             .map(ManifestFile::minSequenceNumber)
@@ -842,10 +937,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                             .UNASSIGNED_SEQ) // filter out unassigned in rewritten manifests
             .reduce(base.lastSequenceNumber(), Math::min);
     deleteFilterManager.dropDeleteFilesOlderThan(minDataSequenceNumber);
+
+    // retrieve the data files to be deleted from the DataFileFilterManager and pass it to the
+    // DeleteFileFilterManager so that it can potentially remove orphaned DVs
+    Set<DataFile> filesToBeDeleted = filterManager.filesToBeDeleted();
+    deleteFilterManager.removeDanglingDeletesFor(filesToBeDeleted);
+
     List<ManifestFile> filteredDeletes =
         deleteFilterManager.filterManifests(
             SnapshotUtil.schemaFor(base, targetBranch()),
-            snapshot != null ? snapshot.deleteManifests(ops.io()) : null);
+            snapshot != null ? snapshot.deleteManifests(ops().io()) : null);
 
     // only keep manifests that have live data files or that were written by this commit
     Predicate<ManifestFile> shouldKeep =
@@ -860,7 +961,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     // update the snapshot summary
     summaryBuilder.clear();
-    summaryBuilder.merge(addedFilesSummary);
+    summaryBuilder.merge(addedDataFilesSummary);
+    summaryBuilder.merge(addedDeleteFilesSummary);
     summaryBuilder.merge(appendedManifestsSummary);
     summaryBuilder.merge(filterManager.buildSummary(filtered));
     summaryBuilder.merge(deleteFilterManager.buildSummary(filteredDeletes));
@@ -869,13 +971,32 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Iterables.addAll(manifests, mergeManager.mergeManifests(unmergedManifests));
     Iterables.addAll(manifests, deleteMergeManager.mergeManifests(unmergedDeleteManifests));
 
+    // update created/kept/replaced manifest count
+    // replaced manifests come from:
+    // 1. filterManager - manifests rewritten to remove deleted files
+    // 2. deleteFilterManager - delete manifests rewritten to remove deleted files
+    // 3. mergeManager - data manifests merged via bin-packing
+    // 4. deleteMergeManager - delete manifests merged via bin-packing
+    // Note: rewrittenAppendManifests are NEW manifests (copies), not replaced ones
+    int replacedManifestsCount =
+        filterManager.replacedManifestsCount()
+            + deleteFilterManager.replacedManifestsCount()
+            + mergeManager.replacedManifestsCount()
+            + deleteMergeManager.replacedManifestsCount();
+    summaryBuilder.merge(buildManifestCountSummary(manifests, replacedManifestsCount));
+
     return manifests;
   }
 
   @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
-    Snapshot justSaved = ops.refresh().snapshot(snapshotId);
+
+    Snapshot justSaved = ops().current().snapshot(snapshotId);
+    if (justSaved == null) {
+      justSaved = ops().refresh().snapshot(snapshotId);
+    }
+
     long sequenceNumber = TableMetadata.INVALID_SEQUENCE_NUMBER;
     Map<String, String> summary;
     if (justSaved == null) {
@@ -892,53 +1013,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return new CreateSnapshotEvent(tableName, operation(), snapshotId, sequenceNumber, summary);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private void cleanUncommittedAppends(Set<ManifestFile> committed) {
-    if (!cachedNewDataManifests.isEmpty()) {
-      boolean hasDeletes = false;
-      for (ManifestFile manifest : cachedNewDataManifests) {
-        if (!committed.contains(manifest)) {
-          deleteFile(manifest.path());
-          hasDeletes = true;
-        }
-      }
-
-      if (hasDeletes) {
-        this.cachedNewDataManifests.clear();
-      }
-    }
-
-    boolean hasDeleteDeletes = false;
-    for (ManifestFile cachedNewDeleteManifest : cachedNewDeleteManifests) {
-      if (!committed.contains(cachedNewDeleteManifest)) {
-        deleteFile(cachedNewDeleteManifest.path());
-        hasDeleteDeletes = true;
-      }
-    }
-
-    if (hasDeleteDeletes) {
-      this.cachedNewDeleteManifests.clear();
-    }
-
-    // rewritten manifests are always owned by the table
-    for (ManifestFile manifest : rewrittenAppendManifests) {
-      if (!committed.contains(manifest)) {
-        deleteFile(manifest.path());
-      }
-    }
-
-    // manifests that are not rewritten are only owned by the table if the commit succeeded
-    if (!committed.isEmpty()) {
-      // the commit succeeded if at least one manifest was committed
-      // the table now owns appendManifests; clean up any that are not used
-      for (ManifestFile manifest : appendManifests) {
-        if (!committed.contains(manifest)) {
-          deleteFile(manifest.path());
-        }
-      }
-    }
-  }
-
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     mergeManager.cleanUncommitted(committed);
@@ -946,6 +1020,20 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     deleteMergeManager.cleanUncommitted(committed);
     deleteFilterManager.cleanUncommitted(committed);
     cleanUncommittedAppends(committed);
+  }
+
+  private void cleanUncommittedAppends(Set<ManifestFile> committed) {
+    deleteUncommitted(cachedNewDataManifests, committed, true /* clear manifests */);
+    deleteUncommitted(cachedNewDeleteManifests, committed, true /* clear manifests */);
+    // rewritten manifests are always owned by the table
+    deleteUncommitted(rewrittenAppendManifests, committed, false);
+
+    // manifests that are not rewritten are only owned by the table if the commit succeeded
+    if (!committed.isEmpty()) {
+      // the commit succeeded if at least one manifest was committed
+      // the table now owns appendManifests; clean up any that are not used
+      deleteUncommitted(appendManifests, committed, false);
+    }
   }
 
   private Iterable<ManifestFile> prepareNewDataManifests() {
@@ -970,9 +1058,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     if (cachedNewDataManifests.isEmpty()) {
       newDataFilesBySpec.forEach(
-          (dataSpec, newDataFiles) -> {
+          (specId, dataFiles) -> {
             List<ManifestFile> newDataManifests =
-                writeDataManifests(newDataFiles, newDataFilesDataSequenceNumber, dataSpec);
+                writeDataManifests(dataFiles, newDataFilesDataSequenceNumber, spec(specId));
             cachedNewDataManifests.addAll(newDataManifests);
           });
       this.hasNewDataFiles = false;
@@ -982,7 +1070,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private Iterable<ManifestFile> prepareDeleteManifests() {
-    if (newDeleteFilesBySpec.isEmpty()) {
+    if (!addsDeleteFiles()) {
       return ImmutableList.of();
     }
 
@@ -997,12 +1085,22 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // this triggers a rewrite of all delete manifests even if there is only one new delete file
       // if there is a relevant use case in the future, the behavior can be optimized
       cachedNewDeleteManifests.clear();
+      // On cache invalidation of delete files, clear the summary because any new DV could require a
+      // merge,
+      // and the summary cannot be generated until after merging is complete.
+      addedDeleteFilesSummary.clear();
     }
 
     if (cachedNewDeleteManifests.isEmpty()) {
+      List<DeleteFile> mergedDVs = mergeDVs();
+      Map<Integer, List<DeleteFile>> newDeleteFilesBySpec =
+          Streams.stream(Iterables.concat(mergedDVs, DeleteFileSet.of(v2Deletes)))
+              .collect(Collectors.groupingBy(ContentFile::specId));
+
       newDeleteFilesBySpec.forEach(
           (specId, deleteFiles) -> {
-            PartitionSpec spec = ops.current().spec(specId);
+            PartitionSpec spec = ops().current().spec(specId);
+            deleteFiles.forEach(file -> addedDeleteFilesSummary.addedFile(spec, file));
             List<ManifestFile> newDeleteManifests = writeDeleteManifests(deleteFiles, spec);
             cachedNewDeleteManifests.addAll(newDeleteManifests);
           });
@@ -1013,9 +1111,38 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return cachedNewDeleteManifests;
   }
 
+  private List<DeleteFile> mergeDVs() {
+    for (Map.Entry<String, List<DeleteFile>> entry : dvsByReferencedFile.entrySet()) {
+      if (entry.getValue().size() > 1) {
+        LOG.warn(
+            "Merging {} duplicate DVs for data file {} in table {}.",
+            entry.getValue().size(),
+            entry.getKey(),
+            tableName);
+      }
+    }
+
+    FileIO fileIO = EncryptingFileIO.combine(ops().io(), ops().encryption());
+
+    String dvOutputLocation =
+        ops()
+            .locationProvider()
+            .newDataLocation(
+                FileFormat.PUFFIN.addExtension(
+                    String.format(
+                        "merged-dvs-%s-%s", snapshotId(), dvMergeAttempt.incrementAndGet())));
+
+    return DVUtil.mergeAndWriteDVsIfRequired(
+        dvsByReferencedFile,
+        dvOutputLocation,
+        fileIO,
+        ops().current().specsById(),
+        ThreadPools.getDeleteWorkerPool());
+  }
+
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
     private DataFileFilterManager() {
-      super(ops.current().specsById(), MergingSnapshotProducer.this::workerPool);
+      super(ops().current().specsById(), MergingSnapshotProducer.this::workerPool);
     }
 
     @Override
@@ -1032,6 +1159,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
       return MergingSnapshotProducer.this.newManifestReader(manifest);
     }
+
+    @Override
+    protected Set<DataFile> newFileSet() {
+      return DataFileSet.create();
+    }
+
+    @Override
+    protected void removeDanglingDeletesFor(Set<DataFile> dataFiles) {
+      throw new UnsupportedOperationException("Cannot remove dangling deletes");
+    }
   }
 
   private class DataFileMergeManager extends ManifestMergeManager<DataFile> {
@@ -1047,7 +1184,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     @Override
     protected PartitionSpec spec(int specId) {
-      return ops.current().spec(specId);
+      return ops().current().spec(specId);
     }
 
     @Override
@@ -1068,7 +1205,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private class DeleteFileFilterManager extends ManifestFilterManager<DeleteFile> {
     private DeleteFileFilterManager() {
-      super(ops.current().specsById(), MergingSnapshotProducer.this::workerPool);
+      super(ops().current().specsById(), MergingSnapshotProducer.this::workerPool);
     }
 
     @Override
@@ -1085,6 +1222,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     protected ManifestReader<DeleteFile> newManifestReader(ManifestFile manifest) {
       return MergingSnapshotProducer.this.newDeleteManifestReader(manifest);
     }
+
+    @Override
+    protected Set<DeleteFile> newFileSet() {
+      return DeleteFileSet.create();
+    }
   }
 
   private class DeleteFileMergeManager extends ManifestMergeManager<DeleteFile> {
@@ -1100,7 +1242,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     @Override
     protected PartitionSpec spec(int specId) {
-      return ops.current().spec(specId);
+      return ops().current().spec(specId);
     }
 
     @Override

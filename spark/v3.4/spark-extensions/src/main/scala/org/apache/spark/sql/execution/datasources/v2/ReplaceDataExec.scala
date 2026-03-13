@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
@@ -26,10 +25,8 @@ import org.apache.spark.sql.execution.SparkPlan
 /**
  * Physical plan node to replace data in existing tables.
  */
-case class ReplaceDataExec(
-    query: SparkPlan,
-    refreshCache: () => Unit,
-    write: Write) extends V2ExistingTableWriteExec {
+case class ReplaceDataExec(query: SparkPlan, refreshCache: () => Unit, write: Write)
+    extends V2ExistingTableWriteExec {
 
   override lazy val references: AttributeSet = query.outputSet
   override lazy val stringArgs: Iterator[Any] = Iterator(query, write)

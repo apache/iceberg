@@ -56,6 +56,7 @@ import org.slf4j.LoggerFactory;
  * <p>The splits to be read are forwarded to the downstream {@link StreamingReaderOperator} which
  * can have parallelism greater than one.
  */
+@SuppressWarnings("deprecation")
 public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit>
     implements CheckpointedFunction {
 
@@ -106,7 +107,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         "context should be instance of StreamingRuntimeContext");
     final String operatorID = ((StreamingRuntimeContext) runtimeContext).getOperatorUniqueID();
     this.workerPool =
-        ThreadPools.newWorkerPool(
+        ThreadPools.newFixedThreadPool(
             "iceberg-worker-pool-" + operatorID, scanContext.planParallelism());
   }
 

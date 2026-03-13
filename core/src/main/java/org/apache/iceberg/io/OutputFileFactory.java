@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -92,6 +93,7 @@ public class OutputFileFactory {
   private String generateFilename() {
     return format.addExtension(
         String.format(
+            Locale.ROOT,
             "%05d-%d-%s-%05d%s",
             partitionId,
             taskId,

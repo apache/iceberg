@@ -18,9 +18,14 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -29,11 +34,16 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.DelegatingOutputStream;
+import org.apache.iceberg.io.FileRange;
+import org.apache.iceberg.io.RangeReadable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.hadoop.util.HadoopStreams;
 import org.apache.parquet.io.DelegatingPositionOutputStream;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.OutputFile;
+import org.apache.parquet.io.ParquetFileRange;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.SeekableInputStream;
 
@@ -50,7 +60,8 @@ class ParquetIO {
         return org.apache.parquet.hadoop.util.HadoopInputFile.fromStatus(
             hfile.getStat(), hfile.getConf());
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create Parquet input file for %s", file);
+        throw new RuntimeIOException(
+            e, "Failed to create Parquet input file for %s", file.location());
       }
     }
     return new ParquetInputFile(file);
@@ -63,7 +74,8 @@ class ParquetIO {
         return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(
             hfile.getPath(), hfile.getConf());
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
+        throw new RuntimeIOException(
+            e, "Failed to create Parquet output file for %s", file.location());
       }
     }
     return new ParquetOutputFile(file);
@@ -75,7 +87,8 @@ class ParquetIO {
       try {
         return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(hfile.getPath(), conf);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
+        throw new RuntimeIOException(
+            e, "Failed to create Parquet output file for %s", file.location());
       }
     }
     return new ParquetOutputFile(file);
@@ -88,6 +101,11 @@ class ParquetIO {
         return HadoopStreams.wrap((FSDataInputStream) wrapped);
       }
     }
+
+    if (stream instanceof RangeReadable) {
+      return new ParquetRangeReadableInputStreamAdapter(stream);
+    }
+
     return new ParquetInputStreamAdapter(stream);
   }
 
@@ -117,6 +135,72 @@ class ParquetIO {
     @Override
     public void seek(long newPos) throws IOException {
       delegate.seek(newPos);
+    }
+  }
+
+  @VisibleForTesting
+  static class ParquetRangeReadableInputStreamAdapter<
+          T extends org.apache.iceberg.io.SeekableInputStream & RangeReadable>
+      extends DelegatingSeekableInputStream implements RangeReadable {
+    private final T delegate;
+
+    ParquetRangeReadableInputStreamAdapter(T delegate) {
+      super(delegate);
+      this.delegate = delegate;
+    }
+
+    @Override
+    public long getPos() throws IOException {
+      return delegate.getPos();
+    }
+
+    @Override
+    public void seek(long newPos) throws IOException {
+      delegate.seek(newPos);
+    }
+
+    @Override
+    public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+      delegate.readFully(position, buffer, offset, length);
+    }
+
+    @Override
+    public int readTail(byte[] buffer, int offset, int length) throws IOException {
+      return delegate.readTail(buffer, offset, length);
+    }
+
+    @Override
+    public boolean readVectoredAvailable(ByteBufferAllocator allocate) {
+      return true;
+    }
+
+    @Override
+    public void readVectored(List<ParquetFileRange> ranges, ByteBufferAllocator allocate)
+        throws IOException {
+      List<FileRange> delegateRange = convertRanges(ranges);
+      delegate.readVectored(delegateRange, allocate::allocate);
+    }
+
+    private static List<FileRange> convertRanges(List<ParquetFileRange> ranges) {
+      return ranges.stream()
+          .map(
+              parquetFileRange -> {
+                CompletableFuture<ByteBuffer> future = new CompletableFuture<>();
+                parquetFileRange.setDataReadFuture(future);
+                try {
+                  return new FileRange(
+                      parquetFileRange.getDataReadFuture(),
+                      parquetFileRange.getOffset(),
+                      parquetFileRange.getLength());
+                } catch (EOFException e) {
+                  throw new RuntimeIOException(
+                      e,
+                      "Failed to create range file for offset: %s and length: %s",
+                      parquetFileRange.getOffset(),
+                      parquetFileRange.getLength());
+                }
+              })
+          .collect(Collectors.toList());
     }
   }
 

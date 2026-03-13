@@ -44,6 +44,7 @@ public class PuffinWriter implements FileAppender<Blob> {
   // Must not be modified
   private static final byte[] MAGIC = PuffinFormat.getMagic();
 
+  private final OutputFile outputFile;
   private final PositionOutputStream outputStream;
   private final Map<String, String> properties;
   private final PuffinCompressionCodec footerCompression;
@@ -63,6 +64,7 @@ public class PuffinWriter implements FileAppender<Blob> {
     Preconditions.checkNotNull(outputFile, "outputFile is null");
     Preconditions.checkNotNull(properties, "properties is null");
     Preconditions.checkNotNull(defaultBlobCompression, "defaultBlobCompression is null");
+    this.outputFile = outputFile;
     this.outputStream = outputFile.create();
     this.properties = ImmutableMap.copyOf(properties);
     this.footerCompression =
@@ -70,8 +72,16 @@ public class PuffinWriter implements FileAppender<Blob> {
     this.defaultBlobCompression = defaultBlobCompression;
   }
 
+  public String location() {
+    return outputFile.location();
+  }
+
   @Override
   public void add(Blob blob) {
+    write(blob);
+  }
+
+  public BlobMetadata write(Blob blob) {
     Preconditions.checkNotNull(blob, "blob is null");
     checkNotFinished();
     try {
@@ -82,7 +92,7 @@ public class PuffinWriter implements FileAppender<Blob> {
       ByteBuffer rawData = PuffinFormat.compress(codec, blob.blobData());
       int length = rawData.remaining();
       IOUtil.writeFully(outputStream, rawData);
-      writtenBlobsMetadata.add(
+      BlobMetadata blobMetadata =
           new BlobMetadata(
               blob.type(),
               blob.inputFields(),
@@ -91,7 +101,9 @@ public class PuffinWriter implements FileAppender<Blob> {
               fileOffset,
               length,
               codec.codecName(),
-              blob.properties()));
+              blob.properties());
+      writtenBlobsMetadata.add(blobMetadata);
+      return blobMetadata;
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -112,8 +124,6 @@ public class PuffinWriter implements FileAppender<Blob> {
     if (!finished) {
       finish();
     }
-
-    outputStream.close();
   }
 
   private void writeHeaderIfNeeded() throws IOException {
@@ -132,7 +142,10 @@ public class PuffinWriter implements FileAppender<Blob> {
     long footerOffset = outputStream.getPos();
     writeFooter();
     this.footerSize = Optional.of(Math.toIntExact(outputStream.getPos() - footerOffset));
-    this.fileSize = Optional.of(outputStream.getPos());
+    outputStream.close();
+    // some streams (e.g. AesGcmOutputStream) may only write the last bytes upon
+    // having close() invoked
+    this.fileSize = Optional.of(outputStream.storedLength());
     this.finished = true;
   }
 

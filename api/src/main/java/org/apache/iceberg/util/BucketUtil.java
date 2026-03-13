@@ -67,6 +67,10 @@ public class BucketUtil {
     return MURMUR3.hashString(value, StandardCharsets.UTF_8).asInt();
   }
 
+  public static int hash(byte[] value) {
+    return MURMUR3.hashBytes(value).asInt();
+  }
+
   public static int hash(ByteBuffer value) {
     if (value.hasArray()) {
       return MURMUR3

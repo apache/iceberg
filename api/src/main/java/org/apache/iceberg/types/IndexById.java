@@ -64,4 +64,9 @@ class IndexById extends TypeUtil.SchemaVisitor<Map<Integer, Types.NestedField>> 
     }
     return null;
   }
+
+  @Override
+  public Map<Integer, Types.NestedField> variant(Types.VariantType variant) {
+    return null;
+  }
 }

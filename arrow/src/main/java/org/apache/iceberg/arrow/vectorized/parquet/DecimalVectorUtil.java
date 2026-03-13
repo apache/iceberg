@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.util.Arrays;
+import java.util.Locale;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
@@ -62,7 +63,9 @@ public class DecimalVectorUtil {
     }
     throw new IllegalArgumentException(
         String.format(
+            Locale.ROOT,
             "Buffer size of %d is larger than requested size of %d",
-            bigEndianBytes.length, newLength));
+            bigEndianBytes.length,
+            newLength));
   }
 }

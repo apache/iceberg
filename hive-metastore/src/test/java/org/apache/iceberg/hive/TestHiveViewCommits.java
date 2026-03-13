@@ -21,6 +21,7 @@ package org.apache.iceberg.hive;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
@@ -31,9 +32,12 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
@@ -45,6 +49,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.BaseView;
+import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.thrift.TException;
@@ -53,6 +58,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.platform.commons.support.ReflectionSupport;
 
 /** Test Hive locks and Hive errors and retry during commits. */
 public class TestHiveViewCommits {
@@ -66,6 +72,7 @@ public class TestHiveViewCommits {
           required(3, "id", Types.IntegerType.get(), "unique ID"),
           required(4, "data", Types.StringType.get()));
   private static final TableIdentifier VIEW_IDENTIFIER = TableIdentifier.of(NS, VIEW_NAME);
+  private static final String VIEW_QUERY = "select * from ns.tbl";
 
   @RegisterExtension
   protected static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
@@ -96,7 +103,7 @@ public class TestHiveViewCommits {
             .buildView(VIEW_IDENTIFIER)
             .withSchema(SCHEMA)
             .withDefaultNamespace(NS)
-            .withQuery("hive", "select * from ns.tbl")
+            .withQuery("hive", VIEW_QUERY)
             .create();
     viewLocation = new Path(view.location());
   }
@@ -105,6 +112,35 @@ public class TestHiveViewCommits {
   public void dropTestView() throws IOException {
     viewLocation.getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf()).delete(viewLocation, true);
     catalog.dropView(VIEW_IDENTIFIER);
+  }
+
+  @Test
+  public void testViewQueryIsUpdatedOnCommit() throws Exception {
+    HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
+    assertThat(view.currentVersion().representations())
+        .containsExactly(
+            ImmutableSQLViewRepresentation.builder().sql(VIEW_QUERY).dialect("hive").build());
+
+    Table hmsTable = ops.loadHmsTable();
+    assertThat(hmsTable.getViewOriginalText()).isEqualTo(VIEW_QUERY);
+    assertThat(hmsTable.getViewExpandedText()).isEqualTo(VIEW_QUERY);
+
+    String newQuery = "select * from ns.tbl2 limit 10";
+    view =
+        catalog
+            .buildView(VIEW_IDENTIFIER)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(NS)
+            .withQuery("hive", newQuery)
+            .replace();
+
+    assertThat(view.currentVersion().representations())
+        .containsExactly(
+            ImmutableSQLViewRepresentation.builder().sql(newQuery).dialect("hive").build());
+
+    Table updatedHmsTable = ops.loadHmsTable();
+    assertThat(updatedHmsTable.getViewOriginalText()).isEqualTo(newQuery);
+    assertThat(updatedHmsTable.getViewExpandedText()).isEqualTo(newQuery);
   }
 
   @Test
@@ -422,6 +458,61 @@ public class TestHiveViewCommits {
     assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .hasMessageContaining("Failed to heartbeat for hive lock while")
         .isInstanceOf(CommitStateUnknownException.class);
+
+    ops.refresh();
+
+    assertThat(metadataV2.location())
+        .as("Current metadata should have changed to metadata V1")
+        .isEqualTo(metadataV1.location());
+    assertThat(metadataFileExists(metadataV2))
+        .as("Current metadata file should still exist")
+        .isTrue();
+    assertThat(metadataFileCount(metadataV2)).as("New metadata file should exist").isEqualTo(2);
+  }
+
+  @Test
+  public void testSuccessCommitWhenCheckCommitStatusOOM() throws TException, InterruptedException {
+    HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
+    ViewMetadata metadataV1 = ops.current();
+    assertThat(metadataV1.properties()).hasSize(0);
+
+    view.updateProperties().set("k1", "v1").commit();
+    ops.refresh();
+    ViewMetadata metadataV2 = ops.current();
+    assertThat(metadataV2.properties()).hasSize(1).containsEntry("k1", "v1");
+
+    HiveViewOperations spyOps = spy(ops);
+
+    // Simulate a communication error after a successful commit
+    doAnswer(
+            i -> {
+              org.apache.hadoop.hive.metastore.api.Table tbl =
+                  i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
+              String location = i.getArgument(2, String.class);
+              ops.persistTable(tbl, true, location);
+              throw new UnknownError();
+            })
+        .when(spyOps)
+        .persistTable(any(), anyBoolean(), any());
+    try {
+      ReflectionSupport.invokeMethod(
+          ops.getClass()
+              .getSuperclass()
+              .getSuperclass()
+              .getDeclaredMethod(
+                  "checkCommitStatus", String.class, String.class, Map.class, Supplier.class),
+          doThrow(new OutOfMemoryError()).when(spyOps),
+          anyString(),
+          anyString(),
+          any(),
+          any());
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(OutOfMemoryError.class)
+        .hasMessage(null);
 
     ops.refresh();
 

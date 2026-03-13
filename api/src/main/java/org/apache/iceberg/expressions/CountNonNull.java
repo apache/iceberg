@@ -40,7 +40,7 @@ public class CountNonNull<T> extends CountAggregate<T> {
   @Override
   protected boolean hasValue(DataFile file) {
     return safeContainsKey(file.valueCounts(), fieldId)
-        && file.nullValueCounts().containsKey(fieldId);
+        && safeContainsKey(file.nullValueCounts(), fieldId);
   }
 
   @Override

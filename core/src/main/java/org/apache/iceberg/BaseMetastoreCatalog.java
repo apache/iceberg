@@ -85,7 +85,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
 
     TableOperations ops = newTableOps(identifier);
     InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
-    TableMetadata metadata = TableMetadataParser.read(ops.io(), metadataFile);
+    TableMetadata metadata = TableMetadataParser.read(metadataFile);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
@@ -113,7 +113,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
     }
   }
 
-  private boolean isValidMetadataIdentifier(TableIdentifier identifier) {
+  protected boolean isValidMetadataIdentifier(TableIdentifier identifier) {
     return MetadataTableType.from(identifier.name()) != null
         && isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
   }
@@ -217,7 +217,8 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
       tableProperties.putAll(tableOverrideProperties());
       TableMetadata metadata =
           TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
-      return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
+      return Transactions.createTableTransaction(
+          identifier.toString(), ops, metadata, metricsReporter());
     }
 
     @Override
@@ -249,9 +250,11 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
       }
 
       if (orCreate) {
-        return Transactions.createOrReplaceTableTransaction(identifier.toString(), ops, metadata);
+        return Transactions.createOrReplaceTableTransaction(
+            identifier.toString(), ops, metadata, metricsReporter());
       } else {
-        return Transactions.replaceTableTransaction(identifier.toString(), ops, metadata);
+        return Transactions.replaceTableTransaction(
+            identifier.toString(), ops, metadata, metricsReporter());
       }
     }
 

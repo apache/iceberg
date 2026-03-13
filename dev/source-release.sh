@@ -149,12 +149,15 @@ The release tarball, signature, and checksums are here:
 * https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-${version}-rc${rc}
 
 You can find the KEYS file here:
-* https://dist.apache.org/repos/dist/dev/iceberg/KEYS
+* https://downloads.apache.org/iceberg/KEYS
 
 Convenience binary artifacts are staged on Nexus. The Maven repository URL is:
 * https://repository.apache.org/content/repositories/orgapacheiceberg-<ID>/
 
 Please download, verify, and test.
+
+Instructions for verifying a release can be found here:
+* https://iceberg.apache.org/how-to-release/#how-to-verify-a-release
 
 Please vote in the next 72 hours.
 

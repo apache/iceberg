@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -46,6 +47,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.ScanTaskUtil;
 
 public class ScanSummary {
   private ScanSummary() {}
@@ -293,7 +295,7 @@ public class ScanSummary {
     private PartitionMetrics updateFromFile(ContentFile<?> file, Long timestampMillis) {
       this.fileCount += 1;
       this.recordCount += file.recordCount();
-      this.totalSize += file.fileSizeInBytes();
+      this.totalSize += ScanTaskUtil.contentSizeInBytes(file);
       if (timestampMillis != null
           && (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
         this.dataTimestampMillis = timestampMillis;
@@ -346,7 +348,7 @@ public class ScanSummary {
       while (map.size() > maxSize) {
         if (throwIfLimited) {
           throw new IllegalStateException(
-              String.format("Too many matching keys: more than %d", maxSize));
+              String.format(Locale.ROOT, "Too many matching keys: more than %d", maxSize));
         }
         this.cut = map.lastKey();
         map.remove(cut);

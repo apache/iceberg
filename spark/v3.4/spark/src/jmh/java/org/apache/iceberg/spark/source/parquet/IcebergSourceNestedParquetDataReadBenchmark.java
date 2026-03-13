@@ -39,8 +39,8 @@ import org.openjdk.jmh.annotations.Threads;
  * A benchmark that evaluates the performance of reading nested Parquet data using Iceberg and the
  * built-in file source in Spark.
  *
- * <p>To run this benchmark for spark-3.3: <code>
- *   ./gradlew -DsparkVersions=3.3 :iceberg-spark:iceberg-spark-3.3_2.12:jmh
+ * <p>To run this benchmark for spark-3.4: <code>
+ *   ./gradlew -DsparkVersions=3.4 :iceberg-spark:iceberg-spark-3.4_2.12:jmh
  *       -PjmhIncludeRegex=IcebergSourceNestedParquetDataReadBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-read-benchmark-result.txt
  * </code>

@@ -178,6 +178,7 @@ public class TestScanMetricsResultParser {
     scanMetrics.skippedDeleteManifests().increment(3L);
     scanMetrics.indexedDeleteFiles().increment(10L);
     scanMetrics.positionalDeleteFiles().increment(6L);
+    scanMetrics.dvs().increment();
     scanMetrics.equalityDeleteFiles().increment(4L);
 
     ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(scanMetrics);
@@ -199,6 +200,7 @@ public class TestScanMetricsResultParser {
                     + "\"indexed-delete-files\":{\"unit\":\"count\",\"value\":10},"
                     + "\"equality-delete-files\":{\"unit\":\"count\",\"value\":4},"
                     + "\"positional-delete-files\":{\"unit\":\"count\",\"value\":6},"
+                    + "\"dvs\":{\"unit\":\"count\",\"value\":1},"
                     + "\"extra\": \"value\",\"extra2\":23}"))
         .isEqualTo(scanMetricsResult);
   }
@@ -242,6 +244,7 @@ public class TestScanMetricsResultParser {
     scanMetrics.skippedDeleteManifests().increment(3L);
     scanMetrics.indexedDeleteFiles().increment(10L);
     scanMetrics.positionalDeleteFiles().increment(6L);
+    scanMetrics.dvs().increment(3L);
     scanMetrics.equalityDeleteFiles().increment(4L);
 
     ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(scanMetrics);
@@ -312,6 +315,10 @@ public class TestScanMetricsResultParser {
             + "  \"positional-delete-files\" : {\n"
             + "    \"unit\" : \"count\",\n"
             + "    \"value\" : 6\n"
+            + "  },\n"
+            + "  \"dvs\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 3\n"
             + "  }\n"
             + "}";
 

@@ -89,112 +89,128 @@ public class TestSparkV2Filters {
           Predicate isNull = new Predicate("IS_NULL", attrOnly);
           Expression expectedIsNull = Expressions.isNull(unquoted);
           Expression actualIsNull = SparkV2Filters.convert(isNull);
-          assertThat(actualIsNull.toString())
+          assertThat(actualIsNull)
+              .asString()
               .as("IsNull must match")
               .isEqualTo(expectedIsNull.toString());
 
           Predicate isNotNull = new Predicate("IS_NOT_NULL", attrOnly);
           Expression expectedIsNotNull = Expressions.notNull(unquoted);
           Expression actualIsNotNull = SparkV2Filters.convert(isNotNull);
-          assertThat(actualIsNotNull.toString())
+          assertThat(actualIsNotNull)
+              .asString()
               .as("IsNotNull must match")
               .isEqualTo(expectedIsNotNull.toString());
 
           Predicate lt1 = new Predicate("<", attrAndValue);
           Expression expectedLt1 = Expressions.lessThan(unquoted, 1);
           Expression actualLt1 = SparkV2Filters.convert(lt1);
-          assertThat(actualLt1.toString())
+          assertThat(actualLt1)
+              .asString()
               .as("LessThan must match")
               .isEqualTo(expectedLt1.toString());
 
           Predicate lt2 = new Predicate("<", valueAndAttr);
           Expression expectedLt2 = Expressions.greaterThan(unquoted, 1);
           Expression actualLt2 = SparkV2Filters.convert(lt2);
-          assertThat(actualLt2.toString())
+          assertThat(actualLt2)
+              .asString()
               .as("LessThan must match")
               .isEqualTo(expectedLt2.toString());
 
           Predicate ltEq1 = new Predicate("<=", attrAndValue);
           Expression expectedLtEq1 = Expressions.lessThanOrEqual(unquoted, 1);
           Expression actualLtEq1 = SparkV2Filters.convert(ltEq1);
-          assertThat(actualLtEq1.toString())
+          assertThat(actualLtEq1)
+              .asString()
               .as("LessThanOrEqual must match")
               .isEqualTo(expectedLtEq1.toString());
 
           Predicate ltEq2 = new Predicate("<=", valueAndAttr);
           Expression expectedLtEq2 = Expressions.greaterThanOrEqual(unquoted, 1);
           Expression actualLtEq2 = SparkV2Filters.convert(ltEq2);
-          assertThat(actualLtEq2.toString())
+          assertThat(actualLtEq2)
+              .asString()
               .as("LessThanOrEqual must match")
               .isEqualTo(expectedLtEq2.toString());
 
           Predicate gt1 = new Predicate(">", attrAndValue);
           Expression expectedGt1 = Expressions.greaterThan(unquoted, 1);
           Expression actualGt1 = SparkV2Filters.convert(gt1);
-          assertThat(actualGt1.toString())
+          assertThat(actualGt1)
+              .asString()
               .as("GreaterThan must match")
               .isEqualTo(expectedGt1.toString());
 
           Predicate gt2 = new Predicate(">", valueAndAttr);
           Expression expectedGt2 = Expressions.lessThan(unquoted, 1);
           Expression actualGt2 = SparkV2Filters.convert(gt2);
-          assertThat(actualGt2.toString())
+          assertThat(actualGt2)
+              .asString()
               .as("GreaterThan must match")
               .isEqualTo(expectedGt2.toString());
 
           Predicate gtEq1 = new Predicate(">=", attrAndValue);
           Expression expectedGtEq1 = Expressions.greaterThanOrEqual(unquoted, 1);
           Expression actualGtEq1 = SparkV2Filters.convert(gtEq1);
-          assertThat(actualGtEq1.toString())
+          assertThat(actualGtEq1)
+              .asString()
               .as("GreaterThanOrEqual must match")
               .isEqualTo(expectedGtEq1.toString());
 
           Predicate gtEq2 = new Predicate(">=", valueAndAttr);
           Expression expectedGtEq2 = Expressions.lessThanOrEqual(unquoted, 1);
           Expression actualGtEq2 = SparkV2Filters.convert(gtEq2);
-          assertThat(actualGtEq2.toString())
+          assertThat(actualGtEq2)
+              .asString()
               .as("GreaterThanOrEqual must match")
               .isEqualTo(expectedGtEq2.toString());
 
           Predicate eq1 = new Predicate("=", attrAndValue);
           Expression expectedEq1 = Expressions.equal(unquoted, 1);
           Expression actualEq1 = SparkV2Filters.convert(eq1);
-          assertThat(actualEq1.toString())
+          assertThat(actualEq1)
+              .asString()
               .as("EqualTo must match")
               .isEqualTo(expectedEq1.toString());
 
           Predicate eq2 = new Predicate("=", valueAndAttr);
           Expression expectedEq2 = Expressions.equal(unquoted, 1);
           Expression actualEq2 = SparkV2Filters.convert(eq2);
-          assertThat(actualEq2.toString())
+          assertThat(actualEq2)
+              .asString()
               .as("EqualTo must match")
               .isEqualTo(expectedEq2.toString());
 
           Predicate notEq1 = new Predicate("<>", attrAndValue);
           Expression expectedNotEq1 = Expressions.notEqual(unquoted, 1);
           Expression actualNotEq1 = SparkV2Filters.convert(notEq1);
-          assertThat(actualNotEq1.toString())
+          assertThat(actualNotEq1)
+              .asString()
               .as("NotEqualTo must match")
               .isEqualTo(expectedNotEq1.toString());
 
           Predicate notEq2 = new Predicate("<>", valueAndAttr);
           Expression expectedNotEq2 = Expressions.notEqual(unquoted, 1);
           Expression actualNotEq2 = SparkV2Filters.convert(notEq2);
-          assertThat(actualNotEq2.toString())
+          assertThat(actualNotEq2)
+              .asString()
               .as("NotEqualTo must match")
               .isEqualTo(expectedNotEq2.toString());
 
           Predicate eqNullSafe1 = new Predicate("<=>", attrAndValue);
           Expression expectedEqNullSafe1 = Expressions.equal(unquoted, 1);
           Expression actualEqNullSafe1 = SparkV2Filters.convert(eqNullSafe1);
-          assertThat(actualEqNullSafe1.toString())
+          assertThat(actualEqNullSafe1)
+              .asString()
               .as("EqualNullSafe must match")
               .isEqualTo(expectedEqNullSafe1.toString());
 
           Predicate eqNullSafe2 = new Predicate("<=>", valueAndAttr);
           Expression expectedEqNullSafe2 = Expressions.equal(unquoted, 1);
           Expression actualEqNullSafe2 = SparkV2Filters.convert(eqNullSafe2);
-          assertThat(actualEqNullSafe2.toString())
+          assertThat(actualEqNullSafe2)
+              .asString()
               .as("EqualNullSafe must match")
               .isEqualTo(expectedEqNullSafe2.toString());
 
@@ -205,19 +221,20 @@ public class TestSparkV2Filters {
           Predicate startsWith = new Predicate("STARTS_WITH", attrAndStr);
           Expression expectedStartsWith = Expressions.startsWith(unquoted, "iceberg");
           Expression actualStartsWith = SparkV2Filters.convert(startsWith);
-          assertThat(actualStartsWith.toString())
+          assertThat(actualStartsWith)
+              .asString()
               .as("StartsWith must match")
               .isEqualTo(expectedStartsWith.toString());
 
           Predicate in = new Predicate("IN", attrAndValue);
           Expression expectedIn = Expressions.in(unquoted, 1);
           Expression actualIn = SparkV2Filters.convert(in);
-          assertThat(actualIn.toString()).as("In must match").isEqualTo(expectedIn.toString());
+          assertThat(actualIn).asString().as("In must match").isEqualTo(expectedIn.toString());
 
           Predicate and = new And(lt1, eq1);
           Expression expectedAnd = Expressions.and(expectedLt1, expectedEq1);
           Expression actualAnd = SparkV2Filters.convert(and);
-          assertThat(actualAnd.toString()).as("And must match").isEqualTo(expectedAnd.toString());
+          assertThat(actualAnd).asString().as("And must match").isEqualTo(expectedAnd.toString());
 
           org.apache.spark.sql.connector.expressions.Expression[] attrAndAttr =
               new org.apache.spark.sql.connector.expressions.Expression[] {
@@ -231,7 +248,7 @@ public class TestSparkV2Filters {
           Predicate or = new Or(lt1, eq1);
           Expression expectedOr = Expressions.or(expectedLt1, expectedEq1);
           Expression actualOr = SparkV2Filters.convert(or);
-          assertThat(actualOr.toString()).as("Or must match").isEqualTo(expectedOr.toString());
+          assertThat(actualOr).asString().as("Or must match").isEqualTo(expectedOr.toString());
 
           Predicate orWithInvalidLeft = new Or(invalid, eq1);
           Expression convertedOr = SparkV2Filters.convert(orWithInvalidLeft);
@@ -240,7 +257,7 @@ public class TestSparkV2Filters {
           Predicate not = new Not(lt1);
           Expression expectedNot = Expressions.not(expectedLt1);
           Expression actualNot = SparkV2Filters.convert(not);
-          assertThat(actualNot.toString()).as("Not must match").isEqualTo(expectedNot.toString());
+          assertThat(actualNot).asString().as("Not must match").isEqualTo(expectedNot.toString());
         });
   }
 
@@ -396,7 +413,8 @@ public class TestSparkV2Filters {
     Expression tsExpression = SparkV2Filters.convert(predicate);
     Expression rawExpression = Expressions.greaterThan("x", epochMicros);
 
-    assertThat(tsExpression.toString())
+    assertThat(tsExpression)
+        .asString()
         .as("Generated Timestamp expression should be correct")
         .isEqualTo(rawExpression.toString());
   }
@@ -415,7 +433,8 @@ public class TestSparkV2Filters {
     Expression dateExpression = SparkV2Filters.convert(predicate);
     Expression rawExpression = Expressions.greaterThan("x", epochDay);
 
-    assertThat(dateExpression.toString())
+    assertThat(dateExpression)
+        .asString()
         .as("Generated date expression should be correct")
         .isEqualTo(rawExpression.toString());
   }
@@ -453,7 +472,7 @@ public class TestSparkV2Filters {
     Expression actual = SparkV2Filters.convert(not);
     Expression expected =
         Expressions.and(Expressions.notNull("col"), Expressions.notIn("col", 1, 2));
-    assertThat(actual.toString()).as("Expressions should match").isEqualTo(expected.toString());
+    assertThat(actual).asString().as("Expressions should match").isEqualTo(expected.toString());
   }
 
   @Test

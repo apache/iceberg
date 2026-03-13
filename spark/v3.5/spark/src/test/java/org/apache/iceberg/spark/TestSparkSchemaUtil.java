@@ -21,7 +21,6 @@ package org.apache.iceberg.spark;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -45,21 +44,21 @@ public class TestSparkSchemaUtil {
           MetadataColumns.ROW_POSITION);
 
   @Test
-  public void testEstimateSizeMaxValue() throws IOException {
+  public void testEstimateSizeMaxValue() {
     assertThat(SparkSchemaUtil.estimateSize(null, Long.MAX_VALUE))
         .as("estimateSize returns Long max value")
         .isEqualTo(Long.MAX_VALUE);
   }
 
   @Test
-  public void testEstimateSizeWithOverflow() throws IOException {
+  public void testEstimateSizeWithOverflow() {
     long tableSize =
         SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), Long.MAX_VALUE - 1);
     assertThat(tableSize).as("estimateSize handles overflow").isEqualTo(Long.MAX_VALUE);
   }
 
   @Test
-  public void testEstimateSize() throws IOException {
+  public void testEstimateSize() {
     long tableSize = SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), 1);
     assertThat(tableSize).as("estimateSize matches with expected approximation").isEqualTo(24);
   }

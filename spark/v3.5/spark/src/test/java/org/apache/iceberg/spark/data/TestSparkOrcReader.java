@@ -40,7 +40,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 
-public class TestSparkOrcReader extends AvroDataTest {
+public class TestSparkOrcReader extends AvroDataTestBase {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     final Iterable<InternalRow> expected = RandomData.generateSpark(schema, 100, 0L);

@@ -21,8 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Arrays;
-import java.util.List;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -33,10 +31,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestWapWorkflow extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @BeforeEach
   public void setupTableProperties() {
@@ -119,7 +113,12 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(wapSnapshot.snapshotId());
     assertThat(base.snapshots()).hasSize(2);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(2);
@@ -142,7 +141,12 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
     assertThat(base.snapshots()).hasSize(2);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(1);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(3);
@@ -178,7 +182,12 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(firstSnapshotId);
     assertThat(base.snapshots()).hasSize(2);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(1);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(1);
@@ -275,7 +284,12 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(wapSnapshot.snapshotId());
     assertThat(base.snapshots()).hasSize(2);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(2);
@@ -321,7 +335,12 @@ public class TestWapWorkflow extends TestBase {
     //   as a result of the cherry-pick operation
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.currentSnapshot().parentId())
         .as("Parent snapshot id should change to latest snapshot before commit")
         .isEqualTo(parentSnapshot.snapshotId());
@@ -340,7 +359,12 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId())
         .isEqualTo(parentSnapshot.snapshotId() + 1 /* one fast-forwarded snapshot */ + 1);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(3);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.currentSnapshot().parentId())
         .as("Parent snapshot id should change to latest snapshot before commit")
         .isEqualTo(parentSnapshot.snapshotId());
@@ -403,7 +427,12 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.snapshots()).hasSize(5);
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(3);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.currentSnapshot().parentId()).isEqualTo(parentSnapshot.snapshotId());
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
@@ -420,7 +449,12 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.snapshots()).hasSize(6);
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(4);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.currentSnapshot().parentId()).isEqualTo(parentSnapshot.snapshotId());
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
@@ -464,7 +498,12 @@ public class TestWapWorkflow extends TestBase {
     //   as a result of the cherry-pick operation
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(parentSnapshot.snapshotId() + 1);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.currentSnapshot().parentId()).isEqualTo(parentSnapshot.snapshotId());
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
@@ -502,7 +541,12 @@ public class TestWapWorkflow extends TestBase {
     assertThat(base.currentSnapshot().snapshotId()).isEqualTo(wapPublishedId);
     assertThat(base.snapshots()).hasSize(2);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(2);
@@ -544,7 +588,12 @@ public class TestWapWorkflow extends TestBase {
 
     assertThat(base.snapshots()).hasSize(3);
     assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(2);
-    assertThat(base.currentSnapshot().addedDataFiles(table.io())).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(base.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .hasSize(1);
     assertThat(base.snapshotLog())
         .as("Snapshot log should indicate number of snapshots committed")
         .hasSize(2);
@@ -597,7 +646,6 @@ public class TestWapWorkflow extends TestBase {
             // double cherrypicking of second snapshot
             () -> table.manageSnapshots().cherrypick(firstSnapshotId).commit())
         .isInstanceOf(CherrypickAncestorCommitException.class)
-        .hasMessage(
-            String.format("Cannot cherrypick snapshot %s: already an ancestor", firstSnapshotId));
+        .hasMessage("Cannot cherrypick snapshot %s: already an ancestor", firstSnapshotId);
   }
 }

@@ -108,10 +108,10 @@ public abstract class DataTableScanTestBase<
 
     ScanT testBranchScan = useRef(newScan(), "testBranch");
     validateExpectedFileScanTasks(
-        testBranchScan, ImmutableList.of(FILE_A.path(), FILE_B.path(), FILE_C.path()));
+        testBranchScan, ImmutableList.of(FILE_A.location(), FILE_B.location(), FILE_C.location()));
 
     ScanT mainScan = newScan();
-    validateExpectedFileScanTasks(mainScan, ImmutableList.of(FILE_A.path(), FILE_D.path()));
+    validateExpectedFileScanTasks(mainScan, ImmutableList.of(FILE_A.location(), FILE_D.location()));
   }
 
   @TestTemplate
@@ -120,10 +120,10 @@ public abstract class DataTableScanTestBase<
     table.manageSnapshots().createTag("tagB", table.currentSnapshot().snapshotId()).commit();
     table.newFastAppend().appendFile(FILE_C).commit();
     ScanT tagScan = useRef(newScan(), "tagB");
-    validateExpectedFileScanTasks(tagScan, ImmutableList.of(FILE_A.path(), FILE_B.path()));
+    validateExpectedFileScanTasks(tagScan, ImmutableList.of(FILE_A.location(), FILE_B.location()));
     ScanT mainScan = newScan();
     validateExpectedFileScanTasks(
-        mainScan, ImmutableList.of(FILE_A.path(), FILE_B.path(), FILE_C.path()));
+        mainScan, ImmutableList.of(FILE_A.location(), FILE_B.location(), FILE_C.location()));
   }
 
   @TestTemplate
@@ -196,9 +196,10 @@ public abstract class DataTableScanTestBase<
       List<CharSequence> actualFiles = Lists.newArrayList();
       for (T task : scanTasks) {
         DataFile dataFile = ((FileScanTask) task).file();
-        actualFiles.add(dataFile.path());
+        actualFiles.add(dataFile.location());
         if (fileToManifest != null) {
-          assertThat(fileToManifest.get(dataFile.path())).isEqualTo(dataFile.manifestLocation());
+          assertThat(fileToManifest.get(dataFile.location()))
+              .isEqualTo(dataFile.manifestLocation());
         }
       }
 
@@ -231,12 +232,12 @@ public abstract class DataTableScanTestBase<
       DataFile file = fileScanTask.file();
       long expectedDataSequenceNumber = 0L;
       long expectedDeleteSequenceNumber = 0L;
-      if (file.path().equals(dataFile1.path())) {
+      if (file.location().equals(dataFile1.location())) {
         expectedDataSequenceNumber = 1L;
         expectedDeleteSequenceNumber = 3L;
       }
 
-      if (file.path().equals(dataFile2.path())) {
+      if (file.location().equals(dataFile2.location())) {
         expectedDataSequenceNumber = 2L;
         expectedDeleteSequenceNumber = 4L;
       }
@@ -274,9 +275,9 @@ public abstract class DataTableScanTestBase<
             .collect(Collectors.toList())
             .get(0);
     CharSequenceMap<String> fileToManifest = CharSequenceMap.create();
-    fileToManifest.put(FILE_A.path(), firstDataManifest.path());
-    fileToManifest.put(FILE_B.path(), secondDataManifest.path());
-    fileToManifest.put(FILE_C.path(), secondDataManifest.path());
+    fileToManifest.put(FILE_A.location(), firstDataManifest.path());
+    fileToManifest.put(FILE_B.location(), secondDataManifest.path());
+    fileToManifest.put(FILE_C.location(), secondDataManifest.path());
 
     validateExpectedFileScanTasks(newScan(), fileToManifest.keySet(), fileToManifest);
   }
@@ -290,9 +291,9 @@ public abstract class DataTableScanTestBase<
     DeleteFile deleteFile = newDeleteFile("data_bucket=0");
     table.newRowDelta().addDeletes(deleteFile).commit();
     CharSequenceMap<String> fileToManifest = CharSequenceMap.create();
-    fileToManifest.put(FILE_A.path(), firstManifest.path());
+    fileToManifest.put(FILE_A.location(), firstManifest.path());
     ScanT scan = newScan();
-    validateExpectedFileScanTasks(scan, ImmutableList.of(FILE_A.path()), fileToManifest);
+    validateExpectedFileScanTasks(scan, ImmutableList.of(FILE_A.location()), fileToManifest);
     List<DeleteFile> deletes = Lists.newArrayList();
     try (CloseableIterable<T> scanTasks = scan.planFiles()) {
       for (T task : scanTasks) {
@@ -301,7 +302,7 @@ public abstract class DataTableScanTestBase<
       }
     }
 
-    assertThat(deletes.size()).isEqualTo(1);
+    assertThat(deletes).hasSize(1);
     ManifestFile deleteManifest =
         table.currentSnapshot().deleteManifests(table.io()).stream()
             .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())

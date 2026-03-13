@@ -20,10 +20,13 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
+import java.nio.file.Files;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Arrays;
@@ -39,6 +42,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RawLocalFileSystem;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
@@ -63,41 +70,37 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.unsafe.types.UTF8String;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestPartitionPruning {
 
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
-  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
+  @Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"parquet", false, DISTRIBUTED},
-      {"parquet", true, LOCAL},
-      {"avro", false, DISTRIBUTED},
-      {"orc", false, LOCAL},
-      {"orc", true, DISTRIBUTED}
+      {FileFormat.PARQUET, false, DISTRIBUTED},
+      {FileFormat.PARQUET, true, LOCAL},
+      {FileFormat.AVRO, false, DISTRIBUTED},
+      {FileFormat.ORC, false, LOCAL},
+      {FileFormat.ORC, true, DISTRIBUTED}
     };
   }
 
-  private final String format;
-  private final boolean vectorized;
-  private final PlanningMode planningMode;
+  @Parameter(index = 0)
+  private FileFormat format;
 
-  public TestPartitionPruning(String format, boolean vectorized, PlanningMode planningMode) {
-    this.format = format;
-    this.vectorized = vectorized;
-    this.planningMode = planningMode;
-  }
+  @Parameter(index = 1)
+  private boolean vectorized;
+
+  @Parameter(index = 2)
+  private PlanningMode planningMode;
 
   private static SparkSession spark = null;
   private static JavaSparkContext sparkContext = null;
@@ -109,9 +112,13 @@ public class TestPartitionPruning {
   private static final Function<Object, Integer> HOUR_FUNC =
       Transforms.hour().bind(Types.TimestampType.withoutZone());
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
-    TestPartitionPruning.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestPartitionPruning.spark =
+        SparkSession.builder()
+            .master("local[2]")
+            .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .getOrCreate();
     TestPartitionPruning.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
 
     String optionKey = String.format("fs.%s.impl", CountOpenLocalFileSystem.scheme);
@@ -133,7 +140,7 @@ public class TestPartitionPruning {
             DataTypes.IntegerType);
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestPartitionPruning.spark;
     TestPartitionPruning.spark = null;
@@ -167,7 +174,7 @@ public class TestPartitionPruning {
     return Instant.ofEpochMilli(TimeUnit.MICROSECONDS.toMillis(epochMicros));
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private java.nio.file.Path temp;
 
   private final PartitionSpec spec =
       PartitionSpec.builderFor(LOG_SCHEMA)
@@ -178,7 +185,7 @@ public class TestPartitionPruning {
           .hour("timestamp")
           .build();
 
-  @Test
+  @TestTemplate
   public void testPartitionPruningIdentityString() {
     String filterCond = "date >= '2020-02-03' AND level = 'DEBUG'";
     Predicate<Row> partCondition =
@@ -191,7 +198,7 @@ public class TestPartitionPruning {
     runTest(filterCond, partCondition);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionPruningBucketingInteger() {
     final int[] ids = new int[] {LOGS.get(3).getId(), LOGS.get(7).getId()};
     String condForIds =
@@ -208,7 +215,7 @@ public class TestPartitionPruning {
     runTest(filterCond, partCondition);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionPruningTruncatedString() {
     String filterCond = "message like 'info event%'";
     Predicate<Row> partCondition =
@@ -220,7 +227,7 @@ public class TestPartitionPruning {
     runTest(filterCond, partCondition);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionPruningTruncatedStringComparingValueShorterThanPartitionValue() {
     String filterCond = "message like 'inf%'";
     Predicate<Row> partCondition =
@@ -232,7 +239,7 @@ public class TestPartitionPruning {
     runTest(filterCond, partCondition);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionPruningHourlyPartition() {
     String filterCond;
     if (spark.version().startsWith("2")) {
@@ -256,7 +263,7 @@ public class TestPartitionPruning {
 
   private void runTest(String filterCond, Predicate<Row> partCondition) {
     File originTableLocation = createTempDir();
-    Assert.assertTrue("Temp folder should exist", originTableLocation.exists());
+    assertThat(originTableLocation).as("Temp folder should exist").exists();
 
     Table table = createTable(originTableLocation);
     Dataset<Row> logs = createTestDataset();
@@ -267,7 +274,7 @@ public class TestPartitionPruning {
             .filter(filterCond)
             .orderBy("id")
             .collectAsList();
-    Assert.assertFalse("Expected rows should be not empty", expected.isEmpty());
+    assertThat(expected).as("Expected rows should not be empty").isNotEmpty();
 
     // remove records which may be recorded during storing to table
     CountOpenLocalFileSystem.resetRecordsInPathPrefix(originTableLocation.getAbsolutePath());
@@ -282,16 +289,14 @@ public class TestPartitionPruning {
             .filter(filterCond)
             .orderBy("id")
             .collectAsList();
-    Assert.assertFalse("Actual rows should not be empty", actual.isEmpty());
-
-    Assert.assertEquals("Rows should match", expected, actual);
+    assertThat(actual).isNotEmpty().isEqualTo(expected);
 
     assertAccessOnDataFiles(originTableLocation, table, partCondition);
   }
 
   private File createTempDir() {
     try {
-      return temp.newFolder();
+      return Files.createTempDirectory(temp, "junit").toFile();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -301,7 +306,7 @@ public class TestPartitionPruning {
     String trackedTableLocation = CountOpenLocalFileSystem.convertPath(originTableLocation);
     Map<String, String> properties =
         ImmutableMap.of(
-            TableProperties.DEFAULT_FILE_FORMAT, format,
+            TableProperties.DEFAULT_FILE_FORMAT, format.toString(),
             TableProperties.DATA_PLANNING_MODE, planningMode.modeName(),
             TableProperties.DELETE_PLANNING_MODE, planningMode.modeName());
     return TABLES.create(LOG_SCHEMA, spec, properties, trackedTableLocation);
@@ -366,29 +371,31 @@ public class TestPartitionPruning {
     Set<String> filesToNotRead = extractFilePathsNotIn(files, filesToRead);
 
     // Just to be sure, they should be mutually exclusive.
-    Assert.assertTrue(Sets.intersection(filesToRead, filesToNotRead).isEmpty());
+    assertThat(filesToRead).doesNotContainAnyElementsOf(filesToNotRead);
 
-    Assert.assertFalse("The query should prune some data files.", filesToNotRead.isEmpty());
+    assertThat(filesToNotRead).as("The query should prune some data files.").isNotEmpty();
 
     // We don't check "all" data files bound to the condition are being read, as data files can be
     // pruned on
     // other conditions like lower/upper bound of columns.
-    Assert.assertFalse(
-        "Some of data files in partition range should be read. "
-            + "Read files in query: "
-            + readFilesInQuery
-            + " / data files in partition range: "
-            + filesToRead,
-        Sets.intersection(filesToRead, readFilesInQuery).isEmpty());
+    assertThat(filesToRead)
+        .as(
+            "Some of data files in partition range should be read. "
+                + "Read files in query: "
+                + readFilesInQuery
+                + " / data files in partition range: "
+                + filesToRead)
+        .containsAnyElementsOf(readFilesInQuery);
 
     // Data files which aren't bound to the condition shouldn't be read.
-    Assert.assertTrue(
-        "Data files outside of partition range should not be read. "
-            + "Read files in query: "
-            + readFilesInQuery
-            + " / data files outside of partition range: "
-            + filesToNotRead,
-        Sets.intersection(filesToNotRead, readFilesInQuery).isEmpty());
+    assertThat(filesToNotRead)
+        .as(
+            "Data files outside of partition range should not be read. "
+                + "Read files in query: "
+                + readFilesInQuery
+                + " / data files outside of partition range: "
+                + filesToNotRead)
+        .doesNotContainAnyElementsOf(readFilesInQuery);
   }
 
   private Set<String> extractFilePathsMatchingConditionOnPartition(

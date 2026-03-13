@@ -24,12 +24,12 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -50,11 +50,10 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestMetadataTableReadableMetrics extends TestBaseWithCatalog {
-
-  @TempDir private Path temp;
 
   private static final Types.StructType LEAF_STRUCT_TYPE =
       Types.StructType.of(

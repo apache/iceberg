@@ -23,6 +23,7 @@ import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -39,8 +40,35 @@ public class TestJdbcCatalogWithV1Schema extends CatalogTests<JdbcCatalog> {
   }
 
   @Override
-  protected boolean supportsNamespaceProperties() {
-    return true;
+  protected JdbcCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(
+        CatalogProperties.URI,
+        "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1", "catalog-default-key1");
+    properties.put(CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2", "catalog-default-key2");
+    properties.put(
+        CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3", "catalog-default-key3");
+    properties.put(
+        CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3", "catalog-override-key3");
+    properties.put(
+        CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4", "catalog-override-key4");
+    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
+    properties.putAll(additionalProperties);
+
+    JdbcCatalog cat = new JdbcCatalog();
+    cat.setConf(new Configuration());
+    cat.initialize(catalogName, properties);
+    return cat;
+  }
+
+  @Override
+  protected boolean supportsNamesWithDot() {
+    // namespaces with a dot are not supported
+    return false;
   }
 
   @Override
@@ -50,17 +78,6 @@ public class TestJdbcCatalogWithV1Schema extends CatalogTests<JdbcCatalog> {
 
   @BeforeEach
   public void setupCatalog() {
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(
-        CatalogProperties.URI,
-        "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
-    properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
-    properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.toAbsolutePath().toString());
-    properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
-
-    catalog = new JdbcCatalog();
-    catalog.setConf(new Configuration());
-    catalog.initialize("testCatalog", properties);
+    this.catalog = initCatalog("testCatalog", ImmutableMap.of());
   }
 }

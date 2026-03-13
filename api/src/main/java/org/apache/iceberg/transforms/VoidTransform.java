@@ -49,6 +49,14 @@ class VoidTransform<S> implements Transform<S, Void> {
 
   private VoidTransform() {}
 
+  /**
+   * Transforms a value to its corresponding partition value.
+   *
+   * @param value a source value
+   * @return null
+   * @deprecated will be removed in 2.0.0; use {@link #bind(Type)} instead
+   */
+  @Deprecated
   @Override
   public Void apply(Object value) {
     return null;
@@ -84,6 +92,16 @@ class VoidTransform<S> implements Transform<S, Void> {
     return true;
   }
 
+  /**
+   * Returns a human-readable String representation of a transformed value.
+   *
+   * <p>null values will return "null"
+   *
+   * @param value a transformed value
+   * @return a human-readable String representation of null
+   * @deprecated will be removed in 2.0.0; use {@link #toHumanString(Type, Object)} instead
+   */
+  @Deprecated
   @Override
   public String toHumanString(Void value) {
     return "null";

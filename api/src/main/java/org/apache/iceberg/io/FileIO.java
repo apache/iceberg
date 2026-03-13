@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -50,16 +51,16 @@ public interface FileIO extends Serializable, Closeable {
     Preconditions.checkArgument(
         file.keyMetadata() == null,
         "Cannot decrypt data file: %s (use EncryptingFileIO)",
-        file.path());
-    return newInputFile(file.path().toString(), file.fileSizeInBytes());
+        file.location());
+    return newInputFile(file.location(), file.fileSizeInBytes());
   }
 
   default InputFile newInputFile(DeleteFile file) {
     Preconditions.checkArgument(
         file.keyMetadata() == null,
         "Cannot decrypt delete file: %s (use EncryptingFileIO)",
-        file.path());
-    return newInputFile(file.path().toString(), file.fileSizeInBytes());
+        file.location());
+    return newInputFile(file.location(), file.fileSizeInBytes());
   }
 
   default InputFile newInputFile(ManifestFile manifest) {
@@ -68,6 +69,15 @@ public interface FileIO extends Serializable, Closeable {
         "Cannot decrypt manifest: %s (use EncryptingFileIO)",
         manifest.path());
     return newInputFile(manifest.path(), manifest.length());
+  }
+
+  default InputFile newInputFile(ManifestListFile manifestList) {
+    Preconditions.checkArgument(
+        manifestList.encryptionKeyID() == null,
+        "Cannot decrypt manifest list: %s (use EncryptingFileIO)",
+        manifestList.location());
+    // cannot pass length because it is not tracked outside of key metadata
+    return newInputFile(manifestList.location());
   }
 
   /** Get a {@link OutputFile} instance to write bytes to the file at the given path. */

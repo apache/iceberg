@@ -46,6 +46,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -207,10 +208,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     catalog.dropTable(testTable);
-    assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+    assertThat(fs.exists(new Path(metaLocation))).isFalse();
   }
 
   @Test
@@ -242,10 +243,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     catalog.dropTable(testTable);
-    assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+    assertThat(fs.exists(new Path(metaLocation))).isFalse();
   }
 
   @Test
@@ -256,10 +257,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     catalog.dropTable(testTable);
-    assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+    assertThat(fs.exists(new Path(metaLocation))).isFalse();
   }
 
   @Test
@@ -272,10 +273,10 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
     fs.mkdirs(new Path(metaLocation));
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
 
     assertThat(catalog.dropTable(testTable)).isFalse();
-    assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
+    assertThat(fs.getFileStatus(new Path(metaLocation)).isDirectory()).isTrue();
   }
 
   @Test
@@ -341,11 +342,11 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     String metaLocation1 = warehouseLocation + "/" + "db/ns1/ns2";
     FileSystem fs1 = Util.getFs(new Path(metaLocation1), catalog.getConf());
-    assertThat(fs1.isDirectory(new Path(metaLocation1))).isTrue();
+    assertThat(fs1.getFileStatus(new Path(metaLocation1)).isDirectory()).isTrue();
 
     String metaLocation2 = warehouseLocation + "/" + "db/ns2/ns3";
     FileSystem fs2 = Util.getFs(new Path(metaLocation2), catalog.getConf());
-    assertThat(fs2.isDirectory(new Path(metaLocation2))).isTrue();
+    assertThat(fs2.getFileStatus(new Path(metaLocation2)).isDirectory()).isTrue();
 
     assertThatThrownBy(() -> catalog.createNamespace(tbl1.namespace()))
         .isInstanceOf(AlreadyExistsException.class)
@@ -462,7 +463,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     assertThat(catalog.dropNamespace(namespace1)).isTrue();
     String metaLocation = warehouseLocation + "/" + "db";
     FileSystem fs = Util.getFs(new Path(metaLocation), catalog.getConf());
-    assertThat(fs.isDirectory(new Path(metaLocation))).isFalse();
+    assertThat(fs.exists(new Path(metaLocation))).isFalse();
   }
 
   @Test
@@ -546,6 +547,31 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     assertThatThrownBy(() -> TABLES.load(tableLocation))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
+  }
+
+  @Test
+  public void testMetadataFileMissing() throws Exception {
+    addVersionsToTable(table);
+
+    HadoopTableOperations tableOperations =
+        (HadoopTableOperations) TABLES.newTableOps(tableLocation);
+
+    FileIO io = table.io();
+    io.deleteFile(versionHintFile.getPath());
+    try (PositionOutputStream stream = io.newOutputFile(versionHintFile.getPath()).create()) {
+      stream.write("3".getBytes(StandardCharsets.UTF_8));
+    }
+
+    // Check the result of the findVersion(), and load the table and check the current snapshotId
+    assertThat(tableOperations.findVersion()).isEqualTo(3);
+    assertThat(TABLES.load(tableLocation).currentSnapshot().snapshotId())
+        .isEqualTo(table.currentSnapshot().snapshotId());
+
+    io.deleteFile(tableOperations.getMetadataFile(3).toString());
+    assertThatThrownBy(() -> TABLES.load(tableLocation))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Metadata file for version 3 is missing under " + new Path(tableLocation, "metadata"));
   }
 
   @Test

@@ -57,7 +57,7 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
   }
 
   public Type type() {
-    if (op() == Operation.COUNT || op() == Operation.COUNT_STAR) {
+    if (op() == Operation.COUNT || op() == Operation.COUNT_STAR || op() == Operation.COUNT_NULL) {
       return Types.LongType.get();
     } else {
       return term().type();
@@ -78,6 +78,8 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
         return "count(*)";
       case COUNT:
         return "count(" + ExpressionUtil.describe(term()) + ")";
+      case COUNT_NULL:
+        return "count_if(" + ExpressionUtil.describe(term()) + " is null)";
       case MAX:
         return "max(" + ExpressionUtil.describe(term()) + ")";
       case MIN:

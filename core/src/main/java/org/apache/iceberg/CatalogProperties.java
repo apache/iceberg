@@ -29,6 +29,8 @@ public class CatalogProperties {
   public static final String WAREHOUSE_LOCATION = "warehouse";
   public static final String TABLE_DEFAULT_PREFIX = "table-default.";
   public static final String TABLE_OVERRIDE_PREFIX = "table-override.";
+  public static final String VIEW_DEFAULT_PREFIX = "view-default.";
+  public static final String VIEW_OVERRIDE_PREFIX = "view-override.";
   public static final String METRICS_REPORTER_IMPL = "metrics-reporter-impl";
 
   /**
@@ -176,11 +178,22 @@ public class CatalogProperties {
   public static final String LOCK_TABLE = "lock.table";
 
   public static final String APP_ID = "app-id";
+  public static final String APP_NAME = "app-name";
   public static final String USER = "user";
 
   public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
   public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);
 
   public static final String ENCRYPTION_KMS_TYPE = "encryption.kms-type";
+  public static final String ENCRYPTION_KMS_TYPE_AWS = "aws";
+  public static final String ENCRYPTION_KMS_TYPE_AZURE = "azure";
+  public static final String ENCRYPTION_KMS_TYPE_GCP = "gcp";
+
   public static final String ENCRYPTION_KMS_IMPL = "encryption.kms-impl";
+  public static final String ENCRYPTION_KMS_IMPL_AWS =
+      "org.apache.iceberg.aws.AwsKeyManagementClient";
+  public static final String ENCRYPTION_KMS_IMPL_AZURE =
+      "org.apache.iceberg.azure.keymanagement.AzureKeyManagementClient";
+  public static final String ENCRYPTION_KMS_IMPL_GCP =
+      "org.apache.iceberg.gcp.GcpKeyManagementClient";
 }

@@ -53,6 +53,14 @@ public class SystemConfigs {
           Math.max(2, 4 * Runtime.getRuntime().availableProcessors()),
           Integer::parseUnsignedInt);
 
+  /** Sets the core size of the thread pool used for refreshing authentication data. */
+  public static final ConfigEntry<Integer> AUTH_REFRESH_THREAD_POOL_SIZE =
+      new ConfigEntry<>(
+          "iceberg.rest.auth.refresh.num-threads",
+          "ICEBERG_AUTH_REFRESH_NUM_THREADS",
+          1,
+          Integer::parseUnsignedInt);
+
   /** Whether to use the shared worker pool when planning table scans. */
   public static final ConfigEntry<Boolean> SCAN_THREAD_POOL_ENABLED =
       new ConfigEntry<>(
@@ -73,7 +81,7 @@ public class SystemConfigs {
           Integer::parseUnsignedInt);
 
   /**
-   * @deprecated will be removed in 2.0.0; use name mapping instead
+   * @deprecated will be removed in 1.12.0; use name mapping instead
    */
   @Deprecated
   public static final ConfigEntry<Boolean> NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED =
@@ -83,7 +91,7 @@ public class SystemConfigs {
           true,
           s -> {
             LOG.warn(
-                "Fallback ID assignment in Parquet is UNSAFE and will be removed in 2.0.0. Use name mapping instead.");
+                "Fallback ID assignment in Parquet is UNSAFE and will be removed in 1.12.0. Use name mapping instead.");
             return Boolean.parseBoolean(s);
           });
 

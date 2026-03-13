@@ -214,8 +214,12 @@ public class BucketFunction implements UnboundFunction {
         return null;
       }
 
-      // TODO - We can probably hash the bytes directly given they're already UTF-8 input.
-      return apply(numBuckets, hash(value.toString()));
+      return apply(numBuckets, hash(value.getBytes()));
+    }
+
+    // Visible for testing
+    public static int hash(byte[] value) {
+      return BucketUtil.hash(value);
     }
 
     // Visible for testing

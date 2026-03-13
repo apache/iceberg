@@ -81,8 +81,8 @@ public class DeleteFileIndexBenchmark {
 
   private List<DataFile> dataFiles;
 
-  @Param({"true", "false"})
-  private boolean oneToOneMapping;
+  @Param({"partition", "file", "dv"})
+  private String type;
 
   @Setup
   public void setupBenchmark() throws NoSuchTableException, ParseException {
@@ -93,10 +93,12 @@ public class DeleteFileIndexBenchmark {
   }
 
   private void initDataAndDeletes() {
-    if (oneToOneMapping) {
+    if (type.equals("partition")) {
+      initDataAndPartitionScopedDeletes();
+    } else if (type.equals("file")) {
       initDataAndFileScopedDeletes();
     } else {
-      initDataAndPartitionScopedDeletes();
+      initDataAndDVs();
     }
   }
 
@@ -183,6 +185,23 @@ public class DeleteFileIndexBenchmark {
     }
   }
 
+  private void initDataAndDVs() {
+    for (int partitionOrdinal = 0; partitionOrdinal < NUM_PARTITIONS; partitionOrdinal++) {
+      StructLike partition = TestHelpers.Row.of(partitionOrdinal);
+
+      RowDelta rowDelta = table.newRowDelta();
+
+      for (int fileOrdinal = 0; fileOrdinal < NUM_DATA_FILES_PER_PARTITION; fileOrdinal++) {
+        DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
+        DeleteFile dv = FileGenerationUtil.generateDV(table, dataFile);
+        rowDelta.addRows(dataFile);
+        rowDelta.addDeletes(dv);
+      }
+
+      rowDelta.commit();
+    }
+  }
+
   private void setupSpark() {
     this.spark =
         SparkSession.builder()
@@ -240,7 +259,7 @@ public class DeleteFileIndexBenchmark {
         TableProperties.DELETE_MODE,
         RowLevelOperationMode.MERGE_ON_READ.modeName(),
         TableProperties.FORMAT_VERSION,
-        2);
+        type.equals("dv") ? 3 : 2);
 
     this.table = Spark3Util.loadIcebergTable(spark, TABLE_NAME);
   }

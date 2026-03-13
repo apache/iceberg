@@ -21,10 +21,13 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestPartitionSpecValidation {
   private static final Schema SCHEMA =
@@ -34,7 +37,11 @@ public class TestPartitionSpecValidation {
           NestedField.required(3, "another_ts", Types.TimestampType.withZone()),
           NestedField.required(4, "d", Types.TimestampType.withZone()),
           NestedField.required(5, "another_d", Types.TimestampType.withZone()),
-          NestedField.required(6, "s", Types.StringType.get()));
+          NestedField.required(6, "s", Types.StringType.get()),
+          NestedField.required(7, "v", Types.VariantType.get()),
+          NestedField.required(8, "geom", Types.GeometryType.crs84()),
+          NestedField.required(9, "geog", Types.GeographyType.crs84()),
+          NestedField.optional(10, "u", Types.UnknownType.get()));
 
   @Test
   public void testMultipleTimestampPartitions() {
@@ -311,5 +318,127 @@ public class TestPartitionSpecValidation {
     assertThat(spec.fields().get(1).fieldId()).isEqualTo(1005);
     assertThat(spec.fields().get(2).fieldId()).isEqualTo(1006);
     assertThat(spec.lastAssignedFieldId()).isEqualTo(1006);
+  }
+
+  @ParameterizedTest
+  @MethodSource("unsupportedFieldsProvider")
+  public void testUnsupported(int fieldId, String partitionName, String expectedErrorMessage) {
+    assertThatThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA)
+                    .add(fieldId, 1005, partitionName, Transforms.bucket(5))
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(expectedErrorMessage);
+  }
+
+  private static Object[][] unsupportedFieldsProvider() {
+    return new Object[][] {
+      {7, "variant_partition1", "Cannot partition by non-primitive source field: variant"},
+      {8, "geom_partition1", "Invalid source type geometry for transform: bucket[5]"},
+      {9, "geog_partition1", "Invalid source type geography for transform: bucket[5]"},
+      {10, "unknown_partition1", "Invalid source type unknown for transform: bucket[5]"}
+    };
+  }
+
+  @Test
+  void testSourceIdNotFound() {
+    assertThatThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA)
+                    .add(99, 1000, "Test", Transforms.identity())
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot find source column for partition field: 1000: Test: identity(99)");
+  }
+
+  @Test
+  void testPartitionFieldInStruct() {
+    final Schema schema =
+        new Schema(
+            NestedField.required(SCHEMA.highestFieldId() + 1, "MyStruct", SCHEMA.asStruct()));
+    PartitionSpec.builderFor(schema).identity("MyStruct.id").build();
+  }
+
+  @Test
+  void testPartitionFieldInStructInStruct() {
+    final Schema schema =
+        new Schema(
+            NestedField.optional(
+                SCHEMA.highestFieldId() + 2,
+                "Outer",
+                Types.StructType.of(
+                    NestedField.required(
+                        SCHEMA.highestFieldId() + 1, "Inner", SCHEMA.asStruct()))));
+    PartitionSpec.builderFor(schema).identity("Outer.Inner.id").build();
+  }
+
+  @Test
+  void testPartitionFieldInList() {
+    final Schema schema =
+        new Schema(
+            NestedField.required(
+                2, "MyList", Types.ListType.ofRequired(1, Types.IntegerType.get())));
+    assertThatThrownBy(() -> PartitionSpec.builderFor(schema).identity("MyList.element").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid partition field parent: list<int>");
+  }
+
+  @Test
+  void testPartitionFieldInStructInList() {
+    final Schema schema =
+        new Schema(
+            NestedField.required(
+                3,
+                "MyList",
+                Types.ListType.ofRequired(
+                    2,
+                    Types.StructType.of(NestedField.optional(1, "Foo", Types.IntegerType.get())))));
+    assertThatThrownBy(
+            () -> PartitionSpec.builderFor(schema).identity("MyList.element.Foo").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid partition field parent: list<struct<1: Foo: optional int>>");
+  }
+
+  @Test
+  void testPartitionFieldInMap() {
+    final Schema schema =
+        new Schema(
+            NestedField.required(
+                3,
+                "MyMap",
+                Types.MapType.ofRequired(1, 2, Types.IntegerType.get(), Types.IntegerType.get())));
+
+    assertThatThrownBy(() -> PartitionSpec.builderFor(schema).identity("MyMap.key").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid partition field parent: map<int, int>");
+
+    assertThatThrownBy(() -> PartitionSpec.builderFor(schema).identity("MyMap.value").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid partition field parent: map<int, int>");
+  }
+
+  @Test
+  void testPartitionFieldInStructInMap() {
+    final Schema schema =
+        new Schema(
+            NestedField.required(
+                5,
+                "MyMap",
+                Types.MapType.ofRequired(
+                    3,
+                    4,
+                    Types.StructType.of(NestedField.optional(1, "Foo", Types.IntegerType.get())),
+                    Types.StructType.of(NestedField.optional(2, "Bar", Types.IntegerType.get())))));
+
+    assertThatThrownBy(() -> PartitionSpec.builderFor(schema).identity("MyMap.key.Foo").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Invalid partition field parent: map<struct<1: Foo: optional int>, struct<2: Bar: optional int>>");
+
+    assertThatThrownBy(() -> PartitionSpec.builderFor(schema).identity("MyMap.value.Bar").build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Invalid partition field parent: map<struct<1: Foo: optional int>, struct<2: Bar: optional int>>");
   }
 }

@@ -77,6 +77,15 @@ class FindTypeVisitor extends TypeUtil.SchemaVisitor<Type> {
   }
 
   @Override
+  public Type variant(Types.VariantType variant) {
+    if (predicate.test(variant)) {
+      return variant;
+    }
+
+    return null;
+  }
+
+  @Override
   public Type primitive(Type.PrimitiveType primitive) {
     if (predicate.test(primitive)) {
       return primitive;

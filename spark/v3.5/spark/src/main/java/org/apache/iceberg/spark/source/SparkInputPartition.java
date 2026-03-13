@@ -38,6 +38,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
   private final String expectedSchemaString;
   private final boolean caseSensitive;
   private final transient String[] preferredLocations;
+  private final boolean cacheDeleteFilesOnExecutors;
 
   private transient Schema expectedSchema = null;
 
@@ -48,7 +49,8 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
       String branch,
       String expectedSchemaString,
       boolean caseSensitive,
-      String[] preferredLocations) {
+      String[] preferredLocations,
+      boolean cacheDeleteFilesOnExecutors) {
     this.groupingKeyType = groupingKeyType;
     this.taskGroup = taskGroup;
     this.tableBroadcast = tableBroadcast;
@@ -56,6 +58,7 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
     this.expectedSchemaString = expectedSchemaString;
     this.caseSensitive = caseSensitive;
     this.preferredLocations = preferredLocations;
+    this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
   }
 
   @Override
@@ -87,6 +90,10 @@ class SparkInputPartition implements InputPartition, HasPartitionKey, Serializab
 
   public boolean isCaseSensitive() {
     return caseSensitive;
+  }
+
+  public boolean cacheDeleteFilesOnExecutors() {
+    return cacheDeleteFilesOnExecutors;
   }
 
   public Schema expectedSchema() {

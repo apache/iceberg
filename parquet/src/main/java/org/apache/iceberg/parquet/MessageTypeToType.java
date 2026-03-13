@@ -179,6 +179,11 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     throw new UnsupportedOperationException("Cannot convert unknown primitive type: " + primitive);
   }
 
+  @Override
+  public Type variant(GroupType variant) {
+    return Types.VariantType.get();
+  }
+
   private static class ParquetLogicalTypeVisitor
       implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<Type> {
     private static final ParquetLogicalTypeVisitor INSTANCE = new ParquetLogicalTypeVisitor();

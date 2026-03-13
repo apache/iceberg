@@ -32,9 +32,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.ObjectVersion;
 import software.amazon.awssdk.services.s3.paginators.ListObjectVersionsIterable;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 import software.amazon.awssdk.services.s3control.S3ControlClient;
 import software.amazon.awssdk.services.s3control.model.CreateAccessPointRequest;
 import software.amazon.awssdk.services.s3control.model.DeleteAccessPointRequest;
@@ -42,6 +44,18 @@ import software.amazon.awssdk.services.s3control.model.DeleteAccessPointRequest;
 public class AwsIntegTestUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(AwsIntegTestUtil.class);
+  private static final int BATCH_DELETION_SIZE = 1000;
+
+  public static final String AWS_ACCESS_KEY_ID = "AWS_ACCESS_KEY_ID";
+  public static final String AWS_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY";
+  public static final String AWS_SESSION_TOKEN = "AWS_SESSION_TOKEN";
+  public static final String AWS_REGION = "AWS_REGION";
+  public static final String AWS_CROSS_REGION = "AWS_CROSS_REGION";
+  public static final String AWS_TEST_BUCKET = "AWS_TEST_BUCKET";
+  public static final String AWS_TEST_CROSS_REGION_BUCKET = "AWS_TEST_CROSS_REGION_BUCKET";
+  public static final String AWS_TEST_ACCOUNT_ID = "AWS_TEST_ACCOUNT_ID";
+  public static final String AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS =
+      "AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS";
 
   private AwsIntegTestUtil() {}
 
@@ -51,7 +65,7 @@ public class AwsIntegTestUtil {
    * @return region
    */
   public static String testRegion() {
-    return System.getenv("AWS_REGION");
+    return System.getenv(AWS_REGION);
   }
 
   /**
@@ -60,10 +74,9 @@ public class AwsIntegTestUtil {
    * @return region
    */
   public static String testCrossRegion() {
-    String crossRegion = System.getenv("AWS_CROSS_REGION");
+    String crossRegion = System.getenv(AWS_CROSS_REGION);
     Preconditions.checkArgument(
-        !testRegion().equals(crossRegion),
-        "AWS_REGION should not be equal to " + "AWS_CROSS_REGION");
+        !testRegion().equals(crossRegion), "AWS_REGION should not be equal to " + AWS_CROSS_REGION);
     return crossRegion;
   }
 
@@ -73,7 +86,7 @@ public class AwsIntegTestUtil {
    * @return bucket name
    */
   public static String testBucketName() {
-    return System.getenv("AWS_TEST_BUCKET");
+    return System.getenv(AWS_TEST_BUCKET);
   }
 
   /**
@@ -83,7 +96,7 @@ public class AwsIntegTestUtil {
    * @return bucket name
    */
   public static String testCrossRegionBucketName() {
-    return System.getenv("AWS_TEST_CROSS_REGION_BUCKET");
+    return System.getenv(AWS_TEST_CROSS_REGION_BUCKET);
   }
 
   /**
@@ -92,7 +105,7 @@ public class AwsIntegTestUtil {
    * @return account id
    */
   public static String testAccountId() {
-    return System.getenv("AWS_TEST_ACCOUNT_ID");
+    return System.getenv(AWS_TEST_ACCOUNT_ID);
   }
 
   /**
@@ -103,20 +116,19 @@ public class AwsIntegTestUtil {
    * @return The alias of S3 multi region access point route to the default S3 bucket
    */
   public static String testMultiRegionAccessPointAlias() {
-    return System.getenv("AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS");
+    return System.getenv(AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS);
   }
 
-  public static void cleanS3Bucket(S3Client s3, String bucketName, String prefix) {
+  public static void cleanS3GeneralPurposeBucket(S3Client s3, String bucketName, String prefix) {
     ListObjectVersionsIterable response =
         s3.listObjectVersionsPaginator(
             ListObjectVersionsRequest.builder().bucket(bucketName).prefix(prefix).build());
     List<ObjectVersion> versionsToDelete = Lists.newArrayList();
-    int batchDeletionSize = 1000;
     response.versions().stream()
         .forEach(
             version -> {
               versionsToDelete.add(version);
-              if (versionsToDelete.size() == batchDeletionSize) {
+              if (versionsToDelete.size() == BATCH_DELETION_SIZE) {
                 deleteObjectVersions(s3, bucketName, versionsToDelete);
                 versionsToDelete.clear();
               }
@@ -125,6 +137,45 @@ public class AwsIntegTestUtil {
     if (!versionsToDelete.isEmpty()) {
       deleteObjectVersions(s3, bucketName, versionsToDelete);
     }
+  }
+
+  /**
+   * Method used to clean up a S3 directory bucket which doesn't care about versions
+   *
+   * @param s3 an instance of S3Client to be used to list/delete objects
+   * @param bucketName name of the bucket
+   * @param prefix the path prefix we want to remove
+   */
+  public static void cleanS3DirectoryBucket(S3Client s3, String bucketName, String prefix) {
+    String newPrefix = prefix.endsWith("/") ? prefix : prefix + "/";
+    ListObjectsV2Request listRequest =
+        ListObjectsV2Request.builder().bucket(bucketName).prefix(newPrefix).build();
+
+    ListObjectsV2Iterable paginatedListResponse = s3.listObjectsV2Paginator(listRequest);
+    List<ObjectIdentifier> objectsToDelete = Lists.newArrayList();
+
+    paginatedListResponse.contents().stream()
+        .forEach(
+            s3Object -> {
+              if (objectsToDelete.size() == BATCH_DELETION_SIZE) {
+                deleteObjects(s3, bucketName, objectsToDelete);
+                objectsToDelete.clear();
+              }
+              objectsToDelete.add(ObjectIdentifier.builder().key(s3Object.key()).build());
+            });
+
+    if (!objectsToDelete.isEmpty()) {
+      deleteObjects(s3, bucketName, objectsToDelete);
+    }
+  }
+
+  private static void deleteObjects(
+      S3Client s3, String bucketName, List<ObjectIdentifier> objectsToDelete) {
+    s3.deleteObjects(
+        DeleteObjectsRequest.builder()
+            .bucket(bucketName)
+            .delete(Delete.builder().objects(objectsToDelete).build())
+            .build());
   }
 
   private static void deleteObjectVersions(

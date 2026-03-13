@@ -59,9 +59,9 @@ Magic BlockLength CipherBlock₁ CipherBlock₂ ... CipherBlockₙ
 
 where
 
-- `Magic` is four bytes 0x41, 0x47, 0x53, 0x31 ("AGS1", short for: AES GCM Stream, version 1)
-- `BlockLength` is four bytes (little endian) integer keeping the length of the equal-size split blocks before encryption. The length is specified in bytes.
-- `CipherBlockᵢ` is the i-th enciphered block in the file, with the structure defined below.
+* `Magic` is four bytes 0x41, 0x47, 0x53, 0x31 ("AGS1", short for: AES GCM Stream, version 1)
+* `BlockLength` is four bytes (little endian) integer keeping the length of the equal-size split blocks before encryption. The length is specified in bytes.
+* `CipherBlockᵢ` is the i-th enciphered block in the file, with the structure defined below.
 
 ### Cipher Block structure
 
@@ -72,9 +72,9 @@ Cipher blocks have the following structure
 
 where
 
-- `nonce` is the AES GCM nonce, with a length of 12 bytes.
-- `ciphertext` is the encrypted block. Its length is identical to the length of the block before encryption ("plaintext"). The length of all plaintext blocks, except the last, is `BlockLength` bytes. The last block has a non-zero length <= `BlockLength`.
-- `tag` is the AES GCM tag, with a length of 16 bytes.
+* `nonce` is the AES GCM nonce, with a length of 12 bytes.
+* `ciphertext` is the encrypted block. Its length is identical to the length of the block before encryption ("plaintext"). The length of all plaintext blocks, except the last, is `BlockLength` bytes. The last block has a non-zero length <= `BlockLength`.
+* `tag` is the AES GCM tag, with a length of 16 bytes.
 
 AES GCM Stream encrypts all blocks by the GCM cipher, without padding. The AES GCM cipher must be implemented by a cryptographic provider according to the NIST SP 800-38D specification. In AES GCM Stream, an input to the GCM cipher is an AES encryption key, a nonce, a plaintext and an AAD (described below). The output is a ciphertext with the length equal to that of plaintext, and a 16-byte authentication tag used to verify the ciphertext and AAD integrity.
 

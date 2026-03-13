@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynClasses;
@@ -34,12 +35,15 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
@@ -72,6 +76,7 @@ public class CatalogUtil {
   public static final String ICEBERG_CATALOG_TYPE_GLUE = "glue";
   public static final String ICEBERG_CATALOG_TYPE_NESSIE = "nessie";
   public static final String ICEBERG_CATALOG_TYPE_JDBC = "jdbc";
+  public static final String ICEBERG_CATALOG_TYPE_BIGQUERY = "bigquery";
 
   public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
   public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
@@ -79,6 +84,8 @@ public class CatalogUtil {
   public static final String ICEBERG_CATALOG_GLUE = "org.apache.iceberg.aws.glue.GlueCatalog";
   public static final String ICEBERG_CATALOG_NESSIE = "org.apache.iceberg.nessie.NessieCatalog";
   public static final String ICEBERG_CATALOG_JDBC = "org.apache.iceberg.jdbc.JdbcCatalog";
+  public static final String ICEBERG_CATALOG_BIGQUERY =
+      "org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog";
 
   private CatalogUtil() {}
 
@@ -106,7 +113,12 @@ public class CatalogUtil {
       }
     }
 
-    LOG.info("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
+    LOG.info("{} Manifests to delete ", manifestsToDelete.size());
+    if (LOG.isDebugEnabled()) {
+      for (ManifestFile manifest : manifestsToDelete) {
+        LOG.debug("Deleting manifest file: {}", manifest.path());
+      }
+    }
 
     // run all of the deletes
 
@@ -118,23 +130,18 @@ public class CatalogUtil {
       deleteFiles(io, manifestsToDelete);
     }
 
-    deleteFiles(io, Iterables.transform(manifestsToDelete, ManifestFile::path), "manifest", true);
-    deleteFiles(io, manifestListsToDelete, "manifest list", true);
+    deleteFiles(io, Iterables.transform(manifestsToDelete, ManifestFile::path), "manifest");
+    deleteFiles(io, manifestListsToDelete, "manifest list");
     deleteFiles(
         io,
         Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),
-        "previous metadata",
-        true);
+        "previous metadata");
     deleteFiles(
-        io,
-        Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path),
-        "statistics",
-        true);
+        io, Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path), "statistics");
     deleteFiles(
         io,
         Iterables.transform(metadata.partitionStatisticsFiles(), PartitionStatisticsFile::path),
-        "partition statistics",
-        true);
+        "partition statistics");
     deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
 
@@ -175,7 +182,7 @@ public class CatalogUtil {
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // intern the file path because the weak key map uses identity (==) instead of
                   // equals
-                  String path = entry.file().path().toString().intern();
+                  String path = entry.file().location().intern();
                   Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
                   if (alreadyDeleted == null || !alreadyDeleted) {
                     pathsToDelete.add(path);
@@ -192,6 +199,18 @@ public class CatalogUtil {
   }
 
   /**
+   * Helper to delete files. Bulk deletion is used if possible, otherwise deletions are done
+   * concurrently for non-bulk FileIO.
+   *
+   * @param io FileIO for deletes
+   * @param files files to delete
+   * @param type type of files being deleted
+   */
+  public static void deleteFiles(FileIO io, Iterable<String> files, String type) {
+    deleteFiles(io, files, type, true);
+  }
+
+  /**
    * Helper to delete files. Bulk deletion is used if possible.
    *
    * @param io FileIO for deletes
@@ -201,28 +220,29 @@ public class CatalogUtil {
    */
   public static void deleteFiles(
       FileIO io, Iterable<String> files, String type, boolean concurrent) {
-    if (io instanceof SupportsBulkOperations) {
+    if (io instanceof SupportsBulkOperations bulkIO) {
       try {
-        SupportsBulkOperations bulkIO = (SupportsBulkOperations) io;
         bulkIO.deleteFiles(files);
+      } catch (BulkDeletionFailureException e) {
+        LOG.warn("Failed to bulk delete {} {} files", e.numberFailedObjects(), type, e);
       } catch (RuntimeException e) {
         LOG.warn("Failed to bulk delete {} files", type, e);
       }
     } else {
       if (concurrent) {
-        deleteFiles(io, files, type);
+        concurrentlyDeleteFiles(io, files, type);
       } else {
         files.forEach(file -> deleteFile(io, file, type));
       }
     }
   }
 
-  private static void deleteFiles(FileIO io, Iterable<String> files, String type) {
+  private static void concurrentlyDeleteFiles(FileIO io, Iterable<String> files, String type) {
     Tasks.foreach(files)
         .executeWith(ThreadPools.getWorkerPool())
         .noRetry()
         .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete {} file {}", type, file, exc))
+        .onFailure((file, exc) -> LOG.warn("Failed to delete {} file: {}", type, file, exc))
         .run(io::deleteFile);
   }
 
@@ -312,6 +332,9 @@ public class CatalogUtil {
         case ICEBERG_CATALOG_TYPE_JDBC:
           catalogImpl = ICEBERG_CATALOG_JDBC;
           break;
+        case ICEBERG_CATALOG_TYPE_BIGQUERY:
+          catalogImpl = ICEBERG_CATALOG_BIGQUERY;
+          break;
         default:
           throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
       }
@@ -343,6 +366,33 @@ public class CatalogUtil {
    *     loaded class cannot be cast to the given interface type
    */
   public static FileIO loadFileIO(String impl, Map<String, String> properties, Object hadoopConf) {
+    return loadFileIO(impl, properties, hadoopConf, ImmutableList.of());
+  }
+
+  /**
+   * Load a custom {@link FileIO} implementation.
+   *
+   * <p>The implementation must have a no-arg constructor. If the class implements Configurable, a
+   * Hadoop config will be passed using Configurable.setConf. If the class implements {@link
+   * SupportsStorageCredentials}, the storage credentials will be passed using {@link
+   * SupportsStorageCredentials#setCredentials(List)}. {@link FileIO#initialize(Map properties)} is
+   * called to complete the initialization.
+   *
+   * @param impl full class name of a custom FileIO implementation
+   * @param properties used to initialize the FileIO implementation
+   * @param hadoopConf a hadoop Configuration
+   * @param storageCredentials the storage credentials to configure if the FileIO implementation
+   *     implements {@link SupportsStorageCredentials}
+   * @return FileIO class
+   * @throws IllegalArgumentException if class path not found or right constructor not found or the
+   *     loaded class cannot be cast to the given interface type
+   */
+  @SuppressWarnings("unchecked")
+  public static FileIO loadFileIO(
+      String impl,
+      Map<String, String> properties,
+      Object hadoopConf,
+      List<StorageCredential> storageCredentials) {
     LOG.info("Loading custom FileIO implementation: {}", impl);
     DynConstructors.Ctor<FileIO> ctor;
     try {
@@ -365,6 +415,9 @@ public class CatalogUtil {
     }
 
     configureHadoopConf(fileIO, hadoopConf);
+    if (fileIO instanceof SupportsStorageCredentials) {
+      ((SupportsStorageCredentials) fileIO).setCredentials(storageCredentials);
+    }
 
     fileIO.initialize(properties);
     return fileIO;
@@ -514,5 +567,41 @@ public class CatalogUtil {
     sb.append(identifier.name());
 
     return sb.toString();
+  }
+
+  /**
+   * Deletes the oldest metadata files if {@link
+   * TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
+   *
+   * @param io FileIO instance to use for deletes
+   * @param base table metadata on which previous versions were based
+   * @param metadata new table metadata with updated previous versions
+   */
+  public static void deleteRemovedMetadataFiles(
+      FileIO io, TableMetadata base, TableMetadata metadata) {
+    if (base == null) {
+      return;
+    }
+
+    boolean deleteAfterCommit =
+        metadata.propertyAsBoolean(
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+
+    if (deleteAfterCommit) {
+      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles =
+          Sets.newHashSet(base.previousFiles());
+      // TableMetadata#addPreviousFile builds up the metadata log and uses
+      // TableProperties.METADATA_PREVIOUS_VERSIONS_MAX to determine how many files should stay in
+      // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
+      // be removed
+      removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
+      deleteFiles(
+          io,
+          removedPreviousMetadataFiles.stream()
+              .map(TableMetadata.MetadataLogEntry::file)
+              .collect(Collectors.toSet()),
+          "metadata");
+    }
   }
 }

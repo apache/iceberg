@@ -23,46 +23,37 @@ import org.apache.iceberg.encryption.NativelyEncryptedFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryptedFile {
   private NativeFileCryptoParameters nativeDecryptionParameters;
   private Long length;
 
-  public static S3InputFile fromLocation(
-      String location,
-      S3Client client,
-      S3FileIOProperties s3FileIOProperties,
-      MetricsContext metrics) {
-    return new S3InputFile(
-        client,
-        new S3URI(location, s3FileIOProperties.bucketToAccessPointMapping()),
-        null,
-        s3FileIOProperties,
-        metrics);
+  static S3InputFile fromLocation(
+      String location, PrefixedS3Client client, MetricsContext metrics) {
+    return fromLocation(location, 0, client, metrics);
   }
 
-  public static S3InputFile fromLocation(
-      String location,
-      long length,
-      S3Client client,
-      S3FileIOProperties s3FileIOProperties,
-      MetricsContext metrics) {
+  static S3InputFile fromLocation(
+      String location, long length, PrefixedS3Client client, MetricsContext metrics) {
     return new S3InputFile(
-        client,
-        new S3URI(location, s3FileIOProperties.bucketToAccessPointMapping()),
+        client.s3(),
+        client.s3FileIOProperties().isS3AnalyticsAcceleratorEnabled() ? client.s3Async() : null,
+        new S3URI(location, client.s3FileIOProperties().bucketToAccessPointMapping()),
         length > 0 ? length : null,
-        s3FileIOProperties,
+        client.s3FileIOProperties(),
         metrics);
   }
 
   S3InputFile(
       S3Client client,
+      S3AsyncClient asyncClient,
       S3URI uri,
       Long length,
       S3FileIOProperties s3FileIOProperties,
       MetricsContext metrics) {
-    super(client, uri, s3FileIOProperties, metrics);
+    super(client, asyncClient, uri, s3FileIOProperties, metrics);
     this.length = length;
   }
 
@@ -82,6 +73,9 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
 
   @Override
   public SeekableInputStream newStream() {
+    if (s3FileIOProperties().isS3AnalyticsAcceleratorEnabled()) {
+      return AnalyticsAcceleratorUtil.newStream(this);
+    }
     return new S3InputStream(client(), uri(), s3FileIOProperties(), metrics());
   }
 

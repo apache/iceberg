@@ -26,8 +26,11 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.jdbc.JdbcCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
+import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -37,12 +40,22 @@ import org.slf4j.LoggerFactory;
 public class RESTCatalogServer {
   private static final Logger LOG = LoggerFactory.getLogger(RESTCatalogServer.class);
 
-  static final String REST_PORT = "rest.port";
+  public static final String REST_PORT = "rest.port";
   static final int REST_PORT_DEFAULT = 8181;
 
-  private Server httpServer;
+  public static final String CATALOG_NAME = "catalog.name";
+  static final String CATALOG_NAME_DEFAULT = "rest_backend";
 
-  RESTCatalogServer() {}
+  private Server httpServer;
+  private final Map<String, String> config;
+
+  RESTCatalogServer() {
+    this.config = Maps.newHashMap();
+  }
+
+  RESTCatalogServer(Map<String, String> config) {
+    this.config = config;
+  }
 
   static class CatalogContext {
     private final Catalog catalog;
@@ -64,7 +77,8 @@ public class RESTCatalogServer {
 
   private CatalogContext initializeBackendCatalog() throws IOException {
     // Translate environment variables to catalog properties
-    Map<String, String> catalogProperties = RCKUtils.environmentCatalogConfig();
+    Map<String, String> catalogProperties = Maps.newHashMap(RCKUtils.environmentCatalogConfig());
+    catalogProperties.putAll(config);
 
     // Fallback to a JDBCCatalog impl if one is not set
     catalogProperties.putIfAbsent(CatalogProperties.CATALOG_IMPL, JdbcCatalog.class.getName());
@@ -77,15 +91,18 @@ public class RESTCatalogServer {
     if (warehouseLocation == null) {
       File tmp = java.nio.file.Files.createTempDirectory("iceberg_warehouse").toFile();
       tmp.deleteOnExit();
-      warehouseLocation = tmp.toPath().resolve("iceberg_data").toFile().getAbsolutePath();
+      warehouseLocation = new File(tmp, "iceberg_data").getAbsolutePath();
       catalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
 
       LOG.info("No warehouse location set. Defaulting to temp location: {}", warehouseLocation);
     }
 
-    LOG.info("Creating catalog with properties: {}", catalogProperties);
+    String catalogName =
+        PropertyUtil.propertyAsString(catalogProperties, CATALOG_NAME, CATALOG_NAME_DEFAULT);
+
+    LOG.info("Creating {} catalog with properties: {}", catalogName, catalogProperties);
     return new CatalogContext(
-        CatalogUtil.buildIcebergCatalog("rest_backend", catalogProperties, new Configuration()),
+        CatalogUtil.buildIcebergCatalog(catalogName, catalogProperties, new Configuration()),
         catalogProperties);
   }
 
@@ -104,6 +121,9 @@ public class RESTCatalogServer {
         new Server(
             PropertyUtil.propertyAsInt(catalogContext.configuration, REST_PORT, REST_PORT_DEFAULT));
     httpServer.setHandler(context);
+    for (Connector connector : httpServer.getConnectors()) {
+      ((ServerConnector) connector).setReusePort(true);
+    }
     httpServer.start();
 
     if (join) {

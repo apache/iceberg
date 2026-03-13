@@ -454,11 +454,13 @@ public class Tasks {
                   Math.min(
                       minSleepTimeMs * Math.pow(scaleFactor, attempt - 1), (double) maxSleepTimeMs);
           int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMs * 0.1)));
+          int sleepTimeMs = delayMs + jitter;
 
-          LOG.warn("Retrying task after failure: {}", e.getMessage(), e);
+          LOG.warn(
+              "Retrying task after failure: sleepTimeMs={} {}", sleepTimeMs, e.getMessage(), e);
 
           try {
-            TimeUnit.MILLISECONDS.sleep(delayMs + jitter);
+            TimeUnit.MILLISECONDS.sleep(sleepTimeMs);
           } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(ie);

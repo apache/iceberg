@@ -23,6 +23,7 @@ import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
@@ -171,6 +172,10 @@ public class StructProjection implements StructLike {
             String.format("Cannot find field %s in %s", projectedField, structType));
       }
     }
+  }
+
+  public int projectedFields() {
+    return (int) Ints.asList(positionMap).stream().filter(val -> val != -1).count();
   }
 
   public StructProjection wrap(StructLike newStruct) {

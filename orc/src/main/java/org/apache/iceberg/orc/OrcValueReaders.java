@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -151,7 +152,8 @@ public class OrcValueReaders {
         } else if (field.equals(MetadataColumns.IS_DELETED)) {
           this.isConstantOrMetadataField[pos] = true;
           this.readers[pos] = constants(false);
-        } else if (MetadataColumns.isMetadataColumn(field.name())) {
+        } else if (MetadataColumns.isMetadataColumn(field.name())
+            || field.type().typeId() == Type.TypeID.UNKNOWN) {
           // in case of any other metadata field, fill with nulls
           this.isConstantOrMetadataField[pos] = true;
           this.readers[pos] = constants(null);

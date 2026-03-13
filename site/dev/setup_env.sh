@@ -22,6 +22,8 @@ set -e
 
 clean
 
+create_venv
+
 install_deps
 
 pull_versioned_docs

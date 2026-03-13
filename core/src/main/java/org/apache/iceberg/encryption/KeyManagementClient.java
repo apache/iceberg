@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 /** A minimum client interface to connect to a key management service (KMS). */
-interface KeyManagementClient extends Serializable, Closeable {
+public interface KeyManagementClient extends Serializable, Closeable {
 
   /**
    * Wrap a secret key, using a wrapping/master key which is stored in KMS and referenced by an ID.
@@ -94,7 +94,7 @@ interface KeyManagementClient extends Serializable, Closeable {
     private final ByteBuffer key;
     private final ByteBuffer wrappedKey;
 
-    KeyGenerationResult(ByteBuffer key, ByteBuffer wrappedKey) {
+    public KeyGenerationResult(ByteBuffer key, ByteBuffer wrappedKey) {
       this.key = key;
       this.wrappedKey = wrappedKey;
     }

@@ -83,6 +83,9 @@ public class TableProperties {
           DEFAULT_PARTITION_SPEC,
           DEFAULT_SORT_ORDER);
 
+  /** A table property that documents the business meaning and usage context of this table. */
+  public static final String COMMENT = "comment";
+
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
 
@@ -171,8 +174,14 @@ public class TableProperties {
       "write.parquet.bloom-filter-fpp.column.";
   public static final double PARQUET_BLOOM_FILTER_COLUMN_FPP_DEFAULT = 0.01;
 
+  public static final String PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX =
+      "write.parquet.bloom-filter-ndv.column.";
+
   public static final String PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX =
       "write.parquet.bloom-filter-enabled.column.";
+
+  public static final String PARQUET_COLUMN_STATS_ENABLED_PREFIX =
+      "write.parquet.stats-enabled.column.";
 
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
   public static final String DELETE_AVRO_COMPRESSION = "write.delete.avro.compression-codec";
@@ -241,18 +250,32 @@ public class TableProperties {
   public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
   public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
 
+  /**
+   * When true, declares that the table's identifier fields can be relied upon as a primary key by
+   * query engines for optimization purposes (e.g. eliminating redundant joins or distinct). This is
+   * not enforced at write time and does not validate existing data.
+   */
+  public static final String IDENTIFIER_FIELDS_RELY = "identifier-fields.rely";
+
+  public static final boolean IDENTIFIER_FIELDS_RELY_DEFAULT = false;
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
+  // Excludes the partition values in the path when set to true and object store is enabled
+  public static final String WRITE_OBJECT_STORE_PARTITIONED_PATHS =
+      "write.object-storage.partitioned-paths";
+  public static final boolean WRITE_OBJECT_STORE_PARTITIONED_PATHS_DEFAULT = true;
+
   /**
-   * @deprecated Use {@link #WRITE_DATA_LOCATION} instead.
+   * @deprecated will be removed in 2.0.0, use {@link #WRITE_DATA_LOCATION} instead.
    */
   @Deprecated public static final String OBJECT_STORE_PATH = "write.object-storage.path";
 
   public static final String WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
 
   /**
-   * @deprecated Use {@link #WRITE_DATA_LOCATION} instead.
+   * @deprecated will be removed in 2.0.0, use {@link #WRITE_DATA_LOCATION} instead.
    */
   @Deprecated
   public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";
@@ -271,12 +294,12 @@ public class TableProperties {
   public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;
 
   /**
-   * @deprecated will be removed in 2.0.0, writing manifest lists is always enabled
+   * @deprecated will be removed in 1.12.0, writing manifest lists is always enabled
    */
   @Deprecated public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
 
   /**
-   * @deprecated will be removed in 2.0.0, writing manifest lists is always enabled
+   * @deprecated will be removed in 1.12.0, writing manifest lists is always enabled
    */
   @Deprecated public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 

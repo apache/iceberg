@@ -79,7 +79,7 @@ public class TestSparkAvroEnums {
     List<InternalRow> rows;
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
-            .createReaderFunc(SparkAvroReader::new)
+            .createResolvingReader(SparkPlannedAvroReader::create)
             .project(schema)
             .build()) {
       rows = Lists.newArrayList(reader);

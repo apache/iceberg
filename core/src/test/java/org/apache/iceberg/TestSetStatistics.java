@@ -20,8 +20,6 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Arrays;
-import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.TestTemplate;
@@ -29,10 +27,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSetStatistics extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testEmptyUpdateStatistics() {
@@ -80,7 +74,7 @@ public class TestSetStatistics extends TestBase {
                     ImmutableList.of(1, 2),
                     ImmutableMap.of("a-property", "some-property-value"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     TableMetadata metadata = readMetadata();
     assertThat(version()).isEqualTo(2);
@@ -100,7 +94,7 @@ public class TestSetStatistics extends TestBase {
         new GenericStatisticsFile(
             snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     TableMetadata metadata = readMetadata();
     assertThat(version()).isEqualTo(2);
@@ -111,5 +105,55 @@ public class TestSetStatistics extends TestBase {
     metadata = readMetadata();
     assertThat(version()).isEqualTo(3);
     assertThat(metadata.statisticsFiles()).isEmpty();
+  }
+
+  @TestTemplate
+  public void setStatisticsRetryWithConcurrentModification() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotId = readMetadata().currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
+
+    // Create a TableOperations that simulates concurrent modification
+    // On the first commit attempt, another writer modifies the table
+    TableOperations concurrentOps =
+        new TestTables.TestTableOperations("test", tableDir, table.ops().io()) {
+          private boolean firstAttempt = true;
+
+          @Override
+          public void commit(TableMetadata base, TableMetadata metadata) {
+            if (firstAttempt) {
+              firstAttempt = false;
+              table.newFastAppend().appendFile(FILE_B).commit();
+            }
+
+            super.commit(base, metadata);
+          }
+        };
+
+    SetStatistics setStats = new SetStatistics(concurrentOps);
+    setStats.setStatistics(statisticsFile);
+    setStats.commit();
+
+    assertThat(readMetadata().statisticsFiles()).containsExactly(statisticsFile);
+  }
+
+  @TestTemplate
+  public void setStatisticsRetrySuccess() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotId = readMetadata().currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
+
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(2);
+
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    assertThat(readMetadata().statisticsFiles()).containsExactly(statisticsFile);
   }
 }

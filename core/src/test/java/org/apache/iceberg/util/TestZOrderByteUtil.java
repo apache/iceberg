@@ -189,14 +189,8 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of ints should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aInt,
-                  bInt,
-                  intCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of ints should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aInt, bInt, intCompare, Arrays.toString(aBytes), Arrays.toString(bBytes), byteCompare)
           .isEqualTo(intCompare);
     }
   }
@@ -216,14 +210,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aLong,
-                  bLong,
-                  longCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aLong,
+              bLong,
+              longCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(longCompare);
     }
   }
@@ -243,14 +236,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aShort,
-                  bShort,
-                  longCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aShort,
+              bShort,
+              longCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(longCompare);
     }
   }
@@ -270,14 +262,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aByte,
-                  bByte,
-                  longCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of longs should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aByte,
+              bByte,
+              longCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(longCompare);
     }
   }
@@ -297,14 +288,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of floats should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aFloat,
-                  bFloat,
-                  floatCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of floats should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aFloat,
+              bFloat,
+              floatCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(floatCompare);
     }
   }
@@ -324,14 +314,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of doubles should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aDouble,
-                  bDouble,
-                  doubleCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of doubles should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aDouble,
+              bDouble,
+              doubleCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(doubleCompare);
     }
   }
@@ -352,14 +341,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aString,
-                  bString,
-                  stringCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aString,
+              bString,
+              stringCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(stringCompare);
     }
   }
@@ -380,14 +368,13 @@ public class TestZOrderByteUtil {
 
       assertThat(byteCompare)
           .as(
-              String.format(
-                  "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
-                  aBytesRaw,
-                  bBytesRaw,
-                  stringCompare,
-                  Arrays.toString(aBytes),
-                  Arrays.toString(bBytes),
-                  byteCompare))
+              "Ordering of strings should match ordering of bytes, %s ~ %s -> %s != %s ~ %s -> %s ",
+              aBytesRaw,
+              bBytesRaw,
+              stringCompare,
+              Arrays.toString(aBytes),
+              Arrays.toString(bBytes),
+              byteCompare)
           .isEqualTo(stringCompare);
     }
   }

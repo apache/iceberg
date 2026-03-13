@@ -25,7 +25,6 @@ import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.RemoveFile;
 import io.delta.standalone.exceptions.DeltaStandaloneException;
 import java.io.File;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -252,7 +251,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         for (AddFile addFile : initDataFiles) {
           DataFile dataFile = buildDataFileFromAction(addFile, transaction.table());
           filesToAdd.add(dataFile);
-          migratedDataFilesBuilder.add(dataFile.path().toString());
+          migratedDataFilesBuilder.add(dataFile.location());
         }
 
         // AppendFiles case
@@ -309,7 +308,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         throw new ValidationException(
             "The action %s's is unsupported", action.getClass().getSimpleName());
       }
-      migratedDataFilesBuilder.add(dataFile.path().toString());
+      migratedDataFilesBuilder.add(dataFile.location());
     }
 
     if (!filesToAdd.isEmpty() && !filesToRemove.isEmpty()) {
@@ -451,15 +450,11 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    */
   private static String getFullFilePath(String path, String tableRoot) {
     URI dataFileUri = URI.create(path);
-    try {
-      String decodedPath = URLDecoder.decode(path, StandardCharsets.UTF_8.name());
-      if (dataFileUri.isAbsolute()) {
-        return decodedPath;
-      } else {
-        return tableRoot + File.separator + decodedPath;
-      }
-    } catch (UnsupportedEncodingException e) {
-      throw new IllegalArgumentException(String.format("Cannot decode path %s", path), e);
+    String decodedPath = URLDecoder.decode(path, StandardCharsets.UTF_8);
+    if (dataFileUri.isAbsolute()) {
+      return decodedPath;
+    } else {
+      return tableRoot + File.separator + decodedPath;
     }
   }
 }

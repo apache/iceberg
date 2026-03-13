@@ -97,6 +97,21 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
    */
   ExpireSnapshots executeDeleteWith(ExecutorService executorService);
 
+  /**
+   * Expires unused table metadata such as partition specs and schemas.
+   *
+   * <p>Metadata such as partition specs or schemas that are no longer referenced by snapshots will
+   * be removed.
+   *
+   * <p>Identical to {@link org.apache.iceberg.ExpireSnapshots#cleanExpiredMetadata(boolean)}
+   *
+   * @param clean remove unused partition specs, schemas, or other metadata when true
+   * @return this for method chaining
+   */
+  default ExpireSnapshots cleanExpiredMetadata(boolean clean) {
+    throw new UnsupportedOperationException("cleanExpiredMetadata is not supported");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of deleted data files. */

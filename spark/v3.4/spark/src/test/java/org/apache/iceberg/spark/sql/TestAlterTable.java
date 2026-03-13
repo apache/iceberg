@@ -18,44 +18,43 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestAlterTable extends SparkCatalogTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestAlterTable extends CatalogTestBase {
   private final TableIdentifier renamedIdent =
       TableIdentifier.of(Namespace.of("default"), "table2");
 
-  public TestAlterTable(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+  @BeforeEach
   public void createTable() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s2", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testAddColumnNotNull() {
     assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN c3 INT NOT NULL", tableName))
         .isInstanceOf(SparkException.class)
@@ -63,7 +62,7 @@ public class TestAlterTable extends SparkCatalogTestBase {
             "Unsupported table change: Incompatible change: cannot add required column: c3");
   }
 
-  @Test
+  @TestTemplate
   public void testAddColumn() {
     sql(
         "ALTER TABLE %s ADD COLUMN point struct<x: double NOT NULL, y: double NOT NULL> AFTER id",
@@ -80,10 +79,9 @@ public class TestAlterTable extends SparkCatalogTestBase {
                     NestedField.required(5, "y", Types.DoubleType.get()))),
             NestedField.optional(2, "data", Types.StringType.get()));
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
 
     sql("ALTER TABLE %s ADD COLUMN point.z double COMMENT 'May be null' FIRST", tableName);
 
@@ -99,13 +97,12 @@ public class TestAlterTable extends SparkCatalogTestBase {
                     NestedField.required(5, "y", Types.DoubleType.get()))),
             NestedField.optional(2, "data", Types.StringType.get()));
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema2,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema2);
   }
 
-  @Test
+  @TestTemplate
   public void testAddColumnWithArray() {
     sql("ALTER TABLE %s ADD COLUMN data2 array<struct<a:INT,b:INT,c:int>>", tableName);
     // use the implicit column name 'element' to access member of array and add column d to struct.
@@ -124,13 +121,12 @@ public class TestAlterTable extends SparkCatalogTestBase {
                         NestedField.optional(6, "b", Types.IntegerType.get()),
                         NestedField.optional(7, "c", Types.IntegerType.get()),
                         NestedField.optional(8, "d", Types.IntegerType.get())))));
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
   }
 
-  @Test
+  @TestTemplate
   public void testAddColumnWithMap() {
     sql("ALTER TABLE %s ADD COLUMN data2 map<struct<x:INT>, struct<a:INT,b:INT>>", tableName);
     // use the implicit column name 'key' and 'value' to access member of map.
@@ -151,10 +147,9 @@ public class TestAlterTable extends SparkCatalogTestBase {
                         NestedField.optional(7, "a", Types.IntegerType.get()),
                         NestedField.optional(8, "b", Types.IntegerType.get()),
                         NestedField.optional(9, "c", Types.IntegerType.get())))));
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
 
     // should not allow changing map key column
     assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN data2.key.y int", tableName))
@@ -162,20 +157,29 @@ public class TestAlterTable extends SparkCatalogTestBase {
         .hasMessageStartingWith("Unsupported table change: Cannot add fields to map keys:");
   }
 
-  @Test
+  @TestTemplate
+  public void testAddColumnWithDefaultValuesUnsupported() throws InterruptedException {
+    assumeThat(catalogName).isNotEqualTo("spark_catalog");
+    assertThatThrownBy(
+            () -> sql("ALTER TABLE %s ADD COLUMN col_with_default int DEFAULT 123", tableName))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Cannot add column col_with_default since setting default values in Spark is currently unsupported");
+  }
+
+  @TestTemplate
   public void testDropColumn() {
     sql("ALTER TABLE %s DROP COLUMN data", tableName);
 
     Types.StructType expectedSchema =
         Types.StructType.of(NestedField.required(1, "id", Types.LongType.get()));
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
   }
 
-  @Test
+  @TestTemplate
   public void testRenameColumn() {
     sql("ALTER TABLE %s RENAME COLUMN id TO row_id", tableName);
 
@@ -184,13 +188,12 @@ public class TestAlterTable extends SparkCatalogTestBase {
             NestedField.required(1, "row_id", Types.LongType.get()),
             NestedField.optional(2, "data", Types.StringType.get()));
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
   }
 
-  @Test
+  @TestTemplate
   public void testAlterColumnComment() {
     sql("ALTER TABLE %s ALTER COLUMN id COMMENT 'Record id'", tableName);
 
@@ -199,13 +202,12 @@ public class TestAlterTable extends SparkCatalogTestBase {
             NestedField.required(1, "id", Types.LongType.get(), "Record id"),
             NestedField.optional(2, "data", Types.StringType.get()));
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
   }
 
-  @Test
+  @TestTemplate
   public void testAlterColumnType() {
     sql("ALTER TABLE %s ADD COLUMN count int", tableName);
     sql("ALTER TABLE %s ALTER COLUMN count TYPE bigint", tableName);
@@ -216,13 +218,12 @@ public class TestAlterTable extends SparkCatalogTestBase {
             NestedField.optional(2, "data", Types.StringType.get()),
             NestedField.optional(3, "count", Types.LongType.get()));
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
   }
 
-  @Test
+  @TestTemplate
   public void testAlterColumnDropNotNull() {
     sql("ALTER TABLE %s ALTER COLUMN id DROP NOT NULL", tableName);
 
@@ -231,13 +232,12 @@ public class TestAlterTable extends SparkCatalogTestBase {
             NestedField.optional(1, "id", Types.LongType.get()),
             NestedField.optional(2, "data", Types.StringType.get()));
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
   }
 
-  @Test
+  @TestTemplate
   public void testAlterColumnSetNotNull() {
     // no-op changes are allowed
     sql("ALTER TABLE %s ALTER COLUMN id SET NOT NULL", tableName);
@@ -247,17 +247,16 @@ public class TestAlterTable extends SparkCatalogTestBase {
             NestedField.required(1, "id", Types.LongType.get()),
             NestedField.optional(2, "data", Types.StringType.get()));
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
 
     assertThatThrownBy(() -> sql("ALTER TABLE %s ALTER COLUMN data SET NOT NULL", tableName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Cannot change nullable column to non-nullable: data");
   }
 
-  @Test
+  @TestTemplate
   public void testAlterColumnPositionAfter() {
     sql("ALTER TABLE %s ADD COLUMN count int", tableName);
     sql("ALTER TABLE %s ALTER COLUMN count AFTER id", tableName);
@@ -268,13 +267,12 @@ public class TestAlterTable extends SparkCatalogTestBase {
             NestedField.optional(3, "count", Types.IntegerType.get()),
             NestedField.optional(2, "data", Types.StringType.get()));
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
   }
 
-  @Test
+  @TestTemplate
   public void testAlterColumnPositionFirst() {
     sql("ALTER TABLE %s ADD COLUMN count int", tableName);
     sql("ALTER TABLE %s ALTER COLUMN count FIRST", tableName);
@@ -285,39 +283,47 @@ public class TestAlterTable extends SparkCatalogTestBase {
             NestedField.required(1, "id", Types.LongType.get()),
             NestedField.optional(2, "data", Types.StringType.get()));
 
-    Assert.assertEquals(
-        "Schema should match expected",
-        expectedSchema,
-        validationCatalog.loadTable(tableIdent).schema().asStruct());
+    assertThat(validationCatalog.loadTable(tableIdent).schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
   }
 
-  @Test
+  @TestTemplate
   public void testTableRename() {
-    Assume.assumeFalse(
-        "Hadoop catalog does not support rename", validationCatalog instanceof HadoopCatalog);
+    assumeThat(catalogConfig.get(ICEBERG_CATALOG_TYPE))
+        .as(
+            "need to fix https://github.com/apache/iceberg/issues/11154 before enabling this for the REST catalog")
+        .isNotEqualTo(ICEBERG_CATALOG_TYPE_REST);
+    assumeThat(validationCatalog)
+        .as("Hadoop catalog does not support rename")
+        .isNotInstanceOf(HadoopCatalog.class);
 
-    Assert.assertTrue("Initial name should exist", validationCatalog.tableExists(tableIdent));
-    Assert.assertFalse("New name should not exist", validationCatalog.tableExists(renamedIdent));
+    assertThat(validationCatalog.tableExists(tableIdent)).as("Initial name should exist").isTrue();
+    assertThat(validationCatalog.tableExists(renamedIdent))
+        .as("New name should not exist")
+        .isFalse();
 
     sql("ALTER TABLE %s RENAME TO %s2", tableName, tableName);
 
-    Assert.assertFalse("Initial name should not exist", validationCatalog.tableExists(tableIdent));
-    Assert.assertTrue("New name should exist", validationCatalog.tableExists(renamedIdent));
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Initial name should not exist")
+        .isFalse();
+    assertThat(validationCatalog.tableExists(renamedIdent)).as("New name should exist").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testSetTableProperties() {
     sql("ALTER TABLE %s SET TBLPROPERTIES ('prop'='value')", tableName);
 
-    assertThat(validationCatalog.loadTable(tableIdent).properties().get("prop"))
+    assertThat(validationCatalog.loadTable(tableIdent).properties())
         .as("Should have the new table property")
-        .isEqualTo("value");
+        .containsEntry("prop", "value");
 
     sql("ALTER TABLE %s UNSET TBLPROPERTIES ('prop')", tableName);
 
-    assertThat(validationCatalog.loadTable(tableIdent).properties().get("prop"))
+    assertThat(validationCatalog.loadTable(tableIdent).properties())
         .as("Should not have the removed table property")
-        .isNull();
+        .doesNotContainKey("prop");
 
     String[] reservedProperties = new String[] {"sort-order", "identifier-fields"};
     for (String reservedProp : reservedProperties) {

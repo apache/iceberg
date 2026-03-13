@@ -28,9 +28,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,10 +45,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestReplaceTransaction extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testReplaceTransactionWithCustomSortOrder() {
@@ -324,9 +317,6 @@ public class TestReplaceTransaction extends TestBase {
 
   @TestTemplate
   public void testReplaceToCreateAndAppend() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     // this table doesn't exist.
     Transaction replace = TestTables.beginReplace(tableDir, "test_append", SCHEMA, unpartitioned());
 
@@ -398,9 +388,6 @@ public class TestReplaceTransaction extends TestBase {
 
   @TestTemplate
   public void testCreateTransactionWithUnknownState() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     // this table doesn't exist.
     TestTables.TestTableOperations ops =
         TestTables.opsWithCommitSucceedButStateUnknown(tableDir, "test_append");

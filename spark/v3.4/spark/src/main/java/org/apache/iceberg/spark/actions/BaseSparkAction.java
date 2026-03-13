@@ -140,6 +140,11 @@ abstract class BaseSparkAction<ThisT> {
     return new BaseTable(ops, metadataFileLocation);
   }
 
+  protected Table newStaticTable(String metadataFileLocation, FileIO io) {
+    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io);
+    return new BaseTable(ops, metadataFileLocation);
+  }
+
   protected Dataset<FileInfo> contentFileDS(Table table) {
     return contentFileDS(table, null);
   }
@@ -157,7 +162,8 @@ abstract class BaseSparkAction<ThisT> {
                 "length",
                 "0 as sequenceNumber",
                 "partition_spec_id as partitionSpecId",
-                "added_snapshot_id as addedSnapshotId")
+                "added_snapshot_id as addedSnapshotId",
+                "key_metadata as keyMetadata")
             .dropDuplicates("path")
             .repartition(numShufflePartitions) // avoid adaptive execution combining tasks
             .as(ManifestFileBean.ENCODER);
@@ -433,7 +439,7 @@ abstract class BaseSparkAction<ThisT> {
     }
 
     static FileInfo toFileInfo(ContentFile<?> file) {
-      return new FileInfo(file.path().toString(), file.content().toString());
+      return new FileInfo(file.location(), file.content().toString());
     }
   }
 }

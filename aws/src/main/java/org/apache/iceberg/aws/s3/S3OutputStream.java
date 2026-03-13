@@ -217,7 +217,6 @@ class S3OutputStream extends PositionOutputStream {
 
     createStagingDirectoryIfNotExists();
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
-    currentStagingFile.deleteOnExit();
     try {
       currentPartMessageDigest =
           isChecksumEnabled ? MessageDigest.getInstance(DIGEST_ALGORITHM) : null;
@@ -481,7 +480,7 @@ class S3OutputStream extends PositionOutputStream {
     }
   }
 
-  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();

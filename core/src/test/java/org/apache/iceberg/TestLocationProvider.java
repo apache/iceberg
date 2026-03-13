@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.LocationProvider;
@@ -32,10 +31,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestLocationProvider extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   // publicly visible for testing to be dynamically loaded
   public static class TwoArgDynamicallyLoadedLocationProvider implements LocationProvider {
@@ -188,9 +183,8 @@ public class TestLocationProvider extends TestBase {
     assertThatThrownBy(() -> table.locationProvider())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Provided implementation for dynamic instantiation should implement %s.",
-                LocationProvider.class));
+            "Provided implementation for dynamic instantiation should implement %s.",
+            LocationProvider.class);
   }
 
   @TestTemplate
@@ -214,62 +208,44 @@ public class TestLocationProvider extends TestBase {
   }
 
   @TestTemplate
-  public void testObjectStorageLocationProviderPathResolution() {
-    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
-
-    assertThat(table.locationProvider().newDataLocation("file"))
-        .as("default data location should be used when object storage path not set")
-        .contains(table.location() + "/data");
-
-    String folderPath = "s3://random/folder/location";
+  public void testObjectStorageLocationProviderThrowOnDeprecatedProperties() {
+    String objectPath = "s3://random/object/location";
     table
         .updateProperties()
-        .set(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, folderPath)
+        .set(TableProperties.OBJECT_STORE_ENABLED, "true")
+        .set(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, objectPath)
         .commit();
 
-    assertThat(table.locationProvider().newDataLocation("file"))
-        .as("folder storage path should be used when set")
-        .contains(folderPath);
+    assertThatThrownBy(() -> table.locationProvider().newDataLocation("file"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Property 'write.folder-storage.path' has been deprecated and will be removed in 2.0.0, use 'write.data.path' instead.");
 
-    String objectPath = "s3://random/object/location";
-    table.updateProperties().set(TableProperties.OBJECT_STORE_PATH, objectPath).commit();
+    table
+        .updateProperties()
+        .set(TableProperties.OBJECT_STORE_PATH, objectPath)
+        .remove(TableProperties.WRITE_FOLDER_STORAGE_LOCATION)
+        .commit();
 
-    assertThat(table.locationProvider().newDataLocation("file"))
-        .as("object storage path should be used when set")
-        .contains(objectPath);
-
-    String dataPath = "s3://random/data/location";
-    table.updateProperties().set(TableProperties.WRITE_DATA_LOCATION, dataPath).commit();
-
-    assertThat(table.locationProvider().newDataLocation("file"))
-        .as("write data path should be used when set")
-        .contains(dataPath);
+    assertThatThrownBy(() -> table.locationProvider().newDataLocation("file"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Property 'write.object-storage.path' has been deprecated and will be removed in 2.0.0, use 'write.data.path' instead.");
   }
 
   @TestTemplate
-  public void testDefaultStorageLocationProviderPathResolution() {
-    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "false").commit();
-
-    assertThat(table.locationProvider().newDataLocation("file"))
-        .as("default data location should be used when object storage path not set")
-        .contains(table.location() + "/data");
-
+  public void testDefaultStorageLocationProviderThrowOnDeprecatedProperties() {
     String folderPath = "s3://random/folder/location";
     table
         .updateProperties()
+        .set(TableProperties.OBJECT_STORE_ENABLED, "false")
         .set(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, folderPath)
         .commit();
 
-    assertThat(table.locationProvider().newDataLocation("file"))
-        .as("folder storage path should be used when set")
-        .contains(folderPath);
-
-    String dataPath = "s3://random/data/location";
-    table.updateProperties().set(TableProperties.WRITE_DATA_LOCATION, dataPath).commit();
-
-    assertThat(table.locationProvider().newDataLocation("file"))
-        .as("write data path should be used when set")
-        .contains(dataPath);
+    assertThatThrownBy(() -> table.locationProvider().newDataLocation("file"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Property 'write.folder-storage.path' has been deprecated and will be removed in 2.0.0, use 'write.data.path' instead.");
   }
 
   @TestTemplate
@@ -279,12 +255,12 @@ public class TestLocationProvider extends TestBase {
     String fileLocation = table.locationProvider().newDataLocation("test.parquet");
     String relativeLocation = fileLocation.replaceFirst(table.location(), "");
     List<String> parts = Splitter.on("/").splitToList(relativeLocation);
-
-    assertThat(parts).hasSize(4);
+    assertThat(parts).hasSize(7);
     assertThat(parts).first().asString().isEmpty();
     assertThat(parts).element(1).asString().isEqualTo("data");
-    assertThat(parts).element(2).asString().isNotEmpty();
-    assertThat(parts).element(3).asString().isEqualTo("test.parquet");
+    // entropy dirs in the middle
+    assertThat(parts).elements(2, 3, 4, 5).asString().isNotEmpty();
+    assertThat(parts).element(6).asString().isEqualTo("test.parquet");
   }
 
   @TestTemplate
@@ -303,5 +279,36 @@ public class TestLocationProvider extends TestBase {
     String partitionString = parts.get(parts.size() - 2);
 
     assertThat(partitionString).isEqualTo("data%231=val%231");
+  }
+
+  @TestTemplate
+  public void testExcludePartitionInPath() {
+    // Update the table to use a string field for partitioning with special characters in the name
+    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_OBJECT_STORE_PARTITIONED_PATHS, "false")
+        .commit();
+
+    // Use a partition value that has a special character
+    StructLike partitionData = TestHelpers.CustomRow.of(0, "val");
+    String fileLocation =
+        table.locationProvider().newDataLocation(table.spec(), partitionData, "test.parquet");
+
+    // no partition values included in the path and last part of entropy is seperated with "-"
+    assertThat(fileLocation).endsWith("/data/0110/1010/0011/11101000-test.parquet");
+  }
+
+  @TestTemplate
+  public void testHashInjection() {
+    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
+    assertThat(table.locationProvider().newDataLocation("a"))
+        .endsWith("/data/0101/0110/1001/10110010/a");
+    assertThat(table.locationProvider().newDataLocation("b"))
+        .endsWith("/data/1110/0111/1110/00000011/b");
+    assertThat(table.locationProvider().newDataLocation("c"))
+        .endsWith("/data/0010/1101/0110/01011111/c");
+    assertThat(table.locationProvider().newDataLocation("d"))
+        .endsWith("/data/1001/0001/0100/01110011/d");
   }
 }

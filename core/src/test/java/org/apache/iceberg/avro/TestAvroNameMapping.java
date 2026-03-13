@@ -343,6 +343,23 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
   }
 
   @Test
+  public void testVariantNameMapping() {
+    Schema icebergSchema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.required(1, "var", Types.VariantType.get()));
+
+    org.apache.avro.Schema avroSchema = RemoveIds.removeIds(icebergSchema);
+    assertThat(AvroSchemaUtil.hasIds(avroSchema)).as("Expect schema has no ids").isFalse();
+
+    NameMapping nameMapping =
+        NameMapping.of(
+            MappedField.of(0, ImmutableList.of("id")), MappedField.of(1, ImmutableList.of("var")));
+    org.apache.avro.Schema mappedSchema = AvroSchemaUtil.applyNameMapping(avroSchema, nameMapping);
+    assertThat(mappedSchema).isEqualTo(AvroSchemaUtil.convert(icebergSchema.asStruct(), "table"));
+  }
+
+  @Test
   @Override
   public void testAvroArrayAsLogicalMap() {
     // no-op

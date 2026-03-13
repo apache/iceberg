@@ -47,6 +47,28 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
   RowDelta addDeletes(DeleteFile deletes);
 
   /**
+   * Remove a {@link DataFile} from the table.
+   *
+   * @param file a data file
+   * @return this for method chaining
+   */
+  default RowDelta removeRows(DataFile file) {
+    throw new UnsupportedOperationException(
+        getClass().getName() + " does not implement removeRows");
+  }
+
+  /**
+   * Removes a rewritten {@link DeleteFile} from the table.
+   *
+   * @param deletes a delete file that can be removed from the table
+   * @return this for method chaining
+   */
+  default RowDelta removeDeletes(DeleteFile deletes) {
+    throw new UnsupportedOperationException(
+        getClass().getName() + " does not implement removeDeletes");
+  }
+
+  /**
    * Set the snapshot ID used in any reads for this operation.
    *
    * <p>Validations will check changes after this snapshot ID. If the from snapshot is not set, all

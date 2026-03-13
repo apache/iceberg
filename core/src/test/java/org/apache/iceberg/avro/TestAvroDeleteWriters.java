@@ -33,8 +33,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -102,7 +102,10 @@ public class TestAvroDeleteWriters {
 
     List<Record> deletedRecords;
     try (AvroIterable<Record> reader =
-        Avro.read(out.toInputFile()).project(SCHEMA).createReaderFunc(DataReader::create).build()) {
+        Avro.read(out.toInputFile())
+            .project(SCHEMA)
+            .createResolvingReader(PlannedDataReader::create)
+            .build()) {
       deletedRecords = Lists.newArrayList(reader);
     }
 
@@ -158,7 +161,7 @@ public class TestAvroDeleteWriters {
     try (AvroIterable<Record> reader =
         Avro.read(out.toInputFile())
             .project(deleteSchema)
-            .createReaderFunc(DataReader::create)
+            .createResolvingReader(PlannedDataReader::create)
             .build()) {
       deletedRecords = Lists.newArrayList(reader);
     }
@@ -212,7 +215,7 @@ public class TestAvroDeleteWriters {
     try (AvroIterable<Record> reader =
         Avro.read(out.toInputFile())
             .project(deleteSchema)
-            .createReaderFunc(DataReader::create)
+            .createResolvingReader(PlannedDataReader::create)
             .build()) {
       deletedRecords = Lists.newArrayList(reader);
     }

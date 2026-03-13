@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.io;
 
+import java.util.Locale;
+
 public class BulkDeletionFailureException extends RuntimeException {
   private final int numberFailedObjects;
 
   public BulkDeletionFailureException(int numberFailedObjects) {
-    super(String.format("Failed to delete %d files", numberFailedObjects));
+    super(String.format(Locale.ROOT, "Failed to delete %d files", numberFailedObjects));
     this.numberFailedObjects = numberFailedObjects;
   }
 

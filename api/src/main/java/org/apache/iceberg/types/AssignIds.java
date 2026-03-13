@@ -56,11 +56,7 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
       Type type = types.next();
-      if (field.isOptional()) {
-        newFields.add(Types.NestedField.optional(newIds.get(i), field.name(), type, field.doc()));
-      } else {
-        newFields.add(Types.NestedField.required(newIds.get(i), field.name(), type, field.doc()));
-      }
+      newFields.add(Types.NestedField.from(field).withId(newIds.get(i)).ofType(type).build());
     }
 
     return Types.StructType.of(newFields);
@@ -90,6 +86,11 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     } else {
       return Types.MapType.ofRequired(newKeyId, newValueId, keyFuture.get(), valueFuture.get());
     }
+  }
+
+  @Override
+  public Type variant(Types.VariantType variant) {
+    return variant;
   }
 
   @Override

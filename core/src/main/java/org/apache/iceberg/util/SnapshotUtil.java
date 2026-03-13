@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Function;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Schema;
@@ -31,6 +32,7 @@ import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -281,6 +283,11 @@ public class SnapshotUtil {
     return Iterables.transform(snapshots, Snapshot::snapshotId);
   }
 
+  /**
+   * @deprecated will be removed in 1.12.0, use {@link #newFilesBetween(Long, long, Function,
+   *     FileIO)} instead.
+   */
+  @Deprecated
   public static List<DataFile> newFiles(
       Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
     List<DataFile> newFiles = Lists.newArrayList();
@@ -301,6 +308,34 @@ public class SnapshotUtil {
         lastSnapshot.snapshotId());
 
     return newFiles;
+  }
+
+  public static CloseableIterable<DataFile> newFilesBetween(
+      Long startSnapshotId, long endSnapshotId, Function<Long, Snapshot> lookup, FileIO io) {
+
+    List<Snapshot> snapshots = Lists.newArrayList();
+    Snapshot lastSnapshot = null;
+    for (Snapshot currentSnapshot : ancestorsOf(endSnapshotId, lookup)) {
+      lastSnapshot = currentSnapshot;
+      if (Objects.equals(currentSnapshot.snapshotId(), startSnapshotId)) {
+        break;
+      }
+
+      snapshots.add(currentSnapshot);
+    }
+
+    if (lastSnapshot != null) {
+      ValidationException.check(
+          Objects.equals(lastSnapshot.snapshotId(), startSnapshotId)
+              || Objects.equals(lastSnapshot.parentId(), startSnapshotId),
+          "Cannot determine history between read snapshot %s and the last known ancestor %s",
+          startSnapshotId,
+          lastSnapshot.snapshotId());
+    }
+
+    return new ParallelIterable<>(
+        Iterables.transform(snapshots, snapshot -> snapshot.addedDataFiles(io)),
+        ThreadPools.getWorkerPool());
   }
 
   /**
@@ -361,11 +396,18 @@ public class SnapshotUtil {
   /**
    * Returns the schema of the table for the specified snapshot.
    *
+   * <p>Note that metadata tables may support time travel but don't inherit the snapshot schema,
+   * unlike normal data scans.
+   *
    * @param table a {@link Table}
    * @param snapshotId the ID of the snapshot
    * @return the schema
    */
   public static Schema schemaFor(Table table, long snapshotId) {
+    if (table instanceof BaseMetadataTable) {
+      return table.schema();
+    }
+
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Cannot find snapshot with ID %s", snapshotId);
     Integer schemaId = snapshot.schemaId();

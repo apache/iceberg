@@ -25,9 +25,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -82,11 +83,12 @@ public class TestDeleteFiles extends TestBase {
 
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {1, "main"},
-        new Object[] {1, "testBranch"},
-        new Object[] {2, "main"},
-        new Object[] {2, "testBranch"});
+    return TestHelpers.ALL_VERSIONS.stream()
+        .flatMap(
+            v ->
+                Stream.of(
+                    new Object[] {v, SnapshotRef.MAIN_BRANCH}, new Object[] {v, "testBranch"}))
+        .collect(Collectors.toList());
   }
 
   @TestTemplate
@@ -95,6 +97,10 @@ public class TestDeleteFiles extends TestBase {
         table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C), branch);
     Snapshot append = latestSnapshot(readMetadata(), branch);
     assertThat(version()).isEqualTo(1);
+    assertThat(append.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
     validateSnapshot(null, append, FILE_A, FILE_B, FILE_C);
 
     commit(table, table.newDelete().deleteFile(FILE_A), branch);
@@ -102,6 +108,11 @@ public class TestDeleteFiles extends TestBase {
 
     assertThat(version()).isEqualTo(2);
     assertThat(delete1.allManifests(FILE_IO)).hasSize(1);
+    // delete rewrites manifest: 1 created, 0 kept, 1 replaced
+    assertThat(delete1.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
     validateManifestEntries(
         delete1.allManifests(table.io()).get(0),
         ids(delete1.snapshotId(), append.snapshotId(), append.snapshotId()),
@@ -111,6 +122,11 @@ public class TestDeleteFiles extends TestBase {
     Snapshot delete2 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
     assertThat(version()).isEqualTo(3);
     assertThat(delete2.allManifests(FILE_IO)).hasSize(1);
+    // second delete rewrites manifest: 1 created, 0 kept, 1 replaced
+    assertThat(delete2.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
     validateManifestEntries(
         delete2.allManifests(FILE_IO).get(0),
         ids(delete2.snapshotId(), append.snapshotId()),
@@ -164,6 +180,10 @@ public class TestDeleteFiles extends TestBase {
             branch);
 
     assertThat(initialSnapshot.allManifests(FILE_IO)).hasSize(1);
+    assertThat(initialSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
     validateManifestEntries(
         initialSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
@@ -173,6 +193,10 @@ public class TestDeleteFiles extends TestBase {
     // delete the first data file
     Snapshot deleteSnapshot = commit(table, table.newDelete().deleteFile(firstDataFile), branch);
     assertThat(deleteSnapshot.allManifests(FILE_IO)).hasSize(1);
+    assertThat(deleteSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
     validateManifestEntries(
         deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(deleteSnapshot.snapshotId(), initialSnapshot.snapshotId()),
@@ -185,6 +209,10 @@ public class TestDeleteFiles extends TestBase {
         commit(table, table.newDelete().deleteFromRowFilter(Expressions.lessThan("id", 7)), branch);
 
     assertThat(finalSnapshot.allManifests(FILE_IO)).hasSize(1);
+    assertThat(finalSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
     validateManifestEntries(
         finalSnapshot.allManifests(FILE_IO).get(0),
         ids(finalSnapshot.snapshotId()),
@@ -205,6 +233,10 @@ public class TestDeleteFiles extends TestBase {
             branch);
 
     assertThat(initialSnapshot.allManifests(FILE_IO)).hasSize(1);
+    assertThat(initialSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
     validateManifestEntries(
         initialSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
@@ -217,6 +249,10 @@ public class TestDeleteFiles extends TestBase {
             table, table.newDelete().deleteFromRowFilter(Expressions.greaterThan("id", 5)), branch);
 
     assertThat(deleteSnapshot.allManifests(FILE_IO)).hasSize(1);
+    assertThat(deleteSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
     validateManifestEntries(
         deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
@@ -237,6 +273,10 @@ public class TestDeleteFiles extends TestBase {
             branch);
 
     assertThat(initialSnapshot.allManifests(FILE_IO)).hasSize(1);
+    assertThat(initialSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
     validateManifestEntries(
         initialSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), initialSnapshot.snapshotId()),
@@ -250,6 +290,10 @@ public class TestDeleteFiles extends TestBase {
     Snapshot deleteSnapshot =
         commit(table, table.newDelete().deleteFromRowFilter(predicate), branch);
     assertThat(deleteSnapshot.allManifests(FILE_IO)).hasSize(1);
+    assertThat(deleteSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
     validateManifestEntries(
         deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(initialSnapshot.snapshotId(), deleteSnapshot.snapshotId()),
@@ -291,7 +335,12 @@ public class TestDeleteFiles extends TestBase {
 
   @TestTemplate
   public void testDeleteCaseSensitivity() {
-    commit(table, table.newFastAppend().appendFile(DATA_FILE_BUCKET_0_IDS_0_2), branch);
+    Snapshot append =
+        commit(table, table.newFastAppend().appendFile(DATA_FILE_BUCKET_0_IDS_0_2), branch);
+    assertThat(append.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
 
     Expression rowFilter = Expressions.lessThan("iD", 5);
 
@@ -314,6 +363,10 @@ public class TestDeleteFiles extends TestBase {
             table, table.newDelete().deleteFromRowFilter(rowFilter).caseSensitive(false), branch);
 
     assertThat(deleteSnapshot.allManifests(FILE_IO)).hasSize(1);
+    assertThat(deleteSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
     validateManifestEntries(
         deleteSnapshot.allManifests(FILE_IO).get(0),
         ids(deleteSnapshot.snapshotId()),
@@ -326,13 +379,26 @@ public class TestDeleteFiles extends TestBase {
     String testBranch = "testBranch";
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
     Snapshot initialSnapshot = table.currentSnapshot();
+    assertThat(initialSnapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
+
     // Delete A on test branch
     table.newDelete().deleteFile(FILE_A).toBranch(testBranch).commit();
     Snapshot testBranchTip = table.snapshot(testBranch);
+    assertThat(testBranchTip.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
 
     // Delete B and C on main
     table.newDelete().deleteFile(FILE_B).deleteFile(FILE_C).commit();
     Snapshot delete2 = table.currentSnapshot();
+    assertThat(delete2.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
 
     // Verify B and C on testBranch
     validateManifestEntries(
@@ -351,7 +417,7 @@ public class TestDeleteFiles extends TestBase {
 
   @TestTemplate
   public void testDeleteWithCollision() {
-    Schema schema = new Schema(Types.NestedField.of(0, false, "x", Types.StringType.get()));
+    Schema schema = new Schema(Types.NestedField.required(0, "x", Types.StringType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").build();
     Table collisionTable =
         TestTables.create(tableDir, "hashcollision", schema, spec, formatVersion);
@@ -401,9 +467,18 @@ public class TestDeleteFiles extends TestBase {
 
   @TestTemplate
   public void testDeleteValidateFileExistence() {
-    commit(table, table.newFastAppend().appendFile(FILE_B), branch);
+    Snapshot append = commit(table, table.newFastAppend().appendFile(FILE_B), branch);
+    assertThat(append.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
+
     Snapshot delete =
         commit(table, table.newDelete().deleteFile(FILE_B).validateFilesExist(), branch);
+    assertThat(delete.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
     validateManifestEntries(
         Iterables.getOnlyElement(delete.allManifests(FILE_IO)),
         ids(delete.snapshotId()),
@@ -412,22 +487,184 @@ public class TestDeleteFiles extends TestBase {
 
     assertThatThrownBy(
             () -> commit(table, table.newDelete().deleteFile(FILE_B).validateFilesExist(), branch))
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/data-b.parquet");
+
+    assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newDelete()
+                        .deleteFile("/path/to/non-existing.parquet")
+                        .validateFilesExist(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/non-existing.parquet");
   }
 
   @TestTemplate
   public void testDeleteFilesNoValidation() {
-    commit(table, table.newFastAppend().appendFile(FILE_B), branch);
+    Snapshot append = commit(table, table.newFastAppend().appendFile(FILE_B), branch);
+    assertThat(append.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
+
     Snapshot delete1 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
+    assertThat(delete1.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "1");
     validateManifestEntries(
         Iterables.getOnlyElement(delete1.allManifests(FILE_IO)),
         ids(delete1.snapshotId()),
         files(FILE_B),
         statuses(Status.DELETED));
 
+    // deleting already deleted file results in no manifest changes
     Snapshot delete2 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
+    assertThat(delete2.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
     assertThat(delete2.allManifests(FILE_IO)).isEmpty();
-    assertThat(delete2.removedDataFiles(FILE_IO)).isEmpty();
+    assertThat(SnapshotChanges.builderFor(table).snapshot(delete2).build().removedDataFiles())
+        .isEmpty();
+  }
+
+  @Test
+  public void testRequiredFieldsForDV() {
+    FileMetadata.Builder builder =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withFormat(FileFormat.PUFFIN)
+            .withPath("/path/to/data-d-deletes.puffin")
+            .withFileSizeInBytes(4)
+            .withRecordCount(4);
+
+    assertThatThrownBy(builder::build)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Content offset is required for DV");
+
+    builder.withContentOffset(1);
+    assertThatThrownBy(builder::build)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Content size is required for DV");
+
+    builder.withContentSizeInBytes(10);
+    assertThatThrownBy(builder::build)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Referenced data file is required for DV");
+  }
+
+  @TestTemplate
+  public void removingDataFileByExpressionAlsoRemovesDV() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    DeleteFile dv1 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-1-deletes.puffin")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(5)
+            .withReferencedDataFile(DATA_FILE_BUCKET_0_IDS_0_2.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    DeleteFile dv2 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-2-deletes.puffin")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(5)
+            .withReferencedDataFile(DATA_FILE_BUCKET_0_IDS_8_10.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(DATA_FILE_BUCKET_0_IDS_0_2)
+            .addRows(DATA_FILE_BUCKET_0_IDS_8_10)
+            .addDeletes(dv1)
+            .addDeletes(dv2),
+        branch);
+
+    Snapshot snapshot = latestSnapshot(table, branch);
+    assertThat(snapshot.sequenceNumber()).isEqualTo(1);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
+    assertThat(snapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
+
+    // deleting by row filter should also remove the orphaned dv1 from delete manifests
+    commit(table, table.newDelete().deleteFromRowFilter(Expressions.lessThan("id", 5)), branch);
+
+    Snapshot deleteSnap = latestSnapshot(table, branch);
+    assertThat(deleteSnap.sequenceNumber()).isEqualTo(2);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
+    assertThat(deleteSnap.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "2");
+
+    assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
+    validateDeleteManifest(
+        deleteSnap.deleteManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(deleteSnap.snapshotId(), snapshot.snapshotId()),
+        files(dv1, dv2),
+        statuses(ManifestEntry.Status.DELETED, Status.EXISTING));
+  }
+
+  @TestTemplate
+  public void removingDataFileByPathAlsoRemovesDV() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .addRows(FILE_A)
+            .addRows(FILE_B)
+            .addDeletes(fileADeletes())
+            .addDeletes(fileBDeletes()),
+        branch);
+
+    Snapshot snapshot = latestSnapshot(table, branch);
+    assertThat(snapshot.sequenceNumber()).isEqualTo(1);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
+    assertThat(snapshot.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0");
+
+    // deleting by path should also remove the orphaned DV for fileA from delete manifests
+    commit(table, table.newDelete().deleteFile(FILE_A.location()), branch);
+
+    Snapshot deleteSnap = latestSnapshot(table, branch);
+    assertThat(deleteSnap.sequenceNumber()).isEqualTo(2);
+    assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(2);
+    // delete rewrites both data and delete manifests
+    assertThat(deleteSnap.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "2");
+
+    assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
+    validateDeleteManifest(
+        deleteSnap.deleteManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(deleteSnap.snapshotId(), snapshot.snapshotId()),
+        files(fileADeletes(), fileBDeletes()),
+        statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
   }
 
   private static ByteBuffer longToBuffer(long value) {

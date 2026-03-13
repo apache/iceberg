@@ -18,30 +18,61 @@
  */
 package org.apache.iceberg.encryption;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.SerializableMap;
 
 public class StandardEncryptionManager implements EncryptionManager {
-  private final transient KeyManagementClient kmsClient;
+  // Maximal lifespan of key encryption keys is 2 years according to NIST SP 800-57 (PART 1 REV. 5,
+  // section 5.3.6.7.b)
+  private static final long KEY_ENCRYPTION_KEY_LIFESPAN_MS = TimeUnit.DAYS.toMillis(730);
+  static final String KEY_TIMESTAMP = "KEY_TIMESTAMP";
+
   private final String tableKeyId;
   private final int dataKeyLength;
+  private final Map<String, EncryptedKey> encryptionKeys;
+  private final KeyManagementClient kmsClient;
 
+  // used in key encryption key rotation unitests
+  private long testTimeShift;
+
+  private transient volatile LoadingCache<String, ByteBuffer> unwrappedKeyCache;
   private transient volatile SecureRandom lazyRNG = null;
 
   /**
+   * @deprecated will be removed in 1.12.0.
+   */
+  @Deprecated
+  public StandardEncryptionManager(
+      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
+    this(List.of(), tableKeyId, dataKeyLength, kmsClient);
+  }
+
+  /**
+   * @param keys encryption keys from table metadata
    * @param tableKeyId table encryption key id
    * @param dataKeyLength length of data encryption key (16/24/32 bytes)
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
    */
   public StandardEncryptionManager(
-      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
+      List<EncryptedKey> keys,
+      String tableKeyId,
+      int dataKeyLength,
+      KeyManagementClient kmsClient) {
     Preconditions.checkNotNull(tableKeyId, "Invalid encryption key ID: null");
     Preconditions.checkArgument(
         dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
@@ -51,6 +82,17 @@ public class StandardEncryptionManager implements EncryptionManager {
     this.tableKeyId = tableKeyId;
     this.kmsClient = kmsClient;
     this.dataKeyLength = dataKeyLength;
+    this.testTimeShift = 0;
+
+    this.encryptionKeys = SerializableMap.copyOf(Maps.newLinkedHashMap());
+    if (keys != null) {
+      for (EncryptedKey key : keys) {
+        this.encryptionKeys.put(
+            key.keyId(),
+            new BaseEncryptedKey(
+                key.keyId(), key.encryptedKeyMetadata(), key.encryptedById(), key.properties()));
+      }
+    }
   }
 
   @Override
@@ -73,6 +115,20 @@ public class StandardEncryptionManager implements EncryptionManager {
     return Iterables.transform(encrypted, this::decrypt);
   }
 
+  private LoadingCache<String, ByteBuffer> unwrappedKeyCache() {
+    if (this.unwrappedKeyCache == null) {
+      this.unwrappedKeyCache =
+          Caffeine.newBuilder()
+              .expireAfterWrite(1, TimeUnit.HOURS)
+              .build(
+                  keyId ->
+                      kmsClient.unwrapKey(
+                          encryptionKeys.get(keyId).encryptedKeyMetadata(), tableKeyId));
+    }
+
+    return unwrappedKeyCache;
+  }
+
   private SecureRandom workerRNG() {
     if (this.lazyRNG == null) {
       this.lazyRNG = new SecureRandom();
@@ -81,22 +137,104 @@ public class StandardEncryptionManager implements EncryptionManager {
     return lazyRNG;
   }
 
+  /**
+   * @deprecated will be removed in 1.12.0.
+   */
+  @Deprecated
   public ByteBuffer wrapKey(ByteBuffer secretKey) {
-    if (kmsClient == null) {
-      throw new IllegalStateException(
-          "Cannot wrap key after called after serialization (missing KMS client)");
-    }
-
     return kmsClient.wrapKey(secretKey, tableKeyId);
   }
 
+  /**
+   * @deprecated will be removed in 1.12.0.
+   */
+  @Deprecated
   public ByteBuffer unwrapKey(ByteBuffer wrappedSecretKey) {
-    if (kmsClient == null) {
-      throw new IllegalStateException(
-          "Cannot wrap key after called after serialization (missing KMS client)");
+    return kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
+  }
+
+  Map<String, EncryptedKey> encryptionKeys() {
+    return encryptionKeys;
+  }
+
+  String keyEncryptionKeyID() {
+    // Find unexpired key encryption key
+    for (String keyID : encryptionKeys.keySet()) {
+      EncryptedKey key = encryptionKeys.get(keyID);
+      if (key.encryptedById().equals(tableKeyId)) { // this is a key encryption key
+        String timestampProperty = key.properties().get(KEY_TIMESTAMP);
+        long keyTimestamp = Long.parseLong(timestampProperty);
+        if (currentTimeMillis() - keyTimestamp < KEY_ENCRYPTION_KEY_LIFESPAN_MS) {
+          return keyID;
+        }
+      }
     }
 
-    return kmsClient.unwrapKey(wrappedSecretKey, tableKeyId);
+    // No unexpired key encryption keys; create one
+    ByteBuffer unwrapped = newKey();
+    ByteBuffer wrapped = kmsClient.wrapKey(unwrapped, tableKeyId);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(KEY_TIMESTAMP, "" + currentTimeMillis());
+    EncryptedKey key = new BaseEncryptedKey(generateKeyId(), wrapped, tableKeyId, properties);
+
+    // update internal tracking
+    unwrappedKeyCache().put(key.keyId(), unwrapped);
+    encryptionKeys.put(key.keyId(), key);
+
+    return key.keyId();
+  }
+
+  // For key rotation tests
+  void setTestTimeShift(long shift) {
+    testTimeShift = shift;
+  }
+
+  private long currentTimeMillis() {
+    return System.currentTimeMillis() + testTimeShift;
+  }
+
+  ByteBuffer encryptedByKey(String manifestListKeyID) {
+    EncryptedKey encryptedKeyMetadata = encryptionKeys.get(manifestListKeyID);
+
+    Preconditions.checkState(
+        encryptedKeyMetadata != null,
+        "Cannot find manifest list key metadata with id %s",
+        manifestListKeyID);
+
+    Preconditions.checkArgument(
+        !encryptedKeyMetadata.encryptedById().equals(tableKeyId),
+        "%s is a key encryption key, not manifest list key metadata",
+        manifestListKeyID);
+
+    return unwrappedKeyCache().get(encryptedKeyMetadata.encryptedById());
+  }
+
+  public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
+    String manifestListKeyID = generateKeyId();
+    String keyEncryptionKeyID = keyEncryptionKeyID();
+    String keyEncryptionKeyTimestamp =
+        encryptionKeys.get(keyEncryptionKeyID).properties().get(KEY_TIMESTAMP);
+    ByteBuffer encryptedKeyMetadata =
+        EncryptionUtil.encryptManifestListKeyMetadata(
+            unwrappedKeyCache().get(keyEncryptionKeyID), keyEncryptionKeyTimestamp, keyMetadata);
+    BaseEncryptedKey key =
+        new BaseEncryptedKey(manifestListKeyID, encryptedKeyMetadata, keyEncryptionKeyID, null);
+
+    encryptionKeys.put(key.keyId(), key);
+
+    return manifestListKeyID;
+  }
+
+  private String generateKeyId() {
+    byte[] idBytes = new byte[16];
+    workerRNG().nextBytes(idBytes);
+    return Base64.getEncoder().encodeToString(idBytes);
+  }
+
+  private ByteBuffer newKey() {
+    byte[] newKey = new byte[dataKeyLength];
+    workerRNG().nextBytes(newKey);
+    return ByteBuffer.wrap(newKey);
   }
 
   private class StandardEncryptedOutputFile implements NativeEncryptionOutputFile {
@@ -173,7 +311,8 @@ public class StandardEncryptionManager implements EncryptionManager {
             new AesGcmInputFile(
                 encryptedInputFile.encryptedInputFile(),
                 ByteBuffers.toByteArray(keyMetadata().encryptionKey()),
-                ByteBuffers.toByteArray(keyMetadata().aadPrefix()));
+                ByteBuffers.toByteArray(keyMetadata().aadPrefix()),
+                keyMetadata().fileLength());
       }
 
       return lazyDecryptedInputFile;

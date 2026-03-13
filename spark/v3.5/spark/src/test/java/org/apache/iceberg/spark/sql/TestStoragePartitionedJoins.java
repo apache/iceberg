@@ -616,7 +616,7 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
             + "FROM %s t1 "
             + "INNER JOIN %s t2 "
             + "ON t1.id = t2.id AND t1.%s = t2.%s "
-            + "ORDER BY t1.id, t1.%s",
+            + "ORDER BY t1.id, t1.%s, t1.salary",
         sourceColumnName,
         tableName,
         tableName(OTHER_TABLE_NAME),

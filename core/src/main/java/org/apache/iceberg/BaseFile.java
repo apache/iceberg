@@ -30,8 +30,8 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -39,7 +39,7 @@ import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.SerializableMap;
 
 /** Base class for both {@link DataFile} and {@link DeleteFile}. */
-abstract class BaseFile<F>
+abstract class BaseFile<F> extends SupportsIndexProjection
     implements ContentFile<F>,
         IndexedRecord,
         StructLike,
@@ -55,7 +55,6 @@ abstract class BaseFile<F>
         }
       };
 
-  private int[] fromProjectionPos;
   private Types.StructType partitionType;
 
   private Long fileOrdinal = null;
@@ -81,42 +80,61 @@ abstract class BaseFile<F>
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
   private Integer sortOrderId;
+  private Long firstRowId = null;
+  private String referencedDataFile = null;
+  private Long contentOffset = null;
+  private Long contentSizeInBytes = null;
 
   // cached schema
   private transient Schema avroSchema = null;
 
+  // struct type that corresponds to the positions used for internalGet and internalSet
+  private static final Types.StructType BASE_TYPE =
+      Types.StructType.of(
+          DataFile.CONTENT,
+          DataFile.FILE_PATH,
+          DataFile.FILE_FORMAT,
+          DataFile.SPEC_ID,
+          Types.NestedField.required(
+              DataFile.PARTITION_ID,
+              DataFile.PARTITION_NAME,
+              EMPTY_STRUCT_TYPE,
+              DataFile.PARTITION_DOC),
+          DataFile.RECORD_COUNT,
+          DataFile.FILE_SIZE,
+          DataFile.COLUMN_SIZES,
+          DataFile.VALUE_COUNTS,
+          DataFile.NULL_VALUE_COUNTS,
+          DataFile.NAN_VALUE_COUNTS,
+          DataFile.LOWER_BOUNDS,
+          DataFile.UPPER_BOUNDS,
+          DataFile.KEY_METADATA,
+          DataFile.SPLIT_OFFSETS,
+          DataFile.EQUALITY_IDS,
+          DataFile.SORT_ORDER_ID,
+          DataFile.FIRST_ROW_ID,
+          DataFile.REFERENCED_DATA_FILE,
+          DataFile.CONTENT_OFFSET,
+          DataFile.CONTENT_SIZE,
+          MetadataColumns.ROW_POSITION);
+
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   BaseFile(Schema avroSchema) {
+    this(AvroSchemaUtil.convert(avroSchema).asStructType());
     this.avroSchema = avroSchema;
+  }
 
-    Types.StructType schema = AvroSchemaUtil.convert(avroSchema).asNestedType().asStructType();
+  /** Used by internal readers to instantiate this class with a projection schema. */
+  BaseFile(Types.StructType projection) {
+    super(BASE_TYPE, projection);
+    this.avroSchema = AvroSchemaUtil.convert(projection, "data_file");
 
     // partition type may be null if the field was not projected
-    Type partType = schema.fieldType("partition");
+    Type partType = projection.fieldType("partition");
     if (partType != null) {
       this.partitionType = partType.asNestedType().asStructType();
     } else {
       this.partitionType = EMPTY_STRUCT_TYPE;
-    }
-
-    List<Types.NestedField> fields = schema.fields();
-    List<Types.NestedField> allFields = Lists.newArrayList();
-    allFields.addAll(DataFile.getType(partitionType).fields());
-    allFields.add(MetadataColumns.ROW_POSITION);
-
-    this.fromProjectionPos = new int[fields.size()];
-    for (int i = 0; i < fromProjectionPos.length; i += 1) {
-      boolean found = false;
-      for (int j = 0; j < allFields.size(); j += 1) {
-        if (fields.get(i).fieldId() == allFields.get(j).fieldId()) {
-          found = true;
-          fromProjectionPos[i] = j;
-        }
-      }
-
-      if (!found) {
-        throw new IllegalArgumentException("Cannot find projected field: " + fields.get(i));
-      }
     }
 
     this.partitionData = new PartitionData(partitionType);
@@ -139,7 +157,12 @@ abstract class BaseFile<F>
       List<Long> splitOffsets,
       int[] equalityFieldIds,
       Integer sortOrderId,
-      ByteBuffer keyMetadata) {
+      ByteBuffer keyMetadata,
+      Long firstRowId,
+      String referencedDataFile,
+      Long contentOffset,
+      Long contentSizeInBytes) {
+    super(BASE_TYPE.fields().size());
     this.partitionSpecId = specId;
     this.content = content;
     this.filePath = filePath;
@@ -167,6 +190,10 @@ abstract class BaseFile<F>
     this.equalityIds = equalityFieldIds;
     this.sortOrderId = sortOrderId;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+    this.firstRowId = firstRowId;
+    this.referencedDataFile = referencedDataFile;
+    this.contentOffset = contentOffset;
+    this.contentSizeInBytes = contentSizeInBytes;
   }
 
   /**
@@ -178,6 +205,7 @@ abstract class BaseFile<F>
    *     column stat is kept.
    */
   BaseFile(BaseFile<F> toCopy, boolean copyStats, Set<Integer> requestedColumnIds) {
+    super(toCopy);
     this.fileOrdinal = toCopy.fileOrdinal;
     this.manifestLocation = toCopy.manifestLocation;
     this.partitionSpecId = toCopy.partitionSpecId;
@@ -203,7 +231,6 @@ abstract class BaseFile<F>
       this.lowerBounds = null;
       this.upperBounds = null;
     }
-    this.fromProjectionPos = toCopy.fromProjectionPos;
     this.keyMetadata =
         toCopy.keyMetadata == null
             ? null
@@ -219,10 +246,16 @@ abstract class BaseFile<F>
     this.sortOrderId = toCopy.sortOrderId;
     this.dataSequenceNumber = toCopy.dataSequenceNumber;
     this.fileSequenceNumber = toCopy.fileSequenceNumber;
+    this.firstRowId = toCopy.firstRowId;
+    this.referencedDataFile = toCopy.referencedDataFile;
+    this.contentOffset = toCopy.contentOffset;
+    this.contentSizeInBytes = toCopy.contentSizeInBytes;
   }
 
   /** Constructor for Java serialization. */
-  BaseFile() {}
+  BaseFile() {
+    super(BASE_TYPE.fields().size());
+  }
 
   @Override
   public int specId() {
@@ -255,6 +288,15 @@ abstract class BaseFile<F>
     this.fileSequenceNumber = fileSequenceNumber;
   }
 
+  @Override
+  public Long firstRowId() {
+    return firstRowId;
+  }
+
+  public void setFirstRowId(Long firstRowId) {
+    this.firstRowId = firstRowId;
+  }
+
   protected abstract Schema getAvroSchema(Types.StructType partitionStruct);
 
   @Override
@@ -266,13 +308,12 @@ abstract class BaseFile<F>
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void put(int i, Object value) {
-    int pos = i;
-    // if the schema was projected, map the incoming ordinal to the expected one
-    if (fromProjectionPos != null) {
-      pos = fromProjectionPos[i];
-    }
+    set(i, value);
+  }
+
+  @Override
+  protected <T> void internalSet(int pos, T value) {
     switch (pos) {
       case 0:
         this.content = value != null ? FILE_CONTENT_VALUES[(Integer) value] : FileContent.DATA;
@@ -327,6 +368,18 @@ abstract class BaseFile<F>
         this.sortOrderId = (Integer) value;
         return;
       case 17:
+        this.firstRowId = (Long) value;
+        return;
+      case 18:
+        this.referencedDataFile = value != null ? value.toString() : null;
+        return;
+      case 19:
+        this.contentOffset = (Long) value;
+        return;
+      case 20:
+        this.contentSizeInBytes = (Long) value;
+        return;
+      case 21:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -335,18 +388,12 @@ abstract class BaseFile<F>
   }
 
   @Override
-  public <T> void set(int pos, T value) {
-    put(pos, value);
+  protected <T> T internalGet(int pos, Class<T> javaClass) {
+    return javaClass.cast(getByPos(pos));
   }
 
-  @Override
-  public Object get(int i) {
-    int pos = i;
-    // if the schema was projected, map the incoming ordinal to the expected one
-    if (fromProjectionPos != null) {
-      pos = fromProjectionPos[i];
-    }
-    switch (pos) {
+  private Object getByPos(int basePos) {
+    switch (basePos) {
       case 0:
         return content.id();
       case 1:
@@ -382,15 +429,23 @@ abstract class BaseFile<F>
       case 16:
         return sortOrderId;
       case 17:
+        return firstRowId;
+      case 18:
+        return referencedDataFile;
+      case 19:
+        return contentOffset;
+      case 20:
+        return contentSizeInBytes;
+      case 21:
         return fileOrdinal;
       default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+        throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
     }
   }
 
   @Override
-  public <T> T get(int pos, Class<T> javaClass) {
-    return javaClass.cast(get(pos));
+  public Object get(int pos) {
+    return get(pos, Object.class);
   }
 
   @Override
@@ -500,12 +555,24 @@ abstract class BaseFile<F>
 
   @Override
   public List<Integer> equalityFieldIds() {
-    return ArrayUtil.toIntList(equalityIds);
+    return ArrayUtil.toUnmodifiableIntList(equalityIds);
   }
 
   @Override
   public Integer sortOrderId() {
     return sortOrderId;
+  }
+
+  public String referencedDataFile() {
+    return referencedDataFile;
+  }
+
+  public Long contentOffset() {
+    return contentOffset;
+  }
+
+  public Long contentSizeInBytes() {
+    return contentSizeInBytes;
   }
 
   private static <K, V> Map<K, V> copyMap(Map<K, V> map, Set<K> keys) {
@@ -559,6 +626,10 @@ abstract class BaseFile<F>
         .add("sort_order_id", sortOrderId)
         .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
         .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
+        .add("first_row_id", firstRowId == null ? "null" : firstRowId)
+        .add("referenced_data_file", referencedDataFile == null ? "null" : referencedDataFile)
+        .add("content_offset", contentOffset == null ? "null" : contentOffset)
+        .add("content_size_in_bytes", contentSizeInBytes == null ? "null" : contentSizeInBytes)
         .toString();
   }
 }

@@ -19,10 +19,11 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -64,6 +65,7 @@ class SparkCleanupUtil {
       return "unknown task";
     } else {
       return String.format(
+          Locale.ROOT,
           "partition %d (task %d, attempt %d, stage %d.%d)",
           taskContext.partitionId(),
           taskContext.taskAttemptId(),
@@ -81,31 +83,11 @@ class SparkCleanupUtil {
    * @param files a list of files to delete
    */
   public static void deleteFiles(String context, FileIO io, List<? extends ContentFile<?>> files) {
-    List<String> paths = Lists.transform(files, file -> file.path().toString());
-    deletePaths(context, io, paths);
-  }
-
-  private static void deletePaths(String context, FileIO io, List<String> paths) {
+    List<String> paths = Lists.transform(files, ContentFile::location);
     if (io instanceof SupportsBulkOperations) {
-      SupportsBulkOperations bulkIO = (SupportsBulkOperations) io;
-      bulkDelete(context, bulkIO, paths);
+      CatalogUtil.deleteFiles(io, paths, "");
     } else {
       delete(context, io, paths);
-    }
-  }
-
-  private static void bulkDelete(String context, SupportsBulkOperations io, List<String> paths) {
-    try {
-      io.deleteFiles(paths);
-      LOG.info("Deleted {} file(s) using bulk deletes ({})", paths.size(), context);
-
-    } catch (BulkDeletionFailureException e) {
-      int deletedFilesCount = paths.size() - e.numberFailedObjects();
-      LOG.warn(
-          "Deleted only {} of {} file(s) using bulk deletes ({})",
-          deletedFilesCount,
-          paths.size(),
-          context);
     }
   }
 

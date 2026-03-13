@@ -66,12 +66,16 @@ There are some options that could be set in Flink SQL hint options for streaming
 
 ### FLIP-27 source for SQL
 
-Here are the SQL settings for the [FLIP-27](https://cwiki.apache.org/confluence/display/FLINK/FLIP-27%3A+Refactor+Source+Interface) source. All other SQL settings and options documented above are applicable to the FLIP-27 source.
+Here is the SQL setting to opt in or out of the
+[FLIP-27 source](https://cwiki.apache.org/confluence/display/FLINK/FLIP-27%3A+Refactor+Source+Interface).
 
 ```sql
--- Opt in the FLIP-27 source. Default is false.
-SET table.exec.iceberg.use-flip27-source = true;
+-- Opt out the FLIP-27 source.
+-- Default is false for Flink 1.19 and below, and true for Flink 1.20 and above.
+SET table.exec.iceberg.use-flip27-source = false;
 ```
+
+All other SQL settings and options documented above are applicable to the FLIP-27 source.
 
 ### Reading branches and tags with SQL
 Branch and tags can be read via SQL by specifying options. For more details
@@ -325,7 +329,7 @@ DataStream<RowData> stream =
     env.fromSource(
         IcebergSource source = IcebergSource.forRowData()
             .tableLoader(tableLoader)
-            // Disable combining multiple files to a single split 
+            // Disable combining multiple files to a single split
             .set(FlinkReadOptions.SPLIT_FILE_OPEN_COST, String.valueOf(TableProperties.SPLIT_SIZE_DEFAULT))
             // Watermark using long column
             .watermarkColumn("long_column")
@@ -371,7 +375,7 @@ env.getConfig()
 ...
 ```
 
-Check out all the options here: [read-options](flink-configuration.md#read-options) 
+Check out all the options here: [read-options](flink-configuration.md#read-options)
 
 ## Inspecting tables
 
@@ -398,7 +402,6 @@ SELECT * FROM prod.db.table$history;
 
 !!! info
     **This shows a commit that was rolled back.** In this example, snapshot 296410040247533544 and 2999875608062437330 have the same parent snapshot 5179299526185056830. Snapshot 296410040247533544 was rolled back and is *not* an ancestor of the current table state.
-
 
 ### Metadata Log Entries
 
@@ -506,7 +509,6 @@ These tables are unions of the metadata tables specific to the current snapshot,
 !!! danger
     The "all" metadata tables may produce more than one row per data file or manifest file because metadata files may be part of more than one table snapshot.
 
-
 #### All Data Files
 
 To show all of the table's data files and each file's metadata:
@@ -555,4 +557,3 @@ SELECT * FROM prod.db.table$refs;
 | ------- | ------ | ------------------- | ----------------------- | --------------------- | ---------------------- |
 | main    | BRANCH | 4686954189838128572 | 10                      | 20                    | 30                     |
 | testTag | TAG    | 4686954189838128572 | 10                      | null                  | null                   |
-

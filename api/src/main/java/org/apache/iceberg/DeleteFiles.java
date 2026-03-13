@@ -51,7 +51,7 @@ public interface DeleteFiles extends SnapshotUpdate<DeleteFiles> {
    * @return this for method chaining
    */
   default DeleteFiles deleteFile(DataFile file) {
-    deleteFile(file.path());
+    deleteFile(file.location());
     return this;
   }
 

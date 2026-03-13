@@ -54,7 +54,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
   private static volatile ExecutorService executorService;
 
-  private SerializableSupplier<Configuration> hadoopConf;
+  private volatile SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
 
   /**
@@ -74,7 +74,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   public Configuration conf() {
-    return hadoopConf.get();
+    return getConf();
   }
 
   @Override
@@ -84,23 +84,23 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @Override
   public InputFile newInputFile(String path) {
-    return HadoopInputFile.fromLocation(path, hadoopConf.get());
+    return HadoopInputFile.fromLocation(path, getConf());
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return HadoopInputFile.fromLocation(path, length, hadoopConf.get());
+    return HadoopInputFile.fromLocation(path, length, getConf());
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return HadoopOutputFile.fromPath(new Path(path), hadoopConf.get());
+    return HadoopOutputFile.fromPath(new Path(path), getConf());
   }
 
   @Override
   public void deleteFile(String path) {
     Path toDelete = new Path(path);
-    FileSystem fs = Util.getFs(toDelete, hadoopConf.get());
+    FileSystem fs = Util.getFs(toDelete, getConf());
     try {
       fs.delete(toDelete, false /* not recursive */);
     } catch (IOException e) {
@@ -120,6 +120,16 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @Override
   public Configuration getConf() {
+    // Create a default hadoopConf as it is required for the object to be valid.
+    // E.g. newInputFile would throw NPE with getConf() otherwise.
+    if (hadoopConf == null) {
+      synchronized (this) {
+        if (hadoopConf == null) {
+          this.hadoopConf = new SerializableConfiguration(new Configuration())::get;
+        }
+      }
+    }
+
     return hadoopConf.get();
   }
 
@@ -132,7 +142,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
     Path prefixToList = new Path(prefix);
-    FileSystem fs = Util.getFs(prefixToList, hadoopConf.get());
+    FileSystem fs = Util.getFs(prefixToList, getConf());
 
     return () -> {
       try {
@@ -154,7 +164,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public void deletePrefix(String prefix) {
     Path prefixToDelete = new Path(prefix);
-    FileSystem fs = Util.getFs(prefixToDelete, hadoopConf.get());
+    FileSystem fs = Util.getFs(prefixToDelete, getConf());
 
     try {
       fs.delete(prefixToDelete, true /* recursive */);
@@ -192,7 +202,8 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     if (executorService == null) {
       synchronized (HadoopFileIO.class) {
         if (executorService == null) {
-          executorService = ThreadPools.newWorkerPool(DELETE_FILE_POOL_NAME, deleteThreads());
+          executorService =
+              ThreadPools.newExitingWorkerPool(DELETE_FILE_POOL_NAME, deleteThreads());
         }
       }
     }

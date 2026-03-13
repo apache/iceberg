@@ -51,7 +51,7 @@ public class DynMethods {
           (method == null || method.isVarArgs()) ? -1 : method.getParameterTypes().length;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "deprecation"})
     <R> R invokeChecked(Object target, Object... args) throws Exception {
       try {
         if (argLength < 0) {
@@ -67,6 +67,7 @@ public class DynMethods {
       }
     }
 
+    @SuppressWarnings("deprecation")
     public <R> R invoke(Object target, Object... args) {
       try {
         return this.invokeChecked(target, args);
@@ -125,12 +126,8 @@ public class DynMethods {
     /** Singleton {@link UnboundMethod}, performs no operation and returns null. */
     private static final UnboundMethod NOOP =
         new UnboundMethod(null, "NOOP") {
-          /**
-           * @deprecated since 1.7.0, visibility will be reduced in 1.8.0
-           */
-          @Deprecated // will become package-private
           @Override
-          public <R> R invokeChecked(Object target, Object... args) {
+          <R> R invokeChecked(Object target, Object... args) {
             return null;
           }
 
@@ -368,6 +365,7 @@ public class DynMethods {
      * @see java.lang.Class#forName(String)
      * @see java.lang.Class#getMethod(String, Class[])
      */
+    @SuppressWarnings("removal")
     public Builder hiddenImpl(Class<?> targetClass, String methodName, Class<?>... argClasses) {
       // don't do any work if an implementation has been found
       if (method != null) {

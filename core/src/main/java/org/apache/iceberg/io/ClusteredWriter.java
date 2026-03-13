@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.StructLikeUtil;
 
 /**
  * A writer capable of writing to multiple specs and partitions that requires the incoming records
@@ -81,7 +82,7 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
       this.partitionComparator = Comparators.forType(partitionType);
       this.completedPartitions = StructLikeSet.create(partitionType);
       // copy the partition key as the key object may be reused
-      this.currentPartition = StructCopy.copy(partition);
+      this.currentPartition = StructLikeUtil.copy(partition);
       this.currentWriter = newWriter(currentSpec, currentPartition);
 
     } else if (partition != currentPartition
@@ -96,7 +97,7 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
       }
 
       // copy the partition key as the key object may be reused
-      this.currentPartition = StructCopy.copy(partition);
+      this.currentPartition = StructLikeUtil.copy(partition);
       this.currentWriter = newWriter(currentSpec, currentPartition);
     }
 

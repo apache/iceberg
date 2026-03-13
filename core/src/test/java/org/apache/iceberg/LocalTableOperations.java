@@ -18,11 +18,8 @@
  */
 package org.apache.iceberg;
 
-import java.io.File;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -62,14 +59,7 @@ class LocalTableOperations implements TableOperations {
   @Override
   public String metadataFileLocation(String fileName) {
     return createdMetadataFilePaths.computeIfAbsent(
-        fileName,
-        name -> {
-          try {
-            return File.createTempFile("junit", null, temp.toFile()).getAbsolutePath();
-          } catch (IOException e) {
-            throw new RuntimeIOException(e);
-          }
-        });
+        fileName, name -> temp.resolve("junit" + System.nanoTime()).toFile().getAbsolutePath());
   }
 
   @Override

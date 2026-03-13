@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
@@ -57,18 +56,20 @@ object CheckMergeIntoTableConditions extends Rule[LogicalPlan] {
     if (!cond.deterministic) {
       throw new AnalysisException(
         s"Non-deterministic functions are not supported in $condName conditions of " +
-        s"MERGE operations: ${cond.sql}")
+          s"MERGE operations: ${cond.sql}")
     }
 
     if (SubqueryExpression.hasSubquery(cond)) {
       throw new AnalysisException(
         s"Subqueries are not supported in conditions of MERGE operations. " +
-        s"Found a subquery in the $condName condition: ${cond.sql}")
+          s"Found a subquery in the $condName condition: ${cond.sql}")
     }
 
     if (cond.find(_.isInstanceOf[AggregateExpression]).isDefined) {
       throw new AnalysisException(
-        s"Agg functions are not supported in $condName conditions of MERGE operations: " + {cond.sql})
+        s"Agg functions are not supported in $condName conditions of MERGE operations: " + {
+          cond.sql
+        })
     }
   }
 }

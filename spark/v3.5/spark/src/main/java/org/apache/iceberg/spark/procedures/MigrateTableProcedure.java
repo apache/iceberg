@@ -21,7 +21,8 @@ package org.apache.iceberg.spark.procedures;
 import java.util.Map;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.actions.MigrateTableSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
@@ -32,16 +33,23 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import scala.runtime.BoxedUnit;
 
 class MigrateTableProcedure extends BaseProcedure {
+
+  private static final ProcedureParameter TABLE_PARAM =
+      ProcedureParameter.required("table", DataTypes.StringType);
+  private static final ProcedureParameter PROPERTIES_PARAM =
+      ProcedureParameter.optional("properties", STRING_MAP);
+  private static final ProcedureParameter DROP_BACKUP_PARAM =
+      ProcedureParameter.optional("drop_backup", DataTypes.BooleanType);
+  private static final ProcedureParameter BACKUP_TABLE_NAME_PARAM =
+      ProcedureParameter.optional("backup_table_name", DataTypes.StringType);
+  private static final ProcedureParameter PARALLELISM_PARAM =
+      ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
+
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        ProcedureParameter.required("table", DataTypes.StringType),
-        ProcedureParameter.optional("properties", STRING_MAP),
-        ProcedureParameter.optional("drop_backup", DataTypes.BooleanType),
-        ProcedureParameter.optional("backup_table_name", DataTypes.StringType),
-        ProcedureParameter.optional("parallelism", DataTypes.IntegerType)
+        TABLE_PARAM, PROPERTIES_PARAM, DROP_BACKUP_PARAM, BACKUP_TABLE_NAME_PARAM, PARALLELISM_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -75,25 +83,16 @@ class MigrateTableProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String tableName = args.getString(0);
+    ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
+    String tableName = input.asString(TABLE_PARAM, null);
     Preconditions.checkArgument(
         tableName != null && !tableName.isEmpty(),
         "Cannot handle an empty identifier for argument table");
 
-    Map<String, String> properties = Maps.newHashMap();
-    if (!args.isNullAt(1)) {
-      args.getMap(1)
-          .foreach(
-              DataTypes.StringType,
-              DataTypes.StringType,
-              (k, v) -> {
-                properties.put(k.toString(), v.toString());
-                return BoxedUnit.UNIT;
-              });
-    }
+    Map<String, String> properties = input.asStringMap(PROPERTIES_PARAM, ImmutableMap.of());
 
-    boolean dropBackup = args.isNullAt(2) ? false : args.getBoolean(2);
-    String backupTableName = args.isNullAt(3) ? null : args.getString(3);
+    boolean dropBackup = input.asBoolean(DROP_BACKUP_PARAM, false);
+    String backupTableName = input.asString(BACKUP_TABLE_NAME_PARAM, null);
 
     MigrateTableSparkAction migrateTableSparkAction =
         SparkActions.get().migrateTable(tableName).tableProperties(properties);
@@ -106,11 +105,11 @@ class MigrateTableProcedure extends BaseProcedure {
       migrateTableSparkAction = migrateTableSparkAction.backupTableName(backupTableName);
     }
 
-    if (!args.isNullAt(4)) {
-      int parallelism = args.getInt(4);
+    if (input.isProvided(PARALLELISM_PARAM)) {
+      int parallelism = input.asInt(PARALLELISM_PARAM);
       Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
       migrateTableSparkAction =
-          migrateTableSparkAction.executeWith(executorService(parallelism, "table-migration"));
+          migrateTableSparkAction.executeWith(SparkTableUtil.migrationService(parallelism));
     }
 
     MigrateTable.Result result = migrateTableSparkAction.execute();

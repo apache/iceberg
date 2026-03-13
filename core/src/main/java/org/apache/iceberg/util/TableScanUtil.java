@@ -25,7 +25,6 @@ import java.util.function.Function;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
@@ -52,6 +51,10 @@ public class TableScanUtil {
 
   private TableScanUtil() {}
 
+  /**
+   * @deprecated since 1.11.0 and will be removed in 1.12.0
+   */
+  @Deprecated
   public static boolean hasDeletes(CombinedScanTask task) {
     return task.files().stream().anyMatch(TableScanUtil::hasDeletes);
   }
@@ -59,7 +62,10 @@ public class TableScanUtil {
   /**
    * This is temporarily introduced since we plan to support pos-delete vectorized read first, then
    * get to the equality-delete support. We will remove this method once both are supported.
+   *
+   * @deprecated since 1.11.0 and will be removed in 1.12.0
    */
+  @Deprecated
   public static boolean hasEqDeletes(CombinedScanTask task) {
     return task.files().stream()
         .anyMatch(
@@ -92,8 +98,7 @@ public class TableScanUtil {
     Function<FileScanTask, Long> weightFunc =
         file ->
             Math.max(
-                file.length()
-                    + file.deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum(),
+                file.length() + ScanTaskUtil.contentSizeInBytes(file.deletes()),
                 (1 + file.deletes().size()) * openFileCost);
 
     return CloseableIterable.transform(
@@ -235,6 +240,9 @@ public class TableScanUtil {
   }
 
   public static long adjustSplitSize(long scanSize, int parallelism, long splitSize) {
+    Preconditions.checkArgument(parallelism > 0, "Parallelism must be > 0: %s", parallelism);
+    Preconditions.checkArgument(splitSize > 0, "Split size must be > 0: %s", splitSize);
+
     // use the configured split size if it produces at least one split per slot
     // otherwise, adjust the split size to target parallelism with a reasonable minimum
     // increasing the split size may cause expensive spills and is not done automatically

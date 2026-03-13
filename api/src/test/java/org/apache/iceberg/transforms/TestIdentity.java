@@ -19,12 +19,16 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestIdentity {
   @Test
@@ -154,5 +158,39 @@ public class TestIdentity {
     assertThat(identity.toHumanString(decimal, bigDecimal))
         .as("Should not modify Strings")
         .isEqualTo(decimalString);
+  }
+
+  @Test
+  public void testUnknownToHumanString() {
+    Types.UnknownType unknownType = Types.UnknownType.get();
+    Transform<Object, Object> identity = Transforms.identity();
+
+    assertThat(identity.toHumanString(unknownType, null))
+        .as("Should produce \"null\" for null")
+        .isEqualTo("null");
+  }
+
+  @ParameterizedTest
+  @MethodSource("unsupportedTypesProvider")
+  public void testUnsupported(Type type) {
+    assertThatThrownBy(() -> Transforms.identity().bind(type))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot bind to unsupported type: " + type);
+
+    assertThatThrownBy(() -> Transforms.fromString(type, "identity"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type for identity: " + type);
+
+    assertThatThrownBy(() -> Transforms.identity(type))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type for identity: " + type);
+
+    assertThat(Transforms.identity().canTransform(type)).isFalse();
+  }
+
+  private static Type[] unsupportedTypesProvider() {
+    return new Type[] {
+      Types.VariantType.get(), Types.GeometryType.crs84(), Types.GeographyType.crs84()
+    };
   }
 }

@@ -18,15 +18,9 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * Append implementation that produces a minimal number of manifest files.
- *
- * <p>This implementation will attempt to commit 5 times before throwing {@link
- * CommitFailedException}.
- */
+/** {@link AppendFiles Append} implementation that produces a minimal number of manifest files. */
 class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements AppendFiles {
   MergeAppend(String tableName, TableOperations ops) {
     super(tableName, ops);

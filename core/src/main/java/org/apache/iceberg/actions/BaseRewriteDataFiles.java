@@ -57,6 +57,12 @@ interface BaseRewriteDataFiles extends RewriteDataFiles {
 
     @Override
     @Value.Default
+    default int removedDeleteFilesCount() {
+      return RewriteDataFiles.Result.super.removedDeleteFilesCount();
+    }
+
+    @Override
+    @Value.Default
     default int failedDataFilesCount() {
       return RewriteDataFiles.Result.super.failedDataFilesCount();
     }
@@ -68,6 +74,12 @@ interface BaseRewriteDataFiles extends RewriteDataFiles {
     @Value.Default
     default long rewrittenBytesCount() {
       return RewriteDataFiles.FileGroupRewriteResult.super.rewrittenBytesCount();
+    }
+
+    @Override
+    @Value.Default
+    default int removedDeleteFilesCount() {
+      return RewriteDataFiles.FileGroupRewriteResult.super.removedDeleteFilesCount();
     }
   }
 

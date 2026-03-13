@@ -26,6 +26,8 @@ import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -35,8 +37,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.SizeBasedFileRewriter;
-import org.apache.iceberg.relocated.com.google.common.io.Files;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
@@ -105,7 +106,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortInt() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .sort(
             SortOrder.builderFor(table().schema())
                 .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -118,7 +119,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortInt2() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .sort(
             SortOrder.builderFor(table().schema())
                 .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -132,7 +133,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortInt3() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .sort(
             SortOrder.builderFor(table().schema())
                 .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -148,7 +149,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortInt4() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .sort(
             SortOrder.builderFor(table().schema())
                 .sortBy("intCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -164,7 +165,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortString() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .sort(
             SortOrder.builderFor(table().schema())
                 .sortBy("stringCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -177,7 +178,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortFourColumns() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .sort(
             SortOrder.builderFor(table().schema())
                 .sortBy("stringCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -193,7 +194,7 @@ public class IcebergSortCompactionBenchmark {
   public void sortSixColumns() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .sort(
             SortOrder.builderFor(table().schema())
                 .sortBy("stringCol", SortDirection.ASC, NullOrder.NULLS_FIRST)
@@ -211,7 +212,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortInt() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .zOrder("intCol")
         .execute();
   }
@@ -221,7 +222,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortInt2() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .zOrder("intCol", "intCol2")
         .execute();
   }
@@ -231,7 +232,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortInt3() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .zOrder("intCol", "intCol2", "intCol3")
         .execute();
   }
@@ -241,7 +242,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortInt4() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .zOrder("intCol", "intCol2", "intCol3", "intCol4")
         .execute();
   }
@@ -251,7 +252,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortString() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .zOrder("stringCol")
         .execute();
   }
@@ -261,7 +262,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortFourColumns() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .zOrder("stringCol", "intCol", "dateCol", "doubleCol")
         .execute();
   }
@@ -271,7 +272,7 @@ public class IcebergSortCompactionBenchmark {
   public void zSortSixColumns() {
     SparkActions.get()
         .rewriteDataFiles(table())
-        .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+        .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
         .zOrder("stringCol", "intCol", "dateCol", "timestampCol", "doubleCol", "longCol")
         .execute();
   }
@@ -371,8 +372,14 @@ public class IcebergSortCompactionBenchmark {
   }
 
   protected String getCatalogWarehouse() {
-    String location = Files.createTempDir().getAbsolutePath() + "/" + UUID.randomUUID() + "/";
-    return location;
+    try {
+      return Files.createTempDirectory("benchmark-").toAbsolutePath()
+          + "/"
+          + UUID.randomUUID()
+          + "/";
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   protected void cleanupFiles() throws IOException {

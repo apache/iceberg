@@ -33,6 +33,7 @@ import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.TableMetadataParser.Codec;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -169,13 +170,18 @@ public class ViewMetadataParser {
     internalWrite(metadata, outputFile, false);
   }
 
+  public static ViewMetadata read(FileIO io, String path) {
+    return read(io.newInputFile(path));
+  }
+
   public static ViewMetadata read(InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
     try (InputStream is =
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       return fromJson(file.location(), JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to read json file: %s", file), e);
+      throw new UncheckedIOException(
+          String.format("Failed to read json file: %s", file.location()), e);
     }
   }
 
@@ -187,12 +193,11 @@ public class ViewMetadataParser {
         new OutputStreamWriter(
             isGzip ? new GZIPOutputStream(stream) : stream, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {
       throw new UncheckedIOException(
-          String.format("Failed to write json to file: %s", outputFile), e);
+          String.format("Failed to write json to file: %s", outputFile.location()), e);
     }
   }
 }

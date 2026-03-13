@@ -46,6 +46,15 @@ public class OAuth2Properties {
 
   public static final boolean TOKEN_REFRESH_ENABLED_DEFAULT = true;
 
+  /**
+   * Some IDPs do not support token exchange which is the first approach used for acquiring a new
+   * token. Disabling this will allow fallback to the client credential flow without initiating a
+   * token exchange flow.
+   */
+  public static final String TOKEN_EXCHANGE_ENABLED = "token-exchange-enabled";
+
+  public static final boolean TOKEN_EXCHANGE_ENABLED_DEFAULT = true;
+
   /** Additional scope for OAuth2. */
   public static final String SCOPE = "scope";
 

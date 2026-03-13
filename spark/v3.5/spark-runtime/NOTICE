@@ -1,15 +1,14 @@
 
 Apache Iceberg
-Copyright 2017-2024 The Apache Software Foundation
+Copyright 2017-2026 The Apache Software Foundation
 
 This product includes software developed at
 The Apache Software Foundation (http://www.apache.org/).
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains code from Kite, developed at Cloudera, Inc. with
-the following copyright notice:
-
+This product includes code from Kite, developed at Cloudera, Inc. with
+the following in its NOTICE file:
 | Copyright 2013 Cloudera Inc.
 |
 | Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,22 +25,7 @@ the following copyright notice:
 
 --------------------------------------------------------------------------------
 
-This binary artifact includes Apache ORC with the following in its NOTICE file:
-
-| Apache ORC
-| Copyright 2013-2019 The Apache Software Foundation
-|
-| This product includes software developed by The Apache Software
-| Foundation (http://www.apache.org/).
-|
-| This product includes software developed by Hewlett-Packard:
-| (c) Copyright [2014-2015] Hewlett-Packard Development Company, L.P
-
---------------------------------------------------------------------------------
-
-This binary artifact includes Airlift Aircompressor with the following in its
-NOTICE file:
-
+This product bundles Airlift Aircompressor with the following in its NOTICE file:
 | Snappy Copyright Notices
 | =========================
 |
@@ -82,44 +66,7 @@ NOTICE file:
 
 --------------------------------------------------------------------------------
 
-This binary artifact includes Carrot Search Labs HPPC with the following in its
-NOTICE file:
-
-| ACKNOWLEDGEMENT
-| ===============
-|
-| HPPC borrowed code, ideas or both from:
-|
-|  * Apache Lucene, http://lucene.apache.org/
-|    (Apache license)
-|  * Fastutil, http://fastutil.di.unimi.it/
-|    (Apache license)
-|  * Koloboke, https://github.com/OpenHFT/Koloboke
-|    (Apache license)
-
---------------------------------------------------------------------------------
-
-This binary artifact includes Apache Yetus with the following in its NOTICE
-file:
-
-| Apache Yetus
-| Copyright 2008-2020 The Apache Software Foundation
-|
-| This product includes software developed at
-| The Apache Software Foundation (https://www.apache.org/).
-|
-| ---
-| Additional licenses for the Apache Yetus Source/Website:
-| ---
-|
-|
-| See LICENSE for terms.
-
---------------------------------------------------------------------------------
-
-This binary artifact includes Google Protobuf with the following copyright
-notice:
-
+This product bundles Google Protobuf with the following in its NOTICE file:
 | Copyright 2008 Google Inc.  All rights reserved.
 |
 | Redistribution and use in source and binary forms, with or without
@@ -155,98 +102,7 @@ notice:
 
 --------------------------------------------------------------------------------
 
-This binary artifact includes Apache Arrow with the following in its NOTICE file:
-
-| Apache Arrow
-| Copyright 2016-2019 The Apache Software Foundation
-|
-| This product includes software developed at
-| The Apache Software Foundation (http://www.apache.org/).
-|
-| This product includes software from the SFrame project (BSD, 3-clause).
-| * Copyright (C) 2015 Dato, Inc.
-| * Copyright (c) 2009 Carnegie Mellon University.
-|
-| This product includes software from the Feather project (Apache 2.0)
-| https://github.com/wesm/feather
-|
-| This product includes software from the DyND project (BSD 2-clause)
-| https://github.com/libdynd
-|
-| This product includes software from the LLVM project
-|  * distributed under the University of Illinois Open Source
-|
-| This product includes software from the google-lint project
-|  * Copyright (c) 2009 Google Inc. All rights reserved.
-|
-| This product includes software from the mman-win32 project
-|  * Copyright https://code.google.com/p/mman-win32/
-|  * Licensed under the MIT License;
-|
-| This product includes software from the LevelDB project
-|  * Copyright (c) 2011 The LevelDB Authors. All rights reserved.
-|  * Use of this source code is governed by a BSD-style license that can be
-|  * Moved from Kudu http://github.com/cloudera/kudu
-|
-| This product includes software from the CMake project
-|  * Copyright 2001-2009 Kitware, Inc.
-|  * Copyright 2012-2014 Continuum Analytics, Inc.
-|  * All rights reserved.
-|
-| This product includes software from https://github.com/matthew-brett/multibuild (BSD 2-clause)
-|  * Copyright (c) 2013-2016, Matt Terry and Matthew Brett; all rights reserved.
-|
-| This product includes software from the Ibis project (Apache 2.0)
-|  * Copyright (c) 2015 Cloudera, Inc.
-|  * https://github.com/cloudera/ibis
-|
-| This product includes software from Dremio (Apache 2.0)
-|   * Copyright (C) 2017-2018 Dremio Corporation
-|   * https://github.com/dremio/dremio-oss
-|
-| This product includes software from Google Guava (Apache 2.0)
-|   * Copyright (C) 2007 The Guava Authors
-|   * https://github.com/google/guava
-|
-| This product include software from CMake (BSD 3-Clause)
-|   * CMake - Cross Platform Makefile Generator
-|   * Copyright 2000-2019 Kitware, Inc. and Contributors
-|
-| The web site includes files generated by Jekyll.
-|
-| --------------------------------------------------------------------------------
-|
-| This product includes code from Apache Kudu, which includes the following in
-| its NOTICE file:
-|
-|   Apache Kudu
-|   Copyright 2016 The Apache Software Foundation
-|
-|   This product includes software developed at
-|   The Apache Software Foundation (http://www.apache.org/).
-|
-|   Portions of this software were developed at
-|   Cloudera, Inc (http://www.cloudera.com/).
-|
-| --------------------------------------------------------------------------------
-|
-| This product includes code from Apache ORC, which includes the following in
-| its NOTICE file:
-|
-|   Apache ORC
-|   Copyright 2013-2019 The Apache Software Foundation
-|
-|   This product includes software developed by The Apache Software
-|   Foundation (http://www.apache.org/).
-|
-|   This product includes software developed by Hewlett-Packard:
-|   (c) Copyright [2014-2015] Hewlett-Packard Development Company, L.P
-
---------------------------------------------------------------------------------
-
-This binary artifact includes Netty buffers with the following in its NOTICE
-file:
-
+This product bundles Netty with the following in its NOTICE file:
 |                             The Netty Project
 |                             =================
 |
@@ -497,12 +353,107 @@ file:
 
 --------------------------------------------------------------------------------
 
-This binary artifact includes Project Nessie with the following in its NOTICE
-file:
+This product bundles Project Nessie with the following in its NOTICE file:
+| Nessie
+| Copyright 2015-2025 Dremio Corporation
+| 
+| ---------------------------------------
+| This project includes code from Apache Polaris (incubating), with the following in its NOTICE file:
+| 
+| | Apache Polaris (incubating)
+| | Copyright 2024 The Apache Software Foundation
+| |
+| | This product includes software developed at
+| | The Apache Software Foundation (http://www.apache.org/).
+| |
+| | The initial code for the Polaris project was donated
+| | to the ASF by Snowflake Inc. (https://www.snowflake.com/) copyright 2024.
 
-| Dremio
-| Copyright 2015-2017 Dremio Corporation
-|
-| This product includes software developed at
-| The Apache Software Foundation (http://www.apache.org/).
+--------------------------------------------------------------------------------
 
+This product bundles Eclipse MicroProfile OpenAPI with the following in its NOTICE file:
+| =========================================================================
+| ==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
+| ==  Version 2.0, in this case for MicroProfile OpenAPI                 ==
+| =========================================================================
+| 
+| The majority of this software were originally based on the following:
+| * Swagger Core
+|   https://github.com/swagger-api/swagger-core
+|   under Apache License, v2.0
+| 
+| 
+| SPDXVersion: SPDX-2.1
+| PackageName: Eclipse MicroProfile
+| PackageHomePage: http://www.eclipse.org/microprofile
+| PackageLicenseDeclared: Apache-2.0
+| 
+| PackageCopyrightText: <text>
+| Arthur De Magalhaes arthurdm@ca.ibm.com
+| </text>
+
+--------------------------------------------------------------------------------
+
+This product bundles gRPC with the following in its NOTICE file:
+| Copyright 2014 The gRPC Authors
+| 
+| Licensed under the Apache License, Version 2.0 (the "License");
+| you may not use this file except in compliance with the License.
+| You may obtain a copy of the License at
+| 
+|     http://www.apache.org/licenses/LICENSE-2.0
+| 
+| Unless required by applicable law or agreed to in writing, software
+| distributed under the License is distributed on an "AS IS" BASIS,
+| WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+| See the License for the specific language governing permissions and
+| limitations under the License.
+| 
+| -----------------------------------------------------------------------
+| 
+| This product contains a modified portion of 'OkHttp', an open source
+| HTTP & SPDY client for Android and Java applications, which can be obtained
+| at:
+| 
+|   * LICENSE:
+|     * okhttp/third_party/okhttp/LICENSE (Apache License 2.0)
+|   * HOMEPAGE:
+|     * https://github.com/square/okhttp
+|   * LOCATION_IN_GRPC:
+|     * okhttp/third_party/okhttp
+| 
+| This product contains a modified portion of 'Envoy', an open source
+| cloud-native high-performance edge/middle/service proxy, which can be
+| obtained at:
+| 
+|   * LICENSE:
+|     * xds/third_party/envoy/LICENSE (Apache License 2.0)
+|   * NOTICE:
+|     * xds/third_party/envoy/NOTICE
+|   * HOMEPAGE:
+|     * https://www.envoyproxy.io
+|   * LOCATION_IN_GRPC:
+|     * xds/third_party/envoy
+| 
+| This product contains a modified portion of 'protoc-gen-validate (PGV)',
+| an open source protoc plugin to generate polyglot message validators,
+| which can be obtained at:
+| 
+|   * LICENSE:
+|     * xds/third_party/protoc-gen-validate/LICENSE (Apache License 2.0)
+|   * NOTICE:
+|       * xds/third_party/protoc-gen-validate/NOTICE
+|   * HOMEPAGE:
+|     * https://github.com/envoyproxy/protoc-gen-validate
+|   * LOCATION_IN_GRPC:
+|     * xds/third_party/protoc-gen-validate
+| 
+| This product contains a modified portion of 'udpa',
+| an open source universal data plane API, which can be obtained at:
+| 
+|   * LICENSE:
+|     * xds/third_party/udpa/LICENSE (Apache License 2.0)
+|   * HOMEPAGE:
+|     * https://github.com/cncf/udpa
+|   * LOCATION_IN_GRPC:
+|     * xds/third_party/udpa

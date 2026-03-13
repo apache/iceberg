@@ -37,6 +37,7 @@ class AllManifestsTableTaskParser {
   private static final String SCHEMA = "schema";
   private static final String SPECS = "partition-specs";
   private static final String MANIFEST_LIST_LOCATION = "manifest-list-Location";
+  private static final String MANIFEST_LIST_KEY_ID = "manifest-list-key-id";
   private static final String RESIDUAL = "residual-filter";
   private static final String REFERENCE_SNAPSHOT_ID = "reference-snapshot-id";
 
@@ -63,7 +64,10 @@ class AllManifestsTableTaskParser {
 
     generator.writeEndArray();
 
-    generator.writeStringField(MANIFEST_LIST_LOCATION, task.manifestListLocation());
+    generator.writeStringField(MANIFEST_LIST_LOCATION, task.manifestList().location());
+    if (task.manifestList().encryptionKeyID() != null) {
+      generator.writeStringField(MANIFEST_LIST_KEY_ID, task.manifestList().encryptionKeyID());
+    }
 
     generator.writeFieldName(RESIDUAL);
     ExpressionParser.toJson(task.residual(), generator);
@@ -92,6 +96,7 @@ class AllManifestsTableTaskParser {
 
     Map<Integer, PartitionSpec> specsById = PartitionUtil.indexSpecs(specsBuilder.build());
     String manifestListLocation = JsonUtil.getString(MANIFEST_LIST_LOCATION, jsonNode);
+    String manifestListKeyId = JsonUtil.getStringOrNull(MANIFEST_LIST_KEY_ID, jsonNode);
     Expression residualFilter = ExpressionParser.fromJson(JsonUtil.get(RESIDUAL, jsonNode));
     long referenceSnapshotId = JsonUtil.getLong(REFERENCE_SNAPSHOT_ID, jsonNode);
 
@@ -100,7 +105,7 @@ class AllManifestsTableTaskParser {
         fileIO,
         schema,
         specsById,
-        manifestListLocation,
+        new BaseManifestListFile(manifestListLocation, manifestListKeyId),
         residualFilter,
         referenceSnapshotId);
   }

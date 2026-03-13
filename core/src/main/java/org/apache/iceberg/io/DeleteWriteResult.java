@@ -32,25 +32,39 @@ import org.apache.iceberg.util.CharSequenceSet;
 public class DeleteWriteResult {
   private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
+  private final List<DeleteFile> rewrittenDeleteFiles;
 
   public DeleteWriteResult(DeleteFile deleteFile) {
     this.deleteFiles = Collections.singletonList(deleteFile);
     this.referencedDataFiles = CharSequenceSet.empty();
+    this.rewrittenDeleteFiles = Collections.emptyList();
   }
 
   public DeleteWriteResult(DeleteFile deleteFile, CharSequenceSet referencedDataFiles) {
     this.deleteFiles = Collections.singletonList(deleteFile);
     this.referencedDataFiles = referencedDataFiles;
+    this.rewrittenDeleteFiles = Collections.emptyList();
   }
 
   public DeleteWriteResult(List<DeleteFile> deleteFiles) {
     this.deleteFiles = deleteFiles;
     this.referencedDataFiles = CharSequenceSet.empty();
+    this.rewrittenDeleteFiles = Collections.emptyList();
   }
 
   public DeleteWriteResult(List<DeleteFile> deleteFiles, CharSequenceSet referencedDataFiles) {
     this.deleteFiles = deleteFiles;
     this.referencedDataFiles = referencedDataFiles;
+    this.rewrittenDeleteFiles = Collections.emptyList();
+  }
+
+  public DeleteWriteResult(
+      List<DeleteFile> deleteFiles,
+      CharSequenceSet referencedDataFiles,
+      List<DeleteFile> rewrittenDeleteFiles) {
+    this.deleteFiles = deleteFiles;
+    this.referencedDataFiles = referencedDataFiles;
+    this.rewrittenDeleteFiles = rewrittenDeleteFiles;
   }
 
   public List<DeleteFile> deleteFiles() {
@@ -63,5 +77,9 @@ public class DeleteWriteResult {
 
   public boolean referencesDataFiles() {
     return referencedDataFiles != null && !referencedDataFiles.isEmpty();
+  }
+
+  public List<DeleteFile> rewrittenDeleteFiles() {
+    return rewrittenDeleteFiles;
   }
 }

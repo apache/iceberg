@@ -26,6 +26,7 @@ import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_SUMMARY;
 import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_TIMESTAMP;
 import static org.apache.iceberg.TableProperties.DEFAULT_PARTITION_SPEC;
 import static org.apache.iceberg.TableProperties.DEFAULT_SORT_ORDER;
+import static org.apache.iceberg.TableProperties.ENCRYPTION_TABLE_KEY;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_COUNT;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
@@ -46,6 +48,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -110,18 +113,38 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @BeforeEach
   public void before() throws TException {
-    catalog =
-        (HiveCatalog)
-            CatalogUtil.loadCatalog(
-                HiveCatalog.class.getName(),
-                CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
-                ImmutableMap.of(
-                    CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-                    String.valueOf(TimeUnit.SECONDS.toMillis(10))),
-                HIVE_METASTORE_EXTENSION.hiveConf());
+    catalog = initCatalog("hive", ImmutableMap.of());
     String dbPath = HIVE_METASTORE_EXTENSION.metastore().getDatabasePath(DB_NAME);
     Database db = new Database(DB_NAME, "description", dbPath, Maps.newHashMap());
     HIVE_METASTORE_EXTENSION.metastoreClient().createDatabase(db);
+  }
+
+  @Override
+  protected HiveCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
+            String.valueOf(TimeUnit.SECONDS.toMillis(10)),
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1",
+            "catalog-default-key1",
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2",
+            "catalog-default-key2",
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3",
+            "catalog-default-key3",
+            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3",
+            "catalog-override-key3",
+            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4",
+            "catalog-override-key4");
+
+    return (HiveCatalog)
+        CatalogUtil.loadCatalog(
+            HiveCatalog.class.getName(),
+            catalogName,
+            ImmutableMap.<String, String>builder()
+                .putAll(properties)
+                .putAll(additionalProperties)
+                .build(),
+            HIVE_METASTORE_EXTENSION.hiveConf());
   }
 
   @AfterEach
@@ -439,7 +462,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
     assertThatThrownBy(() -> catalog.createNamespace(namespace1))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessage(String.format("Namespace already exists: %s", namespace1));
+        .hasMessage("Namespace already exists: %s", namespace1);
     String hiveLocalDir = temp.toFile().toURI().toString();
     // remove the trailing slash of the URI
     hiveLocalDir = hiveLocalDir.substring(0, hiveLocalDir.length() - 1);
@@ -509,9 +532,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Create namespace setting %s without setting %s is not allowed",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Create namespace setting %s without setting %s is not allowed",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -634,9 +656,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Setting %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Setting %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -650,9 +671,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Setting %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Setting %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -825,9 +845,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Removing %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Removing %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
 
     assertThatThrownBy(
             () ->
@@ -845,9 +864,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
                     null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Removing %s and %s has to be performed together or not at all",
-                HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER));
+            "Removing %s and %s has to be performed together or not at all",
+            HiveCatalog.HMS_DB_OWNER_TYPE, HiveCatalog.HMS_DB_OWNER);
   }
 
   private void removeNamespaceOwnershipAndVerify(
@@ -1004,10 +1022,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @Test
   public void testSetSnapshotSummary() throws Exception {
-    Configuration conf = new Configuration();
-    conf.set("iceberg.hive.table-property-max-size", "4000");
-    HiveTableOperations ops =
-        new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl");
+    final long maxHiveTablePropertySize = 4000;
     Snapshot snapshot = mock(Snapshot.class);
     Map<String, String> summary = Maps.newHashMap();
     when(snapshot.summary()).thenReturn(summary);
@@ -1018,7 +1033,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     }
     assertThat(JsonUtil.mapper().writeValueAsString(summary).length()).isLessThan(4000);
     Map<String, String> parameters = Maps.newHashMap();
-    ops.setSnapshotSummary(parameters, snapshot);
+    HMSTablePropertyHelper.setSnapshotSummary(parameters, snapshot, maxHiveTablePropertySize);
     assertThat(parameters).as("The snapshot summary must be in parameters").hasSize(1);
 
     // create a snapshot summary whose json string size exceeds the limit
@@ -1029,7 +1044,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     // the limit has been updated to 4000 instead of the default value(32672)
     assertThat(summarySize).isGreaterThan(4000).isLessThan(32672);
     parameters.remove(CURRENT_SNAPSHOT_SUMMARY);
-    ops.setSnapshotSummary(parameters, snapshot);
+    HMSTablePropertyHelper.setSnapshotSummary(parameters, snapshot, maxHiveTablePropertySize);
     assertThat(parameters)
         .as("The snapshot summary must not be in parameters due to the size limit")
         .isEmpty();
@@ -1037,10 +1052,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @Test
   public void testNotExposeTableProperties() {
-    Configuration conf = new Configuration();
-    conf.set("iceberg.hive.table-property-max-size", "0");
-    HiveTableOperations ops =
-        new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl");
+    final long maxHiveTablePropertySize = 0;
     TableMetadata metadata = mock(TableMetadata.class);
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put(CURRENT_SNAPSHOT_SUMMARY, "summary");
@@ -1050,19 +1062,19 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     parameters.put(DEFAULT_PARTITION_SPEC, "partitionSpec");
     parameters.put(DEFAULT_SORT_ORDER, "sortOrder");
 
-    ops.setSnapshotStats(metadata, parameters);
+    HMSTablePropertyHelper.setSnapshotStats(metadata, parameters, maxHiveTablePropertySize);
     assertThat(parameters)
         .doesNotContainKey(CURRENT_SNAPSHOT_SUMMARY)
         .doesNotContainKey(CURRENT_SNAPSHOT_ID)
         .doesNotContainKey(CURRENT_SNAPSHOT_TIMESTAMP);
 
-    ops.setSchema(metadata.schema(), parameters);
+    HMSTablePropertyHelper.setSchema(metadata.schema(), parameters, maxHiveTablePropertySize);
     assertThat(parameters).doesNotContainKey(CURRENT_SCHEMA);
 
-    ops.setPartitionSpec(metadata, parameters);
+    HMSTablePropertyHelper.setPartitionSpec(metadata, parameters, maxHiveTablePropertySize);
     assertThat(parameters).doesNotContainKey(DEFAULT_PARTITION_SPEC);
 
-    ops.setSortOrder(metadata, parameters);
+    HMSTablePropertyHelper.setSortOrder(metadata, parameters, maxHiveTablePropertySize);
     assertThat(parameters).doesNotContainKey(DEFAULT_SORT_ORDER);
   }
 
@@ -1193,5 +1205,65 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     Database database = hiveCatalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
+  }
+
+  @Test
+  public void testTableLocationWithTrailingSlashInDatabaseLocation() throws TException {
+    Schema schema = getTestSchema();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "test_table");
+
+    // Create database with trailing slash in location
+    String dbName = "db_with_trailing_slash";
+    String dbLocationWithSlash = temp.resolve(dbName) + "/";
+    Database db = new Database(dbName, "Description", dbLocationWithSlash, Maps.newHashMap());
+    HIVE_METASTORE_EXTENSION.metastoreClient().createDatabase(db);
+
+    try {
+      TableIdentifier tableInDbWithSlash = TableIdentifier.of(dbName, tableIdent.name());
+      Table table = catalog.createTable(tableInDbWithSlash, schema);
+
+      // Verify table location doesn't have double slashes
+      assertThat(table.location())
+          .as("Table location should not contain multiple slashes")
+          .doesNotContain("//test_table")
+          .endsWith("/test_table");
+
+      // Verify the path is normalized correctly
+      String expectedLocation = temp.resolve(dbName) + "/test_table";
+      assertThat(URI.create(table.location()).getPath())
+          .as("Table location should be properly normalized")
+          .isEqualTo(expectedLocation);
+
+      // Dropping the test table
+      catalog.dropTable(tableInDbWithSlash);
+    } finally {
+      // Dropping the test database
+      HIVE_METASTORE_EXTENSION.metastoreClient().dropDatabase(dbName);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testMetadataHashing(boolean isTableEncrypted) {
+    Map<String, String> hiveTblProperties = Maps.newHashMap();
+    if (isTableEncrypted) {
+      hiveTblProperties.put(ENCRYPTION_TABLE_KEY, "key_id");
+    }
+
+    Schema schema = new Schema(Types.NestedField.required(1, "col1", Types.StringType.get()));
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+
+    HMSTablePropertyHelper.setMetadataHash(tableMetadata, hiveTblProperties);
+
+    String base64EncodedHash =
+        hiveTblProperties.get(BaseMetastoreTableOperations.METADATA_HASH_PROP);
+    if (isTableEncrypted) {
+      assertThat(base64EncodedHash).isBase64();
+      HMSTablePropertyHelper.verifyMetadataHash(tableMetadata, base64EncodedHash);
+    } else {
+      assertThat(base64EncodedHash).isNull();
+    }
   }
 }
