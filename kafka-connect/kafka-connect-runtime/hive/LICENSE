@@ -1254,7 +1254,7 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.avro  Name: avro  Version: 1.12.0
+Group: org.apache.avro  Name: avro  Version: 1.12.1
 Project URL (from manifest): https://www.apache.org/
 Project URL (from POM): https://avro.apache.org
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
