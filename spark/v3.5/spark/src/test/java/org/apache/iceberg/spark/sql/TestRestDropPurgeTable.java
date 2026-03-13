@@ -160,6 +160,11 @@ public class TestRestDropPurgeTable extends TestBase {
     }
 
     @Override
+    public void invalidateTable(TableIdentifier identifier) {
+      // No-op: tableCache is not initialized in this mock catalog
+    }
+
+    @Override
     public Table loadTable(TableIdentifier identifier) {
       return delegate.loadTable(identifier);
     }
