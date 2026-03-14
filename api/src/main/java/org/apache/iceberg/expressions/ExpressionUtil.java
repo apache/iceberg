@@ -159,7 +159,7 @@ public class ExpressionUtil {
    * @param caseSensitive whether binding is case sensitive
    * @param ids field IDs used to match predicates to extract from the expression
    * @return an Expression that selects at least the same rows as the original using only the IDs
-   * @deprecated use {@link #retainPredicatesWithReferencedIds} instead; this method uses
+   * @deprecated since 1.10 use {@link #retainPredicatesWithReferencedIds} instead; this method uses
    *     identitySpec and can throw when ids include fields nested under map/array.
    */
   @Deprecated
@@ -171,9 +171,7 @@ public class ExpressionUtil {
 
   /**
    * Returns an expression that retains only predicates which reference one of the given field IDs.
-   * Predicates that do not reference any of the given IDs are replaced with alwaysTrue(). Used to
-   * preserve filters on non-primitive columns (e.g. map, array) that cannot be pushed down via
-   * partition projection.
+   * Predicates that do not reference any of the given IDs are replaced with alwaysTrue().
    *
    * @param expression a filter expression
    * @param schema schema for binding references
