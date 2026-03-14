@@ -20,7 +20,6 @@ package org.apache.iceberg.expressions;
 
 import java.util.Comparator;
 import java.util.Set;
-import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -57,15 +56,6 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
 
   public Literal<T> literal() {
     return literal;
-  }
-
-  boolean hasBoundingBoxLiteral() {
-    return literal instanceof Literals.BoundingBoxLiteral;
-  }
-
-  BoundingBox boundingBox() {
-    Preconditions.checkState(hasBoundingBoxLiteral(), "Expected bounding box literal: %s", literal);
-    return ((Literals.BoundingBoxLiteral) literal).value();
   }
 
   @Override
@@ -112,12 +102,6 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
     if (op() == expr.op() && expr instanceof BoundLiteralPredicate) {
       BoundLiteralPredicate<?> other = (BoundLiteralPredicate<?>) expr;
       if (term().isEquivalentTo(other.term())) {
-        if (hasBoundingBoxLiteral() || other.hasBoundingBoxLiteral()) {
-          return hasBoundingBoxLiteral()
-              && other.hasBoundingBoxLiteral()
-              && boundingBox().equals(other.boundingBox());
-        }
-
         // because the term is equivalent, the literal must have the same type, T
         Literal<T> otherLiteral = (Literal<T>) other.literal();
         Comparator<T> cmp = literal().comparator();

@@ -485,6 +485,51 @@ public class TestMiscLiteralConversions {
         Types.FixedType.ofLength(1));
   }
 
+  @Test
+  public void testBoundingBoxLiteralComparator() {
+    Literal<BoundingBox> xy =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0)));
+    Literal<BoundingBox> sameMinLargerMax =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(4.0, 5.0)));
+    Literal<BoundingBox> largerMin =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXY(2.0, 2.0), GeospatialBound.createXY(3.0, 4.0)));
+    Literal<BoundingBox> xyz =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXYZ(1.0, 2.0, 3.0),
+                GeospatialBound.createXYZ(3.0, 4.0, 5.0)));
+    Literal<BoundingBox> xym =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXYM(1.0, 2.0, 3.0),
+                GeospatialBound.createXYM(3.0, 4.0, 5.0)));
+    Literal<BoundingBox> xyzm =
+        Literal.of(
+            new BoundingBox(
+                GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0),
+                GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0)));
+
+    assertThat(xy.comparator().compare(xy.value(), xy.value())).isZero();
+    assertThat(xym.comparator().compare(xym.value(), xym.value())).isZero();
+    assertThat(xyz.comparator().compare(xyz.value(), xyz.value())).isZero();
+    assertThat(xyzm.comparator().compare(xyzm.value(), xyzm.value())).isZero();
+
+    assertThat(xy.comparator().compare(xy.value(), sameMinLargerMax.value())).isLessThan(0);
+    assertThat(xy.comparator().compare(xy.value(), largerMin.value())).isLessThan(0);
+    assertThat(xy.comparator().compare(xy.value(), xyz.value())).isNotZero();
+    assertThat(xy.comparator().compare(xy.value(), xym.value())).isNotZero();
+    assertThat(xy.comparator().compare(xy.value(), xyzm.value())).isNotZero();
+    assertThat(xym.comparator().compare(xyz.value(), xym.value())).isNotZero();
+    assertThat(xyz.comparator().compare(xyz.value(), xyzm.value())).isNotZero();
+    assertThat(xym.comparator().compare(xym.value(), xyzm.value())).isNotZero();
+  }
+
   private void testInvalidConversions(Literal<?> lit, Type... invalidTypes) {
     for (Type type : invalidTypes) {
       assertThat(lit.to(type))

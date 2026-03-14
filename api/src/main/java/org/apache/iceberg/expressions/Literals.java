@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
@@ -752,6 +753,9 @@ class Literals {
   }
 
   static class BoundingBoxLiteral implements Literal<BoundingBox> {
+    private static final Comparator<BoundingBox> CMP =
+        Comparators.<BoundingBox>nullsFirst().thenComparing(BoundingBoxLiteral::compare);
+
     private final BoundingBox value;
     private transient volatile ByteBuffer byteBuffer = null;
 
@@ -790,7 +794,7 @@ class Literals {
 
     @Override
     public Comparator<BoundingBox> comparator() {
-      throw new UnsupportedOperationException("BoundingBox literals are not comparable");
+      return CMP;
     }
 
     Object writeReplace() throws ObjectStreamException {
@@ -812,12 +816,40 @@ class Literals {
       }
 
       BoundingBoxLiteral that = (BoundingBoxLiteral) other;
-      return value().equals(that.value());
+      return comparator().compare(value(), that.value()) == 0;
     }
 
     @Override
     public int hashCode() {
       return Objects.hashCode(value());
+    }
+
+    private static int compare(BoundingBox left, BoundingBox right) {
+      int cmp = compare(left.min(), right.min());
+      if (cmp != 0) {
+        return cmp;
+      }
+
+      return compare(left.max(), right.max());
+    }
+
+    private static int compare(GeospatialBound left, GeospatialBound right) {
+      int cmp = Double.compare(left.x(), right.x());
+      if (cmp != 0) {
+        return cmp;
+      }
+
+      cmp = Double.compare(left.y(), right.y());
+      if (cmp != 0) {
+        return cmp;
+      }
+
+      cmp = Double.compare(left.z(), right.z());
+      if (cmp != 0) {
+        return cmp;
+      }
+
+      return Double.compare(left.m(), right.m());
     }
   }
 }

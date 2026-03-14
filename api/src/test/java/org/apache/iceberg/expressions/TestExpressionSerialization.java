@@ -172,10 +172,7 @@ public class TestExpressionSerialization {
     if (left instanceof UnboundPredicate) {
       UnboundPredicate lpred = (UnboundPredicate) left;
       UnboundPredicate rpred = (UnboundPredicate) right;
-      if (left.op() == Operation.IN
-          || left.op() == Operation.NOT_IN
-          || left.op() == Operation.ST_INTERSECTS
-          || left.op() == Operation.ST_DISJOINT) {
+      if (left.op() == Operation.IN || left.op() == Operation.NOT_IN) {
         return equals(lpred.literals(), rpred.literals());
       }
       return lpred.literal().comparator().compare(lpred.literal().value(), rpred.literal().value())
@@ -185,16 +182,6 @@ public class TestExpressionSerialization {
       BoundPredicate lpred = (BoundPredicate) left;
       BoundPredicate rpred = (BoundPredicate) right;
       if (lpred.isLiteralPredicate() && rpred.isLiteralPredicate()) {
-        if (lpred.asLiteralPredicate().hasBoundingBoxLiteral()
-            || rpred.asLiteralPredicate().hasBoundingBoxLiteral()) {
-          return lpred.asLiteralPredicate().hasBoundingBoxLiteral()
-              && rpred.asLiteralPredicate().hasBoundingBoxLiteral()
-              && lpred
-                  .asLiteralPredicate()
-                  .boundingBox()
-                  .equals(rpred.asLiteralPredicate().boundingBox());
-        }
-
         return lpred
                 .asLiteralPredicate()
                 .literal()

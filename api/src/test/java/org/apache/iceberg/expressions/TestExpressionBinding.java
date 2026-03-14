@@ -538,7 +538,7 @@ public class TestExpressionBinding {
     assertThat(pred.term().ref().fieldId())
         .as("Should bind %s correctly", fieldName)
         .isEqualTo(fieldId);
-    assertThat(pred.asLiteralPredicate().boundingBox()).isEqualTo(bbox);
+    assertThat(pred.asLiteralPredicate().literal().value()).isEqualTo(bbox);
   }
 
   @ParameterizedTest
@@ -555,6 +555,6 @@ public class TestExpressionBinding {
     assertThat(pred.term().ref().fieldId())
         .as("Should bind %s correctly", fieldName)
         .isEqualTo(fieldId);
-    assertThat(pred.asLiteralPredicate().boundingBox()).isEqualTo(bbox);
+    assertThat(pred.asLiteralPredicate().literal().value()).isEqualTo(bbox);
   }
 }

@@ -179,9 +179,13 @@ public class ExpressionVisitors {
           case NOT_STARTS_WITH:
             return notStartsWith((BoundReference<T>) pred.term(), literalPred.literal());
           case ST_INTERSECTS:
-            return stIntersects((BoundReference<T>) pred.term(), asBoundingBox(literalPred));
+            return stIntersects(
+                (BoundReference<T>) pred.term(),
+                ((Literals.BoundingBoxLiteral) literalPred.literal()).value());
           case ST_DISJOINT:
-            return stDisjoint((BoundReference<T>) pred.term(), asBoundingBox(literalPred));
+            return stDisjoint(
+                (BoundReference<T>) pred.term(),
+                ((Literals.BoundingBoxLiteral) literalPred.literal()).value());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -314,9 +318,11 @@ public class ExpressionVisitors {
           case NOT_STARTS_WITH:
             return notStartsWith(pred.term(), literalPred.literal());
           case ST_INTERSECTS:
-            return stIntersects(pred.term(), asBoundingBox(literalPred));
+            return stIntersects(
+                pred.term(), ((Literals.BoundingBoxLiteral) literalPred.literal()).value());
           case ST_DISJOINT:
-            return stDisjoint(pred.term(), asBoundingBox(literalPred));
+            return stDisjoint(
+                pred.term(), ((Literals.BoundingBoxLiteral) literalPred.literal()).value());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -496,9 +502,11 @@ public class ExpressionVisitors {
           case NOT_STARTS_WITH:
             return notStartsWith(pred.term(), literalPred.literal());
           case ST_INTERSECTS:
-            return stIntersects(pred.term(), asBoundingBox(literalPred));
+            return stIntersects(
+                pred.term(), ((Literals.BoundingBoxLiteral) literalPred.literal()).value());
           case ST_DISJOINT:
-            return stDisjoint(pred.term(), asBoundingBox(literalPred));
+            return stDisjoint(
+                pred.term(), ((Literals.BoundingBoxLiteral) literalPred.literal()).value());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -643,13 +651,5 @@ public class ExpressionVisitors {
           throw new UnsupportedOperationException("Unknown operation: " + expr.op());
       }
     }
-  }
-
-  private static BoundingBox asBoundingBox(BoundLiteralPredicate<?> pred) {
-    if (pred.hasBoundingBoxLiteral()) {
-      return pred.boundingBox();
-    }
-
-    throw new IllegalStateException("Expected bounding box literal: " + pred.literal());
   }
 }
