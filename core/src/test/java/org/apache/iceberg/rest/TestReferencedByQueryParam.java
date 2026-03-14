@@ -56,7 +56,7 @@ public class TestReferencedByQueryParam {
   private RESTCatalog restCatalog;
 
   @BeforeEach
-  public void setupE2E() {
+  public void before() {
     InMemoryCatalog backendCatalog = new InMemoryCatalog();
     backendCatalog.initialize("test", ImmutableMap.of());
 
@@ -70,7 +70,7 @@ public class TestReferencedByQueryParam {
   }
 
   @AfterEach
-  public void tearDown() throws Exception {
+  public void after() throws Exception {
     if (restCatalog != null) {
       restCatalog.close();
     }

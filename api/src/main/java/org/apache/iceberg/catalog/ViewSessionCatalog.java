@@ -63,10 +63,12 @@ public interface ViewSessionCatalog {
    * @return instance of {@link View} referred by the identifier
    * @throws NoSuchViewException if the view does not exist
    */
-  View loadView(
+  default View loadView(
       SessionCatalog.SessionContext context,
       TableIdentifier identifier,
-      Map<String, Object> loadingContext);
+      Map<String, Object> loadingContext) {
+    return loadView(context, identifier);
+  }
 
   /**
    * Check whether view exists.

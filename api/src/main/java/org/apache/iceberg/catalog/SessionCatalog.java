@@ -396,6 +396,8 @@ public interface SessionCatalog {
    * @param context additional context as key-value pairs
    * @return instance of {@link Table} referred by the identifier
    */
-  Table loadTable(
-      SessionContext sessionContext, TableIdentifier ident, Map<String, Object> context);
+  default Table loadTable(
+      SessionContext sessionContext, TableIdentifier ident, Map<String, Object> context) {
+    return loadTable(sessionContext, ident);
+  }
 }
