@@ -52,8 +52,6 @@ public class BoundingBox {
    */
   public static BoundingBox fromByteBuffer(ByteBuffer buffer) {
     Preconditions.checkArgument(buffer.position() == 0, "Input ByteBuffer must have position 0");
-    Preconditions.checkArgument(
-        buffer.order() == ByteOrder.LITTLE_ENDIAN, "Invalid byte order: big endian");
     ByteBuffer tmp = buffer.duplicate();
     tmp.order(ByteOrder.LITTLE_ENDIAN);
 

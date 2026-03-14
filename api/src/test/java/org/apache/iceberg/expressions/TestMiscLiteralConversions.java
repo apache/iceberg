@@ -468,7 +468,7 @@ public class TestMiscLiteralConversions {
   public void testInvalidGeospatialConversions() {
     GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
     GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
-    Literal<ByteBuffer> geoBoundingBoxLiteral = Literal.of(new BoundingBox(min, max));
+    Literal<BoundingBox> geoBoundingBoxLiteral = Literal.of(new BoundingBox(min, max));
     testInvalidConversions(
         geoBoundingBoxLiteral,
         Types.BooleanType.get(),

@@ -670,7 +670,7 @@ public class TestPredicateBinding {
     BoundPredicate<ByteBuffer> bound = assertAndUnwrap(expr);
     assertThat(bound.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
     assertThat(bound.term().ref().fieldId()).isEqualTo(20);
-    assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
+    assertThat(bound.asLiteralPredicate().boundingBox()).isEqualTo(bbox);
 
     // Test ST_DISJOINT with geometry
     UnboundPredicate<ByteBuffer> stDisjointGeom = Expressions.stDisjoint("geometry", bbox);
@@ -678,7 +678,7 @@ public class TestPredicateBinding {
     bound = assertAndUnwrap(expr);
     assertThat(bound.op()).isEqualTo(Expression.Operation.ST_DISJOINT);
     assertThat(bound.term().ref().fieldId()).isEqualTo(20);
-    assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
+    assertThat(bound.asLiteralPredicate().boundingBox()).isEqualTo(bbox);
 
     // Test ST_INTERSECTS with geography
     UnboundPredicate<ByteBuffer> stIntersectsGeog = Expressions.stIntersects("geography", bbox);
@@ -686,7 +686,7 @@ public class TestPredicateBinding {
     bound = assertAndUnwrap(expr);
     assertThat(bound.op()).isEqualTo(Expression.Operation.ST_INTERSECTS);
     assertThat(bound.term().ref().fieldId()).isEqualTo(21);
-    assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
+    assertThat(bound.asLiteralPredicate().boundingBox()).isEqualTo(bbox);
 
     // Test ST_DISJOINT with geography
     UnboundPredicate<ByteBuffer> stDisjointGeog = Expressions.stDisjoint("geography", bbox);
@@ -694,6 +694,6 @@ public class TestPredicateBinding {
     bound = assertAndUnwrap(expr);
     assertThat(bound.op()).isEqualTo(Expression.Operation.ST_DISJOINT);
     assertThat(bound.term().ref().fieldId()).isEqualTo(21);
-    assertThat(bound.asLiteralPredicate().literal().value()).isEqualTo(bbox.toByteBuffer());
+    assertThat(bound.asLiteralPredicate().boundingBox()).isEqualTo(bbox);
   }
 }

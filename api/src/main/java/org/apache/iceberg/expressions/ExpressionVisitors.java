@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.expressions;
 
-import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.BoundingBox;
 
 /** Utils for traversing {@link Expression expressions}. */
 public class ExpressionVisitors {
@@ -127,12 +127,12 @@ public class ExpressionVisitors {
           "notStartsWith expression is not supported by the visitor");
     }
 
-    public <T> R stIntersects(BoundReference<T> ref, Literal<ByteBuffer> lit) {
+    public <T> R stIntersects(BoundReference<T> ref, BoundingBox bbox) {
       throw new UnsupportedOperationException(
           "stIntersects expression is not supported by the visitor");
     }
 
-    public <T> R stDisjoint(BoundReference<T> ref, Literal<ByteBuffer> lit) {
+    public <T> R stDisjoint(BoundReference<T> ref, BoundingBox bbox) {
       throw new UnsupportedOperationException(
           "stDisjoint expression is not supported by the visitor");
     }
@@ -179,11 +179,9 @@ public class ExpressionVisitors {
           case NOT_STARTS_WITH:
             return notStartsWith((BoundReference<T>) pred.term(), literalPred.literal());
           case ST_INTERSECTS:
-            return stIntersects(
-                (BoundReference<T>) pred.term(), (Literal<ByteBuffer>) literalPred.literal());
+            return stIntersects((BoundReference<T>) pred.term(), asBoundingBox(literalPred));
           case ST_DISJOINT:
-            return stDisjoint(
-                (BoundReference<T>) pred.term(), (Literal<ByteBuffer>) literalPred.literal());
+            return stDisjoint((BoundReference<T>) pred.term(), asBoundingBox(literalPred));
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -284,12 +282,12 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
-    public <T> R stIntersects(Bound<T> term, Literal<ByteBuffer> literal) {
+    public <T> R stIntersects(Bound<T> term, BoundingBox bbox) {
       throw new UnsupportedOperationException(
           "stIntersects operator is not supported by the visitor");
     }
 
-    public <T> R stDisjoint(Bound<T> term, Literal<ByteBuffer> literal) {
+    public <T> R stDisjoint(Bound<T> term, BoundingBox bbox) {
       throw new UnsupportedOperationException(
           "stDisjoint operator is not supported by the visitor");
     }
@@ -316,9 +314,9 @@ public class ExpressionVisitors {
           case NOT_STARTS_WITH:
             return notStartsWith(pred.term(), literalPred.literal());
           case ST_INTERSECTS:
-            return stIntersects(pred.term(), (Literal<ByteBuffer>) literalPred.literal());
+            return stIntersects(pred.term(), asBoundingBox(literalPred));
           case ST_DISJOINT:
-            return stDisjoint(pred.term(), (Literal<ByteBuffer>) literalPred.literal());
+            return stDisjoint(pred.term(), asBoundingBox(literalPred));
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -498,9 +496,9 @@ public class ExpressionVisitors {
           case NOT_STARTS_WITH:
             return notStartsWith(pred.term(), literalPred.literal());
           case ST_INTERSECTS:
-            return stIntersects(pred.term(), (Literal<ByteBuffer>) literalPred.literal());
+            return stIntersects(pred.term(), asBoundingBox(literalPred));
           case ST_DISJOINT:
-            return stDisjoint(pred.term(), (Literal<ByteBuffer>) literalPred.literal());
+            return stDisjoint(pred.term(), asBoundingBox(literalPred));
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -592,11 +590,11 @@ public class ExpressionVisitors {
       return null;
     }
 
-    public <T> R stIntersects(BoundTerm<T> term, Literal<ByteBuffer> lit) {
+    public <T> R stIntersects(BoundTerm<T> term, BoundingBox bbox) {
       return null;
     }
 
-    public <T> R stDisjoint(BoundTerm<T> term, Literal<ByteBuffer> lit) {
+    public <T> R stDisjoint(BoundTerm<T> term, BoundingBox bbox) {
       return null;
     }
   }
@@ -645,5 +643,13 @@ public class ExpressionVisitors {
           throw new UnsupportedOperationException("Unknown operation: " + expr.op());
       }
     }
+  }
+
+  private static BoundingBox asBoundingBox(BoundLiteralPredicate<?> pred) {
+    if (pred.hasBoundingBoxLiteral()) {
+      return pred.boundingBox();
+    }
+
+    throw new IllegalStateException("Expected bounding box literal: " + pred.literal());
   }
 }

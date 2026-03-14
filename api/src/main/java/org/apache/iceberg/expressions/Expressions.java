@@ -305,9 +305,10 @@ public class Expressions {
     return geospatialPredicate(op, ref(name), value);
   }
 
+  @SuppressWarnings("unchecked")
   static UnboundPredicate<ByteBuffer> geospatialPredicate(
       Operation op, UnboundTerm<ByteBuffer> expr, BoundingBox value) {
-    return new UnboundPredicate<>(op, expr, Literal.of(value));
+    return new UnboundPredicate<>(op, expr, (Literal<ByteBuffer>) (Literal<?>) Literal.of(value));
   }
 
   public static True alwaysTrue() {

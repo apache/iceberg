@@ -21,7 +21,7 @@ package org.apache.iceberg.expressions;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import org.apache.iceberg.geospatial.BoundingBox;
 
 /**
  * Stand-in classes for expression classes in Java Serialization.
@@ -93,8 +93,7 @@ class SerializationProxies {
 
     @Override
     Object readResolve() throws ObjectStreamException {
-      return new Literals.BoundingBoxLiteral(
-          ByteBuffer.wrap(bytes()).order(ByteOrder.LITTLE_ENDIAN));
+      return new Literals.BoundingBoxLiteral(BoundingBox.fromByteBuffer(ByteBuffer.wrap(bytes())));
     }
   }
 }

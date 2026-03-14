@@ -554,8 +554,7 @@ public class ExpressionUtil {
     } else if (literal instanceof Literals.VariantLiteral) {
       return sanitizeVariant(((Literals.VariantLiteral) literal).value(), now, today);
     } else if (literal instanceof BoundingBoxLiteral) {
-      BoundingBox bbox = BoundingBox.fromByteBuffer(((BoundingBoxLiteral) literal).value());
-      return sanitizeBoundingBox(bbox);
+      return sanitizeBoundingBox(((BoundingBoxLiteral) literal).value());
     } else {
       // for uuid, decimal, fixed and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());

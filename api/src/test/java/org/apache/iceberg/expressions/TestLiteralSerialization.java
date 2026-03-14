@@ -61,11 +61,15 @@ public class TestLiteralSerialization {
 
   private <T> void checkValue(Literal<T> lit) throws Exception {
     Literal<T> copy = TestHelpers.roundTripSerialize(lit);
-    assertThat(lit.comparator().compare(lit.value(), copy.value()))
-        .as("Literal's comparator should consider values equal")
-        .isZero();
-    assertThat(copy.comparator().compare(lit.value(), copy.value()))
-        .as("Copy's comparator should consider values equal")
-        .isZero();
+    if (lit instanceof Literals.BoundingBoxLiteral) {
+      assertThat(copy.value()).isEqualTo(lit.value());
+    } else {
+      assertThat(lit.comparator().compare(lit.value(), copy.value()))
+          .as("Literal's comparator should consider values equal")
+          .isZero();
+      assertThat(copy.comparator().compare(lit.value(), copy.value()))
+          .as("Copy's comparator should consider values equal")
+          .isZero();
+    }
   }
 }

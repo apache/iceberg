@@ -72,7 +72,7 @@ public interface Literal<T> extends Serializable {
     return new Literals.DecimalLiteral(value);
   }
 
-  static Literal<ByteBuffer> of(BoundingBox value) {
+  static Literal<BoundingBox> of(BoundingBox value) {
     return new Literals.BoundingBoxLiteral(value);
   }
 

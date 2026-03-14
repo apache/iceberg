@@ -185,6 +185,16 @@ public class TestExpressionSerialization {
       BoundPredicate lpred = (BoundPredicate) left;
       BoundPredicate rpred = (BoundPredicate) right;
       if (lpred.isLiteralPredicate() && rpred.isLiteralPredicate()) {
+        if (lpred.asLiteralPredicate().hasBoundingBoxLiteral()
+            || rpred.asLiteralPredicate().hasBoundingBoxLiteral()) {
+          return lpred.asLiteralPredicate().hasBoundingBoxLiteral()
+              && rpred.asLiteralPredicate().hasBoundingBoxLiteral()
+              && lpred
+                  .asLiteralPredicate()
+                  .boundingBox()
+                  .equals(rpred.asLiteralPredicate().boundingBox());
+        }
+
         return lpred
                 .asLiteralPredicate()
                 .literal()

@@ -22,7 +22,6 @@ import java.io.ObjectStreamException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -752,32 +751,35 @@ class Literals {
     }
   }
 
-  static class BoundingBoxLiteral implements Literal<ByteBuffer> {
-    private static final Comparator<ByteBuffer> CMP =
-        Comparators.<ByteBuffer>nullsFirst().thenComparing(Comparators.unsignedBytes());
-
-    private final ByteBuffer value;
+  static class BoundingBoxLiteral implements Literal<BoundingBox> {
+    private final BoundingBox value;
+    private transient volatile ByteBuffer byteBuffer = null;
 
     BoundingBoxLiteral(BoundingBox value) {
-      this.value = value.toByteBuffer();
-    }
-
-    BoundingBoxLiteral(ByteBuffer value) {
-      Preconditions.checkNotNull(value, "Bounding box buffer cannot be null");
-      this.value = value.slice().order(ByteOrder.LITTLE_ENDIAN);
+      Preconditions.checkNotNull(value, "Bounding box value cannot be null");
+      this.value = value;
     }
 
     @Override
-    public ByteBuffer value() {
+    public BoundingBox value() {
       return value;
     }
 
     @Override
     public ByteBuffer toByteBuffer() {
-      return value;
+      if (byteBuffer == null) {
+        synchronized (this) {
+          if (byteBuffer == null) {
+            byteBuffer = value.toByteBuffer();
+          }
+        }
+      }
+
+      return byteBuffer;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
       if (type.typeId() != Type.TypeID.GEOMETRY && type.typeId() != Type.TypeID.GEOGRAPHY) {
         return null;
@@ -787,17 +789,17 @@ class Literals {
     }
 
     @Override
-    public Comparator<ByteBuffer> comparator() {
-      return CMP;
+    public Comparator<BoundingBox> comparator() {
+      throw new UnsupportedOperationException("BoundingBox literals are not comparable");
     }
 
     Object writeReplace() throws ObjectStreamException {
-      return new SerializationProxies.BoundingBoxLiteralProxy(value());
+      return new SerializationProxies.BoundingBoxLiteralProxy(toByteBuffer());
     }
 
     @Override
     public String toString() {
-      return BoundingBox.fromByteBuffer(value()).toString();
+      return value().toString();
     }
 
     @Override
@@ -810,7 +812,7 @@ class Literals {
       }
 
       BoundingBoxLiteral that = (BoundingBoxLiteral) other;
-      return comparator().compare(value(), that.value()) == 0;
+      return value().equals(that.value());
     }
 
     @Override
