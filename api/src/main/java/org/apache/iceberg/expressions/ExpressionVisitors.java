@@ -128,13 +128,11 @@ public class ExpressionVisitors {
     }
 
     public <T> R stIntersects(BoundReference<T> ref, BoundingBox bbox) {
-      throw new UnsupportedOperationException(
-          "stIntersects expression is not supported by the visitor");
+      throw new UnsupportedOperationException("stIntersects expression is not supported");
     }
 
     public <T> R stDisjoint(BoundReference<T> ref, BoundingBox bbox) {
-      throw new UnsupportedOperationException(
-          "stDisjoint expression is not supported by the visitor");
+      throw new UnsupportedOperationException("stDisjoint expression is not supported");
     }
 
     /**

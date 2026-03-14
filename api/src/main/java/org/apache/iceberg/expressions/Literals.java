@@ -757,7 +757,6 @@ class Literals {
         Comparators.<BoundingBox>nullsFirst().thenComparing(BoundingBoxLiteral::compare);
 
     private final BoundingBox value;
-    private transient volatile ByteBuffer byteBuffer = null;
 
     BoundingBoxLiteral(BoundingBox value) {
       Preconditions.checkNotNull(value, "Bounding box value cannot be null");
@@ -771,15 +770,7 @@ class Literals {
 
     @Override
     public ByteBuffer toByteBuffer() {
-      if (byteBuffer == null) {
-        synchronized (this) {
-          if (byteBuffer == null) {
-            byteBuffer = value.toByteBuffer();
-          }
-        }
-      }
-
-      return byteBuffer;
+      return value.toByteBuffer();
     }
 
     @Override

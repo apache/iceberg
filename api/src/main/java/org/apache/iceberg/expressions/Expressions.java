@@ -208,18 +208,8 @@ public class Expressions {
     return geospatialPredicate(Operation.ST_INTERSECTS, name, value);
   }
 
-  public static UnboundPredicate<ByteBuffer> stIntersects(
-      UnboundTerm<ByteBuffer> expr, BoundingBox value) {
-    return geospatialPredicate(Operation.ST_INTERSECTS, expr, value);
-  }
-
   public static UnboundPredicate<ByteBuffer> stDisjoint(String name, BoundingBox value) {
     return geospatialPredicate(Operation.ST_DISJOINT, name, value);
-  }
-
-  public static UnboundPredicate<ByteBuffer> stDisjoint(
-      UnboundTerm<ByteBuffer> expr, BoundingBox value) {
-    return geospatialPredicate(Operation.ST_DISJOINT, expr, value);
   }
 
   public static <T> UnboundPredicate<T> in(String name, T... values) {
@@ -300,15 +290,11 @@ public class Expressions {
     return new UnboundPredicate<>(op, expr);
   }
 
-  static UnboundPredicate<ByteBuffer> geospatialPredicate(
-      Operation op, String name, BoundingBox value) {
-    return geospatialPredicate(op, ref(name), value);
-  }
-
   @SuppressWarnings("unchecked")
   static UnboundPredicate<ByteBuffer> geospatialPredicate(
-      Operation op, UnboundTerm<ByteBuffer> expr, BoundingBox value) {
-    return new UnboundPredicate<>(op, expr, (Literal<ByteBuffer>) (Literal<?>) Literal.of(value));
+      Operation op, String name, BoundingBox value) {
+    return new UnboundPredicate<ByteBuffer>(
+        op, ref(name), (Literal<ByteBuffer>) (Literal<?>) Literal.of(value));
   }
 
   public static True alwaysTrue() {

@@ -70,27 +70,24 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
 
   @Override
   public boolean test(T value) {
+    Comparator<T> cmp = literal.comparator();
     switch (op()) {
       case LT:
-        return literal().comparator().compare(value, literal().value()) < 0;
+        return cmp.compare(value, literal.value()) < 0;
       case LT_EQ:
-        return literal().comparator().compare(value, literal().value()) <= 0;
+        return cmp.compare(value, literal.value()) <= 0;
       case GT:
-        return literal().comparator().compare(value, literal().value()) > 0;
+        return cmp.compare(value, literal.value()) > 0;
       case GT_EQ:
-        return literal().comparator().compare(value, literal().value()) >= 0;
+        return cmp.compare(value, literal.value()) >= 0;
       case EQ:
-        return literal().comparator().compare(value, literal().value()) == 0;
+        return cmp.compare(value, literal.value()) == 0;
       case NOT_EQ:
-        return literal().comparator().compare(value, literal().value()) != 0;
+        return cmp.compare(value, literal.value()) != 0;
       case STARTS_WITH:
-        return String.valueOf(value).startsWith((String) literal().value());
+        return String.valueOf(value).startsWith((String) literal.value());
       case NOT_STARTS_WITH:
-        return !String.valueOf(value).startsWith((String) literal().value());
-      case ST_INTERSECTS:
-      case ST_DISJOINT:
-        throw new UnsupportedOperationException(
-            "Geospatial predicates are not supported by BoundLiteralPredicate.test");
+        return !String.valueOf(value).startsWith((String) literal.value());
       default:
         throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
     }
@@ -99,13 +96,13 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   @Override
   @SuppressWarnings("unchecked")
   public boolean isEquivalentTo(Expression expr) {
-    if (op() == expr.op() && expr instanceof BoundLiteralPredicate) {
+    if (op() == expr.op()) {
       BoundLiteralPredicate<?> other = (BoundLiteralPredicate<?>) expr;
       if (term().isEquivalentTo(other.term())) {
         // because the term is equivalent, the literal must have the same type, T
         Literal<T> otherLiteral = (Literal<T>) other.literal();
-        Comparator<T> cmp = literal().comparator();
-        return cmp.compare(literal().value(), otherLiteral.value()) == 0;
+        Comparator<T> cmp = literal.comparator();
+        return cmp.compare(literal.value(), otherLiteral.value()) == 0;
       }
 
     } else if (expr instanceof BoundLiteralPredicate) {

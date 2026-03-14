@@ -83,17 +83,19 @@ class SerializationProxies {
     }
   }
 
-  static class BoundingBoxLiteralProxy extends FixedLiteralProxy {
+  static class BoundingBoxLiteralProxy implements Serializable {
+    private byte[] bytes;
+
     /** Constructor for Java serialization. */
     BoundingBoxLiteralProxy() {}
 
     BoundingBoxLiteralProxy(ByteBuffer buffer) {
-      super(buffer);
+      this.bytes = new byte[buffer.remaining()];
+      buffer.duplicate().get(this.bytes);
     }
 
-    @Override
     Object readResolve() throws ObjectStreamException {
-      return new Literals.BoundingBoxLiteral(BoundingBox.fromByteBuffer(ByteBuffer.wrap(bytes())));
+      return new Literals.BoundingBoxLiteral(BoundingBox.fromByteBuffer(ByteBuffer.wrap(bytes)));
     }
   }
 }
