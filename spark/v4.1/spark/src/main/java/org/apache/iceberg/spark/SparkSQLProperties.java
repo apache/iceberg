@@ -131,4 +131,11 @@ public class SparkSQLProperties {
   // This determines how many rows are buffered before inferring shredded schema
   public static final String VARIANT_INFERENCE_BUFFER_SIZE =
       "spark.sql.iceberg.variant-inference-buffer-size";
+
+  // Controls whether to propagate view reference chains (referenced-by) to catalogs
+  // when resolving tables/views from within views. When enabled, catalogs receive
+  // context about which views reference a table, enabling features like definer-rights
+  // authorization and scoped credential vending.
+  public static final String REFERENCED_BY_ENABLED = "spark.sql.iceberg.referenced-by-enabled";
+  public static final boolean REFERENCED_BY_ENABLED_DEFAULT = false;
 }

@@ -38,6 +38,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -117,7 +118,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalog {
+public class SparkCatalog extends BaseCatalog implements SparkContextAwareCatalog {
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
@@ -131,7 +132,7 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
   private Catalog icebergCatalog = null;
   private SupportsNamespaces asNamespaceCatalog = null;
   private ViewCatalog asViewCatalog = null;
-  private org.apache.iceberg.catalog.ContextAwareCatalog asContextAwareCatalog = null;
+  private ContextAwareCatalog asContextAwareCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
 
@@ -781,8 +782,8 @@ public class SparkCatalog extends BaseCatalog implements ContextAwareTableCatalo
       this.asViewCatalog = (ViewCatalog) catalog;
     }
 
-    if (catalog instanceof org.apache.iceberg.catalog.ContextAwareCatalog) {
-      this.asContextAwareCatalog = (org.apache.iceberg.catalog.ContextAwareCatalog) catalog;
+    if (catalog instanceof ContextAwareCatalog) {
+      this.asContextAwareCatalog = (ContextAwareCatalog) catalog;
     }
 
     EnvironmentContext.put(EnvironmentContext.ENGINE_NAME, "spark");

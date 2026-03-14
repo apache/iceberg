@@ -33,6 +33,7 @@ public final class RESTCatalogProperties {
   public static final String SNAPSHOTS_QUERY_PARAMETER = "snapshots";
 
   public static final String REFERENCED_BY_QUERY_PARAMETER = "referenced-by";
+
   public static final String PLAN_ID_QUERY_PARAMETER = "planId";
 
   public static final String METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";

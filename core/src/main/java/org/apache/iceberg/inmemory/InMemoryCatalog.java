@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.ContextAwareCatalog;
@@ -53,6 +54,7 @@ import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.BaseViewOperations;
+import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewOperations;
 import org.apache.iceberg.view.ViewUtil;
@@ -340,14 +342,12 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  public org.apache.iceberg.Table loadTable(
-      TableIdentifier identifier, Map<String, Object> loadingContext) {
+  public Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext) {
     return loadTable(identifier);
   }
 
   @Override
-  public org.apache.iceberg.view.View loadView(
-      TableIdentifier identifier, Map<String, Object> loadingContext) {
+  public View loadView(TableIdentifier identifier, Map<String, Object> loadingContext) {
     return loadView(identifier);
   }
 

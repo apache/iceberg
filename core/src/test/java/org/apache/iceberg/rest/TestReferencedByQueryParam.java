@@ -18,19 +18,32 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.rest.RequestMatcher.matches;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 public class TestReferencedByQueryParam {
+
+  private static final Schema SCHEMA =
+      new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
 
   private final RESTSessionCatalog catalog = new RESTSessionCatalog(config -> null, null);
 
@@ -124,5 +137,121 @@ public class TestReferencedByQueryParam {
     assertThat(result)
         .containsEntry(
             RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns+with+spaces%1Fview%2Fname");
+  }
+
+  @Test
+  public void loadTableWithReferencedByQueryParam() {
+    InMemoryCatalog backendCatalog = new InMemoryCatalog();
+    backendCatalog.initialize("test", ImmutableMap.of());
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog restCatalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    restCatalog.initialize("test", ImmutableMap.of());
+
+    Namespace ns = Namespace.of("ns");
+    restCatalog.createNamespace(ns);
+
+    TableIdentifier tableIdent = TableIdentifier.of(ns, "test_table");
+    restCatalog.buildTable(tableIdent, SCHEMA).create();
+
+    Mockito.clearInvocations(adapter);
+
+    List<TableIdentifier> viewChain = ImmutableList.of(TableIdentifier.of(ns, "outer_view"));
+    Map<String, Object> loadingContext =
+        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
+
+    restCatalog.loadTable(tableIdent, loadingContext);
+
+    // The test adapter uses %2E as the namespace separator
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                "v1/namespaces/ns/tables/test_table",
+                Map.of(),
+                ImmutableMap.of(
+                    "snapshots",
+                    "all",
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+                    "ns%2Eouter_view")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void loadTableWithoutContextHasNoReferencedByParam() {
+    InMemoryCatalog backendCatalog = new InMemoryCatalog();
+    backendCatalog.initialize("test", ImmutableMap.of());
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog restCatalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    restCatalog.initialize("test", ImmutableMap.of());
+
+    Namespace ns = Namespace.of("ns");
+    restCatalog.createNamespace(ns);
+
+    TableIdentifier tableIdent = TableIdentifier.of(ns, "test_table");
+    restCatalog.buildTable(tableIdent, SCHEMA).create();
+
+    Mockito.clearInvocations(adapter);
+
+    restCatalog.loadTable(tableIdent);
+
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                "v1/namespaces/ns/tables/test_table",
+                Map.of(),
+                ImmutableMap.of("snapshots", "all")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void loadTableWithNestedViewChainReferencedBy() {
+    InMemoryCatalog backendCatalog = new InMemoryCatalog();
+    backendCatalog.initialize("test", ImmutableMap.of());
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog restCatalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    restCatalog.initialize("test", ImmutableMap.of());
+
+    Namespace ns = Namespace.of("ns");
+    restCatalog.createNamespace(ns);
+
+    TableIdentifier tableIdent = TableIdentifier.of(ns, "test_table");
+    restCatalog.buildTable(tableIdent, SCHEMA).create();
+
+    Mockito.clearInvocations(adapter);
+
+    List<TableIdentifier> viewChain =
+        ImmutableList.of(
+            TableIdentifier.of(ns, "outer_view"), TableIdentifier.of(ns, "inner_view"));
+    Map<String, Object> loadingContext =
+        ImmutableMap.of(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewChain);
+
+    restCatalog.loadTable(tableIdent, loadingContext);
+
+    // The test adapter uses %2E as the namespace separator
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                "v1/namespaces/ns/tables/test_table",
+                Map.of(),
+                ImmutableMap.of(
+                    "snapshots",
+                    "all",
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+                    "ns%2Eouter_view,ns%2Einner_view")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
   }
 }

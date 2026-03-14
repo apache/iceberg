@@ -19,6 +19,7 @@
 package org.apache.spark.sql.catalyst.plans.logical.views
 
 import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.logical.LeafNode
 import org.apache.spark.sql.catalyst.util.quoteIfNeeded
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
@@ -38,12 +39,16 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
  *                  identifier (Seq[String]).
  * @param options Options passed to the table (similar to UnresolvedRelation)
  * @param isStreaming Whether this is a streaming relation
+ * @param timeTravelVersion Optional version for time travel (e.g., snapshot ID or reference name)
+ * @param timeTravelTimestamp Optional timestamp expression for time travel
  */
 case class UnResolvedRelationFromView(
     tableMultipartIdentifier: Seq[String],
     viewChain: Seq[Seq[String]],
     options: CaseInsensitiveStringMap = CaseInsensitiveStringMap.empty(),
-    override val isStreaming: Boolean = false)
+    override val isStreaming: Boolean = false,
+    timeTravelVersion: Option[String] = None,
+    timeTravelTimestamp: Option[Expression] = None)
     extends LeafNode {
 
   override def output: Seq[Attribute] = Nil
@@ -55,13 +60,13 @@ case class UnResolvedRelationFromView(
   def viewName: String = viewChain.map(_.map(quoteIfNeeded).mkString(".")).mkString(" -> ")
 
   override def simpleString(maxFields: Int): String = {
-    s"'UnresolvedRelationFromView [table=$tableName, views=$viewName, " +
+    s"'UnResolvedRelationFromView [table=$tableName, views=$viewName, " +
       s"${if (isStreaming) "streaming=true, " else ""}options=$options]"
   }
 
   override def toString: String = {
     val chainStr = viewChain.map(parts => s"[${parts.mkString(", ")}]").mkString(", ")
-    s"UnresolvedRelationFromView([${tableMultipartIdentifier.mkString(", ")}], " +
+    s"UnResolvedRelationFromView([${tableMultipartIdentifier.mkString(", ")}], " +
       s"chain=[$chainStr], $isStreaming)"
   }
 }

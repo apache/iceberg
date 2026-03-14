@@ -29,8 +29,15 @@ import org.apache.spark.sql.connector.catalog.View;
  * Extension interface for Spark catalogs that support loading tables and views with additional
  * context. The loading context can carry information such as the chain of views that reference a
  * table, enabling catalogs to make context-aware decisions (e.g., scoped credential vending).
+ *
+ * <p>This interface is used when the {@code spark.sql.iceberg.referenced-by-enabled} configuration
+ * is set to {@code true}. When enabled, the Spark analyzer tracks the chain of views that reference
+ * a table and passes this information to the catalog via the loading context. All views in the
+ * chain must belong to the same catalog as the target table &mdash; cross-catalog view references
+ * are not supported. Chain entries are always fully-qualified identifiers (catalog, namespace...,
+ * name).
  */
-public interface ContextAwareTableCatalog {
+public interface SparkContextAwareCatalog {
 
   /**
    * Load a table with additional context.

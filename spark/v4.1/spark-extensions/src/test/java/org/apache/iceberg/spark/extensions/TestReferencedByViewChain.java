@@ -28,10 +28,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
@@ -98,7 +100,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
 
     @Override
     public Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext)
-        throws org.apache.iceberg.exceptions.NoSuchTableException {
+        throws NoSuchTableException {
       CAPTURED.add(new CapturedContext(identifier, loadingContext));
       return super.loadTable(identifier);
     }
@@ -123,6 +125,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
                 ContextTrackingCatalog.class.getName())
             .config("spark.sql.catalog." + CATALOG_NAME + ".default-namespace", "default")
             .config("spark.sql.catalog." + CATALOG_NAME + ".cache-enabled", "false")
+            .config("spark.sql.iceberg.referenced-by-enabled", "true")
             .config("spark.sql.defaultCatalog", CATALOG_NAME)
             .getOrCreate();
 
@@ -253,8 +256,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   private ViewCatalog viewCatalog() {
-    org.apache.iceberg.catalog.Catalog icebergCatalog =
-        Spark3Util.loadIcebergCatalog(spark, CATALOG_NAME);
+    Catalog icebergCatalog = Spark3Util.loadIcebergCatalog(spark, CATALOG_NAME);
     assertThat(icebergCatalog).isInstanceOf(ViewCatalog.class);
     return (ViewCatalog) icebergCatalog;
   }

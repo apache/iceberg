@@ -18,9 +18,6 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.iceberg.catalog.Namespace
-import org.apache.iceberg.catalog.TableIdentifier
-import org.apache.iceberg.spark.ContextAwareTableCatalog
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
@@ -43,13 +40,15 @@ import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.MetadataBuilder
-import scala.jdk.CollectionConverters._
 
 case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
+
+  private lazy val referencedByEnabled: Boolean =
+    spark.conf.get("spark.sql.iceberg.referenced-by-enabled", "false").toBoolean
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case u @ UnresolvedRelation(nameParts, _, _)
@@ -72,60 +71,22 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
           tableParts @ CatalogAndIdentifier(catalog, tableIdent),
           viewChain,
           options,
-          isStreaming) =>
-      // Build List<TableIdentifier> from the view chain.
-      // Each chain element is [catalog, ns1, ns2, ..., viewName] — skip the catalog (first element)
-      // since TableIdentifier only contains namespace + name.
-      // Filter to only include views from the same catalog as the target table.
-      val targetCatalogName = catalog.name()
-      val viewIdentifiers = viewChain
-        .filter(parts => parts.headOption.contains(targetCatalogName))
-        .map { parts =>
-          val nsParts = parts.drop(1).init // drop catalog, then drop name
-          val ns = Namespace.of(nsParts: _*)
-          TableIdentifier.of(ns, parts.last)
-        }
-      if (viewIdentifiers.isEmpty) {
-        // No views from the same catalog — load without context but handle view fallback
-        try {
-          val table = catalog.asTableCatalog.loadTable(tableIdent)
-          DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
-        } catch {
-          case _: NoSuchTableException =>
-            ViewUtil
-              .loadView(catalog, tableIdent)
-              .map(view => createViewRelation(tableParts, view, Some(viewChain)))
-              .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
-        }
-      } else {
-        val context = new java.util.HashMap[String, Object]()
-        context.put(
-          org.apache.iceberg.catalog.ContextAwareCatalog.VIEW_IDENTIFIER_KEY,
-          viewIdentifiers.asJava)
-        try {
-          catalog match {
-            case contextAwareCatalog: ContextAwareTableCatalog =>
-              val table = contextAwareCatalog.loadTable(tableIdent, context)
-              DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
-            case catalog if catalog.asTableCatalog.isInstanceOf[ContextAwareTableCatalog] =>
-              val table =
-                catalog.asTableCatalog
-                  .asInstanceOf[ContextAwareTableCatalog]
-                  .loadTable(tableIdent, context)
-              DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
-            case _ =>
-              val table = catalog.asTableCatalog.loadTable(tableIdent)
-              DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
-          }
-        } catch {
-          case _: NoSuchTableException =>
-            // The target might be a view, not a table. Try loading as a view
-            // and recursively resolve with the accumulated chain.
-            ViewUtil
-              .loadView(catalog, tableIdent, context)
-              .map(view => createViewRelation(tableParts, view, Some(viewChain)))
-              .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
-        }
+          isStreaming,
+          timeTravelVersion,
+          timeTravelTimestamp) =>
+      val context = ViewUtil.buildLoadingContext(viewChain, catalog.name())
+      try {
+        val table =
+          ViewUtil.loadTable(catalog, tableIdent, context, timeTravelVersion, timeTravelTimestamp)
+        DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
+      } catch {
+        case _: NoSuchTableException =>
+          // The target might be a view, not a table. Try loading as a view
+          // and recursively resolve with the accumulated chain.
+          ViewUtil
+            .loadView(catalog, tableIdent, context)
+            .map(view => createViewRelation(tableParts, view, Some(viewChain)))
+            .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
       }
 
     case c @ CreateIcebergView(
@@ -176,15 +137,29 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
     // Apply any necessary rewrites to preserve correct resolution
     val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
-    // Build the view chain: append the current view's qualified name to the existing chain.
-    // Use the view's own catalog and namespace to ensure a fully qualified chain entry,
-    // since nameParts may be unqualified (e.g., just ["view_name"]).
-    val currentViewParts = viewCatalogAndNamespace :+ nameParts.last
-    val viewChain: Seq[Seq[String]] = existingChain match {
-      case Some(chain) => chain :+ currentViewParts
-      case None => Seq(currentViewParts)
+
+    val viewChain: Option[Seq[Seq[String]]] = if (referencedByEnabled) {
+      // Build the view chain: append the current view's fully qualified name to the existing chain.
+      val currentViewParts = nameParts match {
+        case Seq(name) =>
+          // 1-part: use current catalog and namespace
+          viewCatalogAndNamespace :+ name
+        case parts if !isCatalog(parts.head) =>
+          // 2-part (no catalog prefix): prepend the current catalog
+          viewCatalogAndNamespace.head +: parts
+        case parts =>
+          // 3+ part with catalog prefix: already fully qualified
+          parts
+      }
+      existingChain match {
+        case Some(chain) => Some(chain :+ currentViewParts)
+        case None => Some(Seq(currentViewParts))
+      }
+    } else {
+      None
     }
-    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, Some(viewChain))
+
+    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, viewChain)
 
     // Apply the field aliases and column comments
     // This logic differs from how Spark handles views in SessionCatalog.fromCatalogTable.
@@ -255,6 +230,31 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
             UnResolvedRelationFromView(qualifiedTableId, chain, options, isStreaming)
           case _ =>
             u.copy(multipartIdentifier = qualifiedTableId)
+        }
+      case RelationTimeTravel(
+            u @ UnresolvedRelation(parts, options, isStreaming),
+            timestampOpt,
+            versionOpt) =>
+        val qualifiedTableId = parts match {
+          case Seq(table) => catalogAndNamespace :+ table
+          case _ if !isCatalog(parts.head) => catalogAndNamespace.head +: parts
+          case _ => parts
+        }
+
+        viewChain match {
+          case Some(chain) =>
+            UnResolvedRelationFromView(
+              qualifiedTableId,
+              chain,
+              options,
+              isStreaming,
+              timeTravelVersion = versionOpt,
+              timeTravelTimestamp = timestampOpt)
+          case _ =>
+            RelationTimeTravel(
+              u.copy(multipartIdentifier = qualifiedTableId),
+              timestampOpt,
+              versionOpt)
         }
       case other =>
         other.transformExpressions { case subquery: SubqueryExpression =>

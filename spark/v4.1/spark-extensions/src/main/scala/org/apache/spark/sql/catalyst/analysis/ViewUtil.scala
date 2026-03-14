@@ -18,14 +18,24 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.iceberg.spark.ContextAwareTableCatalog
+import java.util.HashMap
+import org.apache.iceberg.catalog.ContextAwareCatalog
+import org.apache.iceberg.catalog.Namespace
+import org.apache.iceberg.catalog.TableIdentifier
+import org.apache.iceberg.spark.SparkContextAwareCatalog
+import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
+import scala.jdk.CollectionConverters._
 
 object ViewUtil {
+
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+
   def loadView(catalog: CatalogPlugin, ident: Identifier): Option[View] = catalog match {
     case viewCatalog: ViewCatalog =>
       try {
@@ -40,7 +50,7 @@ object ViewUtil {
       catalog: CatalogPlugin,
       ident: Identifier,
       context: java.util.Map[String, Object]): Option[View] = catalog match {
-    case contextAware: ContextAwareTableCatalog =>
+    case contextAware: SparkContextAwareCatalog =>
       try {
         Option(contextAware.loadView(ident, context))
       } catch {
@@ -53,6 +63,90 @@ object ViewUtil {
         case _: NoSuchViewException => None
       }
     case _ => None
+  }
+
+  /**
+   * Build the loading context (referenced-by view chain) from a sequence of fully-qualified
+   * view identifier parts. Validates that all entries are fully qualified and belong to the
+   * same catalog as the target.
+   */
+  def buildLoadingContext(
+      viewChain: Seq[Seq[String]],
+      targetCatalogName: String): java.util.Map[String, Object] = {
+    viewChain.foreach { parts =>
+      require(
+        parts.size >= 3,
+        s"View chain entry must be fully qualified [catalog, namespace..., name], got: ${parts.mkString(".")}")
+    }
+    val crossCatalogViews =
+      viewChain.filter(parts => !parts.headOption.contains(targetCatalogName))
+    if (crossCatalogViews.nonEmpty) {
+      throw new IllegalStateException(
+        s"Cross-catalog view references are not supported with referenced-by enabled. " +
+          s"Views from catalogs [${crossCatalogViews.map(_.head).distinct.mkString(", ")}] " +
+          s"cannot reference entities in catalog [$targetCatalogName]")
+    }
+    val viewIdentifiers = viewChain.map { parts =>
+      val nsParts = parts.drop(1).init
+      val ns = Namespace.of(nsParts: _*)
+      TableIdentifier.of(ns, parts.last)
+    }
+    val context = new HashMap[String, Object]()
+    context.put(ContextAwareCatalog.VIEW_IDENTIFIER_KEY, viewIdentifiers.asJava)
+    context
+  }
+
+  /**
+   * Load a table with context-aware support, dispatching to the appropriate loadTable overload
+   * based on whether the catalog supports context and whether time travel is requested.
+   */
+  def loadTable(
+      catalog: CatalogPlugin,
+      ident: Identifier,
+      context: java.util.Map[String, Object],
+      timeTravelVersion: Option[String] = None,
+      timeTravelTimestamp: Option[Expression] = None): Table = {
+    catalog match {
+      case contextAwareCatalog: SparkContextAwareCatalog =>
+        loadTableWithTimeTravel(
+          contextAwareCatalog,
+          ident,
+          context,
+          timeTravelVersion,
+          timeTravelTimestamp)
+      case c if c.asTableCatalog.isInstanceOf[SparkContextAwareCatalog] =>
+        loadTableWithTimeTravel(
+          c.asTableCatalog.asInstanceOf[SparkContextAwareCatalog],
+          ident,
+          context,
+          timeTravelVersion,
+          timeTravelTimestamp)
+      case _ =>
+        (timeTravelVersion, timeTravelTimestamp) match {
+          case (Some(version), _) =>
+            catalog.asTableCatalog.loadTable(ident, version)
+          case (_, Some(timestamp)) =>
+            catalog.asTableCatalog.loadTable(ident, timestamp.eval().asInstanceOf[Long])
+          case _ =>
+            catalog.asTableCatalog.loadTable(ident)
+        }
+    }
+  }
+
+  private def loadTableWithTimeTravel(
+      contextAwareCatalog: SparkContextAwareCatalog,
+      ident: Identifier,
+      context: java.util.Map[String, Object],
+      timeTravelVersion: Option[String],
+      timeTravelTimestamp: Option[Expression]): Table = {
+    (timeTravelVersion, timeTravelTimestamp) match {
+      case (Some(version), _) =>
+        contextAwareCatalog.loadTable(ident, version, context)
+      case (_, Some(timestamp)) =>
+        contextAwareCatalog.loadTable(ident, timestamp.eval().asInstanceOf[Long], context)
+      case _ =>
+        contextAwareCatalog.loadTable(ident, context)
+    }
   }
 
   def isViewCatalog(catalog: CatalogPlugin): Boolean = {
