@@ -48,7 +48,6 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.ContextAwareCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -65,7 +64,6 @@ import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -459,53 +457,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @VisibleForTesting
   Map<String, String> paramsForLoadTable(SnapshotMode mode, Map<String, Object> loadingContext) {
     Map<String, String> params = Maps.newHashMap(snapshotModeToParam(mode));
-    params.putAll(referencedByToQueryParam(loadingContext));
+    params.putAll(RESTUtil.referencedByToQueryParam(loadingContext, namespaceSeparator));
     return params;
   }
 
   @VisibleForTesting
   Map<String, String> referencedByToQueryParam(Map<String, Object> context) {
-    List<TableIdentifier> viewChain = extractViewChain(context);
-    if (viewChain.isEmpty()) {
-      return Map.of();
-    }
-
-    List<String> encoded =
-        viewChain.stream()
-            .map(
-                ident ->
-                    RESTUtil.encodeNamespace(ident.namespace(), namespaceSeparator)
-                        + namespaceSeparator
-                        + RESTUtil.encodeString(ident.name()))
-            .collect(Collectors.toList());
-
-    return ImmutableMap.of(
-        RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, Joiner.on(",").join(encoded));
-  }
-
-  private List<TableIdentifier> extractViewChain(Map<String, Object> context) {
-    if (context.isEmpty() || !context.containsKey(ContextAwareCatalog.VIEW_IDENTIFIER_KEY)) {
-      return List.of();
-    }
-
-    Object viewIdentifierObj = context.get(ContextAwareCatalog.VIEW_IDENTIFIER_KEY);
-
-    Preconditions.checkArgument(
-        viewIdentifierObj instanceof List,
-        "Invalid view identifier in context, expected List<TableIdentifier>: %s",
-        viewIdentifierObj);
-
-    List<?> rawList = (List<?>) viewIdentifierObj;
-    for (Object element : rawList) {
-      Preconditions.checkArgument(
-          element instanceof TableIdentifier,
-          "Invalid element in view identifier list, expected TableIdentifier: %s",
-          element);
-    }
-
-    @SuppressWarnings("unchecked")
-    List<TableIdentifier> viewChain = (List<TableIdentifier>) rawList;
-    return viewChain;
+    return RESTUtil.referencedByToQueryParam(context, namespaceSeparator);
   }
 
   /**
@@ -514,7 +472,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    */
   private Map<String, String> injectReferencedBy(
       Map<String, String> config, Map<String, Object> loadingContext) {
-    Map<String, String> referencedByParam = referencedByToQueryParam(loadingContext);
+    Map<String, String> referencedByParam =
+        RESTUtil.referencedByToQueryParam(loadingContext, namespaceSeparator);
     if (referencedByParam.isEmpty()) {
       return config;
     }
