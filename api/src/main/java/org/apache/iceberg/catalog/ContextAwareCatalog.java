@@ -23,29 +23,22 @@ import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.view.View;
 
-/**
- * Extension interface for Catalog that supports context-aware loading. This enables passing
- * additional context (such as view information) when loading tables or views.
- */
+/** A Catalog API extension for context-aware table and view loading. */
 public interface ContextAwareCatalog {
 
-  /** Context key for the view identifier chain that references a table. */
+  /**
+   * Context key whose value is a {@link List} of {@link TableIdentifier} representing the chain of
+   * views that reference a table or view. The list is ordered from outermost to innermost view.
+   */
   String VIEW_IDENTIFIER_KEY = "view.referenced-by";
 
   /**
-   * Load a table with additional context information.
+   * Load a table with additional loading context.
    *
-   * <p>Common context keys:
-   *
-   * <ul>
-   *   <li>{@link #VIEW_IDENTIFIER_KEY}: A {@link List} of {@link TableIdentifier} representing the
-   *       chain of views that reference this table. The list is ordered from outermost view first
-   *       to innermost view last. For a single view reference, the list contains one element.
-   * </ul>
-   *
-   * @param identifier the table identifier to load
-   * @param loadingContext additional context information as key-value pairs
-   * @return the loaded table
+   * @param identifier a table identifier
+   * @param loadingContext additional context as key-value pairs
+   * @return instance of {@link Table} referred by the identifier
+   * @throws UnsupportedOperationException if context-aware loading is not supported
    */
   default Table loadTable(TableIdentifier identifier, Map<String, Object> loadingContext) {
     throw new UnsupportedOperationException(
@@ -53,11 +46,12 @@ public interface ContextAwareCatalog {
   }
 
   /**
-   * Load a view with additional context information.
+   * Load a view with additional loading context.
    *
-   * @param identifier the view identifier to load
-   * @param loadingContext additional context information as key-value pairs
-   * @return the loaded view
+   * @param identifier a view identifier
+   * @param loadingContext additional context as key-value pairs
+   * @return instance of {@link View} referred by the identifier
+   * @throws UnsupportedOperationException if context-aware loading is not supported
    */
   default View loadView(TableIdentifier identifier, Map<String, Object> loadingContext) {
     throw new UnsupportedOperationException(

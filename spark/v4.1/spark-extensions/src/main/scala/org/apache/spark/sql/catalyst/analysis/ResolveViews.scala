@@ -219,11 +219,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       viewChain: Option[Seq[Seq[String]]]): LogicalPlan = {
     child transform {
       case u @ UnresolvedRelation(parts, options, isStreaming) =>
-        val qualifiedTableId = parts match {
-          case Seq(table) => catalogAndNamespace :+ table
-          case _ if !isCatalog(parts.head) => catalogAndNamespace.head +: parts
-          case _ => parts // fallback for other cases
-        }
+        val qualifiedTableId = qualifyParts(parts, catalogAndNamespace)
 
         viewChain match {
           case Some(chain) =>
@@ -235,11 +231,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
             u @ UnresolvedRelation(parts, options, isStreaming),
             timestampOpt,
             versionOpt) =>
-        val qualifiedTableId = parts match {
-          case Seq(table) => catalogAndNamespace :+ table
-          case _ if !isCatalog(parts.head) => catalogAndNamespace.head +: parts
-          case _ => parts
-        }
+        val qualifiedTableId = qualifyParts(parts, catalogAndNamespace)
 
         viewChain match {
           case Some(chain) =>
@@ -261,6 +253,14 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
           subquery.withNewPlan(
             qualifyTableIdentifiers(subquery.plan, catalogAndNamespace, viewChain))
         }
+    }
+  }
+
+  private def qualifyParts(parts: Seq[String], catalogAndNamespace: Seq[String]): Seq[String] = {
+    parts match {
+      case Seq(table) => catalogAndNamespace :+ table
+      case _ if !isCatalog(parts.head) => catalogAndNamespace.head +: parts
+      case _ => parts
     }
   }
 

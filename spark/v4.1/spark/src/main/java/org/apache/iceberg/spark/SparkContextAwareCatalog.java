@@ -26,60 +26,52 @@ import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.View;
 
 /**
- * Extension interface for Spark catalogs that support loading tables and views with additional
- * context. The loading context can carry information such as the chain of views that reference a
- * table, enabling catalogs to make context-aware decisions (e.g., scoped credential vending).
- *
- * <p>This interface is used when the {@code spark.sql.iceberg.referenced-by-enabled} configuration
- * is set to {@code true}. When enabled, the Spark analyzer tracks the chain of views that reference
- * a table and passes this information to the catalog via the loading context. All views in the
- * chain must belong to the same catalog as the target table &mdash; cross-catalog view references
- * are not supported. Chain entries are always fully-qualified identifiers (catalog, namespace...,
- * name).
+ * A Spark Catalog API extension for context-aware table and view loading. Extends the loading
+ * contract to accept additional context such as the chain of views referencing a table.
  */
 public interface SparkContextAwareCatalog {
 
   /**
-   * Load a table with additional context.
+   * Load a table with additional loading context.
    *
-   * @param identifier the table identifier
-   * @param loadingContext additional context as key-value pairs (e.g., view reference chain)
-   * @return the loaded table
+   * @param identifier a table identifier
+   * @param loadingContext additional context as key-value pairs
+   * @return instance of {@link Table} referred by the identifier
    * @throws NoSuchTableException if the table does not exist
    */
   Table loadTable(Identifier identifier, Map<String, Object> loadingContext)
       throws NoSuchTableException;
 
   /**
-   * Load a table at a specific version with additional context.
+   * Load a table at a specific version with additional loading context.
    *
-   * @param identifier the table identifier
-   * @param version the version string (snapshot ID or reference name)
+   * @param identifier a table identifier
+   * @param version the version string
    * @param loadingContext additional context as key-value pairs
-   * @return the loaded table at the specified version
+   * @return instance of {@link Table} referred by the identifier at the specified version
    * @throws NoSuchTableException if the table does not exist
    */
   Table loadTable(Identifier identifier, String version, Map<String, Object> loadingContext)
       throws NoSuchTableException;
 
   /**
-   * Load a table at a specific timestamp with additional context.
+   * Load a table at a specific timestamp with additional loading context.
    *
-   * @param identifier the table identifier
+   * @param identifier a table identifier
    * @param timestamp the timestamp in microseconds
    * @param loadingContext additional context as key-value pairs
-   * @return the loaded table as of the specified timestamp
+   * @return instance of {@link Table} referred by the identifier as of the specified timestamp
    * @throws NoSuchTableException if the table does not exist
    */
   Table loadTable(Identifier identifier, long timestamp, Map<String, Object> loadingContext)
       throws NoSuchTableException;
 
   /**
-   * Load a view with additional context.
+   * Load a view with additional loading context.
    *
-   * @param identifier the view identifier
-   * @param loadingContext additional context as key-value pairs (e.g., view reference chain)
-   * @return the loaded view
+   * @param identifier a view identifier
+   * @param loadingContext additional context as key-value pairs
+   * @return instance of {@link View} referred by the identifier
    * @throws NoSuchViewException if the view does not exist
    */
   View loadView(Identifier identifier, Map<String, Object> loadingContext)
