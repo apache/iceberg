@@ -158,7 +158,7 @@ public class RowDataToAvroConverters {
               }
             };
         break;
-      // Iceberg: Added support for nanoseconds precision (FLINK-39251)
+        // Iceberg: Added support for nanoseconds precision (FLINK-39251)
       case TIMESTAMP_WITHOUT_TIME_ZONE:
         final int tzPrecision;
         if (type instanceof org.apache.flink.table.types.logical.TimestampType) {
@@ -208,7 +208,7 @@ public class RowDataToAvroConverters {
               };
         }
         break;
-      // Iceberg: Added support for nanoseconds precision (FLINK-39251)
+        // Iceberg: Added support for nanoseconds precision (FLINK-39251)
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
         final int ltzPrecision;
         if (type instanceof org.apache.flink.table.types.logical.LocalZonedTimestampType) {

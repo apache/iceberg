@@ -57,8 +57,8 @@ import org.apache.flink.util.Preconditions;
  * {@link AvroRowDataDeserializationSchema} and {@link AvroRowDataSerializationSchema}.
  *
  * <p>This class is adapted in Iceberg to support custom 'timestamp-nanos' and
- * 'local-timestamp-nanos' logical types (FLINK-39251). Once that ticket is resolved in Flink,
- * these custom types may be removed.
+ * 'local-timestamp-nanos' logical types (FLINK-39251). Once that ticket is resolved in Flink, these
+ * custom types may be removed.
  */
 public class AvroSchemaConverter {
 
