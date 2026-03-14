@@ -138,26 +138,12 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     // Apply any necessary rewrites to preserve correct resolution
     val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
 
-    val viewChain: Option[Seq[Seq[String]]] = if (referencedByEnabled) {
-      // Build the view chain: append the current view's fully qualified name to the existing chain.
-      val currentViewParts = nameParts match {
-        case Seq(name) =>
-          // 1-part: use current catalog and namespace
-          viewCatalogAndNamespace :+ name
-        case parts if !isCatalog(parts.head) =>
-          // 2-part (no catalog prefix): prepend the current catalog
-          viewCatalogAndNamespace.head +: parts
-        case parts =>
-          // 3+ part with catalog prefix: already fully qualified
-          parts
-      }
-      existingChain match {
-        case Some(chain) => Some(chain :+ currentViewParts)
-        case None => Some(Seq(currentViewParts))
-      }
-    } else {
-      None
-    }
+    val viewChain = ViewUtil.buildViewChain(
+      referencedByEnabled,
+      nameParts,
+      viewCatalogAndNamespace,
+      existingChain,
+      isCatalog)
 
     val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, viewChain)
 

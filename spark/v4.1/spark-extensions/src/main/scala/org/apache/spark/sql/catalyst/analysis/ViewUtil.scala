@@ -97,6 +97,40 @@ object ViewUtil {
   }
 
   /**
+   * Build or extend the view chain by appending the current view's fully qualified identifier.
+   * Returns None if referenced-by tracking is disabled.
+   *
+   * @param referencedByEnabled whether referenced-by tracking is enabled
+   * @param nameParts the current view's identifier parts (may be 1, 2, or 3+ parts)
+   * @param viewCatalogAndNamespace the view's catalog and namespace prefix
+   * @param existingChain the existing view chain from outer views, if any
+   * @param isCatalog function to check if a name is a registered catalog
+   */
+  def buildViewChain(
+      referencedByEnabled: Boolean,
+      nameParts: Seq[String],
+      viewCatalogAndNamespace: Seq[String],
+      existingChain: Option[Seq[Seq[String]]],
+      isCatalog: String => Boolean): Option[Seq[Seq[String]]] = {
+    if (referencedByEnabled) {
+      val currentViewParts = nameParts match {
+        case Seq(name) =>
+          viewCatalogAndNamespace :+ name
+        case parts if !isCatalog(parts.head) =>
+          viewCatalogAndNamespace.head +: parts
+        case parts =>
+          parts
+      }
+      existingChain match {
+        case Some(chain) => Some(chain :+ currentViewParts)
+        case None => Some(Seq(currentViewParts))
+      }
+    } else {
+      None
+    }
+  }
+
+  /**
    * Load a table with context-aware support, dispatching to the appropriate loadTable overload
    * based on whether the catalog supports context and whether time travel is requested.
    */

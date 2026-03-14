@@ -55,23 +55,18 @@ public interface ViewSessionCatalog {
   View loadView(SessionCatalog.SessionContext context, TableIdentifier identifier);
 
   /**
-   * Load a view with additional context information.
-   *
-   * <p>The default implementation ignores the loading context and delegates to {@link
-   * #loadView(SessionCatalog.SessionContext, TableIdentifier)}.
+   * Load a view with additional loading context.
    *
    * @param context the session context
    * @param identifier a view identifier
-   * @param loadingContext additional context information for the view load
-   * @return instance of {@link View} implementation referred by the identifier
+   * @param loadingContext additional context as key-value pairs
+   * @return instance of {@link View} referred by the identifier
    * @throws NoSuchViewException if the view does not exist
    */
-  default View loadView(
+  View loadView(
       SessionCatalog.SessionContext context,
       TableIdentifier identifier,
-      Map<String, Object> loadingContext) {
-    return loadView(context, identifier);
-  }
+      Map<String, Object> loadingContext);
 
   /**
    * Check whether view exists.

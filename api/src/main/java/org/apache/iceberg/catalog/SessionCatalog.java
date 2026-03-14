@@ -388,8 +388,14 @@ public interface SessionCatalog {
     }
   }
 
-  default Table loadTable(
-      SessionContext sessionContext, TableIdentifier ident, Map<String, Object> context) {
-    return loadTable(sessionContext, ident);
-  }
+  /**
+   * Load a table with additional loading context.
+   *
+   * @param sessionContext the session context
+   * @param ident a table identifier
+   * @param context additional context as key-value pairs
+   * @return instance of {@link Table} referred by the identifier
+   */
+  Table loadTable(
+      SessionContext sessionContext, TableIdentifier ident, Map<String, Object> context);
 }
