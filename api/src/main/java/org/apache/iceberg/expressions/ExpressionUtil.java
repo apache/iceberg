@@ -24,6 +24,8 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -36,6 +38,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.PhysicalType;
@@ -155,11 +159,39 @@ public class ExpressionUtil {
    * @param caseSensitive whether binding is case sensitive
    * @param ids field IDs used to match predicates to extract from the expression
    * @return an Expression that selects at least the same rows as the original using only the IDs
+   * @deprecated use {@link #retainPredicatesWithReferencedIds} instead; this method uses
+   *     identitySpec and can throw when ids include fields nested under map/array.
    */
+  @Deprecated
   public static Expression extractByIdInclusive(
       Expression expression, Schema schema, boolean caseSensitive, int... ids) {
     PartitionSpec spec = identitySpec(schema, ids);
     return Projections.inclusive(spec, caseSensitive).project(Expressions.rewriteNot(expression));
+  }
+
+  /**
+   * Returns an expression that retains only predicates which reference one of the given field IDs.
+   * Predicates that do not reference any of the given IDs are replaced with alwaysTrue(). Used to
+   * preserve filters on non-primitive columns (e.g. map, array) that cannot be pushed down via
+   * partition projection.
+   *
+   * @param expression a filter expression
+   * @param schema schema for binding references
+   * @param caseSensitive whether binding is case sensitive
+   * @param retainFieldIds field IDs to retain predicates for
+   * @return expression containing only predicates that reference the given IDs
+   */
+  public static Expression retainPredicatesWithReferencedIds(
+      Expression expression,
+      Schema schema,
+      boolean caseSensitive,
+      Set<Integer> retainFieldIds) {
+    if (retainFieldIds == null || retainFieldIds.isEmpty()) {
+      return Expressions.alwaysTrue();
+    }
+    return ExpressionVisitors.visit(
+        Expressions.rewriteNot(expression),
+        new RetainPredicatesByFieldIdVisitor(schema, caseSensitive, retainFieldIds));
   }
 
   /**
@@ -260,6 +292,61 @@ public class ExpressionUtil {
     }
 
     throw new UnsupportedOperationException("Cannot unbind unsupported term: " + term);
+  }
+
+  private static class RetainPredicatesByFieldIdVisitor
+      extends ExpressionVisitors.ExpressionVisitor<Expression> {
+    private final Schema schema;
+    private final boolean caseSensitive;
+    private final Set<Integer> retainFieldIds;
+
+    RetainPredicatesByFieldIdVisitor(
+        Schema schema, boolean caseSensitive, Set<Integer> retainFieldIds) {
+      this.schema = schema;
+      this.caseSensitive = caseSensitive;
+      this.retainFieldIds = retainFieldIds;
+    }
+
+    @Override
+    public Expression alwaysTrue() {
+      return Expressions.alwaysTrue();
+    }
+
+    @Override
+    public Expression alwaysFalse() {
+      return Expressions.alwaysFalse();
+    }
+
+    @Override
+    public Expression not(Expression result) {
+      return Expressions.not(result);
+    }
+
+    @Override
+    public Expression and(Expression leftResult, Expression rightResult) {
+      return Expressions.and(leftResult, rightResult);
+    }
+
+    @Override
+    public Expression or(Expression leftResult, Expression rightResult) {
+      return Expressions.or(leftResult, rightResult);
+    }
+
+    @Override
+    public <T> Expression predicate(BoundPredicate<T> pred) {
+      return retainFieldIds.contains(pred.ref().fieldId()) ? pred : Expressions.alwaysTrue();
+    }
+
+    @Override
+    public <T> Expression predicate(UnboundPredicate<T> pred) {
+      Expression bound = Binder.bind(schema.asStruct(), pred, caseSensitive);
+      if (bound instanceof BoundPredicate) {
+        return retainFieldIds.contains(((BoundPredicate<?>) bound).ref().fieldId())
+            ? pred
+            : Expressions.alwaysTrue();
+      }
+      return Expressions.alwaysTrue();
+    }
   }
 
   private static class ExpressionSanitizer
@@ -700,11 +787,28 @@ public class ExpressionUtil {
 
   private static PartitionSpec identitySpec(Schema schema, int... ids) {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema);
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
 
     for (int id : ids) {
-      specBuilder.identity(schema.findColumnName(id));
+      String columnName = schema.findColumnName(id);
+      if (columnName != null && canBePartitionSource(id, schema, idToParent)) {
+        specBuilder.identity(columnName);
+      }
     }
 
     return specBuilder.build();
+  }
+
+  private static boolean canBePartitionSource(
+      int fieldId, Schema schema, Map<Integer, Integer> idToParent) {
+    Integer parentId = idToParent.get(fieldId);
+    while (parentId != null) {
+      Type parentType = schema.findType(parentId);
+      if (parentType == null || !parentType.isStructType()) {
+        return false;
+      }
+      parentId = idToParent.get(parentId);
+    }
+    return true;
   }
 }
