@@ -18,23 +18,33 @@
  */
 package org.apache.iceberg.gcp.bigquery;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.api.services.bigquery.model.ExternalCatalogTableOptions;
 import com.google.api.services.bigquery.model.Table;
 import com.google.api.services.bigquery.model.TableReference;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,6 +145,42 @@ final class BigQueryTableOperations extends BaseMetastoreTableOperations {
   @Override
   public FileIO io() {
     return fileIO;
+  }
+
+  /**
+   * Writes table metadata JSON, normalizing null {@code current-snapshot-id} to {@code -1}.
+   *
+   * <p>BigQuery's server-side metadata validation rejects {@code "current-snapshot-id": null},
+   * which Iceberg v3+ writes for tables with no snapshots. Iceberg's reader treats {@code null} and
+   * {@code -1} identically, so replacing null with -1 is safe.
+   */
+  /**
+   * BigQuery's server rejects {@code "current-snapshot-id": null} in metadata JSON. Iceberg v3+
+   * writes null for empty tables per spec, but the reader treats null and -1 identically. For v3+
+   * tables with no snapshots, write -1 in place of null.
+   */
+  @Override
+  protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
+    if (metadata.currentSnapshot() != null || metadata.formatVersion() < 3) {
+      return super.writeNewMetadata(metadata, newVersion);
+    }
+
+    String path = newTableMetadataFilePath(metadata, newVersion);
+    OutputFile outputFile = io().newOutputFile(path);
+    try {
+      String json = TableMetadataParser.toJson(metadata);
+      JsonNode root = JsonUtil.mapper().readTree(json);
+      ((ObjectNode) root).put("current-snapshot-id", -1L);
+
+      try (OutputStream stream = outputFile.createOrOverwrite();
+          OutputStreamWriter writer = new OutputStreamWriter(stream, StandardCharsets.UTF_8)) {
+        JsonUtil.mapper().writeValue(writer, root);
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write metadata for BigQuery");
+    }
+
+    return outputFile.location();
   }
 
   private void createTable(String newMetadataLocation, TableMetadata metadata) {

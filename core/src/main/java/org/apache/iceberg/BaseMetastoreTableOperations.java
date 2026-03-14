@@ -339,7 +339,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
             .anyMatch(log -> log.file().equals(newMetadataLocation));
   }
 
-  private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
+  protected String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
     String codecName =
         meta.property(
             TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
