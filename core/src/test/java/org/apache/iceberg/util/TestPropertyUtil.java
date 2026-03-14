@@ -26,32 +26,25 @@ import org.junit.jupiter.api.Test;
 public class TestPropertyUtil {
 
   @Test
-  void propertiesWithPrefixStripsLiterally() {
-    // The prefix contains dots which are regex wildcards. Using replaceFirst(prefix, "")
-    // would treat dots as regex "any char", which is incorrect. substring(prefix.length())
-    // strips the prefix literally.
-    Map<String, String> properties =
-        Map.of(
-            "write.parquet.column.int_field", "false",
-            "write.parquet.column.string_field", "true",
-            "unrelated.key", "value");
-
-    Map<String, String> result =
-        PropertyUtil.propertiesWithPrefix(properties, "write.parquet.column.");
-
-    assertThat(result)
-        .containsExactlyInAnyOrderEntriesOf(
-            Map.of("int_field", "false", "string_field", "true"));
-  }
-
-  @Test
   void propertiesWithPrefixHandlesRegexSpecialChars() {
-    // Prefix with regex-special characters that would cause PatternSyntaxException
-    // with replaceFirst but work correctly with substring
+    // prefix[0]. is a valid regex where [0] matches char '0' and . matches any char,
+    // so replaceFirst would silently fail to strip the literal prefix "prefix[0]."
     Map<String, String> properties = Map.of("prefix[0].key", "value");
 
     Map<String, String> result =
         PropertyUtil.propertiesWithPrefix(properties, "prefix[0].");
+
+    assertThat(result).containsExactlyInAnyOrderEntriesOf(Map.of("key", "value"));
+  }
+
+  @Test
+  void propertiesWithPrefixHandlesUnclosedRegexChars() {
+    // prefix[0. contains an unclosed character class which would cause
+    // PatternSyntaxException with replaceFirst but works correctly with substring
+    Map<String, String> properties = Map.of("prefix[0.key", "value");
+
+    Map<String, String> result =
+        PropertyUtil.propertiesWithPrefix(properties, "prefix[0.");
 
     assertThat(result).containsExactlyInAnyOrderEntriesOf(Map.of("key", "value"));
   }
