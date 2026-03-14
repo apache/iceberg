@@ -221,8 +221,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
             Types.NestedField.required(2, "data", Types.StringType.get()),
             Types.NestedField.optional(
                 3, "arr_col", Types.ListType.ofOptional(4, Types.IntegerType.get())));
-    Table tab =
-        createTable(tableName, schemaWithArray, PartitionSpec.unpartitioned());
+    Table tab = createTable(tableName, schemaWithArray, PartitionSpec.unpartitioned());
 
     GenericRecord record1 = GenericRecord.create(schemaWithArray);
     record1.set(0, 1);
@@ -243,20 +242,8 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     List<PositionDelete<?>> deletes =
         ImmutableList.of(
-            positionDelete(
-                schemaWithArray,
-                dFile.location(),
-                0L,
-                1,
-                "a",
-                ImmutableList.of(1, 2)),
-            positionDelete(
-                schemaWithArray,
-                dFile.location(),
-                1L,
-                2,
-                "b",
-                ImmutableList.of(3, 4)));
+            positionDelete(schemaWithArray, dFile.location(), 0L, 1, "a", ImmutableList.of(1, 2)),
+            positionDelete(schemaWithArray, dFile.location(), 1L, 2, "b", ImmutableList.of(3, 4)));
     DeleteFile posDeletes =
         FileHelpers.writePosDeleteFile(
             tab,
@@ -268,8 +255,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     // Filter directly on array column: row.arr_col = array(1, 2)
     StructLikeSet actual = actual(tableName, tab, "row.arr_col = array(1, 2)");
-    StructLikeSet expected =
-        expected(tab, ImmutableList.of(deletes.get(0)), null, posDeletes);
+    StructLikeSet expected = expected(tab, ImmutableList.of(deletes.get(0)), null, posDeletes);
 
     assertThat(actual)
         .as("Filtering position_deletes by row.arr_col = array(1, 2) should return matching row")

@@ -182,10 +182,7 @@ public class ExpressionUtil {
    * @return expression containing only predicates that reference the given IDs
    */
   public static Expression retainPredicatesWithReferencedIds(
-      Expression expression,
-      Schema schema,
-      boolean caseSensitive,
-      Set<Integer> retainFieldIds) {
+      Expression expression, Schema schema, boolean caseSensitive, Set<Integer> retainFieldIds) {
     if (retainFieldIds == null || retainFieldIds.isEmpty()) {
       return Expressions.alwaysTrue();
     }
