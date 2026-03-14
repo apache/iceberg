@@ -41,7 +41,12 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.util.CollectionUtil;
 
-/** Tool class used to convert from {@link RowData} to Avro {@link GenericRecord}. */
+/**
+ * Tool class used to convert from {@link RowData} to Avro {@link GenericRecord}.
+ *
+ * <p>This class is adapted in Iceberg to add support for nanosecond precision timestamps
+ * (FLINK-39251). Once that ticket is resolved in Flink, this custom converter may be removed.
+ */
 @Internal
 public class RowDataToAvroConverters {
 
@@ -153,6 +158,7 @@ public class RowDataToAvroConverters {
               }
             };
         break;
+      // Iceberg: Added support for nanoseconds precision (FLINK-39251)
       case TIMESTAMP_WITHOUT_TIME_ZONE:
         final int tzPrecision;
         if (type instanceof org.apache.flink.table.types.logical.TimestampType) {
@@ -174,6 +180,7 @@ public class RowDataToAvroConverters {
                     return timestampData.getMillisecond() * 1000L
                         + timestampData.getNanoOfMillisecond() / 1000;
                   } else {
+                    // Iceberg: Added support for nanoseconds precision (FLINK-39251)
                     return timestampData.getMillisecond() * 1_000_000L
                         + timestampData.getNanoOfMillisecond();
                   }
@@ -194,12 +201,14 @@ public class RowDataToAvroConverters {
                   } else if (tzPrecision <= 6) {
                     return instant.getEpochSecond() * 1_000_000L + instant.getNano() / 1000;
                   } else {
+                    // Iceberg: Added support for nanoseconds precision (FLINK-39251)
                     return instant.getEpochSecond() * 1_000_000_000L + instant.getNano();
                   }
                 }
               };
         }
         break;
+      // Iceberg: Added support for nanoseconds precision (FLINK-39251)
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
         final int ltzPrecision;
         if (type instanceof org.apache.flink.table.types.logical.LocalZonedTimestampType) {
@@ -224,6 +233,7 @@ public class RowDataToAvroConverters {
                     return timestampData.getMillisecond() * 1000L
                         + timestampData.getNanoOfMillisecond() / 1000;
                   } else {
+                    // Iceberg: Added support for nanoseconds precision (FLINK-39251)
                     return timestampData.getMillisecond() * 1_000_000L
                         + timestampData.getNanoOfMillisecond();
                   }

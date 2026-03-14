@@ -91,14 +91,4 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
     assertThat(actual).isExhausted();
     assertThat(expected).isExhausted();
   }
-
-  @Override
-  public void testTimestampNanoWithoutZone() {
-    super.testTimestampNanoWithoutZone();
-  }
-
-  @Override
-  public void testTimestampNanoWithZone() {
-    super.testTimestampNanoWithZone();
-  }
 }

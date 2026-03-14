@@ -49,7 +49,12 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.utils.LogicalTypeUtils;
 
-/** Tool class used to convert from Avro {@link GenericRecord} to {@link RowData}. * */
+/**
+ * Tool class used to convert from Avro {@link GenericRecord} to {@link RowData}.
+ *
+ * <p>This class is adapted in Iceberg to add support for nanosecond precision timestamps
+ * (FLINK-39251). Once that ticket is resolved in Flink, this custom converter may be removed.
+ */
 @Internal
 public class AvroToRowDataConverters {
 
@@ -126,11 +131,13 @@ public class AvroToRowDataConverters {
       case TIME_WITHOUT_TIME_ZONE:
         return AvroToRowDataConverters::convertToTime;
       case TIMESTAMP_WITHOUT_TIME_ZONE:
+        // Iceberg: Added support for nanoseconds precision (FLINK-39251)
         return avroObject -> convertToTimestamp(avroObject, type);
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
         if (legacyTimestampMapping) {
           throw new UnsupportedOperationException("Unsupported type: " + type);
         } else {
+          // Iceberg: Added support for nanoseconds precision (FLINK-39251)
           return avroObject -> convertToTimestamp(avroObject, type);
         }
       case CHAR:
@@ -226,6 +233,7 @@ public class AvroToRowDataConverters {
         return TimestampData.fromEpochMillis(
             Math.floorDiv(timeLong, 1000L), (int) Math.floorMod(timeLong, 1000L) * 1_000_000);
       } else {
+        // Iceberg: Added support for nanoseconds precision (FLINK-39251)
         return TimestampData.fromEpochMillis(
             Math.floorDiv(timeLong, 1_000_000L), (int) Math.floorMod(timeLong, 1_000_000L));
       }

@@ -55,6 +55,10 @@ import org.apache.flink.util.Preconditions;
  *
  * <p>Note: Changes in this class need to be kept in sync with the corresponding runtime classes
  * {@link AvroRowDataDeserializationSchema} and {@link AvroRowDataSerializationSchema}.
+ *
+ * <p>This class is adapted in Iceberg to support custom 'timestamp-nanos' and
+ * 'local-timestamp-nanos' logical types (FLINK-39251). Once that ticket is resolved in Flink,
+ * these custom types may be removed.
  */
 public class AvroSchemaConverter {
 
@@ -192,6 +196,7 @@ public class AvroSchemaConverter {
         if (legacyTimestampMapping) {
           if (schema.getLogicalType() == LogicalTypes.timestampMillis()
               || schema.getLogicalType() == LogicalTypes.timestampMicros()
+              // Iceberg: Added support for custom nanosecond logical type (FLINK-39251)
               || (schema.getLogicalType() != null
                   && schema.getLogicalType().getName().equals("timestamp-nanos"))) {
             return Types.SQL_TIMESTAMP;
@@ -203,11 +208,13 @@ public class AvroSchemaConverter {
           // Avro logical timestamp types to Flink DataStream timestamp types
           if (schema.getLogicalType() == LogicalTypes.timestampMillis()
               || schema.getLogicalType() == LogicalTypes.timestampMicros()
+              // Iceberg: Added support for custom nanosecond logical type (FLINK-39251)
               || (schema.getLogicalType() != null
                   && schema.getLogicalType().getName().equals("timestamp-nanos"))) {
             return Types.INSTANT;
           } else if (schema.getLogicalType() == LogicalTypes.localTimestampMillis()
               || schema.getLogicalType() == LogicalTypes.localTimestampMicros()
+              // Iceberg: Added support for custom nanosecond logical type (FLINK-39251)
               || (schema.getLogicalType() != null
                   && schema.getLogicalType().getName().equals("local-timestamp-nanos"))) {
             return Types.LOCAL_DATE_TIME;
@@ -339,6 +346,7 @@ public class AvroSchemaConverter {
             return DataTypes.TIMESTAMP(6).notNull();
           } else if (schema.getLogicalType() != null
               && schema.getLogicalType().getName().equals("timestamp-nanos")) {
+            // Iceberg: Added support for custom nanosecond logical type (FLINK-39251)
             return DataTypes.TIMESTAMP(9).notNull();
           } else if (schema.getLogicalType() == LogicalTypes.timeMillis()) {
             return DataTypes.TIME(3).notNull();
@@ -353,6 +361,7 @@ public class AvroSchemaConverter {
             return DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE(6).notNull();
           } else if (schema.getLogicalType() != null
               && schema.getLogicalType().getName().equals("timestamp-nanos")) {
+            // Iceberg: Added support for custom nanosecond logical type (FLINK-39251)
             return DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE(9).notNull();
           } else if (schema.getLogicalType() == LogicalTypes.timeMillis()) {
             return DataTypes.TIME(3).notNull();
@@ -364,6 +373,7 @@ public class AvroSchemaConverter {
             return DataTypes.TIMESTAMP(6).notNull();
           } else if (schema.getLogicalType() != null
               && schema.getLogicalType().getName().equals("local-timestamp-nanos")) {
+            // Iceberg: Added support for custom nanosecond logical type (FLINK-39251)
             return DataTypes.TIMESTAMP(9).notNull();
           }
         }
