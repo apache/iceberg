@@ -263,7 +263,8 @@ public class TestBase {
             .listFiles(
                 (dir, name) ->
                     !name.startsWith("snap")
-                        && Files.getFileExtension(name).equalsIgnoreCase("avro")));
+                        && (Files.getFileExtension(name).equalsIgnoreCase("avro")
+                            || Files.getFileExtension(name).equalsIgnoreCase("parquet"))));
   }
 
   List<File> listManifestLists(File tableDirToList) {
@@ -297,12 +298,22 @@ public class TestBase {
     return TestTables.readMetadata("test");
   }
 
+  static FileFormat manifestFormat(int version) {
+    return version >= TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS
+        ? FileFormat.PARQUET
+        : FileFormat.AVRO;
+  }
+
+  FileFormat manifestFormat() {
+    return manifestFormat(formatVersion);
+  }
+
   ManifestFile writeManifest(DataFile... files) throws IOException {
     return writeManifest(null, files);
   }
 
   ManifestFile writeManifest(Long snapshotId, DataFile... files) throws IOException {
-    File manifestFile = temp.resolve("input.m0.avro").toFile();
+    File manifestFile = temp.resolve(manifestFormat().addExtension("input.m0")).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -324,7 +335,7 @@ public class TestBase {
   }
 
   ManifestFile writeManifest(Long snapshotId, ManifestEntry<?>... entries) throws IOException {
-    return writeManifest(snapshotId, "input.m0.avro", entries);
+    return writeManifest(snapshotId, manifestFormat().addExtension("input.m0"), entries);
   }
 
   @SuppressWarnings("unchecked")
@@ -360,8 +371,8 @@ public class TestBase {
       throws IOException {
     OutputFile manifestFile =
         org.apache.iceberg.Files.localOutput(
-            FileFormat.AVRO.addExtension(
-                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
+            manifestFormat(newFormatVersion)
+                .addExtension(temp.resolve("junit" + System.nanoTime()).toFile().toString()));
     ManifestWriter<DeleteFile> writer =
         ManifestFiles.writeDeleteManifest(newFormatVersion, SPEC, manifestFile, snapshotId);
     try {
@@ -375,7 +386,7 @@ public class TestBase {
   }
 
   ManifestFile writeManifestWithName(String name, DataFile... files) throws IOException {
-    File manifestFile = temp.resolve(name + ".avro").toFile();
+    File manifestFile = temp.resolve(manifestFormat().addExtension(name)).toFile();
     assertThat(manifestFile).doesNotExist();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
@@ -451,6 +462,10 @@ public class TestBase {
 
   void validateSnapshot(Snapshot old, Snapshot snap, long sequenceNumber, DataFile... newFiles) {
     validateSnapshot(old, snap, (Long) sequenceNumber, newFiles);
+  }
+
+  void validateSnapshot(Table validationTable, Snapshot old, Snapshot snap, DataFile... newFiles) {
+    validateSnapshot(validationTable, old, snap, null, newFiles);
   }
 
   @SuppressWarnings("checkstyle:HiddenField")

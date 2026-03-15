@@ -130,7 +130,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     return Stream.of(new File(location).listFiles())
         .filter(file -> !file.isDirectory())
         .map(File::getName)
-        .filter(fileName -> fileName.endsWith(".avro"))
+        .filter(fileName -> fileName.endsWith(".avro") || fileName.endsWith(".parquet"))
         .collect(Collectors.toList());
   }
 

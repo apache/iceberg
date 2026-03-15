@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -40,6 +41,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   // this is replaced when writing a manifest list by the ManifestFile wrapper
   static final long UNASSIGNED_SEQ = -1L;
 
+  private final FileFormat format;
   private final OutputFile file;
   private final EncryptionKeyMetadata keyMetadata;
   private final int specId;
@@ -65,7 +67,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       Long snapshotId,
       Long firstRowId,
       Map<String, String> writerProperties) {
-    this.file = file.encryptingOutputFile();
+    this.format = FileFormat.fromFileName(file.encryptingOutputFile().location());
+    this.file = outputFile(file);
     this.specId = spec.specId();
     this.writerProperties = writerProperties;
     this.writer = newAppender(spec, this.file);
@@ -81,6 +84,19 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   protected abstract FileAppender<ManifestEntry<F>> newAppender(
       PartitionSpec spec, OutputFile outputFile);
+
+  private OutputFile outputFile(EncryptedOutputFile encryptedFile) {
+    // Casting to NativeEncryptionOutputFile actually makes the file rely on native encryption
+    // rather than whole-file encryption.
+    if (format == FileFormat.PARQUET && encryptedFile instanceof NativeEncryptionOutputFile) {
+      return (NativeEncryptionOutputFile) encryptedFile;
+    }
+    return encryptedFile.encryptingOutputFile();
+  }
+
+  protected FileFormat format() {
+    return format;
+  }
 
   protected Map<String, String> writerProperties() {
     return writerProperties;
@@ -206,16 +222,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
 
-    ByteBuffer keyMetadataBuffer;
-    if (keyMetadata instanceof NativeEncryptionKeyMetadata) {
-      // File length is required by AES GCM Stream encryption, to prevent file truncation attacks
-      keyMetadataBuffer =
-          ((NativeEncryptionKeyMetadata) keyMetadata).copyWithLength(length()).buffer();
-    } else if (keyMetadata != null) {
-      keyMetadataBuffer = keyMetadata.buffer();
-    } else {
-      keyMetadataBuffer = null;
-    }
+    ByteBuffer keyMetadataBuffer = keyMetadataBuffer();
 
     // if the minSequenceNumber is null, then no manifests with a sequence number have been written,
     // so the min data sequence number is the one that will be assigned when this is committed.
@@ -240,6 +247,17 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         firstRowId);
   }
 
+  private ByteBuffer keyMetadataBuffer() {
+    if (keyMetadata instanceof NativeEncryptionKeyMetadata && format == FileFormat.AVRO) {
+      // Whole-file encryption needs the file length embedded for GCM truncation protection.
+      // Formats with native encryption (like Parquet) handle this directly and don't need it.
+      return ((NativeEncryptionKeyMetadata) keyMetadata).copyWithLength(length()).buffer();
+    } else if (keyMetadata != null) {
+      return keyMetadata.buffer();
+    }
+    return null;
+  }
+
   @Override
   public void close() throws IOException {
     this.closed = true;
@@ -256,7 +274,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         Long firstRowId,
         Map<String, String> writerProperties) {
       super(spec, file, snapshotId, firstRowId, writerProperties);
-      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
+      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId, spec.partitionType());
     }
 
     @Override
@@ -269,7 +287,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
       try {
-        return InternalData.write(FileFormat.AVRO, file)
+        return InternalData.write(format(), file)
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
@@ -296,7 +314,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         Long snapshotId,
         Map<String, String> writerProperties) {
       super(spec, file, snapshotId, null, writerProperties);
-      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
+      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId, spec.partitionType());
     }
 
     @Override
@@ -309,7 +327,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
       try {
-        return InternalData.write(FileFormat.AVRO, file)
+        return InternalData.write(format(), file)
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
@@ -342,6 +360,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         Long firstRowId,
         Map<String, String> writerProperties) {
       super(spec, file, snapshotId, firstRowId, writerProperties);
+      Preconditions.checkArgument(
+          format() == FileFormat.AVRO, "V3 manifests must use Avro, but got: %s", format());
       this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -382,6 +402,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         Long snapshotId,
         Map<String, String> writerProperties) {
       super(spec, file, snapshotId, null, writerProperties);
+      Preconditions.checkArgument(
+          format() == FileFormat.AVRO, "V3 manifests must use Avro, but got: %s", format());
       this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -427,6 +449,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         Long snapshotId,
         Map<String, String> writerProperties) {
       super(spec, file, snapshotId, null, writerProperties);
+      Preconditions.checkArgument(
+          format() == FileFormat.AVRO, "V2 manifests must use Avro, but got: %s", format());
       this.entryWrapper = new V2Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -467,6 +491,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         Long snapshotId,
         Map<String, String> writerProperties) {
       super(spec, file, snapshotId, null, writerProperties);
+      Preconditions.checkArgument(
+          format() == FileFormat.AVRO, "V2 manifests must use Avro, but got: %s", format());
       this.entryWrapper = new V2Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -512,6 +538,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         Long snapshotId,
         Map<String, String> writerProperties) {
       super(spec, file, snapshotId, null, writerProperties);
+      Preconditions.checkArgument(
+          format() == FileFormat.AVRO, "V1 manifests must use Avro, but got: %s", format());
       this.entryWrapper = new V1Metadata.ManifestEntryWrapper();
     }
 

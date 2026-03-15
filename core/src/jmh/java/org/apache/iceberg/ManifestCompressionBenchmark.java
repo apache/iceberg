@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -44,12 +44,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
- * A benchmark that measures manifest read/write performance across format versions and file
- * formats.
- *
- * <p>V1-V3 only support Avro manifests. V4 supports both Avro and Parquet. The {@code
- * versionFormat} parameter encodes valid combinations as {@code "<version>_<format>"} (e.g. {@code
- * "4_PARQUET"}) so that only meaningful pairings are benchmarked.
+ * A benchmark that measures manifest read/write performance across compression codecs.
  *
  * <p>Entry counts are calibrated per column count via {@link ManifestBenchmarkUtil#ENTRY_BASE}. Set
  * to 300_000 for ~8 MB manifests (matching the default {@code commit.manifest.target-size-bytes})
@@ -59,35 +54,25 @@ import org.openjdk.jmh.infra.Blackhole;
  *
  * <pre>{@code
  * # all combinations
- * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestBenchmark
+ * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestCompressionBenchmark
  *
- * # V4-only (Avro vs Parquet)
- * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestBenchmark \
- *     -PjmhParams="versionFormat=4_AVRO|4_PARQUET"
- *
- * # all versions, single column count
- * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestBenchmark \
- *     -PjmhParams="numCols=50"
- *
- * # single version
- * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestBenchmark \
- *     -PjmhParams="versionFormat=3_AVRO"
+ * # single codec
+ * ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=ManifestCompressionBenchmark \
+ *     -PjmhParams="codec=gzip"
  * }</pre>
  */
 @Fork(1)
 @State(Scope.Benchmark)
-// Parquet's columnar write path has a deep call graph (per-column encoders, page assembly,
-// dictionary management) that requires more warmup iterations than Avro for the JIT compiler to
-// fully optimize. Profiling shows ~650ms of JIT compilation spread across the first 3-4
-// iterations, so 6 warmups ensure measurement begins after JIT has stabilized.
 @Warmup(iterations = 6)
 @Measurement(iterations = 10)
 @BenchmarkMode(Mode.SingleShotTime)
 @Timeout(time = 10, timeUnit = TimeUnit.MINUTES)
-public class ManifestBenchmark {
+public class ManifestCompressionBenchmark {
 
-  @Param({"1_AVRO", "2_AVRO", "3_AVRO", "4_AVRO", "4_PARQUET"})
-  private String versionFormat;
+  private static final int FORMAT_VERSION = 4;
+
+  @Param({"gzip", "snappy", "zstd", "uncompressed"})
+  private String codec;
 
   @Param({"true", "false"})
   private String partitioned;
@@ -95,10 +80,9 @@ public class ManifestBenchmark {
   @Param({"10", "50", "100"})
   private int numCols;
 
-  private int formatVersion;
-  private FileFormat fileFormat;
   private PartitionSpec spec;
   private Map<Integer, PartitionSpec> specsById;
+  private Map<String, String> writerProperties;
   private List<DataFile> dataFiles;
 
   private String writeBaseDir;
@@ -109,14 +93,12 @@ public class ManifestBenchmark {
 
   @Setup(Level.Trial)
   public void setupTrial() {
-    String[] parts = versionFormat.split("_", 2);
-    this.formatVersion = Integer.parseInt(parts[0]);
-    this.fileFormat = FileFormat.fromString(parts[1]);
     this.spec =
         Boolean.parseBoolean(partitioned)
             ? ManifestBenchmarkUtil.SPEC
             : PartitionSpec.unpartitioned();
-    this.specsById = ImmutableMap.of(spec.specId(), spec);
+    this.specsById = Map.of(spec.specId(), spec);
+    this.writerProperties = Map.of(TableProperties.AVRO_COMPRESSION, codec);
     int numEntries = ManifestBenchmarkUtil.entriesForColumnCount(numCols);
     this.dataFiles = ManifestBenchmarkUtil.generateDataFiles(spec, numEntries, numCols);
     setupReadManifest();
@@ -127,8 +109,7 @@ public class ManifestBenchmark {
     this.writeBaseDir =
         java.nio.file.Files.createTempDirectory("bench-write-").toAbsolutePath().toString();
     this.writeOutputFile =
-        Files.localOutput(
-            String.format(Locale.ROOT, "%s/%s", writeBaseDir, fileFormat.addExtension("manifest")));
+        Files.localOutput(String.format(Locale.ROOT, "%s/manifest.avro", writeBaseDir));
 
     for (DataFile file : dataFiles) {
       file.path();
@@ -152,10 +133,23 @@ public class ManifestBenchmark {
     writeOutputFile = null;
   }
 
+  @AuxCounters(AuxCounters.Type.EVENTS)
+  @State(Scope.Thread)
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  public static class FileSizeCounters {
+    public double manifestSizeMB;
+
+    @Setup(Level.Invocation)
+    public void reset() {
+      manifestSizeMB = 0;
+    }
+  }
+
   @Benchmark
   @Threads(1)
-  public ManifestFile writeManifest() throws IOException {
-    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, spec, writeOutputFile, 1L);
+  public ManifestFile writeManifest(FileSizeCounters counters) throws IOException {
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(FORMAT_VERSION, spec, writeOutputFile, 1L, writerProperties);
 
     try (ManifestWriter<DataFile> w = writer) {
       for (DataFile file : dataFiles) {
@@ -163,7 +157,9 @@ public class ManifestBenchmark {
       }
     }
 
-    return writer.toManifestFile();
+    ManifestFile manifest = writer.toManifestFile();
+    counters.manifestSizeMB = manifest.length() / (1024.0 * 1024.0);
+    return manifest;
   }
 
   @Benchmark
@@ -187,10 +183,10 @@ public class ManifestBenchmark {
     }
 
     OutputFile manifestFile =
-        Files.localOutput(
-            String.format(Locale.ROOT, "%s/%s", readBaseDir, fileFormat.addExtension("manifest")));
+        Files.localOutput(String.format(Locale.ROOT, "%s/manifest.avro", readBaseDir));
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, spec, manifestFile, 1L);
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(FORMAT_VERSION, spec, manifestFile, 1L, writerProperties);
 
     try (ManifestWriter<DataFile> w = writer) {
       for (DataFile file : dataFiles) {

@@ -25,7 +25,9 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -847,7 +849,8 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        this.lastList = reuse;
+        // reuse containers may come from a different reader (e.g. Avro) with incompatible types
+        this.lastList = reuse instanceof ArrayList ? reuse : null;
         this.elements = reuse.iterator();
       } else {
         this.lastList = null;
@@ -973,7 +976,8 @@ public class ParquetValueReaders {
       }
 
       if (reuse != null) {
-        this.lastMap = reuse;
+        // reuse containers may come from a different reader (e.g. Avro) with incompatible types
+        this.lastMap = reuse instanceof LinkedHashMap ? reuse : null;
         this.pairs = reuse.entrySet().iterator();
       } else {
         this.lastMap = null;

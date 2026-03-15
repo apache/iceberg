@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 class V4Metadata {
@@ -278,28 +279,35 @@ class V4Metadata {
   }
 
   static Types.StructType fileType(Types.StructType partitionType) {
-    return Types.StructType.of(
-        DataFile.CONTENT.asRequired(),
-        DataFile.FILE_PATH,
-        DataFile.FILE_FORMAT,
-        required(
-            DataFile.PARTITION_ID, DataFile.PARTITION_NAME, partitionType, DataFile.PARTITION_DOC),
-        DataFile.RECORD_COUNT,
-        DataFile.FILE_SIZE,
-        DataFile.COLUMN_SIZES,
-        DataFile.VALUE_COUNTS,
-        DataFile.NULL_VALUE_COUNTS,
-        DataFile.NAN_VALUE_COUNTS,
-        DataFile.LOWER_BOUNDS,
-        DataFile.UPPER_BOUNDS,
-        DataFile.KEY_METADATA,
-        DataFile.SPLIT_OFFSETS,
-        DataFile.EQUALITY_IDS,
-        DataFile.SORT_ORDER_ID,
-        DataFile.FIRST_ROW_ID,
-        DataFile.REFERENCED_DATA_FILE,
-        DataFile.CONTENT_OFFSET,
-        DataFile.CONTENT_SIZE);
+    List<Types.NestedField> fields = Lists.newArrayList();
+    fields.add(DataFile.CONTENT.asRequired());
+    fields.add(DataFile.FILE_PATH);
+    fields.add(DataFile.FILE_FORMAT);
+    if (!partitionType.fields().isEmpty()) {
+      fields.add(
+          required(
+              DataFile.PARTITION_ID,
+              DataFile.PARTITION_NAME,
+              partitionType,
+              DataFile.PARTITION_DOC));
+    }
+    fields.add(DataFile.RECORD_COUNT);
+    fields.add(DataFile.FILE_SIZE);
+    fields.add(DataFile.COLUMN_SIZES);
+    fields.add(DataFile.VALUE_COUNTS);
+    fields.add(DataFile.NULL_VALUE_COUNTS);
+    fields.add(DataFile.NAN_VALUE_COUNTS);
+    fields.add(DataFile.LOWER_BOUNDS);
+    fields.add(DataFile.UPPER_BOUNDS);
+    fields.add(DataFile.KEY_METADATA);
+    fields.add(DataFile.SPLIT_OFFSETS);
+    fields.add(DataFile.EQUALITY_IDS);
+    fields.add(DataFile.SORT_ORDER_ID);
+    fields.add(DataFile.FIRST_ROW_ID);
+    fields.add(DataFile.REFERENCED_DATA_FILE);
+    fields.add(DataFile.CONTENT_OFFSET);
+    fields.add(DataFile.CONTENT_SIZE);
+    return Types.StructType.of(fields);
   }
 
   static class ManifestEntryWrapper<F extends ContentFile<F>>
@@ -309,10 +317,10 @@ class V4Metadata {
     private final DataFileWrapper<?> fileWrapper;
     private ManifestEntry<F> wrapped = null;
 
-    ManifestEntryWrapper(Long commitSnapshotId) {
-      this.size = entrySchema(Types.StructType.of()).columns().size();
+    ManifestEntryWrapper(Long commitSnapshotId, Types.StructType partitionType) {
+      this.size = entrySchema(partitionType).columns().size();
       this.commitSnapshotId = commitSnapshotId;
-      this.fileWrapper = new DataFileWrapper<>();
+      this.fileWrapper = new DataFileWrapper<>(partitionType);
     }
 
     public ManifestEntryWrapper<F> wrap(ManifestEntry<F> entry) {
@@ -423,11 +431,15 @@ class V4Metadata {
   /** Wrapper used to write DataFile or DeleteFile to v4 metadata. */
   static class DataFileWrapper<F extends ContentFile<F>> extends Delegates.DelegatingContentFile<F>
       implements ContentFile<F>, StructLike {
-    private final int size;
+    private static final int PARTITION_POSITION = 3;
 
-    DataFileWrapper() {
+    private final int size;
+    private final boolean hasPartition;
+
+    DataFileWrapper(Types.StructType partitionType) {
       super(null);
-      this.size = fileType(Types.StructType.of()).fields().size();
+      this.hasPartition = !partitionType.fields().isEmpty();
+      this.size = fileType(partitionType).fields().size();
     }
 
     @SuppressWarnings("unchecked")
@@ -452,7 +464,10 @@ class V4Metadata {
     }
 
     private Object get(int pos) {
-      switch (pos) {
+      // when the partition field is omitted, positions at or after where it would appear
+      // shift down by 1, so adjust back to the canonical field ordering
+      int adjusted = hasPartition ? pos : (pos >= PARTITION_POSITION ? pos + 1 : pos);
+      switch (adjusted) {
         case 0:
           return wrapped.content().id();
         case 1:
