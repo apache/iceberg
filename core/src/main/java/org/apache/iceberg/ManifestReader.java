@@ -154,6 +154,12 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   }
 
   private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
+    FileFormat manifestFormat = FileFormat.fromFileName(inputFile.location());
+    Preconditions.checkArgument(
+        manifestFormat == FileFormat.AVRO,
+        "Reading manifest metadata is only supported for Avro manifests: %s",
+        inputFile.location());
+
     Map<String, String> metadata;
     try {
       try (CloseableIterable<ManifestEntry<T>> headerReader =
@@ -281,6 +287,8 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     Preconditions.checkArgument(
         format != null, "Unable to determine format of manifest: %s", file.location());
 
+    boolean unpartitioned = spec.rawPartitionType().fields().isEmpty();
+
     List<Types.NestedField> fields = Lists.newArrayList();
     fields.addAll(projection.asStruct().fields());
     if (projection.findField(DataFile.RECORD_COUNT.fieldId()) == null) {
@@ -291,14 +299,26 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     }
     fields.add(MetadataColumns.ROW_POSITION);
 
-    CloseableIterable<ManifestEntry<F>> reader =
+    // V4+ manifests omit the partition field when unpartitioned (Parquet cannot represent
+    // empty structs, and the field is meaningless regardless of format). For older versions
+    // the empty struct is present but safe to skip.
+    if (unpartitioned) {
+      fields.removeIf(f -> f.fieldId() == DataFile.PARTITION_ID);
+    }
+
+    InternalData.ReadBuilder readBuilder =
         InternalData.read(format, file)
             .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
             .setRootType(GenericManifestEntry.class)
-            .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass())
-            .setCustomType(DataFile.PARTITION_ID, PartitionData.class)
-            .reuseContainers()
-            .build();
+            .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass());
+
+    if (!unpartitioned) {
+      readBuilder.setCustomType(DataFile.PARTITION_ID, PartitionData.class);
+    }
+
+    readBuilder.reuseContainers();
+
+    CloseableIterable<ManifestEntry<F>> reader = readBuilder.build();
 
     addCloseable(reader);
 

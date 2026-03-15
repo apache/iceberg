@@ -111,7 +111,8 @@ public class TestManifestFileUtil {
 
   private ManifestFile writeManifestWithDataFile(PartitionSpec spec, PartitionData partition)
       throws IOException {
-    ManifestWriter<DataFile> writer = ManifestFiles.write(spec, Files.localOutput(temp.toFile()));
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(spec, Files.localOutput(temp.resolve("manifest.avro").toFile()));
     try (writer) {
       writer.add(
           DataFiles.builder(spec)
