@@ -106,15 +106,17 @@ Run benchmarks in this group with:
 ./gradlew :iceberg-core:jmh -PjmhIncludeRegex=<BenchmarkName>
 ```
 
-* `AppendBenchmark`: Append data files to a table.
-* `ManifestReadBenchmark`: Read table manifests.
-* `ManifestWriteBenchmark`: Write table manifests.
-* `MetricsConfigBenchmark`: Evaluate metrics configuration lookups.
-* `ReplaceDeleteFilesBenchmark`: Replace delete files during a commit.
-* `RewriteDataFilesBenchmark`: Rewrite data files in table maintenance flows.
-* `RoaringPositionBitmapBenchmark`: Measure roaring bitmap operations used for position deletes.
-* `CountersBenchmark`: Measure metrics counter updates.
-* `ZOrderByteUtilsBenchmark`: Measure Z-order byte utility operations.
+| Benchmark | Description |
+| --- | --- |
+| `AppendBenchmark` | Append data files to a table. |
+| `ManifestReadBenchmark` | Read table manifests. |
+| `ManifestWriteBenchmark` | Write table manifests. |
+| `MetricsConfigBenchmark` | Evaluate metrics configuration lookups. |
+| `ReplaceDeleteFilesBenchmark` | Replace delete files during a commit. |
+| `RewriteDataFilesBenchmark` | Rewrite data files in table maintenance flows. |
+| `RoaringPositionBitmapBenchmark` | Measure roaring bitmap operations used for position deletes. |
+| `CountersBenchmark` | Measure metrics counter updates. |
+| `ZOrderByteUtilsBenchmark` | Measure Z-order byte utility operations. |
 
 ### Data benchmarks
 
@@ -124,9 +126,11 @@ Run benchmarks in this group with:
 ./gradlew :iceberg-data:jmh -PjmhIncludeRegex=<BenchmarkName>
 ```
 
-* `GenericOrcReaderBenchmark`: Read ORC data through the generic Iceberg reader.
-* `GenericParquetReaderBenchmark`: Read Parquet data through the generic Iceberg reader.
-* `PartitionStatsHandlerBenchmark`: Read and write partition statistics metadata.
+| Benchmark | Description |
+| --- | --- |
+| `GenericOrcReaderBenchmark` | Read ORC data through the generic Iceberg reader. |
+| `GenericParquetReaderBenchmark` | Read Parquet data through the generic Iceberg reader. |
+| `PartitionStatsHandlerBenchmark` | Read and write partition statistics metadata. |
 
 ### Spark action benchmarks
 
@@ -137,8 +141,10 @@ Run benchmarks in this group with:
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
-* `DeleteOrphanFilesBenchmark`: Execute the delete-orphan-files action.
-* `IcebergSortCompactionBenchmark`: Execute sort-based compaction.
+| Benchmark | Description |
+| --- | --- |
+| `DeleteOrphanFilesBenchmark` | Execute the delete-orphan-files action. |
+| `IcebergSortCompactionBenchmark` | Execute sort-based compaction. |
 
 ### Spark Parquet reader and writer benchmarks
 
@@ -149,10 +155,12 @@ Run benchmarks in this group with:
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
-* `SparkParquetReadersFlatDataBenchmark`: Read flat Parquet data with Spark Parquet readers.
-* `SparkParquetReadersNestedDataBenchmark`: Read nested Parquet data with Spark Parquet readers.
-* `SparkParquetWritersFlatDataBenchmark`: Write flat Parquet data with Spark Parquet writers.
-* `SparkParquetWritersNestedDataBenchmark`: Write nested Parquet data with Spark Parquet writers.
+| Benchmark | Description |
+| --- | --- |
+| `SparkParquetReadersFlatDataBenchmark` | Read flat Parquet data with Spark Parquet readers. |
+| `SparkParquetReadersNestedDataBenchmark` | Read nested Parquet data with Spark Parquet readers. |
+| `SparkParquetWritersFlatDataBenchmark` | Write flat Parquet data with Spark Parquet writers. |
+| `SparkParquetWritersNestedDataBenchmark` | Write nested Parquet data with Spark Parquet writers. |
 
 ### Spark source benchmarks
 
@@ -163,29 +171,31 @@ Run benchmarks in this group with:
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
-* `AvroWritersBenchmark`: Write Avro data through Iceberg writer implementations.
-* `DVReaderBenchmark`: Read data with deletion vectors.
-* `DVWriterBenchmark`: Write deletion vectors.
-* `IcebergSourceFlatAvroDataReadBenchmark`: Read flat Avro data through the Spark Iceberg source.
-* `IcebergSourceFlatORCDataReadBenchmark`: Read flat ORC data through the Spark Iceberg source.
-* `IcebergSourceFlatParquetDataFilterBenchmark`: Evaluate file skipping for clustered flat Parquet data.
-* `IcebergSourceFlatParquetDataReadBenchmark`: Read flat Parquet data through the Spark Iceberg source.
-* `IcebergSourceFlatParquetDataWriteBenchmark`: Write flat Parquet data through the Spark Iceberg source.
-* `IcebergSourceNestedAvroDataReadBenchmark`: Read nested Avro data through the Spark Iceberg source.
-* `IcebergSourceNestedListORCDataWriteBenchmark`: Write nested-list ORC data through the Spark Iceberg source.
-* `IcebergSourceNestedListParquetDataWriteBenchmark`: Write nested-list Parquet data through the Spark Iceberg source.
-* `IcebergSourceNestedORCDataReadBenchmark`: Read nested ORC data through the Spark Iceberg source.
-* `IcebergSourceNestedParquetDataFilterBenchmark`: Evaluate file skipping for clustered nested Parquet data.
-* `IcebergSourceNestedParquetDataReadBenchmark`: Read nested Parquet data through the Spark Iceberg source.
-* `IcebergSourceNestedParquetDataWriteBenchmark`: Write nested Parquet data through the Spark Iceberg source.
-* `IcebergSourceParquetEqDeleteBenchmark`: Read Parquet data with equality deletes applied.
-* `IcebergSourceParquetMultiDeleteFileBenchmark`: Read Parquet data with many delete files applied.
-* `IcebergSourceParquetPosDeleteBenchmark`: Read Parquet data with position deletes applied.
-* `IcebergSourceParquetWithUnrelatedDeleteBenchmark`: Read Parquet data when unrelated delete files are present.
-* `ParquetWritersBenchmark`: Write Parquet data through Iceberg writer implementations.
-* `VectorizedReadDictionaryEncodedFlatParquetDataBenchmark`: Vectorized reads of dictionary-encoded flat Parquet data.
-* `VectorizedReadFlatParquetDataBenchmark`: Vectorized reads of flat Parquet data.
-* `VectorizedReadParquetDecimalBenchmark`: Vectorized reads of Parquet decimal columns.
+| Benchmark | Description |
+| --- | --- |
+| `AvroWritersBenchmark` | Write Avro data through Iceberg writer implementations. |
+| `DVReaderBenchmark` | Read data with deletion vectors. |
+| `DVWriterBenchmark` | Write deletion vectors. |
+| `IcebergSourceFlatAvroDataReadBenchmark` | Read flat Avro data through the Spark Iceberg source. |
+| `IcebergSourceFlatORCDataReadBenchmark` | Read flat ORC data through the Spark Iceberg source. |
+| `IcebergSourceFlatParquetDataFilterBenchmark` | Evaluate file skipping for clustered flat Parquet data. |
+| `IcebergSourceFlatParquetDataReadBenchmark` | Read flat Parquet data through the Spark Iceberg source. |
+| `IcebergSourceFlatParquetDataWriteBenchmark` | Write flat Parquet data through the Spark Iceberg source. |
+| `IcebergSourceNestedAvroDataReadBenchmark` | Read nested Avro data through the Spark Iceberg source. |
+| `IcebergSourceNestedListORCDataWriteBenchmark` | Write nested-list ORC data through the Spark Iceberg source. |
+| `IcebergSourceNestedListParquetDataWriteBenchmark` | Write nested-list Parquet data through the Spark Iceberg source. |
+| `IcebergSourceNestedORCDataReadBenchmark` | Read nested ORC data through the Spark Iceberg source. |
+| `IcebergSourceNestedParquetDataFilterBenchmark` | Evaluate file skipping for clustered nested Parquet data. |
+| `IcebergSourceNestedParquetDataReadBenchmark` | Read nested Parquet data through the Spark Iceberg source. |
+| `IcebergSourceNestedParquetDataWriteBenchmark` | Write nested Parquet data through the Spark Iceberg source. |
+| `IcebergSourceParquetEqDeleteBenchmark` | Read Parquet data with equality deletes applied. |
+| `IcebergSourceParquetMultiDeleteFileBenchmark` | Read Parquet data with many delete files applied. |
+| `IcebergSourceParquetPosDeleteBenchmark` | Read Parquet data with position deletes applied. |
+| `IcebergSourceParquetWithUnrelatedDeleteBenchmark` | Read Parquet data when unrelated delete files are present. |
+| `ParquetWritersBenchmark` | Write Parquet data through Iceberg writer implementations. |
+| `VectorizedReadDictionaryEncodedFlatParquetDataBenchmark` | Vectorized reads of dictionary-encoded flat Parquet data. |
+| `VectorizedReadFlatParquetDataBenchmark` | Vectorized reads of flat Parquet data. |
+| `VectorizedReadParquetDecimalBenchmark` | Vectorized reads of Parquet decimal columns. |
 
 ### Spark extensions benchmarks
 
@@ -196,11 +206,13 @@ Run benchmarks in this group with:
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
-* `DeleteFileIndexBenchmark`: Build and query delete file indexes.
-* `MergeCardinalityCheckBenchmark`: Perform merge cardinality checks.
-* `PlanningBenchmark`: Plan Spark scans over Iceberg tables.
-* `TaskGroupPlanningBenchmark`: Plan Spark task groups for distributed execution.
-* `UpdateProjectionBenchmark`: Apply projection logic for Spark update operations.
+| Benchmark | Description |
+| --- | --- |
+| `DeleteFileIndexBenchmark` | Build and query delete file indexes. |
+| `MergeCardinalityCheckBenchmark` | Perform merge cardinality checks. |
+| `PlanningBenchmark` | Plan Spark scans over Iceberg tables. |
+| `TaskGroupPlanningBenchmark` | Plan Spark task groups for distributed execution. |
+| `UpdateProjectionBenchmark` | Apply projection logic for Spark update operations. |
 
 ### Flink benchmarks
 
@@ -211,7 +223,9 @@ Run benchmarks in this group with:
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
-* `DynamicRecordSerializerDeserializerBenchmark`: Serialize and deserialize dynamic Flink records.
-* `MapRangePartitionerBenchmark`: Partition Flink shuffle data with the map-based range partitioner.
-* `SketchRangePartitionerBenchmark`: Partition Flink shuffle data with the sketch-based range partitioner.
-* `StatisticsRecordSerializerBenchmark`: Serialize shuffle statistics records in Flink.
+| Benchmark | Description |
+| --- | --- |
+| `DynamicRecordSerializerDeserializerBenchmark` | Serialize and deserialize dynamic Flink records. |
+| `MapRangePartitionerBenchmark` | Partition Flink shuffle data with the map-based range partitioner. |
+| `SketchRangePartitionerBenchmark` | Partition Flink shuffle data with the sketch-based range partitioner. |
+| `StatisticsRecordSerializerBenchmark` | Serialize shuffle statistics records in Flink. |
