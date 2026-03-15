@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Map;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
@@ -27,6 +28,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
  * Writer for manifest files.
@@ -47,6 +49,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private final GenericManifestEntry<F> reused;
   private final PartitionSummary stats;
   private final Long firstRowId;
+  private final Map<String, String> writerProperties;
 
   private boolean closed = false;
   private int addedFiles = 0;
@@ -59,8 +62,18 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   private ManifestWriter(
       PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
+    this(spec, file, snapshotId, firstRowId, ImmutableMap.of());
+  }
+
+  private ManifestWriter(
+      PartitionSpec spec,
+      EncryptedOutputFile file,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
     this.file = file.encryptingOutputFile();
     this.specId = spec.specId();
+    this.writerProperties = writerProperties;
     this.writer = newAppender(spec, this.file);
     this.snapshotId = snapshotId;
     this.reused =
@@ -74,6 +87,10 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   protected abstract FileAppender<ManifestEntry<F>> newAppender(
       PartitionSpec spec, OutputFile outputFile);
+
+  protected Map<String, String> writerProperties() {
+    return writerProperties;
+  }
 
   protected ManifestContent content() {
     return ManifestContent.DATA;
@@ -243,6 +260,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
+    V4Writer(
+        PartitionSpec spec,
+        EncryptedOutputFile file,
+        Long snapshotId,
+        Long firstRowId,
+        Map<String, String> writerProperties) {
+      super(spec, file, snapshotId, firstRowId, writerProperties);
+      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
+    }
+
     @Override
     protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
       return entryWrapper.wrap(entry);
@@ -253,16 +280,20 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V4Metadata.entrySchema(spec.partitionType());
       try {
-        return InternalData.write(FileFormat.AVRO, file)
-            .schema(manifestSchema)
-            .named("manifest_entry")
-            .meta("schema", SchemaParser.toJson(spec.schema()))
-            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-            .meta("partition-spec-id", String.valueOf(spec.specId()))
-            .meta("format-version", "4")
-            .meta("content", "data")
-            .overwrite()
-            .build();
+        InternalData.WriteBuilder builder =
+            InternalData.write(FileFormat.AVRO, file)
+                .schema(manifestSchema)
+                .named("manifest_entry")
+                .meta("schema", SchemaParser.toJson(spec.schema()))
+                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+                .meta("partition-spec-id", String.valueOf(spec.specId()))
+                .meta("format-version", "4")
+                .meta("content", "data")
+                .overwrite();
+        for (Map.Entry<String, String> entry : writerProperties().entrySet()) {
+          builder.set(entry.getKey(), entry.getValue());
+        }
+        return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create manifest writer for path: %s", file.location());
@@ -318,6 +349,16 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
+    V3Writer(
+        PartitionSpec spec,
+        EncryptedOutputFile file,
+        Long snapshotId,
+        Long firstRowId,
+        Map<String, String> writerProperties) {
+      super(spec, file, snapshotId, firstRowId, writerProperties);
+      this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
+    }
+
     @Override
     protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
       return entryWrapper.wrap(entry);
@@ -328,16 +369,20 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V3Metadata.entrySchema(spec.partitionType());
       try {
-        return InternalData.write(FileFormat.AVRO, file)
-            .schema(manifestSchema)
-            .named("manifest_entry")
-            .meta("schema", SchemaParser.toJson(spec.schema()))
-            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-            .meta("partition-spec-id", String.valueOf(spec.specId()))
-            .meta("format-version", "3")
-            .meta("content", "data")
-            .overwrite()
-            .build();
+        InternalData.WriteBuilder builder =
+            InternalData.write(FileFormat.AVRO, file)
+                .schema(manifestSchema)
+                .named("manifest_entry")
+                .meta("schema", SchemaParser.toJson(spec.schema()))
+                .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+                .meta("partition-spec-id", String.valueOf(spec.specId()))
+                .meta("format-version", "3")
+                .meta("content", "data")
+                .overwrite();
+        for (Map.Entry<String, String> entry : writerProperties().entrySet()) {
+          builder.set(entry.getKey(), entry.getValue());
+        }
+        return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create manifest writer for path: %s", file.location());

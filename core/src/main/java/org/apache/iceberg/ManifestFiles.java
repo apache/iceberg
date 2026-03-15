@@ -242,6 +242,52 @@ public class ManifestFiles {
   }
 
   /**
+   * Create a new {@link ManifestWriter} for the given format version with custom writer properties.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @param writerProperties properties passed through to the underlying file writer (e.g.
+   *     compression codec)
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(
+      int formatVersion,
+      PartitionSpec spec,
+      OutputFile outputFile,
+      Long snapshotId,
+      Map<String, String> writerProperties) {
+    return newWriter(
+        formatVersion,
+        spec,
+        EncryptedFiles.plainAsEncryptedOutput(outputFile),
+        snapshotId,
+        null,
+        writerProperties);
+  }
+
+  @VisibleForTesting
+  static ManifestWriter<DataFile> newWriter(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId,
+      Long firstRowId,
+      Map<String, String> writerProperties) {
+    switch (formatVersion) {
+      case 3:
+        return new ManifestWriter.V3Writer(
+            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+      case 4:
+        return new ManifestWriter.V4Writer(
+            spec, encryptedOutputFile, snapshotId, firstRowId, writerProperties);
+      default:
+        return newWriter(formatVersion, spec, encryptedOutputFile, snapshotId, firstRowId);
+    }
+  }
+
+  /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    *
    * @param manifest a {@link ManifestFile}
