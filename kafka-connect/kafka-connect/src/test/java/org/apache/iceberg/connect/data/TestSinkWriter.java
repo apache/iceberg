@@ -55,7 +55,10 @@ public class TestSinkWriter {
 
   private static final Namespace NAMESPACE = Namespace.of("db");
   private static final String TABLE_NAME = "tbl";
+  private static final String TABLE2_NAME = "tbl2";
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(NAMESPACE, TABLE_NAME);
+  private static final TableIdentifier TABLE2_IDENTIFIER =
+      TableIdentifier.of(NAMESPACE, TABLE2_NAME);
   private static final Schema SCHEMA =
       new Schema(
           optional(1, "id", Types.LongType.get()),
@@ -68,6 +71,7 @@ public class TestSinkWriter {
     catalog = initInMemoryCatalog();
     catalog.createNamespace(NAMESPACE);
     catalog.createTable(TABLE_IDENTIFIER, SCHEMA);
+    catalog.createTable(TABLE2_IDENTIFIER, SCHEMA);
   }
 
   @AfterEach
@@ -235,8 +239,58 @@ public class TestSinkWriter {
     assertThat(writerResults).hasSize(0);
   }
 
+  @Test
+  public void testTopicRoute() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.tables())
+        .thenReturn(
+            ImmutableList.of(TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
+    Map<String, Object> value = ImmutableMap.of();
+
+    // topic "src.tbl" should match table "db.tbl" (last segment = "tbl")
+    List<IcebergWriterResult> writerResults =
+        sinkWriterTestWithTopic(value, config, "src.tbl");
+    assertThat(writerResults).hasSize(1);
+  }
+
+  @Test
+  public void testTopicRouteSecondTable() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.tables())
+        .thenReturn(
+            ImmutableList.of(TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
+    Map<String, Object> value = ImmutableMap.of();
+
+    // topic "src.tbl2" should match table "db.tbl2" (last segment = "tbl2")
+    List<IcebergWriterResult> writerResults =
+        sinkWriterTestWithTopic(value, config, "src.tbl2");
+    assertThat(writerResults).hasSize(1);
+  }
+
+  @Test
+  public void testTopicRouteFallbackBroadcast() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.tables())
+        .thenReturn(
+            ImmutableList.of(TABLE_IDENTIFIER.toString(), TABLE2_IDENTIFIER.toString()));
+    Map<String, Object> value = ImmutableMap.of();
+
+    // topic "unmatched" does not match any table, should broadcast to all
+    List<IcebergWriterResult> writerResults =
+        sinkWriterTestWithTopic(value, config, "unmatched");
+    assertThat(writerResults).hasSize(2);
+  }
+
   private List<IcebergWriterResult> sinkWriterTest(
       Map<String, Object> value, IcebergSinkConfig config) {
+    return sinkWriterTestWithTopic(value, config, "topic");
+  }
+
+  private List<IcebergWriterResult> sinkWriterTestWithTopic(
+      Map<String, Object> value, IcebergSinkConfig config, String topic) {
     IcebergWriterResult writeResult =
         new IcebergWriterResult(
             TableIdentifier.parse(TABLE_NAME),
@@ -255,7 +309,7 @@ public class TestSinkWriter {
     Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
     SinkRecord rec =
         new SinkRecord(
-            "topic",
+            topic,
             1,
             null,
             "key",
@@ -268,7 +322,7 @@ public class TestSinkWriter {
 
     SinkWriterResult result = sinkWriter.completeWrite();
 
-    Offset offset = result.sourceOffsets().get(new TopicPartition("topic", 1));
+    Offset offset = result.sourceOffsets().get(new TopicPartition(topic, 1));
     assertThat(offset).isNotNull();
     assertThat(offset.offset()).isEqualTo(101L); // should be 1 more than current offset
     assertThat(offset.timestamp()).isEqualTo(now.atOffset(ZoneOffset.UTC));
