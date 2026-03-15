@@ -37,7 +37,7 @@ GitHub-hosted runners have limited and shared resources, so treat these results 
 
 ## Running Benchmarks locally
 
-JMH writes human-readable output to `build/reports/jmh/human-readable-output.txt` and JSON output to `build/reports/jmh/results.json` by default. Override them with `-PjmhOutputPath=<path>` and `-PjmhJsonOutputPath=<path>` if needed.
+JMH writes human-readable output to `build/reports/jmh/human-readable-output.txt` and JSON output to `build/reports/jmh/results.json` by default. Override them with `-PjmhOutputPath=<path>` and `-PjmhJsonOutputPath=<path>` if needed. You can share the JSON output with others and view it in the [JMH Visualizer](https://jmh.morethan.io/).
 
 The default versions in this repository are:
 
