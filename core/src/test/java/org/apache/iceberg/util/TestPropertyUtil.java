@@ -31,8 +31,7 @@ public class TestPropertyUtil {
     // so replaceFirst would silently fail to strip the literal prefix "prefix[0]."
     Map<String, String> properties = Map.of("prefix[0].key", "value");
 
-    Map<String, String> result =
-        PropertyUtil.propertiesWithPrefix(properties, "prefix[0].");
+    Map<String, String> result = PropertyUtil.propertiesWithPrefix(properties, "prefix[0].");
 
     assertThat(result).containsExactlyInAnyOrderEntriesOf(Map.of("key", "value"));
   }
@@ -43,8 +42,7 @@ public class TestPropertyUtil {
     // PatternSyntaxException with replaceFirst but works correctly with substring
     Map<String, String> properties = Map.of("prefix[0.key", "value");
 
-    Map<String, String> result =
-        PropertyUtil.propertiesWithPrefix(properties, "prefix[0.");
+    Map<String, String> result = PropertyUtil.propertiesWithPrefix(properties, "prefix[0.");
 
     assertThat(result).containsExactlyInAnyOrderEntriesOf(Map.of("key", "value"));
   }
