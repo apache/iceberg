@@ -106,8 +106,7 @@ final class ArrowVectorAccessors {
       }
 
       VectorHolder holder =
-          new VectorHolder(
-              (org.apache.arrow.vector.FieldVector) childVector, null, nulls);
+          new VectorHolder((org.apache.arrow.vector.FieldVector) childVector, null, nulls);
       return new ColumnVector(holder);
     }
   }

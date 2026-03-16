@@ -154,9 +154,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       IntStream.range(0, fields.size())
           .filter(pos -> fields.get(pos).getId() != null)
           .forEach(
-              pos ->
-                  readersById.put(
-                      fields.get(pos).getId().intValue(), fieldReaders.get(pos)));
+              pos -> readersById.put(fields.get(pos).getId().intValue(), fieldReaders.get(pos)));
 
       List<Types.NestedField> icebergFields = expected.fields();
       List<VectorizedReader<?>> reorderedFields =
