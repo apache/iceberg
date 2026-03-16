@@ -148,8 +148,30 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   public VectorizedReader<?> struct(
       Types.StructType expected, GroupType groupType, List<VectorizedReader<?>> fieldReaders) {
     if (expected != null) {
-      throw new UnsupportedOperationException(
-          "Vectorized reads are not supported yet for struct fields");
+      Map<Integer, VectorizedReader<?>> readersById = Maps.newHashMap();
+      List<Type> fields = groupType.getFields();
+
+      IntStream.range(0, fields.size())
+          .filter(pos -> fields.get(pos).getId() != null)
+          .forEach(
+              pos ->
+                  readersById.put(
+                      fields.get(pos).getId().intValue(), fieldReaders.get(pos)));
+
+      List<Types.NestedField> icebergFields = expected.fields();
+      List<VectorizedReader<?>> reorderedFields =
+          Lists.newArrayListWithExpectedSize(icebergFields.size());
+
+      for (Types.NestedField field : icebergFields) {
+        VectorizedReader<?> reader =
+            VectorizedArrowReader.replaceWithMetadataReader(
+                field, readersById.get(field.fieldId()), idToConstant, setArrowValidityVector);
+        reorderedFields.add(defaultReader(field, reader));
+      }
+
+      // Look up the NestedField by the Parquet field ID
+      Types.NestedField structField = icebergSchema.findField(groupType.getId().intValue());
+      return new VectorizedStructReader(structField, reorderedFields, rootAllocator);
     }
     return null;
   }

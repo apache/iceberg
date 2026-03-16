@@ -22,9 +22,11 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
+import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.DecimalFactory;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.StringFactory;
+import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.StructChildFactory;
 
 final class ArrowVectorAccessors {
 
@@ -35,7 +37,7 @@ final class ArrowVectorAccessors {
         new GenericArrowVectorAccessorFactory<>(
             JavaDecimalFactory::new,
             JavaStringFactory::new,
-            throwingSupplier("Struct type is not supported"),
+            JavaStructChildFactory::new,
             throwingSupplier("List type is not supported"));
   }
 
@@ -82,6 +84,31 @@ final class ArrowVectorAccessors {
       byte[] bytes = new byte[byteBuffer.remaining()];
       byteBuffer.get(bytes);
       return new String(bytes, StandardCharsets.UTF_8);
+    }
+  }
+
+  private static final class JavaStructChildFactory implements StructChildFactory<ColumnVector> {
+    @Override
+    public Class<ColumnVector> getGenericClass() {
+      return ColumnVector.class;
+    }
+
+    @Override
+    public ColumnVector of(ValueVector childVector) {
+      int valueCount = childVector.getValueCount();
+      NullabilityHolder nulls = new NullabilityHolder(Math.max(valueCount, 1));
+      for (int i = 0; i < valueCount; i++) {
+        if (childVector.isNull(i)) {
+          nulls.setNull(i);
+        } else {
+          nulls.setNotNull(i);
+        }
+      }
+
+      VectorHolder holder =
+          new VectorHolder(
+              (org.apache.arrow.vector.FieldVector) childVector, null, nulls);
+      return new ColumnVector(holder);
     }
   }
 

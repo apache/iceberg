@@ -84,6 +84,7 @@ import org.slf4j.LoggerFactory;
  *   <li>Iceberg: {@link Types.DateType}, Arrow: {@link MinorType#DATEDAY}
  *   <li>Iceberg: {@link Types.TimeType}, Arrow: {@link MinorType#TIMEMICRO}
  *   <li>Iceberg: {@link Types.UUIDType}, Arrow: {@link MinorType#FIXEDSIZEBINARY}(16)
+ *   <li>Iceberg: {@link Types.StructType}, Arrow: {@link MinorType#STRUCT}
  * </ul>
  *
  * <p>Features that don't work in this implementation:
@@ -92,7 +93,7 @@ import org.slf4j.LoggerFactory;
  *   <li>Type promotion: In case of type promotion, the Arrow vector corresponding to the data type
  *       in the parquet file is returned instead of the data type in the latest schema. See
  *       https://github.com/apache/iceberg/issues/2483.
- *   <li>Data types: {@link Types.ListType}, {@link Types.MapType} and {@link Types.StructType} See
+ *   <li>Data types: {@link Types.ListType} and {@link Types.MapType}. See
  *       https://github.com/apache/iceberg/issues/2485 and
  *       https://github.com/apache/iceberg/issues/2486.
  *   <li>Delete files are not supported. See https://github.com/apache/iceberg/issues/2487.
@@ -116,7 +117,8 @@ public class ArrowReader extends CloseableGroup {
           TypeID.TIME,
           TypeID.DECIMAL,
           TypeID.FIXED,
-          TypeID.TIMESTAMP_NANO);
+          TypeID.TIMESTAMP_NANO,
+          TypeID.STRUCT);
 
   private final Schema schema;
   private final FileIO io;

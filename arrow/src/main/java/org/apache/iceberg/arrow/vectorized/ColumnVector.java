@@ -45,6 +45,7 @@ import org.apache.iceberg.types.Types;
  *   <li>{@link Types.TimeType}
  *   <li>{@link Types.UUIDType}
  *   <li>{@link Types.DecimalType}
+ *   <li>{@link Types.StructType}
  * </ul>
  */
 public class ColumnVector implements AutoCloseable {
@@ -132,6 +133,10 @@ public class ColumnVector implements AutoCloseable {
       return null;
     }
     return (BigDecimal) accessor.getDecimal(rowId, precision, scale);
+  }
+
+  public ColumnVector getChildColumn(int pos) {
+    return (ColumnVector) accessor.childColumn(pos);
   }
 
   private static ArrowVectorAccessor<?, String, ?, ?> getVectorAccessor(VectorHolder holder) {

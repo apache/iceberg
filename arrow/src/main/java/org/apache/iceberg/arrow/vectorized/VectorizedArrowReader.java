@@ -99,7 +99,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     this(null);
   }
 
-  private VectorizedArrowReader(Types.NestedField icebergField) {
+  VectorizedArrowReader(Types.NestedField icebergField) {
     this.icebergField = icebergField;
     this.batchSize = DEFAULT_BATCH_SIZE;
     this.columnDescriptor = null;
