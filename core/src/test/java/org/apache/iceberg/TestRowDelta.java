@@ -2198,7 +2198,13 @@ public class TestRowDelta extends TestBase {
             .withContentSizeInBytes(10)
             .build();
     DeleteFile dv2 =
-        FileMetadata.deleteFileBuilder(table.spec()).copy(dv1).withPath("/tmp/dv-2.puffin").build();
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(dv1)
+            .withContentOffset(dv1.contentOffset())
+            .withContentSizeInBytes(dv1.contentSizeInBytes())
+            .withReferencedDataFile(dataFile.location())
+            .withPath("/tmp/dv-2.puffin")
+            .build();
 
     // Use protected add(DeleteFile, long) to assign different data sequence numbers
     MergingSnapshotProducer<?> rowDelta = (MergingSnapshotProducer<?>) table.newRowDelta();
@@ -2235,7 +2241,13 @@ public class TestRowDelta extends TestBase {
             .withContentSizeInBytes(10)
             .build();
     DeleteFile dv2 =
-        FileMetadata.deleteFileBuilder(evolvedSpec).copy(dv1).withPath("/tmp/dv-2.puffin").build();
+        FileMetadata.deleteFileBuilder(evolvedSpec)
+            .copy(dv1)
+            .withContentOffset(dv1.contentOffset())
+            .withContentSizeInBytes(dv1.contentSizeInBytes())
+            .withReferencedDataFile(dataFile.location())
+            .withPath("/tmp/dv-2.puffin")
+            .build();
 
     assertThatThrownBy(
             () -> commit(table, table.newRowDelta().addDeletes(dv1).addDeletes(dv2), branch))
@@ -2266,6 +2278,9 @@ public class TestRowDelta extends TestBase {
         FileMetadata.deleteFileBuilder(table.spec())
             .copy(dv1)
             .withPath("/tmp/dv-2.puffin")
+            .withContentOffset(dv1.contentOffset())
+            .withContentSizeInBytes(dv1.contentSizeInBytes())
+            .withReferencedDataFile(dataFile.location())
             .withPartitionPath("data_bucket=1")
             .build();
 
