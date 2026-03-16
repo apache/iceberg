@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -36,6 +35,7 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.puffin.PuffinFormat.Flag;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.util.Pair;
 
@@ -126,7 +126,7 @@ public class PuffinReader implements Closeable {
       return ImmutableList.of();
     }
 
-    List<BlobMetadata> sortedBlobs = new ArrayList<>(blobs);
+    List<BlobMetadata> sortedBlobs = Lists.newArrayList(blobs);
     sortedBlobs.sort(Comparator.comparingLong(BlobMetadata::offset));
 
     // Coalesce adjacent blob reads to reduce I/O operations. Blobs that are contiguous
@@ -165,8 +165,8 @@ public class PuffinReader implements Closeable {
    * exactly where the previous one ends) are grouped together to be read in a single I/O request.
    */
   static List<List<BlobMetadata>> coalesceRanges(List<BlobMetadata> sortedBlobs) {
-    List<List<BlobMetadata>> ranges = new ArrayList<>();
-    List<BlobMetadata> currentRange = new ArrayList<>();
+    List<List<BlobMetadata>> ranges = Lists.newArrayList();
+    List<BlobMetadata> currentRange = Lists.newArrayList();
     currentRange.add(sortedBlobs.get(0));
 
     for (int i = 1; i < sortedBlobs.size(); i++) {
@@ -180,7 +180,7 @@ public class PuffinReader implements Closeable {
       } else {
         // Gap between blobs — start a new range
         ranges.add(currentRange);
-        currentRange = new ArrayList<>();
+        currentRange = Lists.newArrayList();
         currentRange.add(curr);
       }
     }
