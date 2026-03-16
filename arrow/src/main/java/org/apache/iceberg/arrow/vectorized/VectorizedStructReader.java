@@ -35,7 +35,7 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
  * A vectorized reader for struct (nested) fields that reads child columns individually and
  * assembles them into an Arrow {@link StructVector}.
  */
-public class VectorizedStructReader extends VectorizedArrowReader {
+class VectorizedStructReader extends VectorizedArrowReader {
 
   private final VectorizedReader<VectorHolder>[] childReaders;
   private final Types.StructType structType;
@@ -63,11 +63,10 @@ public class VectorizedStructReader extends VectorizedArrowReader {
     }
 
     List<Types.NestedField> fields = structType.fields();
-    FieldVector[] childVectors = new FieldVector[childReaders.length];
+    VectorHolder[] childHolders = new VectorHolder[childReaders.length];
 
     for (int i = 0; i < childReaders.length; i++) {
-      VectorHolder childHolder = childReaders[i].read(null, numValsToRead);
-      childVectors[i] = childHolder.vector();
+      childHolders[i] = childReaders[i].read(null, numValsToRead);
     }
 
     // Build the StructVector from child vectors
@@ -77,7 +76,7 @@ public class VectorizedStructReader extends VectorizedArrowReader {
     for (int i = 0; i < fields.size(); i++) {
       Types.NestedField childField = fields.get(i);
       Field childArrowField = ArrowSchemaUtil.convert(childField);
-      FieldVector child = childVectors[i];
+      FieldVector child = childHolders[i].vector();
       if (child != null) {
         structVector.addOrGet(
             childArrowField.getName(),
@@ -90,17 +89,51 @@ public class VectorizedStructReader extends VectorizedArrowReader {
     }
 
     structVector.setValueCount(numValsToRead);
-    // Set all values as non-null at the struct level by default.
-    // Individual child nullability is handled by the child readers.
+
     if (nullabilityHolder == null || nullabilityHolder.size() < numValsToRead) {
       nullabilityHolder = new NullabilityHolder(numValsToRead);
     } else {
       nullabilityHolder.reset();
     }
 
-    nullabilityHolder.setNotNulls(0, numValsToRead);
+    // Derive struct-level nullability: if the struct field is optional, a row where all
+    // children are null indicates the struct itself is null (Parquet encodes a null optional
+    // struct by marking all children absent).
+    if (icebergField().isOptional()) {
+      for (int row = 0; row < numValsToRead; row++) {
+        if (allChildrenNullAt(childHolders, row)) {
+          nullabilityHolder.setNull(row);
+          structVector.setNull(row);
+        } else {
+          nullabilityHolder.setNotNull(row);
+          structVector.setIndexDefined(row);
+        }
+      }
+    } else {
+      nullabilityHolder.setNotNulls(0, numValsToRead);
+      for (int row = 0; row < numValsToRead; row++) {
+        structVector.setIndexDefined(row);
+      }
+    }
 
     return new VectorHolder(structVector, icebergField(), nullabilityHolder);
+  }
+
+  private static boolean allChildrenNullAt(VectorHolder[] holders, int row) {
+    boolean hasNonDummyChild = false;
+    for (VectorHolder holder : holders) {
+      if (holder.isDummy()) {
+        continue;
+      }
+
+      hasNonDummyChild = true;
+      NullabilityHolder childNulls = holder.nullabilityHolder();
+      if (childNulls == null || childNulls.isNullAt(row) != 1) {
+        return false;
+      }
+    }
+
+    return hasNonDummyChild;
   }
 
   @Override

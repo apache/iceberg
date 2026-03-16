@@ -814,6 +814,285 @@ public class TestArrowReaderStruct {
     assertThat(totalRows).isEqualTo(NUM_ROWS * 2);
   }
 
+  /** Optional struct where some rows have a null struct value. */
+  @Test
+  public void testNullStructRows() throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(
+                2,
+                "info",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "name", Types.StringType.get()),
+                    Types.NestedField.required(4, "value", Types.IntegerType.get()))));
+
+    Table table = createTable(schema);
+    List<GenericRecord> records = Lists.newArrayList();
+    for (int i = 0; i < NUM_ROWS; i++) {
+      GenericRecord rec = GenericRecord.create(schema);
+      rec.setField("id", i);
+      if (i % 3 == 0) {
+        rec.setField("info", null);
+      } else {
+        GenericRecord info = GenericRecord.create(schema.findType("info").asStructType());
+        info.setField("name", "n" + i);
+        info.setField("value", i * 10);
+        rec.setField("info", info);
+      }
+      records.add(rec);
+    }
+
+    appendData(table, records);
+
+    try (VectorizedTableScanIterable reader =
+        new VectorizedTableScanIterable(table.newScan(), NUM_ROWS, false)) {
+      for (ColumnarBatch batch : reader) {
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+        StructVector infoVec = (StructVector) root.getVector("info");
+
+        for (int i = 0; i < NUM_ROWS; i++) {
+          if (i % 3 == 0) {
+            assertThat(infoVec.isNull(i))
+                .as("Struct at row %d should be null", i)
+                .isTrue();
+          } else {
+            assertThat(infoVec.isNull(i))
+                .as("Struct at row %d should not be null", i)
+                .isFalse();
+            VarCharVector nameVec = (VarCharVector) infoVec.getChild("name");
+            assertThat(new String(nameVec.get(i), StandardCharsets.UTF_8)).isEqualTo("n" + i);
+            IntVector valueVec = (IntVector) infoVec.getChild("value");
+            assertThat(valueVec.get(i)).isEqualTo(i * 10);
+          }
+        }
+
+        root.close();
+      }
+    }
+  }
+
+  /** Null struct rows detected through the ColumnVector API. */
+  @Test
+  public void testNullStructRowsViaColumnVector() throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(
+                2,
+                "info",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "a", Types.IntegerType.get()),
+                    Types.NestedField.required(4, "b", Types.IntegerType.get()))));
+
+    Table table = createTable(schema);
+    List<GenericRecord> records = Lists.newArrayList();
+    for (int i = 0; i < NUM_ROWS; i++) {
+      GenericRecord rec = GenericRecord.create(schema);
+      rec.setField("id", i);
+      if (i % 2 == 0) {
+        rec.setField("info", null);
+      } else {
+        GenericRecord info = GenericRecord.create(schema.findType("info").asStructType());
+        info.setField("a", i);
+        info.setField("b", i * 2);
+        rec.setField("info", info);
+      }
+      records.add(rec);
+    }
+
+    appendData(table, records);
+
+    try (VectorizedTableScanIterable reader =
+        new VectorizedTableScanIterable(table.newScan(), NUM_ROWS, false)) {
+      for (ColumnarBatch batch : reader) {
+        ColumnVector structCol = batch.column(1);
+        for (int i = 0; i < NUM_ROWS; i++) {
+          if (i % 2 == 0) {
+            assertThat(structCol.isNullAt(i))
+                .as("Struct at row %d should be null", i)
+                .isTrue();
+          } else {
+            assertThat(structCol.isNullAt(i)).isFalse();
+            ColumnVector aChild = structCol.getChildColumn(0);
+            ColumnVector bChild = structCol.getChildColumn(1);
+            assertThat(aChild.getInt(i)).isEqualTo(i);
+            assertThat(bChild.getInt(i)).isEqualTo(i * 2);
+          }
+        }
+      }
+    }
+  }
+
+  /** All struct rows are null. */
+  @Test
+  public void testAllNullStructRows() throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(
+                2,
+                "info",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "a", Types.IntegerType.get()))));
+
+    Table table = createTable(schema);
+    List<GenericRecord> records = Lists.newArrayList();
+    for (int i = 0; i < NUM_ROWS; i++) {
+      GenericRecord rec = GenericRecord.create(schema);
+      rec.setField("id", i);
+      rec.setField("info", null);
+      records.add(rec);
+    }
+
+    appendData(table, records);
+
+    try (VectorizedTableScanIterable reader =
+        new VectorizedTableScanIterable(table.newScan(), NUM_ROWS, false)) {
+      for (ColumnarBatch batch : reader) {
+        ColumnVector structCol = batch.column(1);
+        for (int i = 0; i < NUM_ROWS; i++) {
+          assertThat(structCol.isNullAt(i))
+              .as("Struct at row %d should be null", i)
+              .isTrue();
+        }
+      }
+    }
+  }
+
+  /** Schema evolution: a new child field is added after initial data is written. */
+  @Test
+  public void testSchemaEvolutionNewChildField() throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2,
+                "info",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "a", Types.IntegerType.get()))));
+
+    Table table = createTable(schema);
+    List<GenericRecord> records = Lists.newArrayList();
+    for (int i = 0; i < NUM_ROWS; i++) {
+      GenericRecord rec = GenericRecord.create(schema);
+      rec.setField("id", i);
+      GenericRecord info = GenericRecord.create(schema.findType("info").asStructType());
+      info.setField("a", i * 10);
+      rec.setField("info", info);
+      records.add(rec);
+    }
+
+    appendData(table, records);
+
+    // Evolve the schema: add an optional child field to the struct
+    table.updateSchema().addColumn("info", "b", Types.StringType.get()).commit();
+
+    // Write new data with the evolved schema
+    Schema evolvedSchema = table.schema();
+    List<GenericRecord> newRecords = Lists.newArrayList();
+    for (int i = 0; i < NUM_ROWS; i++) {
+      GenericRecord rec = GenericRecord.create(evolvedSchema);
+      rec.setField("id", NUM_ROWS + i);
+      GenericRecord info = GenericRecord.create(evolvedSchema.findType("info").asStructType());
+      info.setField("a", (NUM_ROWS + i) * 10);
+      info.setField("b", "val-" + i);
+      rec.setField("info", info);
+      newRecords.add(rec);
+    }
+
+    appendData(table, newRecords);
+
+    int totalRows = 0;
+    try (VectorizedTableScanIterable reader =
+        new VectorizedTableScanIterable(table.newScan(), NUM_ROWS * 2, false)) {
+      for (ColumnarBatch batch : reader) {
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+        StructVector infoVec = (StructVector) root.getVector("info");
+        IntVector aVec = (IntVector) infoVec.getChild("a");
+        IntVector idVec = (IntVector) root.getVector("id");
+
+        for (int i = 0; i < batch.numRows(); i++) {
+          // The "a" child should always match id * 10
+          assertThat(aVec.get(i)).isEqualTo(idVec.get(i) * 10);
+        }
+
+        totalRows += batch.numRows();
+        root.close();
+      }
+    }
+
+    assertThat(totalRows).isEqualTo(NUM_ROWS * 2);
+  }
+
+  /** Empty table with struct column returns no rows. */
+  @Test
+  public void testEmptyTable() throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2,
+                "pair",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "a", Types.IntegerType.get()),
+                    Types.NestedField.required(4, "b", Types.IntegerType.get()))));
+
+    createTable(schema);
+    Table table =
+        tables.load(tableLocation);
+
+    int totalRows = 0;
+    try (VectorizedTableScanIterable reader =
+        new VectorizedTableScanIterable(table.newScan(), NUM_ROWS, false)) {
+      for (ColumnarBatch batch : reader) {
+        totalRows += batch.numRows();
+      }
+    }
+
+    assertThat(totalRows).isEqualTo(0);
+  }
+
+  /** Single row with a struct to verify boundary conditions. */
+  @Test
+  public void testSingleRowWithStruct() throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(
+                2,
+                "pair",
+                Types.StructType.of(
+                    Types.NestedField.required(3, "a", Types.IntegerType.get()),
+                    Types.NestedField.required(4, "b", Types.IntegerType.get()))));
+
+    Table table = createTable(schema);
+    List<GenericRecord> records = Lists.newArrayList();
+    GenericRecord rec = GenericRecord.create(schema);
+    rec.setField("id", 42);
+    GenericRecord pair = GenericRecord.create(schema.findType("pair").asStructType());
+    pair.setField("a", 100);
+    pair.setField("b", 200);
+    rec.setField("pair", pair);
+    records.add(rec);
+
+    appendData(table, records);
+
+    try (VectorizedTableScanIterable reader =
+        new VectorizedTableScanIterable(table.newScan(), NUM_ROWS, false)) {
+      for (ColumnarBatch batch : reader) {
+        assertThat(batch.numRows()).isEqualTo(1);
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+        StructVector pairVec = (StructVector) root.getVector("pair");
+        IntVector aVec = (IntVector) pairVec.getChild("a");
+        IntVector bVec = (IntVector) pairVec.getChild("b");
+        assertThat(aVec.get(0)).isEqualTo(100);
+        assertThat(bVec.get(0)).isEqualTo(200);
+        root.close();
+      }
+    }
+  }
+
   private Table createTable(Schema schema) {
     return tables.create(
         schema,
