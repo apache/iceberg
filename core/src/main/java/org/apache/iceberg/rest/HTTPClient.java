@@ -340,14 +340,13 @@ public class HTTPClient extends BaseHTTPClient {
         return null;
       }
 
-      String responseBody = extractResponseBodyAsString(response);
-
       if (!isSuccessful(response)) {
         // The provided error handler is expected to throw, but a RESTException is thrown if not.
+        String responseBody = extractResponseBodyAsString(response);
         throwFailure(response, responseBody, errorHandler);
       }
 
-      if (responseBody == null) {
+      if (response.getEntity() == null) {
         throw new RESTException(
             "Invalid (null) response body for request (expected %s): method=%s, path=%s, status=%d",
             responseType.getSimpleName(), req.method(), req.path(), response.getCode());
@@ -358,7 +357,7 @@ public class HTTPClient extends BaseHTTPClient {
         if (parserContext != null && !parserContext.isEmpty()) {
           reader = reader.with(parserContext.toInjectableValues());
         }
-        return reader.readValue(responseBody);
+        return reader.readValue(response.getEntity().getContent());
       } catch (JsonProcessingException e) {
         throw new RESTException(
             e,
