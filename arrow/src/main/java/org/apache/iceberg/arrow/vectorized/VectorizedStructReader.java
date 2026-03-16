@@ -46,11 +46,14 @@ class VectorizedStructReader extends VectorizedArrowReader {
 
   @SuppressWarnings("unchecked")
   VectorizedStructReader(
-      Types.NestedField icebergField, List<VectorizedReader<?>> readers, BufferAllocator allocator) {
+      Types.NestedField icebergField,
+      List<VectorizedReader<?>> readers,
+      BufferAllocator allocator) {
     super(icebergField);
     this.structType = icebergField.type().asStructType();
     this.childReaders = readers.toArray(new VectorizedReader[0]);
-    this.allocator = allocator.newChildAllocator("struct-" + icebergField.name(), 0, Long.MAX_VALUE);
+    this.allocator =
+        allocator.newChildAllocator("struct-" + icebergField.name(), 0, Long.MAX_VALUE);
   }
 
   @Override
@@ -79,9 +82,7 @@ class VectorizedStructReader extends VectorizedArrowReader {
       FieldVector child = childHolders[i].vector();
       if (child != null) {
         structVector.addOrGet(
-            childArrowField.getName(),
-            childArrowField.getFieldType(),
-            child.getClass());
+            childArrowField.getName(), childArrowField.getFieldType(), child.getClass());
         // Transfer data from the reader's child vector into the struct's child vector
         FieldVector structChild = structVector.getChild(childArrowField.getName());
         child.makeTransferPair(structChild).transfer();

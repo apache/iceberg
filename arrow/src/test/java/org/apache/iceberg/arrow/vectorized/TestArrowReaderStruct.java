@@ -502,9 +502,7 @@ public class TestArrowReaderStruct {
           assertThat(nameChild.isNullAt(i)).isFalse();
           assertThat(nameChild.getString(i)).isEqualTo("n" + i);
           if (i % 2 == 0) {
-            assertThat(valueChild.isNullAt(i))
-                .as("Row %d should be null", i)
-                .isTrue();
+            assertThat(valueChild.isNullAt(i)).as("Row %d should be null", i).isTrue();
           } else {
             assertThat(valueChild.isNullAt(i)).isFalse();
             assertThat(valueChild.getInt(i)).isEqualTo(i);
@@ -649,8 +647,7 @@ public class TestArrowReaderStruct {
 
     // Project only the struct column
     try (VectorizedTableScanIterable reader =
-        new VectorizedTableScanIterable(
-            table.newScan().select("pair"), NUM_ROWS, false)) {
+        new VectorizedTableScanIterable(table.newScan().select("pair"), NUM_ROWS, false)) {
       for (ColumnarBatch batch : reader) {
         assertThat(batch.numCols()).isEqualTo(1);
 
@@ -852,13 +849,9 @@ public class TestArrowReaderStruct {
 
         for (int i = 0; i < NUM_ROWS; i++) {
           if (i % 3 == 0) {
-            assertThat(infoVec.isNull(i))
-                .as("Struct at row %d should be null", i)
-                .isTrue();
+            assertThat(infoVec.isNull(i)).as("Struct at row %d should be null", i).isTrue();
           } else {
-            assertThat(infoVec.isNull(i))
-                .as("Struct at row %d should not be null", i)
-                .isFalse();
+            assertThat(infoVec.isNull(i)).as("Struct at row %d should not be null", i).isFalse();
             VarCharVector nameVec = (VarCharVector) infoVec.getChild("name");
             assertThat(new String(nameVec.get(i), StandardCharsets.UTF_8)).isEqualTo("n" + i);
             IntVector valueVec = (IntVector) infoVec.getChild("value");
@@ -908,9 +901,7 @@ public class TestArrowReaderStruct {
         ColumnVector structCol = batch.column(1);
         for (int i = 0; i < NUM_ROWS; i++) {
           if (i % 2 == 0) {
-            assertThat(structCol.isNullAt(i))
-                .as("Struct at row %d should be null", i)
-                .isTrue();
+            assertThat(structCol.isNullAt(i)).as("Struct at row %d should be null", i).isTrue();
           } else {
             assertThat(structCol.isNullAt(i)).isFalse();
             ColumnVector aChild = structCol.getChildColumn(0);
@@ -932,8 +923,7 @@ public class TestArrowReaderStruct {
             Types.NestedField.optional(
                 2,
                 "info",
-                Types.StructType.of(
-                    Types.NestedField.required(3, "a", Types.IntegerType.get()))));
+                Types.StructType.of(Types.NestedField.required(3, "a", Types.IntegerType.get()))));
 
     Table table = createTable(schema);
     List<GenericRecord> records = Lists.newArrayList();
@@ -951,9 +941,7 @@ public class TestArrowReaderStruct {
       for (ColumnarBatch batch : reader) {
         ColumnVector structCol = batch.column(1);
         for (int i = 0; i < NUM_ROWS; i++) {
-          assertThat(structCol.isNullAt(i))
-              .as("Struct at row %d should be null", i)
-              .isTrue();
+          assertThat(structCol.isNullAt(i)).as("Struct at row %d should be null", i).isTrue();
         }
       }
     }
@@ -968,8 +956,7 @@ public class TestArrowReaderStruct {
             Types.NestedField.required(
                 2,
                 "info",
-                Types.StructType.of(
-                    Types.NestedField.required(3, "a", Types.IntegerType.get()))));
+                Types.StructType.of(Types.NestedField.required(3, "a", Types.IntegerType.get()))));
 
     Table table = createTable(schema);
     List<GenericRecord> records = Lists.newArrayList();
@@ -1038,8 +1025,7 @@ public class TestArrowReaderStruct {
                     Types.NestedField.required(4, "b", Types.IntegerType.get()))));
 
     createTable(schema);
-    Table table =
-        tables.load(tableLocation);
+    Table table = tables.load(tableLocation);
 
     int totalRows = 0;
     try (VectorizedTableScanIterable reader =
