@@ -106,4 +106,54 @@ public class TestSetStatistics extends TestBase {
     assertThat(version()).isEqualTo(3);
     assertThat(metadata.statisticsFiles()).isEmpty();
   }
+
+  @TestTemplate
+  public void setStatisticsRetryWithConcurrentModification() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotId = readMetadata().currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
+
+    // Create a TableOperations that simulates concurrent modification
+    // On the first commit attempt, another writer modifies the table
+    TableOperations concurrentOps =
+        new TestTables.TestTableOperations("test", tableDir, table.ops().io()) {
+          private boolean firstAttempt = true;
+
+          @Override
+          public void commit(TableMetadata base, TableMetadata metadata) {
+            if (firstAttempt) {
+              firstAttempt = false;
+              table.newFastAppend().appendFile(FILE_B).commit();
+            }
+
+            super.commit(base, metadata);
+          }
+        };
+
+    SetStatistics setStats = new SetStatistics(concurrentOps);
+    setStats.setStatistics(statisticsFile);
+    setStats.commit();
+
+    assertThat(readMetadata().statisticsFiles()).containsExactly(statisticsFile);
+  }
+
+  @TestTemplate
+  public void setStatisticsRetrySuccess() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotId = readMetadata().currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
+
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(2);
+
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    assertThat(readMetadata().statisticsFiles()).containsExactly(statisticsFile);
+  }
 }

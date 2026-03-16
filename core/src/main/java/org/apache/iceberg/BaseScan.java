@@ -102,12 +102,17 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return table;
   }
 
-  protected FileIO io() {
+  @Override
+  public FileIO io() {
     return table.io();
   }
 
   protected Schema tableSchema() {
     return schema;
+  }
+
+  protected Map<Integer, Schema> schemas() {
+    return table.schemas();
   }
 
   protected TableScanContext context() {
@@ -291,6 +296,11 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   @Override
   public ThisT metricsReporter(MetricsReporter reporter) {
     return newRefinedScan(table, schema, context.reportWith(reporter));
+  }
+
+  @Override
+  public ThisT minRowsRequested(long numRows) {
+    return newRefinedScan(table, schema, context.minRowsRequested(numRows));
   }
 
   /**

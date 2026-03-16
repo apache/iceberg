@@ -50,7 +50,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       Schema schema,
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
-      boolean upsert) {
+      boolean upsert,
+      boolean useDv) {
     super(
         spec,
         format,
@@ -61,7 +62,8 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
         schema,
         flinkSchema,
         equalityFieldIds,
-        upsert);
+        upsert,
+        useDv);
     this.partitionKey = new PartitionKey(spec, schema);
   }
 
@@ -74,7 +76,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in
       // writers.
       PartitionKey copiedKey = partitionKey.copy();
-      writer = new RowDataDeltaWriter(copiedKey);
+      writer = new RowDataDeltaWriter(copiedKey, dvFileWriter());
       writers.put(copiedKey, writer);
     }
 
@@ -84,6 +86,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
   @Override
   public void close() {
     try {
+      super.close();
       Tasks.foreach(writers.values())
           .throwFailureWhenFinished()
           .noRetry()

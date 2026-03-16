@@ -40,6 +40,7 @@ import org.apache.iceberg.flink.sink.PartitionKeySelector;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,7 +100,7 @@ class HashKeyGenerator {
                         dynamicRecord.distributionMode(), DistributionMode.NONE),
                     MoreObjects.firstNonNull(
                         dynamicRecord.equalityFields(), Collections.emptySet()),
-                    dynamicRecord.writeParallelism()));
+                    Math.min(dynamicRecord.writeParallelism(), maxWriteParallelism)));
     try {
       return keySelector.getKey(
           overrideRowData != null ? overrideRowData : dynamicRecord.rowData());
@@ -151,8 +152,9 @@ class HashKeyGenerator {
                 tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
           } else {
             for (PartitionField partitionField : spec.fields()) {
+              Types.NestedField sourceField = schema.findField(partitionField.sourceId());
               Preconditions.checkState(
-                  equalityFields.contains(partitionField.name()),
+                  sourceField != null && equalityFields.contains(sourceField.name()),
                   "%s: In 'hash' distribution mode with equality fields set, partition field '%s' "
                       + "should be included in equality fields: '%s'",
                   tableName,
@@ -242,15 +244,17 @@ class HashKeyGenerator {
         String tableName,
         int writeParallelism,
         int maxWriteParallelism) {
-      if (writeParallelism > maxWriteParallelism) {
-        LOG.warn(
-            "{}: writeParallelism {} is greater than maxWriteParallelism {}. Capping writeParallelism at {}",
-            tableName,
-            writeParallelism,
-            maxWriteParallelism,
-            maxWriteParallelism);
-        writeParallelism = maxWriteParallelism;
-      }
+      Preconditions.checkArgument(
+          writeParallelism > 0,
+          "%s: writeParallelism must be > 0 (is: %s)",
+          tableName,
+          writeParallelism);
+      Preconditions.checkArgument(
+          writeParallelism <= maxWriteParallelism,
+          "%s: writeParallelism (%s) must be <= maxWriteParallelism (%s)",
+          tableName,
+          writeParallelism,
+          maxWriteParallelism);
       this.wrapped = wrapped;
       this.writeParallelism = writeParallelism;
       this.distinctKeys = new int[writeParallelism];

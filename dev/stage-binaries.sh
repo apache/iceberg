@@ -20,7 +20,7 @@
 
 SCALA_VERSION=2.12
 FLINK_VERSIONS=1.20,2.0,2.1
-SPARK_VERSIONS=3.4,3.5,4.0
+SPARK_VERSIONS=3.4,3.5,4.0,4.1
 KAFKA_VERSIONS=3
 
 ./gradlew -Prelease -DscalaVersion=$SCALA_VERSION -DflinkVersions=$FLINK_VERSIONS -DsparkVersions=$SPARK_VERSIONS -DkafkaVersions=$KAFKA_VERSIONS publishApachePublicationToMavenRepository --no-parallel --no-configuration-cache

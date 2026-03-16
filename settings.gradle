@@ -175,6 +175,18 @@ if (sparkVersions.contains("4.0")) {
   project(":iceberg-spark:spark-runtime-4.0_2.13").name = "iceberg-spark-runtime-4.0_2.13"
 }
 
+if (sparkVersions.contains("4.1")) {
+    include ":iceberg-spark:spark-4.1_2.13"
+    include ":iceberg-spark:spark-extensions-4.1_2.13"
+    include ":iceberg-spark:spark-runtime-4.1_2.13"
+    project(":iceberg-spark:spark-4.1_2.13").projectDir = file('spark/v4.1/spark')
+    project(":iceberg-spark:spark-4.1_2.13").name = "iceberg-spark-4.1_2.13"
+    project(":iceberg-spark:spark-extensions-4.1_2.13").projectDir = file('spark/v4.1/spark-extensions')
+    project(":iceberg-spark:spark-extensions-4.1_2.13").name = "iceberg-spark-extensions-4.1_2.13"
+    project(":iceberg-spark:spark-runtime-4.1_2.13").projectDir = file('spark/v4.1/spark-runtime')
+    project(":iceberg-spark:spark-runtime-4.1_2.13").name = "iceberg-spark-runtime-4.1_2.13"
+}
+
 if (kafkaVersions.contains("3")) {
   include 'kafka-connect'
   project(':kafka-connect').name = 'iceberg-kafka-connect'

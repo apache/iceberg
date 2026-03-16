@@ -43,10 +43,15 @@ class TableUpdater {
   private static final Logger LOG = LoggerFactory.getLogger(TableUpdater.class);
   private final TableMetadataCache cache;
   private final Catalog catalog;
+  private final boolean caseSensitive;
+  private final boolean dropUnusedColumns;
 
-  TableUpdater(TableMetadataCache cache, Catalog catalog) {
+  TableUpdater(
+      TableMetadataCache cache, Catalog catalog, boolean caseSensitive, boolean dropUnusedColumns) {
     this.cache = cache;
     this.catalog = catalog;
+    this.caseSensitive = caseSensitive;
+    this.dropUnusedColumns = dropUnusedColumns;
   }
 
   /**
@@ -56,8 +61,12 @@ class TableUpdater {
    *     requested one, and the new {@link PartitionSpec#specId()}.
    */
   Tuple2<TableMetadataCache.ResolvedSchemaInfo, PartitionSpec> update(
-      TableIdentifier tableIdentifier, String branch, Schema schema, PartitionSpec spec) {
-    findOrCreateTable(tableIdentifier, schema, spec);
+      TableIdentifier tableIdentifier,
+      String branch,
+      Schema schema,
+      PartitionSpec spec,
+      TableCreator tableCreator) {
+    findOrCreateTable(tableIdentifier, schema, spec, tableCreator);
     findOrCreateBranch(tableIdentifier, branch);
     TableMetadataCache.ResolvedSchemaInfo newSchemaInfo =
         findOrCreateSchema(tableIdentifier, schema);
@@ -65,7 +74,8 @@ class TableUpdater {
     return Tuple2.of(newSchemaInfo, newSpec);
   }
 
-  private void findOrCreateTable(TableIdentifier identifier, Schema schema, PartitionSpec spec) {
+  private void findOrCreateTable(
+      TableIdentifier identifier, Schema schema, PartitionSpec spec, TableCreator tableCreator) {
     Tuple2<Boolean, Exception> exists = cache.exists(identifier);
     if (Boolean.FALSE.equals(exists.f0)) {
       if (exists.f1 instanceof NoSuchNamespaceException) {
@@ -80,12 +90,12 @@ class TableUpdater {
 
       LOG.info("Table {} not found during table search. Creating table.", identifier);
       try {
-        Table table = catalog.createTable(identifier, schema, spec);
+        Table table = tableCreator.createTable(catalog, identifier, schema, spec);
         cache.update(identifier, table);
       } catch (AlreadyExistsException e) {
         LOG.debug("Table {} created concurrently. Skipping creation.", identifier, e);
         cache.invalidate(identifier);
-        findOrCreateTable(identifier, schema, spec);
+        findOrCreateTable(identifier, schema, spec, tableCreator);
       }
     }
   }
@@ -119,7 +129,8 @@ class TableUpdater {
     } else {
       Table table = catalog.loadTable(identifier);
       Schema tableSchema = table.schema();
-      CompareSchemasVisitor.Result result = CompareSchemasVisitor.visit(schema, tableSchema, true);
+      CompareSchemasVisitor.Result result =
+          CompareSchemasVisitor.visit(schema, tableSchema, caseSensitive, dropUnusedColumns);
       switch (result) {
         case SAME:
           cache.update(identifier, table);
@@ -136,7 +147,8 @@ class TableUpdater {
           LOG.info(
               "Triggering schema update for table {} {} to {}", identifier, tableSchema, schema);
           UpdateSchema updateApi = table.updateSchema();
-          EvolveSchemaVisitor.visit(updateApi, tableSchema, schema);
+          EvolveSchemaVisitor.visit(
+              identifier, updateApi, tableSchema, schema, caseSensitive, dropUnusedColumns);
 
           try {
             updateApi.commit();

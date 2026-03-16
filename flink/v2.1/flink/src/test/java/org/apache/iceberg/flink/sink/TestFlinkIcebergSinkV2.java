@@ -242,7 +242,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         false,
         elementsPerCheckpoint,
         expectedRecords,
-        "main");
+        SnapshotRef.MAIN_BRANCH);
 
     DeleteFile deleteFile = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().next();
     String fromStat =

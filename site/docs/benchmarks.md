@@ -35,11 +35,9 @@ Benchmark results will be uploaded once **all** benchmarks are done.
 It is worth noting that the GH runners have limited resources so the benchmark results should rather be seen as an indicator to guide developers in understanding code changes.
 It is likely that there is variability in results across different runs, therefore the benchmark results shouldn't be used to form assumptions around production choices.
 
-
 ## Running Benchmarks locally
 
 Below are the existing benchmarks shown with the actual commands on how to run them locally.
-
 
 ### IcebergSourceNestedListParquetDataWriteBenchmark
 A benchmark that evaluates the performance of writing nested Parquet data using Iceberg and the built-in file source in Spark. To run this benchmark for either spark-2 or spark-3:
@@ -104,7 +102,7 @@ A benchmark that evaluates the performance of writing nested Parquet data using 
 ### IcebergSourceNestedParquetDataReadBenchmark
 * A benchmark that evaluates the performance of reading nested Parquet data using Iceberg and the built-in file source in Spark. To run this benchmark for either spark-2 or spark-3:
 
-` ./gradlew :iceberg-spark:iceberg-spark-3.5_2.12:jmh -PjmhIncludeRegex=IcebergSourceNestedParquetDataReadBenchmark -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-read-benchmark-result.txt`
+`./gradlew :iceberg-spark:iceberg-spark-3.5_2.12:jmh -PjmhIncludeRegex=IcebergSourceNestedParquetDataReadBenchmark -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-read-benchmark-result.txt`
 
 ### IcebergSourceNestedORCDataReadBenchmark
 A benchmark that evaluates the performance of reading ORC data with a flat schema using Iceberg and the built-in file source in Spark. To run this benchmark for either spark-2 or spark-3:

@@ -26,13 +26,14 @@ import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
 
-public class DeletedColumnVector extends ColumnVector {
+public class DeletedColumnVector extends ColumnVector implements UpdatableDeletedColumnVector {
   private boolean[] isDeleted;
 
   public DeletedColumnVector(Type type) {
     super(SparkSchemaUtil.convert(type));
   }
 
+  @Override
   public void setValue(boolean[] deleted) {
     this.isDeleted = deleted;
   }

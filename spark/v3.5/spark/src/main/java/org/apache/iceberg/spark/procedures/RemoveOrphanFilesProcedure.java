@@ -71,6 +71,9 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
   // List files with prefix operations. Default is false.
   private static final ProcedureParameter PREFIX_LISTING_PARAM =
       optionalInParameter("prefix_listing", DataTypes.BooleanType);
+  // Stream results to avoid loading all orphan files in driver memory. Default is false.
+  private static final ProcedureParameter STREAM_RESULTS_PARAM =
+      optionalInParameter("stream_results", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -83,7 +86,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         EQUAL_SCHEMES_PARAM,
         EQUAL_AUTHORITIES_PARAM,
         PREFIX_MISMATCH_MODE_PARAM,
-        PREFIX_LISTING_PARAM
+        PREFIX_LISTING_PARAM,
+        STREAM_RESULTS_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -138,6 +142,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     PrefixMismatchMode prefixMismatchMode = asPrefixMismatchMode(input, PREFIX_MISMATCH_MODE_PARAM);
 
     boolean prefixListing = input.asBoolean(PREFIX_LISTING_PARAM, false);
+    boolean streamResults = input.asBoolean(STREAM_RESULTS_PARAM, false);
 
     return withIcebergTable(
         tableIdent,
@@ -163,7 +168,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           if (maxConcurrentDeletes != null) {
             if (table.io() instanceof SupportsBulkOperations) {
               LOG.warn(
-                  "max_concurrent_deletes only works with FileIOs that do not support bulk deletes. This"
+                  "max_concurrent_deletes only works with FileIOs that do not support bulk deletes. This "
                       + "table is currently using {} which supports bulk deletes so the parameter will be ignored. "
                       + "See that IO's documentation to learn how to adjust parallelism for that particular "
                       + "IO's bulk delete.",
@@ -186,6 +191,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           }
 
           action.usePrefixListing(prefixListing);
+
+          if (streamResults) {
+            action.option("stream-results", "true");
+          }
 
           DeleteOrphanFiles.Result result = action.execute();
 

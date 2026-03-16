@@ -71,11 +71,10 @@ of the source Delta Lake Table. Users can also specify a different location for 
     integrity. DELETE statements executed against the original Delta Lake table will remove original data files and the
     `snapshotDeltaLakeTable` table will no longer be able to access them.
 
-
 #### Usage
 | Required Input               | Configured By                                                                                                                                                                                             | Description                                                                     |
 |------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
-| Source Table Location        | Argument [`sourceTableLocation`](../../javadoc/latest/org/apache/iceberg/delta/DeltaLakeToIcebergMigrationActionsProvider.html#snapshotDeltaLakeTable(java.lang.String))             | The location of the source Delta Lake table                                     | 
+| Source Table Location        | Argument [`sourceTableLocation`](../../javadoc/latest/org/apache/iceberg/delta/DeltaLakeToIcebergMigrationActionsProvider.html#snapshotDeltaLakeTable(java.lang.String))             | The location of the source Delta Lake table                                     |
 | New Iceberg Table Identifier | Configuration API [`as`](../../javadoc/latest/org/apache/iceberg/delta/SnapshotDeltaLakeTable.html#as(org.apache.iceberg.catalog.TableIdentifier))                                   | The identifier specifies the namespace and table name for the new iceberg table |
 | Iceberg Catalog              | Configuration API [`icebergCatalog`](../../javadoc/latest/org/apache/iceberg/delta/SnapshotDeltaLakeTable.html#icebergCatalog(org.apache.iceberg.catalog.Catalog))                   | The catalog used to create the new iceberg table                                |
 | Hadoop Configuration         | Configuration API [`deltaLakeConfiguration`](../../javadoc/latest/org/apache/iceberg/delta/SnapshotDeltaLakeTable.html#deltaLakeConfiguration(org.apache.hadoop.conf.Configuration)) | The Hadoop Configuration used to read the source Delta Lake table.              |

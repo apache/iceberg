@@ -20,6 +20,8 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nullable;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
@@ -43,21 +45,29 @@ public class CompareSchemasVisitor
     extends SchemaWithPartnerVisitor<Integer, CompareSchemasVisitor.Result> {
 
   private final Schema tableSchema;
+  private final boolean caseSensitive;
+  private final boolean dropUnusedColumns;
 
-  private CompareSchemasVisitor(Schema tableSchema) {
+  private CompareSchemasVisitor(
+      Schema tableSchema, boolean caseSensitive, boolean dropUnusedColumns) {
     this.tableSchema = tableSchema;
+    this.caseSensitive = caseSensitive;
+    this.dropUnusedColumns = dropUnusedColumns;
   }
 
-  public static Result visit(Schema dataSchema, Schema tableSchema) {
-    return visit(dataSchema, tableSchema, true);
-  }
-
-  public static Result visit(Schema dataSchema, Schema tableSchema, boolean caseSensitive) {
+  public static Result visit(
+      Schema dataSchema, Schema tableSchema, boolean caseSensitive, boolean dropUnusedColumns) {
     return visit(
         dataSchema,
         -1,
-        new CompareSchemasVisitor(tableSchema),
+        new CompareSchemasVisitor(tableSchema, caseSensitive, dropUnusedColumns),
         new PartnerIdByNameAccessors(tableSchema, caseSensitive));
+  }
+
+  @VisibleForTesting
+  @Deprecated
+  public static Result visit(Schema dataSchema, Schema tableSchema) {
+    return visit(dataSchema, tableSchema, true, false);
   }
 
   @Override
@@ -70,6 +80,7 @@ public class CompareSchemasVisitor
   }
 
   @Override
+  @SuppressWarnings("CyclomaticComplexity")
   public Result struct(Types.StructType struct, Integer tableSchemaId, List<Result> fields) {
     if (tableSchemaId == null) {
       return Result.SCHEMA_UPDATE_NEEDED;
@@ -88,10 +99,10 @@ public class CompareSchemasVisitor
     }
 
     for (Types.NestedField tableField : tableSchemaType.asStructType().fields()) {
-      if (tableField.isRequired() && struct.field(tableField.name()) == null) {
+      if (getFieldFromStruct(tableField.name(), struct, caseSensitive) == null
+          && (tableField.isRequired() || dropUnusedColumns)) {
         // If a field from the table schema does not exist in the input schema, then we won't visit
-        // it and check for required/optional compatibility. The only choice is to make the table
-        // field optional.
+        // it. The only choice is to make the table field optional or drop it.
         return Result.SCHEMA_UPDATE_NEEDED;
       }
     }
@@ -101,16 +112,21 @@ public class CompareSchemasVisitor
     }
 
     for (int i = 0; i < struct.fields().size(); ++i) {
-      if (!struct
-          .fields()
-          .get(i)
-          .name()
-          .equals(tableSchemaType.asStructType().fields().get(i).name())) {
+      String fieldName = struct.fields().get(i).name();
+      String tableFieldName = tableSchemaType.asStructType().fields().get(i).name();
+      if ((caseSensitive && !fieldName.equals(tableFieldName))
+          || (!caseSensitive && !fieldName.equalsIgnoreCase(tableFieldName))) {
         return Result.DATA_CONVERSION_NEEDED;
       }
     }
 
     return result;
+  }
+
+  @Nullable
+  static Types.NestedField getFieldFromStruct(
+      String fieldName, Types.StructType struct, boolean caseSensitive) {
+    return caseSensitive ? struct.field(fieldName) : struct.caseInsensitiveField(fieldName);
   }
 
   @Override
@@ -187,14 +203,10 @@ public class CompareSchemasVisitor
 
   static class PartnerIdByNameAccessors implements PartnerAccessors<Integer> {
     private final Schema tableSchema;
-    private boolean caseSensitive = true;
+    private boolean caseSensitive;
 
-    PartnerIdByNameAccessors(Schema tableSchema) {
+    PartnerIdByNameAccessors(Schema tableSchema, boolean caseSensitive) {
       this.tableSchema = tableSchema;
-    }
-
-    private PartnerIdByNameAccessors(Schema tableSchema, boolean caseSensitive) {
-      this(tableSchema);
       this.caseSensitive = caseSensitive;
     }
 
@@ -207,8 +219,7 @@ public class CompareSchemasVisitor
         struct = tableSchema.findField(tableSchemaFieldId).type().asStructType();
       }
 
-      Types.NestedField field =
-          caseSensitive ? struct.field(name) : struct.caseInsensitiveField(name);
+      Types.NestedField field = getFieldFromStruct(name, struct, caseSensitive);
       if (field != null) {
         return field.fieldId();
       }

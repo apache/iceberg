@@ -30,6 +30,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.Transaction;
@@ -64,7 +65,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
   private int schemaCounter = 1;
 
   public TestBranchVisibility() {
-    super("main");
+    super(SnapshotRef.MAIN_BRANCH);
   }
 
   @BeforeEach
@@ -80,7 +81,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     catalog.dropTable(tableIdentifier1);
     catalog.dropTable(tableIdentifier2);
     for (Reference reference : api.getAllReferences().get().getReferences()) {
-      if (!reference.getName().equals("main")) {
+      if (!reference.getName().equals(SnapshotRef.MAIN_BRANCH)) {
         api.deleteBranch().branch((Branch) reference).delete();
       }
     }
@@ -112,7 +113,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     testCatalogEquality(refCatalog, testCatalog, true, true, () -> {});
 
     // catalog created with hash points to same catalog as above
-    NessieCatalog refHashCatalog = initCatalog("main");
+    NessieCatalog refHashCatalog = initCatalog(SnapshotRef.MAIN_BRANCH);
     testCatalogEquality(refHashCatalog, catalog, true, true, () -> {});
   }
 
@@ -120,7 +121,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
   public void testCatalogWithTableNames() {
     updateSchema(testCatalog, tableIdentifier2);
 
-    String mainName = "main";
+    String mainName = SnapshotRef.MAIN_BRANCH;
 
     // asking for table@branch gives expected regardless of catalog
     assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")))

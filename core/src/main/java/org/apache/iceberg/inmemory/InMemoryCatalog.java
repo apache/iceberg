@@ -91,7 +91,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
     String warehouse = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "");
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
-    this.io = new InMemoryFileIO();
+    this.io = CatalogUtil.loadFileIO(InMemoryFileIO.class.getName(), properties, null);
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
@@ -215,6 +215,12 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       if (!tableIdentifiers.isEmpty()) {
         throw new NamespaceNotEmptyException(
             "Namespace %s is not empty. Contains %d table(s).", namespace, tableIdentifiers.size());
+      }
+
+      List<TableIdentifier> viewIdentifiers = listViews(namespace);
+      if (!viewIdentifiers.isEmpty()) {
+        throw new NamespaceNotEmptyException(
+            "Namespace %s is not empty. Contains %d view(s).", namespace, viewIdentifiers.size());
       }
 
       return namespaces.remove(namespace) != null;

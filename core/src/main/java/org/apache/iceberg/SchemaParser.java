@@ -197,7 +197,14 @@ public class SchemaParser {
 
   private static Literal<?> defaultFromJson(String defaultField, Type type, JsonNode json) {
     if (json.has(defaultField)) {
-      return Expressions.lit(SingleValueParser.fromJson(type, json.get(defaultField)));
+      Object value = SingleValueParser.fromJson(type, json.get(defaultField));
+      if (type instanceof Types.TimestampNanoType) {
+        // Call Expressions.nanos instead of Expressions.lit to prevent overflow
+        // https://github.com/apache/iceberg/issues/13160
+        return Expressions.nanos((long) value);
+      }
+
+      return Expressions.lit(value);
     }
 
     return null;

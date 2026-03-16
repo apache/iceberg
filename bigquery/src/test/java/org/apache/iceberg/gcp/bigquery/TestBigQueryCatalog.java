@@ -20,7 +20,7 @@ package org.apache.iceberg.gcp.bigquery;
 
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_BIGQUERY;
-import static org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog.PROJECT_ID;
+import static org.apache.iceberg.gcp.bigquery.BigQueryProperties.PROJECT_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;

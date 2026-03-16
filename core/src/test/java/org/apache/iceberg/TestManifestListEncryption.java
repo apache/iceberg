@@ -24,16 +24,23 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.avro.InvalidAvroMagicException;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionTestHelpers;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -90,12 +97,11 @@ public class TestManifestListEncryption {
           DELETED_ROWS,
           FIRST_ROW_ID);
 
-  private static final EncryptionManager ENCRYPTION_MANAGER =
-      EncryptionTestHelpers.createEncryptionManager();
-
   @Test
-  public void testV2Write() throws IOException {
-    ManifestFile manifest = writeAndReadEncryptedManifestList();
+  public void testEncryption() throws IOException {
+    EncryptionManager em = EncryptionTestHelpers.createEncryptionManager();
+
+    ManifestFile manifest = writeAndReadEncryptedManifestList(em);
 
     assertThat(manifest.path()).isEqualTo(PATH);
     assertThat(manifest.length()).isEqualTo(LENGTH);
@@ -113,9 +119,94 @@ public class TestManifestListEncryption {
     assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
   }
 
-  private ManifestFile writeAndReadEncryptedManifestList() throws IOException {
+  @Test
+  public void testKeyWrappingAndRotation() throws IOException {
+    EncryptionManager em = EncryptionTestHelpers.createEncryptionManager();
+    // This manager uses UnitestKMS.MASTER_KEY_NAME1 as the table master key
+    String tableMasterKeyID = UnitestKMS.MASTER_KEY_NAME1;
+
+    // Initial write/read
+    writeAndReadEncryptedManifestList(em);
+    Map<String, EncryptedKey> keyList = EncryptionUtil.encryptionKeys(em);
+    // Two keys: manifest list key (metadata), and its key encryption key
+    assertThat(keyList.size()).isEqualTo(2);
+    String initialKekID = EncryptionTestHelpers.keyEncryptionKeyID(em);
+    int kekCount = 0;
+    int mlkmCount = 0;
+
+    for (String keyID : keyList.keySet()) {
+      EncryptedKey key = keyList.get(keyID);
+      if (key.encryptedById().equals(tableMasterKeyID)) { // key encryption key
+        kekCount++;
+        assertThat(keyID).isEqualTo(initialKekID);
+      } else { // manifest list key metadata
+        mlkmCount++;
+        assertThat(key.encryptedById()).isEqualTo(initialKekID);
+      }
+    }
+
+    assertThat(kekCount).isEqualTo(1);
+    assertThat(mlkmCount).isEqualTo(1);
+
+    // Write/read after 30 days
+    EncryptionTestHelpers.shiftEncryptionManagerTime(em, TimeUnit.DAYS.toMillis(30));
+    writeAndReadEncryptedManifestList(em);
+    // below rotation time, key encryption key must be the same
+    assertThat(EncryptionTestHelpers.keyEncryptionKeyID(em)).isEqualTo(initialKekID);
+    keyList = EncryptionUtil.encryptionKeys(em);
+    // three keys: two manifest list keys (metadata), and their key encryption key
+    assertThat(keyList.size()).isEqualTo(3);
+    Set<String> intermediateKeySet = Sets.newHashSet((keyList.keySet()));
+    kekCount = 0;
+    mlkmCount = 0;
+
+    for (String keyID : intermediateKeySet) {
+      EncryptedKey key = keyList.get(keyID);
+      if (key.encryptedById().equals(tableMasterKeyID)) { // key encryption key
+        kekCount++;
+        assertThat(keyID).isEqualTo(initialKekID);
+      } else { // manifest list key metadata
+        mlkmCount++;
+        assertThat(key.encryptedById()).isEqualTo(initialKekID);
+      }
+    }
+
+    assertThat(kekCount).isEqualTo(1);
+    assertThat(mlkmCount).isEqualTo(2);
+
+    // Write/read after 800 days
+    EncryptionTestHelpers.shiftEncryptionManagerTime(em, TimeUnit.DAYS.toMillis(800));
+    writeAndReadEncryptedManifestList(em);
+    String newKekID = EncryptionTestHelpers.keyEncryptionKeyID(em);
+    // above rotation time, key encryption key must be different
+    assertThat(newKekID).isNotEqualTo(initialKekID);
+    keyList = EncryptionUtil.encryptionKeys(em);
+    // five keys: three manifest list keys (metadata), and two key encryption keys (old and new)
+    assertThat(keyList.size()).isEqualTo(5);
+    kekCount = 0;
+    mlkmCount = 0;
+
+    for (String keyID : keyList.keySet()) {
+      if (!intermediateKeySet.contains(keyID)) { // new keys
+        EncryptedKey key = keyList.get(keyID);
+        if (key.encryptedById().equals(tableMasterKeyID)) { // key encryption key
+          kekCount++;
+          assertThat(keyID).isEqualTo(newKekID);
+        } else { // manifest list key metadata
+          mlkmCount++;
+          assertThat(key.encryptedById()).isEqualTo(newKekID); // wrapped by new kek
+        }
+      }
+    }
+
+    // new keys
+    assertThat(kekCount).isEqualTo(1);
+    assertThat(mlkmCount).isEqualTo(1);
+  }
+
+  private ManifestFile writeAndReadEncryptedManifestList(EncryptionManager em) throws IOException {
     FileIO io = new InMemoryFileIO();
-    EncryptingFileIO encryptingFileIO = EncryptingFileIO.combine(io, ENCRYPTION_MANAGER);
+    EncryptingFileIO encryptingFileIO = EncryptingFileIO.combine(io, em);
     OutputFile outputFile = io.newOutputFile("memory:" + UUID.randomUUID());
 
     ManifestListWriter writer =

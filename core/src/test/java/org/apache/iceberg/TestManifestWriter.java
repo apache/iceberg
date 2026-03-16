@@ -100,7 +100,8 @@ public class TestManifestWriter extends TestBase {
     writer.close();
     ManifestFile manifest = writer.toManifestFile();
     assertThat(manifest.sequenceNumber()).isEqualTo(-1);
-    ManifestReader<DataFile> manifestReader = ManifestFiles.read(manifest, table.io());
+    ManifestReader<DataFile> manifestReader =
+        ManifestFiles.read(manifest, table.io(), table.specs());
     for (ManifestEntry<DataFile> entry : manifestReader.entries()) {
       assertThat(entry.dataSequenceNumber()).isEqualTo(1000);
       assertThat(entry.fileSequenceNumber()).isEqualTo(ManifestWriter.UNASSIGNED_SEQ);

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.catalyst.expressions.Literal
@@ -30,17 +29,17 @@ object RewriteUpdateTableForRowLineage extends RewriteOperationForRowLineage {
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan resolveOperators {
-      case updateTable@UpdateTable(_, _, _) if shouldUpdatePlan(updateTable.table) =>
+      case updateTable @ UpdateTable(_, _, _) if shouldUpdatePlan(updateTable.table) =>
         updatePlanWithRowLineage(updateTable)
     }
   }
-
 
   private def updatePlanWithRowLineage(updateTable: UpdateTable): LogicalPlan = {
     EliminateSubqueryAliases(updateTable.table) match {
       case r @ DataSourceV2Relation(_: SupportsRowLevelOperations, _, _, _, _) =>
         val lineageAttributes = findRowLineageAttributes(r.metadataOutput).get
-        val (rowId, lastUpdatedSequence) = (removeMetadataColumnAttribute(lineageAttributes._1),
+        val (rowId, lastUpdatedSequence) = (
+          removeMetadataColumnAttribute(lineageAttributes._1),
           removeMetadataColumnAttribute(lineageAttributes._2))
 
         val lineageAssignments = updateTable.assignments ++

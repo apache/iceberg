@@ -29,7 +29,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -39,9 +38,9 @@ import org.apache.iceberg.TableMetadataParser.Codec;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.BooleanType;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestTableMetadataParser {
@@ -56,10 +55,10 @@ public class TestTableMetadataParser {
   @Parameter private String codecName;
 
   @TestTemplate
-  public void testGzipCompressionProperty() throws IOException {
+  public void testGzipCompressionProperty(@TempDir Path tempDir) throws IOException {
     Codec codec = Codec.fromName(codecName);
     String fileExtension = getFileExtension(codec);
-    String fileName = "v3" + fileExtension;
+    String fileName = tempDir + "/v3" + fileExtension;
     OutputFile outputFile = Files.localOutput(fileName);
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.METADATA_COMPRESSION, codecName);
@@ -69,13 +68,6 @@ public class TestTableMetadataParser {
     assertThat(isCompressed(fileName)).isEqualTo(codec == Codec.GZIP);
     TableMetadata actualMetadata = TableMetadataParser.read(Files.localInput(new File(fileName)));
     verifyMetadata(metadata, actualMetadata);
-  }
-
-  @AfterEach
-  public void cleanup() throws IOException {
-    Codec codec = Codec.fromName(codecName);
-    Path metadataFilePath = Paths.get("v3" + getFileExtension(codec));
-    java.nio.file.Files.deleteIfExists(metadataFilePath);
   }
 
   private void verifyMetadata(TableMetadata expected, TableMetadata actual) {

@@ -24,7 +24,6 @@ import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.SQLNonTransientConnectionException;
 import java.sql.SQLTimeoutException;
 import java.sql.SQLTransientConnectionException;
@@ -337,7 +336,6 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
         JdbcUtil.namespaceToString(namespace));
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     if (from.equals(to)) {
@@ -363,9 +361,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     int updatedRecords =
         execute(
             err -> {
-              // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-              if (err instanceof SQLIntegrityConstraintViolationException
-                  || (err.getMessage() != null && err.getMessage().contains("constraint failed"))) {
+              if (JdbcUtil.isConstraintViolation(err)) {
                 throw new AlreadyExistsException("Table already exists: %s", to);
               }
             },
@@ -535,7 +531,15 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     List<TableIdentifier> tableIdentifiers = listTables(namespace);
     if (tableIdentifiers != null && !tableIdentifiers.isEmpty()) {
       throw new NamespaceNotEmptyException(
-          "Namespace %s is not empty. %s tables exist.", namespace, tableIdentifiers.size());
+          "Namespace %s is not empty. Contains %d table(s).", namespace, tableIdentifiers.size());
+    }
+
+    if (schemaVersion != JdbcUtil.SchemaVersion.V0) {
+      List<TableIdentifier> viewIdentifiers = listViews(namespace);
+      if (viewIdentifiers != null && !viewIdentifiers.isEmpty()) {
+        throw new NamespaceNotEmptyException(
+            "Namespace %s is not empty. Contains %d view(s).", namespace, viewIdentifiers.size());
+      }
     }
 
     int deletedRows =
@@ -705,9 +709,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     int updatedRecords =
         execute(
             err -> {
-              // SQLite doesn't set SQLState or throw SQLIntegrityConstraintViolationException
-              if (err instanceof SQLIntegrityConstraintViolationException
-                  || (err.getMessage() != null && err.getMessage().contains("constraint failed"))) {
+              if (JdbcUtil.isConstraintViolation(err)) {
                 throw new AlreadyExistsException(
                     "Cannot rename %s to %s. View already exists", from, to);
               }

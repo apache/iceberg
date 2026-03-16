@@ -29,6 +29,11 @@ public class AesGcmInputFile implements InputFile {
   private Long encryptedLength;
   private Long plaintextLength;
 
+  /**
+   * @deprecated will be removed in 2.0.0 This API does not receive file length, and is therefore
+   *     not safe
+   */
+  @Deprecated
   public AesGcmInputFile(InputFile sourceFile, byte[] dataKey, byte[] fileAADPrefix) {
     this(sourceFile, dataKey, fileAADPrefix, null);
   }
@@ -43,7 +48,7 @@ public class AesGcmInputFile implements InputFile {
 
   private long encryptedLength() {
     if (encryptedLength == null) {
-      this.encryptedLength = sourceFile.getLength();
+      throw new IllegalArgumentException("File length is null");
     }
 
     return encryptedLength;

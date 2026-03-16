@@ -199,7 +199,7 @@ class ADLSInputStream extends SeekableInputStream implements RangeReadable {
     }
   }
 
-  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();

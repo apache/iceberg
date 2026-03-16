@@ -577,7 +577,7 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(lessThan("id", INT_MAX_VALUE));
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
@@ -609,7 +609,7 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(greaterThan("id", INT_MAX_VALUE - 4));
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
@@ -624,7 +624,7 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(greaterThanOrEqual("id", INT_MAX_VALUE - 4));
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
@@ -713,7 +713,7 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(lessThan("struct_not_null.int_field", INT_MAX_VALUE));
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
@@ -746,7 +746,7 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(greaterThan("struct_not_null.int_field", INT_MAX_VALUE - 4));
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate
@@ -762,7 +762,7 @@ public class TestMetricsRowGroupFilter {
     assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE - 4));
-    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
   @TestTemplate

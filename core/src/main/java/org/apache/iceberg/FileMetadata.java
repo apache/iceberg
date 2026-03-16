@@ -109,6 +109,11 @@ public class FileMetadata {
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.sortOrderId = toCopy.sortOrderId();
+      this.splitOffsets = toCopy.splitOffsets();
+      // Preserve DV-specific fields for deletion vectors
+      this.referencedDataFile = toCopy.referencedDataFile();
+      this.contentOffset = toCopy.contentOffset();
+      this.contentSizeInBytes = toCopy.contentSizeInBytes();
       return this;
     }
 

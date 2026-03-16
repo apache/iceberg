@@ -26,6 +26,11 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +43,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
@@ -62,6 +68,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
@@ -80,6 +87,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -960,6 +968,37 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testLoadTableWithMissingMetadataFile(@TempDir Path tempDir) throws IOException {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TBL.namespace());
+    }
+
+    catalog.buildTable(TBL, SCHEMA).create();
+    assertThat(catalog.tableExists(TBL)).as("Table should exist").isTrue();
+
+    Table table = catalog.loadTable(TBL);
+    String metadataFileLocation =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    Path renamedMetadataFile = tempDir.resolve("tmp.json");
+    renamedMetadataFile.toFile().deleteOnExit();
+    Files.writeString(renamedMetadataFile, "metadata");
+    Path metadataFilePath =
+        metadataFileLocation.startsWith("file:")
+            ? Paths.get(URI.create(metadataFileLocation))
+            : Paths.get(metadataFileLocation);
+    try {
+      Files.move(metadataFilePath, renamedMetadataFile, StandardCopyOption.REPLACE_EXISTING);
+      assertThatThrownBy(() -> catalog.loadTable(TBL))
+          .isInstanceOf(NotFoundException.class)
+          .hasMessageContaining("Failed to open input stream for file: " + metadataFileLocation);
+    } finally {
+      Files.move(renamedMetadataFile, metadataFilePath, StandardCopyOption.REPLACE_EXISTING);
+    }
+  }
+
+  @Test
   public void testRenameTable() {
     C catalog = catalog();
 
@@ -1650,7 +1689,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table.newAppend().appendFile(anotherFile).commit();
     table
         .expireSnapshots()
-        .cleanExpiredFiles(false)
+        .cleanupLevel(ExpireSnapshots.CleanupLevel.NONE)
         .expireOlderThan(table.currentSnapshot().timestampMillis())
         .cleanExpiredMetadata(true)
         .commit();

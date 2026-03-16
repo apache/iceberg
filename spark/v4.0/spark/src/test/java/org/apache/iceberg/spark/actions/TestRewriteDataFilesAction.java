@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.data.FileHelpers.encrypt;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
@@ -72,6 +73,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
@@ -127,6 +129,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -2109,6 +2112,23 @@ public class TestRewriteDataFilesAction extends TestBase {
         .isFalse();
   }
 
+  @TestTemplate
+  public void testZOrderUDFWithDateType() {
+    SparkZOrderUDF zorderUDF = new SparkZOrderUDF(1, 16, 1024);
+    Dataset<Row> result =
+        spark
+            .sql("SELECT DATE '2025-01-01' as test_col")
+            .withColumn(
+                "zorder_result",
+                zorderUDF.sortedLexicographically(col("test_col"), DataTypes.DateType));
+
+    assertThat(result.schema().apply("zorder_result").dataType()).isEqualTo(DataTypes.BinaryType);
+    List<Row> rows = result.collectAsList();
+    Row row = rows.get(0);
+    byte[] zorderBytes = row.getAs("zorder_result");
+    assertThat(zorderBytes).isNotNull().isNotEmpty();
+  }
+
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
     List<DataFile> rewrittenFiles = currentDataFiles(table);
     assertThat(rewrittenFiles).allMatch(file -> file.specId() == outputSpecId);
@@ -2248,7 +2268,8 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     Map<StructLike, List<DataFile>> filesByPartition =
-        Streams.stream(snapshot.addedDataFiles(table.io()))
+        Streams.stream(
+                SnapshotChanges.builderFor(table).snapshot(snapshot).build().addedDataFiles())
             .collect(Collectors.groupingBy(DataFile::partition));
 
     Stream<Pair<Pair<T, T>, Pair<T, T>>> overlaps =

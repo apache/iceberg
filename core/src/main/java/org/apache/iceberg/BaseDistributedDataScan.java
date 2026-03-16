@@ -299,8 +299,13 @@ abstract class BaseDistributedDataScan
       builder.planWith(planExecutor());
     }
 
+    if (shouldIgnoreResiduals()) {
+      builder.ignoreResiduals();
+    }
+
     return builder
-        .specsById(table().specs())
+        .schemasById(schemas())
+        .specsById(specs())
         .filterData(filter())
         .caseSensitive(isCaseSensitive())
         .scanMetrics(scanMetrics())

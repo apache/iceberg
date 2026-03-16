@@ -174,7 +174,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                   .createBatchedReaderFunc(
                       type ->
                           VectorizedSparkParquetReaders.buildReader(
-                              schema, type, Maps.newHashMap(), null, allocator));
+                              schema, type, Maps.newHashMap(), allocator));
           if (reuseContainers) {
             readBuilder.reuseContainers();
           }
@@ -204,8 +204,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
                         new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))),
                     new MessageType(
                         "struct", new GroupType(Type.Repetition.OPTIONAL, "struct").withId(1)),
-                    Maps.newHashMap(),
-                    null))
+                    Maps.newHashMap()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Vectorized reads are not supported yet for struct fields");
   }
@@ -294,14 +293,18 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   @Test
   public void testSupportedReadsForParquetV2() throws Exception {
-    // Float and double column types are written using plain encoding with Parquet V2,
-    // also Parquet V2 will dictionary encode decimals that use fixed length binary
-    // (i.e. decimals > 8 bytes)
+    // Parquet V2 uses PLAIN for float/double, DELTA_BINARY_PACKED for int/long,
+    // DELTA_LENGTH_BYTE_ARRAY for string/binary, and dictionary encoding for decimals
+    // that use fixed length binary (i.e. decimals > 8 bytes).
     Schema schema =
         new Schema(
             optional(102, "float_data", Types.FloatType.get()),
             optional(103, "double_data", Types.DoubleType.get()),
-            optional(104, "decimal_data", Types.DecimalType.of(25, 5)));
+            optional(104, "decimal_data", Types.DecimalType.of(25, 5)),
+            optional(105, "int_data", Types.IntegerType.get()),
+            optional(106, "long_data", Types.LongType.get()),
+            optional(107, "string_data", Types.StringType.get()),
+            optional(108, "binary_data", Types.BinaryType.get()));
 
     OutputFile outputFile = new InMemoryOutputFile();
     Iterable<GenericData.Record> data =

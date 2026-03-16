@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.SparkException
@@ -45,7 +44,8 @@ case class MergeRowsExec(
     performCardinalityCheck: Boolean,
     emitNotMatchedTargetRows: Boolean,
     output: Seq[Attribute],
-    child: SparkPlan) extends UnaryExecNode {
+    child: SparkPlan)
+    extends UnaryExecNode {
 
   private final val ROW_ID = "__row_id"
 
@@ -115,12 +115,20 @@ case class MergeRowsExec(
 
     val mergeIterator = if (matchedActions.exists(_.isInstanceOf[Split])) {
       new SplittingMergeRowIterator(
-        rowIterator, cardinalityCheck, isTargetRowPresentPred,
-        matchedActions, notMatchedActions)
+        rowIterator,
+        cardinalityCheck,
+        isTargetRowPresentPred,
+        matchedActions,
+        notMatchedActions)
     } else {
       new MergeRowIterator(
-        rowIterator, cardinalityCheck, isTargetRowPresentPred, isSourceRowPresentPred,
-        projectTargetCols, matchedActions.asInstanceOf[Seq[Project]], notMatchedActions)
+        rowIterator,
+        cardinalityCheck,
+        isTargetRowPresentPred,
+        isSourceRowPresentPred,
+        projectTargetCols,
+        matchedActions.asInstanceOf[Seq[Project]],
+        notMatchedActions)
     }
 
     // null indicates a record must be discarded
@@ -152,7 +160,7 @@ case class MergeRowsExec(
       private val targetTableProj: Projection,
       private val matchedActions: Seq[Project],
       private val notMatchedActions: Seq[Project])
-    extends Iterator[InternalRow] {
+      extends Iterator[InternalRow] {
 
     override def hasNext: Boolean = rowIterator.hasNext
 
@@ -206,7 +214,7 @@ case class MergeRowsExec(
       private val isTargetRowPresentPred: BasePredicate,
       private val matchedActions: Seq[Action],
       private val notMatchedActions: Seq[Project])
-    extends Iterator[InternalRow] {
+      extends Iterator[InternalRow] {
 
     var cachedExtraRow: InternalRow = _
 
@@ -266,9 +274,9 @@ case class MergeRowsExec(
     protected def fail(): Unit = {
       throw new SparkException(
         "The ON search condition of the MERGE statement matched a single row from " +
-        "the target table with multiple rows of the source table. This could result " +
-        "in the target row being operated on more than once with an update or delete " +
-        "operation and is not allowed.")
+          "the target table with multiple rows of the source table. This could result " +
+          "in the target row being operated on more than once with an update or delete " +
+          "operation and is not allowed.")
     }
   }
 

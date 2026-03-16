@@ -21,9 +21,9 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
-import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
@@ -42,9 +42,9 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     if (encryptionManager instanceof StandardEncryptionManager) {
       // ability to encrypt the manifest list key is introduced for standard encryption.
       this.standardEncryptionManager = (StandardEncryptionManager) encryptionManager;
-      NativeEncryptionOutputFile encryptedFile = this.standardEncryptionManager.encrypt(file);
+      EncryptedOutputFile encryptedFile = this.standardEncryptionManager.encrypt(file);
       this.outputFile = encryptedFile.encryptingOutputFile();
-      this.manifestListKeyMetadata = encryptedFile.keyMetadata();
+      this.manifestListKeyMetadata = (NativeEncryptionKeyMetadata) encryptedFile.keyMetadata();
     } else {
       this.standardEncryptionManager = null;
       this.outputFile = file;
@@ -95,9 +95,9 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
   public ManifestListFile toManifestListFile() {
     if (manifestListKeyMetadata != null && manifestListKeyMetadata.encryptionKey() != null) {
-      manifestListKeyMetadata.copyWithLength(writer.length());
       String manifestListKeyID =
-          standardEncryptionManager.addManifestListKeyMetadata(manifestListKeyMetadata);
+          standardEncryptionManager.addManifestListKeyMetadata(
+              manifestListKeyMetadata.copyWithLength(writer.length()));
       return new BaseManifestListFile(outputFile.location(), manifestListKeyID);
     } else {
       return new BaseManifestListFile(outputFile.location(), null);

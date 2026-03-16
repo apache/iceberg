@@ -92,11 +92,11 @@ public class TestBaseIncrementalAppendScan
     table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
     assertThatThrownBy(() -> newScan().fromSnapshotInclusive(branchName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(String.format("Ref %s is not a tag", branchName));
+        .hasMessage("Ref %s is not a tag", branchName);
 
     assertThatThrownBy(() -> newScan().fromSnapshotInclusive(snapshotAId).toSnapshot(branchName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(String.format("Ref %s is not a tag", branchName));
+        .hasMessage("Ref %s is not a tag", branchName);
   }
 
   @TestTemplate
@@ -166,7 +166,7 @@ public class TestBaseIncrementalAppendScan
     assertThatThrownBy(
             () -> newScan().fromSnapshotInclusive(snapshotAId).useBranch(tagSnapshotAName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(String.format("Ref %s is not a branch", tagSnapshotAName));
+        .hasMessage("Ref %s is not a branch", tagSnapshotAName);
   }
 
   @TestTemplate
@@ -201,9 +201,8 @@ public class TestBaseIncrementalAppendScan
                 newScan().fromSnapshotInclusive(snapshotMainBId).useBranch(branchName).planFiles())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            String.format(
-                "Starting snapshot (inclusive) %s is not an ancestor of end snapshot %s",
-                snapshotMainBId, snapshotBranchBId));
+            "Starting snapshot (inclusive) %s is not an ancestor of end snapshot %s",
+            snapshotMainBId, snapshotBranchBId);
   }
 
   @TestTemplate
@@ -290,7 +289,7 @@ public class TestBaseIncrementalAppendScan
     table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
     assertThatThrownBy(() -> newScan().fromSnapshotExclusive(branchName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(String.format("Ref %s is not a tag", branchName));
+        .hasMessage("Ref %s is not a tag", branchName);
   }
 
   @TestTemplate
@@ -356,7 +355,7 @@ public class TestBaseIncrementalAppendScan
 
     assertThatThrownBy(() -> newScan().toSnapshot(branchName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(String.format("Ref %s is not a tag", branchName));
+        .hasMessage("Ref %s is not a tag", branchName);
   }
 
   @TestTemplate
@@ -387,9 +386,8 @@ public class TestBaseIncrementalAppendScan
     assertThatThrownBy(() -> Iterables.size(scanShouldFail.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Starting snapshot (exclusive) %d is not a parent ancestor of end snapshot %d",
-                snapshotBId, snapshotDId));
+            "Starting snapshot (exclusive) %d is not a parent ancestor of end snapshot %d",
+            snapshotBId, snapshotDId);
 
     // scan should fail because snapshot B is not an ancestor of snapshot D
     IncrementalAppendScan scanShouldFailInclusive =
@@ -397,8 +395,7 @@ public class TestBaseIncrementalAppendScan
     assertThatThrownBy(() -> Iterables.size(scanShouldFailInclusive.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format(
-                "Starting snapshot (inclusive) %d is not an ancestor of end snapshot %d",
-                snapshotBId, snapshotDId));
+            "Starting snapshot (inclusive) %d is not an ancestor of end snapshot %d",
+            snapshotBId, snapshotDId);
   }
 }

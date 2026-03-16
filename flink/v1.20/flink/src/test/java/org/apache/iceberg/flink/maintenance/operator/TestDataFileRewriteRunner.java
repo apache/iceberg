@@ -249,6 +249,26 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
   }
 
   @Test
+  void testV3Table() throws Exception {
+    Table table = createTableWithDelete(3);
+    update(table, 1, null, "a", "b", 3);
+    update(table, 1, "b", "c");
+
+    List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
+    assertThat(planned).hasSize(1);
+
+    List<DataFileRewriteRunner.ExecutedGroup> actual = executeRewrite(planned);
+    assertThat(actual).hasSize(1);
+
+    assertRewriteFileGroup(
+        actual.get(0),
+        table,
+        records(table.schema(), ImmutableSet.of(ImmutableList.of(1, "c"))),
+        1,
+        ImmutableSet.of(new PartitionData(PartitionSpec.unpartitioned().partitionType())));
+  }
+
+  @Test
   void testSplitSize() throws Exception {
     Table table = createTable();
 

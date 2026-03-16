@@ -26,6 +26,7 @@ import static org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp
 import static org.apache.spark.sql.functions.callUDF;
 import static org.apache.spark.sql.functions.column;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -82,6 +83,7 @@ import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.assertj.core.api.AbstractObjectAssert;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -297,6 +299,98 @@ public class TestFilteredScan {
             unpartitioned.toString(),
             vectorized,
             "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+  }
+
+  @TestTemplate
+  public void limitPushedDownToSparkScan() {
+    assumeThat(fileFormat)
+        .as("no need to run this across the entire test matrix")
+        .isEqualTo(FileFormat.PARQUET);
+
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
+
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+
+    long limit = 23;
+    // simulate Spark pushing down the limit to the scan builder
+    builder.pushLimit((int) limit);
+    assertThat(builder).extracting("limit").isEqualTo((int) limit);
+
+    // verify batch scan
+    AbstractObjectAssert<?, ?> scanAssert = assertThat(builder.build()).extracting("scan");
+    if (LOCAL == planningMode) {
+      scanAssert = scanAssert.extracting("scan");
+    }
+
+    scanAssert.extracting("context").extracting("minRowsRequested").isEqualTo(limit);
+
+    // verify changelog scan
+    assertThat(builder.buildChangelogScan())
+        .extracting("scan")
+        .extracting("context")
+        .extracting("minRowsRequested")
+        .isEqualTo(limit);
+
+    // verify CoW scan
+    assertThat(builder.buildCopyOnWriteScan())
+        .extracting("scan")
+        .extracting("scan")
+        .extracting("context")
+        .extracting("minRowsRequested")
+        .isEqualTo(limit);
+
+    // verify MoR scan
+    scanAssert = assertThat(builder.buildMergeOnReadScan()).extracting("scan");
+    if (LOCAL == planningMode) {
+      scanAssert = scanAssert.extracting("scan");
+    }
+
+    scanAssert.extracting("context").extracting("minRowsRequested").isEqualTo(limit);
+  }
+
+  @TestTemplate
+  public void limitPushedDownToSparkScanForMetadataTable() {
+    assumeThat(fileFormat)
+        .as("no need to run this across the entire test matrix")
+        .isEqualTo(FileFormat.PARQUET);
+
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
+
+    // load the snapshots metadata table
+    SparkScanBuilder builder =
+        new SparkScanBuilder(spark, TABLES.load(options.get("path") + "#snapshots"), options);
+
+    long limit = 23;
+    // simulate Spark pushing down the limit to the scan builder
+    builder.pushLimit((int) limit);
+    assertThat(builder).extracting("limit").isEqualTo((int) limit);
+
+    // verify batch scan
+    assertThat(builder.build())
+        .extracting("scan")
+        .extracting("scan")
+        .extracting("context")
+        .extracting("minRowsRequested")
+        .isEqualTo(limit);
+
+    // verify CoW scan
+    assertThat(builder.buildCopyOnWriteScan())
+        .extracting("scan")
+        .extracting("scan")
+        .extracting("context")
+        .extracting("minRowsRequested")
+        .isEqualTo(limit);
+
+    // verify MoR scan
+    assertThat(builder.buildMergeOnReadScan())
+        .extracting("scan")
+        .extracting("scan")
+        .extracting("context")
+        .extracting("minRowsRequested")
+        .isEqualTo(limit);
   }
 
   @TestTemplate

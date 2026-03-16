@@ -51,7 +51,7 @@ Community discussions happen primarily on the [dev mailing list][dev-list] or on
 
 ### Building
 
-Iceberg is built using Gradle with Java 11, 17, or 21.
+Iceberg is built using Gradle with Java 17 or 21.
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
@@ -71,8 +71,8 @@ Iceberg table support is organized in library modules:
 
 Iceberg also has modules for adding Iceberg support to processing engines:
 
-* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
-* `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
+* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use [runtime jars](https://iceberg.apache.org/multi-engine-support/#runtime-jar) for a shaded version to avoid dependency conflicts)
+* `iceberg-flink` contains classes for integrating with Apache Flink (use [iceberg-flink-runtime](https://iceberg.apache.org/multi-engine-support/#runtime-jar) for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 
 ---
@@ -93,6 +93,10 @@ sudo setenforce Enforcing
 ```
 
 ---
+
+#### Documentation
+
+For information about building the documentation, see [here](site/README.md).
 
 ### Engine Compatibility
 

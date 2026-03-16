@@ -1,5 +1,5 @@
 ---
-title: "Flink Getting Started"
+title: "Getting Started"
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -18,7 +18,8 @@ title: "Flink Getting Started"
  - limitations under the License.
  -->
 
-# Flink
+!!!tip
+    For an overview of using Iceberg with Flink, see the [Flink Quickstart](/flink-quickstart)
 
 Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API. See the [Multi-Engine Support](../../multi-engine-support.md#apache-flink) page for the integration of Apache Flink.
 
@@ -111,7 +112,6 @@ wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_V
 
 !!! info
     PyFlink 1.6.1 [does not work on OSX with a M1 cpu](https://issues.apache.org/jira/browse/FLINK-28786)
-
 
 Install the Apache Flink dependency using `pip`:
 
@@ -227,7 +227,7 @@ CREATE CATALOG rest_catalog WITH (
 );
 ```
 
-##  Creating a table
+## Creating a table
 
 ```sql
 CREATE TABLE `hive_catalog`.`default`.`sample` (
@@ -326,9 +326,6 @@ DataStream<RowData> batch = FlinkSource.forRowData()
      .streaming(false)
      .build();
 ```
-
-
-
 
 ## Type conversion
 

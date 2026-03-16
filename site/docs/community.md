@@ -28,28 +28,42 @@ Community discussions happen across various mailing lists, on the apache-iceberg
 
 ### Mailing Lists
 
-Iceberg has four mailing lists:
+Apache Iceberg mailing lists:
 
-* **Developers**: <dev@iceberg.apache.org> -- used for community discussions
+* **Developers**: `dev@iceberg.apache.org` -- Iceberg community discussions
+    - [Archive](https://lists.apache.org/list.html?dev@iceberg.apache.org)
     - [Subscribe](mailto:dev-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:dev-unsubscribe@iceberg.apache.org)
-    - [Archive](https://lists.apache.org/list.html?dev@iceberg.apache.org)
-* **Commits**: <commits@iceberg.apache.org> -- distributes commit notifications
+* **Commits**: `commits@iceberg.apache.org` -- GitHub commit notifications
+    - [Archive](https://lists.apache.org/list.html?commits@iceberg.apache.org)
     - [Subscribe](mailto:commits-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:commits-unsubscribe@iceberg.apache.org)
-    - [Archive](https://lists.apache.org/list.html?commits@iceberg.apache.org)
-* **Issues**: <issues@iceberg.apache.org> -- Github issue tracking
+* **Issues**: `issues@iceberg.apache.org` -- GitHub issue tracking
+    - [Archive](https://lists.apache.org/list.html?issues@iceberg.apache.org)
     - [Subscribe](mailto:issues-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:issues-unsubscribe@iceberg.apache.org)
-    - [Archive](https://lists.apache.org/list.html?issues@iceberg.apache.org)
-* **Private**: <private@iceberg.apache.org> -- private list for the PMC to discuss sensitive issues related to the health of the project
-    - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org)
+* **CI Jobs**: `ci-jobs@iceberg.apache.org` -- GitHub Actions notifications
+    - [Archive](https://lists.apache.org/list.html?ci-jobs@iceberg.apache.org)
+    - [Subscribe](mailto:ci-jobs-subscribe@iceberg.apache.org)
+    - [Unsubscribe](mailto:ci-jobs-unsubscribe@iceberg.apache.org)
+* **Private**: `private@iceberg.apache.org` -- private mailing list for the PMC to discuss sensitive issues related to the health of the project
+    - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org) (PMC-only access)
 
 ### Slack
 
-We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link](https://join.slack.com/t/apache-iceberg/shared_invite/zt-287g3akar-K9Oe_En5j1UL7Y_Ikpai3A).
+We use the [Apache Iceberg workspace](https://apache-iceberg.slack.com/) on Slack. To be invited, follow [this invite link](https://join.slack.com/t/apache-iceberg/shared_invite/zt-3kclosz6r-3heAW3d~_PHefmN2A_~cAg).
 
 Please note that this link may occasionally break when Slack does an upgrade. If you encounter problems using it, please let us know by sending an email to <dev@iceberg.apache.org>.
+
+#### Requesting Slack Integrations
+
+To request a new app or integration for the Apache Iceberg Slack workspace, send an email to the [dev mailing list](#mailing-lists) with the following information:
+
+* **What you want to add** — The name and description of the app or integration
+* **Why you want to add it** — The benefit it provides to the community
+* **What permissions does it need** — The access levels and permissions required by the app
+
+This allows the community to do a quick consensus check before the app is installed.
 
 ### Issues
 
@@ -64,7 +78,7 @@ Issues are tracked in GitHub:
 
 Looking to contribute to Apache Iceberg? See [Contributing](contribute.md) for more details on how to get started.
 
-## Connect with Community Events 
+## Connect with Community Events
 
 The Apache Iceberg community regularly meets for technical discussion both in-person and virtually.
 
@@ -80,44 +94,53 @@ The community maintains two calendar feeds:
 Meetups related to the Apache Iceberg project are held around the globe thanks to community volunteers. Interested individuals are encouraged to host community meetups using the name **Apache Iceberg Meetup <geographical location\>** in
 compliance with [Apache Software Foundation's branding and trademarks guidelines](https://www.apache.org/foundation/marks/events.html#approval). No explicit PMC approval is required.
 
-Hosts are required to ensure that: 
+Hosts are required to ensure that:
 
-1. The Apache Iceberg ecosystem should be championed in every meetup and technical session 
+1. The Apache Iceberg ecosystem should be championed in every meetup and technical session
 2. All talks should be vendor-neutral and not sales pitches
 3. Each meetup should have at least two talks with speakers representing different companies/organizations
 4. Planned meetups ought to be brought to the attention of the [dev list](#mailing-lists)
 5. All [Community Guidelines](#community-guidelines) must be respected
 
+Meetups *must* be small events under the [ASF branding guidelines](https://www.apache.org/foundation/marks/events.html#dates) and are typically small, informal gatherings. If you're unsure whether an event is a meetup, meetups usually:
+
+* Rely on a curated selection of talks, where organizers work with the community to include a diverse representation of speakers, topics, and companies. Due to the small number of submissions, meetups might use, but don't require, a CfP.
+* Are single-tracked and accommodate only a handful of sessions.
+* Have at most 2-3 hours of content, plus networking time.
+* Are sponsored by 1-3 companies providing food, drinks, or meeting space; not by selling booth space or marketing opportunities. They don't require substantial financial support.
+
+If you don't know whether an event qualifies as a meetup, please ask the PMC through the private mailing list! (Be sure to do this *before* using the Apache Iceberg brand or trademark.)
+
 ## Community Guidelines
 
 ### Apache Iceberg Community Guidelines
 
-The Apache Iceberg community is built on the principles described in the [Apache Way](https://www.apache.org/theapacheway/index.html) 
-and all who engage with the community are expected to be respectful, open, come with the best interests of the community in mind, 
+The Apache Iceberg community is built on the principles described in the [Apache Way](https://www.apache.org/theapacheway/index.html)
+and all who engage with the community are expected to be respectful, open, come with the best interests of the community in mind,
 and abide by the Apache Software Foundation [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).
 
 More information specific to the Apache Iceberg community is in the next section, [the Path from Contributor to Committer](#the-path-from-contributor-to-committer).
 
 ### Participants with Corporate Interests
 
-A wide range of corporate entities have interests that overlap in both features and frameworks related to Iceberg and while we 
+A wide range of corporate entities have interests that overlap in both features and frameworks related to Iceberg and while we
 encourage engagement and contributions, the community is not a venue for marketing, solicitation, or recruitment.
 
-Any vendor who wants to participate in the Apache Iceberg community Slack workspace should create a dedicated vendor channel 
+Any vendor who wants to participate in the Apache Iceberg community Slack workspace should create a dedicated vendor channel
 for their organization prefixed by `vendor-`.  
 
-This space can be used to discuss features and integration with Iceberg related to the vendor offering.  This space should not 
-be used to promote competing vendor products/services or disparage other vendor offerings.  Discussion should be focused on 
+This space can be used to discuss features and integration with Iceberg related to the vendor offering.  This space should not
+be used to promote competing vendor products/services or disparage other vendor offerings.  Discussion should be focused on
 questions asked by the community and not to expand/introduce/redirect users to alternate offerings.
 
 ### Marketing / Solicitation / Recruiting
 
-The Apache Iceberg community is a space for everyone to operate free of influence.  The development lists, slack workspace, 
-and github should not be used to market products or services.  Solicitation or overt promotion should not be performed in common 
+The Apache Iceberg community is a space for everyone to operate free of influence.  The development lists, slack workspace,
+and github should not be used to market products or services.  Solicitation or overt promotion should not be performed in common
 channels or through direct messages.
 
-Recruitment of community members should not be conducted through direct messages or community channels, but opportunities 
-related to contributing to or using Iceberg can be posted to the `#jobs` channel. 
+Recruitment of community members should not be conducted through direct messages or community channels, but opportunities
+related to contributing to or using Iceberg can be posted to the `#jobs` channel.
 
 For questions regarding any of the guidelines above, please contact a PMC member.
 

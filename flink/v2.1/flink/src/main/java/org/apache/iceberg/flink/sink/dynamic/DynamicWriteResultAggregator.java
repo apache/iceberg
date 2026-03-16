@@ -18,13 +18,12 @@
  */
 package org.apache.iceberg.flink.sink.dynamic;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -36,6 +35,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
@@ -44,6 +44,7 @@ import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
 import org.apache.iceberg.flink.sink.ManifestOutputFileFactory;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -60,24 +61,25 @@ class DynamicWriteResultAggregator
         CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamicWriteResultAggregator.class);
-  private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
-  private static final Duration CACHE_EXPIRATION_DURATION = Duration.ofMinutes(1);
 
   private final CatalogLoader catalogLoader;
+  private final int cacheMaximumSize;
 
   private long lastCheckpointId = CheckpointIDCounter.INITIAL_CHECKPOINT_ID - 1;
 
-  private transient Map<WriteTarget, Collection<DynamicWriteResult>> results;
-  private transient Cache<String, Map<Integer, PartitionSpec>> specs;
-  private transient Cache<String, ManifestOutputFileFactory> outputFileFactories;
+  private transient Map<TableKey, Map<Integer, Collection<WriteResult>>> resultsByTableKeyAndSpec;
+  private transient Map<String, Map<Integer, PartitionSpec>> specs;
+  private transient Map<String, Tuple2<ManifestOutputFileFactory, Integer>>
+      outputFileFactoriesAndFormatVersions;
   private transient String flinkJobId;
   private transient String operatorId;
   private transient int subTaskId;
   private transient int attemptId;
   private transient Catalog catalog;
 
-  DynamicWriteResultAggregator(CatalogLoader catalogLoader) {
+  DynamicWriteResultAggregator(CatalogLoader catalogLoader, int cacheMaximumSize) {
     this.catalogLoader = catalogLoader;
+    this.cacheMaximumSize = cacheMaximumSize;
   }
 
   @Override
@@ -93,11 +95,9 @@ class DynamicWriteResultAggregator
     this.operatorId = getOperatorID().toString();
     this.subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
-    this.results = Maps.newHashMap();
-    this.specs =
-        Caffeine.newBuilder().expireAfterWrite(CACHE_EXPIRATION_DURATION).softValues().build();
-    this.outputFileFactories =
-        Caffeine.newBuilder().expireAfterWrite(CACHE_EXPIRATION_DURATION).softValues().build();
+    this.resultsByTableKeyAndSpec = Maps.newHashMap();
+    this.specs = new LRUCache<>(cacheMaximumSize);
+    this.outputFileFactoriesAndFormatVersions = new LRUCache<>(cacheMaximumSize);
     this.catalog = catalogLoader.loadCatalog();
   }
 
@@ -119,14 +119,15 @@ class DynamicWriteResultAggregator
     this.lastCheckpointId = checkpointId;
 
     Collection<CommittableWithLineage<DynamicCommittable>> committables =
-        Sets.newHashSetWithExpectedSize(results.size());
+        Sets.newHashSetWithExpectedSize(resultsByTableKeyAndSpec.size());
     int count = 0;
-    for (Map.Entry<WriteTarget, Collection<DynamicWriteResult>> entries : results.entrySet()) {
+    for (Map.Entry<TableKey, Map<Integer, Collection<WriteResult>>> entries :
+        resultsByTableKeyAndSpec.entrySet()) {
       committables.add(
           new CommittableWithLineage<>(
               new DynamicCommittable(
                   entries.getKey(),
-                  writeToManifest(entries.getKey(), entries.getValue(), checkpointId),
+                  writeToManifests(entries.getKey().tableName(), entries.getValue(), checkpointId),
                   getContainingTask().getEnvironment().getJobID().toString(),
                   getRuntimeContext().getOperatorUniqueID(),
                   checkpointId),
@@ -144,30 +145,43 @@ class DynamicWriteResultAggregator
                 new StreamRecord<>(
                     new CommittableWithLineage<>(c.getCommittable(), checkpointId, subTaskId))));
     LOG.info("Emitted {} commit message to downstream committer operator", count);
-    results.clear();
+    resultsByTableKeyAndSpec.clear();
   }
 
   /**
-   * Write all the completed data files to a newly created manifest file and return the manifest's
+   * Write all the completed data files to a newly created manifest files and return the manifests'
    * avro serialized bytes.
    */
   @VisibleForTesting
-  byte[] writeToManifest(
-      WriteTarget key, Collection<DynamicWriteResult> writeResults, long checkpointId)
+  byte[][] writeToManifests(
+      String tableName, Map<Integer, Collection<WriteResult>> writeResultsBySpec, long checkpointId)
       throws IOException {
-    if (writeResults.isEmpty()) {
-      return EMPTY_MANIFEST_DATA;
+    byte[][] deltaManifestsBySpec = new byte[writeResultsBySpec.size()][];
+    int idx = 0;
+    for (Map.Entry<Integer, Collection<WriteResult>> entry : writeResultsBySpec.entrySet()) {
+      deltaManifestsBySpec[idx] =
+          writeToManifest(tableName, entry.getKey(), entry.getValue(), checkpointId);
+      idx++;
     }
 
+    return deltaManifestsBySpec;
+  }
+
+  private byte[] writeToManifest(
+      String tableName, int specId, Collection<WriteResult> writeResults, long checkpointId)
+      throws IOException {
     WriteResult.Builder builder = WriteResult.builder();
-    writeResults.forEach(w -> builder.add(w.writeResult()));
+    writeResults.forEach(builder::add);
     WriteResult result = builder.build();
 
+    Tuple2<ManifestOutputFileFactory, Integer> outputFileFactoryAndVersion =
+        outputFileFactoryAndFormatVersion(tableName);
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             result,
-            () -> outputFileFactory(key.tableName()).create(checkpointId),
-            spec(key.tableName(), key.specId()));
+            () -> outputFileFactoryAndVersion.f0.create(checkpointId),
+            spec(tableName, specId),
+            outputFileFactoryAndVersion.f1);
 
     return SimpleVersionedSerialization.writeVersionAndSerialize(
         DeltaManifestsSerializer.INSTANCE, deltaManifests);
@@ -180,24 +194,44 @@ class DynamicWriteResultAggregator
     if (element.isRecord() && element.getValue() instanceof CommittableWithLineage) {
       DynamicWriteResult result =
           ((CommittableWithLineage<DynamicWriteResult>) element.getValue()).getCommittable();
-      WriteTarget key = result.key();
-      results.computeIfAbsent(key, unused -> Sets.newHashSet()).add(result);
+      Collection<WriteResult> resultsPerTableKeyAndSpec =
+          resultsByTableKeyAndSpec
+              .computeIfAbsent(result.key(), unused -> Maps.newHashMap())
+              .computeIfAbsent(result.specId(), unused -> Lists.newArrayList());
+      resultsPerTableKeyAndSpec.add(result.writeResult());
+      LOG.debug(
+          "Added {}, specId={}, totalResults={}",
+          result,
+          result.specId(),
+          resultsPerTableKeyAndSpec.size());
     }
   }
 
-  private ManifestOutputFileFactory outputFileFactory(String tableName) {
-    return outputFileFactories.get(
+  private Tuple2<ManifestOutputFileFactory, Integer> outputFileFactoryAndFormatVersion(
+      String tableName) {
+    return outputFileFactoriesAndFormatVersions.computeIfAbsent(
         tableName,
         unused -> {
           Table table = catalog.loadTable(TableIdentifier.parse(tableName));
           specs.put(tableName, table.specs());
-          return FlinkManifestUtil.createOutputFileFactory(
-              () -> table, table.properties(), flinkJobId, operatorId, subTaskId, attemptId);
+          // Make sure to append an identifier to avoid file clashes in case the factory was to get
+          // re-created during a checkpoint, i.e. due to cache eviction.
+          String fileSuffix = UUID.randomUUID().toString();
+          ManifestOutputFileFactory outputFileFactory =
+              FlinkManifestUtil.createOutputFileFactory(
+                  () -> table,
+                  table.properties(),
+                  flinkJobId,
+                  operatorId,
+                  subTaskId,
+                  attemptId,
+                  fileSuffix);
+          return Tuple2.of(outputFileFactory, TableUtil.formatVersion(table));
         });
   }
 
   private PartitionSpec spec(String tableName, int specId) {
-    Map<Integer, PartitionSpec> knownSpecs = specs.getIfPresent(tableName);
+    Map<Integer, PartitionSpec> knownSpecs = specs.get(tableName);
     if (knownSpecs != null) {
       PartitionSpec spec = knownSpecs.get(specId);
       if (spec != null) {

@@ -170,7 +170,11 @@ public class TestFastAppend extends TestBase {
     }
 
     // validate that the metadata summary is correct when using appendManifest
-    assertThat(snap.summary()).containsEntry("added-data-files", "2");
+    assertThat(snap.summary())
+        .containsEntry("added-data-files", "2")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
 
     V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap.sequenceNumber());
     V2Assert.assertEquals(
@@ -213,6 +217,13 @@ public class TestFastAppend extends TestBase {
     } else {
       assertThat(snap.allManifests(FILE_IO).get(1).path()).isEqualTo(manifest.path());
     }
+
+    // validate manifest metrics in the snapshot summary
+    // 2 manifests created: 1 for appendFile (FILE_C, FILE_D) + 1 for appendManifest
+    assertThat(snap.summary())
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "2")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
 
     V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap.sequenceNumber());
     V2Assert.assertEquals(
@@ -382,50 +393,6 @@ public class TestFastAppend extends TestBase {
   }
 
   @TestTemplate
-  public void testRecoveryWithManifestList() {
-    table.updateProperties().set(TableProperties.MANIFEST_LISTS_ENABLED, "true").commit();
-
-    // inject 3 failures, the last try will succeed
-    TestTables.TestTableOperations ops = table.ops();
-    ops.failCommits(3);
-
-    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
-    Snapshot pending = append.apply();
-    ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
-    assertThat(new File(newManifest.path())).exists();
-
-    append.commit();
-
-    TableMetadata metadata = readMetadata();
-
-    validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
-    assertThat(new File(newManifest.path())).exists();
-    assertThat(metadata.currentSnapshot().allManifests(FILE_IO)).contains(newManifest);
-  }
-
-  @TestTemplate
-  public void testRecoveryWithoutManifestList() {
-    table.updateProperties().set(TableProperties.MANIFEST_LISTS_ENABLED, "false").commit();
-
-    // inject 3 failures, the last try will succeed
-    TestTables.TestTableOperations ops = table.ops();
-    ops.failCommits(3);
-
-    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
-    Snapshot pending = append.apply();
-    ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
-    assertThat(new File(newManifest.path())).exists();
-
-    append.commit();
-
-    TableMetadata metadata = readMetadata();
-
-    validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
-    assertThat(new File(newManifest.path())).exists();
-    assertThat(metadata.currentSnapshot().allManifests(FILE_IO)).contains(newManifest);
-  }
-
-  @TestTemplate
   public void testWriteNewManifestsIdempotency() {
     // inject 3 failures, the last try will succeed
     TestTables.TestTableOperations ops = table.ops();
@@ -503,7 +470,10 @@ public class TestFastAppend extends TestBase {
         .containsEntry("added-data-files", "2")
         .containsEntry("added-records", "2")
         .containsEntry("total-data-files", "2")
-        .containsEntry("total-records", "2");
+        .containsEntry("total-records", "2")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
   @TestTemplate
@@ -595,7 +565,10 @@ public class TestFastAppend extends TestBase {
 
     assertThat(table.currentSnapshot().summary())
         .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
-        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1");
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
   @TestTemplate
@@ -615,7 +588,10 @@ public class TestFastAppend extends TestBase {
         .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "1")
         .containsEntry(
             SnapshotSummary.CHANGED_PARTITION_PREFIX + "data_bucket=0",
-            "added-data-files=1,added-records=1,added-files-size=10");
+            "added-data-files=1,added-records=1,added-files-size=10")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
   @TestTemplate
@@ -632,7 +608,10 @@ public class TestFastAppend extends TestBase {
 
     assertThat(table.currentSnapshot().summary())
         .doesNotContainKey(SnapshotSummary.PARTITION_SUMMARY_PROP)
-        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2");
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0");
   }
 
   @TestTemplate

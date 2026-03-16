@@ -37,7 +37,6 @@ The latest version of Iceberg is [{{ icebergVersion }}](https://github.com/apach
 * [{{ icebergVersion }} gcp-bundle Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-gcp-bundle/{{ icebergVersion }}/iceberg-gcp-bundle-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} azure-bundle Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-azure-bundle/{{ icebergVersion }}/iceberg-azure-bundle-{{ icebergVersion }}.jar)
 
-
 To use Iceberg in Spark or Flink, download the runtime JAR for your engine version and add it to the jars folder of your installation.
 
 ### Gradle
@@ -68,6 +67,55 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 </dependencies>
 ```
 
+### 1.10.1 release
+
+Apache Iceberg 1.10.1 was released on Dec 22, 2025.
+
+The 1.10.1 release contains bug fixes. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.10.1)
+
+* API
+    - API: required nested fields within optional structs can produce null ([\#13804](https://github.com/apache/iceberg/pull/13804))
+    - API: Detect whether required fields nested within optionals can produce nulls ([\#14270](https://github.com/apache/iceberg/pull/14270))
+* Core
+    - Prevent dropping a namespace when it contains views ([\#14456](https://github.com/apache/iceberg/pull/14456))
+    - Fix overflow due to default value on timestamp nanos ([\#14359](https://github.com/apache/iceberg/pull/14359))
+    - Fix the unpartitioned check in replace partitions ([\#14186](https://github.com/apache/iceberg/pull/14186))
+    - Fix for respecting custom location providers in SerializableTable and actions ([\#14280](https://github.com/apache/iceberg/pull/14280))
+    - Fix `NAN_VALUE_COUNTS` serialization for ContentFile ([\#14721](https://github.com/apache/iceberg/pull/14721))
+    - Handle unknown type during deletes ([\#14356](https://github.com/apache/iceberg/pull/14356))
+    - REST: Fix validation of PlanTableScanRequest ([\#14561](https://github.com/apache/iceberg/pull/14561))
+    - REST: Fix validation of PlanTableScanResponse ([\#14562](https://github.com/apache/iceberg/pull/14562))
+    - REST: Fix RESTFileScanTaskParser to handle empty delete file references list ([\#14568](https://github.com/apache/iceberg/pull/14568))
+    - REST: Fix serde of tasks with multiple deletes ([\#14573](https://github.com/apache/iceberg/pull/14573))
+    - REST: Align PlanTableScanRequest filter with the OpenAPI spec ([\#14658](https://github.com/apache/iceberg/pull/14658))
+    - REST: Make plan status consistent with the REST spec ([\#14643](https://github.com/apache/iceberg/pull/14643))
+* Parquet
+    - Fix NameMapping loss in `ParquetUtil.footerMetrics` ([\#14617](https://github.com/apache/iceberg/pull/14617))
+    - Add variant type support to `ParquetTypeVisitor` ([\#14588](https://github.com/apache/iceberg/pull/14588))
+    - Fix variant type filtering in `ParquetMetricsRowGroupFilter` ([\#14081](https://github.com/apache/iceberg/pull/14081))
+    - handle NPE for `VariantLogicalType` in `TypeWithSchemaVisitor` ([\#14261](https://github.com/apache/iceberg/pull/14261))
+    - Fix `UUID` `ClassCastException` when reading Parquet files with UUIDs ([\#14027](https://github.com/apache/iceberg/pull/14027))
+* Flink
+    - Ensure `DynamicCommitter` idempotence in the presence of failures ([\#14182](https://github.com/apache/iceberg/pull/14182))
+    - Backport Ensure `DynamicCommitter` idempotence in the presence of failures ([\#14213](https://github.com/apache/iceberg/pull/14213))
+    - Prevent recreation of `ManifestOutputFileFactory` during flushing ([\#14358](https://github.com/apache/iceberg/pull/14358))
+    - Backport Prevent recreation of `ManifestOutputFileFactory` during flushing ([\#14385](https://github.com/apache/iceberg/pull/14385))
+    - Fix cache refreshing in `DynamicIcebergSink` ([\#14406](https://github.com/apache/iceberg/pull/14406))
+    - Port fix cache refreshing in `DynamicIcebergSink` ([\#14765](https://github.com/apache/iceberg/pull/14765))
+* Spark
+    - 3.4: Pass format-version when creating a snapshot ([\#14170](https://github.com/apache/iceberg/pull/14170))
+    - 3.5: Pass format-version when creating a snapshot ([\#14169](https://github.com/apache/iceberg/pull/14169))
+    - 4.0: Pass format-version when creating a snapshot in table migration actions ([\#14163](https://github.com/apache/iceberg/pull/14163))
+    - Fix Z-order UDF to correctly handle `DateType` ([\#14108](https://github.com/apache/iceberg/pull/14108))
+* Kafka Connect
+    - Merge control topic and last persisted offsets ([\#14525](https://github.com/apache/iceberg/pull/14525))
+* Vendor integrations
+    - AWS: Configure builder for reuse of HTTP connection pool in SDK v2 ([\#14161](https://github.com/apache/iceberg/pull/14161))
+    - AWS: Fix leaked credentials when contacting multiple catalogs ([\#14178](https://github.com/apache/iceberg/pull/14178))
+    - AWS: Exclude logging dependencies from the bundle ([\#14225](https://github.com/apache/iceberg/pull/14225))
+
+## Past releases
+
 ### 1.10.0 release
 
 Apache Iceberg 1.10.0 was released on September 11, 2025.
@@ -79,7 +127,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
     - Common: Remove public visibility for deprecated methods in DynConstructors and DynMethods since 1.7.0 ([\#13053](https://github.com/apache/iceberg/pull/13053))
     - AWS, Core, Flink, Parquet: Remove deprecations targeted for 1.10.0 ([\#12909](https://github.com/apache/iceberg/pull/12909))
 * Behavior change
-    - Hive: Throw NoSuchNamespaceException when listing a non-exist namespace ([\#13130](https://github.com/apache/iceberg/pull/13130)). 
+    - Hive: Throw NoSuchNamespaceException when listing a non-exist namespace ([\#13130](https://github.com/apache/iceberg/pull/13130)).
     Previously, an empty list was returned.
     - Core: fix spec non-confirming field ids for partition stats files ([\#13329](https://github.com/apache/iceberg/pull/13329))
 * Spec
@@ -161,7 +209,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
     - Support Flink 2.0 ([\#12527](https://github.com/apache/iceberg/pull/12527))
     - Dynamic sink that supports dynamic schema and partition evolution, fan out write to and creation of tables ([\#12424](https://github.com/apache/iceberg/pull/12424))
     - Migrate from deprecated TableSchema to ResolvedSchema ([\#13072](https://github.com/apache/iceberg/pull/13072))
-    -  `IcebergSink` v2 sink: default writer task parallelism to input stream parallelism to promote chaining and maintain the same behavior as `FlinkSink` v1 sink ([\#13260](https://github.com/apache/iceberg/pull/13260))
+    - `IcebergSink` v2 sink: default writer task parallelism to input stream parallelism to promote chaining and maintain the same behavior as `FlinkSink` v1 sink ([\#13260](https://github.com/apache/iceberg/pull/13260))
     - Support compaction in v2 sink ([\#12979](https://github.com/apache/iceberg/pull/12979))
     - Support rewrite data files in v2 sink ([\#11497](https://github.com/apache/iceberg/pull/11497))
     - Port range distribution to v2 sink ([\#12071](https://github.com/apache/iceberg/pull/12071))
@@ -196,8 +244,6 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
     - Netty: 4.2.1.Final -> 4.2.2.Final
     - Comet: 0.5.0 -> 0.8.1
     - Apache httpclient: 5.4.3 -> 5.4.4
-
-## Past releases
 
 ### 1.9.2 release
 
@@ -297,7 +343,6 @@ the API. This is fixed in 1.9.1.
     - Sqllite JDBC to 3.49.1.0
     - Jackson to 2.18.3
     - downgraded AWS SDK to 2.29.52 ([\#12649](https://github.com/apache/iceberg/pull/12649))
-
 
 ### 1.8.1 release
 
@@ -439,9 +484,9 @@ The 1.7.0 release contains fixes, dependency updates, and new features. For full
     - Add addNonDefaultSpec to UpdatePartitionSpec to not set the new partition spec as default ([\#10736](https://github.com/apache/iceberg/pull/10736))
 * AWS
     - Don't complete multipart upload on finalize for S3OutputStream ([\#10874](https://github.com/apache/iceberg/pull/10874))
-    - Implement SupportsRecoveryOperations for S3FileIO ([\#10721](https://github.com/apache/iceberg/pull/10721)) 
-    - Refresh vended credentials ([\#11389](https://github.com/apache/iceberg/pull/11389)) 
-    - Support S3 directory bucket listing ([\#11021](https://github.com/apache/iceberg/pull/11021)) 
+    - Implement SupportsRecoveryOperations for S3FileIO ([\#10721](https://github.com/apache/iceberg/pull/10721))
+    - Refresh vended credentials ([\#11389](https://github.com/apache/iceberg/pull/11389))
+    - Support S3 directory bucket listing ([\#11021](https://github.com/apache/iceberg/pull/11021))
     - S3FileIO - Add Cross-Region Bucket Access ([\#11259](https://github.com/apache/iceberg/pull/11259))
 * Build
     - Build for Java 11 ([\#10849](https://github.com/apache/iceberg/pull/10849)) - Removal of Java 8
@@ -450,7 +495,7 @@ The 1.7.0 release contains fixes, dependency updates, and new features. For full
 * Dependencies
     - AWS SDK 2.29.1
     - Apache Avro to 1.12.0
-    - Spark 3.4 to 3.4.4 
+    - Spark 3.4 to 3.4.4
     - Spark 3.5 to 3.5.2
     - Netty to 4.1.114.Final
     - Jetty to 11.0.24
@@ -460,7 +505,7 @@ The 1.7.0 release contains fixes, dependency updates, and new features. For full
     - Roaring Bitmap to 1.3.0
     - Spring to 5.3.39
     - Sqllite JDBC to 3.46.0.0
-    - Hadoop to 3.4.1 
+    - Hadoop to 3.4.1
 * Core
     - Remove dangling deletes as part of RewriteDataFilesAction ([\#9724](https://github.com/apache/iceberg/pull/9724))
     - Add a util to compute partition stats ([\#11146](https://github.com/apache/iceberg/pull/11146))
@@ -488,12 +533,12 @@ The 1.7.0 release contains fixes, dependency updates, and new features. For full
     - Standardize credentials in loadTable/loadView responses ([\#10722](https://github.com/apache/iceberg/pull/10722))
     - Add Scan Planning Endpoints to open api spec ([\#9695](https://github.com/apache/iceberg/pull/9695))
     - Add REST Compatibility Kit ([\#10908](https://github.com/apache/iceberg/pull/10908))
-* Spark 
-    - Parallelize reading files in migrate procedures ([\#11043](https://github.com/apache/iceberg/pull/11043)) 
-    - Action to compute table stats ([\#11106](https://github.com/apache/iceberg/pull/11106)) 
+* Spark
+    - Parallelize reading files in migrate procedures ([\#11043](https://github.com/apache/iceberg/pull/11043))
+    - Action to compute table stats ([\#11106](https://github.com/apache/iceberg/pull/11106))
     - Action to remove dangling deletes ([\#11377](https://github.com/apache/iceberg/pull/11377))
     - Add utility to load table state reliably ([\#11115](https://github.com/apache/iceberg/pull/11115))
-    - Don't change table distribution when only altering local order ([\#10774](https://github.com/apache/iceberg/pull/10774)) 
+    - Don't change table distribution when only altering local order ([\#10774](https://github.com/apache/iceberg/pull/10774))
     - Update Spark to use planned Avro reads ([\#11299](https://github.com/apache/iceberg/pull/11299))
     - Spark Action to Analyze table ([\#10288](https://github.com/apache/iceberg/pull/10288))
     - Support Column Stats ([\#10659](https://github.com/apache/iceberg/pull/10659))
@@ -514,7 +559,6 @@ The 1.6.1 Release contains bug fixes and performance improvements. For full rele
     - Drop ParallelIterable's queue low water mark ([\#10979](https://github.com/apache/iceberg/#10979))
 * Dependencies
     - ORC 1.9.4  
-
 
 ### 1.6.0 release
 Apache Iceberg 1.6.0 was released on July 23, 2024.
@@ -611,13 +655,13 @@ For more details, please visit [Github](https://github.com/apache/iceberg/releas
 Apache Iceberg 1.5.2 was released on May 9, 2024.
 
 The 1.5.2 release has the same changes that the 1.5.1 release (see directly below)
-has. The 1.5.1 release had issues with the spark runtime artifacts; specifically certain artifacts were built with the wrong Scala version. 
+has. The 1.5.1 release had issues with the spark runtime artifacts; specifically certain artifacts were built with the wrong Scala version.
 It is strongly recommended to upgrade to 1.5.2 for any systems that are using 1.5.1.  
 
 ### 1.5.1 release
 Apache Iceberg 1.5.1 was released on April 25, 2024.
 
-The 1.5.1 patch release contains fixes for JDBC Catalog, fixing a FileIO regression 
+The 1.5.1 patch release contains fixes for JDBC Catalog, fixing a FileIO regression
 where an extra head request was performed when reading manifests and REST client retries
 for 5xx failures. The release also includes fixes for system function pushdown for CoW tables
 in Spark 3.4 and 3.5.
@@ -670,7 +714,7 @@ The 1.5.0 release adds a variety of new features and bug fixes.
     - Add system config for unsafe Parquet ID fallback. ([\#9324](https://github.com/apache/iceberg/pull/9324))
 * Kafka-Connect
     - Initial project setup and event data structures ([\#8701](https://github.com/apache/iceberg/pull/8701))
-    - Sink connector with data writers and converters ([\#9466](https://github.com/apache/iceberg/pull/9466))			
+    - Sink connector with data writers and converters ([\#9466](https://github.com/apache/iceberg/pull/9466))  
 * Spec
     - Add partition stats spec ([\#7105](https://github.com/apache/iceberg/pull/7105))
     - add nanosecond timestamp types ([\#8683](https://github.com/apache/iceberg/pull/8683))
@@ -694,7 +738,7 @@ The 1.5.0 release adds a variety of new features and bug fixes.
     - Bump Google cloud libraries to 26.28.0
 
 * Note: To enable view support for JDBC catalog, configure `jdbc.schema-version` to `V1` in catalog properties.
-                   
+  
 For more details, please visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.5.0).
 
 ### 1.4.3 Release
@@ -807,7 +851,7 @@ The 1.4.0 release adds a variety of new features and bug fixes.
     - Handle filters with transforms by assuming data must be scanned ([\#8243](https://github.com/apache/iceberg/pull/8243))
 * ORC
     - Handle filters with transforms by assuming the filter matches ([\#8244](https://github.com/apache/iceberg/pull/8244))
-* Vendor Integrations 
+* Vendor Integrations
     - GCP: Fix single byte read in `GCSInputStream` ([\#8071](https://github.com/apache/iceberg/pull/8071))
     - GCP: Add properties for OAtuh2 and update library ([\#8073](https://github.com/apache/iceberg/pull/8073))
     - GCP: Add prefix and bulk operations to `GCSFileIO` ([\#8168](https://github.com/apache/iceberg/pull/8168))
@@ -825,7 +869,6 @@ The 1.4.0 release adds a variety of new features and bug fixes.
     - Bump ORC to 1.9.1
     - Bump Arrow to 12.0.1
     - Bump AWS Java SDK to 2.20.131
-
 
 ### 1.3.1 release
 
@@ -915,7 +958,7 @@ Here is an overview:
 
 ### 1.2.0 release
 
-Apache Iceberg 1.2.0 was released on March 20th, 2023. 
+Apache Iceberg 1.2.0 was released on March 20th, 2023.
 The 1.2.0 release adds a variety of new features and bug fixes.
 Here is an overview:
 
@@ -923,7 +966,7 @@ Here is an overview:
     - Added AES GCM encrpytion stream spec ([\#5432](https://github.com/apache/iceberg/pull/5432))
     - Added support for Delta Lake to Iceberg table conversion ([\#6449](https://github.com/apache/iceberg/pull/6449), [\#6880](https://github.com/apache/iceberg/pull/6880))
     - Added support for `position_deletes` metadata table ([\#6365](https://github.com/apache/iceberg/pull/6365), [\#6716](https://github.com/apache/iceberg/pull/6716))
-    - Added support for scan and commit metrics reporter that is pluggable through catalog ([\#6404](https://github.com/apache/iceberg/pull/6404), [\#6246](https://github.com/apache/iceberg/pull/6246), [\#6410](https://github.com/apache/iceberg/pull/6410)) 
+    - Added support for scan and commit metrics reporter that is pluggable through catalog ([\#6404](https://github.com/apache/iceberg/pull/6404), [\#6246](https://github.com/apache/iceberg/pull/6246), [\#6410](https://github.com/apache/iceberg/pull/6410))
     - Added support for branch commit for all operations ([\#4926](https://github.com/apache/iceberg/pull/4926), [\#5010](https://github.com/apache/iceberg/pull/5010))
     - Added `FileIO` support for ORC readers and writers ([\#6293](https://github.com/apache/iceberg/pull/6293))
     - Updated all actions to leverage bulk delete whenever possible ([\#6682](https://github.com/apache/iceberg/pull/6682))
@@ -974,12 +1017,11 @@ Here is an overview:
 
 For more details, please visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.2.0).
 
-
 ### 1.1.0 release
 
-Apache Iceberg 1.1.0 was released on November 28th, 2022. 
-The 1.1.0 release deprecates various pre-1.0.0 methods, 
-and adds a variety of new features. 
+Apache Iceberg 1.1.0 was released on November 28th, 2022.
+The 1.1.0 release deprecates various pre-1.0.0 methods,
+and adds a variety of new features.
 Here is an overview:
 
 * Core
@@ -1108,7 +1150,7 @@ Apache Iceberg 0.14.0 was released on 16 July 2022.
     - JDBC catalog now supports namespace properties ([#3275](https://github.com/apache/iceberg/pull/3275))
     - AWS Glue catalog supports native Glue locking ([#4166](https://github.com/apache/iceberg/pull/4166))
     - AWS S3FileIO supports using S3 access points ([#4334](https://github.com/apache/iceberg/pull/4334)), bulk operations ([#4052](https://github.com/apache/iceberg/pull/4052), [#5096](https://github.com/apache/iceberg/pull/5096)), ranged reads ([#4608](https://github.com/apache/iceberg/pull/4608)), and tagging at write time or in place of deletes ([#4259](https://github.com/apache/iceberg/pull/4259), [#4342](https://github.com/apache/iceberg/pull/4342))
-    - AWS GlueCatalog supports passing LakeFormation credentials ([#4280](https://github.com/apache/iceberg/pull/4280)) 
+    - AWS GlueCatalog supports passing LakeFormation credentials ([#4280](https://github.com/apache/iceberg/pull/4280))
     - AWS DynamoDB catalog and lock supports overriding the DynamoDB endpoint ([#4726](https://github.com/apache/iceberg/pull/4726))
     - Nessie now supports namespaces and namespace properties ([#4385](https://github.com/apache/iceberg/pull/4385), [#4610](https://github.com/apache/iceberg/pull/4610))
     - Nessie now passes most common catalog tests ([#4392](https://github.com/apache/iceberg/pull/4392))
@@ -1202,7 +1244,6 @@ Apache Iceberg 0.13.2 was released on June 15th, 2022.
 * **Nessie**
   * [\#4509](https://github.com/apache/iceberg/pull/4509) fixes a NPE that occurred when accessing refreshed tables in NessieCatalog
 
-
 A more exhaustive list of changes is available under the [0.13.2 release milestone](https://github.com/apache/iceberg/milestone/18?closed=1).
 
 ### 0.13.1
@@ -1223,7 +1264,7 @@ Apache Iceberg 0.13.1 was released on February 14th, 2022.
 **Important bug fixes:**
 
 * **Spark**
-  * [\#4023](https://github.com/apache/iceberg/pull/4023) fixes predicate pushdown in row-level operations for merge conditions in Spark 3.2. 
+  * [\#4023](https://github.com/apache/iceberg/pull/4023) fixes predicate pushdown in row-level operations for merge conditions in Spark 3.2.
   Prior to the fix, filters would not be extracted and targeted merge conditions were not pushed down leading to degraded performance
   for these targeted merge operations.
   * [\#4024](https://github.com/apache/iceberg/pull/4024) fixes table creation in the root namespace of a Hadoop Catalog.
@@ -1231,7 +1272,6 @@ Apache Iceberg 0.13.1 was released on February 14th, 2022.
 * **Flink**
   * [\#3986](https://github.com/apache/iceberg/pull/3986) fixes manifest location collisions when there are multiple committers
   in the same Flink job.
-
 
 ### 0.13.0
 
@@ -1376,7 +1416,6 @@ Apache Iceberg 0.12.0 was released on August 15, 2021. It consists of 395 commit
     * Added support for the `TIMESTAMP WITHOUT TIMEZONE` type in Spark [[\#2757](https://github.com/apache/iceberg/pull/2757)].
     * Added validation that files referenced by row-level deletes are not concurrently rewritten [[\#2308](https://github.com/apache/iceberg/pull/2308)].
 
-
 **Important bug fixes:**
 
 * **Core**
@@ -1469,8 +1508,6 @@ Other notable changes:
 * ORC now supports reading tinyint, smallint, char, varchar types
 * Avro to Iceberg schema conversion now preserves field docs
 
-
-
 ### 0.10.0
 
 * Git tag: [0.10.0](https://github.com/apache/iceberg/releases/tag/apache-iceberg-0.10.0)
@@ -1506,7 +1543,6 @@ Other notable changes:
 * Data file locations can be customized with a dynamically loaded `LocationProvider`
 * ORC file imports can apply a name mapping for stats
 
-
 A more exhaustive list of changes is available under the [0.10.0 release milestone](https://github.com/apache/iceberg/milestone/10?closed=1).
 
 ### 0.9.1
@@ -1528,7 +1564,6 @@ A more exhaustive list of changes is available under the [0.10.0 release milesto
 * Git tag: [apache-iceberg-0.8.0-incubating](https://github.com/apache/iceberg/releases/tag/apache-iceberg-0.8.0-incubating)
 * [0.8.0-incubating source tar.gz](https://www.apache.org/dyn/closer.cgi/incubator/iceberg/apache-iceberg-0.8.0-incubating/apache-iceberg-0.8.0-incubating.tar.gz) -- [signature](https://downloads.apache.org/incubator/iceberg/apache-iceberg-0.8.0-incubating/apache-iceberg-0.8.0-incubating.tar.gz.asc) -- [sha512](https://downloads.apache.org/incubator/iceberg/apache-iceberg-0.8.0-incubating/apache-iceberg-0.8.0-incubating.tar.gz.sha512)
 * [0.8.0-incubating Spark 2.4 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.8.0-incubating/iceberg-spark-runtime-0.8.0-incubating.jar)
-
 
 ### 0.7.0
 

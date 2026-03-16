@@ -56,6 +56,7 @@ import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -117,6 +118,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private TableMetadata base;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
+  private SnapshotAncestryValidator snapshotAncestryValidator =
+      SnapshotAncestryValidator.NON_VALIDATING;
 
   private ExecutorService workerPool;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
@@ -156,6 +159,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public ThisT scanManifestsWith(ExecutorService executorService) {
     this.workerPool = executorService;
+    return self();
+  }
+
+  /**
+   * Set a validator to check snapshot ancestry before committing changes.
+   *
+   * <p>If there is no parent snapshot, an empty iterable will be supplied to the validator.
+   *
+   * @param validator a validator to check snapshot ancestry validity
+   * @return this for method chaining
+   */
+  @Override
+  public ThisT validateWith(SnapshotAncestryValidator validator) {
+    this.snapshotAncestryValidator = validator;
     return self();
   }
 
@@ -257,7 +274,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     long sequenceNumber = base.nextSequenceNumber();
     Long parentSnapshotId = parentSnapshot == null ? null : parentSnapshot.snapshotId();
 
-    validate(base, parentSnapshot);
+    runValidations(parentSnapshot);
+
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
     OutputFile manifestList = manifestListPath();
@@ -325,6 +343,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         nextRowId,
         assignedRows,
         writer.toManifestListFile().encryptionKeyID());
+  }
+
+  private void runValidations(Snapshot parentSnapshot) {
+    validate(base, parentSnapshot);
+
+    // Validate snapshot ancestry
+    Iterable<Snapshot> snapshotAncestry =
+        parentSnapshot != null
+            ? SnapshotUtil.ancestorsOf(parentSnapshot.snapshotId(), base::snapshot)
+            : List.of();
+
+    boolean valid = snapshotAncestryValidator.validate(snapshotAncestry);
+    ValidationException.check(
+        valid, "Snapshot ancestry validation failed: %s", snapshotAncestryValidator.errorMessage());
   }
 
   protected abstract Map<String, String> summary();
@@ -613,6 +645,34 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return true;
   }
 
+  /**
+   * Builds a snapshot summary with manifest counts.
+   *
+   * @param manifests the list of manifests in the new snapshot
+   * @param replacedManifestsCount the count of manifests that were replaced (rewritten)
+   * @return a summary builder with manifest count metrics set
+   */
+  protected SnapshotSummary.Builder buildManifestCountSummary(
+      List<ManifestFile> manifests, int replacedManifestsCount) {
+    SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
+    int manifestsCreated = 0;
+    int manifestsKept = 0;
+
+    for (ManifestFile manifest : manifests) {
+      if (snapshotId() == manifest.snapshotId()) {
+        manifestsCreated++;
+      } else if (null != manifest.snapshotId()) {
+        manifestsKept++;
+      }
+    }
+
+    summaryBuilder.set(SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(manifestsCreated));
+    summaryBuilder.set(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(manifestsKept));
+    summaryBuilder.set(
+        SnapshotSummary.REPLACED_MANIFESTS_COUNT, String.valueOf(replacedManifestsCount));
+    return summaryBuilder;
+  }
+
   protected List<ManifestFile> writeDataManifests(Collection<DataFile> files, PartitionSpec spec) {
     return writeDataManifests(files, null /* inherit data seq */, spec);
   }
@@ -620,6 +680,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected List<ManifestFile> writeDataManifests(
       Collection<DataFile> files, Long dataSeq, PartitionSpec spec) {
     return writeManifests(files, group -> writeDataFileGroup(group, dataSeq, spec));
+  }
+
+  // Deletes uncommitted manifests; clears list if clearManifests and any deleted.
+  protected void deleteUncommitted(
+      Collection<ManifestFile> manifests, Set<ManifestFile> committed, boolean clearManifests) {
+    boolean anyDeleted = false;
+    for (ManifestFile manifest : manifests) {
+      if (!committed.contains(manifest)) {
+        deleteFile(manifest.path());
+        anyDeleted = true;
+      }
+    }
+
+    if (clearManifests && anyDeleted) {
+      manifests.clear();
+    }
   }
 
   private List<ManifestFile> writeDataFileGroup(
@@ -650,9 +726,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     try (RollingManifestWriter<DeleteFile> closableWriter = writer) {
       for (DeleteFile file : files) {
-        Preconditions.checkArgument(
-            file instanceof Delegates.PendingDeleteFile,
-            "Invalid delete file: must be PendingDeleteFile");
         if (file.dataSequenceNumber() != null) {
           closableWriter.add(file, file.dataSequenceNumber());
         } else {

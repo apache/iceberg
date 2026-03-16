@@ -21,7 +21,7 @@ package org.apache.iceberg.rest;
 import com.fasterxml.jackson.databind.InjectableValues;
 import java.util.Collections;
 import java.util.Map;
-import org.apache.hadoop.util.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class ParserContext {
@@ -40,11 +40,11 @@ public class ParserContext {
     return new InjectableValues.Std(data);
   }
 
-  static Builder builder() {
+  public static Builder builder() {
     return new Builder();
   }
 
-  static class Builder {
+  public static class Builder {
     private final Map<String, Object> data = Maps.newHashMap();
 
     private Builder() {}

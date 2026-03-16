@@ -19,6 +19,8 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 import java.time.LocalDate;
@@ -33,6 +35,7 @@ import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -114,6 +117,16 @@ public class TestExpressionUtil {
     assertThat(ExpressionUtil.toSanitizedString(Expressions.in("test", tooLongRange)))
         .as("Sanitized string should be abbreviated")
         .isEqualTo("test IN ((2-digit-int), (3-digit-int), ... (8 values hidden, 10 in total))");
+
+    Object[] tooLongStringsList =
+        IntStream.range(0, ExpressionUtil.LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD + 5)
+            .mapToObj(i -> "string_" + i)
+            .toArray();
+
+    assertThat(ExpressionUtil.toSanitizedString(Expressions.in("test", tooLongStringsList)))
+        .as("Sanitized string should be abbreviated")
+        .isEqualTo(
+            "test IN ((hash-14128790), (hash-1056a62b), (hash-22fd6340), (hash-3f9d20e4), (hash-136200f0), (hash-25fc9033), (hash-681d31e2), (hash-6c1796d4), (hash-382d143e), (hash-272f4e5b), ... (5 values hidden, 15 in total))");
 
     // The sanitization resulting in an expression tree does not abbreviate
     List<String> expectedValues = Lists.newArrayList();
@@ -1059,6 +1072,22 @@ public class TestExpressionUtil {
                 PartitionSpec.builderFor(SCHEMA).day("ts").build(),
                 true))
         .as("Should not select partitions, on hour not day boundary")
+        .isFalse();
+  }
+
+  @Test
+  public void testSelectsPartitionsWithUnpartitionedTable() {
+    Table table = mock(Table.class);
+    Map<Integer, PartitionSpec> specs =
+        ImmutableMap.of(
+            0,
+            PartitionSpec.unpartitioned(),
+            1,
+            PartitionSpec.builderFor(SCHEMA).identity("val").build());
+    when(table.specs()).thenReturn(specs);
+
+    assertThat(ExpressionUtil.selectsPartitions(Expressions.lessThan("id", 1L), table, true))
+        .as("Should return false for unpartitioned table (no partition boundaries to select)")
         .isFalse();
   }
 

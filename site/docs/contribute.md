@@ -36,7 +36,6 @@ The Iceberg community prefers to receive contributions as [Github pull requests]
 
 [View open pull requests][iceberg-prs]
 
-
 [iceberg-prs]: https://github.com/apache/iceberg/pulls
 [github-pr-docs]: https://help.github.com/articles/about-pull-requests/
 
@@ -49,7 +48,7 @@ The Iceberg community prefers to receive contributions as [Github pull requests]
 
 Most pull requests can be merged once a single [committer](https://www.apache.org/foundation/how-it-works/#committers) other than the author is satisfied with the code in the PR (exceptions that require additional input from the community are detailed below). [Committers are trusted](https://infra.apache.org/new-committers-guide.html#the-committers-way) to act in the best [interest of the project](https://community.apache.org/projectIndependence.html#apache-projects-are-managed-independently).
 
-Before merging all review comments should be addressed either by making changes or agreeing the request is out of scope for the PR. For additions to public APIs committers should wait at least 24 hours before merging to ensure there is no additional feedback from members of the community. 
+Before merging all review comments should be addressed either by making changes or agreeing the request is out of scope for the PR. For additions to public APIs committers should wait at least 24 hours before merging to ensure there is no additional feedback from members of the community.
 
 Requesting changes on a PR indicates a reviewer believes the PR has merit but still needs issues addressed before merging. If a reviewer believes the change should not be merged at all and there is nothing the author could do to address the reviewers concerns, the reviewer should explicitly state this on the PR. In the rare event that a PR author and reviewers cannot come to a consensus on a PR, the disagreement should be raised to the developer mailing list for further discussion. In this context, a reviewer is anyone leaving comments on the PR including contributors, committers and PMC members.
 
@@ -57,6 +56,17 @@ There are several exceptions to a single committer being able to merge a PR:
 
 * Behavioral and functional changes to a specification must go through the [Iceberg improvement proposal](#apache-iceberg-improvement-proposals) before any code can be merged.
 * Changes to files under the `format` directory and `open-api/rest-catalog*` are considered specification changes. Unless already covered under an Iceberg improvement proposal, specification changes require their own vote (e.g. bug fixes or specification clarifications). The vote follows the ASF [code modification](https://www.apache.org/foundation/voting.html#votes-on-code-modification) model and no lazy consensus modifier. Grammar, spelling and minor formatting fixes are exempted from this rule. Draft specifications (new independent specifications that are going through the Iceberg improvement process) do not require a vote but authors should provide notice on the developer mailing list about substantive changes (the final draft will be subject to a vote).
+
+### Guidelines for AI-assisted Contributions
+
+The Iceberg community welcomes contributions that are created or assisted by AI tools (e.g., large language models or code assistants). Contributors using such tools are expected to adhere to the following principles:
+
+* The PR author should **understand the core ideas** behind the implementation **end-to-end**, and be able to justify the design and code during review.
+* PR titles, commit messages, and code must align with the style, tone, and level of detail used in the existing Iceberg codebase.
+* Use AI for acceleration, then verify. Treat AI output as a draft for code, tests, or docs; run linters/tests and review the logic yourself.
+* Be transparent about AI usage and uncertainties. Disclose if AI was used (e.g., draft, refactoring, test scaffolding) and call out any areas of uncertainty or assumptions, especially regarding complex logic, concurrency, or internal APIs, so reviewers can focus on them.
+* **Respect ASF policy**. Ensure generated content does not introduce incompatible licenses or undisclosed third-party code; review the [ASF Generative Tooling Guidance](https://www.apache.org/legal/generative-tooling.html) and licensing rules when in doubt.
+* If you are filing a security report based on AI assisted scanning, please verify that the issue is reproducible and clearly document the steps to reproduce it before submitting. Security reports can be time-consuming for maintainers to examine and triage, so thorough, well-documented reports help ensure they are addressed efficiently.
 
 ## Apache Iceberg Improvement Proposals
 
@@ -70,9 +80,9 @@ scope need to be considered carefully and incorporate feedback from many communi
 
 1. A GitHub issue created using the `Apache Iceberg Improvement Proposal` template
 2. A document including the following:
-    * Motivation for the change 
-    * Implementation proposal 
-    * Breaking changes/incompatibilities 
+    * Motivation for the change
+    * Implementation proposal
+    * Breaking changes/incompatibilities
     * Alternatives considered
 3. A discussion thread initiated in the dev list with the Subject: '[DISCUSS] <proposal title\>'
 
@@ -86,9 +96,9 @@ Current proposals are tracked in GitHub issues with the label [Proposal][iceberg
 
 ### How are proposals adopted?
 
-Once general consensus has been reached, a vote should be raised on the dev list.  The vote follows the ASF 
+Once general consensus has been reached, a vote should be raised on the dev list.  The vote follows the ASF
 [code modification][apache-vote] model with three positive PMC votes required and no lazy consensus modifier.
-The voting process should be held in good faith to reinforce and affirm the agreed upon proposal, not to 
+The voting process should be held in good faith to reinforce and affirm the agreed upon proposal, not to
 settle disagreements or to force a decision.
 
 [iceberg-proposals]: https://github.com/apache/iceberg/issues?q=is%3Aissue+is%3Aopen+label%3Aproposal+
@@ -96,7 +106,7 @@ settle disagreements or to force a decision.
 
 ## Building the Project Locally
 
-Iceberg is built using Gradle with Java 11, 17, or 21.
+Iceberg is built using Gradle with Java 17 or 21.
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
@@ -126,7 +136,8 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 
 Follow the instructions for [Eclipse](https://github.com/google/google-java-format#eclipse) or
 [IntelliJ](https://github.com/google/google-java-format#intellij-android-studio-and-other-jetbrains-ides) to install the **google-java-format** plugin (note the required manual actions for IntelliJ).
-
+Follow the [instructions](https://scalameta.org/scalafmt/docs/installation.html) to install **scalafmt** plugin
+and configure it to point to the configuration file located under the directory `.baseline/scala/`.
 
 ## Semantic Versioning
 
@@ -179,7 +190,7 @@ being difficult to orchestrate, it is up to the committers to decide if deprecat
 All interfaces, classes, and methods targeted for deprecation must include the following:
 
 1. `@Deprecated` annotation on the appropriate element
-2. `@depreceted` javadoc comment including: the version for removal, the appropriate alternative for usage
+2. `@deprecated` javadoc comment including: the version for removal, the appropriate alternative for usage
 3. Replacement of existing code paths that use the deprecated behavior
 
 Example:
@@ -268,7 +279,7 @@ Execution failed for task ':iceberg-api:revapi'.
 
 ### Adding a default implementation
 
-To avoid breaking the API, add a default implementation that throws an `UnsupportedOperationException`:`
+To avoid breaking the API, add a default implementation that throws an `UnsupportedOperationException`:
 
 ```java
 public interface ManageSnapshots extends PendingUpdate<Snapshot> {
@@ -389,7 +400,7 @@ When passing boolean arguments to existing or external methods, use inline comme
 
 #### Accessing instance variables
 
-Use `this` when assigning values to instance variables, making it clear when the object's state is being changed. Omit `this` when reading instance variables to keep lines shorter. 
+Use `this` when assigning values to instance variables, making it clear when the object's state is being changed. Omit `this` when reading instance variables to keep lines shorter.
 
 ```java
   private String value;
@@ -418,13 +429,13 @@ Use `this` when assigning values to instance variables, making it clear when the
 #### Config naming
 
 1. Use `-` to link words in one concept
-    * For example, preferred convection `access-key-id` rather than `access.key.id`
+    * For example, preferred convention `access-key-id` rather than `access.key.id`
 2. Use `.` to create a hierarchy of config groups
     * For example, `s3` in `s3.access-key-id`, `s3.secret-access-key`
 
 #### Block Spacing
 
-To improve readability and maintain consistency, always place a newline after control blocks (if, for, while, switch, etc.). 
+To improve readability and maintain consistency, always place a newline after control blocks (if, for, while, switch, etc.).
 This helps separate logical sections of the code, making it easier to read and debug.
 
 ```java
@@ -540,7 +551,6 @@ assertThatThrownBy(() -> catalog.createNamespace(deniedNamespace))
 ```
 Checks on exceptions should always make sure to assert that a particular exception message has occurred.
 
-
 ### Awaitility
 
 Avoid using `Thread.sleep()` in tests as it leads to long test durations and flaky behavior if a condition takes slightly longer than expected.
@@ -563,15 +573,13 @@ Awaitility.await("Tables were not deleted")
 
 Please refer to the [usage guide](https://github.com/awaitility/awaitility/wiki/Usage) of [Awaitility](https://github.com/awaitility/awaitility) for more usage examples.
 
-
 ### JUnit 5 / AssertJ
 
-
-Iceberg has now fully migrated to JUnit 5 (org.junit.jupiter.api imports) for all tests. Any new test classes should be written using JUnit 5, 
+Iceberg has now fully migrated to JUnit 5 (org.junit.jupiter.api imports) for all tests. Any new test classes should be written using JUnit 5,
 and assertions should follow the AssertJ style to ensure consistency and readability.
 
 ## Running Benchmarks
-Some PRs/changesets might require running benchmarks to determine whether they are affecting the baseline performance. Currently there is 
+Some PRs/changesets might require running benchmarks to determine whether they are affecting the baseline performance. Currently there is
 no "push a single button to get a performance comparison" solution available, therefore one has to run JMH performance tests on their local machine and
 post the results on the PR.
 

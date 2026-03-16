@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.iceberg.spark.Spark3Util
@@ -29,10 +28,8 @@ import org.apache.spark.sql.connector.expressions.FieldReference
 import org.apache.spark.sql.connector.expressions.IdentityTransform
 import org.apache.spark.sql.connector.expressions.Transform
 
-case class DropPartitionFieldExec(
-    catalog: TableCatalog,
-    ident: Identifier,
-    transform: Transform) extends LeafV2CommandExec {
+case class DropPartitionFieldExec(catalog: TableCatalog, ident: Identifier, transform: Transform)
+    extends LeafV2CommandExec {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
@@ -42,20 +39,24 @@ case class DropPartitionFieldExec(
       case iceberg: SparkTable =>
         val schema = iceberg.table.schema
         transform match {
-          case IdentityTransform(FieldReference(parts)) if parts.size == 1 && schema.findField(parts.head) == null =>
+          case IdentityTransform(FieldReference(parts))
+              if parts.size == 1 && schema.findField(parts.head) == null =>
             // the name is not present in the Iceberg schema, so it must be a partition field name, not a column name
-            iceberg.table.updateSpec()
-                .removeField(parts.head)
-                .commit()
+            iceberg.table
+              .updateSpec()
+              .removeField(parts.head)
+              .commit()
 
           case _ =>
-            iceberg.table.updateSpec()
-                .removeField(Spark3Util.toIcebergTerm(transform))
-                .commit()
+            iceberg.table
+              .updateSpec()
+              .removeField(Spark3Util.toIcebergTerm(transform))
+              .commit()
         }
 
       case table =>
-        throw new UnsupportedOperationException(s"Cannot drop partition field in non-Iceberg table: $table")
+        throw new UnsupportedOperationException(
+          s"Cannot drop partition field in non-Iceberg table: $table")
     }
 
     Nil

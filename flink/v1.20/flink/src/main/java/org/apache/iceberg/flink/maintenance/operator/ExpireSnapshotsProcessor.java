@@ -107,7 +107,7 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
                 ctx.output(DELETE_STREAM, file);
                 deleteFileCounter.incrementAndGet();
               })
-          .cleanExpiredFiles(true)
+          .cleanupLevel(ExpireSnapshots.CleanupLevel.ALL)
           .commit();
 
       LOG.info(

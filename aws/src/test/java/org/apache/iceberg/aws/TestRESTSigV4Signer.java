@@ -46,7 +46,7 @@ import org.mockserver.model.HttpResponse;
 import org.mockserver.model.Parameter;
 import org.mockserver.model.ParameterBody;
 import org.mockserver.verify.VerificationTimes;
-import software.amazon.awssdk.auth.signer.internal.SignerConstant;
+import software.amazon.awssdk.http.auth.aws.signer.SignerConstant;
 
 public class TestRESTSigV4Signer {
   private static ClientAndServer mockServer;

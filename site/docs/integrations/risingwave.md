@@ -85,7 +85,7 @@ CREATE SOURCE iceberg_t1_source WITH (
     table.name = 't1',
 );
 ```
-After this source is created, you can query the data using the following SQL statement: 
+After this source is created, you can query the data using the following SQL statement:
 
 ```sql
 SELECT * FROM iceberg_t1_source;

@@ -33,12 +33,12 @@ import org.apache.iceberg.rest.ImmutableHTTPRequest;
 import org.apache.iceberg.rest.auth.AuthSession;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.signer.Aws4Signer;
-import software.amazon.awssdk.auth.signer.internal.SignerConstant;
 import software.amazon.awssdk.auth.signer.params.Aws4SignerParams;
 import software.amazon.awssdk.auth.signer.params.SignerChecksumParams;
 import software.amazon.awssdk.core.checksums.Algorithm;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.http.auth.aws.signer.SignerConstant;
 import software.amazon.awssdk.regions.Region;
 
 /**
@@ -57,12 +57,15 @@ public class RESTSigV4AuthSession implements AuthSession {
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static final String RELOCATED_HEADER_PREFIX = "Original-";
 
+  @SuppressWarnings("deprecation")
   private final Aws4Signer signer;
+
   private final AuthSession delegate;
   private final Region signingRegion;
   private final String signingName;
   private final AwsCredentialsProvider credentialsProvider;
 
+  @SuppressWarnings("deprecation")
   public RESTSigV4AuthSession(
       Aws4Signer aws4Signer, AuthSession delegateAuthSession, AwsProperties awsProperties) {
     this.signer = Preconditions.checkNotNull(aws4Signer, "Invalid signer: null");
@@ -87,6 +90,7 @@ public class RESTSigV4AuthSession implements AuthSession {
     delegate.close();
   }
 
+  @SuppressWarnings("deprecation")
   private HTTPRequest sign(HTTPRequest request) {
     Aws4SignerParams params =
         Aws4SignerParams.builder()

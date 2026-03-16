@@ -29,7 +29,7 @@ highlight some powerful features. You can learn more about Iceberg's Hive runtim
 
 ### Docker Images
 
-The fastest way to get started is to use [Apache Hive images](https://hub.docker.com/r/apache/hive) 
+The fastest way to get started is to use [Apache Hive images](https://hub.docker.com/r/apache/hive)
 which provides a SQL-like interface to create and query Iceberg tables from your laptop. You need to install the [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
 Take a look at the Tags tab in [Apache Hive docker images](https://hub.docker.com/r/apache/hive/tags?ordering=last_updated) to see the available Hive versions.
@@ -39,14 +39,13 @@ Set the version variable.
 export HIVE_VERSION=4.0.0
 ```
 
-
-To accommodate both Intel-based (x86_64) and Apple Silicon (M1, M2, M3) Macs when running your Docker container, you can use the --platform flag to specify the desired architecture. Apple Silicon Macs use the arm64 architecture, while Intel Macs use the amd64 architecture. 
+To accommodate both Intel-based (x86_64) and Apple Silicon (M1, M2, M3) Macs when running your Docker container, you can use the --platform flag to specify the desired architecture. Apple Silicon Macs use the arm64 architecture, while Intel Macs use the amd64 architecture.
 Start the container, using the option `--platform linux/arm64` for a Mac with an M-Series chip:
 ```sh
 docker run -d --platform linux/arm64 -p 10000:10000 -p 10002:10002 --env SERVICE_NAME=hiveserver2 --name hive4 apache/hive:${HIVE_VERSION}
 ```
 
-The docker run command above configures Hive to use the embedded derby database for Hive Metastore. Hive Metastore functions as the Iceberg catalog to locate Iceberg files, which can be anywhere. 
+The docker run command above configures Hive to use the embedded derby database for Hive Metastore. Hive Metastore functions as the Iceberg catalog to locate Iceberg files, which can be anywhere.
 
 Give HiveServer (HS2) a little time to come up in the docker container, and then start the Hive Beeline client using the following command to connect with the HS2 containers you already started:
 ```sh

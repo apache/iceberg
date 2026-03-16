@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.iceberg.NullOrder
@@ -27,7 +26,9 @@ import org.apache.iceberg.expressions.Term
 
 class SortOrderParserUtil {
 
-  def collectSortOrder(tableSchema:Schema, sortOrder: Seq[(Term, SortDirection, NullOrder)]): SortOrder = {
+  def collectSortOrder(
+      tableSchema: Schema,
+      sortOrder: Seq[(Term, SortDirection, NullOrder)]): SortOrder = {
     val orderBuilder = SortOrder.builderFor(tableSchema)
     sortOrder.foreach {
       case (term, SortDirection.ASC, nullOrder) =>

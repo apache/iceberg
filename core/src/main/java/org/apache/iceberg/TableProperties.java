@@ -83,6 +83,9 @@ public class TableProperties {
           DEFAULT_PARTITION_SPEC,
           DEFAULT_SORT_ORDER);
 
+  /** A table property that documents the business meaning and usage context of this table. */
+  public static final String COMMENT = "comment";
+
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
 
@@ -247,6 +250,15 @@ public class TableProperties {
   public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
   public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
 
+  /**
+   * When true, declares that the table's identifier fields can be relied upon as a primary key by
+   * query engines for optimization purposes (e.g. eliminating redundant joins or distinct). This is
+   * not enforced at write time and does not validate existing data.
+   */
+  public static final String IDENTIFIER_FIELDS_RELY = "identifier-fields.rely";
+
+  public static final boolean IDENTIFIER_FIELDS_RELY_DEFAULT = false;
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
@@ -282,12 +294,12 @@ public class TableProperties {
   public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;
 
   /**
-   * @deprecated will be removed in 2.0.0, writing manifest lists is always enabled
+   * @deprecated will be removed in 1.12.0, writing manifest lists is always enabled
    */
   @Deprecated public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
 
   /**
-   * @deprecated will be removed in 2.0.0, writing manifest lists is always enabled
+   * @deprecated will be removed in 1.12.0, writing manifest lists is always enabled
    */
   @Deprecated public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 

@@ -21,6 +21,10 @@ help: # Show help for each of the Makefile recipes.
 serve: # Clean, build, and run the docs site locally.
 	dev/serve.sh
 
+.PHONY: serve-dev
+serve-dev:
+	dev/serve-dev.sh
+
 .PHONY: build
 build: # Clean and build the docs site locally.
 	dev/build.sh
@@ -28,6 +32,14 @@ build: # Clean and build the docs site locally.
 .PHONY: deploy
 deploy: # Clean, build, and deploy the Iceberg docs site.
 	dev/deploy.sh $(remote_name)
+
+.PHONY: lint
+lint: # Check linting on the docs.
+	dev/lint.sh
+
+.PHONY: lint-fix
+lint-fix: # Run linting with auto-fix on the docs.
+	dev/lint.sh --fix
 
 .PHONY: clean
 clean: # Clean the local docs site.

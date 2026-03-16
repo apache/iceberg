@@ -182,7 +182,8 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
           metadata,
           removedProps,
           maxHiveTablePropertySize,
-          currentMetadataLocation());
+          currentMetadataLocation(),
+          sqlFor(metadata));
       lock.ensureActive();
 
       try {

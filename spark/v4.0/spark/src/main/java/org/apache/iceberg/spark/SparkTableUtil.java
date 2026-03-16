@@ -44,6 +44,7 @@ import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -66,7 +67,6 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -80,8 +80,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -143,7 +141,9 @@ public class SparkTableUtil {
    * @param spark a Spark session
    * @param table a table name and (optional) database
    * @return a DataFrame of the table's partitions
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static Dataset<Row> partitionDF(SparkSession spark, String table) {
     List<SparkPartition> partitions = getPartitions(spark, table);
     return spark
@@ -158,7 +158,9 @@ public class SparkTableUtil {
    * @param table name of the table.
    * @param expression The expression whose matching partitions are returned.
    * @return a DataFrame of the table partitions.
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static Dataset<Row> partitionDFByFilter(
       SparkSession spark, String table, String expression) {
     List<SparkPartition> partitions = getPartitionsByFilter(spark, table, expression);
@@ -173,7 +175,9 @@ public class SparkTableUtil {
    * @param spark a Spark session
    * @param table a table name and (optional) database
    * @return all table's partitions
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static List<SparkPartition> getPartitions(SparkSession spark, String table) {
     try {
       TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
@@ -228,7 +232,9 @@ public class SparkTableUtil {
    * @param table a table name and (optional) database
    * @param predicate a predicate on partition columns
    * @return matching table's partitions
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static List<SparkPartition> getPartitionsByFilter(
       SparkSession spark, String table, String predicate) {
     TableIdentifier tableIdent;
@@ -258,7 +264,9 @@ public class SparkTableUtil {
    * @param tableIdent a table identifier
    * @param predicateExpr a predicate expression on partition columns
    * @return matching table's partitions
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static List<SparkPartition> getPartitionsByFilter(
       SparkSession spark, TableIdentifier tableIdent, Expression predicateExpr) {
     try {
@@ -411,7 +419,9 @@ public class SparkTableUtil {
    * @param partitionFilter only import partitions whose values match those in the map, can be
    *     partially defined
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static void importSparkTable(
       SparkSession spark,
       TableIdentifier sourceTableIdent,
@@ -434,7 +444,9 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
    * @param parallelism number of threads to use for file reading
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static void importSparkTable(
       SparkSession spark,
       TableIdentifier sourceTableIdent,
@@ -627,7 +639,9 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static void importSparkTable(
       SparkSession spark,
       TableIdentifier sourceTableIdent,
@@ -732,7 +746,9 @@ public class SparkTableUtil {
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static void importSparkPartitions(
       SparkSession spark,
       List<SparkPartition> partitions,
@@ -930,7 +946,9 @@ public class SparkTableUtil {
    * @param targetTable an Iceberg table where to import the data
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
+   * @deprecated since 1.11.0, will be removed in 1.12.0
    */
+  @Deprecated
   public static void importSparkPartitions(
       SparkSession spark,
       List<SparkPartition> partitions,
@@ -940,6 +958,10 @@ public class SparkTableUtil {
     importSparkPartitions(spark, partitions, targetTable, spec, stagingDir, false, 1);
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0
+   */
+  @Deprecated
   public static List<SparkPartition> filterPartitions(
       List<SparkPartition> partitions, Map<String, String> partitionFilter) {
     if (partitionFilter.isEmpty()) {
@@ -952,15 +974,7 @@ public class SparkTableUtil {
   }
 
   private static void deleteManifests(FileIO io, List<ManifestFile> manifests) {
-    if (io instanceof SupportsBulkOperations) {
-      ((SupportsBulkOperations) io).deleteFiles(Lists.transform(manifests, ManifestFile::path));
-    } else {
-      Tasks.foreach(manifests)
-          .executeWith(ThreadPools.getWorkerPool())
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .run(item -> io.deleteFile(item.path()));
-    }
+    CatalogUtil.deleteFiles(io, Lists.transform(manifests, ManifestFile::path), "manifests");
   }
 
   public static Dataset<Row> loadTable(SparkSession spark, Table table, long snapshotId) {

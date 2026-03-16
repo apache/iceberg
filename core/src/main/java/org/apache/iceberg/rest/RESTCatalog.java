@@ -69,17 +69,35 @@ public class RESTCatalog
   public RESTCatalog(
       SessionCatalog.SessionContext context,
       Function<Map<String, String>, RESTClient> clientBuilder) {
-    this.sessionCatalog = new RESTSessionCatalog(clientBuilder, null);
+    this.sessionCatalog = newSessionCatalog(clientBuilder);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;
     this.context = context;
     this.viewSessionCatalog = sessionCatalog.asViewCatalog(context);
   }
 
+  /**
+   * Create a new {@link RESTSessionCatalog} instance.
+   *
+   * <p>This method can be overridden in subclasses to provide custom {@link RESTSessionCatalog}
+   * implementations.
+   *
+   * @param clientBuilder a function to build REST clients
+   * @return a new RESTSessionCatalog instance
+   */
+  protected RESTSessionCatalog newSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder) {
+    return new RESTSessionCatalog(clientBuilder, null);
+  }
+
   @Override
   public void initialize(String name, Map<String, String> props) {
     Preconditions.checkArgument(props != null, "Invalid configuration: null");
     sessionCatalog.initialize(name, props);
+  }
+
+  protected RESTSessionCatalog sessionCatalog() {
+    return sessionCatalog;
   }
 
   @Override
@@ -310,5 +328,10 @@ public class RESTCatalog
   @Override
   public void invalidateView(TableIdentifier identifier) {
     viewSessionCatalog.invalidateView(identifier);
+  }
+
+  @Override
+  public View registerView(TableIdentifier identifier, String metadataFileLocation) {
+    return viewSessionCatalog.registerView(identifier, metadataFileLocation);
   }
 }

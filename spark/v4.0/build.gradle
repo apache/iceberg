@@ -21,8 +21,9 @@ String sparkMajorVersion = '4.0'
 String scalaVersion = '2.13'
 
 JavaVersion javaVersion = JavaVersion.current()
-if (javaVersion != JavaVersion.VERSION_17 && javaVersion != JavaVersion.VERSION_21) {
-  throw new GradleException("Spark 4.0 build requires JDK 17 or 21 but was executed with JDK " + javaVersion)
+Boolean javaVersionSupported = javaVersion == JavaVersion.VERSION_17 || javaVersion == JavaVersion.VERSION_21
+if (!javaVersionSupported) {
+  logger.warn("Skip Spark 4.0 build which requires JDK 17 or 21 but was executed with JDK " + javaVersion)
 }
 
 def sparkProjects = [
@@ -32,6 +33,9 @@ def sparkProjects = [
 ]
 
 configure(sparkProjects) {
+  tasks.configureEach {
+    onlyIf { javaVersionSupported }
+  }
   configurations {
     all {
       resolutionStrategy {
@@ -263,7 +267,9 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
-    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark40.get()}"
+    integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark40.get()}") {
+      exclude group: 'org.roaringbitmap'
+    }
     integrationImplementation libs.junit.jupiter
     integrationImplementation libs.junit.platform.launcher
     integrationImplementation libs.slf4j.simple

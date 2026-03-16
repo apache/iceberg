@@ -976,6 +976,26 @@ public class TestViewMetadata {
   }
 
   @Test
+  public void deduplicatingViewVersionByIdAndAssigningSchemaId() {
+    ViewVersion viewVersion = newViewVersion(1, 0, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(2, 1, "select x from ns.tbl");
+    ViewVersion viewVersionThree = newViewVersion(2, -1, "select count(*) from ns.tbl");
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addSchema(new Schema(Types.NestedField.required(2, "y", Types.LongType.get())))
+            .addVersion(viewVersion)
+            .addVersion(viewVersionTwo)
+            .addVersion(viewVersionThree)
+            .setCurrentVersionId(3)
+            .build();
+    assertThat(metadata.versions()).hasSize(3);
+    assertThat(metadata.currentVersion().versionId()).isEqualTo(3);
+    assertThat(metadata.currentVersion().schemaId()).isEqualTo(1);
+  }
+
+  @Test
   public void droppingDialectFailsByDefault() {
     Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
     ViewRepresentation spark =

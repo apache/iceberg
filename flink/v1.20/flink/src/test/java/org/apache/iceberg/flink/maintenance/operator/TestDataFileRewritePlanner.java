@@ -18,11 +18,11 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MAX_FILE_GROUP_INPUT_FILES;
 import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_FILES;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.newDataFiles;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Set;
@@ -41,18 +41,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 
 class TestDataFileRewritePlanner extends OperatorTestBase {
-  @Test
-  void testFailsOnV3Table() throws Exception {
-    Table table = createTable("3");
-    Set<DataFile> expected = Sets.newHashSetWithExpectedSize(3);
-    insert(table, 1, "a");
-    expected.addAll(newDataFiles(table));
-
-    assertThatThrownBy(() -> planDataFileRewrite(tableLoader()))
-        .hasMessageContaining(
-            "Flink does not support compaction on row lineage enabled tables (V3+)")
-        .isInstanceOf(IllegalArgumentException.class);
-  }
 
   @Test
   void testUnpartitioned() throws Exception {
@@ -193,6 +181,25 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
       // Only a single group is planned
       assertThat(testHarness.extractOutputValues()).hasSize(1);
     }
+  }
+
+  @Test
+  void testMaxFileGroupCount() throws Exception {
+    Table table = createPartitionedTable();
+    insertPartitioned(table, 1, "p1");
+    insertPartitioned(table, 2, "p1");
+    insertPartitioned(table, 3, "p2");
+    insertPartitioned(table, 4, "p2");
+    insertPartitioned(table, 5, "p2");
+    insertPartitioned(table, 6, "p2");
+
+    List<DataFileRewritePlanner.PlannedGroup> planWithNoLimit = planDataFileRewrite(tableLoader());
+    assertThat(planWithNoLimit).hasSize(2);
+
+    List<DataFileRewritePlanner.PlannedGroup> planWithMaxFileGroupCount =
+        planDataFileRewrite(
+            tableLoader(), ImmutableMap.of(MIN_INPUT_FILES, "2", MAX_FILE_GROUP_INPUT_FILES, "2"));
+    assertThat(planWithMaxFileGroupCount).hasSize(3);
   }
 
   void assertRewriteFileGroup(

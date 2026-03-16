@@ -229,11 +229,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   private void reset() {
-    cleanUncommitted(newManifests, ImmutableSet.of());
+    deleteUncommitted(newManifests, ImmutableSet.of(), true /* clear new manifests */);
     entryCount.set(0);
     keptManifests.clear();
     rewrittenManifests.clear();
-    newManifests.clear();
     writers.clear();
   }
 
@@ -345,19 +344,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
-    cleanUncommitted(newManifests, committed);
+    deleteUncommitted(newManifests, committed, false);
     // clean up only rewrittenAddedManifests as they are always owned by the table
     // don't clean up addedManifests as they are added to the manifest list and are not compacted
-    cleanUncommitted(rewrittenAddedManifests, committed);
-  }
-
-  private void cleanUncommitted(
-      Iterable<ManifestFile> manifests, Set<ManifestFile> committedManifests) {
-    for (ManifestFile manifest : manifests) {
-      if (!committedManifests.contains(manifest)) {
-        deleteFile(manifest.path());
-      }
-    }
+    deleteUncommitted(rewrittenAddedManifests, committed, false);
   }
 
   long getManifestTargetSizeBytes() {

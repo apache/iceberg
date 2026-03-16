@@ -776,7 +776,7 @@ public class SparkParquetReaders {
 
     @Override
     public VariantVal getVariant(int ordinal) {
-      throw new UnsupportedOperationException("Unsupported method: getVariant");
+      return (VariantVal) values[ordinal];
     }
   }
 }
