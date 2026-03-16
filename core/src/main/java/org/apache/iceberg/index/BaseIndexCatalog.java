@@ -126,7 +126,7 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
       if (ops.current() == null) {
         throw new NoSuchIndexException("Index does not exist: %s", identifier);
       } else {
-        return new BaseIndex(newIndexOps(identifier), fullIndexName(identifier));
+        return new BaseIndex(ops, fullIndexName(identifier));
       }
     }
 
@@ -508,8 +508,8 @@ public abstract class BaseIndexCatalog implements IndexCatalog {
 
       try {
         ops.commit(metadata, replacement);
-      } catch (CommitFailedException ignored) {
-        throw new AlreadyExistsException("Index was updated concurrently: %s", identifier);
+      } catch (CommitFailedException e) {
+        throw new CommitFailedException(e, "Cannot replace index %s: concurrent modification", identifier);
       }
 
       return new BaseIndex(ops, fullIndexName(identifier));
