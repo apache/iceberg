@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
@@ -672,9 +671,9 @@ public class TestArrowReaderStruct {
     }
   }
 
-  /** Struct alongside a filter on a primitive column. */
+  /** Full scan succeeds when struct columns are present. */
   @Test
-  public void testStructWithRowFilter() throws Exception {
+  public void testFullScanWithStructColumn() throws Exception {
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
