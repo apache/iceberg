@@ -706,10 +706,10 @@ project(':iceberg-bigquery') {
 
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
 
-    implementation platform(libs.google.libraries.bom)
+    compileOnly platform(libs.google.libraries.bom)
     compileOnly "com.google.cloud:google-cloud-storage"
-    implementation "com.google.cloud:google-cloud-bigquery"
-    implementation "com.google.cloud:google-cloud-core"
+    compileOnly "com.google.cloud:google-cloud-bigquery"
+    compileOnly "com.google.cloud:google-cloud-core"
 
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
