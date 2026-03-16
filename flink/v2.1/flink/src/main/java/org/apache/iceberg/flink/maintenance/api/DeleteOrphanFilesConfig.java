@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.ConfigOption;
@@ -26,8 +27,10 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.flink.FlinkConfParser;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ThreadPools;
 
 public class DeleteOrphanFilesConfig {
   public static final String PREFIX = FlinkMaintenanceConfig.PREFIX + "delete-orphan-files.";
@@ -162,7 +165,8 @@ public class DeleteOrphanFilesConfig {
         .intConf()
         .option(PLANNING_WORKER_POOL_SIZE)
         .flinkConfig(PLANNING_WORKER_POOL_SIZE_OPTION)
-        .parseOptional();
+        .defaultValue(ThreadPools.WORKER_THREAD_POOL_SIZE)
+        .parse();
   }
 
   public Map<String, String> equalSchemes() {
@@ -172,21 +176,21 @@ public class DeleteOrphanFilesConfig {
             .option(EQUAL_SCHEMES)
             .flinkConfig(EQUAL_SCHEMES_OPTION)
             .parseOptional();
-    if (equalSchemes != null) {
-      return parseKeyValuePairs(equalSchemes);
-    }
 
-    return Maps.newHashMap(DeleteOrphanFiles.DEFAULT_EQUAL_SCHEMES);
+    return equalSchemes != null
+        ? parseKeyValuePairs(equalSchemes)
+        : Maps.newHashMap(DeleteOrphanFiles.DEFAULT_EQUAL_SCHEMES);
   }
 
   public Map<String, String> equalAuthorities() {
-    String value =
+    String equalAuthorities =
         confParser
             .stringConf()
             .option(EQUAL_AUTHORITIES)
             .flinkConfig(EQUAL_AUTHORITIES_OPTION)
             .parseOptional();
-    return value != null ? parseKeyValuePairs(value) : null;
+
+    return equalAuthorities != null ? parseKeyValuePairs(equalAuthorities) : Collections.emptyMap();
   }
 
   public PrefixMismatchMode prefixMismatchMode() {
@@ -204,9 +208,8 @@ public class DeleteOrphanFilesConfig {
     Map<String, String> result = Maps.newHashMap();
     for (String pair : COMMA_SPLITTER.split(value)) {
       List<String> parts = EQUALS_SPLITTER.splitToList(pair);
-      if (parts.size() == 2) {
-        result.put(parts.get(0).trim(), parts.get(1).trim());
-      }
+      Preconditions.checkArgument(parts.size() == 2, "Invalid key-value pair: %s", pair);
+      result.put(parts.get(0).trim(), parts.get(1).trim());
     }
 
     return result;

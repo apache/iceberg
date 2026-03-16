@@ -24,6 +24,7 @@ import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkConfParser;
+import org.apache.iceberg.util.ThreadPools;
 
 public class ExpireSnapshotsConfig {
   public static final String PREFIX = FlinkMaintenanceConfig.PREFIX + "expire-snapshots.";
@@ -144,6 +145,7 @@ public class ExpireSnapshotsConfig {
         .intConf()
         .option(PLANNING_WORKER_POOL_SIZE)
         .flinkConfig(PLANNING_WORKER_POOL_SIZE_OPTION)
-        .parseOptional();
+        .defaultValue(ThreadPools.WORKER_THREAD_POOL_SIZE)
+        .parse();
   }
 }

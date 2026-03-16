@@ -20,12 +20,14 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Collections;
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles.PrefixMismatchMode;
 import org.apache.iceberg.flink.maintenance.operator.OperatorTestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ThreadPools;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -82,9 +84,9 @@ public class TestDeleteOrphanFilesConfig extends OperatorTestBase {
         .isEqualTo(DeleteOrphanFilesConfig.DELETE_BATCH_SIZE_OPTION.defaultValue());
     assertThat(config.location()).isNull();
     assertThat(config.usePrefixListing()).isTrue();
-    assertThat(config.planningWorkerPoolSize()).isNull();
+    assertThat(config.planningWorkerPoolSize()).isEqualTo(ThreadPools.WORKER_THREAD_POOL_SIZE);
     assertThat(config.equalSchemes()).containsEntry("s3n", "s3").containsEntry("s3a", "s3");
-    assertThat(config.equalAuthorities()).isNull();
+    assertThat(config.equalAuthorities()).isEqualTo(Collections.emptyMap());
     assertThat(config.prefixMismatchMode()).isEqualTo(PrefixMismatchMode.ERROR);
   }
 }

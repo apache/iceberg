@@ -199,22 +199,10 @@ public class DeleteOrphanFiles {
           .usePrefixListing(deleteOrphanFilesConfig.usePrefixListing())
           .prefixMismatchMode(deleteOrphanFilesConfig.prefixMismatchMode());
 
-      String loc = deleteOrphanFilesConfig.location();
-      if (loc != null) {
-        this.location(loc);
-      }
-
-      Integer poolSize = deleteOrphanFilesConfig.planningWorkerPoolSize();
-      if (poolSize != null) {
-        this.planningWorkerPoolSize(poolSize);
-      }
-
+      this.location(deleteOrphanFilesConfig.location());
+      this.planningWorkerPoolSize(deleteOrphanFilesConfig.planningWorkerPoolSize());
       this.equalSchemes(deleteOrphanFilesConfig.equalSchemes());
-
-      Map<String, String> authorities = deleteOrphanFilesConfig.equalAuthorities();
-      if (authorities != null) {
-        this.equalAuthorities(authorities);
-      }
+      this.equalAuthorities(deleteOrphanFilesConfig.equalAuthorities());
 
       return this;
     }

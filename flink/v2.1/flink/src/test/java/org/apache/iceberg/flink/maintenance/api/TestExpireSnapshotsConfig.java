@@ -25,6 +25,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.operator.OperatorTestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ThreadPools;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -78,6 +79,6 @@ public class TestExpireSnapshotsConfig extends OperatorTestBase {
     assertThat(config.deleteBatchSize())
         .isEqualTo(ExpireSnapshotsConfig.DELETE_BATCH_SIZE_OPTION.defaultValue());
     assertThat(config.cleanExpiredMetadata()).isTrue();
-    assertThat(config.planningWorkerPoolSize()).isNull();
+    assertThat(config.planningWorkerPoolSize()).isEqualTo(ThreadPools.WORKER_THREAD_POOL_SIZE);
   }
 }

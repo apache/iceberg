@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
+import java.util.Optional;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -112,26 +113,13 @@ public class ExpireSnapshots {
           .scheduleOnInterval(Duration.ofSeconds(expireSnapshotsConfig.scheduleOnIntervalSecond()));
 
       this.deleteBatchSize(expireSnapshotsConfig.deleteBatchSize());
-
-      Long maxSnapshotAgeSec = expireSnapshotsConfig.maxSnapshotAgeSeconds();
-      if (maxSnapshotAgeSec != null) {
-        this.maxSnapshotAge(Duration.ofSeconds(maxSnapshotAgeSec));
-      }
-
-      Integer retain = expireSnapshotsConfig.retainLast();
-      if (retain != null) {
-        this.retainLast(retain);
-      }
-
-      Boolean cleanMetadata = expireSnapshotsConfig.cleanExpiredMetadata();
-      if (cleanMetadata != null) {
-        this.cleanExpiredMetadata(cleanMetadata);
-      }
-
-      Integer poolSize = expireSnapshotsConfig.planningWorkerPoolSize();
-      if (poolSize != null) {
-        this.planningWorkerPoolSize(poolSize);
-      }
+      this.maxSnapshotAge(
+          Optional.ofNullable(expireSnapshotsConfig.maxSnapshotAgeSeconds())
+              .map(Duration::ofSeconds)
+              .orElse(null));
+      this.retainLast(expireSnapshotsConfig.retainLast());
+      this.cleanExpiredMetadata(expireSnapshotsConfig.cleanExpiredMetadata());
+      this.planningWorkerPoolSize(expireSnapshotsConfig.planningWorkerPoolSize());
 
       return this;
     }
