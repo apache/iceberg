@@ -73,6 +73,7 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.ExpireSnapshots;
 import org.apache.iceberg.flink.maintenance.api.ExpireSnapshotsConfig;
@@ -783,9 +784,7 @@ public class IcebergSink
       if (flinkWriteConf.deleteOrphanFilesMode()) {
         DeleteOrphanFilesConfig deleteOrphanFilesConfig =
             flinkMaintenanceConfig.createDeleteOrphanFilesConfig();
-        maintenanceTasks.add(
-            org.apache.iceberg.flink.maintenance.api.DeleteOrphanFiles.builder()
-                .config(deleteOrphanFilesConfig));
+        maintenanceTasks.add(DeleteOrphanFiles.builder().config(deleteOrphanFilesConfig));
       }
 
       Set<String> equalityFieldColumnsSet =
