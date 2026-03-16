@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
@@ -354,7 +353,7 @@ public class HTTPClient extends BaseHTTPClient {
 
       ObjectReader reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
       if (parserContext != null && !parserContext.isEmpty()) {
-          reader = reader.with(parserContext.toInjectableValues());
+        reader = reader.with(parserContext.toInjectableValues());
       }
       return reader.readValue(response.getEntity().getContent());
     } catch (IOException e) {
