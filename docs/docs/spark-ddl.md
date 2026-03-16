@@ -102,7 +102,6 @@ TBLPROPERTIES ('key'='value')
 AS SELECT ...
 ```
 
-
 ## `CREATE TABLE ... LIKE ...`
 
 Iceberg supports `CREATE TABLE ... LIKE ...`.
