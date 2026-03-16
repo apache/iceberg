@@ -207,7 +207,7 @@ env.execute("Table Maintenance Job");
 | `retainLast(int)` | Minimum number of snapshots to retain | 1 | int |
 | `deleteBatchSize(int)` | Number of files to delete in each batch | 1000 | int |
 | `planningWorkerPoolSize(int)` | Number of worker threads for planning snapshot expiration | Shared worker pool | int |
-| `cleanExpiredMetadata(boolean)` | Remove expired metadata files when expiring snapshots | false | boolean |
+| `cleanExpiredMetadata(boolean)` | Remove expired metadata files when expiring snapshots | true | boolean |
 
 #### RewriteDataFiles Configuration
 
@@ -232,7 +232,7 @@ env.execute("Table Maintenance Job");
 | Method                                   | Description                                                                                                                                                                                                                                                                                                                                                             | Default Value           | Type               |
 |------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|--------------------|
 | `location(string)`                       | The location to start the recursive listing of the candidate files for removal.                                                                                                                                                                                                                                                                                            | Table's location        | String             |
-| `usePrefixListing(boolean)`              | When true, use prefix-based file listing via the SupportsPrefixOperations interface. The Table FileIO implementation must support SupportsPrefixOperations when this flag is enabled.(Note: Setting it to False will use a recursive method to obtain file information. If the underlying storage is object storage, it will repeatedly call the API to get the path.)  | False                   | boolean            |
+| `usePrefixListing(boolean)`              | When true, use prefix-based file listing via the SupportsPrefixOperations interface. The Table FileIO implementation must support SupportsPrefixOperations when this flag is enabled.(Note: Setting it to False will use a recursive method to obtain file information. If the underlying storage is object storage, it will repeatedly call the API to get the path.)  | True                    | boolean            |
 | `prefixMismatchMode(PrefixMismatchMode)` | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul>                                                                                                                                                                                        | ERROR                   | PrefixMismatchMode |
 | `equalSchemes(Map<String, String>)`      | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme                                                                                                                                                                                                                                                   | "s3n"=>"s3","s3a"=>"s3" | Map<String,String> |  
 | `equalAuthorities(Map<String, String>)`  | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority.                                                                                                                                                                                                                                      | Empty map               | Map<String,String> |  
@@ -438,29 +438,24 @@ These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Build
 | Key | Description | Default |
 |-----|-------------|---------|
 | `flink-maintenance.expire-snapshots.schedule.commit-count` | Trigger after N commits | `10` |
-| `flink-maintenance.expire-snapshots.schedule.data-file-count` | Trigger after N data files | `1000` |
-| `flink-maintenance.expire-snapshots.schedule.data-file-size` | Trigger after total data file size (bytes) | `107374182400` (100GB) |
-| `flink-maintenance.expire-snapshots.schedule.interval-second` | Trigger after time interval (seconds) | `600` |
+| `flink-maintenance.expire-snapshots.schedule.interval-second` | Trigger after time interval (seconds) | `3600` (1 hour) |
 | `flink-maintenance.expire-snapshots.max-snapshot-age-seconds` | Maximum age of snapshots to retain (seconds) | Not set |
 | `flink-maintenance.expire-snapshots.retain-last` | Minimum number of snapshots to retain | Not set |
 | `flink-maintenance.expire-snapshots.delete-batch-size` | Batch size for deleting expired files | `1000` |
-| `flink-maintenance.expire-snapshots.clean-expired-metadata` | Remove expired metadata (partition specs, schemas) | Not set |
+| `flink-maintenance.expire-snapshots.clean-expired-metadata` | Remove expired metadata (partition specs, schemas) | `true` |
 | `flink-maintenance.expire-snapshots.planning-worker-pool-size` | Worker pool size for planning | Shared pool |
 
 #### Delete Orphan Files Configuration
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `flink-maintenance.delete-orphan-files.schedule.commit-count` | Trigger after N commits | `10` |
-| `flink-maintenance.delete-orphan-files.schedule.data-file-count` | Trigger after N data files | `1000` |
-| `flink-maintenance.delete-orphan-files.schedule.data-file-size` | Trigger after total data file size (bytes) | `107374182400` (100GB) |
-| `flink-maintenance.delete-orphan-files.schedule.interval-second` | Trigger after time interval (seconds) | `600` |
+| `flink-maintenance.delete-orphan-files.schedule.interval-second` | Trigger after time interval (seconds) | `3600` (1 hour) |
 | `flink-maintenance.delete-orphan-files.min-age-seconds` | Minimum age of files to consider for deletion (seconds) | `259200` (3 days) |
 | `flink-maintenance.delete-orphan-files.delete-batch-size` | Batch size for deleting orphan files | `1000` |
 | `flink-maintenance.delete-orphan-files.location` | Location to start recursive listing | Table location |
-| `flink-maintenance.delete-orphan-files.use-prefix-listing` | Use prefix listing for file discovery | `false` |
+| `flink-maintenance.delete-orphan-files.use-prefix-listing` | Use prefix listing for file discovery | `true` |
 | `flink-maintenance.delete-orphan-files.planning-worker-pool-size` | Worker pool size for planning | Shared pool |
-| `flink-maintenance.delete-orphan-files.equal-schemes` | Equivalent schemes (format: `s3n=s3,s3a=s3`) | Not set |
+| `flink-maintenance.delete-orphan-files.equal-schemes` | Equivalent schemes (format: `s3n=s3,s3a=s3`) | `s3n=s3,s3a=s3` |
 | `flink-maintenance.delete-orphan-files.equal-authorities` | Equivalent authorities (format: `auth1=auth2`) | Not set |
 | `flink-maintenance.delete-orphan-files.prefix-mismatch-mode` | Behavior on prefix mismatch: `ERROR`, `IGNORE`, `DELETE` | `ERROR` |
 

@@ -37,8 +37,6 @@ public class TestExpireSnapshotsConfig extends OperatorTestBase {
   public void before() {
     this.table = createTable();
     input.put(ExpireSnapshotsConfig.SCHEDULE_ON_COMMIT_COUNT, "10");
-    input.put(ExpireSnapshotsConfig.SCHEDULE_ON_DATA_FILE_COUNT, "20");
-    input.put(ExpireSnapshotsConfig.SCHEDULE_ON_DATA_FILE_SIZE, "30");
     input.put(ExpireSnapshotsConfig.SCHEDULE_ON_INTERVAL_SECOND, "60");
     input.put(ExpireSnapshotsConfig.MAX_SNAPSHOT_AGE_SECONDS, "7200");
     input.put(ExpireSnapshotsConfig.RETAIN_LAST, "5");
@@ -58,8 +56,6 @@ public class TestExpireSnapshotsConfig extends OperatorTestBase {
     ExpireSnapshotsConfig config = new ExpireSnapshotsConfig(table, input, new Configuration());
 
     assertThat(config.scheduleOnCommitCount()).isEqualTo(10);
-    assertThat(config.scheduleOnDataFileCount()).isEqualTo(20);
-    assertThat(config.scheduleOnDataFileSize()).isEqualTo(30);
     assertThat(config.scheduleOnIntervalSecond()).isEqualTo(60);
     assertThat(config.maxSnapshotAgeSeconds()).isEqualTo(7200L);
     assertThat(config.retainLast()).isEqualTo(5);
@@ -75,17 +71,13 @@ public class TestExpireSnapshotsConfig extends OperatorTestBase {
 
     assertThat(config.scheduleOnCommitCount())
         .isEqualTo(ExpireSnapshotsConfig.SCHEDULE_ON_COMMIT_COUNT_OPTION.defaultValue());
-    assertThat(config.scheduleOnDataFileCount())
-        .isEqualTo(ExpireSnapshotsConfig.SCHEDULE_ON_DATA_FILE_COUNT_OPTION.defaultValue());
-    assertThat(config.scheduleOnDataFileSize())
-        .isEqualTo(ExpireSnapshotsConfig.SCHEDULE_ON_DATA_FILE_SIZE_OPTION.defaultValue());
     assertThat(config.scheduleOnIntervalSecond())
         .isEqualTo(ExpireSnapshotsConfig.SCHEDULE_ON_INTERVAL_SECOND_OPTION.defaultValue());
     assertThat(config.maxSnapshotAgeSeconds()).isNull();
     assertThat(config.retainLast()).isNull();
     assertThat(config.deleteBatchSize())
         .isEqualTo(ExpireSnapshotsConfig.DELETE_BATCH_SIZE_OPTION.defaultValue());
-    assertThat(config.cleanExpiredMetadata()).isFalse();
+    assertThat(config.cleanExpiredMetadata()).isTrue();
     assertThat(config.planningWorkerPoolSize()).isNull();
   }
 }

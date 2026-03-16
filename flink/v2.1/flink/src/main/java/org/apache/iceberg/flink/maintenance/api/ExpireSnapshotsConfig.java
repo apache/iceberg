@@ -36,22 +36,6 @@ public class ExpireSnapshotsConfig {
           .withDescription(
               "The number of commits after which to trigger a new expire snapshots operation.");
 
-  public static final String SCHEDULE_ON_DATA_FILE_COUNT = PREFIX + "schedule.data-file-count";
-  public static final ConfigOption<Integer> SCHEDULE_ON_DATA_FILE_COUNT_OPTION =
-      ConfigOptions.key(SCHEDULE_ON_DATA_FILE_COUNT)
-          .intType()
-          .defaultValue(1000)
-          .withDescription(
-              "The number of data files that should trigger a new expire snapshots operation.");
-
-  public static final String SCHEDULE_ON_DATA_FILE_SIZE = PREFIX + "schedule.data-file-size";
-  public static final ConfigOption<Long> SCHEDULE_ON_DATA_FILE_SIZE_OPTION =
-      ConfigOptions.key(SCHEDULE_ON_DATA_FILE_SIZE)
-          .longType()
-          .defaultValue(100L * 1024 * 1024 * 1024) // Default is 100 GB
-          .withDescription(
-              "The total size of data files that should trigger a new expire snapshots operation.");
-
   public static final String SCHEDULE_ON_INTERVAL_SECOND = PREFIX + "schedule.interval-second";
   public static final ConfigOption<Long> SCHEDULE_ON_INTERVAL_SECOND_OPTION =
       ConfigOptions.key(SCHEDULE_ON_INTERVAL_SECOND)
@@ -87,7 +71,7 @@ public class ExpireSnapshotsConfig {
   public static final ConfigOption<Boolean> CLEAN_EXPIRED_METADATA_OPTION =
       ConfigOptions.key(CLEAN_EXPIRED_METADATA)
           .booleanType()
-          .defaultValue(false)
+          .defaultValue(true)
           .withDescription(
               "Whether to clean expired metadata such as partition specs and schemas.");
 
@@ -113,24 +97,6 @@ public class ExpireSnapshotsConfig {
         .option(SCHEDULE_ON_COMMIT_COUNT)
         .flinkConfig(SCHEDULE_ON_COMMIT_COUNT_OPTION)
         .defaultValue(SCHEDULE_ON_COMMIT_COUNT_OPTION.defaultValue())
-        .parse();
-  }
-
-  public int scheduleOnDataFileCount() {
-    return confParser
-        .intConf()
-        .option(SCHEDULE_ON_DATA_FILE_COUNT)
-        .flinkConfig(SCHEDULE_ON_DATA_FILE_COUNT_OPTION)
-        .defaultValue(SCHEDULE_ON_DATA_FILE_COUNT_OPTION.defaultValue())
-        .parse();
-  }
-
-  public long scheduleOnDataFileSize() {
-    return confParser
-        .longConf()
-        .option(SCHEDULE_ON_DATA_FILE_SIZE)
-        .flinkConfig(SCHEDULE_ON_DATA_FILE_SIZE_OPTION)
-        .defaultValue(SCHEDULE_ON_DATA_FILE_SIZE_OPTION.defaultValue())
         .parse();
   }
 

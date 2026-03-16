@@ -35,30 +35,6 @@ public class DeleteOrphanFilesConfig {
   private static final Splitter COMMA_SPLITTER = Splitter.on(",");
   private static final Splitter EQUALS_SPLITTER = Splitter.on("=").limit(2);
 
-  public static final String SCHEDULE_ON_COMMIT_COUNT = PREFIX + "schedule.commit-count";
-  public static final ConfigOption<Integer> SCHEDULE_ON_COMMIT_COUNT_OPTION =
-      ConfigOptions.key(SCHEDULE_ON_COMMIT_COUNT)
-          .intType()
-          .defaultValue(10)
-          .withDescription(
-              "The number of commits after which to trigger a new delete orphan files operation.");
-
-  public static final String SCHEDULE_ON_DATA_FILE_COUNT = PREFIX + "schedule.data-file-count";
-  public static final ConfigOption<Integer> SCHEDULE_ON_DATA_FILE_COUNT_OPTION =
-      ConfigOptions.key(SCHEDULE_ON_DATA_FILE_COUNT)
-          .intType()
-          .defaultValue(1000)
-          .withDescription(
-              "The number of data files that should trigger a new delete orphan files operation.");
-
-  public static final String SCHEDULE_ON_DATA_FILE_SIZE = PREFIX + "schedule.data-file-size";
-  public static final ConfigOption<Long> SCHEDULE_ON_DATA_FILE_SIZE_OPTION =
-      ConfigOptions.key(SCHEDULE_ON_DATA_FILE_SIZE)
-          .longType()
-          .defaultValue(100L * 1024 * 1024 * 1024) // Default is 100 GB
-          .withDescription(
-              "The total size of data files that should trigger a new delete orphan files operation.");
-
   public static final String SCHEDULE_ON_INTERVAL_SECOND = PREFIX + "schedule.interval-second";
   public static final ConfigOption<Long> SCHEDULE_ON_INTERVAL_SECOND_OPTION =
       ConfigOptions.key(SCHEDULE_ON_INTERVAL_SECOND)
@@ -96,7 +72,7 @@ public class DeleteOrphanFilesConfig {
   public static final ConfigOption<Boolean> USE_PREFIX_LISTING_OPTION =
       ConfigOptions.key(USE_PREFIX_LISTING)
           .booleanType()
-          .defaultValue(false)
+          .defaultValue(true)
           .withDescription(
               "Whether to use prefix listing when listing files from the file system.");
 
@@ -139,33 +115,6 @@ public class DeleteOrphanFilesConfig {
   public DeleteOrphanFilesConfig(
       Table table, Map<String, String> writeOptions, ReadableConfig readableConfig) {
     this.confParser = new FlinkConfParser(table, writeOptions, readableConfig);
-  }
-
-  public int scheduleOnCommitCount() {
-    return confParser
-        .intConf()
-        .option(SCHEDULE_ON_COMMIT_COUNT)
-        .flinkConfig(SCHEDULE_ON_COMMIT_COUNT_OPTION)
-        .defaultValue(SCHEDULE_ON_COMMIT_COUNT_OPTION.defaultValue())
-        .parse();
-  }
-
-  public int scheduleOnDataFileCount() {
-    return confParser
-        .intConf()
-        .option(SCHEDULE_ON_DATA_FILE_COUNT)
-        .flinkConfig(SCHEDULE_ON_DATA_FILE_COUNT_OPTION)
-        .defaultValue(SCHEDULE_ON_DATA_FILE_COUNT_OPTION.defaultValue())
-        .parse();
-  }
-
-  public long scheduleOnDataFileSize() {
-    return confParser
-        .longConf()
-        .option(SCHEDULE_ON_DATA_FILE_SIZE)
-        .flinkConfig(SCHEDULE_ON_DATA_FILE_SIZE_OPTION)
-        .defaultValue(SCHEDULE_ON_DATA_FILE_SIZE_OPTION.defaultValue())
-        .parse();
   }
 
   public long scheduleOnIntervalSecond() {
@@ -217,13 +166,17 @@ public class DeleteOrphanFilesConfig {
   }
 
   public Map<String, String> equalSchemes() {
-    String value =
+    String equalSchemes =
         confParser
             .stringConf()
             .option(EQUAL_SCHEMES)
             .flinkConfig(EQUAL_SCHEMES_OPTION)
             .parseOptional();
-    return value != null ? parseKeyValuePairs(value) : null;
+    if (equalSchemes != null) {
+      return parseKeyValuePairs(equalSchemes);
+    }
+
+    return Maps.newHashMap(DeleteOrphanFiles.DEFAULT_EQUAL_SCHEMES);
   }
 
   public Map<String, String> equalAuthorities() {

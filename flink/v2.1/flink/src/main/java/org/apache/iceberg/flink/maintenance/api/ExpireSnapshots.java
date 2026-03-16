@@ -109,8 +109,6 @@ public class ExpireSnapshots {
 
     public Builder config(ExpireSnapshotsConfig expireSnapshotsConfig) {
       this.scheduleOnCommitCount(expireSnapshotsConfig.scheduleOnCommitCount())
-          .scheduleOnDataFileCount(expireSnapshotsConfig.scheduleOnDataFileCount())
-          .scheduleOnDataFileSize(expireSnapshotsConfig.scheduleOnDataFileSize())
           .scheduleOnInterval(Duration.ofSeconds(expireSnapshotsConfig.scheduleOnIntervalSecond()));
 
       this.deleteBatchSize(expireSnapshotsConfig.deleteBatchSize());
