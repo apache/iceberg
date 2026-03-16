@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -588,24 +588,42 @@ class StorageCredential(BaseModel):
     config: dict[str, str]
 
 
-class MaskHashSha256(BaseModel):
-    __root__: Any = Field(
-        ...,
-        description='Mask the data of the column by applying SHA-256.\nThe input must be UTF-8 encoded bytes of the column value.\nThe SHA-256 digest is represented as a lowercase hexadecimal string.\nEngines must follow this procedure to ensure consistency:\n1. Convert the column value to a UTF-8 byte array.\n2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.\n3. Convert the resulting 32-byte digest to a 64-character lowercase hexadecimal string.\n',
+class Action(BaseModel):
+    action: str
+    field_id: int = Field(
+        ..., alias='field-id', description='field id of the column being projected.'
     )
 
 
-class ReplaceWithNull(BaseModel):
-    __root__: Any = Field(
-        ..., description='Masks data by replacing it with a NULL value.'
-    )
+class MaskHashSha256(Action):
+    """
+    Mask the data of the column by applying SHA-256.
+    The input must be UTF-8 encoded bytes of the column value.
+    The SHA-256 digest is represented as a lowercase hexadecimal string.
+    Engines must follow this procedure to ensure consistency:
+    1. Convert the column value to a UTF-8 byte array.
+    2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.
+    3. Convert the resulting 32-byte digest to a 64-character lowercase hexadecimal string.
+
+    """
+
+    action: Literal['mask-hash-sha256'] = Field('mask-hash-sha256', const=True)
 
 
-class MaskAlphanumeric(BaseModel):
-    __root__: Any = Field(
-        ...,
-        description="mask all alphabetic characters with 'x' and numeric characters with 'n'",
-    )
+class ReplaceWithNull(Action):
+    """
+    Masks data by replacing it with a NULL value.
+    """
+
+    action: Literal['replace-with-null'] = Field('replace-with-null', const=True)
+
+
+class MaskAlphanumeric(Action):
+    """
+    mask all alphabetic characters with 'x' and numeric characters with 'n'
+    """
+
+    action: Literal['mask-alphanumeric'] = Field('mask-alphanumeric', const=True)
 
 
 class LoadCredentialsResponse(BaseModel):
@@ -1305,11 +1323,12 @@ class FunctionDefinitionVersion(BaseModel):
     )
 
 
-class ApplyTransform(BaseModel):
+class ApplyTransform(Action):
     """
     Replace the field with the result of a transform expression. Produce the original field name with the transformed values.
     """
 
+    action: Literal['apply-transform'] = Field('apply-transform', const=True)
     term: Term | None = None
 
 
@@ -1405,27 +1424,6 @@ class SetExpression(BaseModel):
     )
     term: Term
     values: list[PrimitiveTypeValue]
-
-
-class Action(BaseModel):
-    __root__: MaskHashSha256 | ReplaceWithNull | MaskAlphanumeric | ApplyTransform = (
-        Field(
-            ...,
-            description='Defines the specific action to be executed for computing the projection.',
-        )
-    )
-
-
-class Projection(BaseModel):
-    """
-    Defines a projection for a column. If action is not specified, the column is projected as-is.
-
-    """
-
-    field_id: int = Field(
-        ..., alias='field-id', description='field id of the column being projected.'
-    )
-    action: Action | None = None
 
 
 class StructField(BaseModel):
@@ -1582,10 +1580,13 @@ class ReadRestrictions(BaseModel):
 
     """
 
-    required_column_projections: list[Projection] | None = Field(
+    required_column_projections: (
+        list[MaskHashSha256 | ReplaceWithNull | MaskAlphanumeric | ApplyTransform]
+        | None
+    ) = Field(
         None,
         alias='required-column-projections',
-        description="A list of columns that require specific projections or transforms to be applied.\nIf this property is absent, a reader MAY access all columns of the table as-is without any mandatory transformations.\nIf this property is present, each listed column MUST have its specified projection or action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader MUST apply\n  the specified action or transform.\n\n2. If a listed column has an action, the reader MUST apply it and replace\n  all references to the underlying column with the transformed value.\n  For example, if the action specifies truncate[4](cc), the reader MUST project it\n  as truncate[4](cc) AS cc, and all references to cc during query evaluation\n  (including in required-row-filter) MUST resolve to this transformed alias.\n\n3. If a listed column has no action specified, the reader MUST project the column as-is\n  (equivalent to an identity transform).\n\n4. Columns not listed in required-column-projections MAY be projected normally\n  by the reader without any mandatory transformations.\n\n5. A column MUST appear at most once in required-column-projections.\n6. If a projected column's action cannot be evaluated by the reader,\n  the reader MUST fail rather than ignore or skip the transform.\n\n7. The data type of a projected column MUST match the data type defined for\n  the transform result or the original column type if no transform is specified.\n",
+        description="A list of columns that require specific projections or transforms to be applied.\nIf this property is absent, a reader MAY access all columns of the table as-is without any mandatory transformations.\nIf this property is present, each listed column MUST have its specified projection or action applied. Columns not listed in required-column-projections are not subject to any read restrictions.\nWhen this list is present:\n1. For each column listed in required-column-projections, the reader MUST apply\n  the specified action or transform.\n\n2. The reader MUST apply the action and replace all references to the underlying\n  column with the transformed value. For example, if the action specifies\n  truncate[4](cc), the reader MUST project it as truncate[4](cc) AS cc, and all\n  references to cc during query evaluation (including in required-row-filter)\n  MUST resolve to this transformed alias.\n\n3. Columns not listed in required-column-projections MAY be projected normally\n  by the reader without any mandatory transformations.\n\n4. A column MUST appear at most once in required-column-projections.\n5. If a projected column's action cannot be evaluated by the reader,\n  the reader MUST fail rather than ignore or skip the transform.\n\n6. The data type of a projected column MUST match the data type defined for\n  the transform result.\n",
     )
     required_row_filter: Expression | None = Field(
         None,
