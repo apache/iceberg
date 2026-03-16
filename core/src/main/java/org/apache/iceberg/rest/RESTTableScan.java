@@ -130,7 +130,7 @@ class RESTTableScan extends DataTableScan {
   }
 
   @Override
-  public Supplier<FileIO> io() {
+  public Supplier<FileIO> fileIO() {
     return () -> {
       Preconditions.checkState(
           null != scanFileIO, "FileIO is not available: planFiles() must be called first");

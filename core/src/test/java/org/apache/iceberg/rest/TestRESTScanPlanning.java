@@ -996,19 +996,20 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
 
     TableScan tableScan = table.newScan();
-    assertThatThrownBy(() -> tableScan.io().get())
+    assertThatThrownBy(() -> tableScan.fileIO().get())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("FileIO is not available: planFiles() must be called first");
 
     // make sure remote scan planning is called and FileIO gets the planId
     assertThat(tableScan.planFiles()).hasSize(1);
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
-    assertThat(tableScan.io().get().properties())
+    assertThat(tableScan.fileIO().get().properties())
         .containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
-    String planId = tableScan.io().get().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    String planId =
+        tableScan.fileIO().get().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID);
 
     TableScan newScan = table.newScan();
-    assertThatThrownBy(() -> newScan.io().get())
+    assertThatThrownBy(() -> newScan.fileIO().get())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("FileIO is not available: planFiles() must be called first");
 
@@ -1017,9 +1018,9 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     assertThat(table.io().properties()).doesNotContainKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
 
     // make sure planIds are different for each scan
-    assertThat(newScan.io().get().properties())
+    assertThat(newScan.fileIO().get().properties())
         .containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
-    assertThat(newScan.io().get().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID))
+    assertThat(newScan.fileIO().get().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID))
         .isNotEqualTo(planId);
   }
 

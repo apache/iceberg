@@ -41,8 +41,8 @@ public class BatchScanAdapter implements BatchScan {
   }
 
   @Override
-  public Supplier<FileIO> io() {
-    return scan.io();
+  public Supplier<FileIO> fileIO() {
+    return scan.fileIO();
   }
 
   @Override
