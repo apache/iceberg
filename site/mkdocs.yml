@@ -66,6 +66,7 @@ plugins:
         rss_created: rss.xml
   - macros
   - monorepo
+  - privacy
   - offline:
       enabled: !ENV [OFFLINE, false]
   - redirects:
