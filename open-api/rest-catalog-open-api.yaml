@@ -3692,29 +3692,26 @@ components:
             1. For each column listed in required-column-projections, the reader MUST apply
               the specified action or transform.
 
-            2. If a listed column has an action, the reader MUST apply it and replace
-              all references to the underlying column with the transformed value.
-              For example, if the action specifies truncate[4](cc), the reader MUST project it
-              as truncate[4](cc) AS cc, and all references to cc during query evaluation
-              (including in required-row-filter) MUST resolve to this transformed alias.
+            2. The reader MUST apply the action and replace all references to the underlying
+              column with the transformed value. For example, if the action specifies
+              truncate[4](cc), the reader MUST project it as truncate[4](cc) AS cc, and all
+              references to cc during query evaluation (including in required-row-filter)
+              MUST resolve to this transformed alias.
 
-            3. If a listed column has no action specified, the reader MUST project the column as-is
-              (equivalent to an identity transform).
-
-            4. Columns not listed in required-column-projections MAY be projected normally
+            3. Columns not listed in required-column-projections MAY be projected normally
               by the reader without any mandatory transformations.
 
-            5. A column MUST appear at most once in required-column-projections.
+            4. A column MUST appear at most once in required-column-projections.
 
-            6. If a projected column's action cannot be evaluated by the reader,
+            5. If a projected column's action cannot be evaluated by the reader,
               the reader MUST fail rather than ignore or skip the transform.
 
-            7. The data type of a projected column MUST match the data type defined for
-              the transform result or the original column type if no transform is specified.
+            6. The data type of a projected column MUST match the data type defined for
+              the transform result.
 
           type: array
           items:
-            $ref: '#/components/schemas/Projection'
+            $ref: '#/components/schemas/Action'
         required-row-filter:
           description: >
             An expression that filters rows in the table that the authenticated principal does not have access to.
@@ -3730,27 +3727,24 @@ components:
             4. If this property is absent, null, or always true then no mandatory filtering is required.
           $ref: '#/components/schemas/Expression'
 
-    Projection:
+    Action:
+      discriminator:
+        propertyName: action
+        mapping:
+          mask-hash-sha256: '#/components/schemas/MaskHashSha256'
+          replace-with-null: '#/components/schemas/ReplaceWithNull'
+          mask-alphanumeric: '#/components/schemas/MaskAlphanumeric'
+          apply-transform: '#/components/schemas/ApplyTransform'
       type: object
-      description: >
-        Defines a projection for a column.
-        If action is not specified, the column is projected as-is.
+      required:
+        - action
+        - field-id
       properties:
+        action:
+          type: string
         field-id:
           type: integer
           description: field id of the column being projected.
-        action:
-          $ref: '#/components/schemas/Action'
-      required:
-        - field-id
-
-    Action:
-      description: Defines the specific action to be executed for computing the projection.
-      oneOf:
-        - $ref: '#/components/schemas/MaskHashSha256'
-        - $ref: '#/components/schemas/ReplaceWithNull'
-        - $ref: '#/components/schemas/MaskAlphanumeric'
-        - $ref: '#/components/schemas/ApplyTransform'
 
     MaskHashSha256:
       description: |
@@ -3761,17 +3755,39 @@ components:
         1. Convert the column value to a UTF-8 byte array.
         2. Apply the SHA-256 algorithm as specified in NIST FIPS 180-4.
         3. Convert the resulting 32-byte digest to a 64-character lowercase hexadecimal string.
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "mask-hash-sha256"
 
     ReplaceWithNull:
       description: Masks data by replacing it with a NULL value.
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "replace-with-null"
 
     MaskAlphanumeric:
       description: mask all alphabetic characters with 'x' and numeric characters with 'n'
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "mask-alphanumeric"
 
     ApplyTransform:
-      type: object
       description: Replace the field with the result of a transform expression. Produce the original field name with the transformed values.
+      allOf:
+        - $ref: '#/components/schemas/Action'
       properties:
+        action:
+          type: string
+          const: "apply-transform"
         term:
           $ref: '#/components/schemas/Term'
 
