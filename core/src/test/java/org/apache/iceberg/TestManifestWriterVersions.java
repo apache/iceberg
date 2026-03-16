@@ -23,10 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.file.SeekableFileInput;
+import org.apache.avro.generic.GenericDatumReader;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -311,6 +315,48 @@ public class TestManifestWriterVersions {
 
     // should not inherit the v3 sequence number because it was written into the v3 manifest
     checkRewrittenEntry(readManifest(manifest3), 0L, FileContent.DATA, FIRST_ROW_ID);
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testDefaultManifestCompression(int formatVersion) throws IOException {
+    File manifestFile = temp.resolve("default-v" + formatVersion + ".avro").toFile();
+    OutputFile outputFile = Files.localOutput(manifestFile);
+
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, SPEC, outputFile, SNAPSHOT_ID);
+    try {
+      writer.add(DATA_FILE);
+    } finally {
+      writer.close();
+    }
+
+    assertThat(readAvroCodec(manifestFile)).isEqualTo("deflate");
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testCustomManifestCompression(int formatVersion) throws IOException {
+    Map<String, String> props = ImmutableMap.of(TableProperties.AVRO_COMPRESSION, "snappy");
+    File manifestFile = temp.resolve("snappy-v" + formatVersion + ".avro").toFile();
+    OutputFile outputFile = Files.localOutput(manifestFile);
+
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, SPEC, outputFile, SNAPSHOT_ID, props);
+    try {
+      writer.add(DATA_FILE);
+    } finally {
+      writer.close();
+    }
+
+    assertThat(readAvroCodec(manifestFile)).isEqualTo("snappy");
+  }
+
+  private static String readAvroCodec(File file) throws IOException {
+    try (DataFileReader<?> reader =
+        new DataFileReader<>(new SeekableFileInput(file), new GenericDatumReader<>())) {
+      return reader.getMetaString("avro.codec");
+    }
   }
 
   void checkEntry(
