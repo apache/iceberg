@@ -640,12 +640,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     String codec =
         metadata.property(
-            TableProperties.AVRO_COMPRESSION, TableProperties.AVRO_COMPRESSION_DEFAULT);
+            TableProperties.MANIFEST_COMPRESSION, TableProperties.MANIFEST_COMPRESSION_DEFAULT);
     builder.put(TableProperties.AVRO_COMPRESSION, codec);
 
     String level =
         metadata.property(
-            TableProperties.AVRO_COMPRESSION_LEVEL, TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT);
+            TableProperties.MANIFEST_COMPRESSION_LEVEL,
+            TableProperties.MANIFEST_COMPRESSION_LEVEL_DEFAULT);
     if (level != null) {
       builder.put(TableProperties.AVRO_COMPRESSION_LEVEL, level);
     }

@@ -28,7 +28,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
  * Writer for manifest files.
@@ -59,11 +58,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private int deletedFiles = 0;
   private long deletedRows = 0L;
   private Long minDataSequenceNumber = null;
-
-  private ManifestWriter(
-      PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
-    this(spec, file, snapshotId, firstRowId, ImmutableMap.of());
-  }
 
   private ManifestWriter(
       PartitionSpec spec,
@@ -255,11 +249,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V4Writer extends ManifestWriter<DataFile> {
     private final V4Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
 
-    V4Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
-      super(spec, file, snapshotId, firstRowId);
-      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
-    }
-
     V4Writer(
         PartitionSpec spec,
         EncryptedOutputFile file,
@@ -290,9 +279,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
                 .meta("format-version", "4")
                 .meta("content", "data")
                 .overwrite();
-        for (Map.Entry<String, String> entry : writerProperties().entrySet()) {
-          builder.set(entry.getKey(), entry.getValue());
-        }
+        builder.set(writerProperties());
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(
@@ -303,11 +290,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   static class V4DeleteWriter extends ManifestWriter<DeleteFile> {
     private final V4Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
-
-    V4DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId, null);
-      this.entryWrapper = new V4Metadata.ManifestEntryWrapper<>(snapshotId);
-    }
 
     V4DeleteWriter(
         PartitionSpec spec,
@@ -338,9 +320,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
                 .meta("format-version", "4")
                 .meta("content", "deletes")
                 .overwrite();
-        for (Map.Entry<String, String> entry : writerProperties().entrySet()) {
-          builder.set(entry.getKey(), entry.getValue());
-        }
+        builder.set(writerProperties());
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(
@@ -356,11 +336,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   static class V3Writer extends ManifestWriter<DataFile> {
     private final V3Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
-
-    V3Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
-      super(spec, file, snapshotId, firstRowId);
-      this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
-    }
 
     V3Writer(
         PartitionSpec spec,
@@ -392,9 +367,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
                 .meta("format-version", "3")
                 .meta("content", "data")
                 .overwrite();
-        for (Map.Entry<String, String> entry : writerProperties().entrySet()) {
-          builder.set(entry.getKey(), entry.getValue());
-        }
+        builder.set(writerProperties());
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(
@@ -405,11 +378,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   static class V3DeleteWriter extends ManifestWriter<DeleteFile> {
     private final V3Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
-
-    V3DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId, null);
-      this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
-    }
 
     V3DeleteWriter(
         PartitionSpec spec,
@@ -440,9 +408,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
                 .meta("format-version", "3")
                 .meta("content", "deletes")
                 .overwrite();
-        for (Map.Entry<String, String> entry : writerProperties().entrySet()) {
-          builder.set(entry.getKey(), entry.getValue());
-        }
+        builder.set(writerProperties());
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(
@@ -458,11 +424,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   static class V2Writer extends ManifestWriter<DataFile> {
     private final V2Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
-
-    V2Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId, null);
-      this.entryWrapper = new V2Metadata.ManifestEntryWrapper<>(snapshotId);
-    }
 
     V2Writer(
         PartitionSpec spec,
@@ -493,9 +454,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
                 .meta("format-version", "2")
                 .meta("content", "data")
                 .overwrite();
-        for (Map.Entry<String, String> entry : writerProperties().entrySet()) {
-          builder.set(entry.getKey(), entry.getValue());
-        }
+        builder.set(writerProperties());
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(
@@ -506,11 +465,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   static class V2DeleteWriter extends ManifestWriter<DeleteFile> {
     private final V2Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
-
-    V2DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId, null);
-      this.entryWrapper = new V2Metadata.ManifestEntryWrapper<>(snapshotId);
-    }
 
     V2DeleteWriter(
         PartitionSpec spec,
@@ -541,9 +495,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
                 .meta("format-version", "2")
                 .meta("content", "deletes")
                 .overwrite();
-        for (Map.Entry<String, String> entry : writerProperties().entrySet()) {
-          builder.set(entry.getKey(), entry.getValue());
-        }
+        builder.set(writerProperties());
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(
@@ -559,11 +511,6 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   static class V1Writer extends ManifestWriter<DataFile> {
     private final V1Metadata.ManifestEntryWrapper entryWrapper;
-
-    V1Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId, null);
-      this.entryWrapper = new V1Metadata.ManifestEntryWrapper();
-    }
 
     V1Writer(
         PartitionSpec spec,
@@ -593,9 +540,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
                 .meta("partition-spec-id", String.valueOf(spec.specId()))
                 .meta("format-version", "1")
                 .overwrite();
-        for (Map.Entry<String, String> entry : writerProperties().entrySet()) {
-          builder.set(entry.getKey(), entry.getValue());
-        }
+        builder.set(writerProperties());
         return builder.build();
       } catch (IOException e) {
         throw new RuntimeIOException(

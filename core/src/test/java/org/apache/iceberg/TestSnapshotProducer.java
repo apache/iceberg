@@ -28,6 +28,9 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.file.SeekableFileInput;
+import org.apache.avro.generic.GenericDatumReader;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.Test;
@@ -223,5 +226,30 @@ public class TestSnapshotProducer extends TestBase {
         return super.refresh();
       }
     };
+  }
+
+  @TestTemplate
+  public void testDefaultManifestCompression() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+    assertThat(readAvroCodec(new File(manifest.path()))).isEqualTo("deflate");
+  }
+
+  @TestTemplate
+  public void testManifestCompressionFromTableProperty() throws IOException {
+    table.updateProperties().set(TableProperties.MANIFEST_COMPRESSION, "snappy").commit();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+    assertThat(readAvroCodec(new File(manifest.path()))).isEqualTo("snappy");
+  }
+
+  private static String readAvroCodec(File file) throws IOException {
+    try (DataFileReader<?> reader =
+        new DataFileReader<>(new SeekableFileInput(file), new GenericDatumReader<>())) {
+      return reader.getMetaString("avro.codec");
+    }
   }
 }

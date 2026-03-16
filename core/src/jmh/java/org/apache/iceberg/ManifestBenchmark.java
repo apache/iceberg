@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -112,8 +111,8 @@ public class ManifestBenchmark {
   @Setup(Level.Trial)
   public void setupTrial() {
     this.spec = Boolean.parseBoolean(partitioned) ? SPEC : PartitionSpec.unpartitioned();
-    this.specsById = ImmutableMap.of(spec.specId(), spec);
-    this.writerProperties = ImmutableMap.of(TableProperties.AVRO_COMPRESSION, codec);
+    this.specsById = Map.of(spec.specId(), spec);
+    this.writerProperties = Map.of(TableProperties.AVRO_COMPRESSION, codec);
     this.numEntries = entriesForColumnCount(numCols);
     this.dataFiles = generateDataFiles();
     setupReadManifest();
@@ -151,6 +150,7 @@ public class ManifestBenchmark {
 
   @AuxCounters(AuxCounters.Type.EVENTS)
   @State(Scope.Thread)
+  @SuppressWarnings("checkstyle:VisibilityModifier")
   public static class FileSizeCounters {
     public double manifestSizeMB;
 
