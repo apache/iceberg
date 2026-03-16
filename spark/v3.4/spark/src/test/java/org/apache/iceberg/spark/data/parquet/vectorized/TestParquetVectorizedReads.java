@@ -49,9 +49,6 @@ import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ParquetProperties;
-import org.apache.parquet.schema.GroupType;
-import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 
@@ -192,21 +189,6 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
             throw new RuntimeException(e);
           }
         });
-  }
-
-  @Test
-  @Override
-  public void testNestedStruct() {
-    assertThatThrownBy(
-            () ->
-                VectorizedSparkParquetReaders.buildReader(
-                    TypeUtil.assignIncreasingFreshIds(
-                        new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))),
-                    new MessageType(
-                        "struct", new GroupType(Type.Repetition.OPTIONAL, "struct").withId(1)),
-                    Maps.newHashMap()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Vectorized reads are not supported yet for struct fields");
   }
 
   @Test
