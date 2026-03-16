@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -125,27 +126,67 @@ public class PuffinReader implements Closeable {
       return ImmutableList.of();
     }
 
-    // TODO inspect blob offsets and coalesce read regions close to each other
+    List<BlobMetadata> sortedBlobs = new ArrayList<>(blobs);
+    sortedBlobs.sort(Comparator.comparingLong(BlobMetadata::offset));
 
-    return () ->
-        blobs.stream()
-            .sorted(Comparator.comparingLong(BlobMetadata::offset))
-            .map(
-                (BlobMetadata blobMetadata) -> {
-                  try {
-                    input.seek(blobMetadata.offset());
-                    byte[] bytes = new byte[Math.toIntExact(blobMetadata.length())];
-                    ByteStreams.readFully(input, bytes);
-                    ByteBuffer rawData = ByteBuffer.wrap(bytes);
-                    PuffinCompressionCodec codec =
-                        PuffinCompressionCodec.forName(blobMetadata.compressionCodec());
-                    ByteBuffer data = PuffinFormat.decompress(codec, rawData);
-                    return Pair.of(blobMetadata, data);
-                  } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                  }
-                })
-            .iterator();
+    // Coalesce adjacent blob reads to reduce I/O operations. Blobs that are contiguous
+    // (no gap between them) are read together in a single I/O request.
+    List<List<BlobMetadata>> readRanges = coalesceRanges(sortedBlobs);
+
+    ImmutableList.Builder<Pair<BlobMetadata, ByteBuffer>> result = ImmutableList.builder();
+    try {
+      for (List<BlobMetadata> range : readRanges) {
+        long rangeStart = range.get(0).offset();
+        BlobMetadata lastBlob = range.get(range.size() - 1);
+        long rangeEnd = lastBlob.offset() + lastBlob.length();
+        int rangeLength = Math.toIntExact(rangeEnd - rangeStart);
+
+        byte[] rangeData = readInput(rangeStart, rangeLength);
+
+        for (BlobMetadata blobMetadata : range) {
+          int blobOffset = Math.toIntExact(blobMetadata.offset() - rangeStart);
+          int blobLength = Math.toIntExact(blobMetadata.length());
+          ByteBuffer rawData = ByteBuffer.wrap(rangeData, blobOffset, blobLength).slice();
+          PuffinCompressionCodec codec =
+              PuffinCompressionCodec.forName(blobMetadata.compressionCodec());
+          ByteBuffer data = PuffinFormat.decompress(codec, rawData);
+          result.add(Pair.of(blobMetadata, data));
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    return result.build();
+  }
+
+  /**
+   * Groups blobs into coalesced read ranges. Blobs that are contiguous (the next blob starts
+   * exactly where the previous one ends) are grouped together to be read in a single I/O request.
+   */
+  static List<List<BlobMetadata>> coalesceRanges(List<BlobMetadata> sortedBlobs) {
+    List<List<BlobMetadata>> ranges = new ArrayList<>();
+    List<BlobMetadata> currentRange = new ArrayList<>();
+    currentRange.add(sortedBlobs.get(0));
+
+    for (int i = 1; i < sortedBlobs.size(); i++) {
+      BlobMetadata prev = sortedBlobs.get(i - 1);
+      BlobMetadata curr = sortedBlobs.get(i);
+      long prevEnd = prev.offset() + prev.length();
+
+      if (curr.offset() <= prevEnd) {
+        // Contiguous or overlapping — coalesce into the same range
+        currentRange.add(curr);
+      } else {
+        // Gap between blobs — start a new range
+        ranges.add(currentRange);
+        currentRange = new ArrayList<>();
+        currentRange.add(curr);
+      }
+    }
+
+    ranges.add(currentRange);
+    return ranges;
   }
 
   private static void checkMagic(byte[] data, int offset) {

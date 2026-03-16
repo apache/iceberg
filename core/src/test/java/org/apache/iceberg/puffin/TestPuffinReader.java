@@ -28,9 +28,12 @@ import static org.apache.iceberg.relocated.com.google.common.collect.ImmutableMa
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.iceberg.inmemory.InMemoryInputFile;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -153,5 +156,169 @@ public class TestPuffinReader {
       assertThat(reader.fileMetadata().properties())
           .isEqualTo(ImmutableMap.of("created-by", "Test 1234"));
     }
+  }
+
+  @Test
+  public void testCoalesceRangesContiguousBlobs() {
+    // Two contiguous blobs (second starts right after the first ends) should be coalesced
+    BlobMetadata blob1 = testBlobMetadata(100, 50);
+    BlobMetadata blob2 = testBlobMetadata(150, 60);
+
+    List<List<BlobMetadata>> ranges = PuffinReader.coalesceRanges(ImmutableList.of(blob1, blob2));
+
+    assertThat(ranges).as("contiguous blobs should be in one range").hasSize(1);
+    assertThat(ranges.get(0)).containsExactly(blob1, blob2);
+  }
+
+  @Test
+  public void testCoalesceRangesNonContiguousBlobs() {
+    // Two blobs with a gap should NOT be coalesced
+    BlobMetadata blob1 = testBlobMetadata(100, 50);
+    BlobMetadata blob2 = testBlobMetadata(200, 60);
+
+    List<List<BlobMetadata>> ranges = PuffinReader.coalesceRanges(ImmutableList.of(blob1, blob2));
+
+    assertThat(ranges).as("non-contiguous blobs should be in separate ranges").hasSize(2);
+    assertThat(ranges.get(0)).containsExactly(blob1);
+    assertThat(ranges.get(1)).containsExactly(blob2);
+  }
+
+  @Test
+  public void testCoalesceRangesSingleBlob() {
+    BlobMetadata blob1 = testBlobMetadata(100, 50);
+
+    List<List<BlobMetadata>> ranges = PuffinReader.coalesceRanges(ImmutableList.of(blob1));
+
+    assertThat(ranges).as("single blob should produce one range").hasSize(1);
+    assertThat(ranges.get(0)).containsExactly(blob1);
+  }
+
+  @Test
+  public void testCoalesceRangesMultipleContiguousGroups() {
+    // Group 1: blobs at [100, 150) and [150, 210) — contiguous
+    // Group 2: blobs at [300, 350) and [350, 400) — contiguous
+    BlobMetadata blob1 = testBlobMetadata(100, 50);
+    BlobMetadata blob2 = testBlobMetadata(150, 60);
+    BlobMetadata blob3 = testBlobMetadata(300, 50);
+    BlobMetadata blob4 = testBlobMetadata(350, 50);
+
+    List<List<BlobMetadata>> ranges =
+        PuffinReader.coalesceRanges(ImmutableList.of(blob1, blob2, blob3, blob4));
+
+    assertThat(ranges).as("should have two separate groups").hasSize(2);
+    assertThat(ranges.get(0)).containsExactly(blob1, blob2);
+    assertThat(ranges.get(1)).containsExactly(blob3, blob4);
+  }
+
+  @Test
+  public void testCoalesceRangesAllNonContiguous() {
+    BlobMetadata blob1 = testBlobMetadata(100, 10);
+    BlobMetadata blob2 = testBlobMetadata(200, 10);
+    BlobMetadata blob3 = testBlobMetadata(300, 10);
+
+    List<List<BlobMetadata>> ranges =
+        PuffinReader.coalesceRanges(ImmutableList.of(blob1, blob2, blob3));
+
+    assertThat(ranges).as("all non-contiguous blobs should produce separate ranges").hasSize(3);
+  }
+
+  @Test
+  public void testCoalescedReadAllWithMultipleBlobs() throws Exception {
+    // Write multiple blobs and verify readAll correctly reads them with coalescing
+    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    try (PuffinWriter writer = Puffin.write(outputFile).build()) {
+      writer.add(
+          new Blob(
+              "blob-type-a",
+              ImmutableList.of(1),
+              1,
+              1,
+              ByteBuffer.wrap("first-blob-data".getBytes(UTF_8)),
+              NONE,
+              ImmutableMap.of()));
+      writer.add(
+          new Blob(
+              "blob-type-b",
+              ImmutableList.of(2),
+              1,
+              1,
+              ByteBuffer.wrap("second-blob-data".getBytes(UTF_8)),
+              NONE,
+              ImmutableMap.of()));
+      writer.add(
+          new Blob(
+              "blob-type-c",
+              ImmutableList.of(3),
+              1,
+              1,
+              ByteBuffer.wrap("third-blob-data".getBytes(UTF_8)),
+              NONE,
+              ImmutableMap.of()));
+    }
+
+    InMemoryInputFile inputFile = new InMemoryInputFile(outputFile.toByteArray());
+    try (PuffinReader reader = Puffin.read(inputFile).build()) {
+      FileMetadata fileMetadata = reader.fileMetadata();
+      assertThat(fileMetadata.blobs()).hasSize(3);
+
+      // Read all blobs — these should be contiguous and coalesced into a single read
+      Map<BlobMetadata, byte[]> read =
+          Streams.stream(reader.readAll(fileMetadata.blobs()))
+              .collect(toImmutableMap(Pair::first, pair -> ByteBuffers.toByteArray(pair.second())));
+
+      assertThat(read).hasSize(3);
+      assertThat(read.get(fileMetadata.blobs().get(0)))
+          .isEqualTo("first-blob-data".getBytes(UTF_8));
+      assertThat(read.get(fileMetadata.blobs().get(1)))
+          .isEqualTo("second-blob-data".getBytes(UTF_8));
+      assertThat(read.get(fileMetadata.blobs().get(2)))
+          .isEqualTo("third-blob-data".getBytes(UTF_8));
+    }
+  }
+
+  @Test
+  public void testCoalescedReadAllReversedOrder() throws Exception {
+    // Verify readAll works when blobs are requested in reverse order
+    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+    try (PuffinWriter writer = Puffin.write(outputFile).build()) {
+      writer.add(
+          new Blob(
+              "blob-a",
+              ImmutableList.of(1),
+              1,
+              1,
+              ByteBuffer.wrap("aaa".getBytes(UTF_8)),
+              NONE,
+              ImmutableMap.of()));
+      writer.add(
+          new Blob(
+              "blob-b",
+              ImmutableList.of(2),
+              1,
+              1,
+              ByteBuffer.wrap("bbb".getBytes(UTF_8)),
+              NONE,
+              ImmutableMap.of()));
+    }
+
+    InMemoryInputFile inputFile = new InMemoryInputFile(outputFile.toByteArray());
+    try (PuffinReader reader = Puffin.read(inputFile).build()) {
+      FileMetadata fileMetadata = reader.fileMetadata();
+      BlobMetadata firstBlob = fileMetadata.blobs().get(0);
+      BlobMetadata secondBlob = fileMetadata.blobs().get(1);
+
+      // Request in reverse order
+      Map<BlobMetadata, byte[]> read =
+          Streams.stream(reader.readAll(ImmutableList.of(secondBlob, firstBlob)))
+              .collect(toImmutableMap(Pair::first, pair -> ByteBuffers.toByteArray(pair.second())));
+
+      assertThat(read.get(firstBlob)).isEqualTo("aaa".getBytes(UTF_8));
+      assertThat(read.get(secondBlob)).isEqualTo("bbb".getBytes(UTF_8));
+    }
+  }
+
+  private static BlobMetadata testBlobMetadata(long offset, long length) {
+    return new BlobMetadata(
+        "test-type", ImmutableList.of(1), 1, 1, offset, length, null, ImmutableMap.of());
   }
 }
