@@ -276,7 +276,7 @@ public class ValueReaders {
       ValueReader<?> fieldReader,
       Map<Integer, ?> idToConstant) {
     Object constant = idToConstant.get(fieldId);
-    if (projectionPos != null && constant != null) {
+    if (constant != null) {
       return Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant));
     }
 
