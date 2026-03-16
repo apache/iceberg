@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
@@ -103,8 +104,8 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   }
 
   @Override
-  public FileIO io() {
-    return table.io();
+  public Supplier<FileIO> io() {
+    return table::io;
   }
 
   protected Schema tableSchema() {

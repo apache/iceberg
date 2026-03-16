@@ -41,6 +41,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
@@ -129,10 +130,12 @@ class RESTTableScan extends DataTableScan {
   }
 
   @Override
-  public FileIO io() {
-    Preconditions.checkState(
-        null != scanFileIO, "FileIO is not available: planFiles() must be called first");
-    return scanFileIO;
+  public Supplier<FileIO> io() {
+    return () -> {
+      Preconditions.checkState(
+          null != scanFileIO, "FileIO is not available: planFiles() must be called first");
+      return scanFileIO;
+    };
   }
 
   @Override

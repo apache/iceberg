@@ -194,7 +194,7 @@ abstract class BaseDistributedDataScan
   }
 
   private List<ManifestFile> findMatchingDataManifests(Snapshot snapshot) {
-    List<ManifestFile> dataManifests = snapshot.dataManifests(io());
+    List<ManifestFile> dataManifests = snapshot.dataManifests(io().get());
     scanMetrics().totalDataManifests().increment(dataManifests.size());
 
     List<ManifestFile> matchingDataManifests = filterManifests(dataManifests);
@@ -205,7 +205,7 @@ abstract class BaseDistributedDataScan
   }
 
   private List<ManifestFile> findMatchingDeleteManifests(Snapshot snapshot) {
-    List<ManifestFile> deleteManifests = snapshot.deleteManifests(io());
+    List<ManifestFile> deleteManifests = snapshot.deleteManifests(io().get());
     scanMetrics().totalDeleteManifests().increment(deleteManifests.size());
 
     List<ManifestFile> matchingDeleteManifests = filterManifests(deleteManifests);
@@ -293,7 +293,7 @@ abstract class BaseDistributedDataScan
   }
 
   private DeleteFileIndex planDeletesLocally(List<ManifestFile> deleteManifests) {
-    DeleteFileIndex.Builder builder = DeleteFileIndex.builderFor(io(), deleteManifests);
+    DeleteFileIndex.Builder builder = DeleteFileIndex.builderFor(io().get(), deleteManifests);
 
     if (shouldPlanWithExecutor() && deleteManifests.size() > 1) {
       builder.planWith(planExecutor());
