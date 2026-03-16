@@ -352,19 +352,11 @@ public class HTTPClient extends BaseHTTPClient {
             responseType.getSimpleName(), req.method(), req.path(), response.getCode());
       }
 
-      try {
-        ObjectReader reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
-        if (parserContext != null && !parserContext.isEmpty()) {
+      ObjectReader reader = objectReaderCache.computeIfAbsent(responseType, mapper::readerFor);
+      if (parserContext != null && !parserContext.isEmpty()) {
           reader = reader.with(parserContext.toInjectableValues());
-        }
-        return reader.readValue(response.getEntity().getContent());
-      } catch (JsonProcessingException e) {
-        throw new RESTException(
-            e,
-            "Received a success response code of %d, but failed to parse response body into %s",
-            response.getCode(),
-            responseType.getSimpleName());
       }
+      return reader.readValue(response.getEntity().getContent());
     } catch (IOException e) {
       throw new RESTException(e, "Error occurred while processing %s request", req.method());
     }
