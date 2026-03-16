@@ -103,8 +103,16 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     return table;
   }
 
+  /**
+   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link BaseScan#fileIO()} instead.
+   */
+  @Deprecated
+  protected FileIO io() {
+    return table.io();
+  }
+
   @Override
-  public Supplier<FileIO> io() {
+  public Supplier<FileIO> fileIO() {
     return table::io;
   }
 

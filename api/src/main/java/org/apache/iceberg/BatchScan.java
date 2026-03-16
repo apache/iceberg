@@ -74,7 +74,7 @@ public interface BatchScan extends Scan<BatchScan, ScanTask, ScanTaskGroup<ScanT
 
   /** Returns the {@link FileIO} instance to use when reading data files for this scan. */
   @Override
-  default Supplier<FileIO> io() {
+  default Supplier<FileIO> fileIO() {
     return table()::io;
   }
 }
